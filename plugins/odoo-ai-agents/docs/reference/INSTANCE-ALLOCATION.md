@@ -239,6 +239,7 @@ existing reader, so shell consumers stay simple.
 | `release <token> [--run-id <id>] [--force]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries a live `owner.pid` on THIS host, STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe |
 | `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |
 | `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`. When reclaiming, if `owner.pid` is recorded and STILL alive on this host (the ttl-expired-but-process-lives ORPHAN), STOP its process group first (`_stop_group`) before reclaim + drop - reaping the orphan, not just waiting for its death. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
+| `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via raw `dropdb` (no lease means no stored venv path to go through Odoo) |
 | `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - P5.8: unowned is no longer a synonym for "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
@@ -335,6 +336,40 @@ one session bare-drop another session's live instance whenever the OWNING acquir
 at all now ALSO requires `--force` to drop, same as a fresh foreign-owned one; an own-lease or a
 stale lease remains droppable with no `--force`, unchanged. Covered by
 `test_allocator.py::test_assert_droppable_refuses_unowned_fresh_lease_without_force`.
+
+### 6.4 Addons-path worktree-mismatch guard (false-green prevention)
+
+A caller verifying a fix that lives in a linked git worktree, while the catalog's declared
+`addons_path` still points at the PRINCIPAL checkout of that same repo, must never be silently
+handed the principal path - that produces a false green (the pre-fix code, self-consistently
+tested, reports success). `acquire` detects this shape via `_addons_path_worktree_mismatch`:
+git-common-dir is IDENTICAL across every worktree of one repository while `--show-toplevel`
+differs per checkout, so "same common-dir, different toplevel" between the caller's cwd and a
+catalog `addons_path` entry is the fingerprint. When detected AND no `--addons-path-override` was
+passed, `acquire` refuses (exit 5) with a message naming both paths and the exact
+`--addons-path-override` value that would resolve it, instead of guessing. An explicit
+`--addons-path-override` always bypasses the guard (that IS the caller stating the tree
+explicitly - the whole point). The guard is scoped to modes that actually drive a build
+(`ephemeral`/`exclusive`/`shared`); `readonly` is exempt (it builds nothing). A cwd that is not a
+git repo, IS the catalog's own declared checkout, or shares no repository with any addons_path
+entry never trips it - see `tests/test_lease_ownership_and_reaping.py` for the full behavior
+matrix (mismatched worktree refused, override bypasses it, principal checkout unaffected,
+unrelated repo unaffected, readonly exempt).
+
+### 6.5 `reap-orphans` - DB-side sweep independent of the lease registry
+
+`gc` (§6, §7) only ever reclaims a DB that a LEASE still references - it drops the DB attached to
+a stale lease. It has no path for a DB that exists with ZERO lease reference at all: a lease-write
+that never reached disk (a registry quarantine after corruption - §7's "torn/corrupt registry"
+case, an ancient pre-B2 allocator that created the DB directly, or a crash in the single narrow
+window between reserving a db_name and the lease write landing). Such a DB was, before this
+command existed, permanently untraceable and unreapable by any registry-driven path.
+`allocator.py reap-orphans` closes that gap with an explicit, auditable ownership predicate (see
+the API table in §6) rather than an automatic/background sweep: every axis fails CLOSED (an
+unreachable cluster is skipped, not assumed empty; an unmeasurable age is skipped, not assumed old
+enough; any leased db_name, even stale, is left to `gc`/`release`), and the default is list-only -
+`--yes` is required to actually drop anything, so a sweep is always a visible read before it is
+ever destructive.
 
 ## 7. Crash / stale handling
 
