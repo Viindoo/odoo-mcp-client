@@ -127,12 +127,15 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 8. **Verify subagent claims** - never trust a leaf's self-report of GREEN. Run the verify
    command yourself per batch (P9) before the P10 gate.
 
-9. **Acceptance is mandatory (narrow escape only)** - P12 dispatches `odoo-acceptance` ONCE for
-   the whole forward-ported batch before the human merge decision, mirroring the rigor a new
-   module build gets. This is NOT opt-in: skip it only when the touched module set is a true
-   dependency leaf with zero in-repo dependents and no behavioral surface, and record that proof -
-   never skip silently. The forward-port is not DONE without an ACCEPTED verdict or a recorded
-   narrow-escape.
+9. **Acceptance is mandatory (narrow escape only)** - P11 dispatches `odoo-acceptance` ONCE for
+   the whole forward-ported batch BEFORE P12 pushes the branch, opens the PR, or runs its
+   lint-class review gate - the SAME relative order the sibling `run-harness` tail already
+   established (i18n, then acceptance, then the lint-class gate, then the PR:
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail),
+   mirroring the rigor a new module build gets. This is NOT opt-in: skip it only when the touched
+   module set is a true dependency leaf with zero in-repo dependents and no behavioral surface,
+   and record that proof - never skip silently. The forward-port is not DONE without an ACCEPTED
+   verdict or a recorded narrow-escape.
 
 10. **i18n reconcile is mandatory (narrow escape only)** - 8e COMPUTES the two conditions and P9.5
     DISPATCHES `odoo-i18n` per batch, after the P9 instance exists and before the P10 gate. This is NOT
@@ -147,26 +150,44 @@ Forward-port never touches B directly and parallelizes through worktree isolatio
 **JOB tier (always):** create `fp/<slug>` integration branch via dedicated worktree (delegated
 to git-toolkit via `git-ops`) from B's HEAD. All absorption, adapt, and verify happen inside this integration
 worktree. The target branch B is read-only for the whole run; the only thing that ever lands on
-B is the final PR merge (P11 opens it, P12 gates it), human-confirmed.
+B is the final PR merge - P11 acceptance and P12's own review both clear before P12 opens it -
+human-confirmed.
 
-**WORK tier (when a phase fans out):** from the integration worktree, each parallel unit
-(one module or work-item in P8 adapt) gets its OWN dedicated child worktree (delegated to
-git-toolkit via `git-ops`) + branch off integration - a private git index for safe parallelism,
-no `index.lock` race. When a child finishes, merge it back into integration (keeping SHA), then
-remove it. The next phase recreates child worktrees from the updated integration. LOOP until done.
+**WORK tier - NOT used by P8 adapt (read before assuming otherwise).** A per-module child
+worktree (branched off integration, converged back via merge, then removed) is the generic
+WORK-tier pattern a fanned-out phase uses for genuinely PARALLEL, filesystem-isolated writers
+(the pattern `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` §
+Topology values documents generically). **P8 adapt never qualifies for it, for two INDEPENDENT
+reasons that both hold on every P8 call this pipeline makes, in EITHER mode:**
 
-**Collapse and absorb-all - two reasons NOT to fan out.** `n` = the number of parallel units in THIS
-phase, read from the P4 bucket table. Fan out child worktrees only when `n >= 2` AND integration HEAD
-is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean tree.
-- `n <= 1` -> resolve directly in the integration worktree. Semantics:
-  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
-- **absorb-all** (every source commit merged in ONE no-commit merge, at any `n`) -> the conflicts are
-  materialized in the integration worktree's WORKING TREE (uncommitted), which a child worktree off
-  the uncommitted HEAD cannot see. Resolve serially, per module, DIRECTLY in the integration
-  worktree; child-worktree isolation resumes only once the absorbed merge is committed.
+1. **No parallelism to isolate.** P8 is explicitly SERIAL per-module within a commit AND serial
+   across commits (§ P8 header below). Child-worktree filesystem isolation exists to stop
+   concurrent writers racing on the same git index (`index.lock`); a serial writer has no
+   concurrent sibling to race against, so there is nothing to isolate FROM.
+2. **The open-merge window (§ P8 below) never clears before P8 runs.** P5 opens the CURRENT
+   commit's merge (`--no-commit`) immediately before P6/P7/P8, and P10 is the ONLY step that
+   commits it - AFTER P8 and P9 finish. So `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD`
+   (one-shot/absorb-all - see `Two modes` below) is live in the integration worktree for the
+   ENTIRE span of every P8 call, in both modes - there is no commit, in no mode, for which P8
+   ever runs against an already-committed integration HEAD. Converging a child worktree back is
+   itself a second merge into that SAME worktree, which git rejects while the current commit's
+   own merge is open (error: `MERGE_HEAD exists`) - and P9 needs the adapted code already sitting
+   IN the integration working tree before it can verify (P9 re-roots onto `<path>/fp-integration` -
+   § P9 Worktree re-root), which is itself gated on P8 finishing, before P10 ever commits. No mode
+   can satisfy this circular precondition.
 
-The only serialized point is converging children into integration + writing the source-merge
-commit. Worktrees are filesystem isolation, not a second agent-dispatch level.
+**Conclusion (checkable, unconditional): P8 8a/8b always adapt DIRECTLY in the integration
+worktree - never a per-module child worktree, on any commit, in either mode.** § P8 below gives
+the resulting brief fields: a single, run-long `Worktree path` naming the integration worktree
+itself (never a per-commit "Child worktree path" that would need re-minting - there is nothing to
+re-mint). This holds identically for continuous (per-commit) and one-shot/absorb-all: continuous
+keeps `MERGE_HEAD` live for each commit's own P6-P9 span with no exception; absorb-all keeps
+`CHERRY_PICK_HEAD` live for the WHOLE run's single P6-P9 span with no exception - child-worktree
+isolation would only become reachable once that merge/cherry-pick is committed, which is the LAST
+thing either mode does, never something P8 itself can ever observe.
+
+The only serialized point is P10 writing the source-merge commit. There is no second agent-dispatch
+level here - JOB tier is the only worktree tier this phase (or any phase in this skill) uses.
 
 ## The pipeline
 
@@ -175,7 +196,8 @@ dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparat
 `odoo-installable-prober`, `odoo-test-writer`, etc.), fill the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
 delta; never inline that file verbatim into a hard-leaf brief. This pipeline dispatches leaves
-(P1/P8a/P8b etc.) that may run inside a JOB- or WORK-tier worktree rather than the principal - the
+(P1/P8a/P8b etc.) that run inside the JOB-tier integration worktree rather than the principal -
+P8a/P8b never use a WORK-tier child worktree (§ Git topology above) - the
 general rule for resolving/threading `<SHARE_DIR>`/`<ISOLATE_DIR>` across such a target-vs-principal
 split is `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch; this
 pipeline's resolve-once-and-pass-the-slug pattern (below, and at each `<ISOLATE_DIR>/forward-port/
@@ -407,17 +429,23 @@ a conditional child via `mode="primary"` / `active=False` / `groups`), and the m
 escape: `references/fp-triage-table.md` § Bucket-(c) same-module inherit-view check.
 
 **P8 - Adapt [test-first; SERIAL per-module within a commit; SERIAL across commits].** For each touched module/WI,
-spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation).
+adapt DIRECTLY in the integration worktree (`<path>/fp-integration`, the SAME JOB-tier worktree
+created at P4) - P8 NEVER uses a per-module child worktree, on any commit, in either mode. Two
+independent reasons, both unconditional (full derivation: `## Git topology` § WORK tier - NOT used
+by P8 adapt, above): (1) P8 is SERIAL, so there is no concurrent writer to filesystem-isolate;
+(2) the open-merge window below never clears before P8 runs, so a child worktree could never
+converge back in time even if one were created.
 
-**CRITICAL - open merge window:** During the open P5 merge window of the CURRENT source commit -
-after git-ops ran `--no-commit` and before git-ops runs the P10 `commit` - `MERGE_HEAD`
-is live in the integration worktree. Git will reject any second merge in that worktree until
-the first is committed or aborted. Therefore: adapt all modules SERIALLY DIRECTLY in the
-integration worktree during this window - do NOT create child worktrees. Child-worktree fan-out
-(the WORK-tier described in `## Git topology`) is ONLY valid when the integration HEAD is already
-committed, i.e. when processing a SUBSEQUENT source commit after the previous P10 commit has
-closed the prior merge. SSOT for the in-window adapt protocol: `[[fp-merge-absorption]]`
-§Absorption-window.
+**CRITICAL - open merge window (why (2) above is unconditional, not a special case):** For the
+ENTIRE span from P5 (`--no-commit`) through P10 (`commit`) - which is EVERY commit's own P6/P7/P8/P9
+- `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot/absorb-all, `Two modes` below) is
+live in the integration worktree. Git rejects any second merge in that worktree until the first is
+committed or aborted, so a child worktree could never converge back into integration during P8 on
+ANY commit, in EITHER mode - this is not a carve-out for "a subsequent commit after the previous
+P10 closed the prior merge" (that gap sits BETWEEN commits; by the time P8 for the next commit
+runs, THAT commit's own P5 has already reopened `MERGE_HEAD`, per the per-commit cycle in P10
+below). Adapt all modules SERIALLY, DIRECTLY in the integration worktree, always. SSOT for the
+in-window adapt protocol: `[[fp-merge-absorption]]` §Absorption-window.
 
 Run the CHP capability probe once (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
 - Capability probe) before the first P8 adapt dispatch, and cache the result for every P8 dispatch
@@ -440,15 +468,15 @@ output. **Cross-commit reuse (R2b - at most one `odoo-test-writer` instance per 
 WHOLE run):** name the worker `fp-adapt-<slug>-<module>` (module- and run-scoped, not per-commit)
 on its FIRST dispatch for that module; when a LATER source commit in this run also touches the
 module, RESUME that SAME instance via `SendMessage` (never a fresh dispatch) - the brief for the
-resume carries the NEW commit's own intent record, bucket, and Child worktree path (a fresh child
-worktree per commit, per the Git topology section above); the existing cd-on-resume rule below
-already handles a changed worktree path on resume, so no other change is needed. The worker keeps
-its full prior context (earlier commits' intent records, bucket history, worktree paths) - far
+resume carries the NEW commit's own intent record and bucket; the Worktree path field (below) never
+changes across a resume, because P8 always adapts directly in the SAME integration worktree for the
+whole run (§ Git topology above) - there is no per-commit worktree to re-mint. The worker keeps
+its full prior context (earlier commits' intent records, bucket history) - far
 cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
 its own whole picture across commits, not just within one commit's retry loop.
 Structure the exchange as async park-and-be-resumed: send
 the P9 failure output (or the next commit's brief), end your turn, and wait to be resumed when the worker's reply arrives. On
-resume the worker MUST immediately `cd` to its child worktree path before any Bash command (the
+resume the worker MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
 a git worktree - cd on resume"). Record the returned `agentId` in `plan.md` keyed by
 module (one `agentId` per module for the whole run, not one per commit).
@@ -499,11 +527,11 @@ written regardless of tier.
   to run. Only when the source commit shipped NO test does the agent write one - anchored to
   the source intent record, not improvised.
   Build an FP-ENRICHED brief carrying `WORKER NAME: fp-adapt-<slug>-<module>` (set once, unchanged
-  on every resume - see § P8 above) + a named **Child worktree path: `<absolute path>`** field
-  (the worker's own child worktree off integration - the same path the orchestrator created for
-  this module/WI), plus:
+  on every resume - see § P8 above) + a named **Worktree path: `<path>/fp-integration`** field
+  (the SAME JOB-tier integration worktree for the WHOLE run - P8 never uses a per-module child
+  worktree, § Git topology above - so this value never changes across a resume), plus:
   (0) **cd-on-resume (HARD RULE - Tier-A):** On resume via `SendMessage`, immediately `cd` to the
-  Child worktree path listed in this brief before running any Bash command. Shell cwd is NOT
+  Worktree path listed in this brief before running any Bash command. Shell cwd is NOT
   guaranteed to be restored across a SendMessage-resume; the explicit `cd` makes Tier-A re-adapt
   safe regardless of runtime behavior. Apply this on every resume, not only the first;
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
@@ -516,15 +544,25 @@ written regardless of tier.
   (optional `model='<model>'`; for kind: `'transaction'`|`'http'`|`'form'`; `kind='js'` only
   for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
-  every test assertion referencing a symbol removed at target.
+  every test assertion referencing a symbol removed at target;
+  (iv) **`CALLER_ID (REPLY_TO)`** - this skill's current orchestrating context (universal skeleton
+  field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`) - literal `main` only when the
+  main-context driver invoked this skill, else the dispatching skill/agent's own name.
 - **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
   `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-module
   coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
   `odoo-frontend-coder`) -
-  with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
+  with an FP-ENRICHED brief = the named **Worktree path: `<path>/fp-integration`** field (same
+  JOB-tier integration worktree as 8a - never a per-module child worktree, § Git topology above)
   + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
   test + the installable:False checklist + `WORKER NAME: fp-adapt-<slug>-<module>-coder`
   (per the R2b rule above - the SAME value on every commit this run, first or later) +
+  `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out
+  result, so 8b never adapts blind - `none` when P3 never routed this commit to design; same
+  sentinel shape `odoo-coding`'s own brief-resolution already uses, `skills/odoo-coding/SKILL.md`
+  "DESIGN_DOC: <child TDD path | none>") +
+  `CALLER_ID (REPLY_TO): <this skill's current orchestrating context - main | dispatching
+  skill/agent name>` (universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`) +
   `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
   version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs
   faithfully, do not inline-fix) - [[fp-merge-absorption]]`. Bucket (a)/(d): no adapt code.
@@ -543,13 +581,11 @@ written regardless of tier.
   `M`; bump the manifest only in the `S<=M` case; legacy source-only data fix keeps `<src-series>.a.b.c`).
   This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
   `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`.
-Converge each child worktree back to integration (serialized) - the converge-back stays
-serialized, one in-flight at a time. Do NOT remove the child worktree at converge-back time:
-under Tier-A the adapt -> verify -> (re-adapt on failure) cycle for that module may resume the
-SAME worker, which `cd`s back into its still-existing child worktree, so the worktree MUST persist
-through the whole cycle. Remove a module's child worktree only AFTER that module's cycle is
-confirmed done (P9 GREEN for that module's batch); a worktree removed before P9 verify would leave
-a Tier-A re-adapt worker `cd`-ing into a deleted path.
+There is no child worktree to converge back or remove: 8a/8b already wrote directly into the
+integration worktree (§ Git topology above), so nothing merges INTO integration here beyond the
+adapt edits already sitting in its working tree - P10 is what commits them. This is also why a
+Tier-A resume is always safe: the worker's `cd`-on-resume target (the integration worktree) is the
+SAME long-lived path for the WHOLE run, never a per-module path created and removed per cycle.
 
 **P9 - Verify by behavior [PER-BATCH, in integration].** DELEGATE the run - do NOT allocate a DB +
 port and run the full suite inline. A full per-batch suite is exactly the case the test-execution
@@ -594,50 +630,22 @@ lease does not make this free.
 On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to commit the merge (buckets a/d still commit - Hard rule 7), update
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP to P5: each subsequent
 commit re-runs the full per-commit cycle P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt
-(recreating WORK-tier worktrees from integration), with P9 verifying the adapted batch and P10
-gating it. Never loop straight to P8 - that would absorb the next commit without a merge or a
-symbol/drift check.
+(directly in the integration worktree, as always - § Git topology), with P9 verifying the adapted
+batch and P10 gating it. Never loop straight to P8 - that would absorb the next commit without a
+merge or a symbol/drift check.
 
-**P11 - PR + review.** Push `fp/<slug>` (invoke `git-toolkit:git-ops`; resolve origin URL via
-`git remote get-url origin`), then open PR (invoke `git-toolkit:git-ops`). Run `odoo-code-review`
-inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
-JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
-so the skill reviews the fp integration tree, not the principal tree. It is OPTIONAL for a trivial port
-(docstring/string/comment-only buckets), but
-**MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
-group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -
-a clean merge of one path proves nothing about the others. For a mandatory review:
-
-1. **Enumerate EVERY code path of the grafted mechanism and confirm each was adapted.** A report
-   or compute engine typically fans out into: total, sub-total/group-by, expand/collapse, drill
-   -down, export (xlsx/csv), and print (PDF/QWeb). List each path and verify the forward-port
-   adapted it - a path the source touched but the adapt missed is a silent partial port that
-   passes the headline test while a sibling path renders wrong. The review is not done until
-   every enumerated path is accounted for (adapted, or explicitly N/A with a reason).
-2. **Cross-check every static-review bot comment on the PR.** After the PR opens, read the bot
-   (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
-   forward-ported line is signal that an auto-merged construct did not survive the target.
-3. **Attribution diff before rating any finding.** A finding only belongs to THIS port if
-   it sits on a line this port changed. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
-   (`origin/<target-branch>...fp/<slug>`) and attribute each finding to either a
-   forward-ported line (in scope, fix now) or a pre-existing target line (out of scope, do not
-   re-rate the target's own debt as a port regression). Rate findings only after this attribution.
-
-A module that is `installable:False` at the target is in the lint-only lane (`[[fp-installable-false]]`):
-the reviewer rates ONLY lint/syntax for it and MUST NOT raise a business-logic finding (its
-behavior is intentionally not forward-ported - see `## Model triage`).
-
-**Acceptance hand-off (consumption clause).** The `odoo-code-review` dispatch above may carry a
-`next: odoo-acceptance` entry in its Continuation Contract (Phase A.5 emits this whenever
-`render_check_set` reaches beyond the reviewed modules). READ it, but do NOT act on it here - it is
-superseded by the single cluster-wide dispatch P12 runs below.
-
-NEVER squash (keeps SHA). B stays LOCKED - the PR only adds the merge commits.
-
-**P12 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
-only].** Goal: prove the forward-ported batch works end-to-end on a real running instance/UI
-across its blast-radius - the SAME acceptance rigor new-module development applies, so a
-forward-port is not held to a lighter bar just because it moves existing behavior. P9's per-batch
+**P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
+only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
+commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
+the PR, or runs its lint-class review gate - the SAME relative order the sibling `run-harness`
+tail already established for its own pre-PR sequence (i18n, then acceptance, then the lint-class
+gate, then the PR: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` §
+Pre-PR tail). Acceptance and the i18n reconcile (P9.5, already mandatory per batch, ahead of every
+P10 gate) both land ahead of the PR and its review for the same reason run-harness gives: neither
+a PR reviewer nor a merge decision should be presented before the run's own independent oracle has
+adjudicated the batch. Goal: prove the forward-ported batch works end-to-end on a real running
+instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies, so
+a forward-port is not held to a lighter bar just because it moves existing behavior. P9's per-batch
 verify-by-behavior proves RED-then-GREEN + confirm-by-toggle for the ported intent tests; it does
 NOT prove the touched cluster behaves correctly for a real user across roles/state/search -
 closing that gap is this stage's job. This is a DIFFERENT concept from the P7 pre-adapt drift-scan
@@ -665,13 +673,60 @@ the touched set is a true dependency leaf with ZERO in-repo dependents AND no be
 (no views, no models any other module consumes) - record that proof explicitly in `merge-log.md`;
 never skip silently. **The forward-port is not DONE until this stage returns ACCEPTED (PASS), or
 the narrow-escape condition above is explicitly met and recorded.**
-Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-escape) ALONGSIDE
-the human-merge decision below so the human sees ONE combined gate, not a surprise extra step
-after merge is already requested.
+Gate tier: L2 (human) - carry the acceptance verdict (or the recorded narrow-escape) forward and
+present it ALONGSIDE the P12 human-merge decision below, so the human sees ONE combined gate (PR,
+review findings, and acceptance verdict together), not a surprise extra step after merge is
+already requested.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.
 
-Wait for human merge.
+**P12 - PR + review [runs AFTER P11 acceptance clears].** Push `fp/<slug>` (invoke
+`git-toolkit:git-ops`; resolve origin URL via `git remote get-url origin`). Run `odoo-code-review`
+inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
+JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
+so the skill reviews the fp integration tree, not the principal tree - this lint-class review gate
+runs BEFORE the PR is opened, same order as P11 above (SSOT: the sibling `run-harness` Pre-PR
+tail cited above). It is OPTIONAL for a trivial port
+(docstring/string/comment-only buckets), but
+**MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
+group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -
+a clean merge of one path proves nothing about the others. For a mandatory review:
+
+1. **Enumerate EVERY code path of the grafted mechanism and confirm each was adapted.** A report
+   or compute engine typically fans out into: total, sub-total/group-by, expand/collapse, drill
+   -down, export (xlsx/csv), and print (PDF/QWeb). List each path and verify the forward-port
+   adapted it - a path the source touched but the adapt missed is a silent partial port that
+   passes the headline test while a sibling path renders wrong. The review is not done until
+   every enumerated path is accounted for (adapted, or explicitly N/A with a reason).
+2. **Attribution diff before rating any finding.** A finding only belongs to THIS port if
+   it sits on a line this port changed. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
+   (`origin/<target-branch>...fp/<slug>`) and attribute each finding to either a
+   forward-ported line (in scope, fix now) or a pre-existing target line (out of scope, do not
+   re-rate the target's own debt as a port regression). Rate findings only after this attribution.
+
+A module that is `installable:False` at the target is in the lint-only lane (`[[fp-installable-false]]`):
+the reviewer rates ONLY lint/syntax for it and MUST NOT raise a business-logic finding (its
+behavior is intentionally not forward-ported - see `## Model triage`).
+
+**Acceptance hand-off (consumption clause).** The `odoo-code-review` dispatch above may itself
+carry a `next: odoo-acceptance` entry in its own Continuation Contract (Phase A.5 emits this
+whenever `render_check_set` reaches beyond the reviewed modules). READ it, but do NOT act on it -
+the cluster-wide `odoo-acceptance` dispatch for this batch already ran at P11 ABOVE; acting on this
+entry would re-run acceptance a second time for the same batch.
+
+NEVER squash (keeps SHA). Only once the review above is addressed does B get anything at all:
+open PR now (invoke `git-toolkit:git-ops`). B stays LOCKED - the PR only adds the merge commits.
+
+**Cross-check every static-review bot comment on the PR (post-PR, informational only - the ONE
+sub-step in this phase that genuinely needs the PR to already exist).** Once the PR above is open
+and CI has had a chance to run, read the bot (CI linter / review bot) comments and resolve or
+consciously waive each - a bot comment on a forward-ported line is signal that an auto-merged
+construct did not survive the target. Bot comments cannot predate the PR they are posted on, so
+this sub-step runs after PR creation, never before, and it never gates PR creation itself - every
+other review item above is diff-based and already cleared before the PR opened.
+
+Present the PR URL, the review findings, and the P11 acceptance verdict together, and wait for the
+human to merge.
 
 ## Model triage - two tier tables
 
@@ -681,7 +736,7 @@ file P2 already wrote to `manifest_path`; an absent key means installable). A mo
 `installable:False` at the target - a brand-new module not yet landed, OR a pre-existing dormant
 one - is NOT forward-ported for behavior: route it to the **lint-only lane** (flake8 / pylint /
 eslint / prettier / ruff to green CI, minimum fix only) and SKIP the extract/adapt/review logic
-tiers entirely. Its business logic is not adapted and P11 review rates only its lint/syntax, never
+tiers entirely. Its business logic is not adapted and P12 review rates only its lint/syntax, never
 a business finding. SSOT: `[[fp-installable-false]]`.
 
 **Bucket-(c) upgrade-scale gate.** Bucket (c) is "re-implement on the target idiom" - but
@@ -821,7 +876,8 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
-URL; `next` is the human-confirm gate (P10, P11, or P12 merge). When P3 routes a commit out to design,
+URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 gate, or P12 final
+PR/merge gate). When P3 routes a commit out to design,
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
 modules: [<names>], intent_records: [<paths>], classification: <bucket-(c) summary> }` and the

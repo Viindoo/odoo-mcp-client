@@ -95,6 +95,16 @@ Constraints:
   one-line why); the human's yes covers it. If the human declines fable, downgrade that
   work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`. Fable-grade work
   with no approved design doc -> recommend `odoo-solution-design` first.
+- **Suppressed-gate auto-downgrade** (same pattern `skills/odoo-coding/SKILL.md` § Model triage
+  already uses for its own fable gate, and Table 1's R2d opus gate above already reuses by
+  pointer - reused here too, not re-derived): when the P4 Plan Mode gate itself is suppressed (an
+  active `run-<id>` node or a `WORKTREE_PATH` between-wave context with no interactive human
+  available), no inline human confirmation is possible - if a work-item resolves to **fable**,
+  AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
+  in `plan.md`, in the SAME format as the human-declined downgrade above. This closes the identical
+  suppression condition Table 1 already covers for its own opus gate: the tier is decided HERE, at
+  this skill's own P4 plan gate, never left for a later phase's runtime gate to improvise
+  (`SKILL.md` § Model triage: "a tier is part of the approved plan, not a runtime improvisation").
 - A fullstack work-item gets ONE tier applied to both legs by default; a lower frontend tier is
   allowed when the design splits effort, never a higher one.
 - A bucket (a)/(d) commit needs no adapt code - only the test forward - so it lands at haiku

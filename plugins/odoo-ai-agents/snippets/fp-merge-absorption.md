@@ -183,13 +183,13 @@ The same FP-delta / pre-existing discriminator above governs WHERE a bug is fixe
 - **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY forward -
   do NOT inline-fix on the destination. Surface it to the SOURCE series so the source is fixed too and the
   fix forward-ports up naturally. The orchestrator invokes **`git-toolkit:git-ops`** to open a source-series
-  issue, **conditional on a resolvable source remote** (mirror P11's `git remote get-url origin`); if none,
+  issue, **conditional on a resolvable source remote** (mirror P12's `git remote get-url origin`); if none,
   record the deferred bug in `merge-log.md` and the Continuation Contract instead of opening an issue.
 - **FP-delta** (green on source, red after adapt): fix it here, now (already the rule above).
 - **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a source-series issue.
 
 Canonical merge-log record: `<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`.
-Reviewer backstop (P11): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
+Reviewer backstop (P12): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
 security/safety); an inherited bug carried faithfully + routed upstream is correct.
 
 ## Allocator footgun - CREATEDB role
@@ -220,7 +220,7 @@ Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 The integration worktree branches from the TARGET branch (never the target branch directly -
 no direct commits land there during forward-port). Work-item worktrees branch from
 integration for per-module absorption and converge back into integration via merge
-(keeping SHA). Only after a human-gated P10 + P11 PR review does the human merge
+(keeping SHA). Only after a human-gated P10 + P11 acceptance + P12 PR review does the human merge
 the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
