@@ -44,5 +44,10 @@ absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Wr
 > `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If it is
 > not wired, Phase 1 falls back to a `chrome-devtools` screenshot frame sequence assembled into a GIF.
 
+> **Narrated per-scene evidence.** Each Phase 1 scene is one `odoo-demo-recording` invocation, so a
+> scene described with "narrated", "before/after evidence", or a `--label before|after` argument
+> gets that scene's captions/badge/end-card automatically - see the `odoo-demo-recording` SKILL.md
+> § Narrated evidence mode. This command does not add any narrated-mode logic of its own.
+
 For full phase specifications, gate behavior, standalone fallback rules, hard rules,
 and examples - read `workflows/video-produce.workflow.yaml` directly.
