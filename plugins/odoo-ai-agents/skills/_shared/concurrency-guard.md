@@ -61,6 +61,20 @@ unless the work needs cross-context reasoning - then pick the higher. A skill MA
 add a domain-specific tier table that refines these rows (e.g. `odoo-coding`
 § Phase 0) but MUST NOT restate the principle - reference this section.
 
+**Recon/scouting phase default (mechanism, not just a rule).** Launching a subagent with no
+explicit `model` parameter does not fall back to some neutral default - it INHERITS THE CALLING
+CONTEXT'S OWN MODEL. In an opus-tier session this silently turns every unstated dispatch into an
+opus dispatch regardless of the work's actual reasoning depth, which is why a dispatch site must
+never leave `model` unstated "to be safe" - silence is not neutral, it is a hidden opus default. A
+recon/scouting phase - enumeration, grounding, or collecting already-known facts about current
+state (a codebase survey, a commit-range triage, a scope/DAG map) - is haiku/sonnet-tier work per
+the table above and MUST state its tier explicitly at the dispatch site (inline, e.g. `Model:
+sonnet` / `DISPATCH MODEL: sonnet`, or by naming a specific agent whose own frontmatter default
+already resolves it) - never opus or fable by default, and never left unstated. Escalating a
+recon/scouting dispatch to opus or fable requires a stated justification tied to one of the
+table's own opus/fable rows above (e.g. "cross-cutting synthesis across N unresolved hot-spots" -
+not "this recon covers a lot of files").
+
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
 Both pins are server-side state shared per **(api_key_id, mcp_session_id)** - i.e. per MCP
