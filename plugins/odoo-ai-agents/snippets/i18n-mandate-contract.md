@@ -98,6 +98,11 @@ what this run changed. The scan target resolves per caller (same signal table, d
   (`<path>/upg-<module>` when a child worktree was used, else `<path>/upg-integration` under the
   collapse-first `n<=1` rule). No new dump file is needed; this reuses the SAME worktree + base already tracked for
   the module's own commit.
+- **run-harness:** the run-integration branch's aggregate diff (every module, every wave) - invoke
+  `git-toolkit:git-ops` (read-only) for a full-patch diff of the run's changed modules between the
+  run's base and `HEAD`, inside the `<path>/run-integration` worktree; per
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail stage 1,
+  scanned ONCE for the whole run, never per module.
 
 Consider only CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS
 on ANY match; record the fired set as a FIELD, never as raw grep output (discipline:

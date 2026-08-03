@@ -336,6 +336,9 @@ MODULE-DAG SLICE : <this module's node + in-wave depends_on (already cherry-pick
 TOPOLOGY         : <independent | linear | mixed | diamond | single - this module's place>
 DESIGN_DOC       : <child TDD for this module | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
+SURVEY           : <deep-survey synthesis.md path | none - forwarded from the wave node's
+                   inputs.survey (phase-p-run-dag.md § Survey pointer); ALWAYS an explicit
+                   value, never omitted - none means no deep survey ran this session>
 SHARE_DIR        : <captured absolute path - resolved ONCE by run-harness against the run root>
 ISOLATE_DIR      : <captured absolute path - resolved ONCE by run-harness against the run root>
 design_index     : <absolute path under SHARE_DIR, e.g. <SHARE_DIR-literal>/designs/<slug>/index.yaml | none>
@@ -434,19 +437,21 @@ dispatch a brief Sonnet resolver subagent - never resolve the conflict inline in
 context, and never push the resolution down to the module's `odoo-coder`/coder workers.
 
 Worker brief (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): "Resolve the semantic
-conflict by editing the conflicting files in the worktree. Ground any Odoo claim via OSM MCP tools
-(never a spawn). Do NOT run any git mutation yourself - no stage, no commit, no cherry-pick
-continue, no integration ops. Edit the files and return; the orchestrator continues the cherry-pick
-via git-toolkit:git-ops. Only Read/Grep/Glob/Edit/Write/Bash."
+conflict by editing the conflicting files in the `run-integration` worktree at
+`<path>/run-integration` (the cherry-pick target - NEVER the module's own per-wave worktree). Ground
+any Odoo claim via OSM MCP tools (never a spawn). Do NOT run any git mutation yourself - no stage, no
+commit, no cherry-pick continue, no integration ops. Edit the files and return; the orchestrator
+continues the cherry-pick via git-toolkit:git-ops. Only Read/Grep/Glob/Edit/Write/Bash."
 
 **MANDATORY.** When the conflict touches Odoo code (a model/field/method/view/OWL component - not a
 pure prose/config file), hand the resolver the **OSM-First Grounding Contract**
 (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`) alongside the brief above: the resolver
 must ground every Odoo structural claim it makes while editing via an OSM call, never from memory.
 
-After the resolver returns (conflict markers removed), re-invoke `git-toolkit:git-ops` (a fresh
-invocation) with `op=cherry-pick-continue`, listing the resolved files. Cherry-pick state persists on
-disk across cold-spawns, so git-ops resumes exactly where it stopped.
+After the resolver returns (conflict markers removed), re-invoke `git-toolkit:git-ops` against the
+SAME `run-integration` worktree (`<path>/run-integration`) named above (a fresh invocation) with
+`op=cherry-pick-continue`, listing the resolved files. Cherry-pick state persists on disk across
+cold-spawns, so git-ops resumes exactly where it stopped.
 
 ---
 
@@ -480,10 +485,18 @@ Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to produce the f
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure -> risk rank -> affected
   screens). This stays a STATIC review lens here; it does not execute CRUD/role flows in this context.
 
-Fix findings inline or via a targeted subagent (Tier-C fresh spawn is always correct), or re-invoke
-`odoo-coding` for the affected module with the AUTONOMOUS FIX (review-driven) sentinel + that
-module's worktree path. Re-run verify after any fix. Only once this review is clean does the
-cumulative regression close-gate (SKILL.md step 3) run.
+Fix findings inline or via a targeted subagent (Tier-C fresh spawn is always correct) - both paths
+edit directly in `run-integration` (`<path>/run-integration`, the SAME tree this review is already
+scoped to - no cherry-pick needed), or re-invoke `odoo-coding` with `WORKTREE_PATH` set to the
+affected module's OWN worktree from this wave (`mod.worktree`, the SAME worktree § Per-module
+Integration Loop above authored the module's original code in) plus the AUTONOMOUS FIX
+(review-driven) sentinel. This third path uses a SEPARATE tree from `run-integration`, so it is not
+done until the returned SHA is cherry-picked back onto `run-integration` - the SAME
+`cherry_pick(sha, into=run_integration)` step § Per-module Integration Loop performs for every
+module, via the `git-toolkit:git-ops` skill, never a raw git command inline. **Re-run verify against
+`run-integration`'s current tip specifically** (never the module's own worktree, and never a
+worker's bare DONE self-report) after ANY of the fix paths above. Only once that re-verification is
+clean does the cumulative regression close-gate (SKILL.md step 3) run.
 
 ## Pre-PR tail (mandatory sequence, after the final wave closes green)
 
@@ -527,13 +540,23 @@ cluster, never per module":
 next:
   - skill: odoo-acceptance
     reason: one or more waves changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster BEFORE the PR opens
-    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
+    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>", worktree_path: "<path>/run-integration"}
     confidence: 0.7
     risk_level: L2
 ```
 
 `scope_hint` is advisory - `odoo-acceptance` Phase 0 regenerates the verify-scope manifest from the
-changed set. When no wave ever widened its `render_check_set`, this stage does not fire and the tail
+changed set. `worktree_path` is NOT advisory: `odoo-acceptance`'s own Inputs section
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-acceptance/SKILL.md` § Inputs) resolves its live instance from
+either a caller-supplied `INSTANCE_HANDLE` or the catalog-default
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` - neither path is worktree-aware, so without
+this field its Phase 2 provisioning would silently target the principal checkout instead of
+`run-integration`, the SAME false-green shape the stage 3 Worktree-targeting paragraph above closes.
+Whoever executes this continuation MUST thread `worktree_path` into `odoo-acceptance`'s Phase 2
+`odoo-instance` dispatch as `WORKTREE_PATH` (optionally `SELF_PROVISION: worktree-addons` when
+dispatching a bounded subagent for that phase) - the SAME shape stage 3 above and Example 3 below
+already use (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
+carve-out). When no wave ever widened its `render_check_set`, this stage does not fire and the tail
 proceeds straight to stage 3.
 
 **3 - Pre-PR lint-class gate (L0/L1 - ephemeral instance, not a SHARED-instance L2 case).** Run the
@@ -547,27 +570,66 @@ wave (moved here per the owner's instruction) - see `${CLAUDE_PLUGIN_ROOT}/skill
 and its per-module hard-leaf workers for what stays per-module instead (OSM-grounded ORM validation,
 inline review, zero-toolchain static OWL/SCSS checks - none of these are lint-class and none moved).
 
+**Worktree targeting is explicit, never inferred from cwd (mandatory).** This gate's ephemeral
+instance MUST load `run-integration`'s tree, not the principal checkout - the SAME requirement
+Example 3 below states for a cross-wave verification instance ("the allocator emits the CATALOG
+addons list, which points at the principal checkout"). State `WORKTREE_PATH: <path>/run-integration`
+on the provisioning dispatch: when this gate runs INLINE in run-harness's own context, pass
+`WORKTREE_PATH: <path>/run-integration` directly on the `odoo-instance` skill dispatch (the field
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § Dispatch already defines); when run-harness
+instead dispatches a bounded subagent for this gate, carry `WORKTREE_PATH: <path>/run-integration`
+PLUS `SELF_PROVISION: worktree-addons` in that subagent's brief - the SAME two fields § Per-module
+Invocation Brief Template above and Example 3 below already use for a worktree-rooted instance
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). This is
+not cosmetic: `WORKTREE_PATH` is what makes the `acquire` call carry `--addons-path-override`, and
+`--addons-path-override` is the ONE thing that satisfies the allocator's
+`_addons_path_worktree_mismatch` guard (`scripts/lib/allocator.py`) - the guard engages ONLY when NO
+override is passed. Omitting `WORKTREE_PATH` here means one of two failures depending on the
+dispatching agent's cwd (never a safe default either way): the instance silently loads the CATALOG
+addons path and the gate reports clean regardless of what `run-integration` actually contains, or the
+guard refuses the `acquire` outright (rc 5) and the now-sole lint gate hard-blocks every run.
+
 **Containment for tail-only lint (mandatory prose, not optional).** Moving lint to the tail trades
 "catch it while the wave's context is warm" for "catch it once, cheaply, over the full diff" - this
 trade is intentional (the owner's instruction), but it must not become a worse failure than what it
 replaces:
 - **On a FAILURE, do not flat-BLOCK the run.** The lint tool's own output names the exact
-  file/line; re-invoke `odoo-coding` targeted at ONLY the failing module's worktree slice, handing it
-  the concrete lint output as evidence (a fresh, narrowly-scoped fix dispatch - the SAME "AUTONOMOUS
-  FIX (review-driven)" sentinel pattern `odoo-code-review` already uses,
-  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Autonomous fix loop) rather than
-  requiring the original (long-gone) per-module context to still be live.
+  file/line. Re-invoke `odoo-coding` with `WORKTREE_PATH` set to the failing module's OWN worktree
+  from its wave (the SAME `mod.worktree` the § Per-module Integration Loop pseudocode above
+  authored the module's original code in, still live at this point - per-module worktrees are torn
+  down only by the post-merge § Cleanup Checklist above, never mid-run) - never an undefined
+  "slice." Hand it the concrete lint output as evidence (the SAME "AUTONOMOUS FIX (review-driven)"
+  sentinel pattern `odoo-code-review` already uses,
+  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Autonomous fix loop). `odoo-coding`
+  commits the fix there and returns the SHA exactly as any per-module dispatch does (§ Per-module
+  Invocation Brief Template above, "Return: the commit SHA(s)").
+- **Cherry-pick the fix back onto `run-integration` (mandatory - the fix does not ship until this
+  runs).** `run-integration` is the ONLY branch the terminal land-tail squashes and pushes; a fix
+  left on the module's own worktree branch never reaches the PR. Bring the returned SHA onto
+  `run-integration` the SAME way § Per-module Integration Loop brings every other module SHA onto
+  it - `cherry_pick(sha, into=run_integration)` via the `git-toolkit:git-ops` skill. This loop never
+  runs raw git mutations inline; the repo's git-delegation rule binds it exactly as it binds every
+  other mutation in this file. A semantic conflict here follows the SAME § Conflict Resolver path as
+  any other cherry-pick.
+- **Re-run the lint-class suite against `run-integration`'s new tip - never trust the coder's own
+  DONE alone.** A `DONE` from `odoo-coding` proves the fix is clean on ITS OWN worktree; it does not
+  prove `run-integration` - the tree that actually ships - is clean, since the fix has not landed
+  there until the cherry-pick above completes. Re-run the full lint-class suite (as above) against
+  `run-integration` HEAD after the cherry-pick, every iteration.
 - **Bound the fix-loop to 3 iterations** (the SAME bounded-iteration convention as every other chain
-  in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded). Still
-  red after 3 -> BLOCKED with the failure evidence - one of the ENUMERATED, legitimate stop
-  conditions (`SKILL.md` Hard rule 2), not an incidental pause.
+  in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; one
+  iteration = the three bullets above: dispatch fix -> cherry-pick onto run-integration -> re-verify
+  against run-integration). Still red after 3 -> BLOCKED with the failure evidence - one of the
+  ENUMERATED, legitimate stop conditions (`SKILL.md` Hard rule 2), not an incidental pause.
 - **The single full-diff pass is also a net gain, not only a cost:** because every module across
   every wave has already landed on the ONE `run-integration` branch by this point, this ONE pass
   sees the FULL aggregate diff and catches CROSS-MODULE lint issues (two modules that individually
   pass but jointly trip a repo-wide rule) that per-module lint structurally could never see.
 - **Teardown, unchanged contract.** Whoever runs this gate (run-harness inline, or a dispatched
-  bounded subagent) self-provisions its OWN ephemeral instance and RELEASES it before the `integrate`
-  node's own terminal signal, per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  bounded subagent) self-provisions its OWN ephemeral instance - rooted on
+  `WORKTREE_PATH: <path>/run-integration` per the paragraph above, never the catalog/principal
+  checkout - and RELEASES it before the `integrate` node's own terminal signal, per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T0-T4 - the SAME contract every other self-provisioning step in this file already follows.
   Removing the per-work-item lint self-checks does not orphan anything: each was a self-contained
   acquire-run-release cycle (`agents/odoo-backend-coder.md` "Backend code-quality gate"), so removing
