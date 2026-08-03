@@ -711,16 +711,23 @@ the `W` number; full exclusivity rule + rationale: `${CLAUDE_PLUGIN_ROOT}/snippe
 
 **Per-instance provisioning (caller invokes per instance needed):**
 
-1. Call `allocator.py acquire --mode ephemeral --series <series> --ports 0` (returns a unique
-   `ALLOC_DB_NAME` + `ALLOC_TOKEN`).
+1. Call `allocator.py acquire --mode ephemeral --series <series> --ports 0 --run-id <run_id>`
+   (returns a unique `ALLOC_DB_NAME` + `ALLOC_TOKEN` + `ALLOC_RUN_ID`) - thread `--run-id` here
+   exactly as every other acquire call site in this agent does (Step D above; operation 1's
+   `ephemeral`/`exclusive-running` branches). An acquire with no `--run-id` mints an UNOWNED
+   lease that `hooks/enforce-teardown.sh`'s ownership correlation cannot see (it derives `RUN_IDS`
+   strictly from `--run-id` on the subagent's OWN acquire/bind/heartbeat calls), so a leaked
+   multi-instance-parallel lease would be invisible to the one hard-enforcement mechanism in the
+   system - never omit it.
 2. Run the doc-context init for this lease (with `--with-demo`, `--load-language`,
    `--skip-auto-install` as needed for `CONTEXT: doc`). Emit the output block with
-   `INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>`.
+   `INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>` and forward `run_id` (`$ALLOC_RUN_ID`) in the
+   output block per the Canonical output block below.
 
 The caller manages concurrency: how many instances to provision in parallel, when to forward
 each `INSTANCE_HANDLE` to a downstream worker, and when to release each lease. Release is via
-operation 2 (`drop-instance` / `allocator.py release <token>`), triggered by the caller, not
-this agent.
+operation 2 (`drop-instance` / `allocator.py release <token> --run-id <run_id>`), triggered by
+the caller, not this agent.
 
 **Instance isolation is mandatory:** each ephemeral DB is fully independent. NEVER share a
 mutable DB across concurrent capture workers. NEVER use raw `createdb`/`dropdb`; always through
@@ -805,7 +812,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision
-- [ ] multi-instance parallel: each acquire (step 1) returns unique db_name + port; output block includes INSTANCE_HANDLE; caller manages concurrency, forwarding, and release; no mutable DB shared across concurrent workers
+- [ ] multi-instance parallel: each acquire (step 1) passes `--run-id` and returns unique db_name + port + ALLOC_RUN_ID; output block includes INSTANCE_HANDLE and forwards run_id; caller manages concurrency, forwarding, and release; no mutable DB shared across concurrent workers
 ```
 
 ---

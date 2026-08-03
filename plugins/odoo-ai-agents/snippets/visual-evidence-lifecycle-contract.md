@@ -1,8 +1,9 @@
 <!-- SSOT snippet. Home for (1) the collision-proof slug-derivation rule shared by every
-     skill that mints one of the four sibling visual/*/<slug>/ evidence subpaths, and (2) the
-     orphan-sweep GC rule for EVERY run-scoped Tier-2 ISOLATE subpath in the plugin (Clause 3
-     generalizes Clause 2 beyond visual/ to the full ISOLATE surface). Edit here only;
-     consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md.
+     skill that mints a visual/-rooted per-run evidence path (the four sibling
+     visual/*/<slug>/ directories, plus odoo-demo-recording's visual/videos/ filename), and
+     (2) the orphan-sweep GC rule for EVERY run-scoped Tier-2 ISOLATE subpath in the plugin
+     (Clause 3 generalizes Clause 2 beyond visual/ to the full ISOLATE surface). Edit here
+     only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md.
      Tier and bucket classification of these paths is owned by
      ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md - not restated here. -->
 
@@ -17,6 +18,14 @@ slug collides under concurrency, and an evidence directory nobody ever deletes l
 forever - so this file states both rules once for all four. Clause 3 below generalizes the
 retention half (only) of this rule to every OTHER run-scoped ISOLATE subpath in the plugin -
 the same leak, one directory per run, is not unique to `visual/`.
+
+A fifth skill, `odoo-demo-recording`, mints a per-run FILENAME (not a directory) under the same
+`visual/` root - `visual/videos/<feature>-<slug-suffix>.{mp4,gif}` - and is exposed to the
+identical collision half of this defect class (two concurrent runs on a similarly-named feature
+overwriting each other's clip) even though its retention half already has its own row in Clause 3
+§3.1 (single terminal file, 30-day bound, no directory to sweep). Clause 1 below therefore governs
+both shapes - directory and filename - under one mechanism; do not derive a second one for the
+filename case.
 
 ## Clause 1 - collision-proof slug derivation
 
@@ -46,6 +55,18 @@ directories and neither overwrites the other's evidence.
 run-keyed (`state-root-resolution.md`), and any of these four skills may run standalone
 (exempt from wider run/worktree provisioning) - date alone still collides when two callers
 fire the identical intent the same day. The 4-character random suffix is the disambiguator.
+
+**Fifth consumer - a filename, not a directory.** `odoo-demo-recording` applies this SAME rule
+to its video artifact name instead of a directory: `<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}`
+under `visual/videos/` (`<feature>` plays the role of `<intent-slug>`; full wiring:
+`skills/odoo-demo-recording/SKILL.md` § Round 4 and § Narrated evidence mode). Mint it once per
+run, before Round 4's orphan sweep, and reuse the SAME value for both takes of a narrated
+before/after pair (the `-before`/`-after` suffix is appended on top, never a second random mint).
+This closes the exact gap a bare `<feature>-<timestamp>` resolving to a date-only string would
+leave: two same-day recordings of a similarly-named feature would otherwise silently overwrite
+each other's clip - the identical failure mode the four directory-based siblings above avoid by
+the same mechanism. Any FUTURE skill that mints a new `visual/`-rooted per-run path - directory or
+filename - follows this same Clause 1 rule; do not invent a per-skill variant.
 
 ## Clause 2 - orphan-sweep retention (GC)
 
@@ -113,7 +134,7 @@ file's own claim) and classifies each row once, so a later reader never has to r
 | `reviews/<slug>-<date>/` | `odoo-code-review` | 30d | tied to one diff/branch/PR; retained as the review's own evidence |
 | `pr-monitoring/<id>.md` | `odoo-pr-monitoring` | 30d | rewritten on every poll tick while monitoring is active - only goes stale once monitoring has genuinely concluded (merged/abandoned) |
 | `followups/<slug>.md` | `odoo-draft-followup` command | 30d | terminal deliverable - the run concludes the instant this file is written, so there is no "still alive" window to protect against |
-| `visual/videos/<feature>-<timestamp>/` (actually written as the FILE `visual/videos/<feature>-<timestamp>.{mp4,gif}` - the ISOLATE table's trailing `/` is loose notation, not a real directory) | `odoo-demo-recording` | 30d | terminal deliverable, same class as `followups/<slug>.md` |
+| `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` (a FILE - `state-root-resolution.md`'s ISOLATE-table trailing `/` on this row is loose notation, not a real directory) | `odoo-demo-recording` | 30d | terminal deliverable, same class as `followups/<slug>.md`; the filename itself is collision-proofed per Clause 1's fifth-consumer rule above, not merely a bare `<timestamp>` |
 | `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | 24h | ALREADY self-deletes at its own end-of-run staging cleanup (`odoo-doc-illustration/SKILL.md` § End-of-run staging cleanup) - the TTL is a crash-only backstop, same class as `wave/<slug>/` and `visual/current/<slug>/` |
 | `i18n/<slug>-<date>/` | `odoo-i18n` | 30d | the i18n recipe already mandates a fresh export on every invocation and forbids reusing a prior run's artifacts (`i18n-mandate-contract.md`) - anything past the very next run is already-superseded, but 30d still gives grace for a delayed review of the translation report |
 | the 13 workflow `output_dir` trees (`bids/`, `content/`, `debug/`, `discovery/`, `implement/`, `packaging/`, `positioning/`, `qa/`, `research/`, `sales/`, `support/`, `upgrade-plans/`, `video/`) | `workflow-chaining` (the single runner for all 13) | 30d | same retained-evidence reasoning; swept ONCE generically at Phase 0 for whichever `output_dir` the active workflow declares, rather than thirteen separate call sites |

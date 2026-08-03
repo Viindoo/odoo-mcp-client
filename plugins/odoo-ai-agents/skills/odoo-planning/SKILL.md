@@ -77,6 +77,16 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   When absent (the common case), the plan RESERVES the acceptance stage against the design's §9
   Acceptance Criteria (already authored at design time); when present, the plan wires its
   review/acceptance stages to it directly.
+- **Survey (OPTIONAL - ALWAYS an explicit value, never a silently-missing field)** -
+  `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`, forwarded in this skill's own dispatch brief
+  `INPUTS` when intake's Proposed Plan `Survey:` field resolved a deep-survey synthesis this
+  session (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md` § Deep survey). Additional
+  hotspot/impact grounding for wave-batching and effort estimates - never a required gate. State
+  `none` explicitly to `odoo-planner` when absent rather than omitting the field, and thread it
+  onward the same way (§ P1a below); the mandatory-recon analog is `odoo-intake`'s Phase P
+  `inputs.recon_findings`, which this deliberately does NOT copy verbatim (it is safe to OMIT when
+  absent since recon is cheap/mandatory-tier - Survey is opt-in/expensive, so its absence must be
+  stated, not dropped).
 
 If a design artifact is absent and the change is design-required, route to `odoo-solution-design`
 FIRST (design precedes planning) - do not plan an ungrounded build order. Planning itself is
@@ -98,7 +108,7 @@ Will decide:  code plan: wave-batched module-DAG + integration cadence + module/
               wiring · doc plan: dependency clusters + instance allocation (user-guide + marketing)
               · full lifecycle (code -> review -> test/QA -> user-doc -> marketing-doc -> PR ->
               monitor -> merge) · effort + est_agents ESTIMATES (ADVISORY, non-binding)
-Inputs:       design <path> · gap-matrix <path|none> · qa oracle <path|none>
+Inputs:       design <path> · gap-matrix <path|none> · qa oracle <path|none> · survey <path|none>
 Artifacts:    <SHARE_DIR>/plans/<slug>-<date>.md (code 3-block plan) ·
               <SHARE_DIR>/plans/<slug>-doc-<date>.yaml (doc cluster plan)
               (no run-<id>.json - that is intake Phase P)
@@ -144,10 +154,13 @@ DESIGN_INDEX: [<SHARE_DIR>/designs/<master-slug>/index.yaml, or the single-mode 
 GAP_MATRIX: [omit when absent; else the gap-matrix.jsonl / BRL RTM path]
 QA_ORACLE: [omit when absent - the common case at planning time, since the oracle is authored
 later at odoo-acceptance Phase 1; else the scenarios.md path]
+SURVEY: [none | <SHARE_DIR>/survey/<slug>-<date>/synthesis.md - the deep-survey synthesis from
+intake's Proposed Plan `Survey:` field, when one was run this session; explicit `none` when no
+deep survey was opted into - never omit this field, unlike GAP_MATRIX/QA_ORACLE above]
 RETURN_TO: [omit when absent; set to the caller skill name when return routing is requested]
 
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): set_active_version('<version>'). Then
-read DESIGN_INDEX / GAP_MATRIX / QA_ORACLE by pointer and emit the plan CONFORMING to
+read DESIGN_INDEX / GAP_MATRIX / QA_ORACLE / SURVEY by pointer and emit the plan CONFORMING to
 skills/odoo-intake/references/plan-mode-schema.md (3-block). Wire each node to a SKILL (never an
 agent, never the skill's internal coordination). Estimates only (effort + est_agents) - do NOT
 bind a per-agent model or fan-out count (Decision X). Do NOT serialize run-<id>.json (intake

@@ -121,8 +121,11 @@ Edges (three kinds, all symbolic):
   dependencies' already-integrated SOURCE by construction, but that source reaches the addons-path
   only as a POLICY step - the per-module brief must carry `WORKTREE_PATH` + `SELF_PROVISION:
   worktree-addons`, which `odoo-coding` sets on every such dispatch (never a structural guarantee of
-  the fork itself). With that step taken, the cross-wave "dependency absent" BLOCKED path (the
-  ledger's decision-table case 4) no longer fires intra-run.
+  the fork itself - though `scripts/lib/allocator.py`'s `_addons_path_worktree_mismatch` guard
+  provides a belt-and-braces backstop for the override-less case; exact scope, and the one case
+  where this policy step remains the SOLE protection: `snippets/instance-handle-contract.md` §
+  Worktree-addons carve-out - not restated here). With that step taken, the cross-wave "dependency
+  absent" BLOCKED path (the ledger's decision-table case 4) no longer fires intra-run.
 - **cherry-pick-into** (`-->`): `worktree(m)@wave-N --> run-integration` (the coder's module commit
   is cherry-picked onto the ONE run-integration branch, in module-DAG topo order).
 - **close** (per wave): `run-integration` -> {integrated cross-cutting review, cumulative close-gate}
