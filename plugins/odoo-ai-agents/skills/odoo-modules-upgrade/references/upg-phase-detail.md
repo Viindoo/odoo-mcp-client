@@ -11,8 +11,9 @@ file specifies HOW. Cross-references reused skills' SSOTs; copies none.
 - `<cluster>` = `cluster_slug` resolved in P0 intake (the scope slug).
 - `<path>` = the upgrade-worktree base: a `.upg-worktrees/` directory SIBLING to the principal
   checkout (NEVER inside it - keeps the principal `git status` clean). All worktrees below live under it.
-- `<work-base>` = the base ref the integration branch forks from: HEAD of the target-series branch
-  when one exists, else the merge-base of the cluster against the target series.
+- `<work-base>` = the base ref the integration branch forks from, resolved per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch resolution - never inferred
+  from the invoking checkout's current branch.
 
 ## Artifact paths
 
@@ -49,6 +50,9 @@ TASK: Resolve the upgrade request into structured inputs.
     series prefix, per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md): there is no series
     in the manifest to compare, so SKIP the branch-vs-manifest-series cross-check entirely and
     resolve the source series from branch + profile. Do NOT raise a false "disagree" open_question.
+    This current-branch read is ONLY for inferring the SOURCE series being upgraded FROM; it is
+    NEVER used to resolve `<work-base>` - see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
+    § Base-branch resolution for that.
 
 (2) Map that series to the OSM profile:
     - set_active_version(odoo_version='<inferred_series>')
@@ -147,7 +151,10 @@ FULL TRANSITIVE CLOSURE (incl. external/core deps):
 Output: graph.md (YAML block listing each module + deps + missing flag + identity_changed flag)
 ```
 
-After receiving graph.md, the orchestrator topo-sorts to produce `topo_order: []`
+The `Explore` worker is Write-constrained and returns this YAML in chat; the orchestrator
+transcribes it into `graph.md` VERBATIM - no reformatting, no summarizing - per
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 3 (verbatim per-agent
+capture). After receiving graph.md, the orchestrator topo-sorts to produce `topo_order: []`
 (leaves first). Append topo_order to graph.md.
 
 ### P1b - Deprecation audit (Skill tool: odoo-deprecation-audit)
@@ -223,8 +230,11 @@ FORMAT:
       fix_hint: "<one line: how to rewrite the call site at target>"
 ```
 
-The orchestrator feeds each module's `blockers[]` into P4 as that module's PREEMPTIVE FIX LIST
-(prepended before the deprecation + breaking-change fixes).
+This `Explore` worker is likewise Write-constrained; the orchestrator transcribes its returned
+YAML into `transitive-symbol-survey.md` VERBATIM - no reformatting, no summarizing - per
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 3 (verbatim per-agent
+capture). The orchestrator feeds each module's `blockers[]` into P4 as that module's PREEMPTIVE
+FIX LIST (prepended before the deprecation + breaking-change fixes).
 
 ### P1 gate
 
@@ -780,9 +790,9 @@ WORKTREE_PATH: <the P4 integration worktree - .po/.pot are git-tracked>
 TARGET LANGUAGES: <explicit list when this run has one, else omit the field entirely - this
   orchestrator has no tiered resolver of its own; odoo-i18n's own P0 tiers 2-4 (registry /
   .po-filename inference / instance query) still attempt resolution from what IS available, and
-  record escape E3 (proceed, no stop) only once all four tiers are empty. Omitting the field is
-  NEVER a licence for odoo-i18n's tier-5 hardcoded default to fire - that stays unreachable inside
-  this mandate regardless (i18n-mandate-contract.md; odoo-i18n/SKILL.md P0)>
+  record escape E3 (proceed, no stop) only once all four tiers are empty. odoo-i18n has no
+  hardcoded target-language default to fall back on - omitting the field never triggers one; it
+  only ever reaches escape E3 above (i18n-mandate-contract.md; odoo-i18n/SKILL.md P0)>
 GATE: do NOT stop separately - return the result; it is presented at the P6 sign-off
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po

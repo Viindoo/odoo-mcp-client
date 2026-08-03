@@ -60,6 +60,48 @@ findings dropped at the 20-line cap | none | resolved:no`.
 
 **Retention:** keep it, never delete - bounded (~4 KB/run) and the resume rule above reads it. One dir per `<slug>-<date>`; a repeated slug on the same date overwrites rather than accumulates.
 
+## Clause 3 - verbatim per-agent capture (Write-constrained dispatch)
+
+Clause 2's "the PARENT skill writes this file after the scout returns" exists because a
+Write-constrained agent type (`Explore`, or another anonymous read-only type) cannot save its own
+file - that exception is about the TOOL, not the CONTENT. A parent that reworks a scout's return
+into its own words recreates the exact failure this contract exists to close: a lossy digest
+standing in for the actual finding is the caller's memory wearing a file. The parent's write MUST
+be that scout's own returned text captured VERBATIM - no merging, no summarizing, no re-ordering,
+and never folding two scouts' distinct findings into one line.
+
+**One scout dispatched (the common case).** Its verbatim return is transcribed into `findings.md`
+per Clause 2's schema - one distinct fact per line, exactly as the scout reported it. Truncate via
+Clause 2's own 20-line cap if there are more facts than the cap allows; never compress two
+distinct facts into a single line to stay under it.
+
+**More than one scout dispatched in the same phase.** The FIRST scout's verbatim return goes to
+`findings.md` (path and schema unchanged from Clause 2). EACH ADDITIONAL scout gets its OWN
+sibling file in the same directory, `findings-<N>.md` (`<N>` = 2, 3, ... in dispatch order) -
+never merged into `findings.md`, never summarized into a shared line. `findings.md` gains one
+closing line naming every sibling that exists for this run: `siblings: [findings-2.md, ...]`
+(empty list when only one scout ran) - a reader knows the full set without globbing. A sibling
+file holds that ONE scout's verbatim return only, nothing else: no header, no line/character cap
+(Clause 2's 20-line/200-char cap governs `findings.md` only - a sibling is deliberately uncapped,
+existing precisely to hold what the compact schema cannot).
+
+**Read-back.** The consuming phase reads `findings.md` first; when `siblings` is non-empty and a
+compact line needs the fuller context a merged summary would have lost, it reads the named
+sibling(s) too - it never guesses at what a merged line left out.
+
+**Consumer registry (authoritative, SSOT for this clause's readers).** Every site that dispatches
+a Write-constrained scout and relies on this clause registers its row here. A row is
+`<file path relative to the plugin root> | <section anchor - the exact substring marking that
+site's own section>`. Adding a new such site anywhere in the tree requires BOTH adding its row
+below AND citing "clause 3" within that site's own section (the anchor's section) - a row with no
+citation, or a citation with no row, is a guard-test failure, not a style nit.
+
+| file | section anchor |
+|---|---|
+| `skills/odoo-intake/SKILL.md` | `Persist before you propose` |
+| `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1a - DAG build` |
+| `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1d - Transitive Symbol Survey` |
+
 ## Relation to the worklog
 
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` records DECISIONS and why; this records OBSERVATIONS of current state - a finding that becomes a decision is logged in both, in its own vocabulary, and neither file restates the other.

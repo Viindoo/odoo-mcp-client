@@ -79,8 +79,11 @@ Workers are launched as subagents, one per scope unit, using CHP Tier-B `subagen
 inherits the parent's full context (intent decomposition, survey slug, Odoo version pin, the
 full lens block text, OSM grounding instructions) and shares the parent's prompt cache - this
 eliminates per-worker re-passing of the lens block and OSM bootstrap, which is the dominant
-per-worker cost across all three phases. Model varies by phase (haiku / sonnet / opus); no
-custom agentType beyond the fork. Each fork still writes its OWN findings file; forks never
+per-worker cost across all three phases. Model varies by phase (haiku / sonnet / opus) - set
+explicitly on each fork's launch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ Model-tier selection (Recon/scouting phase default: this is enumeration/grounding work, haiku
+or sonnet by default; Phase 3's opus is the evidence-gated escalation below, never a default) -
+no custom agentType beyond the fork. Each fork still writes its OWN findings file; forks never
 share mutable state.
 Fallback (Tier C): if `subagent_type: "fork"` is unavailable in the current runtime, dispatch a
 fresh `general-purpose` spawn with an explicit brief per the current behavior. Tier C is always
