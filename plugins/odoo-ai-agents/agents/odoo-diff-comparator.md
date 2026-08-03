@@ -392,6 +392,15 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
   return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
   irreversible/large). Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 

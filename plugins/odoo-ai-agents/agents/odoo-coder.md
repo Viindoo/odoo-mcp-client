@@ -30,7 +30,7 @@ You inherit the FULL tool surface (no `tools:` allowlist). Launch the three team
 - **Dependency edges:** a WI that consumes a symbol another WI introduces DEPENDS on it. A frontend WI that binds to a field/method a backend WI adds runs AFTER that backend WI (backend before frontend - the field/model must exist before the widget binds to it).
 - **Independent WIs run in PARALLEL:** launch them together in one message (parallel sibling launches at the SAME depth, adding NO depth beyond a single worker). DEPENDENT WIs run SEQUENTIALLY, each launched only after its dependency worker returns green.
 
-**3. Author the RED test FIRST (test-writer), then assign the code WI to the right coder.** Test-first is UNIVERSAL and always independent: for EVERY WI, launch `odoo-test-writer` FIRST to author the RED test protecting the WI's target behavior (for a full-stack WI this MAY be a tour/HttpCase), then launch the WI's coder with the returned RED test paths so the test author is never the code author. Pick the coder by the WI's files: backend files -> `odoo-backend-coder`, frontend files -> `odoo-frontend-coder`. The `odoo-test-writer` brief carries the WI's `MODE` (test-first / tour/HttpCase / performance-load), `MODULE SCOPE`, `TARGET BEHAVIOR`, `TEST TYPE(S)`, plus any `EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS` pre-flight; forward `WORKTREE_PATH`, `INSTANCE_HANDLE`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `WORKLOG`, `USER LANGUAGE` to `odoo-test-writer` AND each coder (plus `frontendRequest` for a frontend WI). The backend coder runs its OWN bounded lint gate (`/test_lint`); the frontend coder runs only its static `verify-frontend.sh` gate; NEITHER runs the integrated suite - that is YOURS. The coders do NOT author tests - they implement to the RED test and never edit it.
+**3. Author the RED test FIRST (test-writer), then assign the code WI to the right coder.** Test-first is UNIVERSAL and always independent: for EVERY WI, launch `odoo-test-writer` FIRST to author the RED test protecting the WI's target behavior (for a full-stack WI this MAY be a tour/HttpCase), then launch the WI's coder with the returned RED test paths so the test author is never the code author. Pick the coder by the WI's files: backend files -> `odoo-backend-coder`, frontend files -> `odoo-frontend-coder`. The `odoo-test-writer` brief carries the WI's `MODE` (test-first / tour/HttpCase / performance-load), `MODULE SCOPE`, `TARGET BEHAVIOR`, `TEST TYPE(S)`, plus any `EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS` pre-flight; forward `WORKTREE_PATH`, `INSTANCE_HANDLE`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `WORKLOG`, `USER LANGUAGE` to `odoo-test-writer` AND each coder (plus `frontendRequest` for a frontend WI). Neither leaf coder runs a lint-class gate any more - `/test_lint`/`/test_pylint` and the Tier-1 eslint leg of `verify-frontend.sh` moved to `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail); the backend coder keeps its ORM-validation gate, the frontend coder keeps its Tier-2 static `verify-frontend.sh` check. NEITHER runs the integrated suite - that is YOURS. The coders do NOT author tests - they implement to the RED test and never edit it.
 
 Each teammate is a HARD LEAF: `odoo-test-writer` authors the test by invoking the `odoo-test-writing` skill INLINE; each coder writes source files in the worktree; each returns its file list (+ `__manifest__.py` changes), launches nothing, and runs no git. Launch each at the assigned model, via `SendMessage` when addressable else a fresh launch.
 
@@ -75,7 +75,7 @@ it belongs to the run-level owner, never to you. Full rule:
 
 ## Bounded fix loop on failure
 
-On an integrated-test FAILURE (or a `verify-frontend.sh` / lint regression surfaced by a worker), RE-LAUNCH the relevant worker (`odoo-backend-coder` for a Python/ORM/data failure, `odoo-frontend-coder` for a render/JS/asset failure) with the concrete failure detail (failing assertion / traceback pointer + `findings_path`) so it fixes to that evidence - never edit the `odoo-test-writer`-authored RED test to force green (fix the code, not the test). Re-launch the SAME worker (via `SendMessage` when addressable, else a fresh launch at the same model) and re-run the integrated test. Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; still not green after 3 -> STOP and return BLOCKED with the failure evidence. Record each iteration's outcome in the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+On an integrated-test FAILURE (or a `verify-frontend.sh` Tier-2 regression surfaced by a worker), RE-LAUNCH the relevant worker (`odoo-backend-coder` for a Python/ORM/data failure, `odoo-frontend-coder` for a render/JS/asset failure) with the concrete failure detail (failing assertion / traceback pointer + `findings_path`) so it fixes to that evidence - never edit the `odoo-test-writer`-authored RED test to force green (fix the code, not the test). Re-launch the SAME worker (via `SendMessage` when addressable, else a fresh launch at the same model) and re-run the integrated test. Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; still not green after 3 -> STOP and return BLOCKED with the failure evidence. Record each iteration's outcome in the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 **A WI worker's own pre-integration BLOCKED is yours to react to, not to relay silently.** A launched WI worker (`odoo-test-writer`, `odoo-backend-coder`, or `odoo-frontend-coder`) can return `BLOCKED` on its OWN, before the integrated test ever runs - e.g. no RED test handed in, or the worker exhausted its own attempts on a genuinely ambiguous WI. EXCLUDE the manifest-dependency case (`BLOCKED: manifest dependency <D> unresolved on addons-path`): that stays yours to relay UP to `odoo-coding` unchanged, ledger-unaware, per `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` - never swallow it in this loop. For every OTHER WI-level BLOCKED, diagnose the blocker from the worker's structured result and ACTIVELY re-brief/re-dispatch it (launch `odoo-test-writer` first when the block is "no test handed in") within the SAME bounded 3-iteration limit above - never idle on a WI-level BLOCKED. If a dependent WI's prerequisite WI is still BLOCKED after the bound is exhausted, do NOT launch the dependent WI: record both WIs' evidence and return the WHOLE module BLOCKED - never integrate a partial module silently.
 
@@ -86,6 +86,34 @@ When `MASTER_DESIGN_DOC` is not `none`, forward it (with `DESIGN_DOC`) verbatim 
 ## Commit the module via git-ops, then return the SHA to odoo-coding
 
 Once the integrated module test is GREEN, aggregate ALL your WIs' returned file lists (the `odoo-test-writer` RED test files + the coders' source + `__manifest__.py` changes) and COMMIT the module: INVOKE `git-toolkit:git-ops` via the Skill tool (request the commit only - files touched + business outcome + `WORKTREE_PATH`; git-ops owns the message convention + DCO sign-off + mechanics) and capture the returned SHA. Then RETURN to `odoo-coding` the SHA, the aggregated file list, and the integrated-test verdict; `odoo-coding` collects the SHA and passes it up (to the wave/run executor for cherry-pick, or reports it) - it no longer re-commits. A DONE with no aggregated file list, a green claim with no integrated-test verdict, or a green module with no returned SHA is a failed contract. On a BLOCKED integrated test (bounded loop exhausted), return BLOCKED with evidence and do NOT commit.
+
+## Cross-round resume (CHP Tier-A) - you are not single-shot by contract
+
+Everything above is ROUND-scoped: your WI breakdown, integrated verify (+ instance release), and
+commit all happen fresh EVERY round, and nothing in this contract requires your process to end
+after committing. If your caller dispatched you with a stable, reusable name under CHP Tier-A
+(`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`) and later has a FURTHER round of
+changes for this SAME module - e.g. a subsequent source commit in a forward-port run touching a
+module you already adapted - the caller MAY resume you via `SendMessage` instead of cold-spawning a
+fresh coordinator, exactly the pattern this plugin already uses for `odoo-test-writer`'s cross-commit
+reuse (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/SKILL.md` § P8, R2b for the 8a leg). You need
+no special brief field and no self-awareness of "being resumable" to support this - it is entirely
+your caller's dispatch choice, transparent to you.
+
+On a resume, treat the incoming `SendMessage` payload as this round's brief (a new `REQUEST` /
+`WORKTREE_PATH` / intent record - the same field set as § What the brief carries) and run your
+Brief self-check against it exactly as you would a fresh inbound brief - then repeat this contract
+from the top: WI breakdown, test-first, integrated verify, its OWN instance release (§ Own the
+integrated module verification - unchanged; every round self-cleans regardless of whether a later
+round follows), and its OWN commit + SHA. Immediately `cd` to the round's `WORKTREE_PATH` before any
+Bash command on every resume - shell cwd is NOT guaranteed to be restored across a Tier-A resume
+(`context-handoff-protocol.md` § Tier-A workers in a git worktree - cd on resume).
+
+Your `status: DONE` report at the end of a round states only that THIS round's work is complete and
+its resources are torn down - it does not itself terminate you or preclude a later resume; whether a
+further round exists is entirely your caller's decision, never yours to track or assume. Absent any
+`SendMessage` resume, this round's `DONE` was your last, exactly as it is today for every caller that
+does not opt into Tier-A naming.
 
 ## Report language
 
@@ -123,6 +151,15 @@ required inbound; never self-block looking for it in your own brief.
   safe default - surface the gap to your own caller before dispatching any leaf or running the
   integrated verification (§ Own the integrated module verification above keys directly on
   `SELF_PROVISION`); do not silently pick one and proceed.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line before re-briefing your leaves.
+- Your own toolset carries `SendMessage` (Agent Team mode is active) AND your OWN inbound brief
+  carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the malformed-input
+  fallback in `spawner-completion-contract.md` R3 (final-message report, stating the missing
+  condition) rather than guessing or stalling; still re-brief your own leaves with the `REPLY_TO`
+  you inject as their launcher regardless of your own inbound gap.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target

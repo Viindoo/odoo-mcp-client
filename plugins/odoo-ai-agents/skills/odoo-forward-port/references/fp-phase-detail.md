@@ -37,25 +37,38 @@ Map each `--scope` module name to its directory path before requesting git-ops t
 by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
 or under an addons subdir, e.g. `addons/l10n_vn/`).
 
-For each commit, triage the EXTRACT tier INLINE (`git show --stat <sha>`; for an override-depth
-question, one `find_override_point` probe) per `references/fp-triage-table.md` Table 1 - the
-orchestrator triages the tier itself; never dispatch an agent to decide a dispatch.
+**Group by module first (R2a).** Invoke `git-toolkit:git-ops` (read-only) to list touched files
+per commit (`--name-only`) for every commit in the range, then map each touched path to its owning
+module (same resolution rule as `--scope` above). Build `module -> [ordered sha list]`
+(chronological, oldest first); a commit touching 3 modules appears in each of the 3 modules' lists
+(shared reference, never duplicated). This map is what P1 dispatches over.
+
+For each MODULE's commit bundle, triage the EXTRACT tier INLINE (`git show --stat <sha>` for every
+commit in the bundle; for an override-depth question, one `find_override_point` probe) per
+`references/fp-triage-table.md` Table 1 - the tier is the HIGHEST-priority row any commit in the
+bundle matches; the orchestrator triages the tier itself; never dispatch an agent to decide a
+dispatch.
 
 This is recon only. There is NO approval gate here, NO `plan.md` written, NO branch, NO worktree -
 the plan gate is P4 (Plan Mode), after intent + classify + design. Write the per-commit EXTRACT tier
 and the range facts to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`, then READ that file back at the
-start of P1 rather than relying on this phase's text still being in context - a resumed run must not
-re-triage the range.
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` (each commit's row carries the
+tier its module's bundle resolved to, per the module-bundle grouping above), then READ that file back at the
+start of P1 rather than relying on this phase's text still being in context - a resumed
+run must not re-triage the range.
 
 ---
 
-## P1 - Intent extract (PARALLEL, READ-ONLY)
+## P1 - Intent extract (PARALLEL, READ-ONLY, MODULE-SCOPED)
 
-Dispatch one `odoo-intent-extractor` per commit as a subagent launch - real tool calls, never
-narrated. Set BOTH the `model` parameter (the triaged EXTRACT tier) and the brief. Concurrency:
-Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); rolling-window
-beyond the budget. No child worktree - extraction is read-only on git history + OSM.
+**BAN (R2b): dispatch ONE `odoo-intent-extractor` per MODULE, never per commit.** Walk the P0
+`module -> [ordered sha list]` map; for each module, launch exactly one subagent - real tool calls,
+never narrated - carrying that module's FULL ordered commit list. Set BOTH the `model` parameter
+(the module bundle's triaged EXTRACT tier, per `references/fp-triage-table.md` Table 1) and the
+brief. Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+- the budget counts MODULES in flight, not commits); rolling-window beyond the budget. No child
+worktree - extraction is read-only on git history + OSM. A second instance for a module already
+dispatched this run is a defect; resume the SAME instance (CHP Tier-A `SendMessage`) instead.
 
 Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
@@ -65,32 +78,41 @@ in a batch pass to write per-commit dump files. For each commit SHA in the range
 - `repo: <main-checkout-root>` (cross-repo ports only; source commits live only in the main
   checkout after the P0 source-remote add+fetch)
 
-Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor. Every extractor brief
-MUST include `commit_dump_path` from this map; the extractor mandates this field and never runs
-git itself.
+Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor, then group it BY MODULE
+using the P0 `module -> [ordered sha list]` map to build each module's `commit_dump_paths`. Every
+extractor brief MUST include `commit_dump_paths` (the module's ordered map) from this grouping;
+the extractor mandates this field for its P1 bulk-sweep use and never runs git itself.
 
 Brief (run-specific inputs only - the agent's system prompt owns every procedure):
 
 ```
-DISPATCH MODEL: <extract-tier>
-SHA: <sha>
-commit_dump_path: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump
+DISPATCH MODEL: <extract-tier>            # the MODULE bundle's tier, per Table 1
+MODULE: <module-name>
+commit_dump_paths:
+  <sha1>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha1>.dump
+  <sha2>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha2>.dump
+  # ... every sha touching this module, oldest first
 SOURCE SERIES: <e.g. 16.0>
 SLUG: <slug>
-TASK: Extract the business intent + behavioral contract of this one commit. Read commit
-      message -> PR/issue -> test changes -> code comments (in that priority). OSM-ground the
-      touched symbols at the SOURCE version. Write <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md.
-      Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome bucket (caller's job).
+TASK: For EACH commit in commit_dump_paths (in order), extract the business intent + behavioral
+      contract. Read commit message -> PR/issue -> test changes -> code comments (in that
+      priority). OSM-ground the touched symbols at the SOURCE version. Write ONE
+      <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md per commit. Note any overlap or revert
+      between commits in this SAME module bundle. Do NOT copy diff hunks as intent. Do NOT
+      classify the 4-outcome bucket (caller's job).
 USER LANGUAGE: <lang | omit when English>
 ```
 
-Aggregate each returned summary (`sha / intent_file / intent_one_liner / symbols /
-4_outcome_hint / grounding`) into the P2 classify queue. Mark each commit
-`status=extracted` in `checkpoint.json`.
+Aggregate every returned summary (`sha / intent_file / intent_one_liner / symbols /
+4_outcome_hint / grounding` - one per commit, all returned from the module's single dispatch) into
+the P2 classify queue. Mark each commit `status=extracted` in `checkpoint.json`.
 
 ---
 
-## P2 - Classify + installable-probe (per-commit, OSM)
+## P2 - Classify + installable-probe (module-first order, per-commit bucket, OSM)
+
+Walk modules in the SAME order the P0/P1 map established, and within each module walk its commits
+in that module's own order (R2a) - the bucket decision below stays per-commit.
 
 ```python
 set_active_version(odoo_version='17.0')                          # pin target; reachability probe
@@ -212,9 +234,12 @@ Plan-Mode enter/exit is the SHARED SSOT
 - forward-port REUSES it for this gate rather than defining its own: `EnterPlanMode` iff
 `plan_mode_active` is absent/false (skip iff a caller already opened Plan Mode), present the plan,
 `ExitPlanMode` on approve, user approves in the Plan Mode UI. The plan CONTENT authored here (NOT
-routed through `odoo-planning`) is forward-port-specific: commit topology; per-commit model tier
-(the real triaged EXTRACT + ADAPT tiers); bucket (the real classification); installable routing per
-module; design-doc link for any commit P3 designed; merge batches.
+routed through `odoo-planning`) is MODULE-FIRST (R2a - this is the whole-picture gate a flat commit
+list cannot give): module topology (each module's own ordered commit list from the P0 map);
+per-module EXTRACT tier (the real triaged tier, called out on its own line when it is opus - R2d
+gate, `references/fp-triage-table.md` Table 1); per-commit bucket (the real classification) and
+ADAPT tier within that module; installable routing per module; design-doc link for any commit P3
+designed; merge batches.
 
 Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
 MUST come before any branch, worktree, or file touch.
@@ -229,20 +254,33 @@ worktree: <path>/fp-integration
 ```
 
 THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
-is Plan Mode above). Later phases and the checkpoint/continuation read it:
+is Plan Mode above). MODULE-FIRST: one block per touched module, that module's commits nested
+inside it in the module's own order (R2a - the whole-picture record). Later phases and the
+checkpoint/continuation read it:
 
 ```markdown
 # Forward-port plan: <source-series> -> <target-series> (<slug>)
 Mode: continuous | one-shot
 Integration worktree: <path>  (branched from <target-branch>, B untouched)
-Commits (<N>, after --scope/--since filter, minus checkpoint done):
+Modules (<N>, after --scope/--since filter):
 
-| SHA | summary | EXTRACT tier | ADAPT tier | bucket | installable routing | design_doc |
-|-----|---------|--------------|------------|--------|---------------------|------------|
-| abc1234 | double-post guard | sonnet | sonnet | (b) | normal | - |
-| def5678 | new report engine | opus | opus | (c) do-now | normal | <SHARE_DIR>/designs/...md |
+## Module: account_reports  (EXTRACT tier: sonnet)
 
-Fable rows (if any): <m> - <why> (~2x opus). (confirmed in Plan Mode)
+| SHA | summary | bucket | ADAPT tier | installable routing | design_doc |
+|-----|---------|--------|------------|----------------------|------------|
+| abc1234 | double-post guard | (b) | sonnet | normal | - |
+
+## Module: report_engine_custom  (EXTRACT tier: opus - CONFIRMED at Plan Mode: cross-module report
+engine rewrite)
+
+| SHA | summary | bucket | ADAPT tier | installable routing | design_doc |
+|-----|---------|--------|------------|----------------------|------------|
+| def5678 | new report engine | (c) do-now | opus | normal | <SHARE_DIR>/designs/...md |
+
+Fable rows (if any, ADAPT tier only - Table 1 has no fable band): <module>: <sha> - <why> (~2x
+opus). (confirmed in Plan Mode)
+Opus-declined / gate-suppressed downgrades (if any, EXTRACT tier): <module>: sonnet (opus declined
+| opus auto-downgraded - gate suppressed)
 ```
 
 ---
@@ -364,6 +402,14 @@ RAN in P9 - a count of `0 failed, N error(s)` is NOT a passing result (the setUp
 crashed before any test method ran). Resolve every drift finding (P7 SYMBOL-BROKEN entries)
 before entering the P8 adapt loop.
 
+**View-topology sub-check (bucket-(c) same-module inherit stacks).** Different in TIMING from the
+checks above (P6/P7 run over the git-merged tree before any commit is re-implemented; this
+sub-check runs once a bucket-(c) re-implement itself lands or modifies an `ir.ui.view` record, at
+the same converge-back point the 8b bucket-(c) leg already passes through) but IDENTICAL in SHAPE
+(a finding line triaged into `merge-log.md`, confirmed before the gate). Full predicate, the two
+non-defect exceptions, and the merge-unsafe escape: `references/fp-triage-table.md` § Bucket-(c)
+same-module inherit-view check.
+
 ---
 
 ## P8 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
@@ -395,12 +441,19 @@ conflicts serially, per module, directly in integration, and resume child-worktr
 once the absorbed merge is committed. The wrong mode yields child worktrees with a clean tree and
 an unresolved (invisible) conflict still sitting in integration.
 
-**8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Launch the
-`odoo-test-writer` agent in adapt mode (it authors by invoking the `odoo-test-writing` skill inline,
-in its own context):
+**8a - forward the test FIRST** (the test is the oracle; independence keeps it honest).
+**R2b - at most one `odoo-test-writer` instance per module across the WHOLE run:** on the module's
+FIRST commit in this run, launch a NEW `odoo-test-writer` agent named `fp-adapt-<slug>-<module>`
+in adapt mode (it authors by invoking the `odoo-test-writing` skill inline, in its own context); on
+any LATER commit touching the SAME module, RESUME that same named instance via `SendMessage`
+(CHP Tier-A) instead of launching a new one - full rule and the cd-on-resume requirement:
+`SKILL.md` § P8. The brief below is identical on a fresh launch or a resume; only the SOURCE TEST /
+WRITE-TO / Child worktree path fields change per commit.
 
 ```
 TEST ADAPT MODE: forward this source test to the target platform.
+WORKER NAME: fp-adapt-<slug>-<module>   (stable for the WHOLE run - launch once, resume for every
+      later commit touching this module; never re-launch fresh under this name)
 SOURCE TEST (READ-FROM): <absolute-path-in-integration-worktree>/<module>/tests/<test_file>
   (merged working-tree content in the integration worktree; read the file from this path)
 WRITE-TO: <absolute-child-worktree-path>/<module>/tests/<test_file>
@@ -435,7 +488,23 @@ list is empty for this file.
 **8b - adapt the code** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
 FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out (via its
 `odoo-coder` per-module coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`,
-`odoo-backend-coder`, or `odoo-frontend-coder`). The extra context a generic
+`odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED: name the coordinator
+once, resume it across commits - the SAME field shape as 8a, a NAME, never an agentId.**
+`agents/odoo-coder.md` § Cross-round resume confirms the coordinator is round-scoped, not
+single-shot-forever - a caller may resume the SAME named coordinator for a LATER commit instead of
+cold-spawning a fresh one, the same mechanism already used for the 8a `odoo-test-writer` above.
+On the module's FIRST commit, and on every LATER commit touching the same module, carry
+`WORKER NAME: fp-adapt-<slug>-<module>-coder` in the brief below (distinct from the 8a
+test-writer's `fp-adapt-<slug>-<module>` name; the SAME field label 8a already uses, never a
+second differently-shaped field) - resume addresses a worker BY NAME (it keeps resolving after a
+worker completes and is resumed from its transcript); a raw agentId is only the fallback for an
+unnamed worker, and this worker is always named, so an agentId would carry no information the name
+does not already carry. **R2b IS closed at 8b: `odoo-coding`'s brief-consumption contract now
+recognizes `WORKER NAME` and resumes the already-addressable worker via `SendMessage` instead of
+cold-spawning a fresh one under a self-generated name** (full reasoning:
+`SKILL.md` § P8). Hard rule 2 is unaffected either way: one resumed coordinator making N commits'
+worth of adapt work still produces N separate target merge commits, one per source SHA. The extra
+context a generic
 coder brief lacks:
 
 ```
@@ -453,6 +522,8 @@ ODOO VERSION: <target>
 WORKLOG: <slug> - read, then append.
 MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET version on conflict, never bump), C2 (migration-dir
   retarget), C3 (carry pre-existing source bugs faithfully, do not inline-fix) - [[fp-merge-absorption]]
+WORKER NAME: fp-adapt-<slug>-<module>-coder   (stable for the WHOLE run - launch once, resume for
+      every later commit touching this module - see above)
 USER LANGUAGE: <lang | omit when English>
 ```
 

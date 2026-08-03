@@ -148,7 +148,9 @@ THIS skill no longer re-commits: it COLLECTS the coordinator's returned SHA(s) a
 directly because its worktree is dependency-correct - forked from the integrated state, the property
 the planned worktree graph (Block 2W) guarantees. If invoked standalone with NO `WORKTREE_PATH`,
 this skill FIRST invokes `git-toolkit:git-ops` to provision a worktree/branch (never the principal
-checkout) and hands its path to the coordinator to author + commit in - a FALLBACK only, deliberately
+checkout, resolving the fork point per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` §
+Base-branch resolution rather than the caller's ambient checkout) and hands its path to the
+coordinator to author + commit in - a FALLBACK only, deliberately
 NOT a member of `git-delegation.md` § Self-provisioning specialists, so an orchestrator dispatching
 `odoo-coding` SHOULD still provision the worktree first per `run-harness` Hard rule 6. S9: every git
 op is delegated to `git-toolkit:git-ops` and runs ONLY inside the worktree. See
@@ -360,6 +362,26 @@ Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, 
    status, and read each result from the
    teammate's SendMessage push (NEVER from the .output transcript) - per
    `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
+
+**Caller-supplied cross-invocation resume name (`WORKER NAME`).** When a module's brief carries
+`WORKER NAME: <name>`, that name comes from a PRIOR `odoo-coding` invocation - THIS invocation is a
+fresh Skill-tool call (e.g. a forward-port run re-invoking this skill for a LATER commit touching
+the same module). Use that name as this module's coordinator name in step 3 below: if a worker
+under that name is already addressable, resume it via `SendMessage` instead of cold-spawning - the
+identical mechanism step 4 already uses for a BLOCKED-module retry within one run, just addressed
+by a CALLER-supplied name instead of this run's own self-generated one. If no worker is addressable
+under that name yet (this is the module's first commit), spawn fresh under it. Record the name
+(and the returned `agentId`, exactly as any other dispatch) in THIS run's plan.md. Absent
+`WORKER NAME` (every caller that does not pass it - unchanged default), proceed exactly as
+documented: self-generate `coder-<module-slug>`.
+
+**Distinguishing predicate (this resume vs step 4's agentId resume - never conflate the two).**
+Apply step 4's agentId resume ONLY to a BLOCKED module THIS SAME `odoo-coding` invocation itself
+dispatched and recorded in ITS OWN plan.md earlier in this same run; apply this `WORKER NAME`
+resume whenever the coordinator to reach was dispatched by a DIFFERENT, already-ended `odoo-coding`
+invocation that this run holds no record of - the caller's brief, not this run's own plan.md, is
+what carries that identity across the invocation boundary.
+
 1. Order modules so every module appears after its in-set dependencies (the wave column already
    encodes this).
 2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = the
@@ -370,7 +392,10 @@ Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, 
    per module (the coordinator internally splits the module into WIs, sequences backend-before-frontend,
    and runs the integrated test - you do not fire the worker agents or decide the WI split yourself).
    When Tier A is in effect, give each launch its stable `name` and record the returned `agentId` in
-   plan.md as you go.
+   plan.md as you go. A module whose brief carries `WORKER NAME` uses that value as its stable
+   `name` here (resumed via `SendMessage` when already addressable, spawned fresh under it
+   otherwise) instead of a self-generated `coder-<module-slug>` - it still counts as this batch's
+   ONE coordinator for that module either way.
 4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
    in step 3, hold until every coordinator task on the run's task list is `completed`/`blocked`
    before packing the next batch - the barrier is mechanical per
@@ -446,6 +471,7 @@ Coder brief (target = the `odoo-coder` coordinator for the module):
 
 ```
 DISPATCH MODEL: <tier>
+WORKER NAME: <name> - OPTIONAL, present only when the caller pre-assigns a stable CHP Tier-A identity for this module's coordinator across separate `odoo-coding` invocations (e.g. a forward-port run resuming the same module's coordinator across separate source commits touching it). Same field shape as the P8a `odoo-test-writer` name in `odoo-forward-port` - a NAME, never an agentId. When present, use THIS as the coordinator's stable Tier-A `name` in step 0/3 below INSTEAD of self-generating `coder-<module-slug>`: if a worker under this name is already addressable, resume it via `SendMessage`; otherwise spawn fresh under this name. Absent (every caller that does not opt in - today's default) -> proceed exactly as documented below: self-generate `coder-<module-slug>`.
 REQUEST: <the change for this module: target model + constraints (+ frontendRequest for a frontend WI)>
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
@@ -464,7 +490,7 @@ BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. T
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
 Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
-GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
+GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
 
 - **Addons provenance is the DISPATCHER's job.** One lease carries one `addons_path`
@@ -475,10 +501,12 @@ GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` firs
   addons list, and releases it before reporting. When you DO forward a handle, also state its
   `ADDONS_PATH` so the receiver can run the coverage assertion. A receiver that holds a handle MUST
   use it and MUST NOT invent a `db_name` or port; it MUST NOT re-derive `addons_path` from the
-  catalog; and it self-provisions ONLY under the authorizing token. Absent both a handle and the
-  token, the `odoo-backend-coder` still self-provisions its bounded lint gate via
-  `Skill(odoo-instance)`, and the `odoo-frontend-coder` remains INSTANCE-FREE. Contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` (§ Worktree-addons carve-out,
+  catalog; and it self-provisions ONLY under the authorizing token. Neither hard-leaf worker
+  self-provisions an instance any more: `odoo-backend-coder`'s per-work-item lint-class self-check
+  moved to `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+  § Pre-PR tail), so it is now INSTANCE-FREE the same as `odoo-frontend-coder` - the coordinator's
+  OWN integrated-module-test self-provision (below) is the only per-module instance acquire left.
+  Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` (§ Worktree-addons carve-out,
   § Addons coverage assertion).
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
   `snippets/venv-resolution.md` - never assume system `python3`.
@@ -543,8 +571,10 @@ This skill is part of an agent+skill bundle. The codegen detail lives on the age
 see `agents/odoo-coder.md` (the per-module coordinator - owns the internal WI split + launches THREE
 teammates), `agents/odoo-test-writer.md` (the hard-leaf test author launched FIRST per WI - authors
 the RED test by invoking the `odoo-test-writing` skill inline), `agents/odoo-backend-coder.md`
-(the backend hard-leaf writer + its lint gate), and `agents/odoo-frontend-coder.md` (the frontend
-hard-leaf writer + its static gate) for the execution detail; agents inherit the full tool surface.
+(the backend hard-leaf writer + its ORM-validation gate - the lint-class gate moved to
+`run-harness`'s pre-PR tail, see `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Pre-PR tail), and `agents/odoo-frontend-coder.md` (the frontend hard-leaf writer + its
+zero-toolchain static gate) for the execution detail; agents inherit the full tool surface.
 
 ## The code -> review+test -> code loop (bounded)
 
@@ -587,11 +617,11 @@ When the bundle finishes, append a Continuation Contract block per
 `<ISOLATE_DIR>/worklog/<slug>/` entries, and emit `next: odoo-code-review` with `inputs: {odoo_version:
 <the run's resolved version>}` (a reserved key - `continuation-contract.md` Rules) so the review
 runs against the same pinned version without re-deriving it (that skill now scales to the same
-multi-module set). Additionally, when any module in the
-run is new (`NEW MODULE: yes`) OR the change introduces user-facing translatable strings
-(`_("...")` / `string=` field attr), ALSO add a second entry to the same `next:` list naming
-`odoo-i18n` (reason: the module's `.pot` / `.po` files need generating/translating) at
-`confidence: 0.4` and `risk_level: L2` (the skill requires a live instance) - a low-confidence
-advisory the driver surfaces as a suggestion, never a bare `SUGGESTED_NEXT:` line (superseded by
-the in-block form, the V-34 pattern already applied to the coder/reviewer family). Additive output
-for the run-harness - it does not change anything produced above.
+multi-module set). Do NOT also emit a per-module `next: odoo-i18n` suggestion here. i18n reconcile
+is a MANDATORY, ONCE-per-run step now owned by `run-harness`'s pre-PR tail
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail), dispatched
+over the run-integration branch's AGGREGATE diff after the final wave closes - not a per-module
+advisory here, which would fire once per module per wave for the same run-level obligation and add
+nothing the mandatory tail step does not already cover. `run-harness` always drives an `odoo-coding`
+dispatch (Phase P engages the driver on any `writes-files` node - `docs/reference/workflow-harness.md`
+§8.3), so this hand-off is complete without a per-module echo here.

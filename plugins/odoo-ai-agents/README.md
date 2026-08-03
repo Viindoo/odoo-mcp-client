@@ -39,11 +39,12 @@ plan, and the main agent is never forced or trapped - the stops are real human c
 nudges are advisory.
 
 A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 13-phase
-orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that ports commits across Odoo
-series using intent-first extraction (not raw code carry-over), merge-keep-SHA strategy,
-symbol-survival checking, pre-adapt drift scan, adaptive test forwarding, and
-verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning as
-a core engineering capability.
+orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that groups commits by MODULE first,
+then by commit within it, and ports them across Odoo series using intent-first extraction (not raw
+code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift scan, adaptive
+test forwarding, and verify-by-behavior per batch - at most one agent instance per module across
+the whole run. It runs alongside coding, code review, and upgrade planning as a core engineering
+capability.
 
 > **Counts at a glance:** this plugin ships **52 skills + 26 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
@@ -372,19 +373,23 @@ flowchart TD
 
 ### Forward-port pipeline (`/odoo-forward-port`)
 
-A 13-phase orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that ports commits
-across Odoo series using intent-first extraction (not raw code carry-over), merge-keep-SHA
-strategy, symbol-survival checking, pre-adapt drift scan, adaptive test forwarding, and
-verify-by-behavior per batch. Two human STOP-gates bound the automation.
+A 13-phase orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that groups commits by
+MODULE FIRST, then by commit within that module, and ports them across Odoo series using
+intent-first extraction (not raw code carry-over), merge-keep-SHA strategy, symbol-survival
+checking, pre-adapt drift scan, adaptive test forwarding, and verify-by-behavior per batch. At
+most ONE agent instance is dispatched per module across the whole run for intent extraction (P1)
+and, once resumed rather than cold-spawned, for code adapt (P8) - a module's whole picture lives
+in one context instead of being split across N per-commit dispatches. Two human STOP-gates bound
+the automation.
 
 ```mermaid
 flowchart TD
     START(["/odoo-forward-port"])
-    START --> P0["P0 - Recon + triage<br/>(read-only: enumerate commits,<br/>inline-triage model tier)"]
+    START --> P0["P0 - Recon + triage<br/>(read-only: enumerate commits,<br/>group by MODULE first,<br/>then by commit within it)"]
 
-    subgraph P1_grp["P1 - Intent extract (parallel, read-only)"]
-        P0 --> IE1["odoo-intent-extractor<br/>commit A"]
-        P0 --> IE2["odoo-intent-extractor<br/>commit B...N"]
+    subgraph P1_grp["P1 - Intent extract (parallel BY MODULE, read-only;<br/>at most ONE instance per module)"]
+        P0 --> IE1["odoo-intent-extractor<br/>module A (its full ordered<br/>commit list, one instance)"]
+        P0 --> IE2["odoo-intent-extractor<br/>module B...N (same)"]
     end
 
     IE1 --> P2["P2 - Classify + installable-probe<br/>(4-outcome bucket via OSM; installable from the<br/>target clean-tip manifest; prober for ambiguous cat-3)"]
@@ -392,15 +397,15 @@ flowchart TD
 
     P2 -->|"bucket (c) complex"| P3["P3 - Design<br/>(route-out to odoo-solution-design;<br/>returns to forward-port)"]
     P3 --> P4_gate
-    P2 -->|"bucket (a/b/d)"| P4_gate["P4 - Plan gate<br/>(EnterPlanMode / ExitPlanMode;<br/>plan.md written as resume record)"]
+    P2 -->|"bucket (a/b/d)"| P4_gate["P4 - Plan gate<br/>(EnterPlanMode / ExitPlanMode;<br/>plan.md written module-first as resume record)"]
     P4_gate -->|"STOP - human approve"| P5["P5 - Git merge --no-commit<br/>(keep SHA)"]
 
     P5 --> P6["P6 - Symbol-survival check<br/>(7 classes: field/method/model/<br/>test-base/import/installable/orm-field-key)<br/>+ test-survival sub-check"]
     P6 --> P7["P7 - Pre-adapt drift scan<br/>(Lane 1: ALL .py - import+pyflakes+orm-field-key<br/>Lane 2: tests-only collect gate)"]
 
-    subgraph P8_grp["P8 - Adapt (serial per commit, test-first)"]
-        P7 --> PA["forward tests RED-on-target"]
-        PA --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
+    subgraph P8_grp["P8 - Adapt (test-first;<br/>ONE named, resumable worker<br/>per module across ALL its commits)"]
+        P7 --> PA["8a forward tests RED-on-target<br/>(odoo-test-writer, named once,<br/>SendMessage-resumed per later commit)"]
+        PA --> PB["8b adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip<br/>(odoo-coding -> odoo-coder, resumed<br/>the same way by WORKER NAME)"]
         PB --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
@@ -415,14 +420,14 @@ flowchart TD
 | Phase | Description | Parallel? | Human gate? |
 |-------|-------------|-----------|-------------|
 | P0 Recon + triage | Enumerate commits; inline-triage model tier; read-only | - | - |
-| P1 Intent extract | Dispatch odoo-intent-extractor per commit | Yes (N commits) | - |
+| P1 Intent extract | Group commits by MODULE first (P0), then dispatch ONE odoo-intent-extractor per module - its full ordered commit list in one context, at most one instance per module for the whole run, never one per commit | Yes (N modules) | - |
 | P2 Classify + installable-probe | 4-outcome bucket via OSM; installable read from the target clean-tip manifest; odoo-installable-prober for ambiguous cat-3 | Serial per commit | - |
 | P3 Design | CONDITIONAL: route-out to odoo-solution-design for complex bucket-(c) modules; returns to forward-port | Serial per commit | - |
-| P4 Plan gate | EnterPlanMode / ExitPlanMode; plan.md written as resume record after approval | - | STOP - human approve |
+| P4 Plan gate | EnterPlanMode / ExitPlanMode; plan.md written module-first (each module's own commit list nested under it) as the resume record after approval | - | STOP - human approve |
 | P5 Git merge --no-commit | Merge source commit onto target branch, keep SHA | Serial per commit | - |
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
-| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit | - |
+| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit (the git merge stays one-commit-per-target-commit; the 8a test-adapt worker is named once per module and SendMessage-resumed for every later commit touching it - 8b code-adapt closes the same way once its receiving side accepts the resume hint) | - |
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
 | P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
@@ -855,11 +860,11 @@ regardless of whether it has a dedicated guide.
 | `odoo-test-writing` | Engineer | The SSOT test-authoring capability - writes executable `test_*.py` (TransactionCase/Form/HttpCase, tours), JS Hoot/QUnit, and lightweight performance/load tests that protect business behavior, not current code; also a direct user-triggerable front door. Every component that needs a test authored launches the `odoo-test-writer` AGENT, which invokes THIS skill inline for context isolation (the RED-first failing test before the code in the `odoo-coding` loop, durable acceptance tours, and coverage backfill when review flags an unprotected behavior) |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
-| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (default vi_VN; reads machine-global `$ODOO_AI_HOME/i18n.json`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
+| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (no built-in default - resolved from the request, machine-global `$ODOO_AI_HOME/i18n.json`, on-disk `.po` filenames, or the live instance, else `NEEDS_CONTEXT`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
-| `odoo-forward-port` | Engineer | Forward-port fixes/features from a lower Odoo series up to a higher one as an intent-first pipeline (parallel intent sweep -> 4-outcome classify -> installable probe -> SHA-preserving merge -> symbol-survival check -> test-first adapt -> verify-by-behavior -> PR); two human STOP-gates bound the automation |
+| `odoo-forward-port` | Engineer | Forward-port fixes/features from a lower Odoo series up to a higher one as an intent-first pipeline, grouped by MODULE first then by commit within it (module-first intent sweep -> 4-outcome classify -> installable probe -> SHA-preserving merge -> symbol-survival check -> test-first adapt -> verify-by-behavior -> PR); at most one agent instance per module across the whole run for intent extraction and (resumed rather than cold-spawned) code adapt; two human STOP-gates bound the automation |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code; supports master-child decomposition for large multi-module scope (slim, paired with agent bundle) |
 | `odoo-planning` | Architect / Coder | Turn an APPROVED design into the EXECUTION plan that ships it - a gate-able ONE-lifecycle plan (wave-batched module-DAG + integration cadence + each module/stage wired to a SKILL + full lifecycle: code -> review -> QA -> doc -> PR -> monitor -> merge); dispatches BOTH `odoo-planner` (code plan, reuses design DAG) AND `odoo-doc-planner` (doc plan, branch-aware instance allocation) and stitches them into ONE plan with a single approval gate; emits estimates only (effort + `est_agents`, ADVISORY). Runs after `odoo-solution-design`, before `odoo-coding` (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches **one `odoo-coder` COORDINATOR per module** (every module) as a subagent in model-weighted batches - the coordinator splits its module into work-items and, per work-item, launches `odoo-test-writer` FIRST (the RED test) then `odoo-backend-coder` and/or `odoo-frontend-coder` to make it green (the coders no longer author tests); orders modules by the shared module DAG, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
@@ -913,7 +918,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-frontend-coder` | Sonnet *(default; per-module tier - haiku/sonnet/opus/fable)* | Hard-leaf agent for frontend code writing (launched per frontend work-item by the `odoo-coder` coordinator) - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to the RED JS behavior test the `odoo-test-writer` teammate authored (it does NOT author tests; `test-behavior-contract`). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
-| `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (P1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
+| `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist. `odoo-forward-port`'s P1 bulk sweep dispatches exactly ONE instance per touched MODULE (never per commit) - the instance reads that module's FULL ordered commit list in one context, extracting each commit's business intent and behavioral contract while catching a same-file double-touch or a later commit reverting an earlier one within the module, before any git merge or adapt work begins; at most one instance per module for the whole run. A single-SHA brief stays valid for a single-commit clarification or a disputed-outcome re-anchor. Also dispatched by `odoo-git-rebase` (P2, per commit in rebase MODE, batched by module above roughly 30 commits) |
 | `odoo-installable-prober` | Sonnet | Read-only forward-port P2 leaf - reads the orchestrator-written target clean-tip manifest + source manifest-history dump (it runs no git itself) to decide installable:False category-3 outcome for modules where static classify is ambiguous; returns a 2-valued verdict (`installable_false: yes \| no`) with evidence; dispatched by `odoo-forward-port` at P2 for ambiguous cat-3 decisions |
 | `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by re-exporting from a fresh instance with the existing .po loaded, then the skill's git-ops diff-review adjudicates losses (forwards translation MEMORY, never regenerates blind; no polib), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
 | `odoo-instance-ops` | Sonnet | Instance lifecycle specialist launched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; a leased DB is dropped by releasing its lease (ownership-checked, race-free), never by bare name; returns structured metadata (db name, log path, ports, `db_port`, lease token, owning run id) so callers keep clean context |
