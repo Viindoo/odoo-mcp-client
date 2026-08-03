@@ -8,6 +8,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.20.0] - 2026-08-03
 
+### Added
+
+- `odoo-ai-agents` - the dispatch handoff contract is now binding on both sides. A brief is invalid
+  without the paths to the design, the plan and the survey findings the callee needs, and without the
+  caller's own return identity; `snippets/dispatch-brief.md` gains that field and the brief
+  self-check verifies it. On finishing, an agent emits a three-part completion report, and an
+  unqualified "waiting" is a forbidden outcome - an agent that must wait names what it waits on, who
+  can unblock it, and what the caller does next. Previously a callee that finished had no addressee
+  and could wait indefinitely, stalling every actor upstream that assumed work was still running.
+  The existing work-ethos principles are CITED at the dispatch sites rather than restated.
+- `odoo-ai-agents` - `snippets/git-delegation.md` § Base-branch resolution: a decidable algorithm
+  that resolves a new worktree or branch's base from the version-named series branch, keyed off the
+  run header's Odoo version, with a stated action for zero matches, several matches, a local branch
+  behind its remote, a detached HEAD and a dirty tree. The domain-agnostic half - an explicit start
+  point is mandatory for `worktree add`, `checkout -b`, `switch -c` and `branch`, because omitting it
+  silently resolves to HEAD - lives once in `git-toolkit`'s safety contract and is pointed at, never
+  restated.
+- `odoo-ai-agents` - `scripts/lib/allocator.py reap-orphans`: a database-side sweep for the class the
+  existing reclaim path cannot reach, an ephemeral-shaped database that no lease references at all.
+  Its ownership predicate fails CLOSED on every axis (an unreachable cluster is skipped rather than
+  assumed empty, an unmeasurable age is not assumed old enough, any leased name is left to the
+  existing path), and the default is list-only - dropping requires an explicit opt-in.
+- `odoo-ai-agents` - `skills/odoo-demo-recording` narrated evidence mode: per-step captions, a
+  before/after badge and a verdict end-card, so a bug-evidence clip explains itself without a live
+  narrator. Only capabilities verified against the recorders' real tool schemas are used; a recorder
+  family that cannot inject script is excluded by name, and a missing frame assembler degrades to a
+  stated non-fatal status instead of promising an output the tool surface cannot produce.
+- `odoo-ai-agents` - `skills/odoo-forward-port` groups by MODULE first and by commit second within
+  each module, with at most ONE worker per module across a run, named once and resumed by name for
+  every later commit rather than re-dispatched cold. Determining intent commit by commit meant a
+  module's commits were spread over as many workers as it had commits and no worker ever saw the
+  module whole - a revert pair or two commits editing one file could land in different contexts.
+  A view-topology check is added to the same pipeline so a re-implement never leaves an
+  unconditional same-module inherit view stacked on the base view it could merge into.
+
+### Fixed
+
+- `odoo-ai-agents` - `allocator.py acquire` now REFUSES (exit 5) instead of silently defaulting the
+  addons path to the catalog's principal checkout when the caller's cwd is a linked worktree of the
+  same repository. It fingerprints the shape by git-common-dir (identical across a repo's worktrees)
+  against `--show-toplevel` (per checkout). Every earlier round fixed a call path and left the
+  DEFAULT guessing, with prose covering the gap - and prose does not refuse, so a build could load
+  the principal checkout while reporting a green result for code it never compiled.
+- `odoo-ai-agents` - a lease is now OWNED: `acquire` persists the caller's run id onto the lease row
+  instead of only echoing it back. `assert-droppable` prints its refusal reason to stderr, a refused
+  drop exits non-zero rather than reporting success, and `acquire --help` can no longer reserve a
+  lease as a side effect of argument parsing.
+- `odoo-ai-agents` - a recon or scouting dispatch that states no model tier inherits the CALLING
+  context's model, which is why the highest-traffic recon phase ran at the caller's tier. Recon now
+  states its tier explicitly, and `skills/_shared/concurrency-guard.md` records the inheritance
+  mechanism itself so the rule applies at sites nobody has authored yet. Separately, every scout's
+  findings are persisted PER AGENT and read back by a later phase; a parent-authored aggregate is a
+  summary from the parent's own context, which is the caller-memory dependency the contract exists
+  to remove. `snippets/scouting-persistence-contract.md` owns the consumer registry, and the guard
+  fails when a recon site is unregistered rather than only when a known site regresses.
+- `odoo-ai-agents` - `skills/run-harness` contradicted itself: one section mandated auto-advance with
+  a closed exception list while another permitted stopping at any time, so pausing at every wave
+  boundary was compliant with the text. The advance rule now lives in one place with four enumerated
+  stop conditions, and `docs/reference/workflow-harness.md` points at it instead of restating a
+  competing unbounded version. The underlying fact that hooks cannot coerce the main agent is kept;
+  what is removed is the open-ended permission built on top of it.
+- `odoo-ai-agents` - lint-class execution (`test_lint`, `test_pylint`, pylint-odoo, eslint, flake8,
+  ruff, prettier) moves out of per-module and per-wave work into ONE pre-PR step, ordered after the
+  i18n reconcile and the acceptance run so both land before the PR. Acceptance was previously wired
+  to fire AFTER the PR was opened, and the i18n reconcile was absent from the drive-to-done loop
+  entirely, so a run driven by the harness skipped translation. Static checks that are not
+  CI-parity lint gates stay where they are.
+- `odoo-ai-agents` - no hardcoded locale default remains. The defect spanned three layers: prose, the
+  setup step that seeded the language registry, and two tests that asserted the hardcoded value MUST
+  be present - so every previous attempt to fix it turned a test red and was reverted, with CI green
+  throughout. The target language is now a required input with no built-in default, and its absence
+  returns a needs-context outcome rather than a guess.
+- `odoo-ai-agents` - agent-facing prose no longer points at things that do not resolve: a manifest
+  filename written without its surrounding double underscores (no Odoo module contains that file),
+  and an in-repo documentation path that resolves nowhere. Both are corrected at every occurrence
+  rather than only where they were reported, and a guard scans the whole tree for the class.
+
 ## [4.19.0] - 2026-07-31
 
 ### Added
