@@ -105,7 +105,9 @@ paths, no lease tokens; those are RUNTIME, resolved by the executor. Because the
 lineage), the plan stays as reproducible as Block 2 itself.
 
 Nodes (all SYMBOLIC - names, never SHAs/paths):
-- `base` - the run's base ref (the principal branch at dispatch). One root.
+- `base` - the run's base ref: the version-named main branch, resolved per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch resolution - **never** "whatever
+  the invoking checkout currently has checked out". One root.
 - `run-integration` - ONE per run: forked from `base` at run start, it is the cherry-pick target for
   EVERY wave and the branch the terminal `integrate` land-tail squashes + pushes as the run's ONE PR.
   (There is NO per-wave integration branch.)
