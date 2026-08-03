@@ -1,18 +1,18 @@
 ---
 name: odoo-demo-recording
-argument-hint: "[flow/feature to record]"
+argument-hint: "[flow/feature to record] [--label before|after]"
 description: >
   Record a screen-capture video (MP4/GIF) of one Odoo workflow for a demo, sales walkthrough,
-  or marketing clip - driving the live instance through a scripted click path and saving the
-  result. Capture runs via pagecast/Playwright-video MCP (chrome-devtools drives the path;
-  screenshot→GIF fallback when the recorder is unreachable). Use when the deliverable is a
-  video of a live flow, not a static review or bug hunt. Pushy trigger: fire on "record a demo
-  of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture a short MP4
-  for the website", "quay video demo Odoo", "tạo video hướng dẫn quy trình". Routing: stitch
-  many scenes / multi-scene walkthrough into one video → /odoo-produce-video (command); RATE how
-  a screen looks → odoo-ui-review; broken screen → odoo-debug; compare two builds →
-  odoo-visual-regression; write frontend code → odoo-coding; code audit →
-  odoo-code-review
+  marketing clip, or narrated before/after bug-evidence pair - driving the live instance through
+  a scripted click path and saving the result. Capture runs via pagecast/Playwright-video MCP
+  (chrome-devtools drives the path; screenshot→GIF fallback when the recorder is unreachable).
+  Use when the deliverable is a video of a live flow, not a static review. Pushy trigger: fire on
+  "record a demo of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture
+  a short MP4 for the website", "record narrated before/after evidence", "quay video demo Odoo",
+  "tạo video hướng dẫn quy trình". Routing: stitch many scenes / multi-scene walkthrough into one
+  video → /odoo-produce-video (command); RATE how a screen looks → odoo-ui-review; diagnose a
+  broken screen's root cause → odoo-debug; compare two builds → odoo-visual-regression; write
+  frontend code → odoo-coding; code audit → odoo-code-review
 ---
 
 ## Role
@@ -61,10 +61,14 @@ variant - default to headless (recording works headless; only safe choice on no-
 headed only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch
 brief) - call the `-headed` tool directly when needed:
 
-- `navigate_page` - open each step's URL.
+- `navigate_page` - open each step's URL. Its `initScript` param runs a script on every new
+  document before any other script - the injection point narrated mode's overlay bundle uses
+  (below); re-pass the SAME `initScript` on every navigation this run, a fresh document wipes
+  any previously injected globals.
 - `click` / `fill` / `fill_form` / `hover` - perform the scripted click path on camera.
 - `take_screenshot` - capture key frames (poster image, GIF frames, or fallback when video unavailable).
-- `evaluate_script` - set up deterministic demo state (e.g. scroll position) between steps.
+- `evaluate_script` - set up deterministic demo state (e.g. scroll position) between steps, and
+  (narrated mode) update the injected caption/badge/end-card overlay between steps.
 
 > Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video).
 > **pagecast and playwright are OPT-IN** - only the headless `chrome-devtools` is eager (bundled
@@ -139,6 +143,114 @@ Save the MP4 (or GIF) to
 `<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
 path, duration, and step list so the take is re-runnable.
 
+## Narrated evidence mode
+
+Optional sub-mode of Rounds 0-4 above: turns a bug-evidence take into a self-explanatory clip -
+a per-step caption bar, a before/after corner badge, and a verdict end-card - using ONLY the
+script-execution tools this skill already declares (chrome-devtools `evaluate_script` /
+`navigate_page(initScript=...)`, or playwright `browser_evaluate` when that family is wired
+instead). Bundle template + a fully worked example:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/narrated-mode.md`.
+
+### Trigger (decidable)
+
+Enter this mode when the request states ANY of: the word "narrated"; "before/after (bug)
+evidence"; a `--label before|after` argument; or a dispatch brief carrying both `LABEL` and a
+verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rounds 0-4 unchanged
+- this mode never fires on a bare "record a demo" ask.
+
+### Required additional inputs
+
+- `LABEL` (`before` | `after`) - selects badge color/text and the output filename suffix. Missing
+  → ask once, in the single Round-0 question batch; never guess which side of a fix this take is.
+- `COMMIT_SHA` - the build's commit. If not supplied, resolve inline in the repo under
+  demonstration with `git rev-parse --short HEAD` - a bounded, non-mutating read, the same class
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` keeps inline-legal - never a git-ops dispatch
+  for this one read.
+- `VERDICT_STATUS` (`bug` | `fixed`), `VERDICT_EXPECTED`, `VERDICT_OBSERVED` - the end-card
+  content. Take these from the caller (an `odoo-debug` root-cause, an `odoo-qa-tester` verdict,
+  or the human reporting the bug); never invent them.
+- A caption line per Round 1 step-list entry - one short present-tense sentence per menu/record/
+  field/action, in the operator's language.
+
+### Overlay mechanism (verified capability - do not exceed it)
+
+- Caption bar, corner badge, and end-card are ONE self-contained DOM-overlay bundle (inline HTML/
+  CSS/JS, no CDN, no external fetch - CSP-safe by construction) injected via a script-execution
+  tool this skill already declares - never a new capability. Exact bundle text + calling
+  convention: `references/narrated-mode.md`.
+- **chrome-devtools:** pass the bundle as `initScript` on every `navigate_page` call this run
+  (re-pass the SAME string on every navigation - a fresh document wipes injected globals); call
+  `evaluate_script` between steps to invoke the bundle's `__setCaption` / `__setBadge` /
+  `__endCard` functions, updating caption/badge/end-card text without a fresh navigation. Do not
+  pass caption text via `evaluate_script`'s `args` - that parameter is documented for element-uid
+  substitution, not arbitrary strings; inline the text into a fresh `function` string per call
+  instead.
+- **playwright (if wired):** `browser_navigate` has no `initScript`-equivalent parameter - call
+  `browser_evaluate` with the bundle immediately after every `browser_navigate`, then again to
+  call `__setCaption` / `__setBadge` / `__endCard` between steps. Its native `browser_start_video` /
+  `browser_stop_video` records the SAME page the bundle draws on in real time (a continuous take,
+  no frame assembly needed). Its native `browser_video_chapter` MAY supplement as a scene marker
+  but does not substitute for the end-card - that tool has no color parameter, so it cannot carry
+  the required red/green verdict color; the DOM overlay's own end-card owns that.
+- **pagecast is NOT a narrated-mode driver.** Verified against its declared schema: `record_page`
+  accepts only `url`/`width`/`height`, and `interact_page`'s action set (`wait/scroll/click/hover/
+  type/press/select/navigate`) has no script-injection or evaluate action - pagecast cannot render
+  the overlay into its own recording. If pagecast is the only recorder family wired, drive this
+  mode via chrome-devtools instead (next section) - never present a silent, unnarrated pagecast
+  clip as narrated.
+
+### Capture, by path
+
+- **playwright wired:** `browser_start_video` before the first step; drive with playwright's own
+  `browser_click` / `browser_fill_form` / `browser_type`, updating the caption via
+  `browser_evaluate` immediately before each action; hold the end-card on screen >= 2s before
+  `browser_stop_video`. Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
+  a pure file-format conversion (both take a file path, not a live session), so this cross-family
+  reuse needs no new capability.
+- **chrome-devtools only:** `take_screenshot` one frame per step AFTER the caption update and the
+  action complete (the frame must show the rendered result, not the pending state - see Grounding
+  rule below), plus one final frame of the held end-card. This is the SAME screenshot-frame path
+  the base flow already uses when the recorder is unreachable (`## Standalone-first fallback`
+  below) - reused deliberately here, not a second assembly path. If no frame-to-clip assembler is
+  configured in the deployment, the ordered PNG sequence itself IS the deliverable - report it as
+  such (Output format) rather than claiming an MP4 the tool surface did not produce.
+
+### Grounding rule
+
+A caption asserting rendered STATE (a value shown on screen, e.g. "vendor: Acme Freight") must be
+checked against the frame actually captured for that step - re-read the field via
+`evaluate_script` / `browser_evaluate` (or the screenshot itself) - never written from the
+expected/predicted value ahead of time. A predicted caption that turns out wrong (the bug means
+the field stays empty) is the exact defect this mode exists to make visible.
+
+### Matched-pair filenames
+
+Both takes of a before/after pair share the SAME `<feature>-<timestamp>` (mint the timestamp
+once and reuse it for both invocations) plus the `LABEL` suffix, landing in the SAME
+`visual/videos/` path Round 4 already uses - no new directory, no new retention row; the existing
+orphan sweep and 30-day bound (Round 4, above) already cover any file here regardless of suffix:
+
+```
+<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-before.{mp4,gif}
+<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-after.{mp4,gif}
+```
+
+### When the capability is not available
+
+- **Neither chrome-devtools nor playwright is reachable** (only pagecast is): no script-injection-
+  capable family exists. Emit `BLOCKED(narrated mode needs chrome-devtools or playwright for
+  overlay injection; only pagecast is reachable)`. Do not silently produce an unnarrated pagecast
+  clip and call it narrated.
+- **chrome-devtools is reachable (it always is - eager, bundled) but no frame-to-clip assembler is
+  configured and playwright is not wired:** produce the PNG frame sequence (each frame
+  overlay-correct) and return `DONE_WITH_CONCERNS`, naming the missing assembler and the sequence
+  path, rather than promising an MP4/GIF the toolchain cannot produce.
+- Recorder single-flight (never two drivers on the same MCP family) and close-before-DONE still
+  apply unchanged - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser
+  exclusivity + `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2; this mode adds
+  no new exception.
+
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
@@ -169,14 +281,28 @@ path, duration, and step list so the take is re-runnable.
 <any state setup assumptions, e.g. demo data record used>
 ```
 
-Examples (sales order MP4 + portal GIF with recorder unavailable):
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/examples.md`
+Narrated evidence mode adds, to the same report:
+
+```
+### Narrated evidence (label: before|after)
+- Badge: <BEFORE (unfixed)|AFTER (fixed)> <COMMIT_SHA>
+- Captions: <N> steps, 1 line each (see Click path above for the matching step text)
+- End-card verdict: <bug|fixed> - Expected: <VERDICT_EXPECTED> · Observed: <VERDICT_OBSERVED>
+- Paired file: <ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-<before|after>.{mp4,gif}
+```
+
+Examples (sales order MP4 + portal GIF with recorder unavailable, plus a narrated before/after
+bug-evidence pair): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/examples.md`.
+Narrated-mode overlay bundle + calling convention:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/narrated-mode.md`.
 
 ## Notes / Integration
 
 - Videos/GIFs are written under `<ISOLATE_DIR>/visual/videos/`.
 - Use a consistent viewport and login for repeatable takes.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
+- Narrated mode never fires unless explicitly requested (see `## Narrated evidence mode` §
+  Trigger) - the default flow above is unchanged.
 
 ## Continuation Contract
 

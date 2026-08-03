@@ -56,7 +56,12 @@ phases:
       stop and the close are mandatory per scene, including a retake - see
       ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T0/T2.
       After all scenes are recorded, report each clip path and duration so the user
-      can review before assembly. Support retake: if the user marks a scene for retake,
+      can review before assembly.
+      If a scene's storyboard description says "narrated", "before/after evidence", or carries a
+      --label before|after, dispatch that scene's odoo-demo-recording invocation in Narrated
+      evidence mode (see that skill's SKILL.md, Narrated evidence mode section) instead of the
+      default flow - same gate, same clip-path convention, no change to this phase otherwise.
+      Support retake: if the user marks a scene for retake,
       re-record that scene only (stop + close it too) before proceeding to assembly.
     model_tier: sonnet
     gate: "approve-all / retake: [scene numbers] / cancel"
