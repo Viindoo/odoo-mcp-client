@@ -207,8 +207,9 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (the target screen/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (the target screen/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
 pass, named - never "everything"; the verdict taxonomy expected back - its OWN six-lens
 PASS/WARN/FAIL verdict (aesthetics, functional, stability, accessibility, performance,
 design-system fidelity), never the code-review CRITICAL/HIGH/MED/LOW rubric; the coverage
@@ -216,9 +217,19 @@ baseline, so a dimension a sibling pass already owns is not re-run). Graduated r
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 

@@ -63,7 +63,10 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 
 When the orchestrator dispatches you as a named TEAMMATE (Agent Team mode), the brief carries these
 keys; absent keys mean team mode is off and you behave as today (final message + Continuation
-Contract):
+Contract). `REPLY_TO` is also listed as a POINTER on the caller-side skeleton
+(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11, `CALLER_ID`) so a caller composing a
+brief from that file alone still learns the obligation exists - this file stays the one place the
+field's worker-side semantics are defined:
 
 ```
 TASK_ID: <id>          # the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked.

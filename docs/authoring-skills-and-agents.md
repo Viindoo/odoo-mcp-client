@@ -171,7 +171,7 @@ and `tests/test_chp_hardening.py`).
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
 `snippets/dispatch-brief.md` is the SSOT for how a spawner (main agent, a dispatching skill, or a
 nested coordinator) fills the dispatch prompt when it dispatches a specialist agent -
-the universal 10-field skeleton (`OBJECTIVE`, `WHY`, `SCOPE`, ...) plus a per-family delta
+the universal 11-field skeleton (`OBJECTIVE`, `WHY`, `SCOPE`, ..., `CALLER_ID`/`REPLY_TO`) plus a per-family delta
 (Designer/planner, Coder, Reviewer/auditor, Tester/QA, Doc-writer, Instance/ops, Survey/analyst).
 Every spawner skill/agent **reads it BY PATH** while composing a dispatch prompt; it is **NEVER
 inlined verbatim into a hard-leaf brief** - a leaf has no one to re-brief, so it self-checks
