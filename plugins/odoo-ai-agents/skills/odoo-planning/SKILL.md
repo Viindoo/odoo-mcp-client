@@ -114,7 +114,15 @@ planner writes ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - 
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
-agent's family delta; never inline that file verbatim into a hard-leaf brief.
+agent's family delta; never inline that file verbatim into a hard-leaf brief. Field 11
+(`CALLER_ID`/`REPLY_TO`) applies here too: run the CHP capability probe once (per
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Capability probe) before the P1a
+dispatch below; when positive (Agent Team mode on), inject `TASK_ID` + `REPLY_TO: <this skill's
+current orchestrating context>` (`main` only when the main context launched this skill directly -
+never a hardcoded literal) into each planner's brief and read its result via the `SendMessage` push
+per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - the same CHP-conditional pattern
+`skills/odoo-forward-port/SKILL.md` already implements (cited, not restated here). When the probe
+is negative, dispatch + collect as today (final message + Continuation Contract).
 
 When intent is confirmed, dispatch BOTH planners sequentially. Their outputs compose into one
 lifecycle plan presented at a single gate.

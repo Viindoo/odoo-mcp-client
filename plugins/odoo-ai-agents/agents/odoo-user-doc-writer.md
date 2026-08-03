@@ -90,7 +90,8 @@ the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-c
 Resolve the locale set with the shared resolver (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution): brief
 `LANGUAGES:` -> `context.md doc_languages` -> `i18n.json default_languages` -> module `i18n/*.po` ->
-live `res.lang` -> hard fallback, THEN union with existing on-disk `doc/index*.rst` locales so prior
+live `res.lang` (no built-in default beyond these tiers - all five empty returns `NEEDS_CONTEXT` per
+the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
 resolved set; `doc/index.rst` is always English (no suffix); every other locale ->
 `doc/index_<locale>.rst`. Detect the on-disk screenshot naming convention (capture-mechanics.md
@@ -322,15 +323,26 @@ and screenshot artifacts and worklog to files as usual. If `SendMessage` is abse
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
 AUDIENCE/persona, locale/language list, grounding source (feature catalog /
 walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

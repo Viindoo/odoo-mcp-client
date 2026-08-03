@@ -21,20 +21,21 @@ carried inline in its own body (see `## Brief self-check` below). This is the op
 `worker-brief.md`, which IS inlined into leaves because it is worker-side behavior the leaf must
 execute.
 
-## Universal skeleton (10 fields)
+## Universal skeleton (11 fields)
 
 | # | Field | ALWAYS / COND | Definition |
 |---|-------|----------------|------------|
-| 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure. |
+| 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure. Governed by ODOO-AI-ETHOS #4 (Outcomes over Procedures) - cited, not restated, here: see `## Brief self-check` below for the site-specific application. |
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
-| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. |
+| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
 | 5 | `WORKTREE_PATH` (+ `BASE` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode) | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. |
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
-| 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure. |
+| 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
+| 11 | `CALLER_ID` (`REPLY_TO`) | ALWAYS | The launching context's own name/id - the literal `main` only when the main orchestrating context is the direct launcher, else the dispatching skill/agent's own name. This is a POINTER field: the detailed addressing rule (never guess, never skip a level, the malformed-input fallback when the key is absent) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3; the `SendMessage`/task-board transport that carries it (`TASK_ID`, `NOTIFY`) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`; the worker-side consumption contract is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. This row exists so a caller who only reads THIS file's skeleton still learns the obligation exists - do not restate the addressing rule here. |
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (resolve the Tier-2 SHARE dir per
@@ -180,13 +181,25 @@ by `test_agent_body_convention.py`).
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (<family fields>). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (<family fields>). Graduated response, per
+ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 ```
@@ -219,6 +232,15 @@ mode]). `RED_TEST_PATH` is PRODUCED by this coordinator (you launch `odoo-test-w
   safe default - surface the gap to your own caller before dispatching any leaf or running the
   integrated verification; do not silently pick one and proceed (this is the exact field your
   worktree-addons branch keys on).
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line before re-briefing your leaves.
+- Your own toolset carries `SendMessage` (Agent Team mode is active) AND your OWN inbound brief
+  carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the malformed-input
+  fallback in `spawner-completion-contract.md` R3 (final-message report, stating the missing
+  condition) rather than guessing or stalling; still re-brief your own leaves with the `REPLY_TO`
+  you inject as their launcher regardless of your own inbound gap.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target

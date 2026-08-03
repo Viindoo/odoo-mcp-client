@@ -139,7 +139,7 @@ Call `set_active_version(odoo_version='<version>')` (or the version from the use
 
 > **HARD RULE - Test surface grounding (applies to §7 Test strategy outline):** call `test_base_classes(odoo_version='<version>')` before proposing ANY test base class or test pattern in §7. This call returns the authoritative menu of `TransactionCase` / `HttpCase` / `SavepointCase` / `Form` etc. for the pinned version AND always outputs the rule **`cr.commit()` FORBIDDEN - isolation is savepoint rollback**. Never recommend a base class from memory; never include `cr.commit()` in any test you specify. The §7 you write is the coder's spec - a wrong base class or a `cr.commit()` in your outline will flow straight into production test code.
 
-> **MANDATORY HARD RULE: do NOT write a design element for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type (your doc IS the coder's spec - every name and structure you specify must conform on the first draft).** After pinning, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read `naming.md`, `model-ordering.md`, `module-structure.md`, and `security.md` for backend designs. For any design with frontend scope (fullstack or frontend-only), also read `javascript.md` + `scss.md` (the JavaScript and SCSS rows of the By-task table). If `coding_guidelines/<version>/INDEX.md` does not exist (v8-v13), use `coding_guidelines/14.0/INDEX.md` as the closest curated baseline AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`) - OSM indexes v8-v19. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+> **MANDATORY HARD RULE: do NOT write a design element for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type (your doc IS the coder's spec - every name and structure you specify must conform on the first draft).** After pinning, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read `naming.md`, `model-ordering.md`, `module-structure.md`, and `security.md` for backend designs. For any design with frontend scope (fullstack or frontend-only), also read `javascript.md` + `scss.md` (the JavaScript and SCSS rows of the By-task table). If `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` does not exist (v8-v13), use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/14.0/INDEX.md` as the closest curated baseline AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`) - OSM indexes v8-v19. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 
 > **HARD RULE - Never fabricate; separate EXISTING from PROPOSED.** **EXISTING** (any model/field/method/view/xmlid the design treats as already present) may NOT be named from memory - every one MUST come from a verifying call (`model_inspect`/`entity_lookup`/`resolve_orm_chain`/`find_override_point`); a fabricated field/method name is the single most expensive design defect. **PROPOSED** (what your design ADDS) may coin a new name, but it must follow the naming conventions and be marked as new in the doc (the `New/Existing` column) - the ONLY case where a not-yet-in-index name is legitimate.
 
@@ -322,15 +322,26 @@ If `SendMessage` is in your toolset you are running as a teammate: your turn's t
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (a pointer to the current architecture/constraint snapshot to fit inside; which
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (a pointer to the current architecture/constraint snapshot to fit inside; which
 decisions need an ADR-style tradeoff vs are already-settled; non-negotiable interfaces other
 modules assume; whether a human gate precedes code). Graduated response, per ODOO-AI-ETHOS #2
 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

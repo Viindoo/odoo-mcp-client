@@ -48,7 +48,20 @@ Rules:
   only after the resources this dispatch acquired are returned - browser pages/recordings you
   opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
   name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
-- `produced` is your evidence (Completion-status #8) - list the real paths you wrote.
+- **Completion report is three parts, always - not only in Agent Team mode.** Per
+  ODOO-AI-ETHOS #10 (Completion Status - cited, not restated here), your output, in order, is
+  (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
+  evidence, (c) this fenced `continuation` block. This holds identically whether your final
+  message IS the report (no `SendMessage` in your toolset) or is pushed via `SendMessage` per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 1, which reuses this exact 3-part
+  shape rather than defining its own - this file owns the shape, Ask 1 only owns the transport.
+- `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
+- **"Waiting" is never a bare statement.** `status` has no `waiting` value by design - a genuine
+  pause IS `BLOCKED` or `NEEDS_CONTEXT`, with `blocked_reason` naming (a) what you are waiting on,
+  (b) who or what can unblock it, and (c) what the caller should do next. Ending a turn on an
+  unqualified "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, or with
+  no `continuation` block at all, is a protocol violation: it leaves the caller unable to tell
+  finished-without-reporting from still-working.
 - `risk_level`: L0 read-only/chat · L1 writes internal state (Tier-2 SHARE/ISOLATE `.odoo-ai/`-rooted
   files, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never a
   project-relative `./.odoo-ai/`) · L2 irreversible/outward (touches an instance, git push/merge,

@@ -58,7 +58,10 @@ never guesses its own address or a grand-parent's; the launcher is the address a
 literal `main`). Addressing SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Lead
 is the address authority". The lateral exception - same-layer peers messaging each other directly - is
 sanctioned only when the lead brokered the peer addresses; it still never skips a level UPWARD (see
-`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Peer reconciliation).
+`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Peer reconciliation). `REPLY_TO`
+is also listed as a POINTER field on the caller-side skeleton
+(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11, `CALLER_ID`) - this file stays the one
+place the addressing rule itself is defined; that row only sends a caller here.
 
 **Malformed input - no `REPLY_TO` supplied.** If you are in Agent Team mode (`SendMessage` available
 in your own toolset) but your brief carries NO `REPLY_TO`, do NOT guess and do NOT default to a

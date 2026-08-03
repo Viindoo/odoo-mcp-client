@@ -57,12 +57,11 @@ peer push. So `REPLY_TO` (the launcher named in the brief) is the authoritative 
 `main` only when the main context is itself the lead; the peer push is an early-wakeup optimization.
 See `spawner-completion-contract.md` R3.
 
-The report `text` is, in order:
-
-1. your **Continuation Contract** block (the fenced `continuation` block carrying
-   `status` / `produced` / `next`, per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`),
-2. a SHORT prose summary (a few lines - what you did, what to know), and
-3. the `produced:` artifact **PATHS** - the file paths only.
+The report `text` is the same 3-part completion-report shape owned by
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (a SHORT prose summary of what you did,
+the `produced:` artifact PATHS, then the fenced `continuation` block) - defined there once,
+per ODOO-AI-ETHOS #10, and always-on regardless of Agent Team mode; this Ask only supplies the
+`SendMessage` TRANSPORT for that shape, it does not re-define the shape itself.
 
 Do NOT inline the full diff, file bodies, or artifact contents into the message - those STAY in the
 files you wrote. You STILL write your artifacts AND your worklog to files (in addition to, never
