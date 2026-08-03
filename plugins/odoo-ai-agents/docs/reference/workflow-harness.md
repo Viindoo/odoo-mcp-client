@@ -1113,11 +1113,13 @@ reviewed change touches a UI/behavior surface whose blast-radius reaches DEPENDE
 `render_check_set` widened per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` extends beyond the
 changed modules) - or the rendered-UI dimension is left `DONE_WITH_CONCERNS` because no instance was
 reachable - `odoo-code-review` (and run-harness's between-wave close review) additionally emit `next: odoo-acceptance` at
-**L2 (opt-in, human-gated)**. It never auto-runs and never auto-blocks the review; the driver surfaces
-it as the terminal acceptance gate, and `odoo-acceptance` then drives the independent oracle
-(`odoo-qa-planner`) + live execution (`odoo-qa-tester`) over the affected cluster. Once
-`odoo-code-review` comes back clean (no fix/test re-loop), the DAG's terminal `approach_kind:
-integrate` node lands the change - see the `integrate` dispatch note above and `run-harness`
+**L2 (conditional, human-gated)**. It never auto-runs and never auto-blocks the review, and
+`odoo-acceptance` then drives the independent oracle (`odoo-qa-planner`) + live execution
+(`odoo-qa-tester`) over the affected cluster. When this hand-off is emitted inside a run-harness-driven
+run, it resolves as part of the pre-PR tail - BEFORE the DAG's terminal `approach_kind: integrate`
+node, never after it (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` §
+Pre-PR tail - the ordered sequence, not restated here). Once the code-review/acceptance gates are
+clean, `integrate` lands the change - see the `integrate` dispatch note above and `run-harness`
 SKILL.md § "`integrate` node dispatch (the land tail)" for the mechanics.
 
 ### 8.4 Gate-tier policy
@@ -1194,6 +1196,9 @@ priority order:
    Agent/Skill, Read(run.json/Contract/plan/pointer), gate decisions}; Write/Edit/wide-Grep/
    build-Bash should be delegated.
 3. **Soft nudge (advisory only):** the `remind-delegate` PreToolUse hook nudges (never denies);
-   the `drive-continuation` Stop hook nudges (never blocks). **No hook hard-blocks main.** The
-   accepted trade-off: occasionally the main agent needs a human "continue" rather than ever
-   being trapped by a hook.
+   the `drive-continuation` Stop hook nudges (never blocks). **No hook hard-blocks main** - but
+   that mechanism fact is NOT itself a license to pause. The runtime rule for WHEN the main agent
+   may end its turn and await a human "continue" is owned by `skills/run-harness/SKILL.md` Hard
+   rule 2 (the ENUMERATED L2 / BLOCKED / NEEDS_CONTEXT / user-abort-phrase list) - not restated
+   here. Outside those enumerated conditions, the main agent auto-advances; it does not pause
+   merely because a wave, a node, or a subagent dispatch finished.

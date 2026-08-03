@@ -249,32 +249,25 @@ def test_evals_retarget_to_single_owner_never_bare_allocator():
 # ITEM 5 (gap fix) - the CODER agents were missed by ITEM 2's inline-leaf sweep
 # ---------------------------------------------------------------------------
 
-def test_backend_coder_no_handle_fallback_routes_to_inline_skill():
-    """odoo-backend-coder's no-handle self-provisioning (its bounded /test_lint gate) routes via
-    Skill(odoo-instance) inline-mode, never a bare allocator.py acquire - the raw path used to skip
-    the HARD RULES the lint gate (/test_lint + /test_pylint) depends on (lint modules must be
-    INSTALLED). The backend WRITER (not the odoo-coder lead) owns this bounded lint gate."""
+def test_backend_coder_is_instance_free_no_self_provision():
+    """RETARGETED (R7a - lint-class gates moved to run-harness's pre-PR tail): odoo-backend-coder is
+    now INSTANCE-FREE, symmetric with odoo-frontend-coder - it must NOT self-provision an Odoo
+    instance at all. Its own bounded checks (ORM-validation gate, inline review) need no instance;
+    the CI-parity lint-class gate (/test_lint + /test_pylint) it used to self-provision for now runs
+    ONCE, over the aggregate diff, at run-harness's pre-PR tail. Any live/instance-backed check is
+    owned by the odoo-coder lead's integrated module test."""
     text = _norm(BACKEND_CODER_MD)
-    assert "Skill(odoo-instance)" in text and "Inline leaf-mode" in text, (
-        "backend coder must self-provision via Skill(odoo-instance) inline-mode"
+    assert "Skill(odoo-instance)" not in text, (
+        "backend-coder must be INSTANCE-FREE - it must NOT invoke Skill(odoo-instance) to self-provision"
     )
-    assert "Do NOT call `scripts/lib/allocator.py acquire` directly" in text, (
-        "backend coder must forbid calling the raw allocator directly for its own provisioning"
+    assert "allocator.py acquire" not in text, (
+        "backend-coder must not carry a raw-allocator acquire recipe (instance-free)"
     )
-    assert "allocator.py acquire --series" not in text, (
-        "backend coder must not carry a literal raw-allocator acquire recipe for self-provisioning"
+    assert "instance-free" in text.lower(), (
+        "backend-coder must state it is INSTANCE-FREE"
     )
-    assert "lint-module install union" in text, (
-        "backend coder must explain why the raw allocator path was wrong: it skips the lint-module "
-        "install union its own /test_lint+/test_pylint gate depends on"
-    )
-    # Preserved invariants from the fix brief.
-    assert "INSTANCE_HANDLE precedence" in text, "INSTANCE_HANDLE precedence rule must survive"
-    assert "Lint-only inline; a full suite delegates" in text, (
-        "the lint-only-inline / full-suite-delegates split must survive"
-    )
-    assert "No instance reachable and none handed in" in text and "NEEDS_NEXT: odoo-instance" in text, (
-        "the never-fake-a-pass / NEEDS_NEXT escalation rule must survive"
+    assert "ORM validation gate" in text or "ORM-validation gate" in text, (
+        "the ORM-validation gate must survive - it needs no instance and is unrelated to lint"
     )
 
 

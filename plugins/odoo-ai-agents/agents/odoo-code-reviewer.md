@@ -122,11 +122,11 @@ Merge findings from Steps 0.6-3.6, applying Step 3.6's ownership-transfer rule s
 
 ## Verification gates
 
-Reproduce the CI quality gates as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate.
+Reproduce the CI quality gates you are RESPONSIBLE for as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate. The CI-parity lint-class suites (`/test_lint` + `/test_pylint`, and the Tier-1 eslint leg of `verify-frontend.sh`) are NO LONGER re-verified per module here - they run ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail); re-running them per module here would duplicate that CI-parity cost for every module in every wave.
 
-**Frontend (JS / OWL / SCSS).** When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite its output as evidence - for the Tier-1 JS eslint path cite the eslint output lines plus the `RESULT:` summary line (PASS/FAIL/CANNOT-VERIFY); for Tier-2 OWL/SCSS paths cite the per-file `[BLOCK]`/`[WARN]` markers. If `verify-frontend.sh` returns `RESULT: CANNOT-VERIFY` (exit 2), the JS lint gate did NOT run - the JS lint slot MUST read `CANNOT-VERIFY` and the verdict MUST NOT claim a clean JS pass. Only exit 0 with `RESULT: PASS` counts as a clean JS pass.
+**Frontend (JS / OWL / SCSS) - Tier-2 static pitfalls only.** When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite the Tier-2 per-file `[BLOCK]`/`[WARN]` markers as evidence for your OWL/SCSS findings. The script's Tier-1 eslint output is informational only here - do NOT cite it as a clean or failed JS lint pass and do NOT gate your verdict on it; that gate is verified once at the pre-PR tail instead.
 
-**Backend (`.py`).** Reproduce the code-quality CI gate by running Odoo's own lint test module: append `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) to `--test-tags` and cite the output - this is the authoritative gate (sql-injection, consider-merging-classes-inherited, translation rules, and more) that OSM `lint_check` (a V0.5 hybrid matcher) only partially covers; a failure is a CRITICAL/HIGH finding. You are a STATIC AUDITOR, not an instance manager (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`): if the brief carries an `INSTANCE_HANDLE`, USE IT for this bounded lint-only run rather than self-allocating a DB/port; if no handle was passed and no instance is reachable, do NOT report a clean Python pass and do NOT silently skip - emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests` with the lint tags) so the gate runs later. This bounded lint run uses `-u <module> --test-enable` (the module is already installed in the lint DB) - the lint modules themselves must also be INSTALLED, not merely tagged (see `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules" + the `odoo-instance-ops` HARD RULE); on newer series also add `--skip-auto-install` to isolate auto-installed modules (confirm the flag via `cli_help`). A full module or cross-module suite - with its `mode` (fresh `-i` / reuse `-u`), `log_mode`, and structured findings - is always the executor's job (delegate to `odoo-instance` per `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`), never run inline here. See `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+**Backend (`.py`) - not re-verified here.** The `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles) gate is verified ONCE, over the aggregate diff, at the pre-PR tail - not per module by this review. Do not run it inline and do not claim a Python lint pass or fail in this review; a CRITICAL/HIGH Python finding from your OWN reading of the diff (bugs, conventions, security, N+1) is unaffected and still yours to report.
 
 ## Severity & scoring
 
@@ -146,7 +146,7 @@ Every review ends with a mandatory, deterministic verdict block appended after t
 |----------|----------|
 | CRITICAL | Field or method does not exist in the indexed codebase; infinite recursion risk; missing `super()` in `create`/`write`/`unlink`; SQL injection via unsanitized `env.cr.execute`; a runtime presence probe masking a non-existent field or wrong ORM path; an unmet TDD acceptance criterion or a domain-rule violation that breaks ledger integrity or tenant isolation |
 | HIGH | N+1 query in a loop; deprecated API that raises at call time; wrong `@api.depends` path causing stale compute; memory leak (listener/timer not cleaned up); a presence probe masking a missing `depends`; an unmet solution/module acceptance criterion or code that contradicts the TDD's stated intent; a domain-rule violation |
-| MED | Odoo convention violation from the version's `coding_guidelines/` (wrong method-naming prefix, model attribute order, import order, redundant `string=`); missing error handling at a system boundary; suboptimal pattern when a canonical one exists; `@api.constrains` on a relational field (silently skipped) |
+| MED | Odoo convention violation from the version's `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/` (wrong method-naming prefix, model attribute order, import order, redundant `string=`); missing error handling at a system boundary; suboptimal pattern when a canonical one exists; `@api.constrains` on a relational field (silently skipped) |
 | LOW | Cosmetic issues; non-translated user-facing strings; naming style; minor readability |
 
 Convention findings cite the violated guideline by version file + section (e.g. `17.0/model-ordering.md`), never from memory. Presence-probe severity keys off what the OSM walk reveals (probe -> resolve -> classify -> severity), not the syntactic pattern; a `getattr` on a field that genuinely exists and is reachable is LOW noise.
@@ -216,19 +216,15 @@ Master: `<SHARE_DIR>/designs/<master-slug>/_master-<date>.md` - §10 Cross-modul
 | <integration-module rule>     | §10 integ   | yes/no         | <code ref / gap> |
 Master verdict: <complies | N violations -> CRITICAL>.
 
-### Lint gate (/test_lint)
-<One line: PASS (clean) | FAILED (N findings - listed above) | SKIPPED (instance/DB not available).
-On SKIPPED, state explicitly: "Backend lint NOT verified - do NOT read this review as a clean
-Python pass; a running Odoo instance + DB is required to run /test_lint (and /test_pylint on v16+
-Viindoo profiles)." Cite the test runner output lines as evidence. See `## Verification gates`.>
+### Lint gate (/test_lint) - deferred to the pre-PR tail
+<One line, always: "Backend lint (/test_lint, /test_pylint on v16+ Viindoo) - deferred to
+run-harness's pre-PR tail; not re-verified per module by this review." Do not state PASS/FAIL/SKIPPED
+here - this review never runs the gate. See `## Verification gates`.>
 
-### JS lint gate (eslint via verify-frontend.sh)
-<One line: PASS (clean) | PASS (with N warning(s)) | FAIL (N blocking issue(s) - listed above) |
-CANNOT-VERIFY (JS lint toolchain unresolved - verify-frontend.sh exit 2). On CANNOT-VERIFY, state
-explicitly: "JS lint NOT verified - do NOT read this review as a clean JS pass; resolve the
-repo-pinned eslint toolchain or escalate." Cite the script's own marker line (e.g.
-"[CANNOT-VERIFY] eslint not resolvable from node_modules/.bin"). Omit this slot when no JS/OWL/SCSS
-files are in scope. See `## Verification gates`.>
+### JS lint gate (eslint) - deferred to the pre-PR tail
+<One line, when JS/OWL/SCSS files are in scope: "JS lint (Tier-1 eslint) - deferred to run-harness's
+pre-PR tail; this review cites only the Tier-2 static OWL/SCSS markers above (see `## Verification
+gates`)." Omit this slot entirely when no JS/OWL/SCSS files are in scope.>
 
 ### Fixed Code
 
@@ -287,7 +283,7 @@ The lenses you review through - pattern-match during Step 1, confirm against OSM
 - **Platform principles + blast radius** - multi-company (+ multi-branch v17+) scoping, generic-before-localization, standard app-menu shape, and both-direction impact - performed in Step 3.5 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
 
 ### D5 - Conventions, version & maintainability
-- **Coding guidelines** - cite violations by the version's `coding_guidelines/` file + section (method-naming prefix, model attribute order, import order, redundant `string=`); read them in Step 0, never from memory.
+- **Coding guidelines** - cite violations by the version's `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/` file + section (method-naming prefix, model attribute order, import order, redundant `string=`); read them in Step 0, never from memory.
 - **Naming** - ambiguous single-char `l`/`O`/`i` (pylint C0104 blocks CI, MED all profiles); arbitrary abbreviations and record iteration over `self` not using `for r in self` (MED, Viindoo profiles). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`.
 - **Deprecated API** - the live `lookup_core_api`/`api_version_diff` currency check in Step 2 is the AUTHORITY for any touched core symbol; `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` is the FAST-PATH for known high-frequency pivots (e.g. `@api.multi`/`@api.one`/`@api.cr`, row "Record-style API") and the authoritative fallback for the OSM-blind-spot symbols it lists (decorator-as-token, JS/OWL) - a miss in the pivots file is NOT proof a symbol is current; the Step 2 live check governs everything outside it.
 - **Translation-string placeholders** - a multi-arg `_()`/`_lt()` call must use named `%(name)s` placeholders, not multiple positional `%s` (v18+ `test_lint` `gettext-placeholders` / E8505 failure, not a style nit). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders.
@@ -335,17 +331,28 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (the target diff/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (the target diff/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
 pass, named - never "everything"; the severity taxonomy expected back, per
 `review-severity-rubric.md`; the coverage baseline, so a dimension a sibling pass already owns is
 not re-run; `CHANGED_SET`/`SCOPE_FILES` for diff-scoping). Graduated response, per ODOO-AI-ETHOS #2
 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 

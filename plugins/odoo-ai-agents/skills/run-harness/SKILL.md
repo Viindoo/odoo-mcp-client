@@ -38,10 +38,19 @@ contract.
 
 1. **Owns the blackboard.** This is the orchestrator that walks the RUN-DAG. It MUST NOT be
    invoked from inside a subagent (it owns the run state and controls dispatch).
-2. **Never hard-block the main agent.** This loop is prompt-discipline, not coercion. The
-   human + main agent may stop at any time. The Stop/PreToolUse hooks only *nudge* (advisory);
-   they never deny a tool call or block a turn-end. (Quality-gate `block` is only ever for a
-   subagent, e.g. `enforce-grounding`.)
+2. **Never hard-block the main agent - but that is not an open license to pause.** This loop is
+   prompt-discipline, not coercion: the Stop/PreToolUse hooks only *nudge* (advisory); they never
+   deny a tool call or block a turn-end. (Quality-gate `block` is only ever for a subagent, e.g.
+   `enforce-grounding`.) That mechanism fact does NOT make "a wave/node just finished" a reason to
+   stop. **The main agent auto-advances the run WITHOUT asking a human UNLESS one of the following
+   ENUMERATED conditions holds - these are the ONLY legitimate reasons to end the turn and await a
+   human "continue":** (a) the node is L2 (§ Gate-tier resolution below - ALWAYS a human gate); (b)
+   the run resolves to BLOCKED (§ Circuit-breakers below: `budget.max_nodes` exhausted, a dependency
+   cycle, a node FAILED 3x); (c) the run resolves to NEEDS_CONTEXT; (d) the human issued an explicit
+   stop/abort phrase (§ Circuit-breakers below). Finishing a wave, a module, or any single subagent
+   dispatch is, by itself, never one of these - and a run that plows past a genuine (a)-(d)
+   condition instead of stopping is BLOCKED behavior too (a real blocker ignored), not
+   drive-to-done.
 3. **Only run-harness writes `run-<id>.json`.** Hooks never write it (no write race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
@@ -289,19 +298,16 @@ review subagent above), fill the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
 family delta; never inline that file verbatim into a hard-leaf brief.
 
-4. **After the FINAL wave: the single land-tail PR.** There is NO per-wave PR. After the LAST wave
-   closes green, run-harness dispatches the terminal `integrate` land-tail ONCE (§ `integrate` node
-   dispatch): squash the run-integration branch, fresh FIRST-push it to the fork (non-force - no
-   history rewrite, so no git-toolkit destructive-op gate fires), and open ONE PR against principal.
-   The outward MERGE stays `odoo-pr-monitoring`'s (the single L2-merge-gate). Drive-to-done STOPS at
-   "PR opened".
-5. **Acceptance hand-off (opt-in, L2).** If step 3's blast-radius render-check reached BEYOND a
-   wave's own modules (the `render_check_set` binds dependents), materialize an `odoo-acceptance`
-   node in the RUN-DAG at `gate_tier: L2` depending on the run's PR, so the affected cluster is
-   verified before merge (never auto-run, never auto-block) - the SAME condition + shape
-   `odoo-code-review` emits its acceptance hand-off under (full `next` block + shared render_check_set
-   SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Review
-   Escalation).
+4. **After the FINAL wave: the pre-PR tail, THEN the single land-tail PR.** There is NO per-wave PR.
+   After the LAST wave closes green, run-harness drives the pre-PR tail IN ORDER - i18n reconcile,
+   then acceptance (when triggered), then the pre-PR lint-class gate - and ONLY THEN dispatches the
+   terminal `integrate` land-tail ONCE (§ `integrate` node dispatch): squash the run-integration
+   branch, fresh FIRST-push it to the fork (non-force - no history rewrite, so no git-toolkit
+   destructive-op gate fires), and open ONE PR against principal. The outward MERGE stays
+   `odoo-pr-monitoring`'s (the single L2-merge-gate). Drive-to-done STOPS at "PR opened". Full
+   sequence, the acceptance-vs-i18n order justification, the lint-class gate's containment prose, and
+   the acceptance hand-off's `next` block: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+   § Pre-PR tail (mandatory sequence, after the final wave closes green) - not restated here.
 
 The invoked `odoo-coding` DRIVES its own per-module `odoo-code-review` inline and returns a SHA;
 run-harness does NOT advance a per-module `next` for that in-wave invocation (the review loop
