@@ -184,7 +184,9 @@ def test_step40_seeds_i18n_registry(tmp_path):
 
     After a successful apply:
     - i18n.json must exist in the same directory as instances.toml.
-    - Its content must be valid JSON with default_languages == ["vi_VN"].
+    - Its content must be valid JSON with default_languages == [] (no locale
+      assumed - a public, multi-tenant plugin must never seed a hardcoded
+      target language nobody asked for).
     - Running apply a second time must NOT clobber the file (if user edited it,
       the edited content must survive).
     Fails if the seed block is removed from the script (file will be absent).
@@ -214,7 +216,7 @@ def test_step40_seeds_i18n_registry(tmp_path):
     )
 
     data = json.loads(i18n_json.read_text(encoding="utf-8"))
-    assert data.get("default_languages") == ["vi_VN"], (
+    assert data.get("default_languages") == [], (
         f"Unexpected i18n.json content: {data}"
     )
 

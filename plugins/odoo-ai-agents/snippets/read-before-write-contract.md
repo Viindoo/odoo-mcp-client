@@ -25,13 +25,16 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
    or what the user stated). The guidelines are version-pinned and do NOT inherit across series; a
    v17 rule may be wrong for v18. If the version cannot be resolved, resolve it before writing - a
    precondition, not optional.
-2. **Open `coding_guidelines/<version>/INDEX.md` first** (e.g. `17.0/INDEX.md`). It carries a
+2. **Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first**
+   (e.g. `17.0/INDEX.md` under that same root). It carries a
    "By task" table - **use it**: read ONLY the files it maps to the task categories you are
    executing (topic file(s) + any listed snippet + the `odoo-version-pivots §` for that task).
    Do NOT read the whole directory; files for task categories not in scope waste tokens and add
    noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
-   files - read the relevant section, not the whole file. If `coding_guidelines/<version>/INDEX.md`
-   does not exist (v8-v13), use `coding_guidelines/14.0/INDEX.md` as the closest curated baseline
+   files - read the relevant section, not the whole file. If
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md`
+   does not exist (v8-v13), use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/14.0/INDEX.md`
+   as the closest curated baseline
    AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`)
    - OSM indexes v8-v19 (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` for
    the fallback rationale).

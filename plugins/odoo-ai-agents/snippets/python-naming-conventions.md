@@ -2,7 +2,7 @@
      Consumers: odoo-coder.md, odoo-frontend-coder.md, odoo-code-reviewer.md,
        odoo-backend-debugger.md, odoo-ui-debugger.md,
        skills/odoo-qa-suite/SKILL.md, skills/odoo-test-writing/SKILL.md,
-       coding_guidelines/<v>/INDEX.md (By-task "Naming" row, all versions).
+       ${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<v>/INDEX.md (By-task "Naming" row, all versions).
      Edit here only; consumers cross-ref, never restate. -->
 
 # Python Variable Naming Conventions

@@ -425,9 +425,10 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   `.odoo-ai/` directory (a repo-relative gitignore glob, distinct from the
   machine-global state root - left as-is) and writes a defensive
   `$ODOO_AI_HOME/.gitignore`. Backup + idempotent.
-  Also seeds `$ODOO_AI_HOME/i18n.json` (idempotent, no-clobber) with `{"default_languages":["vi_VN"]}` -
-  the machine-global default translation-language registry for the odoo-i18n cluster. Edit this file
-  to add or remove languages (e.g. `["vi_VN","en_US"]`).
+  Also seeds `$ODOO_AI_HOME/i18n.json` (idempotent, no-clobber) with `{"default_languages":[]}` -
+  empty, so no locale is assumed on the user's behalf - the machine-global default
+  translation-language registry for the odoo-i18n cluster. Edit this file
+  to add languages (e.g. `["vi_VN","en_US"]`).
 - **45-venv** *(optional, source instances only - offered between 40 and 50)* -
   each Odoo series supports only certain Python versions, so a source instance
   needs a matching interpreter. After `40` declares the profile, offer this flow

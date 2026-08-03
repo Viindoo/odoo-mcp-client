@@ -337,9 +337,9 @@ Global: with no instance/browser, the writer still assembles the structure + sup
 no-display / CI host. Pass `headed` only when the user explicitly asks to watch, and only after
 confirming a display is plausibly available; warn rather than dispatch headed on a headless host.
 
-## Language resolution (6-tier + disk-UNION)
+## Language resolution (5-tier + disk-UNION, no default)
 
-**SSOT.** This section is the single source of truth for the 6-tier language resolver (+
+**SSOT.** This section is the single source of truth for the 5-tier language resolver (+
 disk-UNION). Any other file that describes this resolution order (e.g. `app-store-template.md`,
 `doc-scoper.md`) or cites it (`user-doc-writer.md`, `marketing-writer.md`) MUST cross-reference this
 section rather than restate the tiers - do not fork a second copy of this order elsewhere.
@@ -351,22 +351,27 @@ Resolve the documentation language list the skill passes as each writer's `LANGU
 3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
 4. Module `i18n/*.po` locales already present
 5. `res.lang` active languages on the live instance
-6. Fallback `["vi_VN"]`
+
+**No tier 6 - no built-in default, same policy as `skills/odoo-i18n/SKILL.md` P0.** When ALL FIVE
+tiers above resolve empty, do not guess or silently generate documentation in an unrequested
+locale: return `status: NEEDS_CONTEXT` naming the missing field (`documentation language`). This
+mirrors odoo-i18n's own no-default rule exactly - this resolver only ADDS one extra tier, it does
+not diverge on what happens when every tier comes up empty.
 
 **UNION with existing on-disk doc locales (mandatory, after tier resolution).** Scan
 `static/description/` for `index.html` / `index_<locale>.html`; also scan `doc/` for `index.rst` /
 `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect as `disk_doc_locales`. Final
 list = `tier_resolved_list` ∪ `disk_doc_locales`. On-disk doc locales are ALWAYS included - never
 pass a `LANGUAGES:` field that omits a locale already documented on disk (prevents silently dropping
-translations). Tiers 3-6 here = odoo-i18n P0 tiers 2-5; tier 2 (`context.md doc_languages`) is added
+translations). Tiers 3-5 here = odoo-i18n P0 tiers 2-4; tier 2 (`context.md doc_languages`) is added
 in this stack only.
 
 **English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC
 SCOPE is `full-guide`, the final set = `{en_US}` ∪ resolved-set. English is the canonical,
 suffix-less doc (`index.html`, `doc/index.rst`), force-included even if the registry omits it; every
 other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. Applied on top of the shared
-resolver - it does NOT change the resolver's tier-6 hard fallback (`["vi_VN"]`) used by the legacy
-screenshot-doc/technical path.
+resolver - it does NOT change the resolver's no-default behavior above (there is no hard fallback
+locale) used by the legacy screenshot-doc/technical path.
 
 **Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture
 once, shared). A driven scenario MUTATES state so it cannot be re-rendered with `?lang=`; the writer

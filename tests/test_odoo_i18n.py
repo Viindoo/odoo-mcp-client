@@ -243,8 +243,10 @@ def test_p0_documents_language_resolution():
 
     This gate protects the multi-language contract: an agent executing odoo-i18n MUST
     know HOW to resolve the target language list without guessing.  If the mechanism
-    is removed from SKILL.md, the agent silently defaults to vi_VN or misreads the
-    caller intent.
+    is removed from SKILL.md, the agent has no documented resolution path and either
+    misreads the caller intent or must guess a locale nobody asked for (there is no
+    hardcoded fallback locale for it to silently fall back to instead - see Invariant 7's
+    `test_p0_gate_is_foldable_and_language_default_never_fires`, below).
 
     The substrings asserted here are canonical strings from the SKILL.md P0 section.
     Removing or renaming any of them makes this test red.
@@ -347,14 +349,22 @@ def _normalize_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text)
 
 
-def test_p0_gate_is_foldable_and_tier5_is_unreachable_inside_a_mandate():
+def test_p0_gate_is_foldable_and_language_default_never_fires():
     """P0's human STOP must fold into the caller's own gate when the caller supplied
-    everything (mandated invocation); standalone tier-5 vi_VN default must be
-    unreachable inside a mandate - it must record `not-applicable` instead.
+    everything (mandated invocation); there must be NO hardcoded target-language
+    default reachable in EITHER invocation shape - a standalone run with all four
+    resolution tiers empty must ask (`NEEDS_CONTEXT`), a mandated run must record
+    `not-applicable` (escape E3) and proceed translating nothing.
 
-    Protects ledger rows N2 + N5/N6d: a mandate that always STOPs for a human is a
-    deadlock (RC-4), and a mandate combined with an unqualified tier-5 default would
-    silently generate Vietnamese catalogs for a user who never asked for them.
+    Protects ledger rows N2 + N5/N6d, UPDATED after PR #189 review comment
+    r3701288606: a mandate that always STOPs for a human is a deadlock (RC-4), AND
+    a hardcoded `vi_VN` default (the tier this test used to require) is itself a
+    repo-rule violation in a public, multi-tenant plugin - it must never exist,
+    standalone or mandated. This test previously asserted the DEFECTIVE line
+    (`Default ["vi_VN"]`) was present; that was testing the bug, not the business
+    rule (ODOO-AI-ETHOS #8) - it now asserts the opposite: the line is GONE and a
+    real `NEEDS_CONTEXT` ask replaces it for the one case (standalone, all tiers
+    empty) it used to silently default for.
     """
     assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
     text = SKILL_MD.read_text(encoding="utf-8")
@@ -376,28 +386,46 @@ def test_p0_gate_is_foldable_and_tier5_is_unreachable_inside_a_mandate():
         "SKILL.md must state the mandated path does NOT stop for a human"
     )
 
-    # Tier 5 must be explicitly qualified as standalone-only.
-    tier5_idx = text.find('Default `["vi_VN"]`')
-    assert tier5_idx != -1, "SKILL.md must still carry the tier-5 `Default [\"vi_VN\"]` line"
-    tier5_line = text[tier5_idx: text.find("\n", tier5_idx)]
-    assert "standalone" in tier5_line.lower(), (
-        "tier 5's `Default [\"vi_VN\"]` line must be qualified 'standalone invocations ONLY' - "
-        "an unqualified default is reachable even inside a mandate"
+    # The hardcoded tier-5 default must be GONE, not merely qualified - a
+    # standalone-only default is still a default (the exact PR #189 finding).
+    assert 'Default `["vi_VN"]`' not in text, (
+        "SKILL.md must NOT carry a hardcoded `Default [\"vi_VN\"]` tier - the language "
+        "is a required input with no built-in default, standalone or mandated "
+        "(PR #189 review comment r3701288606)"
+    )
+    p0_start = text.find("**P0 - Scope gate")
+    p1_start = text.find("**P1 - Glossary build")
+    assert p0_start != -1 and p1_start != -1 and p0_start < p1_start, (
+        "SKILL.md must carry both a '**P0 - Scope gate' and a '**P1 - Glossary build' "
+        "heading in order, so the P0 body can be isolated"
+    )
+    p0_body = text[p0_start:p1_start]
+    assert "vi_VN" not in p0_body, (
+        "the P0 scope-gate section body must not name vi_VN anywhere - no locale may "
+        "appear as a resolution outcome, only tiers 1-4 (explicit / registry / on-disk "
+        ".po / live instance) or NEEDS_CONTEXT"
     )
 
-    # The not-applicable hatch must be the literal, documented mandated-tier-5 outcome.
+    # A standalone run that exhausts all four tiers must ask, not guess.
+    assert "NEEDS_CONTEXT" in normalized, (
+        "SKILL.md P0 must document that a standalone invocation with all four "
+        "resolution tiers empty returns NEEDS_CONTEXT naming the missing target "
+        "language, rather than defaulting to any locale"
+    )
+
+    # The not-applicable hatch must be the literal, documented mandated outcome
+    # once all four tiers are empty (escape E3).
     assert "not-applicable" in text, (
         "SKILL.md must document the `not-applicable` outcome for a mandated invocation "
-        "that reaches tier 5 (all four resolution tiers empty)"
+        "whose four resolution tiers are all empty (escape E3)"
     )
     mandate_idx = text.find("MANDATED invocation")
-    assert mandate_idx != -1, "SKILL.md must carry a 'MANDATED invocation' callout for tier 5"
+    assert mandate_idx != -1, "SKILL.md must carry a 'MANDATED invocation' callout"
 
     # vi_VN must never appear in the same PARAGRAPH as MANDAT* (case-insensitive) -
-    # the mandate path must never resolve to the hardcoded default language. Split
+    # the mandate path must never resolve to a hardcoded default language. Split
     # on blank-line paragraph boundaries (robust to Markdown line-wrap AND to `**`
-    # bold markers defeating a period-based sentence splitter - the tier-5 line
-    # ends in "ONLY.**", which a naive `[.!?]\s+` splitter fails to break on).
+    # bold markers defeating a period-based sentence splitter).
     for paragraph in re.split(r"\n\s*\n", text):
         if re.search(r"mandat", paragraph, re.IGNORECASE):
             assert "vi_VN" not in paragraph, (
