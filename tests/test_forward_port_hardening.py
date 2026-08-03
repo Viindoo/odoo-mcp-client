@@ -1590,8 +1590,8 @@ class TestI18nMandateComputeDispatchSplit:
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.find("**8e - i18n")
         assert start != -1, "fp-phase-detail.md must still carry an 8e i18n block"
-        end = text.find("\n\nConverge each child worktree", start)
-        assert end != -1, "8e block must be followed by the converge-back paragraph"
+        end = text.find("\n\nNo convergence or worktree removal step here", start)
+        assert end != -1, "8e block must be followed by the post-adapt closing paragraph"
         block = text[start:end]
         normalized_block = _ws_normalize(block)
 
@@ -2184,4 +2184,334 @@ class TestBothLegsUseTheSameResumeFieldShape:
         assert not offenders, (
             f"'RESUME_CODER' must not appear anywhere in the plugin tree (dropped in favor of the "
             f"WORKER NAME field shape); found in: {offenders}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# R12 runtime-review hardening round: 2 BREAKS (F1, F2), 2 DEGRADES (F3, F4),
+# 1 escalated NIT (F6 - PR/acceptance/i18n ordering). Every guard below is
+# RED-before-GREEN against `git show HEAD:<path>`, the committed pre-fix
+# baseline this round started from; measured counts are recorded in each
+# class docstring.
+# ---------------------------------------------------------------------------
+
+
+class TestP8NeverUsesChildWorktree:
+    """F2 (BREAKS): P8's own opening framing ('spawn an adapt unit in its own child
+    worktree off integration'), the mandatory 'Child worktree path' brief field on 8a/8b, and
+    the unconditional 'op: create per-module child worktree' git-ops call all assumed a
+    per-module child worktree is available for P8 fan-out. The SAME phase's own
+    'CRITICAL - open merge window' rule says MERGE_HEAD (continuous) / CHERRY_PICK_HEAD
+    (one-shot/absorb-all) is live for the ENTIRE P6-P9 span of every commit, in BOTH modes - so
+    a child worktree can never converge back before P10, and the mandatory field has no value an
+    agent can ever safely fill. Reconciled by removing the per-module child worktree entirely:
+    P8 always adapts DIRECTLY in the integration worktree (P8 is SERIAL, so there is no
+    concurrent writer to filesystem-isolate, and the open-merge window never clears before P8
+    runs, in either mode) - a single run-long 'Worktree path' field replaces the unfillable
+    'Child worktree path' field, and the 8a/8b 'converge child worktree back' step is dropped
+    (there is nothing to converge - the adapt already happened in place).
+
+    RED-before-green (measured via `git show HEAD:<path>`, the committed pre-fix baseline):
+      SKILL.md 'spawn an adapt unit in its own child worktree off integration' count = 1
+      SKILL.md 'Child worktree path' (any form) count = 4
+      fp-phase-detail.md 'op: create per-module child worktree from fp/<slug>' count = 1
+      fp-phase-detail.md 'converging back via merge works' (the flawed SUBSEQUENT-commit
+        carve-out this fix retracts) count = 1
+    All four are 0 in the current tree (GREEN, verified below)."""
+
+    def test_skill_md_no_longer_frames_p8_as_always_child_worktree(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "spawn an adapt unit in its own child worktree off integration" not in text, (
+            "SKILL.md P8 must not open by unconditionally framing a per-module child worktree "
+            "as P8's normal mode - that framing directly contradicts the SAME phase's own "
+            "'CRITICAL - open merge window' rule, which holds on every P8 call in both modes"
+        )
+
+    def test_skill_md_states_p8_always_adapts_directly_in_integration(self):
+        text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        assert "P8 8a/8b always adapt DIRECTLY in the integration" in text, (
+            "SKILL.md Git topology must state, unconditionally and checkably, that P8 adapts "
+            "directly in the integration worktree on every commit, in both modes"
+        )
+        assert "P8 NEVER uses a per-module child worktree" in text, (
+            "SKILL.md P8 must restate the same unconditional rule at its own point of use, not "
+            "only in the Git topology section"
+        )
+
+    def test_skill_md_drops_the_mandatory_child_worktree_path_field(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "**Child worktree path:" not in text, (
+            "SKILL.md must not still declare a mandatory 'Child worktree path' brief field - "
+            "F2's own finding is that no P8 invocation can ever validly fill it"
+        )
+
+    def test_skill_md_8a_and_8b_briefs_carry_a_stable_integration_worktree_path_field(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert text.count("Worktree path: `<path>/fp-integration`") >= 2, (
+            "SKILL.md 8a and 8b briefs must both carry a 'Worktree path: <path>/fp-integration' "
+            "field naming the SAME JOB-tier integration worktree for the whole run - never a "
+            "per-commit child worktree path"
+        )
+
+    def test_phase_detail_drops_the_unconditional_create_child_worktree_op(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "op: create per-module child worktree from fp/<slug>" not in text, (
+            "fp-phase-detail.md P8 must not unconditionally create a per-module child worktree "
+            "before dispatching the adapt unit - the open-merge window makes it un-convergeable "
+            "on every commit, in both modes"
+        )
+
+    def test_phase_detail_retracts_the_flawed_subsequent_commit_carveout(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "converging back via merge works" not in text, (
+            "fp-phase-detail.md must not claim child-worktree fan-out becomes valid once "
+            "'processing a SUBSEQUENT source commit after the previous P10 commit closed the "
+            "prior merge' - that gap sits BETWEEN commits, never DURING one: by the time P8 for "
+            "the next commit runs, that commit's own P5 has already reopened MERGE_HEAD"
+        )
+
+    def test_phase_detail_header_no_longer_claims_work_tier_worktree_per_module(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert (
+            "## P8 - Adapt (test-first; serial per-module within a commit; "
+            "WORK-tier worktree per module for filesystem isolation)"
+        ) not in text, (
+            "fp-phase-detail.md's P8 header must not claim a WORK-tier worktree per module - "
+            "P8 never reaches the precondition (integration HEAD already committed) that would "
+            "make one valid"
+        )
+
+    def test_git_topology_states_the_two_independent_reasons_p8_never_fans_out(self):
+        text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        assert "No parallelism to isolate" in text, (
+            "SKILL.md Git topology must state P8 is SERIAL, so there is no concurrent writer "
+            "for a child worktree to isolate - the first of the two independent reasons P8 "
+            "never fans out"
+        )
+        assert "MERGE_HEAD exists" in text, (
+            "SKILL.md Git topology must cite the concrete git error a second merge in the "
+            "integration worktree raises, grounding the open-merge-window reason P8 never fans out"
+        )
+
+
+class TestP3DesignDocReachesTheP8bBrief:
+    """F1 (BREAKS): P3 routes a non-trivial bucket-(c) commit OUT to odoo-solution-design and
+    records the returned `design_doc` in plan.md 'so the run does not adapt blind' - but the 8b
+    dispatch brief template that actually invokes `odoo-coding` for that SAME commit had NO
+    `DESIGN_DOC` field, so the design never reached the coder. Fixed by adding `DESIGN_DOC` to
+    the 8b brief, using the SAME sentinel shape `odoo-coding`'s own brief resolution already uses
+    (`DESIGN_DOC: <child TDD path | none>`) rather than inventing a new one - an explicit `none`
+    when P3 never routed this commit to design, never an omitted key.
+
+    RED-before-green (measured via `git show HEAD:<path>`): the 8b fenced brief block in
+    fp-phase-detail.md (from 'DISPATCH MODEL: <adapt-tier>' to 'USER LANGUAGE: ...') contained
+    'DESIGN_DOC' 0 times at HEAD. It is present in the current tree (GREEN, verified below)."""
+
+    _P8B_BLOCK_START = "DISPATCH MODEL: <adapt-tier>"
+    _P8B_BLOCK_END = "USER LANGUAGE: <lang | omit when English>"
+
+    def _phase_detail_8b_block(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.index(self._P8B_BLOCK_START)
+        end = text.index(self._P8B_BLOCK_END, start)
+        return text[start:end]
+
+    def test_phase_detail_8b_brief_carries_design_doc_field(self):
+        block = self._phase_detail_8b_block()
+        assert "DESIGN_DOC:" in block, (
+            "fp-phase-detail.md's 8b dispatch brief template (the ONLY adapt dispatch site for "
+            "a P3-routed bucket-(c) commit) must carry a DESIGN_DOC field - omitting it means "
+            "the coder adapts blind, exactly what P3's route-out exists to prevent"
+        )
+
+    def test_phase_detail_8b_design_doc_uses_the_odoo_coding_none_sentinel_shape(self):
+        block = self._phase_detail_8b_block()
+        assert "| none>" in block and "DESIGN_DOC:" in block, (
+            "fp-phase-detail.md's 8b DESIGN_DOC field must state an explicit 'none' sentinel "
+            "for the no-design case (mirroring skills/odoo-coding/SKILL.md's own "
+            "'DESIGN_DOC: <child TDD path | none>' convention) rather than omitting the key"
+        )
+
+    def test_phase_detail_8b_cites_the_mirrored_odoo_coding_convention(self):
+        block = self._phase_detail_8b_block()
+        assert "child TDD path | none" in block, (
+            "fp-phase-detail.md's 8b brief must cite the exact odoo-coding convention it "
+            "mirrors ('DESIGN_DOC: <child TDD path | none>') per the reuse-don't-reinvent "
+            "instruction - a previous round inventing a parallel field shape was rejected"
+        )
+
+    def test_skill_md_8b_bullet_also_documents_the_design_doc_field(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>" in text, (
+            "SKILL.md's own 8b bullet (a second literal-field presentation of the same brief) "
+            "must also document the DESIGN_DOC field, kept in lockstep with fp-phase-detail.md"
+        )
+
+
+class TestReplyToPresentInAllThreeBriefTemplates:
+    """F3 (DEGRADES): dispatch-brief.md states CALLER_ID/REPLY_TO is ALWAYS present in the
+    universal skeleton, but none of this skill's three literal brief templates - P1, 8a, 8b -
+    carried it; an agent filling the CONCRETE template it is handed (the whole point of a
+    template) would omit the reply address. Fixed by adding a `CALLER_ID (REPLY_TO)` field,
+    using the SAME field label dispatch-brief.md's own skeleton row 11 uses, to all three.
+
+    RED-before-green (measured via `git show HEAD:<path>`): 'CALLER_ID' occurrences in the P1
+    brief block = 0, the 8a brief block (fp-phase-detail.md) = 0, the 8b brief block
+    (fp-phase-detail.md) = 0, SKILL.md's 8a bullet = 0. All non-zero in the current tree
+    (GREEN, verified below) - this guard checks ALL THREE templates, not one."""
+
+    def test_p1_brief_template_carries_caller_id(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.index("DISPATCH MODEL: <extract-tier>")
+        end = text.index("USER LANGUAGE: <lang | omit when English>", start)
+        block = text[start:end]
+        assert "CALLER_ID (REPLY_TO)" in block, (
+            "fp-phase-detail.md's P1 odoo-intent-extractor brief template must carry a "
+            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
+            "skeleton field 11"
+        )
+
+    def test_8a_brief_template_carries_caller_id(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.index("TEST ADAPT MODE: forward this source test to the target platform.")
+        end = text.index("RULE: translate to target API", start)
+        block = text[start:end]
+        assert "CALLER_ID (REPLY_TO)" in block, (
+            "fp-phase-detail.md's 8a odoo-test-writer brief template must carry a "
+            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
+            "skeleton field 11"
+        )
+
+    def test_8b_brief_template_carries_caller_id(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.index("DISPATCH MODEL: <adapt-tier>")
+        end = text.index("USER LANGUAGE: <lang | omit when English>", start)
+        block = text[start:end]
+        assert "CALLER_ID (REPLY_TO)" in block, (
+            "fp-phase-detail.md's 8b odoo-coding brief template must carry a "
+            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
+            "skeleton field 11"
+        )
+
+    def test_skill_md_8a_and_8b_bullets_also_document_caller_id(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert text.count("CALLER_ID (REPLY_TO)") >= 2, (
+            "SKILL.md's own 8a and 8b bullets (the second literal-field presentation of the "
+            "same briefs) must also document the CALLER_ID (REPLY_TO) field, at least once each"
+        )
+
+
+class TestTable2FableGateSymmetricWithTable1Opus:
+    """F4 (DEGRADES): Table 1 (EXTRACT, P4-resolved) states exactly what to record when the
+    plan gate is suppressed and a module resolves to opus (Suppressed-gate auto-downgrade).
+    Table 2 (ADAPT, fable) stated no equivalent for the IDENTICAL suppression condition - only
+    the human-declines branch - so a suppressed-gate fable row had no value to record at this
+    skill's own P4 plan gate, and the tier got decided at P8 runtime by odoo-coding's OWN gate
+    instead, violating the stated invariant that a tier is part of the approved plan. Fixed by
+    adding the symmetric Suppressed-gate auto-downgrade clause to Table 2's fable constraint.
+
+    RED-before-green (measured via `git show HEAD:<path>`): 'gate suppressed' occurrences inside
+    Table 2's fable constraint bullet (the text between 'fable is never a default' and the next
+    '- A fullstack work-item' bullet) = 0 at HEAD. Non-zero in the current tree (GREEN, verified
+    below)."""
+
+    def _table2_fable_constraint_block(self):
+        text = TRIAGE_TABLE.read_text(encoding="utf-8")
+        start = text.index("- **fable is never a default and ALWAYS needs explicit human confirmation**")
+        end = text.index("- A fullstack work-item gets ONE tier applied to both legs by default", start)
+        return text[start:end]
+
+    def test_table2_fable_constraint_has_a_gate_suppressed_auto_downgrade_clause(self):
+        block = self._table2_fable_constraint_block()
+        assert "gate suppressed" in block.lower(), (
+            "fp-triage-table.md Table 2's fable constraint must state a Suppressed-gate "
+            "auto-downgrade clause - Table 1's opus row already has one for the IDENTICAL "
+            "suppression condition (P4 Plan Mode suppressed, no human available)"
+        )
+
+    def test_table2_records_the_same_auto_downgrade_plan_md_format(self):
+        block = self._table2_fable_constraint_block()
+        assert "opus (fable auto-downgraded - gate suppressed)" in block, (
+            "fp-triage-table.md Table 2 must record the auto-downgrade in the SAME plan.md "
+            "format Table 1 and skills/odoo-coding/SKILL.md's own fable gate already use "
+            "('<m>: opus (fable auto-downgraded - gate suppressed)')"
+        )
+
+    def test_table2_cites_the_mirrored_odoo_coding_pattern(self):
+        block = self._table2_fable_constraint_block()
+        assert "skills/odoo-coding/SKILL.md" in block, (
+            "fp-triage-table.md Table 2's new clause must cite skills/odoo-coding/SKILL.md as "
+            "the pattern it mirrors (the same pointer Table 1's own opus gate already uses) - "
+            "per the reuse-don't-reinvent instruction, not a freshly invented mechanism"
+        )
+
+
+class TestAcceptanceAndReviewBothPrecedeThePrOpening:
+    """F6 (escalated NIT -> real defect): SKILL.md opened the PR and ran the static review at
+    P11, BEFORE the cluster-wide acceptance run at P12 - but the repo owner's requirement (already
+    shipped this session in the sibling `run-harness` pipeline: i18n, then acceptance, then the
+    lint-class gate, then the PR) is that acceptance AND the i18n reconcile both run BEFORE the PR
+    opens and before the lint-class/review gate. No genuine data dependency forces the old order:
+    acceptance (`odoo-acceptance`) reads only `merge-log.md` + `intents/<sha>.md` and never touches
+    the PR; the ONLY sub-step in the old P11 that genuinely needs an open PR is the bot-comment
+    cross-check (bot comments cannot predate the PR they are posted on) - every other review item
+    is diff-based. Fixed by renumbering: P11 = acceptance (was P12), P12 = PR + review (was P11),
+    with PR creation itself moved to the END of P12 (after the diff-based review clears) and the
+    bot-comment cross-check kept as the one genuinely post-PR sub-step.
+
+    RED-before-green (measured via `git show HEAD:<path>`): in SKILL.md, the '**P11 - PR + review'
+    heading appeared at a LOWER text offset than the '**P12 - End-to-end acceptance' heading (PR
+    review before acceptance) - i.e. P11-index < P12-index, backward per the owner's requirement.
+    In fp-phase-detail.md, 'op: create PR' appeared at a LOWER offset than 'Attribute every
+    finding to the FP diff' (the PR opened before its own review's attribution-diff check ran).
+    Both orders are reversed in the current tree (GREEN, verified below)."""
+
+    def test_skill_md_p11_is_now_acceptance_and_precedes_p12_pr_review(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        p11_idx = text.index("**P11 - End-to-end acceptance")
+        p12_idx = text.index("**P12 - PR + review")
+        assert p11_idx < p12_idx, (
+            "SKILL.md must present P11 (end-to-end acceptance) BEFORE P12 (PR + review) - "
+            "acceptance and the lint-class review gate must both clear before the PR opens"
+        )
+
+    def test_hard_rule_9_states_acceptance_runs_before_p12_pr_and_review(self):
+        text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        assert "P11 dispatches `odoo-acceptance` ONCE" in text, (
+            "Hard rule 9 must attribute the mandatory acceptance dispatch to P11, not P12"
+        )
+        assert "BEFORE P12 pushes the branch, opens the PR, or runs its" in text, (
+            "Hard rule 9 must state acceptance (P11) runs BEFORE P12 pushes, opens the PR, or "
+            "runs its lint-class review gate - matching the sibling run-harness Pre-PR tail order"
+        )
+
+    def test_phase_detail_p12_heading_replaces_the_old_p11_pr_review_heading(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "## P12 - PR + review" in text, (
+            "fp-phase-detail.md must rename its PR + review section header to P12, matching "
+            "SKILL.md's renumbered phase"
+        )
+        assert "## P11 - PR + review" not in text, (
+            "fp-phase-detail.md must not still carry a stale '## P11 - PR + review' header once "
+            "P11 has been reassigned to acceptance"
+        )
+
+    def test_phase_detail_pr_creation_happens_after_the_diff_based_review(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        create_pr_idx = text.index("op: create PR")
+        attribution_idx = text.index("Attribute every finding to the FP diff before rating it")
+        assert attribution_idx < create_pr_idx, (
+            "fp-phase-detail.md must run the diff-based review (attribution diff, C3, "
+            "installable-lint-only check) BEFORE creating the PR - only the post-PR bot-comment "
+            "cross-check genuinely needs an open PR to exist"
+        )
+
+    def test_phase_detail_bot_comment_crosscheck_stays_the_one_post_pr_substep(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        create_pr_idx = text.index("op: create PR")
+        bot_check_idx = text.index("Cross-check every static-review bot comment on the PR")
+        assert create_pr_idx < bot_check_idx, (
+            "the bot-comment cross-check must run AFTER PR creation (bot comments cannot "
+            "predate the PR they are posted on) - it is the one sub-step this phase's own "
+            "reordering must keep post-PR, never a reason to keep the whole review pre-PR-open"
         )

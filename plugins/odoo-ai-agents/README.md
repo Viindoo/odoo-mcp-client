@@ -412,8 +412,8 @@ flowchart TD
     PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch)"]
     P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>reuses the P9 instance)"]
     P95 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
-    P10 --> P11["P11 - PR + code-review<br/>(mandatory for new engines)"]
-    P11 --> P12["P12 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>gates ALONGSIDE human-merge decision"]
+    P10 --> P11["P11 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>runs BEFORE the P12 PR opens or its review runs"]
+    P11 --> P12["P12 - PR + code-review<br/>(mandatory for new engines);<br/>pushes + opens the PR only after P11 acceptance<br/>and this phase's own diff-based review clear"]
     P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
 ```
 
@@ -431,8 +431,8 @@ flowchart TD
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
 | P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
-| P11 PR + code-review | Open PR; mandatory code-review for new engines | - | - |
-| P12 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the human-merge decision | - | L2 (human) - combined with merge decision |
+| P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the sibling run-harness Pre-PR tail: i18n, then acceptance, then the lint-class gate, then the PR) | - | L2 (human) - verdict carried into the P12 human-merge decision |
+| P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | - |
 
 ### Git-rebase pipeline (`/odoo-git-rebase`)
 

@@ -100,6 +100,9 @@ TASK: For EACH commit in commit_dump_paths (in order), extract the business inte
       <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md per commit. Note any overlap or revert
       between commits in this SAME module bundle. Do NOT copy diff hunks as intent. Do NOT
       classify the 4-outcome bucket (caller's job).
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+      main-context driver invoked this skill, else the dispatching skill/agent's own name -
+      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -412,34 +415,29 @@ same-module inherit-view check.
 
 ---
 
-## P8 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
+## P8 - Adapt (test-first; serial per-module within a commit; ALWAYS directly in the integration worktree)
 
-For each touched module/WI, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create a child worktree off integration
-and dispatch the adapt unit (serially - complete one module before starting the next within the
-same commit):
+For each touched module/WI, dispatch the adapt unit DIRECTLY in the integration worktree
+(`<path>/fp-integration`, the JOB-tier worktree already created at P4 - `## P4` above) and process
+modules serially - complete one module before starting the next within the same commit. P8 NEVER
+creates a per-module child worktree (full derivation: `SKILL.md` § Git topology "WORK tier - NOT
+used by P8 adapt"): P8 is serial (no concurrent writer to filesystem-isolate) AND the open-merge
+window below never clears before P8 runs (no committed tip for a child to fork from, and no way to
+converge one back in time even if created).
 
-```
-op: create per-module child worktree from fp/<slug>
-scope: branch fp/<slug>-<module>, path <path>/wt-<module>
-worktree: <path>/wt-<module>
-```
-
-**Open-merge window (CRITICAL constraint).** During the open P5 merge window of the CURRENT
-source commit - after git-ops ran `--no-commit`, before the P10 `commit` - `MERGE_HEAD` is
-live in the integration worktree. Git rejects any second merge in that worktree until the first
-is committed or aborted (error: `MERGE_HEAD exists`). So child worktrees CANNOT converge back
-into integration during this window: adapt all modules SERIALLY, DIRECTLY in the integration
-worktree for the current commit's adapt pass - do NOT fan out child worktrees. SSOT: `[[fp-merge-absorption]]`
-§Absorption-window.
-
-**Per-commit vs absorb-all worktree.** Child-worktree fan-out is ONLY valid when integration
-HEAD is already committed - i.e. processing a SUBSEQUENT source commit after the previous P10
-commit closed the prior merge. Then `MERGE_HEAD` is gone, a child forks from a clean committed
-tree, and converging back via merge works. For an absorb-all run merging every commit in ONE
-no-commit merge, `MERGE_HEAD` is live throughout; do NOT fan out child worktrees at all - resolve
-conflicts serially, per module, directly in integration, and resume child-worktree isolation only
-once the absorbed merge is committed. The wrong mode yields child worktrees with a clean tree and
-an unresolved (invisible) conflict still sitting in integration.
+**Open-merge window (CRITICAL constraint - unconditional, not a special case).** For the ENTIRE
+span from P5 (`--no-commit`) through P10 (`commit`) - i.e. every commit's own P6/P7/P8/P9 -
+`MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot/absorb-all) is live in the
+integration worktree. Git rejects any second merge in that worktree until the first is committed
+or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8
+on ANY commit, in EITHER mode. This is NOT a carve-out for "a subsequent commit after the previous
+P10 closed the prior merge": that gap sits BETWEEN commits, never DURING one - by the time P8 for
+the next commit runs, that commit's OWN P5 has already reopened `MERGE_HEAD` (P5 always precedes
+P6/P7/P8/P9; P10 is the only step that commits it, and P10 runs AFTER P8/P9 finish - `## P10`
+below). Adapt all modules SERIALLY, DIRECTLY in the integration worktree, on every commit, in
+either mode - continuous keeps `MERGE_HEAD` live for each commit's own P6-P9 span with no
+exception; one-shot/absorb-all keeps `CHERRY_PICK_HEAD` live for the WHOLE run's single P6-P9 span
+with no exception. SSOT: `[[fp-merge-absorption]]` §Absorption-window.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest).
 **R2b - at most one `odoo-test-writer` instance per module across the WHOLE run:** on the module's
@@ -447,18 +445,19 @@ FIRST commit in this run, launch a NEW `odoo-test-writer` agent named `fp-adapt-
 in adapt mode (it authors by invoking the `odoo-test-writing` skill inline, in its own context); on
 any LATER commit touching the SAME module, RESUME that same named instance via `SendMessage`
 (CHP Tier-A) instead of launching a new one - full rule and the cd-on-resume requirement:
-`SKILL.md` § P8. The brief below is identical on a fresh launch or a resume; only the SOURCE TEST /
-WRITE-TO / Child worktree path fields change per commit.
+`SKILL.md` § P8. The brief below is identical on a fresh launch or a resume; only the SOURCE TEST
+content and the per-commit fields (INTENT/BUCKET/BROKEN TEST-SYMBOLS) change per commit - the
+Worktree path field never changes (P8 always adapts directly in the SAME integration worktree for
+the whole run, `SKILL.md` § Git topology).
 
 ```
 TEST ADAPT MODE: forward this source test to the target platform.
 WORKER NAME: fp-adapt-<slug>-<module>   (stable for the WHOLE run - launch once, resume for every
       later commit touching this module; never re-launch fresh under this name)
-SOURCE TEST (READ-FROM): <absolute-path-in-integration-worktree>/<module>/tests/<test_file>
-  (merged working-tree content in the integration worktree; read the file from this path)
-WRITE-TO: <absolute-child-worktree-path>/<module>/tests/<test_file>
-  (write the adapted result here; for bucket (b) start from the READ-FROM content which
-   may have conflict markers or auto-merged text - resolve it and write to WRITE-TO)
+SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<module>/tests/<test_file>
+  (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
+   text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
+   separate child worktree, so there is no WRITE-TO location distinct from where this is read.)
 INTENT: <one-liner from intents/<sha>.md>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
 BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for the source
@@ -468,6 +467,9 @@ TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo
       that already test this behavior the target-idiomatic way - imitate their structure>
 BROKEN TEST-SYMBOLS: <the P6 / P7 SYMBOL-BROKEN entries that land in THIS test file - the
       author must repair each (do not forward them verbatim)>
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+      main-context driver invoked this skill, else the dispatching skill/agent's own name -
+      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 RULE: translate to target API; STRIP implementation-coupled assertions (private method asserts,
       call counts, internal ordering); re-create the BEHAVIOR on target; confirm RED on target.
       Never relax/rewrite an assertion to pass unless the target platform legitimately redefines
@@ -514,16 +516,23 @@ INTENT RECORD: <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md   (the why - b
 BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-code>
 FAILING TEST (RED, written by the odoo-test-writer above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
+DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out
+      result, `references/fp-phase-detail.md` P3 - so 8b never adapts blind; `none` when P3 never
+      routed this commit to design; same sentinel shape `odoo-coding`'s own resolution already
+      uses, `skills/odoo-coding/SKILL.md` "DESIGN_DOC: <child TDD path | none>")
 MODULE SCOPE: <name>
-  READ-FROM: <absolute-path-in-integration-worktree>/<module>/ (merged content; for bucket
-    (b) 3-way+adapt start from these files - they hold the auto-merged or conflict-marked state)
-  WRITE-TO: <absolute-child-worktree-path>/<module>/ (your child worktree; write ALL output here)
+  READ/WRITE (in the integration worktree, no separate child worktree): <path>/fp-integration/<module>/
+    (merged content; for bucket (b) 3-way+adapt start from these files - they hold the
+     auto-merged or conflict-marked state - and write ALL output back here, in place)
 ODOO VERSION: <target>
 WORKLOG: <slug> - read, then append.
 MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET version on conflict, never bump), C2 (migration-dir
   retarget), C3 (carry pre-existing source bugs faithfully, do not inline-fix) - [[fp-merge-absorption]]
 WORKER NAME: fp-adapt-<slug>-<module>-coder   (stable for the WHOLE run - launch once, resume for
       every later commit touching this module - see above)
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+      main-context driver invoked this skill, else the dispatching skill/agent's own name -
+      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -574,9 +583,9 @@ Both conditions and the escape table: `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-manda
 Carry `i18n_due` forward to P9.5. Recording it here and dispatching there is deliberate: the decision
 needs the diff (available now), the dispatch needs the instance (available at P9).
 
-Converge each child worktree back to integration (serialized, keep SHA), then invoke git-ops
-to remove the child worktree at `<path>` (only after that module's P9 cycle
-confirms GREEN - see SKILL.md P8 for the Tier-A worktree-persist rule). Mark `status=adapted`.
+No convergence or worktree removal step here: 8a/8b already wrote directly into the integration
+worktree (no per-module child worktree exists to converge back or remove - `SKILL.md` § Git
+topology). Mark `status=adapted`.
 
 ---
 
@@ -633,7 +642,7 @@ Union the closures of every directly-touched module and pass that whole set as `
 dispatch below.
 
 **Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
-(and eslint / prettier for frontend) installed, or the P11 lint gate silently no-ops. Confirm
+(and eslint / prettier for frontend) installed, or the P12 lint gate silently no-ops. Confirm
 `flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
 
 **Dispatch `odoo-instance` (via the Skill tool) - ONE ephemeral instance per BATCH, not per
@@ -736,7 +745,12 @@ straight to P8, which would absorb it without a merge or a symbol/drift check).
 
 ---
 
-## P11 - PR + review
+## P12 - PR + review
+
+Runs AFTER P11 (end-to-end acceptance, `SKILL.md` § P11) has already cleared for this batch -
+acceptance, then this review gate, THEN the PR opens; never the reverse (`SKILL.md` Hard rule 9;
+SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Pre-PR tail).
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):
 
@@ -747,21 +761,10 @@ worktree: <path>/fp-integration
 remote: resolve via `git remote get-url origin`
 ```
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the PR:
-
-```
-op: create PR
-base: <target-branch>
-head: fp/<slug>
-title: "..."
-body: "..."
-remote: resolve from `git remote get-url origin`
-```
-
 Run `odoo-code-review` inline (via the Skill tool, from the orchestrating context) for the
-forward-port pitfall (a forwarded test still coupled to the source API). NEVER squash (squash
-mints a new SHA, defeats merge-base advance). B stays LOCKED -
-the PR adds only the merge commits. Present the PR URL and wait for the human to merge.
+forward-port pitfall (a forwarded test still coupled to the source API) - this review runs on the
+pushed branch BEFORE the PR is created (the diff-based checks below need only the push above, not
+an open PR).
 
 **Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
 file blames the forward-port for code it never touched. Before rating any finding, confirm the
@@ -791,6 +794,28 @@ entity_lookup(kind='field', model='account.move', field='payment_state', odoo_ve
 `installable: False` at the target (8c-bis lane), the reviewer rates ONLY syntax / lint findings -
 do NOT raise business-logic / behavior findings against a module that does not even install at the
 target. Mark such findings out-of-scope for this forward-port.
+
+Only once the review above is addressed, invoke the `git-toolkit:git-ops` skill (via the Skill
+tool) to create the PR:
+
+```
+op: create PR
+base: <target-branch>
+head: fp/<slug>
+title: "..."
+body: "..."
+remote: resolve from `git remote get-url origin`
+```
+
+**Cross-check every static-review bot comment on the PR (post-PR, the ONE sub-step here that
+genuinely needs an open PR).** Once the PR above is open and CI has had a chance to run, read the
+bot (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
+forward-ported line is signal that an auto-merged construct did not survive the target. This runs
+after PR creation, never before, and never gates PR creation itself.
+
+NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED - the PR adds
+only the merge commits. Present the PR URL, the review findings, and the P11 acceptance verdict
+together, and wait for the human to merge.
 
 ---
 
