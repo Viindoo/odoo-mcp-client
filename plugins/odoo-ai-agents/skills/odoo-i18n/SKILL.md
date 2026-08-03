@@ -3,8 +3,8 @@ name: odoo-i18n
 argument-hint: "[module(s)] [target-lang e.g. vi_VN]"
 description: >-
   This skill should be used when the user asks to translate one or more Odoo modules into any
-  target language (default vi_VN), export .pot/.po, update translations, sync terminology, or
-  audit cross-module term consistency. Fire on "translate this module", "export .pot / .po",
+  target language (no built-in default), export .pot/.po, update translations, sync terminology,
+  or audit cross-module term consistency. Fire on "translate this module", "export .pot / .po",
   "update the translation", "sync terminology", "đồng bộ thuật ngữ", "dịch module Odoo",
   "xuất .pot/.po", "cập nhật bản dịch", or any i18n / terminology-consistency ask for Odoo.
   Front door for ALL Odoo translation work and the ONLY dispatcher of the odoo-translator agent;
@@ -131,17 +131,29 @@ then echo which source was used:
 3. Infer from existing `<lang>.po` filenames in each module's `i18n/` directory
    (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists.
 4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
-5. Default `["vi_VN"]` - **standalone invocations ONLY.**
 
-**Inside a MANDATED invocation, tier 5 is unreachable.** When a caller dispatches this skill as a
+**No tier 5 - the target language is a REQUIRED input with NO built-in default.** This is a public,
+multi-tenant plugin: hardcoding any single target locale here (Vietnamese or any other) would
+silently generate catalogs nobody asked for. This is a different fact from the mandatory-`en_US`
+paragraph below - `en_US` is never a *target* language, it is the Odoo base/source language every
+build loads regardless of what is being translated, so it is never a stand-in for an unresolved
+target either. When tiers 1-4 above ALL resolve empty:
+
+- **Standalone** (a human asked directly, not as a dispatched pipeline step): do NOT default or
+  guess - return `status: NEEDS_CONTEXT` naming the missing field (`target language`) and stop
+  there. There is nothing to present at the approval gate below until the human supplies one.
+- **Mandated** (a caller dispatched you as a required step): see the paragraph immediately below -
+  record escape E3 and proceed, translating nothing; a mandated dispatch can never block on an
+  interactive question that has no human to answer.
+
+**Inside a MANDATED invocation**, when a caller dispatches this skill as a
 required step of its own pipeline (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`), it
 SHOULD pass explicit `TARGET LANGUAGES` whenever it already has one - but when it has none to give,
 tiers 2-4 above still run, against whatever IS available, before giving up (the caller's silence on
-this field is never a licence for THIS P0 to skip straight past them). Reaching tier 5 is NOT a
-licence to default either: once ALL FOUR tiers are empty, record
-`i18n: not-applicable (no target language resolvable from tiers 1-4)`, return that verbatim to the
-caller, and translate nothing. A public, global plugin must never generate Vietnamese catalogs for a
-user who did not ask for them.
+this field is never a licence for THIS P0 to skip straight past them). Once ALL FOUR tiers are
+empty, record `i18n: not-applicable (no target language resolvable from tiers 1-4)` (escape E3),
+return that verbatim to the caller, and translate nothing. A public, global plugin must never
+generate Vietnamese (or any other) catalogs for a user who did not ask for them.
 
 **`en_US` is mandatory, independent of the tiers above.** After resolving the target languages, set
 `activation_languages = {"en_US"} union target_languages`. `en_US` (Odoo's base/source language) is
@@ -160,7 +172,9 @@ target_languages x series + dependency order + language-source tier).
 **Then gate - and WHERE the gate lives depends on how you were invoked:**
 
 - **Standalone** (a human asked for a translation directly, not as a dispatched pipeline step) ->
-  STOP for approval in a single turn before any export or DB op, as before.
+  once a target language IS resolved (tiers 1-4 above, or the human answered the `NEEDS_CONTEXT`
+  ask two paragraphs above), STOP for approval in a single turn before any export or DB op, as
+  before.
 - **Mandated** (a caller dispatched you as a required step) -> do NOT stop, period - a human stop per
   invocation, per BATCH in forward-port's P5->P10 loop, turns a mandatory step into a deadlock. What
   makes a dispatch Mandated is `WORKTREE_PATH` AND (an `INSTANCE_HANDLE` or
@@ -172,8 +186,9 @@ target_languages x series + dependency order + language-source tier).
   caller supplies it, tier 1 resolves immediately; when the caller has none to give, this P0 still
   runs tiers 2-4 itself (registry / `.po`-filename inference / live instance query) against whatever
   IS available - an empty `TARGET LANGUAGES` field is never a shortcut past those tiers. Only once
-  tiers 1-4 are ALL empty does tier 5 become reachable in principle, and inside a mandate that
-  reachability is capped at escape E3, never the standalone-only fallback two paragraphs above: RECORD
+  tiers 1-4 are ALL empty is the field genuinely exhausted, and inside a mandate that exhaustion
+  resolves to escape E3 ONLY, never the standalone-only `NEEDS_CONTEXT` stop described two
+  paragraphs above (which needs a human to answer, and a mandate has none): RECORD
   `i18n: not-applicable (no target language resolvable from tiers 1-4)`, RETURN it, and PROCEED -
   translate nothing, but never stop for it. RETURN the scope summary (or the E3/BLOCKED record) to the
   caller, which presents it at its OWN existing gate alongside its other verdicts (precedent:
@@ -289,5 +304,7 @@ All under `<ISOLATE_DIR>/i18n/<slug>-<date>/`:
 When the run finishes (or pauses at the P0 gate or an instance BLOCK), append a Continuation
 Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced /
 next). `produced` lists the artifacts above; a missing instance is `status: NEEDS_CONTEXT` with the
-instance requirement as `blocked_reason`. Additive output for the run-harness - it does not change
-anything produced above.
+instance requirement as `blocked_reason`, and a standalone invocation where tiers 1-4 leave the
+target language unresolved is likewise `status: NEEDS_CONTEXT` with `target language` as
+`blocked_reason` (P0 above) - never a silently-picked default. Additive output for the run-harness -
+it does not change anything produced above.

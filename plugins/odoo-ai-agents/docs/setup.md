@@ -103,7 +103,7 @@ After install, 53 skills activate automatically:
 | `odoo-forward-port` | Coder / Engineer | Continuous/one-shot Odoo forward-port (merge-keep-SHA, per-commit intent extract, adaptive test forward); output under `<ISOLATE_DIR>/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
 | `odoo-coding` | Coder | The single coding front door - write production-ready backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS) code, from a single computed field to a multi-module full-stack feature; scopes the change and sequences the backend + frontend coder agents |
-| `odoo-i18n` | Coder / Engineer | Export .pot templates, non-destructively merge .po translations, dispatch hand-translation for one or more target languages in a single run (default vi_VN; reads `$ODOO_AI_HOME/i18n.json`), and audit cross-module term consistency - the dedicated i18n cluster and the translation step dispatched by forward-port and other workflows |
+| `odoo-i18n` | Coder / Engineer | Export .pot templates, non-destructively merge .po translations, dispatch hand-translation for one or more target languages in a single run (no built-in default - resolved from the request, `$ODOO_AI_HOME/i18n.json`, on-disk `.po` filenames, or the live instance, else `NEEDS_CONTEXT`), and audit cross-module term consistency - the dedicated i18n cluster and the translation step dispatched by forward-port and other workflows |
 | `odoo-code-review` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
 | `odoo-feature-check` | Pre-Sales Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
@@ -275,8 +275,9 @@ drop-in. What it does:
    are finalized before SessionStart hooks run, a first apply needs ONE Claude
    Code restart (or a new session) to take effect.
 4. **Instance profile** - discovers local Odoo repos and writes the machine-global `$ODOO_AI_HOME/instances.toml` (any agent on this host resolves instances regardless of working directory).
-   Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":["vi_VN"]}`) - the machine-global
-   language registry for the odoo-i18n cluster; edit to add or remove target languages.
+   Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":[]}`, empty - no locale is assumed on
+   your behalf) - the machine-global language registry for the odoo-i18n cluster; edit to add your
+   own target languages, e.g. `["vi_VN","en_US"]`.
 5. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
 > **Note for Claude Code users:** `/odoo-setup` no longer writes the browser servers into

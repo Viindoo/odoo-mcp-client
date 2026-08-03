@@ -27,7 +27,10 @@ cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag
 cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
 ```
 
-Examples below use `<lang>` as the target-language placeholder; the default language when none is resolved is `vi_VN`.
+Examples below use `<lang>` as the target-language placeholder. There is no default target
+language: `odoo-i18n` P0 resolves it from explicit input, the machine-global registry, on-disk
+`.po` filenames, or the live instance's active languages (`skills/odoo-i18n/SKILL.md` P0
+tiers 1-4) - a run that resolves none returns `NEEDS_CONTEXT`/escape E3 rather than guessing.
 
 ---
 

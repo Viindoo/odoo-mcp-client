@@ -30,9 +30,9 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
    When you genuinely have none (nothing configured, nothing inferable on your side), OMIT the field
    rather than fabricate one: `odoo-i18n` P0 still runs its OWN tiers 2-4 (machine-global registry,
    `.po`-filename inference, live `res.lang` query) against whatever IS available, and only records
-   escape E3 once ALL of tiers 1-4 come up empty. Omitting the field is never a licence for
-   `odoo-i18n`'s hardcoded standalone-only default to fire - that tier stays unreachable inside a
-   mandate regardless (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md` P0).
+   escape E3 once ALL of tiers 1-4 come up empty. `odoo-i18n` has no hardcoded target-language
+   default to fall back on - omitting the field never triggers one, inside a mandate or outside it
+   (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md` P0); it only ever reaches escape E3 above.
 4. Present the returned result at YOUR OWN existing human gate - do NOT let `odoo-i18n` open a separate
    STOP per invocation. A mandated step that always stops is a deadlock.
 
