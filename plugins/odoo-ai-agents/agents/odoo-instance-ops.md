@@ -707,7 +707,10 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
 - Operations B-E require the caller to supply the `ALLOC_TOKEN` from operation A; never
   acquires a second keep-alive lease.
 - Between successive B/C iterations (walking the path module-by-module), call
-  `allocator.py heartbeat <token>` so the TTL backstop never reaps a healthy long-lived path run.
+  `allocator.py heartbeat <token>`. A same-host lease with a verified-alive owner pid is never
+  TTL-reaped regardless of heartbeat freshness; heartbeat still matters for the residual case
+  the allocator cannot verify liveness for at all (see `docs/reference/INSTANCE-ALLOCATION.md` §7) -
+  keep calling it, it is cheap and covers that case for free.
 - `--skip-auto-install` on every init-delta call (B).
 - No-HTTP flag + `--stop-after-init` during delta installs; ensure-up is a separate call (C).
 - NEVER raw `createdb`/`dropdb`: DB created via Odoo create-on-init at A, released through

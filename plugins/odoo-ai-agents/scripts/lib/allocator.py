@@ -94,7 +94,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import instances_io  # noqa: E402  (sibling lib; resolves via the path insert above)
 
 DEFAULT_POOL_SIZE = 10
-DEFAULT_TTL_S = 7200  # 2h; long runs call `heartbeat` to extend
+# TTL now governs ONLY the "liveness unprovable" residual - a lease on a
+# DIFFERENT host, one that never recorded an owner pid, or one whose recorded
+# pid fingerprint could not be re-verified (see `_is_stale`). A same-host lease
+# with a VERIFIED-alive owner pid is protected forever regardless of this
+# value; it no longer needs `heartbeat` to survive at all. Reconsidered down
+# from the pre-fix 7200s (2h) to 3600s (1h): that longer number was calibrated
+# for a risk this constant no longer carries (killing a live, verified,
+# same-host process - that path is now immune to TTL by construction), so
+# holding it at the old value would only widen the orphan-leak window for
+# exactly the leases this constant still governs - the very ones we CANNOT
+# verify at all. 1h stays generous relative to every documented heartbeat
+# cadence (agents heartbeat between phases/scenarios, not between seconds), so
+# a caller that follows that convention is never caught out; it is not pushed
+# lower still because the "do not reap when unsure" bias (see `_is_stale`)
+# argues against being aggressive on the one bucket that is already the
+# hardest to get right.
+DEFAULT_TTL_S = 3600
 # reap-orphans default minimum PROVABLE age (seconds) before a lease-free
 # ephemeral-shaped DB is even proposed as a candidate. Conservative on purpose:
 # a DB that appeared moments ago (a narrow acquire-then-crash race, or a lease
@@ -259,6 +275,51 @@ def _pid_alive(pid):
     return True
 
 
+def _pid_fingerprint(pid):
+    """A fingerprint of the process CURRENTLY running at `pid`, good enough to
+    detect pid recycling - `ps -o lstart=` (the process's wall-clock start
+    time), portable across Linux/macOS/BSD (unlike `/proc`, which is
+    Linux-only). A bare `os.kill(pid, 0)` only proves SOME process holds this
+    pid right now; it cannot distinguish the process a lease originally
+    recorded from an unrelated one the OS later handed the same (recycled)
+    pid to. A process's start time is fixed for its whole lifetime, so
+    comparing it at check-time against the value captured when the pid was
+    first recorded is what actually proves "same process", not just "same
+    pid number".
+
+    Returns None when the pid is not currently running or `ps` cannot report
+    it (missing binary, transient failure, permission) - callers MUST treat
+    None as "cannot verify", never as a match or a mismatch.
+
+    Second-granularity (not a cryptographic identity): two unrelated processes
+    that happen to start within the same wall-clock second and later collide
+    on a recycled pid would fool this check. That residual risk is accepted -
+    it is astronomically narrower than the bare-pid check it replaces, and
+    catching it would need a portable pid+start-time-plus-more source that
+    does not exist across Linux/macOS/BSD without extra dependencies.
+    """
+    rc, out, _ = _run(["ps", "-o", "lstart=", "-p", str(pid)])
+    if rc != 0:
+        return None
+    out = out.strip()
+    return out or None
+
+
+def _pid_owner_fields(pid):
+    """{'pid': int, 'pid_started': fingerprint-or-None} for recording onto a
+    lease's `owner` at the moment a stable pid is learned (acquire's
+    shared/exclusive/ephemeral paths, and `bind`). Capturing the fingerprint
+    HERE - immediately after the pid is learned, while it still names the
+    process we intend to remember - is what makes the later liveness check in
+    `_is_stale` resistant to pid recycling. {'pid': None, 'pid_started': None}
+    when `pid` is falsy (0/""/None), matching the existing "no stable pid
+    supplied" case exactly."""
+    if not pid:
+        return {"pid": None, "pid_started": None}
+    pid = int(pid)
+    return {"pid": pid, "pid_started": _pid_fingerprint(pid)}
+
+
 def _stop_group(pid, timeout_s=10):
     """Stop the whole process GROUP led by `pid`: SIGTERM, a bounded wait, then a
     group SIGKILL escalation.
@@ -320,6 +381,18 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
         return False
     if not _pid_alive(pid):
         return False
+    # Recycled-pid guard: when a fingerprint was recorded for this pid and the
+    # CURRENT process at that pid no longer matches it, the lease's real owner
+    # already exited (that is exactly how the pid became free to reuse) - there
+    # is nothing of OURS left to stop, and signalling this pid now would hit an
+    # unrelated bystander process instead of a runaway server. A fingerprint we
+    # cannot re-measure right now (`ps` hiccup) is NOT a mismatch - proceed as
+    # before (best effort), same as a lease that never recorded one at all.
+    expected_fp = owner.get("pid_started")
+    if expected_fp is not None:
+        current_fp = _pid_fingerprint(pid)
+        if current_fp is not None and current_fp != expected_fp:
+            return False
     _stop_group(pid, timeout_s=timeout_s)
     return True
 
@@ -532,11 +605,52 @@ def _drop_through_odoo(lease):
 # GC
 # --------------------------------------------------------------------------- #
 def _is_stale(lease):
+    """Liveness is AUTHORITATIVE, not merely a condemn-only signal.
+
+    Direction matters (state it explicitly so a future edit does not invert
+    it): for reaping, the safe default is to NOT reap when unsure - an
+    un-reaped orphan only costs RAM, but a wrongly-reaped lease kills a live
+    server and destroys the owner's in-progress work. So:
+      - A DEAD pid on THIS host is an unambiguous, TTL-independent condemn:
+        the recorded owner is provably gone: reclaim now (RAM matters, and
+        there is nothing left to protect).
+      - A LIVE pid on THIS host PROTECTS the lease - but only when we can
+        prove it is the SAME process the lease recorded, not a pid-recycled
+        impostor (pids are reused; a bare `os.kill(pid, 0)` cannot tell the
+        two apart). Proof is the `pid_started` fingerprint captured at
+        record time (see `_pid_owner_fields`/`_pid_fingerprint`): if it
+        still matches, the lease is protected REGARDLESS of TTL - a
+        long-running, healthy process is never reaped just because nobody
+        called `heartbeat`. If it POSITIVELY mismatches (the pid was
+        recycled onto a different process), the recorded owner is exactly as
+        gone as a dead pid: condemn now, same as the dead-pid arm.
+      - Every case where liveness cannot be proven - a DIFFERENT host (the
+        pid integer is meaningless off-host), no pid ever recorded, or a
+        fingerprint that could not be re-measured just now (a `ps` hiccup,
+        not a proven mismatch) - falls through to the TTL/heartbeat check,
+        exactly as before this fix. TTL is now scoped to precisely this
+        residual "cannot verify" case; see DEFAULT_TTL_S for why its value
+        was reconsidered under that narrower scope.
+    """
     owner = lease.get("owner", {})
     if owner.get("host") == _host():
         pid = owner.get("pid")
-        if pid is not None and not _pid_alive(int(pid)):
-            return True
+        if pid is not None:
+            pid = int(pid)
+            if not _pid_alive(pid):
+                return True  # condemn arm: unambiguous, no fingerprint needed
+            expected_fp = owner.get("pid_started")
+            if expected_fp is not None:
+                current_fp = _pid_fingerprint(pid)
+                if current_fp is not None:
+                    if current_fp == expected_fp:
+                        return False  # PROVEN alive: protected, TTL not consulted
+                    return True  # PROVEN recycled: owner is as gone as a dead pid
+                # current_fp is None: could not re-measure right now - not a
+                # proven mismatch, so do not condemn on ambiguity; fall through.
+            # else: no fingerprint was ever recorded for this lease (an older
+            # allocator, or `ps` was unavailable at record time) - liveness is
+            # UNPROVABLE here; fall through to TTL, same as a different host.
     ttl = lease.get("ttl_s", DEFAULT_TTL_S)
     if _now() - lease.get("heartbeat_at", lease.get("owner", {}).get("started_at", 0)) > ttl:
         return True
@@ -781,7 +895,7 @@ def cmd_acquire(opts):
                 attached = 1
                 token = existing.get("token")
                 if opts.get("pid"):
-                    existing.setdefault("owner", {})["pid"] = int(opts["pid"])
+                    existing.setdefault("owner", {}).update(_pid_owner_fields(opts["pid"]))
                 if ports:
                     existing["ports"] = ports
                 else:
@@ -804,11 +918,14 @@ def cmd_acquire(opts):
                     "db_port": db_port,
                     "owner": {
                         "host": _host(),
-                        "pid": int(opts["pid"]) if opts.get("pid") else None,
                         # run_id is the CANONICAL ownership key; the dead
                         # standalone session_id is no longer written on new leases.
                         "run_id": run_id,
                         "started_at": now,
+                        # pid + pid_started (recycling-resistant fingerprint,
+                        # see _pid_owner_fields/_is_stale) - {None, None} when
+                        # the caller passes no --pid.
+                        **_pid_owner_fields(opts.get("pid")),
                     },
                     "ttl_s": int(opts.get("ttl", DEFAULT_TTL_S)),
                     "heartbeat_at": now,
@@ -936,17 +1053,23 @@ def cmd_acquire(opts):
             "ports": ports,
             "owner": {
                 "host": _host(),
-                # pid is a FAST-PATH reclaim signal only - recorded solely when the
-                # caller passes a stable, long-lived --pid. We never default to the
-                # transient bash pid (it dies right after this call returns, which
-                # would let the next gc reclaim a lease whose DB is still in use).
-                # With no --pid, reclamation falls back to ttl_s + heartbeat.
-                "pid": int(opts["pid"]) if opts.get("pid") else None,
                 # run_id is the CANONICAL ownership key; the dead standalone
                 # session_id is no longer written on new leases (read as a
                 # compat fallback only, on pre-existing leases).
                 "run_id": run_id,
                 "started_at": now,
+                # pid + pid_started are a FAST-PATH reclaim/protect signal only -
+                # recorded solely when the caller passes a stable, long-lived
+                # --pid. We never default to the transient bash pid (it dies
+                # right after this call returns, which would let the next gc
+                # wrongly CONDEMN a lease whose DB is still in use - the dead-pid
+                # arm of `_is_stale` would fire on that transient pid). With no
+                # --pid, staleness falls back entirely to ttl_s + heartbeat
+                # (liveness is unprovable without one). pid_started is the
+                # recycling-resistant fingerprint `_is_stale` needs to PROTECT
+                # (not just condemn) a verified-alive owner - see
+                # `_pid_owner_fields`.
+                **_pid_owner_fields(opts.get("pid")),
             },
             "ttl_s": ttl,
             "heartbeat_at": now,
@@ -1052,10 +1175,12 @@ def cmd_bind(opts):
 
     The exclusive-running spin-up acquires its lease FIRST (reserving the db +
     ports) and only later learns the launched server's pid; `bind` upserts that
-    pid onto the SAME `owner.pid` slot the shared-acquire path already writes, so
-    release/gc can stop the whole process group before the drop (L1.1). Refuses
-    an unknown token and a missing --pid; reuses the token-scan + write helpers
-    (no second ledger path)."""
+    pid (plus its recycling-resistant `pid_started` fingerprint, see
+    `_pid_owner_fields`) onto the SAME `owner.pid`/`owner.pid_started` slots the
+    shared-acquire path already writes, so release/gc can stop the whole
+    process group before the drop (L1.1), and so `_is_stale` can PROTECT this
+    lease once it is verified alive. Refuses an unknown token and a missing
+    --pid; reuses the token-scan + write helpers (no second ledger path)."""
     token = opts.get("token")
     if not token:
         sys.stderr.write("Usage: allocator.py bind <token> --pid <server_pid>\n")
@@ -1069,7 +1194,7 @@ def cmd_bind(opts):
         hit = False
         for lease in reg["leases"]:
             if lease.get("token") == token:
-                lease.setdefault("owner", {})["pid"] = int(pid)
+                lease.setdefault("owner", {}).update(_pid_owner_fields(pid))
                 hit = True
         if hit:
             _write_registry(reg)

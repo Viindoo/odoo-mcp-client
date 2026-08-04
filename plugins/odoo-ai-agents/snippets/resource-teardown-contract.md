@@ -56,15 +56,20 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 | `INSTANCE_HANDLE` forwarded in your brief | NEVER you | the provisioning orchestrator, at end of run |
 | Instance you provisioned AND forwarded to children (you are the run-level owner) | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
 | `mode_hint: path-incremental` EXCLUSIVE lease | the owning skill, via release-lease (operation E) | at path completion - never between steps |
-| `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid / TTL) |
+| `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid, immediately; TTL, only when liveness cannot be verified at all - see `docs/reference/INSTANCE-ALLOCATION.md` §7) |
 
 An ephemeral `--stop-after-init` build self-terminates its process, but the LEASE (db + port
 reservation) is still yours - release it so `drop_on_release` reclaims the DB.
 
 The run-level owner's end-of-run release is crash-safe only because a mechanical backstop
-exists below this contract: the allocator's TTL (default 7200s) + heartbeat, SessionEnd gc,
-and gc-on-acquire reap an owner that died before releasing. The backstop is a safety net,
-not an alternative - you still release; the net catches crashes, not laziness.
+exists below this contract: allocator GC, SessionEnd gc, and gc-on-acquire reap an owner that
+died before releasing - immediately when its pid is dead, or (only when liveness cannot be
+verified at all, e.g. a different host or no pid recorded) once the allocator's TTL (default
+3600s) lapses with no `heartbeat`. A same-host owner whose pid is verified alive is NEVER
+TTL-reaped, by design - a crashed session whose server process survives it is not
+auto-reclaimed by this backstop; only an explicit release or a human's triage clears it. The
+backstop is a safety net, not an alternative - you still release; the net catches crashes, not
+laziness.
 
 ## T2 - Browser: close what you opened
 
@@ -128,8 +133,11 @@ not an alternative - you still release; the net catches crashes, not laziness.
   OSM `cli_help` (a `db drop` CLI exists only on v16+; `--longpolling-port` and
   `--xmlrpc-port` are removed at v19).
 - **Long-lived holders heartbeat.** Long-lived holders (path-incremental, an acceptance run
-  across phases): call `allocator.py heartbeat <token>` between phases so the TTL backstop
-  (default 7200s) never reaps a healthy run.
+  across phases): call `allocator.py heartbeat <token>` between phases. A same-host lease whose
+  owner pid is verified alive is never TTL-reaped regardless of heartbeat freshness - but keep
+  heartbeating anyway, since it is what protects you on the residual case the allocator cannot
+  verify liveness for at all (a different host, or no pid recorded), governed by the TTL backstop
+  (default 3600s; see `docs/reference/INSTANCE-ALLOCATION.md` §7).
 - **Per-mode rule is T1's matrix.** Self-provisioned ephemeral/exclusive -> you release at
   your own task end. Forwarded handle -> hands off, never release. `shared-running` -> no
   consumer ever drops it. `path-incremental` -> the owning skill releases at path end via

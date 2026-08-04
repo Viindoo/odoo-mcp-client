@@ -181,8 +181,11 @@ overlap Phase 2a, which uses no browser).
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-qa-planner.md`.
 
 Between Phase 2a/2b and Phase 3, call `allocator.py heartbeat <token>` on the cluster's
-`INSTANCE_HANDLE` so the TTL backstop never reaps this long-lived run while the fix-loop below is
-still iterating. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
+`INSTANCE_HANDLE` while the fix-loop below is still iterating. A same-host lease whose owner pid is
+verified alive is protected from reaping regardless of heartbeat freshness; heartbeat still matters
+here because it is what protects THIS run on the residual case the allocator cannot verify liveness
+for at all (a different host, or no pid recorded), and it is cheap enough to call unconditionally
+rather than branch on which case applies. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
 
 ## Phase 3 - ADJUDGE + fix-loop (bounded)
 

@@ -5,9 +5,23 @@
 # DONE-gated SubagentStop teardown gate self-passes and never fires. An orphaned
 # `odoo-bin` master + its Postgres backend then survive the WHOLE Claude session
 # (unlike browser pages, which die with the session's MCP server process). This
-# hook is the crash-time trigger for the allocator's gc: after L1.2, gc group-stops
-# AND reclaims any orphan lease whose owner died with the session (TTL-expired-but-
-# process-alive), freeing the leaked RAM.
+# hook is the crash-time trigger for the allocator's gc: after L1.2, gc
+# group-stops AND reclaims any orphan lease whose owner pid is DEAD on this host
+# (immediate - no TTL wait needed), or - only when liveness cannot be proven at
+# all (a different host, or no pid was ever recorded on the lease) - whose TTL
+# has expired, freeing the leaked RAM in either case.
+#
+# Note (liveness is authoritative, not a mere condemn signal - see
+# `scripts/lib/allocator.py::_is_stale`): a session that dies while its
+# `odoo-bin` child SURVIVES as a detached (setsid) orphan - the process the
+# session spawned did not die WITH it - is no longer reclaimed by this hook (or
+# by any later TTL-driven gc) once its pid is verified alive on this host. That
+# is a deliberate tradeoff, not a gap: reaping a lease we cannot prove is
+# abandoned risks killing genuinely in-progress work, which costs the user far
+# more than an un-reaped orphan costs in RAM (see `_is_stale`'s docstring for
+# the full tradeoff writeup). Such a survivor is reclaimed only by an explicit
+# `release`, a human's `allocator.py gc`/`list` triage, or the process dying on
+# its own.
 #
 # ALSO: after gc, this hook runs `reap-orphans` in its DEFAULT list-only mode -
 # see "Discovery half" below. gc and reap-orphans are deliberately DIFFERENT,

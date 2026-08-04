@@ -407,6 +407,30 @@ def test_dead_pid_same_host_lease_is_stale_pass(tmp_path):
     )
 
 
+def test_g4_alive_pid_past_ttl_still_blocks(tmp_path):
+    """G4 regression at the hook level: before this fix, the hook mirrored the
+    allocator's OLD `_is_stale` (ttl-fresh is the ONLY gate) by pre-filtering
+    `matches` on `(now - heartbeat_at) <= ttl_s` - so a lease whose owner pid was
+    verifiably ALIVE on this host, but simply had not heartbeated within
+    `ttl_s`, silently fell out of the block set. That is exactly the "a live
+    instance's DONE claim slips through ungated" shape this hook exists to
+    catch: a subagent claiming DONE while its own still-running server would
+    have been reclaimed (RAM leak) had gc run instead of this hook firing.
+    MUST FAIL on the pre-fix hook (measured: no block was emitted here)."""
+    import os
+
+    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    alive_but_ttl_expired = _lease(
+        run_id="run-abc", pid=os.getpid(), host=socket.gethostname(), fresh=False,
+    )
+    _, out = _run(tmp_path, lines, leases=[alive_but_ttl_expired])
+    assert out is not None and out.get("decision") == "block", (
+        "a same-host lease whose owner pid is PROVABLY alive must block the DONE "
+        "claim even when its heartbeat is far past ttl_s - liveness, not ttl, "
+        "governs a same-host recorded pid"
+    )
+
+
 def test_non_done_status_never_blocks(tmp_path):
     """BLOCKED / NEEDS_NEXT are not a completion claim - the DONE-gate must not fire."""
     for status in ("BLOCKED", "NEEDS_NEXT", "NEEDS_CONTEXT"):
