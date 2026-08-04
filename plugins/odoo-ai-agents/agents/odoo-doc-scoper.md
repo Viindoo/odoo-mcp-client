@@ -194,7 +194,8 @@ When you finish, append a Continuation Contract block per
 `produced: [<abs path to _scope.md>]` and, when the caller is the doc-illustration pipeline,
 `next: odoo-doc-illustration` (the skill fans out the doc writers per module - you only EMIT
 this, you never dispatch). Use `status: NEEDS_CONTEXT` / `BLOCKED` instead per the early-return
-rules above when scope cannot be resolved.
+rules above when scope cannot be resolved; "waiting" is never a bare statement (see the snippet's
+own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
 
 ## Agent Team mode
 

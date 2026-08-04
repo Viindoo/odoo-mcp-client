@@ -190,25 +190,56 @@ def test_inheritance_mechanism_sentence_has_exactly_one_definer():
 # 2 - GENERAL CLASS: every recon-dispatch site anywhere in skills/+agents/ states its tier.
 # --------------------------------------------------------------------------- #
 
-# A recon/scout dispatch site, in ANY of the idioms actually used in this tree (widened from the
-# original 2-idiom detector after a class sweep found ~14/18 real recon-dispatch sites in the tree
-# used phrasing neither idiom recognized, and a constructed evasive phrasing - "Spin up one worker
-# agent... fold the replies together into one summary" - matched NEITHER, walking past this guard
-# and the Clause-3 registry guard below while violating both):
-#   (a) a dispatch clause whose grammatical object is a recon/scouting-typed agent
-#       ("Launch/Dispatch ... recon subagent(s)/scout(s)", or the hyphen-qualified
-#       "recon-class subagent" phrasing `odoo-debug` uses) - odoo-intake's idiom, widened;
+# A recon/scout dispatch site, in ANY of the idioms actually used in this tree.
+#
+# HISTORY - a verb-enumeration axis error, twice (V3 R2 finding, P2 PARTIAL). Two prior versions
+# of this detector keyed idiom (a)/(c) on a closed DISPATCH_VERB_RE word list
+# ("Launch|Dispatch|Spin up|Fan out|Fire off", widened once from an even shorter 2-word list). A
+# reviewer constructed and RAN 4 new sentences against the compiled production regex using ordinary
+# synonyms outside that list ("Trigger", "Kick off", "Start") and all 4 evaded BOTH this detector
+# and `WRITE_CONSTRAINED_SCOUT_RE` below - including "Start a recon subagent to map the touched
+# surface.", the EXACT phrasing the original guard was built to catch, defeated purely because
+# "Start" was not an enumerated verb. Widening the word list a third time would repeat the same
+# mistake with a longer list; English has no closed set of "dispatch" synonyms (assign, deploy,
+# task, spawn, invoke, send, put-to-work, ...), so ANY finite verb list is a permanent blind spot
+# for the next unenumerated synonym.
+#
+# THE PROPERTY THAT ACTUALLY MATTERS: this guard is not about which VERB introduces the clause - it
+# is about whether a FRESH, anonymous, recon-shaped agent INSTANCE is being introduced into the
+# text at all. Two structural, non-enumerable signals stand in for "fresh instance" without naming
+# a verb:
+#   1. Idiom (a)'s object ("worker(s) agent(s)") is never itself a verb in English - no
+#      noun/verb collision - so it needs no verb anchor at all; the object + a nearby
+#      recon-flavored verb (map/survey/enumerate/discover) is sufficient on its own.
+#   2. Idiom (c)'s "recon subagent(s)"/"recon-class subagent(s)" is likewise unambiguous. Its bare
+#      "scout(s)" alternative, however, collides with the ENGLISH VERB "to scout" ("the node scouts
+#      for itself", a real sentence in `phase-p-run-dag.md` describing self-resolution, not an agent
+#      dispatch) - matched as a false positive when the verb anchor was dropped outright. The
+#      correct disambiguator is grammatical, not lexical: an INDEFINITE determiner/quantifier
+#      (a/an/one/a number/each/every/any/per/some/several/multiple) immediately governing the noun
+#      phrase marks it as a FRESH introduction (a NEW instance being brought into existence) as
+#      opposed to a bare verb reading or a DEFINITE back-reference ("the recon agent...", "the
+#      Phase R read-only recon agent" - later prose referring to an ALREADY-dispatched, already-
+#      tiered agent, which is not itself a new dispatch site and was measured as 6 spurious
+#      offenders when the fix used NO indefinite-determiner requirement at all: definite reference
+#      is a real class in this tree, not a hypothetical). `TRUE_DETERMINER_RE` is a genuinely closed
+#      English grammatical category (a function-word class with maybe a dozen members total) - this
+#      is not "a longer verb list"; it is the correct axis, because indefiniteness/freshness, not
+#      the verb chosen to introduce it, is what makes a mention a DISPATCH rather than a reference.
+#
+# The three idioms:
+#   (a) a clause whose grammatical object is "worker(s) agent(s)" doing a scouting-flavored verb
+#       (map/survey/enumerate/discover) within the same sentence - no verb anchor needed (see #1
+#       above);
 #   (b) a phase-ID heading that DECLARES ITS WORKER - a `P<digits><optional letter>` heading OR
 #       the equivalent spelled-out `Phase <digits>` heading, carrying a parenthesised
 #       worker-type/tier token in the heading line itself, e.g. "### P1a - DAG build (Explore,
 #       sonnet)" (odoo-modules-upgrade) or "## Phase 1 - broad / shallow sweep (haiku)"
-#       (odoo-deep-survey);
-#   (c) an anonymous-worker dispatch clause for enumeration/mapping work - a dispatch verb
-#       ("Launch/Dispatch/Spin up/Fan out/Fire off") whose object is an UNNAMED "worker agent"
-#       (no `backtick-quoted agent name` right after the verb - a specific, Write-capable,
-#       registered agent name is a DIFFERENT, already-compliant idiom, not this one) doing a
-#       scouting-flavored verb (map/survey/enumerate/discover) - this is what the constructed
-#       evasive phrasing above matches (see test_widened_detector_catches_evasive_worker_phrasing).
+#       (odoo-deep-survey) - unaffected by the verb-axis fix, kept as-is;
+#   (c) an INDEFINITE (freshly-introduced) "recon subagent(s)"/"recon-class subagent(s)"/"scout(s)"
+#       noun phrase, governed by `TRUE_DETERMINER_RE` within a short same-sentence window (see #2
+#       above) - this is what the constructed evasive phrasings above now match (see
+#       test_widened_detector_catches_the_v3_verb_evasions).
 # (b) was added after measuring a widened-but-unanchored heading pattern (bare "P\S* - ... (...)")
 # against the whole tree: it produced ONE false positive, "## Per-module reviewer (sonnet)" in
 # `skills/odoo-code-review/references/agent-prompts.md` - a regex artifact, not a real phase
@@ -226,27 +257,32 @@ def test_inheritance_mechanism_sentence_has_exactly_one_definer():
 # `## Role` section is a STRUCTURAL exclusion (any file, present or future, that shares this
 # heading gets the same treatment), never a per-file/filename carve-out.
 #
-# DISPATCH_VERB_RE is the ONE verb alternation shared by every idiom below AND by
-# `WRITE_CONSTRAINED_SCOUT_RE`'s idiom (a) further down - a single constant, not two lists that
-# can drift. This closes a real defect a reviewer found in an earlier version of this file: the
-# registration detector once used a NARROWER verb list ("Launch|Dispatch" only) than the
-# tier-check detector ("Launch|Dispatch|Spin up|Fan out|Fire off"), so "Spin up a recon-class
-# subagent (Explore)..." was recognized as a recon dispatch for TIER purposes but silently exempt
-# from the Clause-3 registry - the guard-scoped-to-one-syntactic-shape failure this whole round
-# exists to close, reintroduced inside the fix for it. The VERB describes the ACT of dispatching
-# and has NOTHING to do with whether the dispatched agent is Write-constrained - narrowing on verb
-# was never a valid way to narrow the registration guard; both detectors below use this identical
-# alternation, and the two detectors diverge ONLY on the axis documented next to
-# `WRITE_CONSTRAINED_SCOUT_RE`.
-DISPATCH_VERB_RE = r"(?:Launch|Dispatch|Spin up|Fan(?:s)?\s+out|Fire off)(?:es|ing)?"
+# TRUE_DETERMINER_RE is the ONE indefiniteness alternation shared by every idiom below AND by
+# `WRITE_CONSTRAINED_SCOUT_RE`'s idiom (a) further down - a single constant, not two lists that can
+# drift (the same "one shared constant" discipline the old DISPATCH_VERB_RE note established, now
+# applied to the axis that actually matters).
+TRUE_DETERMINER_RE = (
+    r"(?:a|an|one|two|three|four|five|each|every|any|per|some|several|multiple"
+    r"|≤\s*\d+(?:-\d+)?|\d+(?:-\d+)?)"
+)
+
+# A freshly-introduced recon-noun-phrase: TRUE_DETERMINER_RE governs it within a short
+# same-sentence window (permits an intervening qualifier like "anonymous"/"read-only"/"Explore/",
+# e.g. "ONE anonymous Explore/recon-class subagent") - never a bare verb, never a definite
+# back-reference.
+RECON_NOUN_RE = (
+    r"\b" + TRUE_DETERMINER_RE + r"\b[^.\n]{0,25}?"
+    r"\brecon(?:naissance)?(?:[- ](?:class|type))?\s+(?:subagents?|agents?)\b"
+    r"|"
+    r"\b" + TRUE_DETERMINER_RE + r"\b[^.\n]{0,25}?\bscouts?\b"
+)
 
 DISPATCH_RECON_RE = re.compile(
-    r"\b" + DISPATCH_VERB_RE + r"\b"
     r"(?:"
     r"(?![^.\n]{0,20}`)[^.\n]{0,60}?\bworkers?\b[^.\n]{0,10}?\bagents?\b"
     r"[^.\n]{0,100}?\b(?:map|maps|mapping|survey|surveys|enumerate|enumerates|discover|discovers)\b"
     r"|"
-    r"[^.\n]{0,60}?\b(?:recon(?:naissance)?(?:[- ](?:class|type))?\s+(?:subagents?|agents?)|scouts?)\b"
+    r"[^.\n]{0,60}?(?:" + RECON_NOUN_RE + r")"
     r")"
     r"|"
     r"^#{1,6}\s*(?:P\d+[a-zA-Z]?|Phase\s*\d+[a-zA-Z]?)\s*-\s*[^\n(]*\([^)\n]*"
@@ -263,17 +299,18 @@ DISPATCH_RECON_RE = re.compile(
 # parent-transcription registration at all.
 #
 # THE DISCRIMINATOR (stated explicitly, per review): Write-constrained-ness is a property of WHAT
-# is dispatched, never of the VERB used to dispatch it (see the note above `DISPATCH_VERB_RE` -
-# that was the bug). The two textual signals that actually indicate a Write-constrained scout,
-# grounded directly in Clause 2's own definition ("a Write-constrained agent type (`Explore`, or
-# another ANONYMOUS read-only type)"), are:
+# is dispatched, never of the VERB used to dispatch it, and never of the DETERMINER either - both
+# are properties of HOW the dispatch is phrased. The two textual signals that actually indicate a
+# Write-constrained scout, grounded directly in Clause 2's own definition ("a Write-constrained
+# agent type (`Explore`, or another ANONYMOUS read-only type)"), are:
 #   1. a GENERIC noun for the dispatched worker - "recon subagent(s)", "recon-class/-type
 #      subagent(s)", or bare "scout(s)" - used INSTEAD OF a specific backtick-quoted registered
 #      agent name. A generic noun is how you refer to something that has no name of its own,
 #      which is exactly what "anonymous" means; a NAMED agent (`odoo-review-scoper`,
 #      `odoo-diff-comparator`, ...) is Write-capable by construction (it is a full registered
-#      agent file, not an anonymous type) and writes its own artifact directly - this is idiom (a)
-#      below, verb-shared with the tier detector, narrowed only by this noun choice.
+#      agent file, not an anonymous type) and writes its own artifact directly - this is
+#      `RECON_NOUN_RE`, shared verbatim with the tier detector's idiom (c), so the two can never
+#      drift onto different axes again.
 #   2. the literal `Explore` token - this repo's own name for the built-in Write-constrained agent
 #      type - appearing in a phase-ID heading's parenthesised worker declaration (idiom (b)
 #      below). A heading whose parens carry any OTHER tier word (haiku/sonnet/opus/fable) with no
@@ -283,15 +320,14 @@ DISPATCH_RECON_RE = re.compile(
 #      `<SHARE_DIR>/survey/` cache contract - never routing through
 #      scouting-persistence-contract.md at all) - so idiom (b) here requires the literal token,
 #      unlike the tier detector's idiom (b) which accepts any of the five.
-# Idiom (c) (the anonymous "worker agent...map/survey/enumerate/discover" clause) is deliberately
+# Idiom (a) (the anonymous "worker agent...map/survey/enumerate/discover" clause) is deliberately
 # NOT included here at all: "worker agent" is even more generic than "recon subagent"/"scout", and
 # reusing it for registration would require every such site provably route through
 # scouting-persistence-contract.md, which is not true tree-wide (same `odoo-deep-survey` case).
 # Measured: 3 files (`odoo-intake/SKILL.md`, `upg-phase-detail.md`, `odoo-debug/SKILL.md`) -
 # 0 unregistered.
 WRITE_CONSTRAINED_SCOUT_RE = re.compile(
-    r"\b" + DISPATCH_VERB_RE + r"\b[^.\n]{0,60}?"
-    r"\b(?:recon(?:naissance)?(?:[- ](?:class|type))?\s+(?:subagents?|agents?)|scouts?)\b"
+    r"(?:" + RECON_NOUN_RE + r")"
     r"|"
     r"^#{1,6}\s*P\d+[a-zA-Z]?\s*-\s*[^\n(]*\([^)\n]*\bExplore\b[^)\n]*\)",
     re.IGNORECASE | re.MULTILINE,
@@ -348,12 +384,20 @@ def test_recon_dispatch_sites_state_a_tier():
     match itself) - excluding a match that falls inside the file's own `## Role` section (see the
     structural-exclusion note above `DISPATCH_RECON_RE`).
 
-    Measured (current tree, post-widening): 7 matches across 4 files - 2 inside
-    `odoo-intake/SKILL.md`, 2 inside `upg-phase-detail.md` (P1a/P1d), 2 inside
-    `odoo-deep-survey/SKILL.md` (Phase 1/Phase 2 headings), 1 inside `odoo-debug/SKILL.md`
-    ("Dispatch ONE anonymous Explore/recon-class subagent") - 0 offenders in all 7 (one further
-    match, `odoo-deep-survey/SKILL.md`'s `## Role`-section overview sentence, is excluded by the
-    structural filter, not miscounted as compliant or silently dropped).
+    Measured (current tree, post verb-axis fix): 9 matches across 4 files - 4 inside
+    `odoo-intake/SKILL.md` (up from 2: dropping the verb anchor lets idiom (c) also see the
+    file's OTHER indefinite recon-subagent introductions, not just the first one after a
+    "Launch"), 2 inside `upg-phase-detail.md` (P1a/P1d), 2 inside `odoo-deep-survey/SKILL.md`
+    (Phase 1/Phase 2 headings), 1 inside `odoo-debug/SKILL.md` ("Dispatch ONE anonymous
+    Explore/recon-class subagent") - 0 offenders in all 9 (one further match,
+    `odoo-deep-survey/SKILL.md`'s `## Role`-section overview sentence, is excluded by the
+    structural filter, not miscounted as compliant or silently dropped). `odoo-intake/SKILL.md`'s
+    two DEFINITE back-references ("The recon agent MUST NOT...", "...only the Phase R read-only
+    recon agent") are correctly excluded by `TRUE_DETERMINER_RE` - they are not new dispatch
+    sites, just later prose about the one already-tiered dispatch (see
+    test_indefinite_axis_excludes_definite_backreferences_and_the_verb_scouts below: measured
+    as 6 spurious offenders when a verb-free fix was tried WITHOUT the indefinite-determiner
+    requirement, before this axis was found).
 
     Fails if: any recon-dispatch clause anywhere in the tree states no tier and no SSOT pointer
     within range - including a brand-new site nobody has written yet, which is the entire point
@@ -404,6 +448,68 @@ def test_widened_detector_catches_evasive_worker_phrasing():
         "the evasive construct states no tier and no SSOT pointer - it must be flagged as an "
         "offender by the SAME production offender-finder the whole-tree test uses, proving this "
         "guard would now catch it if a new site were ever phrased this way."
+    )
+
+
+def test_widened_detector_catches_the_v3_verb_evasions():
+    """Genre A (regression/construct test - V3 R2 finding, D9). Proves the verb-axis fix, not a
+    paraphrase of it: the 4 sentences a reviewer constructed and RAN against the (then-current,
+    5-verb-list) compiled `DISPATCH_RECON_RE`/`WRITE_CONSTRAINED_SCOUT_RE` all evaded both, purely
+    because their dispatch verb ("Trigger"/"Kick off"/"Start") was outside the enumerated list -
+    including "Start a recon subagent to map the touched surface.", the EXACT phrasing idiom (c)
+    was built to catch. Both detectors no longer key on a verb at all (see the axis-error note
+    above `TRUE_DETERMINER_RE`), so all 4 must now match, and be flagged tier-less by the same
+    production offender-finder.
+
+    Fails if: either detector regresses to requiring an enumerated verb again.
+    """
+    verified_evasions = [
+        "Trigger one worker agent per area to survey the current implementation, then merge...",
+        "Kick off a worker agent for each module to enumerate the current field usage...",
+        "Start a recon subagent to map the touched surface.",
+        "Start a worker agent to map the touched surface.",
+    ]
+    for sentence in verified_evasions:
+        assert DISPATCH_RECON_RE.search(sentence), (
+            f"DISPATCH_RECON_RE must match the verified V3 evasion: {sentence!r}"
+        )
+        offenders = _recon_dispatch_offenders({Path("synthetic-v3-evasion.md"): sentence})
+        assert offenders, f"the V3 evasion must be flagged tier-less: {sentence!r}"
+    # The two "recon subagent"-shaped ones are also Write-constrained-scout evasions.
+    assert WRITE_CONSTRAINED_SCOUT_RE.search("Start a recon subagent to map the touched surface."), (
+        "WRITE_CONSTRAINED_SCOUT_RE must match the verified V3 evasion for the recon-subagent idiom."
+    )
+
+
+def test_indefinite_axis_excludes_definite_backreferences_and_the_verb_scouts():
+    """Genre A (false-positive regression guard, D9). Dropping the verb anchor without adding the
+    indefinite-determiner requirement was tried first and measured 6 spurious offenders in the
+    real tree: sentences that only REFER BACK to an already-dispatched, already-tiered agent
+    (definite article "the"), or that use "scouts" as the plain English VERB ("the node scouts for
+    itself" - real text, `phase-p-run-dag.md`), not as the noun object of a dispatch. Neither is a
+    fresh dispatch site and neither should need its own tier statement.
+
+    This is NOT a pin of the guard's own blind spot (ETHOS: never assert a guard cannot see a real
+    evasion) - it pins the opposite: these are NOT dispatch sites by the guard's own stated
+    definition (a FRESH, indefinite agent introduction), so correctly excluding them is part of the
+    guard's contract, not a limitation of it. Widening the guard to also flag definite
+    back-references would be a new, wrong requirement (spurious tier restatements throughout
+    ordinary follow-up prose), not a fix.
+
+    Fails if: a future edit makes the guard fire on a definite back-reference or on "scouts" used
+    as a verb - reintroducing the false-positive class this axis was built to close.
+    """
+    definite_backreferences = [
+        "The recon agent MUST NOT write a file or spawn further.",
+        "Agents are launched directly - inside intake, only the Phase R read-only recon agent.",
+    ]
+    for sentence in definite_backreferences:
+        assert not DISPATCH_RECON_RE.search(sentence), (
+            f"DISPATCH_RECON_RE must NOT match a definite back-reference: {sentence!r}"
+        )
+    verb_use = "Absent key -> the node scouts for itself, as today."
+    assert not DISPATCH_RECON_RE.search(verb_use), (
+        f"DISPATCH_RECON_RE must NOT match 'scouts' used as the plain English verb: {verb_use!r}"
     )
 
 
@@ -532,8 +638,10 @@ def test_every_shared_detector_recon_site_is_registered():
     the registration guard's true business rule (Write-constrained dispatch) is a strict subset of
     the tier-statement guard's (any recon dispatch).
 
-    Measured (current tree): `WRITE_CONSTRAINED_SCOUT_RE` matches inside three files -
-    `odoo-intake/SKILL.md` (2 matches), `upg-phase-detail.md` (2 matches, P1a + P1d), and
+    Measured (current tree, post verb-axis fix): `WRITE_CONSTRAINED_SCOUT_RE` matches inside three
+    files - `odoo-intake/SKILL.md` (4 matches, up from 2 now that the detector needs no verb
+    anchor and can see every indefinite recon-subagent introduction in the file, not just the
+    first one after a "Launch"), `upg-phase-detail.md` (2 matches, P1a + P1d), and
     `odoo-debug/SKILL.md` (1 match, "Dispatch ONE anonymous Explore/recon-class subagent") - all
     three registered, 0 offenders.
 
