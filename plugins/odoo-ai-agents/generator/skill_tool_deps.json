@@ -815,7 +815,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (D6 6-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
+      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
     },
     "odoo-doc-planner": {
       "role": "leaf",

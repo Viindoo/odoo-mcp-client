@@ -423,9 +423,9 @@ even if the registry omits it.
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
 **Language resolver order.** SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (6-tier +
-disk-UNION) - do not restate the tier order or the disk-UNION rule here; that section is
-authoritative and this file cross-references it.
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (5-tier +
+disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
+is authoritative and this file cross-references it.
 
 **Screenshot localization**: per-locale screenshots are captured separately. Filename pattern:
 English canonical has NO suffix (`NN-slug.jpg`, `main_screenshot.gif`); every non-English locale

@@ -293,7 +293,7 @@ _open_log() {
 # _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
 #   TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and a FINDINGS_PATH
 #   file. TEST_RESULT is inconclusive (never a bare passed) whenever
-#   TEST_SKIPPED>0 and no failure occurred - see issue #171.
+#   TEST_SKIPPED>0 and no failure occurred.
 #   Reads $logf and (best-effort) $arg_modules from the caller's scope (bash
 #   dynamic scope) to mark in-scope warnings.
 # ---------------------------------------------------------------------------
@@ -311,7 +311,7 @@ _parse_test_result() {
     n_warn="$(grep -cE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
     n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
 
-    # --- Skip detection (issue #171 root cause) ---------------------------
+    # --- Skip detection -----------------------------------------------------
     # Bug: exit 0 + "0 failed, 0 error(s) of 1 tests" reads as green even when
     # the sole test was SKIPPED (never ran) - e.g. "skipped . : Failed to
     # detect chrome devtools port after 10.0s." A skip is not a failure (it is
@@ -440,7 +440,7 @@ _parse_test_result() {
         echo "TEST_RESULT=failed"
         return
     fi
-    # Skip verdict (issue #171 fix) - MUST be checked before the "0 failed, 0
+    # Skip verdict - MUST be checked before the "0 failed, 0
     # error" explicit-pass marker below, since a skip-only run (e.g. "0 failed,
     # 0 error(s) of 1 tests" where the 1 test was skipped) matches that marker
     # too. Skips are not fatal (never force a non-zero exit; exit_code above

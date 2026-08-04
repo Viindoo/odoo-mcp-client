@@ -96,7 +96,7 @@ find . -maxdepth 5 -type d -name "description" 2>/dev/null | head -5
 
 From findings derive:
 - **doc_image_naming**: regex or prose pattern observed (e.g. `<module>_<feature>.png` or `<N>-<slug>.<locale>.png`). Set `"unknown"` if no images found.
-- **doc_languages**: comma-separated locale codes found in bilingual index files (e.g. `en_US,vi_VN`). Omit this field entirely if no bilingual files found (let agent resolve via i18n.json/tier-6).
+- **doc_languages**: comma-separated locale codes found in bilingual index files (e.g. `en_US,vi_VN`). Omit this field entirely if no bilingual files found (let agent resolve via `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution, tier 3 - `i18n.json`).
 - **doc_static_dir**: relative path from module root to the description image dir (e.g. `static/description`). Set `"static/description"` as default.
 
 Detect lint/format config for downstream skills:
