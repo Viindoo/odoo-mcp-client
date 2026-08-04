@@ -479,6 +479,68 @@ def test_session_end_gc_invokes_allocator_gc_when_present(tmp_path):
     )
 
 
+def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_path):
+    """#185: `reap-orphans` existed but had ZERO caller anywhere in the plugin -
+    the mechanism was built and unreachable. This hook is now the discovery-half
+    caller: it must invoke `reap-orphans` in its DEFAULT list-only mode (never
+    `--yes` - that stays a human's explicit, separate action) and PERSIST the
+    output (unlike `gc` above, which is intentionally /dev/null'd) so the
+    candidate list is actually reviewable by someone."""
+    libdir = tmp_path / "scripts" / "lib"
+    libdir.mkdir(parents=True)
+    runtime_dir = tmp_path / "odoo-ai-home" / "runtime"
+    (libdir / "allocator.py").write_text(
+        "import sys, pathlib\n"
+        "argv = sys.argv[1:]\n"
+        "marker = pathlib.Path(__file__).parent / (argv[0] + '-called.txt')\n"
+        "marker.write_text(' '.join(argv))\n"
+        "if argv[0] == 'reap-orphans':\n"
+        "    print('REAP_CANDIDATE fake_db_t_deadbeef age_h=30.0 size_mb=1.0')\n"
+        "    print('# 1 orphan candidate(s) found (list-only - pass --yes to drop)')\n",
+        encoding="utf-8",
+    )
+    (libdir / "resolve_instances.sh").write_text(
+        "_odoo_ai_runtime_dir() { printf '%s\\n' " + repr(str(runtime_dir)) + "; }\n",
+        encoding="utf-8",
+    )
+
+    proc = _run_gc(tmp_path)
+    assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+    assert proc.stdout.strip() == "", "SessionEnd gc must stay silent on its own stdout"
+
+    gc_marker = libdir / "gc-called.txt"
+    assert gc_marker.is_file(), "gc must still be invoked (unchanged L1.3 behavior)"
+    assert gc_marker.read_text(encoding="utf-8").strip() == "gc"
+
+    reap_marker = libdir / "reap-orphans-called.txt"
+    assert reap_marker.is_file(), "session-end-gc.sh must now invoke reap-orphans (#185)"
+    reap_argv = reap_marker.read_text(encoding="utf-8").strip()
+    assert reap_argv == "reap-orphans", (
+        f"reap-orphans must be called with NO extra flags - list-only default, "
+        f"never --yes from this unattended hook; got argv={reap_argv!r}"
+    )
+
+    log_path = runtime_dir / "reap-orphans-candidates.log"
+    assert log_path.is_file(), (
+        "the reap-orphans discovery output must be PERSISTED (not /dev/null'd like gc) "
+        "so a human can actually review the candidate list later"
+    )
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "REAP_CANDIDATE" in log_text and "list-only" in log_text
+
+
+def test_session_end_gc_never_passes_yes_to_reap_orphans():
+    """Static guard: the destructive `--yes` flag must never appear anywhere on
+    this hook's reap-orphans invocation line - the drop half is a deliberate,
+    separate, human-reviewed action (see the hook's own header rationale)."""
+    text = GC_HOOK.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if "reap-orphans" in line and not line.strip().startswith("#"):
+            assert "--yes" not in line, (
+                f"session-end-gc.sh must never pass --yes to reap-orphans: {line!r}"
+            )
+
+
 # --------------------------------------------------------------------------- #
 # hooks.json registration (JSON-parse assertions)
 # --------------------------------------------------------------------------- #

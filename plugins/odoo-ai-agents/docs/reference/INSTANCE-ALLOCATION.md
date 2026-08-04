@@ -41,7 +41,7 @@ assumes nothing about this one machine.
 - **Portable / public / global.** No hardcoded paths (`/home/<user>/...`), no assumption about this
   host's Postgres, ports, or layout. All runtime state under `$ODOO_AI_HOME` (default `~/.odoo-ai`).
   The user declares their Postgres + venv via `instances.toml` (written by `/odoo-setup`).
-- **No live Odoo MCP.** The `mcp__odoo__*` server is out of scope by existing design (PR #42); the
+- **No live Odoo MCP.** The `mcp__odoo__*` server is out of scope by existing design; the
   allocator coordinates only locally-declared instances.
 - **Backward compatible.** Existing `instances.toml` files keep parsing; the read-only resolution
   path (`instance-resolution.md`) is unchanged for callers that only need a URL.
@@ -371,6 +371,21 @@ enough; any leased db_name, even stale, is left to `gc`/`release`), and the defa
 `--yes` is required to actually drop anything, so a sweep is always a visible read before it is
 ever destructive.
 
+**Wired (discovery half only).** `hooks/session-end-gc.sh` - the SessionEnd crash backstop that
+already ran `gc` on every session's end - now ALSO runs `reap-orphans` in its default list-only
+mode immediately after `gc`, persisting the candidate list to
+`${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/reap-orphans-candidates.log` (never `/dev/null`, unlike
+`gc`'s own output, so the list is actually reviewable). This is the DISCOVERY half only: the hook
+NEVER passes `--yes`. SessionEnd is silent and unattended by its own contract (no decision is ever
+emitted), so an automatic drop there would remove the one property `reap-orphans` was designed
+around - a visible, auditable read before anything destructive happens - and would let one
+session's end drop a database created entirely outside that session's own leases (`reap-orphans`
+scans the WHOLE declared cluster, not a per-session scope). The destructive half stays a separate,
+deliberate, human-run `allocator.py reap-orphans --yes` against the persisted candidate log -
+never automatic. Before this wiring, `reap-orphans` had no caller anywhere in the plugin at all;
+its mechanics (ownership predicate, fail-closed age proof) were correct and tested in isolation,
+but unreachable in practice.
+
 ## 7. Crash / stale handling
 
 - Owner records `host`+`pid`+`run_id`+`started_at` (a legacy lease may carry `session_id`
@@ -423,6 +438,9 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
 (only a live pid is recorded, so gc never reclaims a running server). Covered by `test_allocator.py`
 (shared mint / attach / query / gc-keeps-declared-DB) and `test_step45_50_harden.py`
 (register-after-up / attach-without-relaunch / no-lease-on-failure / degrade-without-allocator).
+`hooks/session-end-gc.sh` also now runs `reap-orphans` (list-only, never `--yes`) after `gc` on
+every SessionEnd - see §6.5 "Wired (discovery half only)" - closing the "the fix exists but
+nothing calls it" gap; covered by `tests/test_enforce_teardown.py`.
 
 ## 10. Test outline (behavior-first, red-before-green)
 

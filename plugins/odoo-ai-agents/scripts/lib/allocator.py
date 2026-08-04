@@ -1409,6 +1409,12 @@ _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
     "--yes": "yes",
 }
+# Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
+# two conventional Unix forms. This is the SSOT the regression test derives its
+# spelling list from (`from allocator import _HELP_TOKENS`), so a future third
+# spelling (there is none today) gets covered by construction rather than by a
+# second hand-typed list silently drifting from this one.
+_HELP_TOKENS = ("-h", "--help")
 
 
 def _parse(argv):
@@ -1438,10 +1444,24 @@ def _parse(argv):
 
 
 def main(argv):
-    if not argv or argv[0] in ("-h", "--help"):
+    if not argv or argv[0] in _HELP_TOKENS:
         print(__doc__)
         return 0
     cmd, rest = argv[0], argv[1:]
+    # Full help-spelling class, not just one reported shape: a help request
+    # ANYWHERE in a subcommand's own argv - `acquire --help`, `acquire -h`,
+    # `release -h`, etc. - must short-circuit to usage text BEFORE `_parse()`
+    # ever runs on `rest`, for every subcommand alike. Checking this here,
+    # ahead of `_parse`, is what closes the single-dash sibling: `_parse`
+    # itself routes any token not starting with "--" into `pos` (a positional),
+    # never "unknown" - so `-h` previously reached `cmd_acquire` as a silently
+    # swallowed positional and allocated a real lease before this fix existed.
+    # Never allocates, never mutates the registry, exits 0 (showing usage is
+    # success, not an error - consistent with the no-subcommand-at-all case
+    # immediately above).
+    if any(tok in _HELP_TOKENS for tok in rest):
+        print(__doc__)
+        return 0
     opts, pos, unknown = _parse(rest)
     if unknown:
         sys.stderr.write(
