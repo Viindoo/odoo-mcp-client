@@ -30,6 +30,20 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 ## Phases
 
 ### Phase 0: Parse inputs and gather deal context
+0. **Stale-draft sweep (30d, unconditional, before anything else in this phase).** Sweep sibling
+   drafts left by past invocations of this command - a terminal, single-file deliverable with no
+   self-cleanup step of its own (`snippets/visual-evidence-lifecycle-contract.md` § 3.1
+   `followups/<slug>.md` row):
+   ```
+   find <ISOLATE_DIR>/followups/ -maxdepth 1 -type f -name '*.md' -mmin +43200 -exec rm -rf {} +
+   ```
+   No concurrency hazard here (unlike a still-being-written run-scoped directory elsewhere in the
+   plugin): a draft file is written ONCE, by Phase 3 below, and never reopened by its own
+   invocation - a plain mtime sweep is directly correct, no run-status correlation needed. Full
+   bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` § 3.1 +
+   § 3.6 (not restated here). Missing `<ISOLATE_DIR>/followups/` (nothing to sweep yet) is not an
+   error - `find` on a non-existent path prints nothing and exits non-zero; ignore that exit code
+   and continue to step 1.
 1. Parse `$ARGUMENTS` for an optional customer label.
 2. Read `<SHARE_DIR>/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
 3. Pull deal details already present in the invocation context (caller-provided data, prior conversation) and pre-fill everything available. Optionally enrich from a live CRM/email integration only if one exists - never assume it.

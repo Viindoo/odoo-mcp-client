@@ -35,13 +35,45 @@ Mint the slug ONCE, at the start of the run (before any path that embeds it is t
 <intent-slug>-<YYYYMMDD>-<4 random chars>
 ```
 
+**Generation mechanism (SSOT - the FORMAT above named the shape; this is the ACTION that
+produces it).** Run, via the Bash tool, and take the result verbatim as `<4 random chars>`:
+
+```bash
+printf '%02x%02x' $((RANDOM % 256)) $((RANDOM % 256))
+```
+
+This is a bash-builtin-only, zero-dependency, POSIX-portable one-liner (`$RANDOM` is a bash
+builtin present in every environment this plugin already assumes - no `/dev/urandom`,
+`uuid`, `python3`, or external binary required) that yields exactly 4 lowercase hex
+characters (`0000`-`ffff`, e.g. `a1b2`, `9f3d`), matching the shape of every worked example in
+this clause. Two separate `$((RANDOM % 256))` draws are used (not one `$((RANDOM % 65536))`
+call) because `$RANDOM` itself is only a 15-bit generator (range 0-32767) - drawing two
+independent bytes is what actually reaches the full 4-hex-digit space the format promises,
+not merely a value that happens to print in 4 hex digits.
+
+**Fit for purpose, not a security token.** This is a same-day, same-intent, concurrent-run
+DISAMBIGUATOR, never a security/secrecy boundary - nothing in this plugin treats the slug as
+a capability token (contrast `run_id`, which `assert-droppable`/`release` treat as
+"semi-discoverable", never as a secret either). `$RANDOM`'s pseudo-randomness (seeded per bash
+process) is more than adequate for this: the failure mode being avoided is two concurrent runs
+on the identical intent the same day picking the IDENTICAL 4-char suffix, not an adversary
+guessing it. Do not upgrade this to a cryptographic source (`openssl rand`, `/dev/urandom`) -
+that would add a dependency this mechanism deliberately has none of, for a property (secrecy)
+this slug does not need.
+
+An agent context invoking this MUST actually run the one-liner above via the Bash tool and use
+its printed output - never sample "4 random-looking characters" from its own reasoning instead
+of a true tool call; two independent agent contexts reasoning about the identical intent text
+are not provably independent samples the way this command's output is.
+
 The IDENTICAL suffix mechanism `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md:43`
-uses for its `run-<id>.json` id ("so concurrent runs never collide") - do not invent a
-second algorithm. Use the `SLUG:` value from your dispatch brief when a caller supplies one;
-derive fresh only on a standalone invocation with no caller-supplied slug. Mint it exactly
-once per run and reuse that SAME value for every artifact path the run touches - never
-improvise a fresh one per screen/module/step, never re-mint the random suffix mid-run, never
-leave the literal `<slug>` token itself in a path.
+uses for its `run-<id>.json` id ("so concurrent runs never collide") is the ONE above - do not
+invent a second algorithm, and do not restate this one; point back at this clause instead. Use
+the `SLUG:` value from your dispatch brief when a caller supplies one; derive fresh only on a
+standalone invocation with no caller-supplied slug. Mint it exactly once per run and reuse that
+SAME value for every artifact path the run touches - never improvise a fresh one per
+screen/module/step, never re-mint the random suffix mid-run, never leave the literal `<slug>`
+token itself in a path.
 
 **Worked example - two concurrent same-intent runs.** Intent "compare before/after the v17
 upgrade" fired twice concurrently:
@@ -126,14 +158,14 @@ file's own claim) and classifies each row once, so a later reader never has to r
 | Subpath | Owner | Bound | Why this bound |
 |---|---|---|---|
 | `worklog/<run-or-slug>/` | every multi-agent run (via `worklog-contract.md`) | 30d | decision log stays useful after the run for the next resume/audit; no self-cleanup step exists |
-| `wave/<slug>/` | `run-harness` (between-wave) | 24h | ALREADY self-deletes at its own post-merge cleanup (`wave-integration.md` § Cleanup) - the TTL is a crash-only backstop, same class as `visual/current/<slug>/` |
+| `wave/<slug>/` | `run-harness` (between-wave) | 24h | Self-deletes at its own post-merge cleanup (`wave-integration.md` § Cleanup). TTL crash-backstop wired at `SKILL.md` § Between-wave integration "Run start" + `wave-integration.md` § Stale wave-dir sweep - fail-closed, run-status-correlated (never a bare mtime check; see § 3.6 for why the naive Clause-2 recipe was unsafe here). |
 | `git-rebase/<slug>/` | `odoo-git-rebase` | 30d | checkpoint/commit-dump working state; retained as evidence of what the rebase did, no self-cleanup step |
 | `forward-port/<slug>/` | `odoo-forward-port` | 30d | same reasoning as `git-rebase/<slug>/` |
 | `modules-upgrade/<slug>/` (+ `checkpoint.json`) | `odoo-modules-upgrade` | 30d | same reasoning as `git-rebase/<slug>/` |
 | `coding/<slug>-<date>/` (`plan.md`) | `odoo-coding` | 30d | a later review/fix/resume step reads it to avoid recomputing the graph; no self-cleanup step |
 | `reviews/<slug>-<date>/` | `odoo-code-review` | 30d | tied to one diff/branch/PR; retained as the review's own evidence |
 | `pr-monitoring/<id>.md` | `odoo-pr-monitoring` | 30d | rewritten on every poll tick while monitoring is active - only goes stale once monitoring has genuinely concluded (merged/abandoned) |
-| `followups/<slug>.md` | `odoo-draft-followup` command | 30d | terminal deliverable - the run concludes the instant this file is written, so there is no "still alive" window to protect against |
+| `followups/<slug>.md` | `odoo-draft-followup` command | 30d | terminal deliverable - the run concludes the instant this file is written, so there is no "still alive" window to protect against. Wired at `commands/odoo-draft-followup.md` § Phase 0, step 0. |
 | `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` (a FILE - `state-root-resolution.md`'s ISOLATE-table trailing `/` on this row is loose notation, not a real directory) | `odoo-demo-recording` | 30d | terminal deliverable, same class as `followups/<slug>.md`; the filename itself is collision-proofed per Clause 1's fifth-consumer rule above, not merely a bare `<timestamp>` |
 | `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | 24h | ALREADY self-deletes at its own end-of-run staging cleanup (`odoo-doc-illustration/SKILL.md` § End-of-run staging cleanup) - the TTL is a crash-only backstop, same class as `wave/<slug>/` and `visual/current/<slug>/` |
 | `i18n/<slug>-<date>/` | `odoo-i18n` | 30d | the i18n recipe already mandates a fresh export on every invocation and forbids reusing a prior run's artifacts (`i18n-mandate-contract.md`) - anything past the very next run is already-superseded, but 30d still gives grace for a delayed review of the translation report |
@@ -187,18 +219,31 @@ non-mtime signal - e.g. only sweeping a `run-<id>.json` whose OWN recorded statu
 terminal one (DONE/BLOCKED/NEEDS_CONTEXT), never one still mid-flight regardless of mtime - which
 this pass does not implement. Recorded here as a known gap, not silently dropped.
 
-### 3.4 - SHARE tier: deliberately out of scope, not merely unaddressed
+### 3.4 - SHARE tier: closed - no disk-TTL sweep is coming, ever, by design
 
 Every SHARE-tier row in `state-root-resolution.md`'s own table is valuable PRECISELY BECAUSE it
 survives across runs/worktrees (a reusable cache or knowledge artifact - bucket 1, by that
 file's own "Why" column for each row). A TTL sweep would destroy the exact property that
 justifies placing something in SHARE rather than ISOLATE in the first place - "the cache went
-stale" is a CONTENT-correctness problem (solved by an explicit staleness/invalidation check,
-the same shape as `scouting-persistence-contract.md`'s `target_ref:` staleness clause for
-`recon/`, or "pick the most recently modified `designs/*.md`"), never a disk-leak problem (this
-contract's actual subject). **Decision: SHARE is OUT OF SCOPE for this GC rule, by design.**
-No SHARE row gets a TTL sweep from this contract; a future staleness concern for a specific
-SHARE cache belongs in that cache's OWN consumer contract, not here.
+stale" is a CONTENT-correctness problem, never a disk-leak problem (this contract's actual
+subject).
+
+**Decision: SHARE is OUT OF SCOPE for this GC rule, by design - and that decision is now FINAL,
+not merely deferred.** No SHARE row gets a TTL sweep from this contract, and no future revision
+of this contract will add one: a generalized disk-age sweep is the WRONG tool for SHARE by
+construction (it cannot distinguish "stale content, safe to refresh" from "still the only known
+good copy, do not touch"), not merely a tool this pass happened not to build. Concretely, each
+SHARE cache's OWN consumer already carries (or should carry) its own staleness/invalidation
+check at the point it READS the cache - the same shape `scouting-persistence-contract.md`'s
+`target_ref:` staleness clause already applies to `recon/`, or "pick the most recently modified
+`designs/*.md`" - never a background sweep that runs whether or not anyone is about to read the
+cache. If growth on disk (not staleness of content) becomes a real operational problem for a
+SPECIFIC SHARE cache, the fix is a size- or count-based cap owned by that cache's OWN consumer
+contract (e.g. "keep the 20 most recent `survey/<slug>-<date>/` trees, prune the rest"), never a
+retrofit of this contract's mtime-TTL mechanism - the two are different tools for different
+problems and must not be conflated. **This closes the question this clause used to leave open**
+("is SHARE growth bounded?"): the answer is "not by disk age, deliberately, and any future
+bound is a different, per-cache mechanism" - not "unaddressed."
 
 ### 3.5 - Where the sweep for each § 3.1 row lives
 
@@ -210,3 +255,85 @@ many consumers, instead of once per consumer: `worklog/<run-or-slug>/` at `workl
 § Where it lives (every worklog writer follows that contract, so one edit covers all of them),
 and the 13 workflow `output_dir` trees at `workflow-chaining/SKILL.md` Phase 0 (the single
 runner for all 13 workflows). Every other § 3.1 row is wired at its own owning skill.
+
+### 3.6 - `wave/<slug>/` and `followups/<slug>.md`: the criterion design (both now wired)
+
+A plugin-wide grep for the literal sweep-command shape (`mmin +`) against every row's named
+owner file once found 15 of 17 present and exactly 2 absent - this table must never claim coverage
+reality does not have (a row claiming a sweep that does not exist is worse than an honestly
+documented gap). Both offending rows (`wave/<slug>/`, `followups/<slug>.md`) are now wired at
+their owner files (§ 3.1 above states exactly where); this subsection keeps the criterion design
+and its reasoning as reference material, so a later reader does not have to re-derive WHY the
+`wave/<slug>/` recipe looks the way it does.
+
+**`followups/<slug>.md` (owner: `commands/odoo-draft-followup.md`).** The simple case - a
+terminal, single-file deliverable, same shape as `pr-monitoring/<id>.md`'s file-typed sweep
+(§ 3.1, `-type f -name '*.md'`, not `-type d`):
+
+```
+find <ISOLATE_DIR>/followups/ -maxdepth 1 -type f -name '*.md' -mmin +43200 -exec rm -rf {} +
+```
+
+No concurrency hazard here: unlike `wave/<slug>/` below, a followup file is written ONCE and
+never reopened by its own run (§ 3.1's own "no still-alive window to protect against"), so the
+plain mtime sweep `pr-monitoring/` already uses is directly correct with no correlation check
+needed. Wired at that command's Phase 0, step 0.
+
+**`wave/<slug>/` (owner: `skills/run-harness/references/wave-integration.md` /
+`skills/run-harness/SKILL.md`) - a bare mtime sweep is UNSAFE here; do not copy Clause 2's generic
+recipe verbatim.** Applying `find ... -mmin +1440 -type d -exec rm -rf {} +` as-is would reopen the
+exact danger `run-<id>.json` is excluded from this sweep for (§ 3.3): `run-harness` can pause at an
+L2 human-confirm gate for an UNBOUNDED period mid-run (`run-harness/SKILL.md` § Gate-tier
+resolution - "ALWAYS human - emit gate, end turn, resume after approve/skip/cancel"), during which
+`wave/<slug>/plan.md` sits untouched - its mtime goes stale while the run is PAUSED, not abandoned.
+The original "24h crash-only backstop" label this row was given contradicted the reasoning this
+SAME contract applies three rows later to `run-<id>.json` for the identical pause-while-alive
+shape - that contradiction is what this criterion corrects.
+
+**The criterion (mtime alone is never sufficient; a candidate must ALSO be positively correlated
+to a TERMINAL run status before it may be deleted) - read the status with `jq`, never `grep`.**
+`run-<id>.json`'s own schema (`docs/reference/workflow-harness.md` §8.3) nests a SECOND,
+differently-scoped `"status"` key inside EVERY entry of its `nodes[]` array (a per-node progress
+flag: `PENDING`/`READY`/`RUNNING`/`DONE`/...) alongside the run's own top-level `"status"`
+(`NEEDS_NEXT`/`DONE`/`BLOCKED`/`NEEDS_CONTEXT`) - an unanchored text match against either key name
+cannot tell them apart. A raw `grep -q '"status"[[:space:]]*:[[:space:]]*"(DONE|BLOCKED|
+NEEDS_CONTEXT)"'` against the whole file therefore matches on the ROUTINE, EARLY, common case of
+the run's FIRST node reaching `"DONE"` - while the run itself is still very much alive and
+`NEEDS_NEXT` - and would reap a live run's directory out from under it: the exact "GC worse than
+the leak" failure this contract exists to prevent, and not a rare edge case (an early node
+finishing is the NORMAL shape of an active run, not an anomaly). `jq -r '.status // empty'` reads
+ONLY the JSON root's `status` field:
+
+```
+if command -v jq >/dev/null 2>&1; then
+  find <ISOLATE_DIR>/wave/ -mindepth 1 -maxdepth 1 -type d -mmin +1440 -print0 |
+  while IFS= read -r -d '' d; do
+    slug="$(basename "$d")"
+    run_file="<ISOLATE_DIR>/run-${slug}.json"     # wave/<slug>/ and run-<id>.json share ONE id
+                                                    # (state-root-resolution.md: "per active run")
+    status="$(jq -r '.status // empty' "$run_file" 2>/dev/null || true)"
+    case "$status" in
+      DONE|BLOCKED|NEEDS_CONTEXT) rm -rf "$d" ;;   # the correlating RUN's own top-level status
+                                                     # positively proved terminal - safe to reap
+      *) : ;;   # absent run_file, unreadable/malformed JSON, empty, or NEEDS_NEXT (still
+                # mid-flight, possibly paused at an L2 gate right now) - skip, never delete
+    esac
+  done
+fi
+# jq unavailable -> skip the ENTIRE sweep this run rather than fall back to a raw-text match -
+# an unprovable status is the SAME "do not delete" outcome as an absent/unreadable run file,
+# extended to "the tool needed to read it correctly is itself absent".
+```
+
+Fail-closed on every axis, all collapsing to "skip, never delete": no correlating `run-<id>.json`
+at all, the file exists but is not valid JSON, `.status` is absent/empty, `.status` is
+`NEEDS_NEXT` (mid-flight, possibly mid-pause), or `jq` itself is unavailable. Only a POSITIVELY
+confirmed terminal top-level status on the run whose id matches the candidate directory's own
+name authorizes deletion - mirroring `reap-orphans`' own age-unknown-means-not-reaped convention
+(`scripts/lib/allocator.py` `_reap_candidates`) and the resolve-or-refuse discipline this contract
+already applies to `run-<id>.json` itself (§ 3.3). This is deliberately NOT a bare one-liner like
+the other 14 rows - it trades that uniformity for the one property that actually matters here: it
+can never delete a live paused run's evidence. Wired at `run-harness/SKILL.md` § Between-wave
+integration "Run start" (the first action there, before this run creates or writes anything under
+its OWN `wave/<slug>/` for the first time) and detailed at `wave-integration.md` § Stale wave-dir
+sweep.

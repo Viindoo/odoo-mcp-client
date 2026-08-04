@@ -91,6 +91,36 @@ def test_human_confirm_merge_present():
 _SINGLE_RUN_PR_RE = re.compile(r"(?i)(exactly\s+one\s+pr\b|single[\s-]run(?:-level)?\s+pr\b)")
 _PER_WAVE_PR_INVERSION_RE = re.compile(r"(?i)one\s+pr\s+per\s+wave")
 
+# #199 hardening (R12 F1, PARTIAL): the four checks above test independent substring/regex
+# presence ANYWHERE in the body, never that the SAME sentence asserts RUN-level (not WAVE-level)
+# cardinality. A natural-sounding negation-of-negation rewrite defeats all four while asserting the
+# EXACT policy #199 exists to rule out - verified against this constructed, policy-inverting text
+# (executed against the actual compiled regexes, not a paraphrase):
+#
+#   "Each coding wave now opens exactly one PR of its own before advancing. There is no per-wave
+#   PR restriction preventing this any longer - every wave independently opens exactly one PR,
+#   reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run advances to the next
+#   wave."
+#
+# This passes all four checks above: "no per-wave pr" occurs as a sub-phrase of an incidental
+# negation ("no per-wave PR restriction preventing this"); "exactly one pr" occurs verbatim; the
+# literal 4-gram "one pr per wave" never occurs contiguously; both required tokens are present.
+# What makes it an inversion is that a WAVE - not the run - is the grammatical actor that "opens"
+# the PR ("each/every wave ... opens ... one PR"), the opposite of every legitimate occurrence in
+# this file (where "the run"/"the terminal integrate land-tail" opens the ONE PR, and any "wave"
+# mention nearby is a temporal anchor like "after the final wave" or a negated compound like
+# "NO per-wave PR" - never the subject of "opens"). Anchor on that actor relationship directly:
+# reject a wave-referring phrase acting as the near subject of an "open(s)" verb bound to a PR
+# cardinality claim, in the SAME clause (bounded by '.'/';' so it cannot cross into an unrelated
+# sentence), unless it is itself a negation ("not ... per wave", "no per-wave ...").
+_WAVE_ACTOR = r"\b(?:each|every|any|per)[\s-]+(?:coding[\s-]+)?waves?\b"
+_OPEN_VERB = r"\bopen(?:s|ing|ed)?\b"
+_PR_TOKEN = r"\bprs?\b"
+_WAVE_AS_PR_OPENER_RE = re.compile(
+    rf"(?i)(?<!not one )(?<!not )(?<!no ){_WAVE_ACTOR}[^.;]{{0,25}}"
+    rf"(?:{_OPEN_VERB}[^.;]{{0,40}}{_PR_TOKEN}|{_PR_TOKEN}[^.;]{{0,40}}{_OPEN_VERB})"
+)
+
 
 def test_between_wave_auto_advances_and_never_merges():
     """Rule 4 (companion): each wave AUTO-ADVANCES on a green cumulative close-gate with NO per-wave
@@ -114,4 +144,44 @@ def test_between_wave_auto_advances_and_never_merges():
         "the outward merge must stay odoo-pr-monitoring's L2-merge-gate (run-harness's between-wave "
         "integration never merges) - a bare \"merge\" mention anywhere in the doc is not proof of this; "
         "the specific 'l2-merge-gate' token is."
+    )
+    assert not _WAVE_AS_PR_OPENER_RE.search(low), (
+        "run-harness text reads as a WAVE (not the run) being the grammatical actor that 'opens' a "
+        "PR - the #199 policy inversion (a per-wave PR cadence dressed as a cardinality claim). The "
+        "single run-level PR is opened by the run / the terminal integrate land-tail, never by "
+        "'each wave' or 'every wave'."
+    )
+
+
+def test_single_run_pr_claim_rejects_the_verified_wave_scoped_inversion():
+    """#199 hardening (companion, meta-test): proves the new guard actually defeats the SPECIFIC
+    policy-inverting sentence the review constructed and verified against the pre-fix regexes,
+    while never firing on the real run-harness/SKILL.md text (which would be a false positive that
+    blocks legitimate single-run-PR prose).
+
+    Fails if the guard no longer catches the known-bad string (regression to the pre-fix
+    blind spot), or if it now also rejects the real production text (over-tightened).
+    """
+    inverting_text = (
+        "Each coding wave now opens exactly one PR of its own before advancing. "
+        "There is no per-wave PR restriction preventing this any longer - every wave "
+        "independently opens exactly one PR, reviewed and gated by odoo-pr-monitoring's "
+        "l2-merge-gate before the run advances to the next wave."
+    )
+    low_candidate = inverting_text.lower()
+    # The candidate must still satisfy every OTHER assertion (that is the whole point of the trap)...
+    assert "no per-wave pr" in low_candidate
+    assert _SINGLE_RUN_PR_RE.search(low_candidate)
+    assert not _PER_WAVE_PR_INVERSION_RE.search(low_candidate)
+    assert "odoo-pr-monitoring" in low_candidate and "l2-merge-gate" in low_candidate
+    # ...but the new actor-relationship guard must catch it anyway.
+    assert _WAVE_AS_PR_OPENER_RE.search(low_candidate), (
+        "the wave-as-PR-opener guard must catch this constructed policy-inverting sentence - if "
+        "this fails, the guard regressed to the pre-fix blind spot verified in #199."
+    )
+
+    real_body_low = _skill_body().lower()
+    assert not _WAVE_AS_PR_OPENER_RE.search(real_body_low), (
+        "the wave-as-PR-opener guard fired against the REAL run-harness/SKILL.md text - a false "
+        "positive that would block legitimate single-run-PR prose."
     )
