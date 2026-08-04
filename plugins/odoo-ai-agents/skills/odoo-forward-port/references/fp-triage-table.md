@@ -163,18 +163,33 @@ silently sink unbounded re-implement effort into a run the user expected to be m
 
 ## Bucket-(c) same-module inherit-view check (view-topology)
 
-A bucket-(c) re-implement (mechanism gone at target - see [[fp-intent-4outcome]]) sometimes has to
-land an `ir.ui.view` record. When the record it forwards is itself an INHERITED view (`inherit_id`
+A bucket-(c) re-implement (mechanism gone at target - see [[fp-intent-4outcome]]), OR a bucket-(b)
+3-way-merge-and-adapt (mechanism still compatible - including a CLEAN auto-merge with no conflict
+marker at all), sometimes has to land an `ir.ui.view` record. When the record it forwards is
+itself an INHERITED view (`inherit_id`
 set) and the base it inherits from turns out to live in the SAME module as the new record, the
 inheritance may be pure indirection carried over from a source-series module split that no longer
 exists at the target - the same result would be expressible directly in the base view. This check
-catches that shape. It runs at the SAME choke point the 8b bucket-(c) leg already passes through -
-once the re-implement lands or modifies the view record, before that module's child worktree
-converges back into integration - and is reconfirmed clean at the P10 gate. It mirrors the P7
+catches that shape. It runs at the SAME choke point the 8a/8b bucket-(b)/(c) legs already pass
+through - once the commit's own adapt step lands or modifies the view record, directly in the
+integration worktree (P8 never uses a per-module child worktree - `SKILL.md` § Git topology) - and
+is reconfirmed clean at the P10 gate. It mirrors the P7
 pre-adapt drift scan's SHAPE exactly (a finding line, triaged into `merge-log.md`, checked before
 the gate) rather than inventing a new kind of step; it is a DIFFERENT discriminator
 (`VIEW-TOPOLOGY`, not `SYMBOL-BROKEN`) because the defect here is structural redundancy, not a
 broken reference.
+
+**Why bucket (b) is in scope too (closes a gating gap).** A same-module-collapsing fold at the
+target sometimes preserves a compatibility `ir.model.data` entry so the OLD qualified xml_id still
+resolves - a legitimate technique to avoid breaking external references during a module fold. When
+that happens, the incoming source-side view add merges CLEANLY (no conflict, since the old id still
+"exists"), so P6 symbol-survival finds nothing broken and P2 classifies the commit bucket (b)
+("still needed - mechanism compatible") instead of (c) ("mechanism gone"). The resulting view record
+is structurally IDENTICAL to the canonical bucket-(c) defect this predicate targets (an unconditional
+same-module inherit, fields hidden immediately after declaration) - only the classification differs,
+never the hazard. Gating condition 6 to bucket (c) alone would let this shape through undetected;
+gating it to bucket (b) OR (c) closes that gap while still excluding buckets (a)/(d), which land no
+new view content (Hard rule 7) and cannot produce this shape.
 
 **Predicate - flag the record V as a defect only when ALL SIX hold:**
 
@@ -212,9 +227,13 @@ broken reference.
    observable ordering effect (nothing to order against) and does not count as conditional; if ONE
    OR MORE other views (any module) also inherit B, a deliberately non-default `priority` IS a
    legitimate exception - it governs xpath-application order among siblings.
-6. The commit is bucket (c) per [[fp-intent-4outcome]] and V is what the RE-IMPLEMENT produced or
-   modified this run (not a pre-existing same-module inherit stack the run never touched - this
-   check scopes to what THIS re-implement lands, not a whole-module retroactive audit).
+6. The commit is bucket (b) OR bucket (c) per [[fp-intent-4outcome]], and V is a view record THIS
+   commit's own adapt step produced or modified this run - the bucket-(c) RE-IMPLEMENT leg, or the
+   bucket-(b) 3-way-merge-and-adapt leg (including a clean auto-merge with no conflict marker, e.g.
+   the alias-preserving-fold case above) - never a pre-existing same-module inherit stack the run
+   never touched (buckets (a)/(d) land no adapt content per Hard rule 7, so they cannot introduce
+   this hazard and stay out of scope). This check scopes to what THIS commit lands,
+   not a whole-module retroactive audit.
 
 **Two exceptions this predicate must never fire on (both already covered above, restated for
 clarity because a future edit narrowing the predicate to only condition 1 would wrongly flag

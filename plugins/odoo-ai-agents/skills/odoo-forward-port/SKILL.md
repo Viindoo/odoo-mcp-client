@@ -267,9 +267,23 @@ run.** Dispatch by walking the P0 `module -> [ordered sha list]` map, ONE agent 
 <path>, ... }` (the module's full ordered map from the P0 pre-step, oldest first; the extractor
 mandates this field, or the single-SHA `commit_dump_path` only for the narrow re-check/audit uses
 documented on the agent itself, and never runs git itself). A second `odoo-intent-extractor`
-instance for a module ALREADY dispatched this run is a pipeline defect, never a valid retry - the
-correct retry for a failed or incomplete module pass is a CHP Tier-A `SendMessage` resume of the
-SAME instance, never a fresh dispatch.
+instance for a module ALREADY dispatched this run, WHILE the first is still live or has already
+completed successfully, is a pipeline defect, never a valid retry - the correct retry for a failed
+or incomplete module pass under CHP Tier-A is a `SendMessage` resume of the SAME instance, never a
+fresh dispatch.
+**Tier-C retry (no `SendMessage` - the CHP capability probe,
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Capability probe, is negative):** a
+Tier-A resume is impossible, so the legal retry is a SUPERSEDING dispatch, never a second
+CONCURRENT one. Confirm the failed/incomplete instance's turn has fully ended (never dispatch a
+replacement while it might still be running), then launch exactly ONE replacement
+`general-purpose` worker carrying the module's FULL, UNCHANGED `commit_dump_paths` plus `PRIOR
+ATTEMPT: <what the failed pass returned or omitted>`. The replacement is authoritative for the
+whole module bundle; its output supersedes any partial per-module intent record (§ P1 write path
+below) the failed instance left behind. R2b's cap bounds the number of SIMULTANEOUSLY
+live-or-authoritative workers per module to exactly one, not the lifetime dispatch count across
+retries - a sequential supersession after a confirmed failure satisfies the cap exactly as a
+Tier-A resume would; a second instance dispatched while the first could still be running would
+not.
 Dispatch each module's single instance using CHP Tier-B `subagent_type:
 "fork"` (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B), with the
 module's triaged `model` override (Table 1, resolved per module bundle - see § Model triage), up
@@ -279,11 +293,28 @@ profile) and shares the parent's prompt cache, eliminating per-worker re-groundi
 worktree children needed - extraction is read-only; Tier B applies unconditionally here.
 Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose`
 spawn with an explicit brief (current behavior) - the worklog is always written regardless of tier.
-Each worker writes one `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md` PER COMMIT in its module
-bundle (the why + behavioral contract + OSM-grounded symbols, never the diff) - output granularity
-stays per-SHA even though dispatch granularity is per-module, so P2/P3/`plan.md` need no change.
-Aggregate every returned summary (one per commit, across every module's single dispatch) into the
-P2 classify queue.
+
+**Write path is PER-MODULE NAMESPACED (closes the shared-commit write race - B2).** R2a's module
+map and R2b's per-module cap together mean a commit shared between modules A and B is
+INTENTIONALLY dispatched to BOTH modules' single extractor instances (each module's full ordered
+sha list includes it) - so two independent, concurrently-running instances legitimately process
+the identical SHA. Without a namespace, both would target the SAME
+`intents/<sha>.md` path with no owner or merge rule - a write race. Set the P1 dispatch brief's
+`SLUG` field to `<slug>/<module>` (the run `<slug>` plus this module's own name), never the bare
+run `<slug>`, for EVERY module's extractor dispatch (full brief:
+`references/fp-phase-detail.md` P1). The extractor's own write-path template
+(`agents/odoo-intent-extractor.md` Step 3 - `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md`,
+substituted verbatim from the brief's `SLUG` field) then resolves PER MODULE with no change needed
+to that agent: module A's instance writes `<ISOLATE_DIR>/forward-port/<run-slug>/A/intents/<sha>.md`;
+module B's instance writes `.../B/intents/<sha>.md` for the SAME sha - two distinct files, each
+module's own perspective on the commit, never a last-write-wins collision. Each worker still writes
+one record PER COMMIT in its module bundle, under its own module's namespace (the why + behavioral
+contract + OSM-grounded symbols, never the diff) - output granularity stays per-SHA even though
+dispatch granularity is per-module, so P2/P3/`plan.md` need no change beyond the path shape above.
+Aggregate every returned summary (one per commit, across every module's single dispatch - each
+summary's own `intent_file` field already reflects the module-scoped path the extractor actually
+wrote to, so a caller reads THAT returned path rather than reconstructing one from the bare run
+`<slug>`) into the P2 classify queue.
 
 **P2 - Classify + installable-probe [module-first order, per-commit bucket, OSM].** Walk modules in
 the SAME order P0/P1 established (the `module -> [ordered sha list]` map), and within each module
@@ -421,10 +452,16 @@ P9 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record find
 `merge-log.md`; P8a brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.
 Full commands: `references/fp-phase-detail.md` P7.
 
-P7 is also where the bucket-(c) VIEW-TOPOLOGY sub-check surfaces: once a bucket-(c) re-implement
-lands or modifies an `ir.ui.view` record, confirm it is not an unconditional same-module inherit
-stack on its own base view - a re-implementation that carries the SOURCE module-split idiom
-forward instead of the target's. Predicate, the two non-defect exceptions (different-module base;
+P7 is also where the VIEW-TOPOLOGY sub-check surfaces: once a bucket-(b) OR bucket-(c) commit's
+own adapt step lands or modifies an `ir.ui.view` record - the bucket-(c) re-implement leg, or the
+bucket-(b) 3-way-merge-and-adapt leg (INCLUDING a clean auto-merge with no conflict marker at all,
+e.g. an alias-preserving module fold at target that leaves the old base `xml_id` still resolving,
+so P6 finds nothing broken and P2 classifies bucket-(b) instead of (c) even though the resulting
+view shape is identical to the canonical bucket-(c) defect) - confirm it is not an unconditional
+same-module inherit stack on its own base view - a re-implementation (or a clean-merged carryover)
+that carries the SOURCE module-split idiom forward instead of the target's. Buckets (a)/(d) land no
+new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
+Predicate, the two non-defect exceptions (different-module base;
 a conditional child via `mode="primary"` / `active=False` / `groups`), and the merge-unsafe
 escape: `references/fp-triage-table.md` § Bucket-(c) same-module inherit-view check.
 
@@ -659,10 +696,12 @@ directly via OSM `impact_analysis` per that snippet's Step 1.
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
 or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
 (read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
-`merge-log.md` + `intents/<sha>.md`, `odoo_version` = target series; `INSTANCE_HANDLE` from P9 if
+`merge-log.md` + each touched module's own `intents/<module>/<sha>.md` (§ P1 write path), `odoo_version`
+= target series; `INSTANCE_HANDLE` from P9 if
 still live (reuse - never re-provision; else pass `none provisioned` and `odoo-acceptance` still
 scopes + plans its oracle, then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) =
-each ported commit's behavioral contract recorded in `intents/<sha>.md` and any P3 design doc's §9
+each ported commit's behavioral contract recorded in the touched module's own `intents/<module>/<sha>.md`
+and any P3 design doc's §9
 - NEVER a pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own
 Phase 1 from that intent, the same oracle-independence guarantee the new-module lifecycle
 protects. Do NOT hand it the implementation.
@@ -788,8 +827,9 @@ that is opus-grade to ADAPT if that commit's target re-implementation is cross-m
 `design_doc` path for any commit P3 routed to `odoo-solution-design`. P0 reads it and skips
 `status=done` commits (and resumes a `status=designed` commit at the P4 plan gate with its
 recorded `design_doc`, so a crash between design-approval and re-entry resumes correctly). A
-crash mid-batch is recovered by re-reading the checkpoint + the on-disk `intents/`, `plan.md`,
-and `merge-log.md` (file existence is the source of truth, the JSON is the fast index). Child
+crash mid-batch is recovered by re-reading the checkpoint + the on-disk `intents/<module>/`
+per-module subdirectories, `plan.md`, and `merge-log.md` (file existence is the source of truth,
+the JSON is the fast index). Child
 worktrees left dangling by a crash are removed and recreated from integration. Record the executor's
 `INSTANCE_HANDLE` (and its instance log path) in the batch worklog so a resumed run reuses the same
 instance or asks `odoo-instance` to release it instead of orphaning the DB - since P9 delegates the run,
@@ -874,12 +914,14 @@ contracts are unchanged - only the grounding source degrades.
 
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
-`produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`,
+`produced` lists `plan.md`, each touched module's own `intents/<module>/<sha>.md` (§ P1 write path -
+never the bare `intents/<sha>.md`), `merge-log.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
 URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 gate, or P12 final
 PR/merge gate). When P3 routes a commit out to design,
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
-modules: [<names>], intent_records: [<paths>], classification: <bucket-(c) summary> }` and the
+modules: [<names>], intent_records: [<one intents/<module>/<sha>.md path per module in `modules`
+above>], classification: <bucket-(c) summary> }` and the
 run YIELDS - the run-harness advances the hop and re-enters forward-port with the returned
 `design_doc`. Additive output for the run-harness - it does not change anything produced above.
