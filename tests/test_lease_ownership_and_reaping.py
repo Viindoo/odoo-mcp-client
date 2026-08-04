@@ -525,21 +525,52 @@ def test_reap_orphans_reports_an_unreachable_cluster_without_crashing(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-# Part 4 - `acquire --help` never allocates a lease (behavioral, not just an
-# exit-code check) - regression guard for the exact shape issue text names.
+# Part 4 - EVERY help-invocation spelling never allocates a lease / mutates the
+# registry, on EVERY subcommand (behavioral, not just an exit-code check) -
+# regression guard for the FULL #187.3 class, not just the reported shape.
+#
+# #187.3 as originally reported and fixed covered only `acquire --help`
+# (`_parse()` classified `--help` as an unknown `--flag` and refused with
+# rc=2, never reaching `cmd_acquire`). The single-dash sibling `acquire -h`
+# was NOT covered by that fix: `-h` does not start with `--`, so `_parse()`
+# silently routed it into `pos` (a positional) and `cmd_acquire` ran to
+# completion, allocating a real lease - reproduced live before this change
+# (see 22-fix-F5.md). The class fix moves the help check ABOVE `_parse()`
+# entirely (`main()`, before any subcommand dispatch), for every subcommand,
+# not just `acquire`.
+#
+# The spelling list is DERIVED from the allocator's own `_HELP_TOKENS`
+# constant (`from allocator import ...` via `_import_allocator()` below),
+# never hand-typed here - a future third spelling is covered by construction,
+# never by a second list silently drifting out of sync with the parser.
 # --------------------------------------------------------------------------- #
-def test_acquire_help_never_creates_a_lease_row(tmp_path):
+_ALLOC_MODULE_FOR_HELP = _import_allocator()
+
+_ALL_SUBCOMMANDS = (
+    "acquire", "release", "heartbeat", "bind", "gc",
+    "reap-orphans", "list", "query", "assert-droppable",
+)
+
+
+@pytest.mark.parametrize("subcommand", _ALL_SUBCOMMANDS)
+@pytest.mark.parametrize("help_token", _ALLOC_MODULE_FOR_HELP._HELP_TOKENS)
+def test_help_spelling_never_creates_a_lease_row_on_any_subcommand(tmp_path, subcommand, help_token):
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
     toml.write_text(CATALOG_TOML, encoding="utf-8")
     env = _base_env(home, toml)
 
-    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--help")
-    assert p.returncode != 0
+    p = _run(env, subcommand, "--series", "17.0", "--mode", "ephemeral", help_token)
+    assert p.returncode == 0, (
+        f"{subcommand!r} {help_token!r} must print usage and exit 0 - showing help is "
+        f"success, not an error (consistent with the no-subcommand-at-all case). Got "
+        f"returncode={p.returncode}, stderr={p.stderr!r}"
+    )
 
     leases_file = home / "runtime" / "leases.json"
     assert not leases_file.exists(), (
-        "acquire --help must never allocate a lease - reading the usage text "
-        "must not consume a database name or port from the pool"
+        f"{subcommand!r} {help_token!r} must never allocate a lease or otherwise mutate "
+        "the registry - reading the usage text must not consume a database name or port "
+        "from the pool, on ANY subcommand, for ANY help spelling"
     )
