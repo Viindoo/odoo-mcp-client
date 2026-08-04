@@ -55,15 +55,73 @@
 #     grants takes exactly two argument values - `share` or `isolate` - so a
 #     trailing `:*` wildcard would only widen the surface for no benefit).
 #
+# VERSION-PINNED RULE CONVERGENCE (do NOT let this regress into unbounded
+# growth): the two Bash rules below embed `${PLUGIN_ROOT}`, which resolves to
+# the INSTALLED plugin version's own directory. A naive re-apply on every
+# plugin upgrade would therefore keep ADDING a new pair of rules - one per
+# version ever installed - and never remove the previous pair. That is not
+# cosmetic: a rule that stops matching anything (because its version's
+# directory was later cleaned from the plugin cache) makes the CLI warn at
+# every launch. `apply` (below) prunes this class instead of just adding to
+# it: writing the CURRENT version's Bash rule for `resolve_project_dir.sh`
+# also REMOVES any other allow[] entry that BOTH (a) starts with THIS
+# plugin's own stable path prefix (`$PLUGIN_ROOT` with the version segment
+# stripped - see `PRUNE_ANCHOR`/`STABLE_PLUGIN_PREFIX` below) AND (b) ends in
+# the same trailing `.../scripts/lib/resolve_project_dir.sh share)` /
+# `.../isolate)` suffix - i.e. a PRIOR VERSION OF THIS SAME PLUGIN's absolute
+# path pinned by an earlier `apply`. The prefix check is load-bearing, not
+# optional: a suffix-only match would ALSO delete a DIFFERENT plugin's rule
+# for an identically-suffixed script (two plugins can each ship their own
+# scripts/lib/resolve_project_dir.sh) - an earlier revision of this fix made
+# exactly that mistake and deleted an unrelated plugin's permission in
+# testing; `test_prune_never_prunes_different_plugin_same_script` guards
+# against a regression. Nothing outside the anchored class is ever touched: a
+# different plugin's rule, a rule for a different script under THIS plugin, a
+# different tool, or a user's own hand-written rule is left alone.
+#   A version-agnostic wildcard rule (one stable `Bash(...)` entry matching
+#   every version) was considered and rejected: Claude Code's Bash rules do
+#   support `*` at any position (see https://code.claude.com/docs/en/permissions
+#   "Wildcard patterns" - a single `*` matches any run of characters,
+#   including `/`), so a rule such as
+#   `Bash(bash <plugin-name-dir>/*/scripts/lib/resolve_project_dir.sh share)`
+#   IS syntactically possible. It was rejected because (a) it would violate
+#   the "Bash rules are EXACT, wildcard-free" contract directly above and its
+#   test (test_bash_rules_are_exact_no_wildcard); (b) it assumes the segment
+#   immediately above `scripts/` is always a bare version number, which holds
+#   for a marketplace-cache install but not for a `--plugin-dir` dev
+#   checkout (no version segment at all - the wildcard would instead swallow
+#   the plugin-name segment itself and could match a DIFFERENT plugin's
+#   identically-named script under the same parent directory); and (c) even
+#   the narrower anchored form matches any run of characters (not just one
+#   path segment), so it auto-approves more than a version substitution.
+#   Pruning keeps every live rule exact while still converging - see
+#   `cmd_apply`'s use of `config_merge.py json-ensure-allow-pruning` and
+#   `cmd_check`'s `_stale_bash_present` guard, and
+#   tests/test_state_root_permissions.py's
+#   `test_apply_prunes_prior_version_bash_rules` /
+#   `test_apply_across_three_versions_stays_at_two_bash_rules` /
+#   `test_prune_never_prunes_different_plugin_same_script` for the proof.
+#   The SAME concern (b) above - "which path segment IS the version?" -
+#   applies to pruning too, not just to the rejected wildcard: `PRUNE_ANCHOR`
+#   (below) only enables pruning when `$PLUGIN_ROOT`'s own last path segment
+#   is a real MAJOR.MINOR.PATCH version (the exact pattern
+#   scripts/bump-version.sh already enforces as this repo's version-format
+#   SSOT). A `--plugin-dir` dev checkout has no such segment, so pruning is
+#   skipped for that run - plain add-only, never a guess - see
+#   `test_dev_checkout_without_version_segment_skips_pruning_safely`.
+#
 # Subcommands:
 #   describe   One-line description.
-#   check      Exit 0 if all 4 rules already in permissions.allow[];
-#              exit 1 if any is missing. Also reports (non-blocking) whether
+#   check      Exit 0 if all 4 rules already in permissions.allow[] AND no
+#              stale prior-version Bash rule remains for the same script;
+#              exit 1 if either is true. Also reports (non-blocking) whether
 #              mcp__odoo-semantic is present, pointing at its real owner.
 #   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out), then
 #              idempotently append the 4 rules via config_merge.py
-#              json-ensure-allow, print them, instruct one restart, and
-#              self-verify by re-running check.
+#              json-ensure-allow (Read/Edit) / json-ensure-allow-pruning
+#              (the two version-pinned Bash rules - also removes any stale
+#              prior-version Bash rule for the same script), print them,
+#              instruct one restart, and self-verify by re-running check.
 #
 # CONFIG PATH:
 #   CLAUDE_SETTINGS  permissions file  ${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}
@@ -92,6 +150,37 @@ else
     PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 fi
 
+# PRUNE_ANCHOR: is $PLUGIN_ROOT's OWN last path segment a real MAJOR.MINOR.PATCH
+# version (the exact SSOT pattern scripts/bump-version.sh enforces for
+# VERSION/plugin.json - see its own `^[0-9]+\.[0-9]+\.[0-9]+$` check)? Only
+# then do we know which segment of the path IS the version, so only then is
+# it safe to compute a STABLE_PLUGIN_PREFIX (everything above that segment,
+# i.e. $PLUGIN_ROOT with the version stripped) to anchor pruning to THIS
+# plugin's own directory.
+#   - A marketplace-cache install (`.../<marketplace>/odoo-ai-agents/4.20.0`)
+#     matches: PRUNE_ANCHOR=1, STABLE_PLUGIN_PREFIX=`.../odoo-ai-agents`.
+#   - A `--plugin-dir` dev checkout (`.../worktrees/<wt-key>/plugins/odoo-ai-agents`,
+#     no version directory at all) does NOT match: PRUNE_ANCHOR=0. Pruning is
+#     then skipped entirely for the Bash rules this run (see cmd_apply/
+#     cmd_check below) - falling back to plain add-only. This is deliberately
+#     conservative: without a real version segment we cannot tell which path
+#     component to strip, so guessing would either strip the WRONG segment
+#     (e.g. the plugin-name directory itself) and widen the anchor to match
+#     sibling plugins/scripts it must never touch, or do nothing useful -
+#     "no pruning this run" is the only option that is always safe and never
+#     crashes. A dev checkout's own path is stable across repeated runs of
+#     the SAME checkout anyway, so plain add-only is already idempotent for
+#     it; any stale marketplace-version rule from a prior REAL install is
+#     left alone until a run with a real version segment prunes it.
+VERSION_SEGMENT="${PLUGIN_ROOT##*/}"
+if [[ "$VERSION_SEGMENT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    PRUNE_ANCHOR=1
+    STABLE_PLUGIN_PREFIX="${PLUGIN_ROOT%/*}"
+else
+    PRUNE_ANCHOR=0
+    STABLE_PLUGIN_PREFIX=""
+fi
+
 # Resolve the state root exactly like scripts/lib/resolve_project_dir.sh's own
 # Tier-1 root convention: $ODOO_AI_HOME, defaulting to $HOME/.odoo-ai.
 ODOO_AI_HOME="${ODOO_AI_HOME:-$HOME/.odoo-ai}"
@@ -108,12 +197,35 @@ ODOO_AI_HOME="${ODOO_AI_HOME%/}"
 # NO `Write(<path>)` rule belongs here: `Edit(path)` already covers every
 # file-editing tool, and a `Write(<path>)` rule matches nothing while making the
 # CLI warn at every launch (see the WHY NO `Write(<path>)` RULE note above).
+RESOLVE_SCRIPT_REL="scripts/lib/resolve_project_dir.sh"
+
 RULES=(
-    "Bash(bash ${PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share)"
-    "Bash(bash ${PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate)"
+    "Bash(bash ${PLUGIN_ROOT}/${RESOLVE_SCRIPT_REL} share)"
+    "Bash(bash ${PLUGIN_ROOT}/${RESOLVE_SCRIPT_REL} isolate)"
     "Read(/${ODOO_AI_HOME}/**)"
     "Edit(/${ODOO_AI_HOME}/projects/**)"
 )
+
+# Stale-detection suffixes, index-aligned with RULES[0] and RULES[1] (the two
+# Bash rules only - Read/Edit above key off $ODOO_AI_HOME, not $PLUGIN_ROOT,
+# so they never drift across plugin versions and need no pruning). An allow[]
+# entry is stale for RULES[i] only if it BOTH starts with
+# BASH_STABLE_PREFIX_MATCH AND ends with STALE_BASH_SUFFIXES[i], and is NOT
+# equal to the corresponding current RULES[] entry - i.e. THIS plugin's own
+# script, pinned to a DIFFERENT (stale) version of THIS plugin's path. The
+# prefix requirement is load-bearing: a suffix match alone would also catch a
+# DIFFERENT plugin's identically-named/argued script - see "VERSION-PINNED
+# RULE CONVERGENCE" above.
+STALE_BASH_SUFFIXES=(
+    "/${RESOLVE_SCRIPT_REL} share)"
+    "/${RESOLVE_SCRIPT_REL} isolate)"
+)
+
+# The literal string prefix every pruned entry must start with. Built the
+# same way the RULES[] Bash entries themselves are ("Bash(bash <path>") so it
+# lines up exactly. Only meaningful when PRUNE_ANCHOR=1 (see above) - left
+# empty otherwise and never consulted (pruning is skipped in that case).
+BASH_STABLE_PREFIX_MATCH="Bash(bash ${STABLE_PLUGIN_PREFIX}/"
 
 # ---------------------------------------------------------------------------
 # describe
@@ -154,11 +266,51 @@ sys.exit(0 if any(a == "mcp__odoo-semantic" or a.startswith("mcp__odoo-semantic_
 PY
 }
 
+_stale_bash_present() {
+    # Exit 0 iff permissions.allow[] contains a Bash(...) rule that BOTH
+    # starts with BASH_STABLE_PREFIX_MATCH (THIS plugin's own directory,
+    # version stripped) AND ends in one of STALE_BASH_SUFFIXES (same
+    # resolve_project_dir.sh + argument), but is NOT exactly one of the
+    # current-version RULES - i.e. a prior version of THIS SAME plugin's
+    # pinned path for the same script that `apply` has not yet pruned. Only
+    # meaningful when PRUNE_ANCHOR=1 (see "PRUNE_ANCHOR" above): without a
+    # real version segment to anchor on, staleness cannot be judged safely,
+    # so this always reports "none" (exit 1) rather than guess - the same
+    # conservative choice cmd_apply's write path makes.
+    [[ "$PRUNE_ANCHOR" -eq 1 ]] || return 1
+    [[ -f "$CLAUDE_SETTINGS" ]] || return 1
+    python3 - "$CLAUDE_SETTINGS" "${RULES[0]}" "${RULES[1]}" "${STALE_BASH_SUFFIXES[0]}" "${STALE_BASH_SUFFIXES[1]}" "$BASH_STABLE_PREFIX_MATCH" <<'PY'
+import json, sys
+path, current_share, current_isolate, suf_share, suf_isolate, prefix = sys.argv[1:7]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(1)
+allow = (data.get("permissions") or {}).get("allow") or []
+current = {current_share, current_isolate}
+suffixes = (suf_share, suf_isolate)
+for a in allow:
+    if a in current:
+        continue
+    if a.startswith(prefix) and a.endswith(suffixes):
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+
 cmd_check() {
     local missing=0
     for r in "${RULES[@]}"; do
         _allow_has "$r" || missing=1
     done
+    # A stale same-plugin, prior-version rule also counts as "not converged
+    # yet" so the SessionStart hook re-triggers `apply` (which prunes it) on
+    # the very next session, rather than only after the NEXT version bump
+    # ever fires `apply` again. (No-op when PRUNE_ANCHOR=0 - see above.)
+    if _stale_bash_present; then
+        missing=1
+    fi
     # Informational only - mcp__odoo-semantic is NOT this step's rule to write
     # or require; its owner is odoo-semantic-mcp's connect command.
     if ! _odoo_semantic_present; then
@@ -199,12 +351,28 @@ cmd_apply() {
             ;;
     esac
 
-    local r rc had_io_error=0
-    for r in "${RULES[@]}"; do
-        # json-ensure-allow is idempotent, backs up. Exit contract:
-        #   0 = success / already present, 1 = general I/O error, 2 = invalid JSON.
+    local i r rc had_io_error=0
+    for i in "${!RULES[@]}"; do
+        r="${RULES[$i]}"
+        # The two Bash(...) rules are version-pinned (embed $PLUGIN_ROOT). When
+        # PRUNE_ANCHOR=1 (a real MAJOR.MINOR.PATCH version segment was found -
+        # see above), writing them also PRUNES any stale rule for a PRIOR
+        # version of THIS SAME plugin (json-ensure-allow-pruning, anchored to
+        # BASH_STABLE_PREFIX_MATCH so it can never touch a different plugin's
+        # rule for an identically-suffixed script). When PRUNE_ANCHOR=0 (a
+        # --plugin-dir dev checkout with no version segment to anchor on),
+        # pruning is skipped and this falls back to plain add-only - see the
+        # PRUNE_ANCHOR comment above for why that is the safe choice. The
+        # Read/Edit rules key off $ODOO_AI_HOME (not $PLUGIN_ROOT) and never
+        # drift across versions, so plain json-ensure-allow is always
+        # sufficient for them. Exit contract for both calls: 0 = success /
+        # already converged, 1 = general I/O error, 2 = invalid JSON.
         set +e
-        python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r"
+        if [[ "$r" == Bash\(* && "$PRUNE_ANCHOR" -eq 1 ]]; then
+            python3 "$LIB" json-ensure-allow-pruning "$CLAUDE_SETTINGS" "$r" "${STALE_BASH_SUFFIXES[$i]}" "$BASH_STABLE_PREFIX_MATCH"
+        else
+            python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r"
+        fi
         rc=$?
         set -e
         if [[ "$rc" -eq 2 ]]; then

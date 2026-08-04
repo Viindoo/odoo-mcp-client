@@ -23,6 +23,24 @@ Subcommands:
       Mirrors the exact logic from odoo-semantic-mcp/commands/connect.md
       step 5: setdefault, backup, refuse invalid JSON (exit 2), idempotent.
 
+  json-ensure-allow-pruning <settings.json> <new_rule> <stale_suffix> <stable_prefix>
+      Idempotently ensure <new_rule> is present in permissions.allow[], and
+      additionally remove any OTHER entry that BOTH starts with <stable_prefix>
+      AND ends with <stale_suffix> - the same plugin's own script, pinned to a
+      DIFFERENT (stale) absolute path (e.g. a previous version of that SAME
+      plugin's directory). An entry EQUAL to <new_rule> is never removed, even
+      though it also matches. <stable_prefix> is REQUIRED and must be specific
+      enough to identify this one plugin (e.g. "Bash(bash <path-up-to-and-
+      including-the-plugin-name-dir>/") - a suffix match alone is NOT anchored
+      to any plugin identity and would also prune a DIFFERENT plugin's rule
+      for an identically-named script (e.g. two plugins that each ship their
+      own scripts/lib/resolve_project_dir.sh); requiring both the prefix AND
+      the suffix keeps the match scoped to one specific plugin's own rule
+      family. Used to converge version-pinned rules across plugin upgrades
+      instead of accumulating one new rule per version forever. Same safety
+      contract as json-ensure-allow: backup before write, refuse invalid JSON
+      (exit 2), idempotent no-op when nothing needs to change.
+
 Exit codes:
   0  success / no change needed
   1  general error (I/O, parse failure for input, etc.)
@@ -471,6 +489,94 @@ def cmd_json_ensure_allow(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: json-ensure-allow-pruning
+# ---------------------------------------------------------------------------
+
+def cmd_json_ensure_allow_pruning(args: list[str]) -> int:
+    """json-ensure-allow-pruning <settings.json> <new_rule> <stale_suffix> <stable_prefix>
+
+    Idempotently ensure <new_rule> is present in permissions.allow[], AND
+    remove any OTHER allow[] entry that BOTH starts with <stable_prefix> AND
+    ends with <stale_suffix> - the SAME plugin's own script, differing only in
+    the version segment of its absolute path (e.g. a prior version of that
+    plugin's directory). An entry equal to <new_rule> itself is NEVER removed,
+    even though it also matches.
+
+    <stable_prefix> is REQUIRED. A suffix-only match is NOT anchored to any
+    plugin's identity: two different plugins can each ship a same-named
+    script (e.g. two plugins that both have scripts/lib/foo.sh), and a
+    suffix-only prune would delete the OTHER plugin's unrelated rule. Passing
+    a prefix specific enough to identify one plugin (its path up to and
+    including the plugin-name directory) keeps the match scoped to that one
+    plugin's own rule family.
+
+    This converges a version-pinned rule instead of letting it accumulate one
+    new pair per plugin upgrade forever: installing version B's rule prunes
+    version A's rule for the SAME plugin's SAME script, while leaving every
+    other allow[] entry (a different plugin's identically-suffixed rule, a
+    different script under the same plugin, or a user's own hand-written
+    rule) untouched.
+
+      - Backup before any write (same as json-ensure-allow).
+      - Refuse to overwrite invalid JSON (exit 2).
+      - Idempotent: if allow[] is already exactly {non-matching entries +
+        new_rule} (in the same order), prints "unchanged" and exits 0
+        without writing or backing up.
+    """
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_json_ensure_allow_pruning.__doc__)
+        return 0
+    if len(args) != 4:
+        print(
+            "Usage: config_merge.py json-ensure-allow-pruning "
+            "<settings.json> <new_rule> <stale_suffix> <stable_prefix>",
+            file=sys.stderr,
+        )
+        return 1
+
+    settings_path, new_rule, stale_suffix, stable_prefix = args
+
+    # Load existing settings (exits 2 on invalid JSON)
+    data = _load_json_target(settings_path)
+
+    perms = data.setdefault("permissions", {})
+    allow = perms.setdefault("allow", [])
+
+    def _is_stale(entry: str) -> bool:
+        if entry == new_rule:
+            return False
+        return entry.startswith(stable_prefix) and entry.endswith(stale_suffix)
+
+    kept = [a for a in allow if not _is_stale(a)]
+    if new_rule not in kept:
+        kept.append(new_rule)
+
+    if kept == allow:
+        print(f"ok {new_rule} already in allow-list, no stale entries - no change.")
+        return 0
+
+    removed = [a for a in allow if a not in kept]
+
+    # Backup before modifying
+    if os.path.exists(settings_path):
+        bak = _backup(settings_path)
+        print(f"backup -> {bak}")
+
+    perms["allow"] = kept
+
+    os.makedirs(os.path.dirname(os.path.abspath(settings_path)), exist_ok=True)
+    _write_json(settings_path, data)
+    if removed:
+        print(
+            f"ok Added {new_rule} to permissions.allow in {settings_path}; "
+            f"removed stale entries: {removed}."
+        )
+    else:
+        print(f"ok Added {new_rule} to permissions.allow in {settings_path}.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Entry point / dispatch
 # ---------------------------------------------------------------------------
 
@@ -479,6 +585,7 @@ SUBCOMMANDS = {
     "toml-ensure-table": cmd_toml_ensure_table,
     "toml-append-array-item": cmd_toml_append_array_item,
     "json-ensure-allow": cmd_json_ensure_allow,
+    "json-ensure-allow-pruning": cmd_json_ensure_allow_pruning,
 }
 
 
