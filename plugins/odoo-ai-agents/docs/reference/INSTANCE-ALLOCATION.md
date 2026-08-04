@@ -109,8 +109,19 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
     "series": "17.0", "db_name": "odoo_17_t_ab12cd34", "drop_on_release": true,
     "python": "<venv-interpreter>", "db_host": "localhost", "db_user": "odoo", "db_port": "<port|absent>",
     "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
-    "owner": { "host": "<hostname>", "pid": 41234, "run_id": "<run-id>", "started_at": <epoch> },
-    "ttl_s": 7200, "heartbeat_at": <epoch> } ] }   // ttl_s default == DEFAULT_TTL_S in scripts/lib/allocator.py (SSOT)
+    "owner": { "host": "<hostname>", "pid": 41234, "pid_started": "<ps-lstart-fingerprint|absent>",
+               "run_id": "<run-id>", "started_at": <epoch> },
+    "ttl_s": 3600, "heartbeat_at": <epoch> } ] }   // ttl_s default == DEFAULT_TTL_S in scripts/lib/allocator.py (SSOT)
+
+`owner.pid_started` is a recycling-resistant fingerprint of the process that occupied `pid` at
+the moment it was recorded (`ps -o lstart=` - the process's wall-clock start time; portable across
+Linux/macOS/BSD, unlike `/proc`). A bare pid integer is reused by the OS over a machine's lifetime,
+so `_is_stale` (§7) needs this to tell "the SAME process is still running" apart from "a DIFFERENT,
+unrelated process now happens to hold this pid" before it can let liveness PROTECT a lease. Written
+by `acquire` (shared/exclusive/ephemeral, whenever `--pid` is supplied) and by `bind`; absent on a
+lease that never recorded a pid, or on a legacy lease from before this field existed - `_is_stale`
+treats an absent/unverifiable fingerprint as "cannot prove liveness", never as "proven dead" or
+"proven alive".
 
 `drop_on_release` replaces the old `created_db` flag (B2): True for ephemeral leases where the
 caller builds the DB via Odoo create-on-init and the allocator must drop it at release/gc via
@@ -130,8 +141,10 @@ enforces).
 `readonly` callers take NO lease (they only read a running server) - nothing to serialise.
 A `shared` lease IS recorded but is NON-exclusive and always `drop_on_release=false`: it is the
 visual stack's live render server (the actual bound port via `--port`, the long-lived server
-pid via `--pid`). Many readers attach to the one row; gc reclaims it when the recorded pid
-dies (or on TTL), but - because `drop_on_release` is false - it NEVER drops the declared database.
+pid via `--pid`). Many readers attach to the one row; gc reclaims it when the recorded pid dies, or
+- only when that pid's liveness cannot be verified at all (§7) - on TTL. A verified-alive
+server pid is NEVER TTL-reclaimed. Because `drop_on_release` is false, gc never drops the declared
+database either way.
 
 ## 5. Access modes
 
@@ -237,8 +250,8 @@ existing reader, so shell consumers stay simple.
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
 | `bind <token> --pid <server_pid>` | under flock: verify the token, then UPSERT the live server pid onto that lease's `owner.pid` (the same slot the `shared` acquire path writes). Refuses an unknown token or a missing `--pid`. Used by the `exclusive-running` spin-up: the caller acquires the lease first (reserving db + ports), then binds the launched server pid so `release`/`gc` can stop the whole process GROUP before the drop. Also upgrades gc for exclusive leases from ttl-only to fast-path pid-dead reclaim, for free |
 | `release <token> [--run-id <id>] [--force]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries a live `owner.pid` on THIS host, STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe |
-| `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |
-| `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`. When reclaiming, if `owner.pid` is recorded and STILL alive on this host (the ttl-expired-but-process-lives ORPHAN), STOP its process group first (`_stop_group`) before reclaim + drop - reaping the orphan, not just waiting for its death. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
+| `heartbeat <token>` | bump `heartbeat_at` - matters ONLY for a lease whose liveness `_is_stale` cannot prove (a different host, or no `--pid` ever recorded); a same-host lease with a verified-alive pid is protected regardless of heartbeat freshness |
+| `gc` | under flock: reclaim leases per `_is_stale` (§7): a same-host owner pid that is DEAD (`os.kill(pid,0)`) is reclaimed immediately, TTL-independent; a same-host owner pid that is VERIFIED ALIVE (its `pid_started` fingerprint still matches) is NEVER reclaimed, TTL-independent; every other case (different host, no pid recorded, or an unverifiable fingerprint) falls back to `now - heartbeat_at > ttl_s`. When reclaiming a lease whose `owner.pid` IS recorded and alive on this host but was condemned via the fingerprint-mismatch (recycled-pid) or TTL-fallback path, STOP its process group first (`_stop_group`) before reclaim + drop. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
 | `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via raw `dropdb` (no lease means no stored venv path to go through Odoo) |
 | `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - P5.8: unowned is no longer a synonym for "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
@@ -388,10 +401,27 @@ but unreachable in practice.
 
 ## 7. Crash / stale handling
 
-- Owner records `host`+`pid`+`run_id`+`started_at` (a legacy lease may carry `session_id`
-  instead - read as a fallback). GC reclaims when, on the SAME host, the pid
-  is gone, or when `now - heartbeat_at > ttl_s` (covers different-host leases where pid liveness is
-  unknowable). Long operations call `heartbeat`.
+- Owner records `host`+`pid`+`pid_started`+`run_id`+`started_at` (a legacy lease may carry
+  `session_id` instead of `run_id` - read as a fallback). **Liveness is authoritative, not a
+  mere condemn signal.** `_is_stale` (`scripts/lib/allocator.py`):
+  - A DEAD owner pid on THIS host is an unambiguous, TTL-independent condemn - the recorded owner
+    is provably gone.
+  - A LIVE owner pid on THIS host PROTECTS the lease REGARDLESS OF `ttl_s` - but only when the
+    `pid_started` fingerprint captured at record time still matches the process currently holding
+    that pid, which is what rules out a pid-recycled impostor (a bare `os.kill(pid,0)` cannot tell
+    the two apart - pids are reused by the OS over a machine's lifetime). A POSITIVE fingerprint
+    mismatch (the pid was recycled onto a different process) condemns immediately, same as a dead
+    pid - the recorded owner is exactly as gone.
+  - Every case where liveness cannot be proven at all - a DIFFERENT host (the pid integer is
+    meaningless off-host), no pid ever recorded, or a fingerprint that could not be re-measured
+    (not a proven mismatch) - falls back to `now - heartbeat_at > ttl_s`, exactly as before this
+    fix. This is the ONLY case `heartbeat` still matters for; call it on any long operation whose
+    lease cannot carry a locally-verifiable pid.
+  - **Direction, stated explicitly so a future edit does not invert it:** for reaping, the safe
+    default is to NOT reap when unsure - an un-reaped orphan only costs RAM, but a wrongly-reaped
+    lease kills a live server and destroys the owner's in-progress work. See `_is_stale`'s
+    docstring in `scripts/lib/allocator.py` for the full writeup; §12 covers why `DEFAULT_TTL_S`
+    was reconsidered under this narrower scope.
 - GC runs opportunistically at the start of every `acquire` (no daemon needed) and is also callable
   from `odoo-doctor` / a setup step.
 - Registry write is atomic (temp + `os.replace`); a torn/corrupt registry is detected (JSON parse
@@ -403,7 +433,7 @@ but unreachable in practice.
 |------|------------|
 | Two allocators pick the same port | flock serialises the RMW; only one writes the lease; the loser re-scans. Plus a live `bind()` probe rejects a port already taken by a non-allocator process. |
 | Ephemeral db name collision | uuid8 suffix; Odoo create-on-init failure -> caller can retry with a new acquire. |
-| Agent dies mid-run | GC reclaims by dead pid (same host) or TTL; drops through Odoo (`odoo_db.py`), raw `dropdb` fallback. |
+| Agent dies mid-run | GC reclaims immediately by dead pid (same host); a same-host process that SURVIVES the agent (a detached orphan) is deliberately NOT reclaimed while verified alive - only TTL, for the different-host/no-pid/unverifiable case, or an explicit release/reap eventually clears it. Drops through Odoo (`odoo_db.py`), raw `dropdb` fallback. |
 | Postgres unreachable | `acquire` fails fast with a clear message; never silently shares a DB. |
 | `$ODOO_AI_HOME` on a network FS without working flock | documented requirement: registry must live on a local FS; setup checks and warns. |
 | Old `instances.toml` with no pool fields | derive pool from `http_port`; fully backward compatible. |
@@ -484,10 +514,24 @@ nothing calls it" gap; covered by `tests/test_enforce_teardown.py`.
   `shared` mode rather than a refcount - the long-lived server pid IS the refcount (gc reclaims the
   row when the process dies), so no fragile manual increment/decrement is needed.
 - RESOLVED: no SessionStart/eager hook - GC runs opportunistically inside `acquire` (on-demand).
-- RESOLVED: the `ttl_s` default is `DEFAULT_TTL_S = 7200` (2h) in `scripts/lib/allocator.py` (the
-  SSOT; §4.2's example mirrors it). `heartbeat` IS needed and IS implemented (`heartbeat <token>`
-  bumps `heartbeat_at`; gc enforces `now - heartbeat_at > ttl_s`): a long-lived holder (a
-  path-incremental doc run, an acceptance run spanning phases) calls `heartbeat <token>` between
-  phases so the TTL backstop never reaps a healthy run. Combined with the process-group stop that
-  `release`/`gc` now perform before the drop, an owner that dies before releasing is reaped
-  (group-stopped + dropped) within one TTL window at worst.
+- RESOLVED: the `ttl_s` default is `DEFAULT_TTL_S = 3600` (1h) in `scripts/lib/allocator.py` (the
+  SSOT; §4.2's example mirrors it). It governs ONLY the residual "liveness unprovable" bucket (a
+  different host, no pid ever recorded, or an unverifiable fingerprint) - a same-host owner pid
+  whose `pid_started` fingerprint is verified alive protects the lease REGARDLESS of `ttl_s` (see
+  §7), so this constant carries no risk of reclaiming a live, verified process. 1h was chosen for
+  that narrower residual scope specifically: long enough to stay generous against every documented
+  heartbeat cadence (agents heartbeat between phases/scenarios, not between seconds), short enough
+  to bound the orphan-leak window for exactly the leases the allocator can never verify at all. (An
+  earlier revision of this constant held 7200s/2h, from when TTL alone governed every lease
+  regardless of pid liveness and even a verifiably-alive, same-host owner could be reclaimed once
+  `ttl_s` lapsed without a `heartbeat`; once liveness became authoritative for the provable case,
+  keeping that longer value would only have widened the unprovable bucket's leak window for no
+  remaining benefit.) `heartbeat` (`heartbeat <token>` bumps `heartbeat_at`) is still needed, but
+  ONLY for that same residual bucket: a long-lived holder whose lease cannot carry a
+  locally-verifiable pid (a path-incremental doc run, an acceptance run spanning phases, on a
+  different host) calls `heartbeat <token>` between phases so the TTL backstop never reaps a
+  healthy run it cannot otherwise verify; a same-host, pid-bound holder no longer needs it for
+  staleness purposes at all. Combined with the process-group stop that `release`/`gc` perform
+  before the drop, an owner in the unprovable bucket that dies before releasing is reaped
+  (group-stopped + dropped) within one TTL window at worst; a provably-alive, same-host owner is
+  never TTL-reaped, by design (§7's "do not reap when unsure" tradeoff).

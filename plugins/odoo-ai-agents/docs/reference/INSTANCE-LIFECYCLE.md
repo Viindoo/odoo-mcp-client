@@ -171,17 +171,22 @@ contract's ownership matrix or DONE-gate wording.**
 - **T1 ownership (who releases).** Self-provisioned `ephemeral`/`exclusive-running` -> the agent
   that acquired it releases before its own terminal status. A forwarded `INSTANCE_HANDLE` -> the
   receiving agent NEVER releases it; only the provisioning orchestrator does, at run end.
-  `persist: shared-running` -> no single consumer ever releases it; only allocator GC reclaims a
-  dead pid or an expired TTL. Full matrix (incl. the run-level-owner and path-incremental rows):
-  `resource-teardown-contract.md` T1.
+  `persist: shared-running` -> no single consumer ever releases it; only allocator GC reclaims it -
+  immediately on a dead owner pid, or (when that pid's liveness cannot be verified at all - a
+  different host, or no pid recorded) on an expired TTL. A verified-alive owner pid is NEVER
+  TTL-reclaimed (see `INSTANCE-ALLOCATION.md` §7). Full matrix (incl. the run-level-owner and
+  path-incremental rows): `resource-teardown-contract.md` T1.
 - **Mechanism: stop the process group, THEN drop the DB.** `release` is teardown-complete for a
   listening instance, not just a DB drop: if the lease carries a live `server_pid` on this host,
   the allocator stops that PID's process GROUP first (SIGTERM, a bounded wait, then a group
   SIGKILL - reaping the HTTP master, workers, cron, the longpolling/gevent process, and any
   `--dev=reload` watchdog) and only THEN drops the DB for `drop_on_release` leases. Stopping the
   group first frees the DB connections that would otherwise block `DROP DATABASE`. The same order
-  applies inside `gc` when it reclaims a TTL-expired-but-still-alive orphan. Full API rows
-  (`bind`, `release`, `gc`): `INSTANCE-ALLOCATION.md` §6.
+  applies inside `gc` whenever it reclaims a lease with a still-live local pid - a recycled-pid
+  condemn (the fingerprint no longer matches, so the process is stopped before the drop even
+  though the pid itself is alive), or the liveness-unprovable-past-TTL fallback case. A same-host
+  owner pid that is VERIFIED alive is never reached by this path at all (`_is_stale` never condemns
+  it - see §7). Full API rows (`bind`, `release`, `gc`): `INSTANCE-ALLOCATION.md` §6.
 - **`server_pid` on the handle.** The instance handle a build hands back (and forwards downstream)
   now carries an optional `server_pid` - the server's process-group id under `setsid`, bound onto
   the lease via `allocator.py bind <token> --pid <pid>` at spin-up (`50-instance-spinup.sh`); null
@@ -199,12 +204,19 @@ contract's ownership matrix or DONE-gate wording.**
      see `resource-teardown-contract.md` "Why browsers and instances are enforced differently".
   3. **`SessionEnd` crash backstop** (`hooks/session-end-gc.sh`) - runs `allocator.py gc`
      unconditionally when the session ends, silent and bounded, so a killed/OOM'd session (no DONE
-     claim, no hook 2 trigger) still gets its orphaned server group-stopped and its ephemeral DB
-     dropped.
-  4. **Next-acquire GC / TTL** - `gc` also runs opportunistically inside every `acquire`, and the
-     allocator's TTL (default `DEFAULT_TTL_S = 7200s` in `scripts/lib/allocator.py`, the SSOT for
-     that number) reaps anything the first three layers still missed (e.g. a different-host lease
-     whose pid liveness is unknowable). Long-lived holders call `heartbeat <token>` between phases
-     so a healthy run is never reaped mid-flight.
+     claim, no hook 2 trigger) gets its orphaned server group-stopped and its ephemeral DB dropped
+     WHEN `_is_stale` says it may (dead pid; or unprovable liveness past TTL). Note: if the
+     `odoo-bin` child SURVIVED the session (a detached/setsid orphan that is still running), this
+     layer deliberately does NOT reclaim it while its pid stays verified-alive on this host - see
+     `hooks/session-end-gc.sh`'s header comment and `INSTANCE-ALLOCATION.md` §7 for the tradeoff.
+  4. **Next-acquire GC / TTL** - `gc` also runs opportunistically inside every `acquire`. Per
+     `_is_stale` (`INSTANCE-ALLOCATION.md` §7): a same-host owner pid that is DEAD is reclaimed
+     immediately; a same-host owner pid that is VERIFIED ALIVE is NEVER reclaimed, no matter how
+     long past `ttl_s` its heartbeat is; only the residual case liveness cannot be proven at all
+     (a different-host lease, or one that never recorded a pid) falls back to the allocator's TTL
+     (default `DEFAULT_TTL_S = 3600s` in `scripts/lib/allocator.py`, the SSOT for that number, sized
+     for exactly this narrower residual case). Long-lived holders whose lease falls in that residual
+     bucket call `heartbeat <token>` between phases so it is never reaped mid-flight; a holder with a
+     verified-alive, same-host pid no longer needs to for this purpose.
   Wiring for both hooks (`SubagentStop`/`Stop`/`SessionEnd` registration) lives in `hooks/hooks.json`;
   do not restate their internals here - this bullet is a map, not a copy.

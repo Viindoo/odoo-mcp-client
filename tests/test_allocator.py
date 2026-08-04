@@ -406,6 +406,126 @@ def test_gc_keeps_a_live_default_lease(fixt):
 
 
 # --------------------------------------------------------------------------- #
+# G4 regression: liveness must be AUTHORITATIVE for `_is_stale`, not merely a
+# condemn-only signal. Before this fix, a LIVE owner pid could only ever
+# CONDEMN a lease (never protect one) - control fell straight through to the
+# ttl comparison regardless, so a still-running, in-use instance got reclaimed
+# (process group killed + DB dropped) the moment nobody called `heartbeat`
+# within `ttl_s` (2h default) - "work in progress gets cleaned up mid-run".
+# These call `_is_stale` directly (fast, no subprocess) with a monkeypatched
+# `_host`/`_pid_alive`/`_pid_fingerprint` so each scenario is deterministic and
+# does not depend on real OS process timing.
+# --------------------------------------------------------------------------- #
+def test_is_stale_alive_verified_pid_survives_expired_ttl(monkeypatch):
+    """THE defect: a same-host owner pid that is PROVABLY alive (its recorded
+    `pid_started` fingerprint still matches) must NOT be reclaimed by an
+    expired TTL - liveness is authoritative, not merely a condemn signal.
+    MUST FAIL on the pre-fix allocator (measured: `_is_stale` returned True /
+    stale here, which is exactly the reported "live instance reaped" bug)."""
+    alloc = _import_allocator()
+    monkeypatch.setattr(alloc, "_host", lambda: "thishost")
+    monkeypatch.setattr(alloc, "_pid_alive", lambda pid: True)
+    monkeypatch.setattr(alloc, "_pid_fingerprint", lambda pid: "FP-A")
+    lease = {
+        "owner": {"host": "thishost", "pid": 4242, "pid_started": "FP-A", "started_at": 0},
+        "ttl_s": 1, "heartbeat_at": 0,  # heartbeat is ancient; ttl is long expired
+    }
+    assert alloc._is_stale(lease) is False, (
+        "a provably-alive, same-host owner must NOT be condemned by an expired TTL"
+    )
+
+
+def test_is_stale_dead_pid_is_stale_regardless_of_fresh_ttl(monkeypatch):
+    """A dead owner pid on this host is unambiguous - condemn immediately, even
+    when the TTL has NOT expired (a fresh heartbeat does not resurrect a dead
+    process). Already correct pre-fix (the dead-pid arm was unconditional
+    before this change too); kept as an explicit lock-in guard."""
+    alloc = _import_allocator()
+    monkeypatch.setattr(alloc, "_host", lambda: "thishost")
+    monkeypatch.setattr(alloc, "_pid_alive", lambda pid: False)
+    now = alloc._now()
+    lease = {
+        "owner": {"host": "thishost", "pid": 4242, "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now,  # fresh - well within ttl
+    }
+    assert alloc._is_stale(lease) is True, (
+        "a dead owner pid on this host must be stale regardless of a fresh TTL"
+    )
+
+
+def test_is_stale_unprovable_liveness_still_governed_by_ttl(monkeypatch):
+    """When liveness cannot be proven at all (a different host - the pid
+    integer is meaningless off-host), TTL remains the sole signal: expired ->
+    stale, fresh -> not stale. Already correct pre-fix (the different-host
+    lease never entered the pid branch either before or after); kept as an
+    explicit lock-in guard for the ONE case TTL still governs post-fix."""
+    alloc = _import_allocator()
+    monkeypatch.setattr(alloc, "_host", lambda: "thishost")
+    expired = {
+        "owner": {"host": "otherhost", "pid": 4242, "started_at": 0},
+        "ttl_s": 1, "heartbeat_at": 0,
+    }
+    assert alloc._is_stale(expired) is True, (
+        "a different-host lease (liveness unprovable) must still expire on TTL"
+    )
+    now = alloc._now()
+    fresh = {
+        "owner": {"host": "otherhost", "pid": 4242, "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now,
+    }
+    assert alloc._is_stale(fresh) is False, (
+        "a different-host lease still within TTL must not be stale"
+    )
+
+
+def test_is_stale_recycled_pid_is_condemned_not_protected(monkeypatch):
+    """A pid can be reused by the OS: a bare `os.kill(pid, 0)` cannot tell the
+    lease's original owner apart from an unrelated later process that inherited
+    the same pid. When the re-measured fingerprint POSITIVELY mismatches the
+    one recorded at bind/acquire time, the original owner is exactly as gone as
+    a dead pid - condemn now, do not let the recycled pid protect the lease
+    forever (the failure mode a bare pid check alone cannot avoid)."""
+    alloc = _import_allocator()
+    monkeypatch.setattr(alloc, "_host", lambda: "thishost")
+    monkeypatch.setattr(alloc, "_pid_alive", lambda pid: True)
+    monkeypatch.setattr(alloc, "_pid_fingerprint", lambda pid: "FP-IMPOSTOR")
+    now = alloc._now()
+    lease = {
+        "owner": {"host": "thishost", "pid": 4242, "pid_started": "FP-ORIGINAL", "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now,
+    }
+    assert alloc._is_stale(lease) is True, (
+        "a pid whose re-measured fingerprint no longer matches the recorded one "
+        "must be condemned, not protected - the original owner is provably gone"
+    )
+
+
+def test_pid_owner_fields_records_a_fingerprint_for_acquire_and_bind(fixt):
+    """Both places that learn a stable owner pid (`acquire --pid` and `bind`)
+    must persist `owner.pid_started` alongside `owner.pid` - the fingerprint
+    `_is_stale` needs to tell a genuinely-alive owner apart from a pid-recycled
+    impostor. A lease with a pid but no fingerprint can only ever fall back to
+    the ttl path, silently losing the G4 protection - so its presence here is
+    itself a load-bearing regression guard."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "fp_db", "--pid", str(os.getpid()))
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert leases[0]["owner"]["pid"] == os.getpid()
+    assert leases[0]["owner"]["pid_started"], (
+        "acquire --pid must record a pid_started fingerprint, not leave it null"
+    )
+
+    _, b = _acquire(env, "--mode", "exclusive", "--db-name", "fp_db2")
+    assert _leases(env)[1]["owner"]["pid"] is None
+    r = _run(env, "bind", b["ALLOC_TOKEN"], "--pid", str(os.getpid()))
+    assert r.returncode == 0, r.stderr
+    bound = next(lz for lz in _leases(env) if lz["token"] == b["ALLOC_TOKEN"])
+    assert bound["owner"]["pid"] == os.getpid()
+    assert bound["owner"]["pid_started"], "bind must also record the pid_started fingerprint"
+
+
+# --------------------------------------------------------------------------- #
 # readonly + portability + back-compat
 # --------------------------------------------------------------------------- #
 def test_readonly_is_lease_free(fixt):
@@ -1433,8 +1553,14 @@ def test_release_stops_process_group_before_dropping(tmp_path, monkeypatch):
         _reap(child, leader)
 
 
-# --- gc reaps the ttl-expired-but-alive orphan group ------------------------ #
-def test_gc_stops_a_ttl_expired_but_still_alive_orphan_group(tmp_path, monkeypatch):
+# --- G4: gc must NOT touch a ttl-expired lease whose owner is PROVABLY alive - #
+def test_gc_keeps_a_ttl_expired_but_provably_alive_orphan_group(tmp_path, monkeypatch):
+    """This is the repurposed form of the pre-G4 test that asserted the OPPOSITE
+    (gc stops + reclaims a ttl-expired-but-alive group) - that was the bug being
+    fixed here, not protected behavior; see G4's fix-group report. With a REAL
+    fingerprint recorded (mirroring what `acquire --pid`/`bind` now capture via
+    `_pid_owner_fields`), gc must leave both the process group AND the lease
+    alone, no matter how far past `ttl_s` the last heartbeat is."""
     alloc = _import_allocator()
     home = tmp_path / "home"
     home.mkdir()
@@ -1443,29 +1569,75 @@ def test_gc_stops_a_ttl_expired_but_still_alive_orphan_group(tmp_path, monkeypat
     leader, child = _spawn_orphan_group(tmp_path / "grp.pids")
     try:
         assert alloc._pid_alive(leader) and alloc._pid_alive(child)
+        fingerprint = alloc._pid_fingerprint(leader)
+        assert fingerprint, "test setup: must be able to fingerprint the real spawned process"
         token = "cd" * 16
         past = int(time.time()) - 100000
         _seed_registry({"ODOO_AI_HOME": str(home)}, [{
             "token": token, "mode": "exclusive", "db_name": "orphan_db",
-            # drop_on_release False keeps the reclaim Postgres-free; the NEW
-            # behavior under test is that gc STOPS the live group before reclaim.
             "drop_on_release": False, "python": "", "db_host": "localhost",
             "db_user": "odoo", "ports": [],
             "owner": {"host": socket.gethostname(), "pid": leader,
+                      "pid_started": fingerprint,
                       "run_id": "run-A", "started_at": past},
-            "ttl_s": 1, "heartbeat_at": past,  # long past ttl -> stale by time
+            "ttl_s": 1, "heartbeat_at": past,  # long past ttl by time alone
         }])
 
         rc = alloc.cmd_gc({})
         assert rc == 0
-        # The orphan's whole group must be reaped, and the lease reclaimed.
+        # Give gc a moment to have acted (or not); then assert nothing changed.
+        time.sleep(0.3)
+        assert alloc._pid_alive(leader), (
+            "gc must NOT stop a ttl-expired orphan's group leader when it is "
+            "provably still the same, alive process (G4)"
+        )
+        assert alloc._pid_alive(child), "gc must NOT stop the orphan's child either"
+        reg = json.loads((home / "runtime" / "leases.json").read_text(encoding="utf-8"))
+        assert len(reg["leases"]) == 1, (
+            "gc must NOT reclaim a lease whose owner is provably alive, regardless of ttl"
+        )
+    finally:
+        _reap(child, leader)
+
+
+def test_gc_reclaims_a_ttl_expired_orphan_with_unverifiable_liveness(tmp_path, monkeypatch):
+    """The residual case TTL still governs post-G4: a lease that never recorded
+    a `pid_started` fingerprint (an older allocator, or one written before this
+    fix) cannot be PROVEN alive even though its recorded pid happens to still be
+    running - liveness is unprovable, so it falls back to ttl exactly like a
+    different-host lease, and a long-expired ttl reclaims it (stopping the group
+    first, per L1.2)."""
+    alloc = _import_allocator()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("ODOO_AI_HOME", str(home))
+
+    leader, child = _spawn_orphan_group(tmp_path / "grp.pids")
+    try:
+        assert alloc._pid_alive(leader) and alloc._pid_alive(child)
+        token = "ce" * 16
+        past = int(time.time()) - 100000
+        _seed_registry({"ODOO_AI_HOME": str(home)}, [{
+            "token": token, "mode": "exclusive", "db_name": "orphan_db2",
+            "drop_on_release": False, "python": "", "db_host": "localhost",
+            "db_user": "odoo", "ports": [],
+            # NO pid_started recorded - the unverifiable-liveness case.
+            "owner": {"host": socket.gethostname(), "pid": leader,
+                      "run_id": "run-A", "started_at": past},
+            "ttl_s": 1, "heartbeat_at": past,
+        }])
+
+        rc = alloc.cmd_gc({})
+        assert rc == 0
         deadline = time.time() + 5
         while time.time() < deadline and (alloc._pid_alive(leader) or alloc._pid_alive(child)):
             time.sleep(0.05)
-        assert not alloc._pid_alive(leader), "gc must stop the ttl-expired orphan's group leader"
-        assert not alloc._pid_alive(child), "gc must stop the orphan's child too"
+        assert not alloc._pid_alive(leader), (
+            "with no fingerprint to verify liveness, an expired ttl must still reclaim"
+        )
+        assert not alloc._pid_alive(child)
         reg = json.loads((home / "runtime" / "leases.json").read_text(encoding="utf-8"))
-        assert reg["leases"] == [], "gc must reclaim the ttl-expired lease after stopping the group"
+        assert reg["leases"] == [], "the unverifiable-liveness lease must be reclaimed on ttl expiry"
     finally:
         _reap(child, leader)
 

@@ -150,9 +150,11 @@ PARALLEL across independent instance-paths up to
 3. **Advance.** Tell `odoo-instance` to install the next delta (`init-delta` on the SAME DB) +
    `ensure-up`, then repeat step 2 for M+1. Convergence reuse+fill per `doc-plan.yaml`. THE SKILL
    decides WHEN to advance and WHEN to release the lease; instance-ops only executes each atomic op
-   and returns its block. Between advances, call `allocator.py heartbeat <token>` so the TTL
-   backstop never reaps this long-lived path-incremental run - full rule:
-   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
+   and returns its block. Between advances, call `allocator.py heartbeat <token>`. A same-host
+   lease whose owner pid is verified alive is protected from reaping regardless of heartbeat
+   freshness; keep calling it anyway - it is what protects this long-lived path-incremental run on
+   the residual case the allocator cannot verify liveness for at all (a different host, or no pid
+   recorded) - full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
 
 Order per module: **install -> pre-fetch copy (marketing) -> pre-fetch walkthrough (scenarios) ->
 capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**

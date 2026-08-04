@@ -185,38 +185,67 @@ _instance_block_reason() {
   [[ -n "$rids_json" && "$rids_json" != "null" ]] || return 1
   now="$(date +%s 2>/dev/null || echo 0)"
 
-  # EVERY LIVE (ttl-fresh), non-shared lease owned by one of our run_ids. Mirrors allocator's
-  # _is_stale ttl arm; the pid-dead-same-host arm is applied per-lease below in bash. We report
-  # ALL of them (a run can hold more than one lease), each with its own release command, so the
-  # blocked agent can clear every leak deterministically in one pass.
-  local matches
-  matches="$(printf '%s' "$ledger" | jq -r \
+  # EVERY LIVE, non-shared lease owned by one of our run_ids. LIVE-ness mirrors
+  # allocator's `_is_stale`: a recorded pid on THIS host is
+  # AUTHORITATIVE - alive protects the lease regardless of ttl, dead condemns
+  # it regardless of ttl. Only when liveness cannot be checked here at all (a
+  # different host, or no pid recorded) does ttl/heartbeat freshness decide -
+  # the ONE case ttl still governs, same scope as the real `_is_stale`. This
+  # hook intentionally skips the allocator's pid-recycling fingerprint proof
+  # (`owner.pid_started`): recycling within ONE subagent's own short dispatch
+  # window (this hook only asks "is the lease this transcript just acquired
+  # still the same live process moments later") is not a practical risk the
+  # way it is for allocator.py's cross-session `gc`, so a bare `kill -0` here
+  # is an accepted simplification, not a drift from the real rule. We report
+  # ALL live leases (a run can hold more than one), each with its own release
+  # command, so the blocked agent can clear every leak deterministically in
+  # one pass.
+  # NOTE on the TSV shape below: every field is forced NON-EMPTY (pid/host fall
+  # back to the literal "null" via bare `tostring`, never a raw ""). `read`
+  # with a whitespace IFS (tab included) silently SQUASHES a truly-empty field
+  # in the middle of a row into its neighbour - the pid-less lease is the
+  # common case (most leases never carry --pid), so an empty pid field here
+  # would misalign every column after it. Never reintroduce a `// ""` fallback
+  # on a middle TSV field for this reason.
+  # The `// 3600` fallback below is a SECOND COPY of `DEFAULT_TTL_S` in
+  # scripts/lib/allocator.py (the SSOT) - it only ever fires for a lease
+  # record missing `ttl_s` entirely (defensive; every real acquire writes it).
+  # If that constant changes, this literal must change with it or the two
+  # staleness checks silently disagree on the one lease shape neither writer
+  # normally produces.
+  local rows
+  rows="$(printf '%s' "$ledger" | jq -r \
     --argjson rids "$rids_json" --argjson now "$now" '
       .leases[]?
       | select((.mode // "") != "shared")
       | ((.owner.run_id // .owner.session_id // "")) as $o
       | select($o != "" and ($rids | index($o)))
-      | select(($now - (.heartbeat_at // .owner.started_at // 0)) <= (.ttl_s // 7200))
-      | [(.token // ""), $o, ((.owner.pid // "")|tostring), (.owner.host // "")]
+      | [(.token // ""), $o, (.owner.pid | tostring), (.owner.host | tostring),
+         ((($now - (.heartbeat_at // .owner.started_at // 0)) <= (.ttl_s // 3600)) | tostring)]
       | @tsv' 2>/dev/null || true)"
-  [[ -n "$matches" ]] || return 1
+  [[ -n "$rows" ]] || return 1
 
-  local this_host lines n token rid pid host
+  local this_host lines n token rid pid host ttl_fresh live
   this_host="$(hostname 2>/dev/null || echo _nohost_)"
   lines=""
   n=0
-  while IFS=$'\t' read -r token rid pid host; do
+  while IFS=$'\t' read -r token rid pid host ttl_fresh; do
     [[ -n "$token" ]] || continue
-    # _is_stale pid arm: a recorded pid on THIS host that is dead means the process already exited
-    # (no RAM leak, gc will reap the row) -> treat as stale -> skip it (prefer false-negative).
-    if [[ -n "$pid" && "$pid" != "null" && "$host" == "$this_host" ]] && ! kill -0 "$pid" 2>/dev/null; then
-      continue
+    live=0
+    if [[ -n "$pid" && "$pid" != "null" && "$host" == "$this_host" ]]; then
+      # _is_stale pid arm: alive on this host -> protected regardless of ttl;
+      # dead -> condemned regardless of ttl (prefer false-negative: skip it).
+      kill -0 "$pid" 2>/dev/null && live=1
+    elif [[ "$ttl_fresh" == "true" ]]; then
+      # liveness unprovable here (different host, or no pid recorded) -> ttl governs.
+      live=1
     fi
+    [[ "$live" == "1" ]] || continue
     n=$(( n + 1 ))
     lines="$lines"$'\n'"  lease token $token (owner run $rid) -> python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token --run-id $rid"
-  done <<< "$matches"
+  done <<< "$rows"
 
-  [[ "$n" -gt 0 ]] || return 1   # every match was a dead-pid stale row -> nothing live to block on
+  [[ "$n" -gt 0 ]] || return 1   # nothing live to block on (dead-pid rows and expired-unprovable rows skipped)
 
   printf 'Resource-teardown gate: this subagent claimed `status: DONE`, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Release EACH before claiming DONE:%s\n(Release now stops the whole server process group, then drops the DB.) If a lease is a deliberate handoff, forward INSTANCE_HANDLE in your continuation `next.inputs` instead of releasing it.' \
     "$n" "$lines"

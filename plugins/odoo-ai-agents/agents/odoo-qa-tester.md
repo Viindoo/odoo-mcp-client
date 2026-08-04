@@ -130,8 +130,11 @@ BLOCKED/UNVERIFIED-driven early exit):
    If `INSTANCE_HANDLE` WAS forwarded to you, do NOT release it - that lease belongs to whoever
    provisioned and forwarded it, never to you.
 3. **Heartbeat across a long scenario sweep.** If you hold a self-provisioned listening instance
-   across MANY scenarios, call `allocator.py heartbeat <token>` between scenarios so the TTL
-   backstop never reaps a healthy run.
+   across MANY scenarios, call `allocator.py heartbeat <token>` between scenarios. A same-host lease
+   with a verified-alive owner pid is never TTL-reaped regardless of heartbeat freshness; keep
+   heartbeating anyway - it is cheap and is what protects you on the residual case the allocator
+   cannot verify liveness for at all (a different host, or no pid recorded - see
+   `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §7).
 
 Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
