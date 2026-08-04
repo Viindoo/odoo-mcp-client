@@ -77,7 +77,31 @@ This mode activates when the dispatch brief contains `GROUNDING MODE: rebase-bas
 
 Write the intent record to `<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` - NOT the forward-port path.
 
-**Slug fallback:** when `SLUG` is absent from the brief, derive it as `<feature-ref>-onto-<new-base>` using the brief's `NEW BASE REF` and feature ref (e.g. `fix-account-aging-onto-17.0-custom-base`). Do NOT collapse to `<series>-to-<series>` - that yields a useless `17.0-to-17.0` because both refs share a series.
+**`SLUG` is REQUIRED in rebase mode - NEVER derive a fallback here.** The caller
+(`odoo-git-rebase` `SKILL.md` § P2 and `references/rb-phase-detail.md` § P2) always supplies a
+concrete `SLUG`: the bare run `<slug>` for the per-commit dispatch shape (one extractor owns
+exactly one commit - no collision possible), or `<slug>/<module>` for the module-batched dispatch
+shape used above the ~30-non-(a)-commit threshold (a commit shared between two modules is
+dispatched inside BOTH modules' bundles, so the per-module namespace is what keeps their two
+concurrent instances from writing the SAME `intents/<sha>.md`). Deriving a fallback slug here from
+`NEW BASE REF` and the feature ref alone would silently reconstruct a bare, non-module-scoped value
+whenever a caller omits `SLUG` - reopening exactly the write race the per-module namespace exists
+to close, the same way the old forward-port-mode fallback did (see § Step 3 below). This agent has
+no way to know which dispatch shape the caller used, so a derived value is not a safe default. If
+`SLUG` is absent from the brief in rebase mode: STOP immediately, per this agent's own Brief
+self-check pattern for a load-bearing field with no safe default, and return
+
+```
+sha: <sha>
+grounding: ungrounded
+status: NEEDS_CONTEXT(SLUG) - rebase mode requires a concrete SLUG (the bare run slug for a
+  per-commit dispatch, or <run-slug>/<module> for a module-batched dispatch) in the dispatch
+  brief; the caller must set it before re-dispatching. Do NOT derive one - a derived slug cannot
+  know which dispatch shape the caller used and may reopen the shared-commit intents/<sha>.md
+  write race.
+```
+
+Do NOT write any intent record until a `SLUG` is supplied.
 
 ### Grounding in rebase mode
 
@@ -176,10 +200,10 @@ to two DIFFERENT write paths instead of colliding on the same `intents/<sha>.md`
 fallback slug here from the source/target branch names alone would silently reconstruct the bare,
 non-module-scoped shape and reopen that exact write race - this agent has no way to confirm such a
 derived value would not collide with another module's instance running concurrently this same run,
-so it is not a safe default. If `SLUG` is absent from the brief (forward-port mode only - this does
-NOT apply to the rebase-mode override above, which has its own slug derivation rule): STOP
-immediately, per this agent's own Brief self-check pattern for a load-bearing field with no safe
-default, and return
+so it is not a safe default. If `SLUG` is absent from the brief (forward-port mode only - rebase
+mode's own identical no-fallback SLUG requirement is § Rebase mode above, not this paragraph):
+STOP immediately, per this agent's own Brief self-check pattern for a load-bearing field with no
+safe default, and return
 
 ```
 sha: <the module name - no single sha applies to the whole bundle>
@@ -283,7 +307,8 @@ After the per-commit summary block(s) above, append ONE Continuation Contract bl
 with `produced: [<one intents/<sha>.md path per commit actually written this turn>]`. Use
 `status: NEEDS_CONTEXT`/`BLOCKED` per this agent's own Brief self-check section below when a
 required input was missing - including the `NEEDS_CONTEXT(SLUG)` refusal in § Step 3 above
-(forward-port mode, absent `SLUG`) and the `BLOCKED` refusal in § Step 1 (neither
+(forward-port mode, absent `SLUG`), the `NEEDS_CONTEXT(SLUG)` refusal in § Rebase mode above
+(rebase mode, absent `SLUG`), and the `BLOCKED` refusal in § Step 1 (neither
 `commit_dump_path` nor `commit_dump_paths` supplied) - do not restate those conditions here, only
 route their `status` through this block. "Waiting" is never a bare statement (see the snippet's
 own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
@@ -298,18 +323,18 @@ If `SendMessage` is in your toolset you are running as a teammate: your turn's t
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
 family's own named artifact-path field) as an explicit value - a path, or the literal `none yet` -
 EXACTLY ONE of `commit_dump_path` (single SHA) or `commit_dump_paths` (ordered module bundle -
-never both), `SLUG` (forward-port mode ONLY - a load-bearing field with no safe default, per §
-Step 3 "SLUG is REQUIRED in forward-port mode"; do not confuse with rebase mode's OWN slug
-derivation rule in § Rebase mode above, which is unaffected), and this family's other required
-fields (the ask framed as an open QUESTION rather than a scripted
+never both), `SLUG` (REQUIRED in BOTH forward-port mode and rebase mode - a load-bearing field
+with no safe default in either, per § Step 3 "SLUG is REQUIRED in forward-port mode" and §
+Rebase mode "SLUG is REQUIRED in rebase mode"; never derive a fallback for either mode), and this
+family's other required fields (the ask framed as an open QUESTION rather than a scripted
 search-command sequence; structured findings FILE vs inline chat answer; explicit instruction to
 report uncertainty/confidence, never present a guess as fact). Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), `SLUG` in forward-port mode, or another load-bearing family field with no safe
-  default: STOP and return
+  `none yet`), `SLUG` in forward-port mode OR rebase mode, or another load-bearing family field
+  with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
