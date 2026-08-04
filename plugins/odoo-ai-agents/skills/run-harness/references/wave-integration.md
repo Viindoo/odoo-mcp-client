@@ -669,12 +669,28 @@ failures, never a lint-class failure, and lint-class failures surface ONLY here.
 on this dispatch is not a safe default - the agent refuses with `NEEDS_CONTEXT` rather than silently
 guess, exactly like an omitted `WORKTREE_PATH` above must never be inferred from cwd.
 
+**A `tests-inconclusive` verdict from THIS dispatch is treated as a non-pass too, not only
+`tests-failed` (mandatory).** `agents/odoo-instance-ops.md` § Verdict contract resolves this
+`GATE_ROLE: pre-pr-lint-gate` dispatch to `tests-inconclusive` in two cases: the pre-existing
+skip-only case, and the "Checker-load coverage confirmation" case (a custom checker - e.g. an
+SQL-injection rule - that failed to load, or a log with no checker-coverage statement to confirm
+at all). Neither case is a `tests-passed` in disguise, and this is the ONE dispatch in the whole
+run authorized to trigger the lint-class union at all - there is no LATER gate to catch a miss
+here. An unattended `--auto` drive-to-done run has nothing else guaranteed to perform the "human
+reviewing `findings_path`" step that dispatch's own contract text demands for `tests-inconclusive`
+in general, so for this ONE gate specifically, `tests-inconclusive` enters the SAME containment
+loop below as `tests-failed` - never a silent pass-through to the terminal PR.
+
 **Containment for tail-only lint (mandatory prose, not optional).** Moving lint to the tail trades
 "catch it while the wave's context is warm" for "catch it once, cheaply, over the full diff" - this
 trade is intentional (the owner's instruction), but it must not become a worse failure than what it
 replaces:
-- **On a FAILURE, do not flat-BLOCK the run.** The lint tool's own output names the exact
-  file/line. Re-invoke `odoo-coding` with `WORKTREE_PATH` set to the failing module's OWN worktree
+- **On a FAILURE OR a `tests-inconclusive` verdict (skip-only or coverage-shortfall/unconfirmed -
+  see the paragraph above), do not flat-BLOCK the run.** For a FAILURE, the lint tool's own output
+  names the exact file/line; for a coverage gap, `findings_path`/`notes` names which lint-class
+  module's checker coverage could not be confirmed and why (per the coverage rule cited above) -
+  either way, that is the evidence to hand off. Re-invoke `odoo-coding` with `WORKTREE_PATH` set to
+  the failing module's OWN worktree
   from its wave (the SAME `mod.worktree` the § Per-module Integration Loop pseudocode above
   authored the module's original code in, still live at this point - per-module worktrees are torn
   down only by the post-merge § Cleanup Checklist above, never mid-run) - never an undefined
@@ -699,8 +715,9 @@ replaces:
 - **Bound the fix-loop to 3 iterations** (the SAME bounded-iteration convention as every other chain
   in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; one
   iteration = the three bullets above: dispatch fix -> cherry-pick onto run-integration -> re-verify
-  against run-integration). Still red after 3 -> BLOCKED with the failure evidence - one of the
-  ENUMERATED, legitimate stop conditions (`SKILL.md` Hard rule 2), not an incidental pause.
+  against run-integration). Still red OR still `tests-inconclusive` after 3 -> BLOCKED with the
+  failure/coverage evidence - one of the ENUMERATED, legitimate stop conditions (`SKILL.md` Hard
+  rule 2), not an incidental pause.
 - **The single full-diff pass is also a net gain, not only a cost:** because every module across
   every wave has already landed on the ONE `run-integration` branch by this point, this ONE pass
   sees the FULL aggregate diff and catches CROSS-MODULE lint issues (two modules that individually

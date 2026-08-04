@@ -303,6 +303,31 @@ illustrative only). The same "vanilla -> no-op" guarantee from the `to_base` HAR
 here: an unpinned probe would risk falsely reporting `test_lint`/`test_pylint` as present on a
 build that should be vanilla-CE, installing lint dependencies that do not belong there.
 
+**Coverage grounding - why a clean run never proves every checker loaded.** Both lint-class modules
+in the probe above wrap their real checker sweep in exactly ONE `TransactionCase` test method
+(`TestPyLint.test_pylint`) that dynamically loads its own checker plugin set at run time -
+OSM-confirmed (`test_class_inspect`/`find_test_examples` against `test_lint`, series 17.0):
+`test_lint`'s `TestPyLint` class (`odoo/addons/test_lint/tests/test_pylint.py:25`) declares exactly
+ONE test method, `test_pylint` (`:30`), whose `--enable=` list names the three custom AST checkers
+(`sql-injection`, `gettext-variable`, `raise-unlink-override`) alongside `--load-plugins=` naming
+their source modules (`_odoo_checker_sql_injection`, `_odoo_checker_gettext`,
+`_odoo_checker_unlink_override`) - distinct from the SEPARATE `TestSqlLint` class in the same
+module (`tests/test_checkers.py`) that only self-tests the checker's OWN detection logic in
+isolation, never the repo sweep. The other lint-class module wraps a third-party lint package
+under the SAME `TestPyLint.test_pylint` one-method shape (confirmed at a different file path, same
+class/method names). A plugin that fails to import inside that ONE method
+produces none of the signals `_parse_test_result` derives from the log (a `FAIL:`/`ERROR:` line, a
+`WARNING` line, or the skip-detection regex) unless the underlying plugin loader happens to raise
+uncaught - and whether it does is dependent on the installed pylint version, not a format this
+contract can grep for without inventing an unconfirmed log string. So `failed=0, errors=0,
+skipped=0, warnings=0` on a run that installed one of these modules proves only that the wrapper
+method itself did not fail - never that every checker it was supposed to load actually did. This is
+the grounding for, and feeds directly into, the "Checker-load coverage confirmation" rule in the
+`run-tests` Verdict contract below - the decidable rule lives there, not restated here. If a future
+session captures the exact log line the deployed pylint version emits on a plugin-load failure (or
+confirms none exists), update THIS paragraph with the confirmed string and tighten that
+Verdict-contract rule into an automatic check - never invent one ahead of that confirmation.
+
 ## Memory cap on every scripted odoo-bin launch (HARD RULE)
 
 Every `55-instance-ops.sh`-backed **create-instance**, **init-modules**, **update-modules**, and
@@ -526,7 +551,18 @@ The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TES
 - `failed + errors > 0` -> `status: tests-failed` (equivalently `TEST_RESULT=failed`): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
 - else `skipped > 0` -> `status: tests-inconclusive` (equivalently `TEST_RESULT=inconclusive`; DONE_WITH_CONCERNS at minimum, a HOLD not a green light): skips are NOT fatal (legitimately produced by `@tagged` filters or a missing optional external dependency) but they are also NOT proof the suite ran clean - `TEST_SKIPPED>0` NEVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` (which lists the skipped test names) first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` to the caller rather than swallow it.
 - else `warnings > 0` -> `status: tests-passed-with-warnings` (DONE_WITH_CONCERNS): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
-- clean (`failed + errors = 0`, `skipped = 0`, and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address.
+- clean (`failed + errors = 0`, `skipped = 0`, and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address - **unless the checker-load coverage check below downgrades it.**
+
+**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** The four-branch ladder above adjudicates entirely on `failed`/`errors`/`skipped`/`warnings` - counters that a lint-class module's own test method increments as it runs. A custom checker (or an entire checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of those four signals: it is not a failure (the checker never ran, so nothing could fail), not a skip (it is not a test - `@tagged` filters do not apply to it), and not a warning (nothing objected - there was simply nothing there to object). All four counters can legitimately read `0/0/0/0` while the run silently checked fewer things than the caller asked for, and the ladder above - unmodified - would resolve that straight to `tests-passed`, the ONE verdict its own text calls "the only verdict that lets the caller proceed with nothing to address." That is exactly the false-green shape this axis exists to close.
+
+This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these lint-class modules at all, per the "Lint modules - installed ONLY for the designated pre-PR lint gate" HARD RULE above. A `GATE_ROLE: per-module-verify` dispatch never installs these modules, so there is nothing to check coverage on there - this composes with, and does not duplicate or contradict, the existing `GATE_ROLE` mechanism.
+
+For every lint-class module this build unioned into the install+tag set (the SAME probe result the Lint modules HARD RULE above used - never a second, independent probe), read that module's own portion of the log for POSITIVE evidence that its full checker/rule set actually loaded and ran. The exact wording is a live-log fact of THIS run, not a fixed phrase to assume from memory or carry over from a prior series or a prior report - these modules' own reporting is Odoo/Viindoo framework-internal and is NOT indexed by OSM (confirmed: `docs/reference/ODOO-TESTING.md` and `docs/reference/odoo-code-quality.md` both document that OSM's `lint_check` does NOT reproduce "the full Odoo AST checker set" - it is a hint tool, not a log-format oracle, and neither doc names any literal partial-count phrasing as a confirmed Odoo output format). Do not invent or assume one - read what this run's own log actually printed for the module in question, then decide between the two outcomes below:
+
+- The log states, for a lint-class module, that fewer checkers/checks loaded or ran than that module itself registered or requested (any wording naming a checker/plugin import failure, a "not loaded"/"skipped loading" statement tied to a specific checker name, or an explicit smaller-than-expected count) -> a CONFIRMED coverage shortfall.
+- The log contains NO explicit statement at all of how many checks/checkers this module ran, for a module that WAS installed and tagged this run -> coverage is UNCONFIRMED. Silence is never treated as proof of a clean run - the same discipline the `"Modules loaded."` completion marker already applies to init/update above (a positive marker is REQUIRED for success; its absence is itself a failure signal, never a fallthrough to success) extends here: the absence of a positive coverage statement is itself the finding, not evidence there was nothing to find.
+
+Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of what failed/errors/skipped/warnings otherwise read, even a genuine `0/0/0/0`. This widens `tests-inconclusive`'s existing definition ("not proof the suite ran clean") to explicitly also cover "ran, but checked less than it should have" - it does not need a new fifth status: the caller-facing contract two bullets up ("MUST NOT treat this as a verified pass...without a human reviewing `findings_path` first") already says exactly the right thing for this case too. Note in the output block's `notes` field which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so `findings_path`/`notes` carries enough for a human, or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR lint-class gate), to act on it rather than a bare status flip with no evidence attached.
 
 ### 6. ensure-up / status
 
@@ -828,6 +864,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
 - [ ] skipped>0 with no fail/error reported as tests-inconclusive, NEVER a bare tests-passed (findings_path surfaced with the skipped test names, not swallowed; no exit code forced by skips alone)
+- [ ] `GATE_ROLE: pre-pr-lint-gate` run-tests dispatches: checker-load coverage confirmed per-module from THIS run's own log (never a hardcoded phrase) before trusting any all-zero counter set as tests-passed; a confirmed shortfall or an unconfirmable log both reported as tests-inconclusive, NEVER swallowed into tests-passed (see "Checker-load coverage confirmation" above)
 - [ ] you release it UNLESS you forward the handle to a NAMED catcher in `next.inputs`
       (`INSTANCE_HANDLE`) - an unforwarded live lease at DONE is a leak (SSOT:
       `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4)

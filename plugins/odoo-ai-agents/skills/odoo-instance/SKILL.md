@@ -155,6 +155,10 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY for the
   designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
+  Installing and tagging these modules is not the same as proving their checkers actually ran - a
+  clean counter set on a `pre-pr-lint-gate` dispatch is NOT automatically `tests-passed` until the
+  agent's own checker-load coverage confirmation clears too; this skill does not restate that
+  decidable rule (SSOT stays in `agents/odoo-instance-ops.md` "Checker-load coverage confirmation").
 
 **Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
 reads no config file, the generated-conf path is a unique temp file per run; see
