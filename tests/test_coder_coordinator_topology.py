@@ -304,6 +304,126 @@ def test_module_graph_states_two_tier_axis():
     assert "odoo-coder" in text, "the axis must name odoo-coder as the owner of the WI tier"
 
 
+def test_survey_field_closes_the_whole_forwarding_chain():
+    """D1 - SURVEY reaches odoo-coder and its own self-check requires it, but the pre-fix
+    operative forward list (§ What the brief carries + step 3 forward list) and odoo-test-writer
+    (the agent that authors the RED test and most needs the grounding) never named it. Close the
+    whole chain: odoo-coder's inbound-fields prose AND its step-3 forward-to-teammates list AND
+    odoo-test-writer's own brief-carries section must all name SURVEY."""
+    coder = _norm(LEAD)
+    assert "SURVEY" in coder, "odoo-coder.md must name SURVEY in its inbound brief-carries prose"
+    # The forward-to-teammates sentence (step 3) must include SURVEY alongside the other forwarded
+    # fields, not merely a self-check parenthetical.
+    assert re.search(
+        r"forward\s*`WORKTREE_PATH`,\s*`INSTANCE_HANDLE`,\s*`DESIGN_DOC`,\s*`MASTER_DESIGN_DOC`,\s*"
+        r"`SURVEY`,\s*`WORKLOG`",
+        coder,
+    ), (
+        "odoo-coder.md's step-3 forward-to-teammates list must include SURVEY alongside the other "
+        "forwarded fields (WORKTREE_PATH/INSTANCE_HANDLE/DESIGN_DOC/MASTER_DESIGN_DOC/WORKLOG)"
+    )
+    test_writer = _text(TEST_WRITER)
+    assert "SURVEY" in test_writer, (
+        "odoo-test-writer.md must name SURVEY - the pre-fix defect was 0 mentions in the agent "
+        "that authors the RED test and most needs the grounding"
+    )
+
+
+def test_wi_worker_dependency_gate_defines_green_against_status_enum():
+    """D5 - the backend-before-frontend gate said the prerequisite must 'return green' with no
+    definition against the actual status enum. Must now define green == status: DONE explicitly,
+    and name that BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT are never green."""
+    low = _norm(LEAD).lower()
+    assert "defined precisely" in low or "the only value this schedule reads as green" in low, (
+        "the dependency gate must explicitly DEFINE 'green' rather than leave it a bare adjective"
+    )
+    assert "status: done" in low, (
+        "'green' must be defined as status: DONE against the Continuation Contract enum"
+    )
+    assert (
+        "blocked`, `needs_context`, and `needs_next` are never green" in low
+        or ("never green" in low and "blocked" in low)
+    ), "the gate must state BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT are never green"
+
+
+def test_coordinator_verifies_red_test_path_before_forwarding():
+    """D4 - a RED_TEST_PATH present but pointing at a nonexistent file had no named check anywhere
+    in the load path. The coordinator must verify the returned path resolves to a real file BEFORE
+    handing it to a coder, and treat an unresolved path exactly like 'no test handed in' (the
+    SAME bounded re-dispatch path), never forward it unverified."""
+    low = _norm(LEAD).lower()
+    assert "verify it resolves to a real file" in low, (
+        "odoo-coder.md must state the RED_TEST_PATH is verified to resolve to a real file before "
+        "being forwarded to a coder"
+    )
+    assert "treat this exactly as" in low and "no test handed in" in low, (
+        "an unresolved RED_TEST_PATH must be treated exactly like the 'no test handed in' case"
+    )
+    # Both coder leaves must also treat a present-but-invalid path the same as an absent one.
+    for path in (BACKEND, FRONTEND):
+        cbody = _norm(path).lower()
+        assert "does not resolve to a real file" in cbody or "does not resolve to a real" in cbody, (
+            f"{path.name} must treat a RED_TEST_PATH that does not resolve to a real file the "
+            "same as a brief that carries no test at all"
+        )
+
+
+def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
+    """D6 - on contradicting sibling reports, the pre-fix re-dispatch loop targeted only the
+    complaining worker, not the sibling whose claim was false. Must now name the ACCUSED sibling
+    as the first re-dispatch target when a BLOCKED reason contradicts a sibling's earlier DONE
+    claim, still within the same bounded loop."""
+    low = _norm(LEAD).lower()
+    assert "contradicts a sibling" in low or "contradicting sibling" in low, (
+        "odoo-coder.md must name the sibling-contradiction case explicitly"
+    )
+    assert "accused sibling" in low, (
+        "the re-dispatch target on a sibling contradiction must be named: the ACCUSED sibling, "
+        "not merely the complaining worker"
+    )
+    assert "never loop the complaining worker alone against ground truth" in low or (
+        "never loop the complaining worker alone" in low
+    ), (
+        "the rule must explicitly forbid re-dispatching only the complaining worker against "
+        "unchanged ground truth"
+    )
+
+
+def test_coordinator_done_honesty_requires_scope_coverage_and_wi_accounting():
+    """D7/D2 - a module covering only PART of the requested scope could pass all three
+    DONE-honesty checks (file list / integrated-test verdict / SHA), and a premature 2-of-3 DONE
+    was undetectable upstream (the WI list is odoo-coder's PRIVATE tracking). The DONE-honesty
+    gate must now ALSO require (a) an explicit requirement-to-WI coverage mapping against
+    REQUEST/frontendRequest, and (b) a stated WI-count + terminal-status accounting - both
+    forwarded to odoo-coding so a partial-scope or partial-fan-out DONE is a failed contract, not
+    silently trusted."""
+    low = _norm(LEAD).lower()
+    assert "check delivered scope against `request`" in low or (
+        "delivered scope against" in low and "request" in low
+    ), "odoo-coder.md must require checking delivered scope against REQUEST/frontendRequest"
+    assert "wi count dispatched" in low or "wi count" in low, (
+        "odoo-coder.md must require stating the WI count dispatched as part of its report"
+    )
+    assert "failed contract" in low, (
+        "the extended honesty gate must still be framed as a failed-contract check"
+    )
+    # The exact V1b constructed passing message pattern must now be named as INSUFFICIENT.
+    assert "implemented the requested change to" in low, (
+        "odoo-coder.md must name the exact under-specified prose pattern (the V1b constructed "
+        "message) as failing the honesty gate, not merely describe the rule abstractly"
+    )
+    # odoo-coding's own receiver-side gate must mirror the same two checks.
+    coding_low = _norm(CODING).lower()
+    assert "wi count" in coding_low and "terminal-status accounting" in coding_low, (
+        "odoo-coding SKILL.md's own DONE-honesty gate must mirror the WI-count + terminal-status "
+        "accounting requirement, not only the coordinator's own prose"
+    )
+    assert "requirement-coverage mapping" in coding_low or "request" in coding_low, (
+        "odoo-coding SKILL.md's own DONE-honesty gate must require the requirement-coverage "
+        "mapping, not just the file-list/SHA/test-verdict trio"
+    )
+
+
 def test_wi_is_not_an_outer_layer_unit():
     """The WI concept must NOT appear as an OUTER-layer decomposition unit in
     odoo-planning / plan-mode-schema / phase-p / run-harness. A bare 'work-item'

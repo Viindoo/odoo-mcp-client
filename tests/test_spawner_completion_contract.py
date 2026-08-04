@@ -312,6 +312,107 @@ def test_continuation_contract_has_a_distinct_barrier_bullet():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# 14. R3 malformed-input fallback (D3) - decidable at ANY depth, no undecidable clause
+# ---------------------------------------------------------------------------
+
+
+def test_r3_malformed_input_fallback_is_decidable_at_any_depth():
+    """The absent-REPLY_TO fallback (V1a Q2 PARTIAL / D3) must give ONE unconditional, decidable
+    action - never the old two-step 'treat the context that dispatched you as the recipient ...
+    if determinable' framing, which is undecidable at depth 3+ (a worker cannot derive a
+    SendMessage-addressable id from 'the context' alone - it does not know its own agentId per
+    context-handoff-protocol.md 'Lead is the address authority'). The fix must state the rule
+    holds at ANY depth explicitly, so a depth-3 worker is not left to improvise."""
+    text = _read(CONTRACT_MD)
+    assert "treat the context that dispatched you" not in text, (
+        "R3 must no longer instruct a worker to 'treat the context that dispatched you' as the "
+        "recipient - that framing is never actually actionable (a worker cannot derive a send "
+        "address from context alone) and reads as a genuine two-step decision when it is not"
+    )
+    norm = _norm(CONTRACT_MD)
+    low = norm.lower()
+    assert "at any depth" in low, (
+        "R3's malformed-input fallback must explicitly state it holds at ANY depth - the "
+        "decidability gap the charter named was specific to depth 3+ (a nested coordinator's own "
+        "worker), so the fix must name that it is depth-independent, not just depth-1-safe"
+    )
+    assert "the one decidable action" in low or "one decidable action" in low, (
+        "the fallback must state there is exactly ONE decidable action, not a two-branch "
+        "determinable-or-not judgment call"
+    )
+    assert "does not know its own" in low or "does not know its own `agentid`" in low, (
+        "the fallback must ground WHY inference is impossible: a worker does not know its own "
+        "agentId and cannot derive its launcher's SendMessage address from the brief alone"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 15. Whole-tree restatement guards (never write these against an allowlist)
+# ---------------------------------------------------------------------------
+
+# The old, undecidable R3 malformed-REPLY_TO phrasing. Any file OTHER than the SSOT itself that
+# contains either marker has restated R3 instead of pointing at it - exactly the failure mode
+# worker-brief.md:79 exhibited (it cited "spawner-completion-contract.md R3" while restating R3's
+# PRE-FIX content inline, so the citation and the restated text silently disagreed once R3 was
+# corrected here without a companion edit there).
+_R3_RESTATEMENT_MARKERS = (
+    "if determinable",
+    "treat the context that dispatched you",
+)
+
+# The old two-state barrier-release gate ("is `completed`/`blocked`" or "is `completed` or
+# `blocked`"). Deliberately narrow to the "is <label>" release-condition SHAPE, not a bare
+# co-occurrence of the words "completed" and "blocked" - agent-team-protocol.md legitimately
+# describes the SAME underlying TaskUpdate tool's own lifecycle labels ("-> `completed` | `blocked`
+# at end", "STATUS (pending/in_progress/completed/blocked)") for a different, correctly-scoped
+# purpose (Ask 2's coarse status mirror, not a barrier release condition) - that usage must NOT
+# false-positive here.
+_RELEASE_VOCAB_RESTATEMENT_RE = re.compile(
+    r"is `completed`\s*/\s*`blocked`|is `completed`\s+or\s+`blocked`"
+)
+
+
+def test_no_tree_wide_restatement_of_r3_malformed_input_fallback():
+    """Whole-tree guard (no allowlist): no file anywhere under plugins/ may restate R3's
+    malformed-REPLY_TO fallback instead of pointing at it. A restatement drifts silently the next
+    time R3's own wording changes - which is exactly what happened to worker-brief.md:79 this
+    round. Any file needing this rule cites spawner-completion-contract.md R3 by path; it never
+    reproduces the fallback's own decision language inline."""
+    plugins_root = REPO_ROOT / "plugins"
+    offenders = []
+    for path in plugins_root.rglob("*.md"):
+        if path == CONTRACT_MD:
+            continue  # the SSOT is what every other file must point at, not restate
+        low = path.read_text(encoding="utf-8").lower()
+        for marker in _R3_RESTATEMENT_MARKERS:
+            if marker in low:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}: contains {marker!r}")
+    assert not offenders, (
+        "R3's malformed-REPLY_TO fallback is restated outside its SSOT - replace with a pointer "
+        "to spawner-completion-contract.md R3 instead:\n" + "\n".join(offenders)
+    )
+
+
+def test_no_tree_wide_restatement_of_the_two_state_barrier_release_gate():
+    """Whole-tree guard (no allowlist): no file anywhere under plugins/ may gate a spawner's
+    completion barrier on the bare tool-native `completed`/`blocked` label pair - the release
+    vocabulary is owned once by R1 (the four Continuation Contract terminal statuses) and every
+    consumer must reference it, never restate a narrower two-state version that silently
+    excludes NEEDS_NEXT/NEEDS_CONTEXT (the exact C2 defect shape)."""
+    plugins_root = REPO_ROOT / "plugins"
+    offenders = []
+    for path in plugins_root.rglob("*.md"):
+        text = path.read_text(encoding="utf-8")
+        if _RELEASE_VOCAB_RESTATEMENT_RE.search(text):
+            offenders.append(str(path.relative_to(REPO_ROOT)))
+    assert not offenders, (
+        "Found a barrier release condition gated on the bare `completed`/`blocked` label pair "
+        "instead of the four-status Continuation Contract vocabulary (spawner-completion-contract.md "
+        "R1):\n" + "\n".join(offenders)
+    )
+
+
 def test_worker_brief_reply_to_never_defaults_to_main():
     """worker-brief.md's REPLY_TO field must be defined as ALWAYS the launcher, with `main`
     only a special case, and must explicitly forbid hardcoding `main` in the worker's own body."""

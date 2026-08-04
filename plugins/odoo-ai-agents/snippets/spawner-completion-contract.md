@@ -26,11 +26,22 @@ running. Pick the blocking shape by topology:
   until EVERY child has returned before you read results or synthesize.
 
 Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-contract.md`) - create one
-task per child at/ before launch, and treat the batch barrier as clear ONLY when every task on that
-list is `completed` or `blocked`. The task list is the persistent counter across the re-invocations
-the background model wakes you with; never rely on turn memory to remember how many children are
-outstanding. "Wait" is the synchronous return or the all-tasks-terminal barrier - never a passive
-hope, never a synthesis from context you held before the batch.
+task per child at/ before launch, and treat the batch barrier as clear ONLY when every child has
+returned ONE OF THE FOUR terminal `status` values the Continuation Contract defines - `DONE`,
+`BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`)
+- never a subset of two. **This is the release vocabulary, defined here once.** Your task-list TOOL's
+own native status field is a MIRROR of it, per `execution-tasklist-contract.md`, never the authority:
+concrete tool labels are runtime-dependent (some harnesses expose only `pending`/`in_progress`/
+`completed`, others add more, and some expose no dedicated task-list tool at all - verify what your
+own toolset actually offers rather than assuming a fixed set). Mark a task-list item terminal
+(whichever label your tool uses for "finished"/"no longer active") the instant its child returns ANY
+of the four statuses above, and record WHICH of the four separately in your own tracking (worklog or
+equivalent) - the tool's own state is not guaranteed to distinguish them, and a barrier gated on a
+tool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable
+and must never be the release condition. The task list is the persistent counter across the
+re-invocations the background model wakes you with; never rely on turn memory to remember how many
+children are outstanding. "Wait" is the synchronous return or the all-children-terminal barrier -
+never a passive hope, never a synthesis from context you held before the batch.
 
 ## R2 - No early DONE
 
@@ -63,14 +74,19 @@ is also listed as a POINTER field on the caller-side skeleton
 (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11, `CALLER_ID`) - this file stays the one
 place the addressing rule itself is defined; that row only sends a caller here.
 
-**Malformed input - no `REPLY_TO` supplied.** If you are in Agent Team mode (`SendMessage` available
-in your own toolset) but your brief carries NO `REPLY_TO`, do NOT guess and do NOT default to a
-literal `main`. Instead treat the context that dispatched you (the agent/skill invocation that
-produced your brief) as the recipient; if that context cannot be determined either, return your
-report as your final message (transcript return, exactly as in Tier-C) and STATE the missing-
-`REPLY_TO` condition explicitly in that report. Never broadcast a completion report to `main` on a
-guess - a guessed address can silently misdeliver to a context that is not blocking on you (R1),
-which is worse than the honest transcript-return fallback.
+**Malformed input - no `REPLY_TO` supplied.** If your brief carries NO `REPLY_TO` (regardless of
+Agent Team mode), do NOT guess, do NOT default to a literal `main`, and do NOT attempt to infer an
+addressable recipient from "the context that dispatched you". Per
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Lead is the address authority", a
+worker does NOT know its own `agentId` and has no way to derive its launcher's `SendMessage` address
+from the brief alone - so "the dispatching context" is never itself a valid send target, and this
+holds at ANY depth: a worker three levels below `main` has no MORE inference available than one
+launched directly by `main` (there is no deeper context to fall back through). The ONE decidable
+action, unconditional on depth or team mode: return your report as your final message (transcript
+return, exactly as in Tier-C) and STATE the missing-`REPLY_TO` condition explicitly in that report -
+your launcher reads it from your returned transcript regardless of transport tier. Never broadcast a
+completion report to `main` on a guess - a guessed address can silently misdeliver to a context that
+is not blocking on you (R1), which is worse than the honest transcript-return fallback.
 
 ## Transport
 

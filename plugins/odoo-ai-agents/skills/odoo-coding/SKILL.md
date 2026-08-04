@@ -401,13 +401,32 @@ what carries that identity across the invocation boundary.
    otherwise) instead of a self-generated `coder-<module-slug>` - it still counts as this batch's
    ONE coordinator for that module either way.
 4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
-   in step 3, hold until every coordinator task on the run's task list is `completed`/`blocked`
-   before packing the next batch - the barrier is mechanical per
-   `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1, not an assumption. A batch is
-   done only when every coordinator returned DONE/BLOCKED (R2). A later step re-dispatches
-   a BLOCKED module at the SAME recorded tier: under Tier A, resume the recorded `agentId` by
-   `SendMessage` when it is still addressable; otherwise (Tier C fallback) make a fresh Agent call.
-   The worklog stays the always-correct context layer the re-dispatched worker reads.
+   in step 3, hold until every coordinator in the batch has returned one of the four terminal
+   Continuation Contract statuses - `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` - before
+   packing the next batch; mark each coordinator's task-list item terminal the instant it returns
+   any of the four. The barrier is mechanical per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 (the release-vocabulary SSOT -
+   do not gate this on a task-list tool's own native label, which is runtime-dependent and may not
+   even expose a dedicated `blocked` state), not an assumption. A batch is done only when every
+   coordinator returned a terminal status, rolling up `NEEDS_NEXT`/`NEEDS_CONTEXT` exactly as a
+   `BLOCKED` per R2. A later step re-dispatches a `BLOCKED`/`NEEDS_CONTEXT` module at the SAME
+   recorded tier: under Tier A, resume the recorded `agentId` by `SendMessage` when it is still
+   addressable; otherwise (Tier C fallback) make a fresh Agent call. The worklog stays the
+   always-correct context layer the re-dispatched worker reads.
+   **A coordinator dispatch that resolves WITHOUT a parseable Continuation Contract - a
+   harness-level dispatch error, an empty/content-less return, or output that does not parse to any
+   of the four terminal `status` values - is NEVER a silent success and is NEVER left pending on the
+   batch barrier as if it were still running.** Treat it as a distinct, immediate signal from a real
+   `BLOCKED`: flip that module's ledger entry (if one exists - a NEW in-scope module per
+   § Dependency-BLOCKED handling below) straight from `building` to `failed`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` § building -> failed
+   (dead-dispatch)) rather than let a stale-but-recent `heartbeat_at` keep advertising the module as
+   alive to other runs, and treat the module itself as `BLOCKED: dead coordinator dispatch (no
+   completion report)` in THIS run's own accounting - roll it into the batch's normal BLOCKED
+   handling, but record the distinguishing reason in the worklog so a human does not mistake it for
+   a graceful business BLOCKED the coordinator itself chose. Fail CLOSED on any doubt whether a
+   return is a real report; never mark a module `failed` on a mere suspicion when a valid
+   Continuation Contract WAS returned.
 5. Each subagent launch sets BOTH the `model` parameter AND the first prompt line
    `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring `odoo-debug`).
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
@@ -541,8 +560,12 @@ the module itself by invoking the `git-toolkit:git-ops` skill** inside the workt
 commit; git-ops owns the message convention + DCO + mechanics) and captures the commit SHA on the
 module branch. **THIS skill then COLLECTS the coordinator's returned SHA(s) and passes them up so
 `run-harness`'s between-wave integration can cherry-pick them (or so any caller can integrate) - it does NOT
-re-commit; a DONE with no returned file list, no integrated-test verdict, or no SHA from the
-coordinator is a failed contract.** The old depth-saver clause (commit-stays-at-this-skill) is
+re-commit; a DONE with no returned file list, no integrated-test verdict, no SHA from the
+coordinator, no stated WI count + terminal-status accounting for that module (D2 - the private WI
+list is the coordinator's, but the ACCOUNTING statement is not), or no explicit mapping of every
+item in that module's `REQUEST`/`frontendRequest` to the WI(s) that implemented it (D7 - a module
+that silently covers only PART of what was asked is not a green module even when every file it DID
+touch is real and tested) is a failed contract.** The old depth-saver clause (commit-stays-at-this-skill) is
 REMOVED: the coordinator now commits in its dependency-correct worktree (forked from the integrated
 state per Block 2W), so git-ops fires from the coordinator, not this skill. `odoo-coding` NEVER
 completes with uncommitted output: if it was dispatched WITHOUT a `WORKTREE_PATH`, it self-provisions

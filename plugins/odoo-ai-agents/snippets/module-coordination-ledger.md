@@ -161,6 +161,23 @@ which would succeed on an existing dir and destroy the mutual exclusion).
 - **failed** - flip on a terminal BLOCK for the module.
 - **heartbeat_at** - refresh to the current UTC time on EVERY dispatch-loop tick for each module this
   run is currently `building`, so other runs can tell a live build from a dead one.
+- **building -> failed (dead-dispatch, immediate, no staleness wait)** - the ONE transition that does
+  NOT wait for the N-tick staleness bound (§ Honesty invariant below): flip a module straight from
+  `building` to `failed` the instant its `odoo-coder` dispatch resolves WITHOUT a parseable
+  Continuation Contract - a harness-level dispatch error, an empty/content-less return, or output
+  that does not parse to one of the four terminal `status` values
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`). This is DISTINCT from a stale
+  heartbeat (an ABSENCE of fresh evidence, bounded by ticks because a slow-but-alive build and a dead
+  one look identical on the clock): a dead-dispatch signal IS fresh, PROVABLE evidence the dispatch
+  ended, so `odoo-coding` never leaves that module's entry sitting at `building` with a heartbeat that
+  keeps looking recent to every OTHER run watching the ledger - a live-looking heartbeat on a module
+  whose dispatch has already terminated would actively mislead a concurrent run into treating a dead
+  build as in-progress (§ Reacting to a dead-dispatch signal in `skills/odoo-coding/SKILL.md`, in your
+  own dispatch loop, defines exactly what counts as "resolves without a parseable Continuation
+  Contract" - do not re-derive it here). Fail CLOSED: on any doubt whether the dispatch produced a
+  real report, treat it as dead-dispatch (flip to `failed`) rather than leave the module `building` -
+  never the reverse (never flip a module that DID return a valid report to `failed` on a mere
+  suspicion).
 
 On run completion, `odoo-coding` sets each of its own modules to `done` or `failed` - it never leaves
 its own entries dangling in `claimed`/`building`.
