@@ -303,30 +303,26 @@ illustrative only). The same "vanilla -> no-op" guarantee from the `to_base` HAR
 here: an unpinned probe would risk falsely reporting `test_lint`/`test_pylint` as present on a
 build that should be vanilla-CE, installing lint dependencies that do not belong there.
 
-**Coverage grounding - why a clean run never proves every checker loaded.** Both lint-class modules
-in the probe above wrap their real checker sweep in exactly ONE `TransactionCase` test method
-(`TestPyLint.test_pylint`) that dynamically loads its own checker plugin set at run time -
-OSM-confirmed (`test_class_inspect`/`find_test_examples` against `test_lint`, series 17.0):
-`test_lint`'s `TestPyLint` class (`odoo/addons/test_lint/tests/test_pylint.py:25`) declares exactly
-ONE test method, `test_pylint` (`:30`), whose `--enable=` list names the three custom AST checkers
-(`sql-injection`, `gettext-variable`, `raise-unlink-override`) alongside `--load-plugins=` naming
-their source modules (`_odoo_checker_sql_injection`, `_odoo_checker_gettext`,
-`_odoo_checker_unlink_override`) - distinct from the SEPARATE `TestSqlLint` class in the same
-module (`tests/test_checkers.py`) that only self-tests the checker's OWN detection logic in
-isolation, never the repo sweep. The other lint-class module wraps a third-party lint package
-under the SAME `TestPyLint.test_pylint` one-method shape (confirmed at a different file path, same
-class/method names). A plugin that fails to import inside that ONE method
-produces none of the signals `_parse_test_result` derives from the log (a `FAIL:`/`ERROR:` line, a
-`WARNING` line, or the skip-detection regex) unless the underlying plugin loader happens to raise
-uncaught - and whether it does is dependent on the installed pylint version, not a format this
-contract can grep for without inventing an unconfirmed log string. So `failed=0, errors=0,
-skipped=0, warnings=0` on a run that installed one of these modules proves only that the wrapper
-method itself did not fail - never that every checker it was supposed to load actually did. This is
-the grounding for, and feeds directly into, the "Checker-load coverage confirmation" rule in the
+**Coverage grounding - why a clean run never proves every checker loaded.** Lint-class modules in
+the probe above wrap their entire checker sweep inside a SINGLE test method that loads its own
+checker set dynamically at run time, rather than exposing one test per checker. Because of that
+shape, a checker (or an entire checker plugin - e.g. a security-oriented AST checker) that fails to
+load produces NONE of the four Verdict-contract signals: it is not a failure (nothing ran, so
+nothing could fail), not a skip (it is not a test the `@tagged` filter machinery sees), and not a
+warning (nothing objected - there was nothing there to object). Whether a load failure happens to
+raise an exception uncaught (and so surfaces some signal anyway) depends on the installed lint-tool
+version, not on a format this contract can grep for. So `failed=0, errors=0, skipped=0, warnings=0`
+on a run that installed a lint-class module proves only that the wrapper method itself did not fail
+- never that every checker it was supposed to load actually did. This is a structural property of
+how these modules are built - true across every series this plugin supports, not a fact about any
+one series' checker set - and it is the whole reason the coverage axis below exists. This is the
+grounding for, and feeds directly into, the "Checker-load coverage confirmation" rule in the
 `run-tests` Verdict contract below - the decidable rule lives there, not restated here. If a future
-session captures the exact log line the deployed pylint version emits on a plugin-load failure (or
-confirms none exists), update THIS paragraph with the confirmed string and tighten that
-Verdict-contract rule into an automatic check - never invent one ahead of that confirmation.
+session captures the exact log line a deployed lint tool emits on a plugin-load failure for the
+series/environment it is working in, record that as version-specific evidence in the research
+record (not as a cross-version contract) and use it to sharpen detection for that context - never
+fold one series' confirmed log string into this paragraph, or the Verdict-contract rule, as if it
+were a fact that holds on every series.
 
 ## Memory cap on every scripted odoo-bin launch (HARD RULE)
 
