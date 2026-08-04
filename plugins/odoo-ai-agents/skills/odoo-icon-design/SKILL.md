@@ -74,6 +74,9 @@ MODULE_PATH: <absolute path to module dir, or omit to let agent resolve under WO
 WORKTREE_PATH: <abs path resolved above>
 VERSION: <Odoo series, e.g. 17.0 - or omit to let agent resolve from manifest/context>
 BRIEF: <palette hints, symbol hint, or additional context; omit for brand-agnostic defaults>
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
+  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
 
 Agent resolves `odoo_version` and palette from context when the brief omits them (Step 0 of the

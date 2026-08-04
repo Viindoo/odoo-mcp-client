@@ -59,22 +59,29 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
   before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T1/T3.
 
-## Agent Team mode keys (present only when team mode is on)
+## Agent Team mode keys
 
-When the orchestrator dispatches you as a named TEAMMATE (Agent Team mode), the brief carries these
-keys; absent keys mean team mode is off and you behave as today (final message + Continuation
-Contract). `REPLY_TO` is also listed as a POINTER on the caller-side skeleton
-(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11, `CALLER_ID`) so a caller composing a
-brief from that file alone still learns the obligation exists - this file stays the one place the
-field's worker-side semantics are defined:
+`CALLER_ID`/`REPLY_TO` is **NOT** conditional on team mode, unlike the other two keys below:
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11 classifies it ALWAYS - every caller
+composing a brief states it in EVERY dispatch, regardless of CHP tier. Only the DELIVERY
+MECHANISM for your own completion report is tier-conditional (`SendMessage` push under Tier-A,
+final-message transcript-return under Tier-C - Transport rule owned by
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`), never whether the caller had to
+state the field. `TASK_ID` and `NOTIFY` ARE genuinely conditional - present only when the
+orchestrator dispatches you as a named TEAMMATE (Agent Team mode); their absence means team mode
+is off and you behave as today (final message + Continuation Contract). `REPLY_TO` is also listed
+as a POINTER on the caller-side skeleton (`dispatch-brief.md` field 11, `CALLER_ID`) so a caller
+composing a brief from that file alone still learns the obligation exists - this file stays the
+one place the field's worker-side semantics are defined:
 
 ```
-TASK_ID: <id>          # the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked.
-REPLY_TO: <launcher>  # ALWAYS the agent that launched you, supplied by that launcher; `main` ONLY when the main context launched you directly. A coding worker's `REPLY_TO` is ALWAYS its `odoo-coder` coordinator, never `main`. Report to `REPLY_TO`, never a higher ancestor - see `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3. Do NOT hardcode `main` in your body; defer to this field. If `SendMessage` is available but this field is ABSENT from your brief, do NOT guess or default to `main` - follow the malformed-input rule in `spawner-completion-contract.md` R3 (address the dispatching context if determinable, else return your report as your final message and state the missing-REPLY_TO condition).
-NOTIFY: <names>        # peer teammate names that depend on your output; SendMessage each too. `none` if no dependents.
+TASK_ID: <id>          # Agent Team mode ONLY - the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked. Absent when team mode is off.
+REPLY_TO: <launcher>  # present in EVERY brief (dispatch-brief.md field 11), regardless of tier - ALWAYS the agent that launched you, supplied by that launcher; `main` ONLY when the main context launched you directly. A coding worker's `REPLY_TO` is ALWAYS its `odoo-coder` coordinator, never `main`. Report to `REPLY_TO`, never a higher ancestor - see `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3. Do NOT hardcode `main` in your body; defer to this field. If this field is ABSENT from your brief, do NOT guess or default to `main` - follow the malformed-input rule in `spawner-completion-contract.md` R3 (address the dispatching context if determinable, else return your report as your final message and state the missing-REPLY_TO condition) regardless of whether `SendMessage` is in your toolset.
+NOTIFY: <names>        # Agent Team mode ONLY - peer teammate names that depend on your output; SendMessage each too. `none` if no dependents; absent when team mode is off.
 ```
 
 End your turn with a `SendMessage` completion report to `REPLY_TO` (and each `NOTIFY` peer) per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - never end on a bare tool call or
-plain-text-only output. This coordinator<->worker completion report works WITHOUT any experimental
-agent-teams flag; when `SendMessage` is absent, return the report as your final message instead.
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` when `SendMessage` is in your toolset -
+never end on a bare tool call or plain-text-only output. When `SendMessage` is absent, return the
+report as your final message instead (Tier-C transcript-return) - `REPLY_TO` still names who that
+transcript is FOR even though no explicit push is possible.

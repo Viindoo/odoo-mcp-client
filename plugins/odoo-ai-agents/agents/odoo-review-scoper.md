@@ -243,9 +243,19 @@ Also state explicitly: `_scope.md written to: <abs-path-to-scope-file>`.
 - If `changed_files` is empty after Step 1, return immediately: `BLOCKED - no changed files found between <BASE> and HEAD; confirm the BASE ref and that commits exist on this branch.`
 - If the module map produces zero modules (all changed files are outside any `__manifest__.py` subtree), state: `NEEDS_CONTEXT - no Odoo modules found in the changed files; changed paths: <list>`.
 
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `status: DONE` with `produced: [<abs
+path to _scope.md>]`, and a `next:` entry naming the reviewer(s) the scope routes to - you only
+EMIT this, you never dispatch. Use `status: BLOCKED`/`NEEDS_CONTEXT` per the Hard constraints
+early-return rules above when no changed files or no modules were found; "waiting" is never a bare
+statement (see the snippet's own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with
+`blocked_reason` naming what/who/next.
+
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your `_scope.md` file as usual. If `SendMessage` is absent, behave as today (final scope summary block).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your `_scope.md` file as usual. If `SendMessage` is absent, behave as today (final scope summary block + Continuation Contract).
 
 ## Brief self-check
 

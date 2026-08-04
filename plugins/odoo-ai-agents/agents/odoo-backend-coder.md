@@ -304,11 +304,13 @@ If `SendMessage` is in your toolset you run as a teammate: your turn's terminal 
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
-`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+`DESIGN_DOC`, `SURVEY` or the explicit value `none` (key must be present, same rule as `INPUTS`),
+`WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `none yet`), `SURVEY` (the key entirely absent, not even the literal `none`), or a load-bearing
+  family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an

@@ -28,7 +28,7 @@ execute.
 | 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure. Governed by ODOO-AI-ETHOS #4 (Outcomes over Procedures) - cited, not restated, here: see `## Brief self-check` below for the site-specific application. |
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
-| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
+| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when no deep survey ran this session, key still required, same "key must be present" rule as this row), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
 | 5 | `WORKTREE_PATH` (+ `BASE` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode) | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. |
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
@@ -75,6 +75,11 @@ pointer back to this file - never the full skeleton table.
   carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is malformed - the
   receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
 - `DESIGN_DOC` to follow STRUCTURALLY - never inlined pseudocode.
+- `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
+  `none` when no deep survey ran. Same load-bearing-KEY rule as skeleton field 4 `INPUTS`: the key
+  itself must be present - omitting it entirely (not even the literal `none`) is a gap the
+  receiving agent's `## Brief self-check` STOPS on, never silently drops (this closes the exact gap
+  where a brief carrying every other field still silently dropped a human-handed-over survey).
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
   rebase/adapt mode - a normal build's worktree already encodes the base).
 
@@ -149,6 +154,11 @@ pointer back to this file - never the full skeleton table.
 - The module list to init/update.
 - Demo-data + languages flags.
 - `addons_path`.
+- `GATE_ROLE` (`pre-pr-lint-gate` | `per-module-verify`) - REQUIRED on every `run-tests` dispatch
+  (and any test-enable `init-modules`/`update-modules`); decides whether the lint-module union
+  fires. A load-bearing field with NO safe default - absence is refused (`NEEDS_CONTEXT`), never
+  guessed either way. Detailed rule owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md`
+  § Lint modules HARD RULE - pointer only, not restated here.
 - The "provision-once / forward-everywhere" rule (`instance-handle-contract.md`).
 - Carries NO git ref / force-push / commit-convention fields - this family provisions databases and
   runs zero git.
@@ -188,7 +198,9 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `none yet`), a family field that carries the SAME "key must be present even at its safe value"
+  rule (e.g. `SURVEY` for the Coder family - the key entirely absent, not even the literal `none`),
+  or another load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
@@ -221,11 +233,14 @@ re-brief.
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
-`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt
-mode]). `RED_TEST_PATH` is PRODUCED by this coordinator (you launch `odoo-test-writer` to author it)
-- it is NOT required inbound; never self-block looking for it in your own brief.
+`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
+(the key itself must be present - not even the literal `none` may be omitted, same rule as skeleton
+field 4 `INPUTS`), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by
+this coordinator (you launch `odoo-test-writer` to author it) - it is NOT required inbound; never
+self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `SURVEY` (the key entirely absent, not even the literal
+  `none`), or a load-bearing field with no safe default: surface the gap
   to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
   dispatch a leaf on an unresolved brief.
 - Brief carries BOTH `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons`: malformed, never a
