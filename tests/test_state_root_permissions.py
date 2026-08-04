@@ -495,3 +495,223 @@ def test_four_exact_rules_written(settings, odoo_ai_home):
         f"Edit(/{odoo_ai_home}/projects/**)",
     }
     assert allow == expected, f"expected exactly {expected}, got {allow}"
+
+
+# ---------------------------------------------------------------------------
+# Subsumption - do not add a rule the user already has
+# ---------------------------------------------------------------------------
+#
+# Root cause this guards: on a machine whose permissions.allow[] already
+# contains a blanket like Bash(*)/Read/Edit, ALL FOUR of this step's rules
+# were redundant the moment they were first written - version-pinning aside.
+# `apply` must check every rule against config_merge.py json-rule-covered
+# before writing it, and `check` must agree with whatever `apply` decided (a
+# rule apply skips as covered must not make check report incompleteness, or
+# the SessionStart hook loops).
+#
+# The bias is deliberately asymmetric: wrongly concluding "covered" silently
+# withholds a needed permission (breaks function); wrongly concluding "not
+# covered" only writes one harmless redundant rule (visible, self-correcting
+# clutter). So only a small, explicitly enumerated set of forms - grounded in
+# https://code.claude.com/docs/en/permissions, re-verified for this change,
+# not assumed from one user's settings shape - counts as coverage. Notably,
+# a bare relative `Read(**)`/`Edit(**)` (no `//` or `~/` anchor) is NOT one
+# of them: the docs state "To allow all file access, use only the tool name
+# without parentheses: `Read`, `Edit`, or `Write`" - a parenthesized `(**)`
+# pattern is anchored to the SESSION's actual working directory at match
+# time, not the filesystem root, so it cannot be proven ahead of time to
+# contain an absolute target path like $ODOO_AI_HOME.
+
+
+def test_apply_skips_exact_duplicate_no_write_at_all(settings, odoo_ai_home, tmp_path):
+    """Covered by an exact duplicate -> not (re-)added. Isolated with the
+    other 3 rules ALSO already covered (by blankets), so that when the
+    fourth (Edit) is additionally an exact duplicate, apply performs zero
+    writes overall - proving the exact-duplicate path truly short-circuits
+    rather than merely being idempotent after a write."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    edit_rule = f"Edit(/{odoo_ai_home}/projects/**)"
+    data = {"permissions": {"allow": ["Bash(*)", "Read", edit_rule]}}
+    settings.write_text(json.dumps(data), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    assert _allow(settings).count(edit_rule) == 1, "exact duplicate must not be re-added"
+    assert not list(settings.parent.glob(f"{settings.name}.bak.*")), (
+        "with all 4 rules already covered (3 by blanket, 1 by exact duplicate), apply must "
+        "perform zero writes and thus create no backup at all"
+    )
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r_check.returncode == 0, f"check must agree everything is already satisfied; stderr={r_check.stderr}"
+
+
+def test_apply_skips_bash_rules_covered_by_bash_blanket(settings, odoo_ai_home, tmp_path):
+    """Covered by Bash(*) -> neither Bash rule is added, and check agrees."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    settings.write_text(json.dumps({"permissions": {"allow": ["Bash(*)"]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert [a for a in allow if a.startswith("Bash(") and a != "Bash(*)"] == [], (
+        f"both Bash rules must be skipped as covered by Bash(*); got {allow}"
+    )
+    assert "Bash(*)" in allow
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r_check.returncode == 0, f"check must agree Bash(*) already covers both Bash rules; stderr={r_check.stderr}"
+
+
+def test_apply_skips_read_edit_covered_by_bare_tool_blanket(settings, odoo_ai_home, tmp_path):
+    """Covered by a bare "Read"/"Edit" (no parentheses) -> not added, and
+    check agrees. Documented: "Read | Matches all file reads" / "To allow
+    all file access, use only the tool name without parentheses"."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    settings.write_text(json.dumps({"permissions": {"allow": ["Read", "Edit"]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert not any(a.startswith("Read(") for a in allow), f"Read rule must be skipped; got {allow}"
+    assert not any(a.startswith("Edit(") for a in allow), f"Edit rule must be skipped; got {allow}"
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r_check.returncode == 0, f"check must agree bare Read/Edit already cover both rules; stderr={r_check.stderr}"
+
+
+def test_apply_skips_read_covered_by_absolute_ancestor_glob(settings, odoo_ai_home, tmp_path):
+    """Covered by an existing Read(//<ancestor>/**) whose anchor is a strict
+    parent directory of $ODOO_AI_HOME - provable by plain string containment
+    since both sides are filesystem-root anchored (the "//" form), with no
+    dependency on any session's working directory."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    ancestor_rule = f"Read(/{odoo_ai_home.parent}/**)"
+    settings.write_text(json.dumps({"permissions": {"allow": [ancestor_rule]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert f"Read(/{odoo_ai_home}/**)" not in allow, (
+        f"the specific Read rule must be skipped - an ancestor directory rule already covers it; got {allow}"
+    )
+    assert ancestor_rule in allow
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r_check.returncode == 0, f"check must agree the ancestor rule covers Read; stderr={r_check.stderr}"
+
+
+def test_apply_skips_bash_covered_by_prefix_wildcard(settings, odoo_ai_home, tmp_path):
+    """Covered by an existing Bash(<literal-prefix> *) trailing-wildcard rule
+    - the documented Bash prefix-match form - that happens to cover both the
+    "share" and "isolate" argument variants."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    prefix_rule = f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh *)"
+    settings.write_text(json.dumps({"permissions": {"allow": [prefix_rule]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh share)" not in allow
+    assert f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh isolate)" not in allow
+    assert prefix_rule in allow
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r_check.returncode == 0, f"check must agree the prefix-wildcard rule covers both Bash rules; stderr={r_check.stderr}"
+
+
+def test_relative_double_star_is_not_treated_as_coverage_still_added(settings, odoo_ai_home, tmp_path):
+    """A bare relative Read(**)/Edit(**) (no `//` or `~/` anchor) must NOT be
+    treated as coverage, even though it looks like an obvious blanket. Per
+    the docs, only the tool name WITHOUT parentheses allows all file access;
+    a parenthesized "(**)" pattern is anchored at the session's actual
+    working directory at match time, not the filesystem root - it cannot be
+    proven ahead of time to contain $ODOO_AI_HOME. Treating it as coverage
+    would risk silently withholding the permission - the conservative bias
+    says: when in doubt, still add the rule."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    settings.write_text(json.dumps({"permissions": {"allow": ["Read(**)", "Edit(**)"]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert f"Read(/{odoo_ai_home}/**)" in allow, (
+        f"bare relative Read(**) must NOT be treated as coverage - the Read rule must still be added; got {allow}"
+    )
+    assert f"Edit(/{odoo_ai_home}/projects/**)" in allow, (
+        f"bare relative Edit(**) must NOT be treated as coverage - the Edit rule must still be added; got {allow}"
+    )
+
+
+def test_apply_ambiguous_pattern_not_recognized_still_added(settings, odoo_ai_home, tmp_path):
+    """A pattern outside the small enumerated set - here, a Bash rule with an
+    embedded wildcard NOT in the documented trailing-wildcard position - is
+    NOT recognized as coverage. The conservative direction: still add the
+    rule rather than guess."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+    ambiguous_rule = f"Bash(bash */scripts/lib/resolve_project_dir.sh share)"
+    settings.write_text(json.dumps({"permissions": {"allow": [ambiguous_rule]}}), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh share)" in allow, (
+        f"an unrecognized wildcard shape must not be treated as coverage - the rule must still be added; got {allow}"
+    )
+
+
+def test_not_covered_at_all_everything_added(settings, odoo_ai_home, tmp_path):
+    """Baseline: nothing in allow[] covers anything -> all 4 rules are added,
+    matching the pre-subsumption behavior for the genuinely-uncovered case."""
+    plugin_root = tmp_path / "plugins" / "4.20.2"
+    plugin_root.mkdir(parents=True)
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(plugin_root)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = set(_allow(settings))
+    expected = {
+        f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh share)",
+        f"Bash(bash {plugin_root}/scripts/lib/resolve_project_dir.sh isolate)",
+        f"Read(/{odoo_ai_home}/**)",
+        f"Edit(/{odoo_ai_home}/projects/**)",
+    }
+    assert allow == expected, f"expected exactly {expected}, got {allow}"
+
+
+def test_stale_rule_pruned_even_when_current_rule_skipped_as_covered(settings, odoo_ai_home, tmp_path):
+    """Interaction between pruning and subsumption: a stale prior-version
+    Bash rule must still be REMOVED even when the CURRENT version's own rule
+    is skipped as already covered by a blanket. Leaving the stale rule in
+    place would not be defensible - it grants nothing a broader existing
+    permission does not already cover, and is exactly the accumulation this
+    step exists to fix."""
+    version_a = tmp_path / "plugins" / "4.18.0"
+    version_b = tmp_path / "plugins" / "4.20.2"
+    version_a.mkdir(parents=True)
+    version_b.mkdir(parents=True)
+    stale_rule = f"Bash(bash {version_a}/scripts/lib/resolve_project_dir.sh share)"
+    data = {"permissions": {"allow": [stale_rule, "Bash(*)"]}}
+    settings.write_text(json.dumps(data), encoding="utf-8")
+
+    r = _run("apply", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
+    assert r.returncode == 0, f"apply must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert stale_rule not in allow, (
+        f"the stale prior-version rule must be pruned even though the current version's rule was "
+        f"skipped as covered by Bash(*); got {allow}"
+    )
+    assert f"Bash(bash {version_b}/scripts/lib/resolve_project_dir.sh share)" not in allow, (
+        "the current version's rule must stay skipped (still covered by Bash(*)), not added "
+        "just because pruning ran"
+    )
+    assert "Bash(*)" in allow
+
+    r_check = _run("check", settings, odoo_ai_home, env_extra={"CLAUDE_PLUGIN_ROOT": str(version_b)})
+    assert r_check.returncode == 0, f"check must agree the state is fully converged; stderr={r_check.stderr}"
