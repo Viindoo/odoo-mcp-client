@@ -134,6 +134,19 @@ NOT a registered agent - to: pin the version, read the symptom/traceback/console
 a **complexity score** (contained-1-layer vs cross-file/multi-hypothesis). You use that score to
 pick the Phase 2 model.
 
+**Persist the scout's return (mandatory).** The `Explore`/recon-class agent type is
+Write-constrained (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) - it cannot save its own file,
+so it returns its findings in chat. YOU (the orchestrator) transcribe that return VERBATIM into
+`<ISOLATE_DIR>/debug/<slug>/findings.md` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2 (path/schema) and
+clause 3 (verbatim per-agent capture - a paraphrased digest is not compliant): the reproduction
+recipe, layer classification, and complexity score, one finding per line, never reworded. Resolve
+`<ISOLATE_DIR>` once (haiku/sonnet-tier per the Phase 1 launch above), then, before this Phase
+runs, glob `<ISOLATE_DIR>/debug/*/findings.md` for this session's slug; a match -> READ it back and
+SKIP this Phase entirely (resume rule: clause 1). Phase 2 and Phase 4 read `findings.md` back
+rather than relying on Phase 1's chat text still being in context on a compacted or resumed
+session.
+
 ### Phase 2 - Localize (root-cause hunt, per layer)
 
 Route each suspected layer to its specialist, choosing the model **explicitly** (see the table):

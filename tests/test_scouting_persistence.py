@@ -44,78 +44,126 @@ def _tree_texts():
 
 
 # --------------------------------------------------------------------------- #
-# 1 - every named consumer both WRITES and READS BACK its own artifact.
+# 1 - every scouting consumer both WRITES and READS BACK its own artifact.
 # --------------------------------------------------------------------------- #
 
-# (file, own artifact filename, WRITE-side regex, READ-BACK-side regex). Both regexes must
-# reference the consumer's OWN filename - not a hardcoded shared template - so a consumer that
-# merely points at a sibling's artifact does not pass by accident.
-_CONSUMERS = [
-    (
-        "odoo-intake/SKILL.md (findings.md)",
-        INTAKE,
-        "findings.md",
-        re.compile(
-            r"write\s+their findings to `<ISOLATE_DIR>/recon/<slug>-<date>/findings\.md`"
-        ),
-        re.compile(
-            r"glob `<ISOLATE_DIR>/recon/\*/findings\.md`.*?READ it and SKIP Phase R's dispatch",
-            re.DOTALL,
-        ),
-    ),
-    (
-        "fp-phase-detail.md (findings.md)",
-        FP_DETAIL,
-        "findings.md",
-        re.compile(
-            r"Write the per-commit EXTRACT tier\s+and the range facts to "
-            r"`<ISOLATE_DIR>/recon/<slug>-<date>/findings\.md`"
-        ),
-        re.compile(r"READ that file back at the\s+start of P1"),
-    ),
-    (
-        "odoo-code-review/SKILL.md (_scope.md)",
-        CODE_REVIEW,
-        "_scope.md",
-        re.compile(r"scoper writes `<ISOLATE_DIR>/reviews/<slug>-<date>/_scope\.md`"),
-        re.compile(
-            r"Resume: read `_scope\.md` back.*?glob\s*\n?`<ISOLATE_DIR>/reviews/\*/_scope\.md`",
-            re.DOTALL,
-        ),
-    ),
-    (
-        "odoo-doc-illustration/SKILL.md (_scope.md)",
-        DOC_ILLUSTRATION,
-        "_scope.md",
-        re.compile(
-            r"scoper writes `_scope\.md` under\s+`<SHARE_DIR>/documentation/<slug>-<date>/`"
-        ),
-        re.compile(r"Resume: read `_scope\.md` back, do not re-scope"),
-    ),
-    (
-        "rb-phase-detail.md (intake.md)",
-        RB_DETAIL,
-        "intake.md",
-        re.compile(r"EMIT: intake\.md at <ISOLATE_DIR>/git-rebase/<slug>/intake\.md"),
-        re.compile(r"Read `<ISOLATE_DIR>/git-rebase/<slug>/intake\.md` back before enumerating"),
-    ),
-]
+# WIDENING NOTE (was a hardcoded 5-file Python allowlist - `_CONSUMERS`, a (file, artifact,
+# write_re, read_re) tuple list keyed by filename). An allowlist goes green while every phrasing
+# outside it walks past unseen, and grows stale as new consumers are added without anyone
+# remembering to add a 6th tuple - measured concretely: a class sweep found `odoo-debug/SKILL.md`
+# already implementing this exact pattern (Phase 1's Write-constrained scout) with NOTHING in this
+# test noticing its absence, because the check never looked past its 5 named files. Replaced with
+# a whole-tree, structural-marker scan: no filename is special-cased anywhere below.
+#
+# Site selection (STRUCTURAL, not filename-based): a file OPTS IN to Clause 1's write+read-back
+# obligation the moment it cites `scouting-persistence-contract.md` for anything other than
+# Clause 3 ALONE. Clause 3 alone (no Clause 1/2 citation) is the one legitimate structural
+# exclusion - it marks a Write-constrained-scout parent-transcription site whose OWN artifact is
+# consumed same-phase (measured: `upg-phase-detail.md`'s P1a/P1d graph.md /
+# transitive-symbol-survey.md are fed straight into the SAME phase's next step, never re-read on a
+# later resume) - Clause 3 is silent on independent resume-read, that is Clause 1's rule. A file
+# that cites clause 1 or clause 2 (with or without also citing clause 3), or cites the contract
+# with no clause number at all (`fp-phase-detail.md`'s plain pointer), IS in scope.
+#
+# Cue detection (GENERIC structural regexes, reused across every in-scope file - not one
+# hand-written regex per consumer): a WRITE cue is a write-flavored verb (writes/EMIT/persists/
+# transcribes - the exact vocabulary this contract's own Clause 2/3 text uses) followed by a
+# `*.md` artifact reference; a READ-BACK cue is read/resume followed by "back" or "skip" (the
+# vocabulary every existing consumer's own resume/staleness prose already uses:
+# "READ it and SKIP...", "READ that file back...", "Resume: read...back", "Read...back...").
+#
+# Measured (current tree, whole-tree scan): 5 files select in - `odoo-intake/SKILL.md`,
+# `odoo-code-review/SKILL.md`, `odoo-doc-illustration/SKILL.md`,
+# `odoo-forward-port/references/fp-phase-detail.md`, `odoo-git-rebase/references/rb-phase-detail.md`
+# - the SAME 5 the old hardcoded list named (proving the structural redesign did not silently drop
+# a known-good site) - PLUS `odoo-debug/SKILL.md` once its Phase 1 write+read-back paragraph is
+# added (this fix's P1 change) - 0 offenders in all 6. `upg-phase-detail.md` (Clause-3-only citer)
+# correctly selects OUT.
+CONTRACT_CITE_RE = re.compile(r"scouting-persistence-contract\.md", re.IGNORECASE)
+CLAUSE_MENTION_RE = re.compile(r"clause\s+([123])\b", re.IGNORECASE)
+WRITE_CUE_RE = re.compile(
+    r"\b(?:writes?|emit:?|persists?|transcribes?)\b.{0,120}?\.md\b", re.IGNORECASE | re.DOTALL
+)
+READ_CUE_RE = re.compile(
+    r"\b(?:read|resume)\b.{0,120}?\b(?:back|skip)\b", re.IGNORECASE | re.DOTALL
+)
 
 
-def test_every_named_consumer_writes_and_reads_its_own_artifact():
-    """Genre A (structural, per-consumer regex over its OWN artifact filename) - not one
-    hardcoded template checked against five files identically."""
+def _tree_md_files():
+    """Every skill/agent prose file - mirrors test_recon_tier_policy.py's `_tree_md_files()`
+    exactly (same whole-tree scope: skills/ + agents/, not docs/reference mirrors)."""
+    for sub in ("skills", "agents"):
+        base = PLUGIN / sub
+        if base.is_dir():
+            yield from base.rglob("*.md")
+
+
+def _is_write_readback_consumer(text: str) -> bool:
+    """STRUCTURAL site selection - see the widening note above `CONTRACT_CITE_RE`. A file is in
+    scope for the write+read-back check iff it cites the contract for anything beyond Clause 3
+    alone."""
+    if not CONTRACT_CITE_RE.search(text):
+        return False
+    clauses = {m.group(1) for m in CLAUSE_MENTION_RE.finditer(text)}
+    return clauses != {"3"}
+
+
+def test_every_scouting_consumer_writes_and_reads_its_own_artifact():
+    """Genre A (whole-tree, no allowlist - see the widening note above `CONTRACT_CITE_RE` for the
+    measured before/after and the structural site-selection/cue-detection rules).
+
+    Fails if: a file that cites the contract for Clause 1 or Clause 2 (the write+read-back
+    obligation) lacks either a WRITE cue or a READ-BACK cue anywhere in its own text - including a
+    brand-new consumer nobody has written yet, which is the entire point of a citation-driven scan
+    rather than a 5-file Python list.
+    """
     failures = []
-    for label, path, filename, write_re, read_re in _CONSUMERS:
-        assert path.exists(), f"{label}: file not found at {path}"
+    for path in _tree_md_files():
         text = path.read_text(encoding="utf-8")
-        has_write = bool(write_re.search(text))
-        has_read = bool(read_re.search(text))
+        if not _is_write_readback_consumer(text):
+            continue
+        relpath = str(path.relative_to(PLUGIN))
+        has_write = bool(WRITE_CUE_RE.search(text))
+        has_read = bool(READ_CUE_RE.search(text))
         if not has_write:
-            failures.append(f"{label}: no WRITE instruction naming {filename!r} found")
+            failures.append(
+                f"{relpath}: cites scouting-persistence-contract.md (clause 1/2) but no WRITE "
+                "cue (writes/EMIT/persists/transcribes ... *.md) found"
+            )
         if not has_read:
-            failures.append(f"{label}: no READ-BACK instruction naming {filename!r} found")
+            failures.append(
+                f"{relpath}: cites scouting-persistence-contract.md (clause 1/2) but no "
+                "READ-BACK cue (read/resume ... back/skip) found"
+            )
     assert not failures, "Scouting persistence gaps:\n" + "\n".join(failures)
+
+
+def test_evasive_worker_phrasing_construct_has_neither_write_nor_read_cue():
+    """Genre A (regression/construct test - proves the GENERIC structural cues above, not a copy
+    of them, correctly reject a real evasive phrasing this guard's predecessor could not even see
+    because it only ever looked at 5 hardcoded filenames).
+
+    Verified evasive construct (from the same lane finding `test_widened_detector_catches_
+    evasive_worker_phrasing` in test_recon_tier_policy.py exercises for the tier-check guard):
+    a "Discovery sweep" that dispatches an anonymous worker agent and explicitly folds distinct
+    scouts' returns into one summary - the exact parent-authored-digest failure Clause 3 bans, and
+    it neither writes a `*.md` artifact nor reads one back.
+
+    Fails if: `WRITE_CUE_RE` or `READ_CUE_RE` starts matching this construct - meaning the generic
+    cue detection has become loose enough to rubber-stamp a site that never persists or reads back
+    anything.
+    """
+    construct = (
+        "### Discovery sweep\n"
+        "Spin up one worker agent per candidate area to map current usage. Each worker keeps its\n"
+        "findings in its reply; fold the replies together into one summary before continuing.\n"
+    )
+    assert not WRITE_CUE_RE.search(construct), (
+        "the evasive construct never writes a *.md artifact - WRITE_CUE_RE must NOT match it."
+    )
+    assert not READ_CUE_RE.search(construct), (
+        "the evasive construct never reads anything back - READ_CUE_RE must NOT match it."
+    )
 
 
 # --------------------------------------------------------------------------- #

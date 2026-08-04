@@ -101,6 +101,7 @@ citation, or a citation with no row, is a guard-test failure, not a style nit.
 | `skills/odoo-intake/SKILL.md` | `Persist before you propose` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1a - DAG build` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1d - Transitive Symbol Survey` |
+| `skills/odoo-debug/SKILL.md` | `### Phase 1 - Triage (classify + reproduce)` |
 
 ## Relation to the worklog
 

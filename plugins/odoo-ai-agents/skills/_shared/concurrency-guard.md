@@ -75,6 +75,19 @@ recon/scouting dispatch to opus or fable requires a stated justification tied to
 table's own opus/fable rows above (e.g. "cross-cutting synthesis across N unresolved hot-spots" -
 not "this recon covers a lot of files").
 
+**The same default binds a directly-invoked leaf skill, not just a subagent dispatch.** A
+recon/scouting task MAY be done by invoking a read-only leaf skill directly via the Skill tool
+instead of dispatching a subagent (a skill name is not an agentType). The Skill tool carries no
+per-call `model` parameter - it always executes in the INVOKING context's own model, with no lever
+to lower it. This is the inheritance defect above, through a second door: in an opus/fable-tier
+orchestrating context, a direct Skill-tool call to a recon-depth leaf skill silently runs that work
+at opus/fable, exactly the outcome this whole clause exists to prevent. Decision rule for the agent
+taking this path (decidable, not a judgement call): if you are ALREADY haiku/sonnet-tier, invoke the
+leaf skill directly - no wrapper needed. If you are opus/fable-tier, do NOT invoke it directly -
+wrap the call inside a dedicated haiku/sonnet subagent dispatch (that subagent invokes the Skill
+tool internally) so the recon-depth work runs at the cheap tier instead of silently inheriting
+yours.
+
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
 Both pins are server-side state shared per **(api_key_id, mcp_session_id)** - i.e. per MCP
