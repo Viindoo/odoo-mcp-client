@@ -2645,6 +2645,40 @@ class TestSharedCommitIntentWritePathPerModule:
             "shape, one entry per module in the `modules` list"
         )
 
+    def test_skill_md_never_restates_the_write_path_backwards(self):
+        """SKILL.md must never restate the per-module write path as
+        `intents/<module>/<sha>.md` (module segment AFTER `intents/`) anywhere in the
+        file - the shape is `<module>/intents/<sha>.md` (module segment BEFORE
+        `intents/`), per this same section's own definition a few lines above (module
+        A's instance writes `.../A/intents/<sha>.md`).
+
+        The previous version of `test_p3_route_out_carries_one_intent_record_per_module`
+        (above) only ever read `fp-phase-detail.md` for the correct-order claim - it
+        never opened `SKILL.md` for the same claim, so SKILL.md silently restating the
+        SAME artifact's path backwards in 5 places (P11 acceptance dispatch x2, the
+        crash-recovery instruction, the Continuation Contract `produced` list, and the
+        P3 route-out payload) was invisible to the suite. This test closes that hole
+        directly; `TestPathShapeSegmentOrderConsistency` below closes it generally
+        (whole-tree, not just these two files).
+
+        RED-before-green (measured via `git show HEAD:plugins/odoo-ai-agents/skills/odoo-forward-port/SKILL.md`,
+        i.e. the pre-fix state this test's own change corrects): 5 occurrences of the
+        literal substring `intents/<module>` in SKILL.md (lines 699, 703, 830, 917, 924)
+        -> 0 occurrences post-fix. Same check applied to fp-phase-detail.md catches its
+        1 backward occurrence (line 502) -> 0 post-fix.
+        """
+        assert "intents/<module>" not in self.skill_text, (
+            "SKILL.md restates the per-module intent write path backwards as "
+            "'intents/<module>/...' somewhere in the file - the shape is "
+            "'<module>/intents/...' (module segment BEFORE 'intents/'), matching this "
+            "same file's own P1 definition (module A writes '.../A/intents/<sha>.md')"
+        )
+        assert "intents/<module>" not in self.phase_text, (
+            "fp-phase-detail.md restates the per-module intent write path backwards as "
+            "'intents/<module>/...' somewhere in the file - the shape is "
+            "'<module>/intents/...' (module segment BEFORE 'intents/')"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Invariant (B2 bypass) - the caller-side fix above (SLUG: <slug>/<module> in the
@@ -2771,4 +2805,151 @@ class TestTierCRetryForFailedModulePass:
         assert "fully ended" in normalized or "turn has fully ended" in normalized, (
             "SKILL.md must require the failed instance's turn to have fully ended before "
             "a superseding dispatch - never a second CONCURRENT instance"
+        )
+
+
+# ---------------------------------------------------------------------------
+# General guard (C1 follow-up) - path-shape self-consistency across the WHOLE
+# plugin tree, not just this skill's two files.
+#
+# The R-d/C1 defect (see `TestSharedCommitIntentWritePathPerModule` above) was
+# a special case of a broader failure mode: the SAME logical on-disk artifact
+# - identified by a literal directory-name segment (e.g. `intents`) sitting
+# next to a single templated placeholder segment (e.g. `<module>`) in a
+# backtick/code-block path fragment - was described with the two segments in
+# OPPOSITE relative order in different places, and no existing test compared
+# those places against each other (each existing test only ever pinned ONE
+# file's ONE claim, e.g. `test_p3_route_out_carries_one_intent_record_per_module`
+# read `fp-phase-detail.md` only and never opened `SKILL.md` for the same
+# claim - so SKILL.md contradicting itself, and contradicting that other
+# file, stayed green).
+#
+# This guard is a general detector for that failure MODE, not a restatement
+# of the specific fix: it extracts every `<literal>/<placeholder>` or
+# `<placeholder>/<literal>` adjacent segment pair from every path-shaped
+# token in every *.md file under the WHOLE `plugins/` tree (all three
+# plugins, no filename allowlist), groups occurrences by the unordered
+# (literal, placeholder) pair, and fails if the SAME pair is ever seen in
+# both relative orders anywhere in the tree.
+#
+# Scope and reasoning (what this DOES and does NOT catch):
+#   - DOES catch: two-segment reorderings of the same named artifact, where
+#     one segment is a bare lowercase directory literal (`intents`, `commits`,
+#     `survey`, ...) and the other is a single bracketed placeholder
+#     (`<module>`, `<sha>`, `<slug>`, ...), anywhere a path-shaped token
+#     appears - an inline code span OR a line inside a fenced code block /
+#     brief template. Token extraction is deliberately NOT anchored to
+#     backtick-pair parsing: several of the real R-d occurrences (SKILL.md
+#     line 924, fp-phase-detail.md lines 233 and 557) span a multi-line
+#     inline backtick pair or sit inside a ``` brief template, both of which
+#     a `` `([^`\n]+)` `` single-line backtick regex misses entirely - a raw
+#     path-shaped-token scan catches all of them.
+#   - Verified empirically against the actual tree: scanning all of
+#     `plugins/` finds exactly ONE contradictory pair pre-fix (`intents`,
+#     `<module>`) and ZERO post-fix, with zero unrelated contradictions
+#     anywhere else among the 100+ distinct (literal, placeholder) pairs the
+#     same scan observes tree-wide - so the detector is not noisy at this
+#     repo's current size.
+#   - Does NOT catch: a shape restated with THREE OR MORE segments changing
+#     relative order (only adjacent 2-segment swaps are modeled); a
+#     contradiction where neither side uses a bracketed placeholder (pure
+#     prose, or two fully concrete examples); or a contradiction between a
+#     placeholder-pair order and a fully SUBSTITUTED worked example (e.g.
+#     `.../A/intents/<sha>.md`, where `A` stands in for `<module>`) - a bare
+#     single-letter segment is intentionally NOT treated as a placeholder, so
+#     a file could in principle state the placeholder form one way and a
+#     worked-example form the opposite way without this guard firing. That
+#     specific residual case does not arise anywhere in the current tree
+#     (checked by hand for this fix - SKILL.md's own worked example at lines
+#     306-309 agrees with fp-phase-detail.md's), but a future author should
+#     not rely on this guard alone for that variant. This is a documented
+#     blind spot, not something the guard silently claims to verify.
+#   - Does NOT judge which of the two orders is "correct" - it only proves
+#     that BOTH orders coexist, which is sufficient to prove a
+#     self-contradiction. Deciding which order is right (and fixing the
+#     wrong occurrences) is necessarily a human/reviewer judgment call, the
+#     same way it was for R-d - encoding "always trust the majority order" or
+#     any similar auto-resolution rule would be UNSOUND here: in the R-d
+#     pre-fix tree the WRONG order was numerically the majority (6 backward
+#     vs 2 correct), so a majority-vote heuristic would have picked the
+#     wrong side as "canonical" and flagged the two correct lines instead.
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>` for the two
+# touched files, whole-tree scan otherwise, reconstructed for this comment by
+# scanning the tree with SKILL.md/fp-phase-detail.md swapped back to their
+# pre-fix `git show HEAD` content): pre-fix, exactly ONE contradictory pair -
+# (`intents`, `<module>`) - with 6 occurrences in the `intents/<module>`
+# order (SKILL.md lines 699, 703, 830, 917, 924; fp-phase-detail.md line 502)
+# and 2 occurrences in the `<module>/intents` order (fp-phase-detail.md lines
+# 233, 557); 0 contradictory pairs anywhere else in the tree. Post-fix (this
+# change): 0 contradictory pairs, period.
+# ---------------------------------------------------------------------------
+
+from collections import defaultdict
+
+ALL_PLUGINS_ROOT = REPO_ROOT / "plugins"
+
+_LITERAL_SEG_RE = re.compile(r"^[a-z][a-z0-9_-]*$")
+_PLACEHOLDER_SEG_RE = re.compile(r"^<[a-zA-Z][a-zA-Z0-9_-]*>$")
+# A path-shaped run of characters: letters/digits/underscore/hyphen/dot,
+# `<...>` placeholders, and `${...}` root markers. Deliberately NOT anchored
+# to backtick spans - see "DOES catch" above.
+_PATH_TOKEN_RE = re.compile(r"[$\{\}A-Za-z0-9_.<>/-]+")
+
+
+def _find_segment_order_contradictions(root):
+    """Scan every *.md file under `root` for `<literal>/<placeholder>` (or the
+    reverse) adjacent path segments, grouped by the unordered (literal,
+    placeholder) pair. Returns {pair: {order: [(file, lineno, token), ...]}}
+    restricted to pairs where BOTH orders were observed anywhere under root.
+    """
+    records = defaultdict(lambda: defaultdict(list))
+    for path in sorted(root.rglob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        for lineno, line in enumerate(text.splitlines(), 1):
+            for m in _PATH_TOKEN_RE.finditer(line):
+                token = m.group(0)
+                if token.count("/") < 2 or "<" not in token:
+                    continue
+                segs = [s for s in token.split("/") if s]
+                for i in range(len(segs) - 1):
+                    a, b = segs[i], segs[i + 1]
+                    if _LITERAL_SEG_RE.match(a) and _PLACEHOLDER_SEG_RE.match(b):
+                        pair, order = (a, b), "literal_before_placeholder"
+                    elif _PLACEHOLDER_SEG_RE.match(a) and _LITERAL_SEG_RE.match(b):
+                        pair, order = (b, a), "placeholder_before_literal"
+                    else:
+                        continue
+                    records[pair][order].append(
+                        (str(path.relative_to(REPO_ROOT)), lineno, token)
+                    )
+    return {pair: dict(orders) for pair, orders in records.items() if len(orders) > 1}
+
+
+class TestPathShapeSegmentOrderConsistency:
+    """General guard for the R-d/C1 failure class: the same named artifact
+    (a literal directory segment next to a single templated placeholder
+    segment) must never be described with the two segments in opposite
+    relative order anywhere across the WHOLE `plugins/` tree (all three
+    plugins - no filename allowlist). See the comment block above this class
+    for full scope, false-positive verification, and documented blind spots.
+    """
+
+    def test_no_directory_placeholder_pair_has_conflicting_segment_order(self):
+        contradictions = _find_segment_order_contradictions(ALL_PLUGINS_ROOT)
+        if not contradictions:
+            return
+        lines = []
+        for pair, orders in sorted(contradictions.items()):
+            literal, placeholder = pair
+            lines.append(f"pair ({literal!r}, {placeholder!r}) has both orders:")
+            for order, hits in sorted(orders.items()):
+                for file, lineno, token in hits:
+                    lines.append(f"    {order}: {file}:{lineno}  `{token}`")
+        pytest.fail(
+            "the same (literal-directory, placeholder) segment pair is described "
+            "with the two segments in opposite order somewhere in the plugin tree "
+            "- one of the two orders is wrong for every artifact this pair names; "
+            "resolve which order is correct and make every occurrence agree:\n"
+            + "\n".join(lines)
         )
