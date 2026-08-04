@@ -258,6 +258,74 @@ Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) in one request (
 
 Local (run inline): `rm -rf <ISOLATE_DIR>/wave/<slug>/` (gitignored; safe to delete)
 
+---
+
+## Stale wave-dir sweep (24h crash-backstop, fail-closed)
+
+The Cleanup Checklist above deletes `wave/<slug>/` on the NORMAL path (post-merge). This section
+is the BACKSTOP for the abnormal path - a run that crashed, was killed, or was abandoned before
+ever reaching that checklist leaks its `wave/<slug>/` dir forever unless a later run reaps it
+(`snippets/visual-evidence-lifecycle-contract.md` § 3.1 `wave/<slug>/` row + § 3.6).
+
+**Why a bare mtime sweep is UNSAFE here (do not use Clause 2's generic one-liner).** `run-harness`
+can pause at an L2 human-confirm gate for an UNBOUNDED period mid-run (`SKILL.md` Hard rule 2 /
+§ Gate-tier resolution: emit gate, end turn, resume after a human `continue`) - during that pause
+nothing touches `wave/<slug>/plan.md`, so its mtime goes stale while the run is PAUSED, not
+abandoned. A directory's age alone can never distinguish "abandoned" from "waiting on a human" -
+the criterion MUST also positively correlate against the run's OWN status before deleting anything.
+
+**The criterion: age is necessary but never sufficient - the correlating run's OWN top-level
+`status` must independently prove TERMINAL.** `wave/<slug>/` and `run-<slug>.json` share ONE id
+(`state-root-resolution.md`: "per active run"), so the correlating file is trivially locatable.
+Read its status with `jq`, never `grep` - `run-<id>.json`'s schema
+(`docs/reference/workflow-harness.md` §8.3) nests a SECOND, differently-scoped `"status"` key
+inside EVERY entry of its own `nodes[]` array (`"PENDING"`/`"READY"`/`"RUNNING"`/`"DONE"`/... - a
+per-NODE progress flag, not the run's own state); an unanchored `grep -q '"status".*"DONE"'`
+against the raw file would match the routine, EARLY, common case of the run's FIRST node reaching
+`"DONE"` while the run itself is still very much alive and `NEEDS_NEXT` - reaping a live run's
+directory out from under it, the exact "GC worse than the leak" failure this contract exists to
+prevent. `jq -r '.status // empty'` reads ONLY the JSON root's `status` field, never a nested one:
+
+```bash
+if command -v jq >/dev/null 2>&1; then
+  find <ISOLATE_DIR>/wave/ -mindepth 1 -maxdepth 1 -type d -mmin +1440 -print0 |
+  while IFS= read -r -d '' d; do
+    slug="$(basename "$d")"
+    run_file="<ISOLATE_DIR>/run-${slug}.json"
+    status="$(jq -r '.status // empty' "$run_file" 2>/dev/null || true)"
+    case "$status" in
+      DONE|BLOCKED|NEEDS_CONTEXT)
+        rm -rf "$d"   # the correlating run's OWN top-level status positively proved terminal
+        ;;
+      *)
+        : # absent run_file, unreadable/malformed JSON, empty, or NEEDS_NEXT (still mid-flight,
+          # possibly paused at an L2 gate right now) - skip, unconditionally, never delete
+        ;;
+    esac
+  done
+fi
+# jq unavailable -> skip the ENTIRE sweep this run rather than fall back to a raw-text match -
+# an unprovable status is the SAME "do not delete" outcome § 3.6 already mandates for an absent
+# or unreadable run file, extended to "the tool needed to read it correctly is itself absent".
+```
+
+Fail-closed on every axis, all collapsing to "skip, never delete": no correlating `run-<id>.json`
+at all, the file exists but is not valid JSON, `.status` is absent/empty, `.status` is
+`NEEDS_NEXT` (mid-flight, possibly mid-pause), or `jq` itself is unavailable. Only a POSITIVELY
+confirmed terminal top-level status (`DONE`/`BLOCKED`/`NEEDS_CONTEXT`) on the run whose id matches
+the candidate directory's own name authorizes deletion - mirroring `reap-orphans`'
+age-unknown-means-not-reaped convention (`scripts/lib/allocator.py` `_reap_candidates`) and the
+resolve-or-refuse discipline this contract already applies to `run-<id>.json` itself (§ 3.3).
+
+**Enforcer and placement.** Run this ONCE, unconditionally, as the FIRST action inside `SKILL.md`
+§ Between-wave integration's "Run start" step - before this run creates or writes anything under
+`wave/<own-slug>/` for the first time (the same "before minting/creating your own state" placement
+every other § 3.1 sweep site uses; a live run's own directory does not exist yet at this point, so
+it can never be the accidental target). `find`'s `-mmin +1440` guarantees the same protection a
+second, independent way: a directory a live run is actively writing into never ages 24h untouched
+while that writing continues. Whoever executes `run-harness` next, every run - not a separate
+cleanup agent or cron.
+
 Verify after cleanup (bounded reads inline):
 `git worktree list` should show only the principal worktree.
 Confirm wave branches are gone (git-ops reports deletion success).
@@ -588,6 +656,18 @@ override is passed. Omitting `WORKTREE_PATH` here means one of two failures depe
 dispatching agent's cwd (never a safe default either way): the instance silently loads the CATALOG
 addons path and the gate reports clean regardless of what `run-integration` actually contains, or the
 guard refuses the `acquire` outright (rc 5) and the now-sole lint gate hard-blocks every run.
+
+**Gate role is explicit too, never inferred from "this is the last stage" (mandatory).** This
+`run-tests` dispatch ALSO carries `GATE_ROLE: pre-pr-lint-gate` - the ONE explicit signal
+`agents/odoo-instance-ops.md` § Lint modules HARD RULE reads to decide whether to probe for, install,
+and tag `test_lint`/`test_pylint` at all. Every OTHER `run-tests` dispatch anywhere in this plugin -
+in particular the per-module integrated-module test `odoo-coder` runs every module, every wave
+(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Own the integrated module verification) - states
+`GATE_ROLE: per-module-verify` instead, so the SAME operation name (`run-tests`) never collapses the
+two into one gate again: the per-wave integrated test surfaces ONLY its own module's behavior
+failures, never a lint-class failure, and lint-class failures surface ONLY here. Omitting `GATE_ROLE`
+on this dispatch is not a safe default - the agent refuses with `NEEDS_CONTEXT` rather than silently
+guess, exactly like an omitted `WORKTREE_PATH` above must never be inferred from cwd.
 
 **Containment for tail-only lint (mandatory prose, not optional).** Moving lint to the tail trades
 "catch it while the wave's context is warm" for "catch it once, cheaply, over the full diff" - this

@@ -176,7 +176,7 @@ operation below that resolves a port flag, and is the flag-selection half of `pe
 exclusive-running` (operation 1) - the allocator-issued PORT NUMBER and the flag NAME are two
 independent things this rule and Step D together resolve, never guessed together.
 
-**Server-wide modules on a Viindoo profile** (row above): when the active profile carries `to_base`, UNION it into `--load` regardless of the era default shown - see "Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)" below. **Lint modules row**: which module(s) to union (`test_lint`, `test_pylint`) is never assumed from a version range - see "Lint modules - installed for test-run builds (HARD RULE)" below.
+**Server-wide modules on a Viindoo profile** (row above): when the active profile carries `to_base`, UNION it into `--load` regardless of the era default shown - see "Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)" below. **Lint modules row**: which module(s) to union (`test_lint`, `test_pylint`) is never assumed from a version range, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
 
 **CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale or silent (known gaps: v18 `--with-demo` was erroneously indexed - see OSM bug tracker; v19 `cli_help(command='server', flag='--load', odoo_version='19.0')` returns NO `Default:` line at all - live-verified). For demo, port, and server-wide-module flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|http.port\|server_wide_modules' odoo/tools/config.py`) - this is exactly how the v19 `--load` fallback below resolves. Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
 
@@ -251,19 +251,44 @@ every time, for both this probe and the lint-module probe below.
 `to_base` must load server-wide (before the registry builds) via `--load` / `server_wide_modules`;
 installing it as an ordinary `-i` module is NOT equivalent - it misses the boot-time patch point.
 
-## Lint modules - installed for test-run builds (HARD RULE)
+## Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)
 
-For **run-tests**, and any `init-modules`/`update-modules` dispatch whose purpose is running
-automated tests (`--test-enable`), the lint test modules MUST be INSTALLED, not merely tagged.
-Resolve and PIN the profile exactly as steps 1-2 of the `to_base` HARD RULE above - brief
-`PROFILE:` first, else the resolved root/vanilla profile, else `NEEDS_CONTEXT` - never probe
-profile-less. Reuse the pin already established earlier in the same build (`to_base` HARD RULE
-runs first for create/init/update/run-tests); if this dispatch reaches the lint probe without
-having resolved a profile yet, run steps 1-2 here before probing. Then for each of `test_lint` and
-`test_pylint`, call `check_module_exists(name='<module>', odoo_version='<series>',
-profile_name='<resolved profile>')` - the explicit argument on every call, never relying on the
-ambient `set_active_profile` pin alone (same last-write-wins concurrency caveat as Step B). For
-every one that is Indexed = Yes:
+Lint-class gating (`test_lint`, `test_pylint`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
+`run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Pre-PR tail stage 3) - never inside a per-module or per-wave verification run. This HARD RULE is
+therefore CONDITIONAL, gated on one explicit brief field, never on the operation name alone -
+`run-tests` for the pre-PR lint gate and `run-tests` for a per-module integrated verification are
+the SAME operation with DIFFERENT intent, and intent is what decides this union.
+
+**`GATE_ROLE` (REQUIRED on every `run-tests` dispatch, and any `init-modules`/`update-modules`
+dispatch whose purpose is running automated tests via `--test-enable`) - decides the union, never
+inferred from module count, worktree path, or any other proxy:**
+
+- `GATE_ROLE: pre-pr-lint-gate` - this dispatch IS the one designated pre-PR lint-class gate. Proceed
+  to the probe-and-union steps below.
+- `GATE_ROLE: per-module-verify` - this dispatch is a per-module or per-wave integrated verification
+  (e.g. the `odoo-coder` coordinator's own integrated-module test, run every module, every wave). Do
+  NOT probe for, install, or tag `test_lint`/`test_pylint` here - run the requested test tags/modules
+  exactly as given, with no lint-module union. A `test_lint`/`test_pylint` violation in freshly
+  written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-module
+  `tests-failed` blocker.
+- `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - STOP and return `status:
+  NEEDS_CONTEXT`, `blocked_reason: GATE_ROLE unresolved for a test-run build - the lint-module union
+  cannot be decided`. NEVER default either way: defaulting to install/tag silently reinstates the
+  per-wave/per-module lint gate this rule exists to remove; defaulting to skip risks a false-green
+  pre-PR lint gate that forgot to declare its own role. This is the SAME resolve-or-refuse discipline
+  the `to_base`/profile HARD RULE above already applies to `PROFILE:` - never probe (or skip
+  probing) on an unresolved input.
+
+**When `GATE_ROLE: pre-pr-lint-gate`, probe and union as follows.** Resolve and PIN the profile
+exactly as steps 1-2 of the `to_base` HARD RULE above - brief `PROFILE:` first, else the resolved
+root/vanilla profile, else `NEEDS_CONTEXT` - never probe profile-less. Reuse the pin already
+established earlier in the same build (`to_base` HARD RULE runs first for create/init/update/
+run-tests); if this dispatch reaches the lint probe without having resolved a profile yet, run
+steps 1-2 here before probing. Then for each of `test_lint` and `test_pylint`, call
+`check_module_exists(name='<module>', odoo_version='<series>', profile_name='<resolved profile>')` -
+the explicit argument on every call, never relying on the ambient `set_active_profile` pin alone
+(same last-write-wins concurrency caveat as Step B). For every one that is Indexed = Yes:
 
 1. UNION it into the `-i` (or `-u`) module list for this build, exactly as `en_US` is unioned into
    the language activation set above.
@@ -808,7 +833,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
 - [ ] profile resolved and PINNED before any `to_base`/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
 - [ ] server-wide modules: `check_module_exists('to_base', ..., profile_name=<pinned>)` probed with the pinned profile before building `--load`; era default resolved via `cli_help` with local-source fallback (`base,web`, flagged `grounded: local-source`) when `cli_help` is silent (v19); `to_base` unioned into `--load` (never replacing the era default) when Indexed=Yes, left untouched when Indexed=No
-- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `test_lint`/`test_pylint` probed with the same pinned `profile_name=`; every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe - never tagged without being installed
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `per-module-verify` -> no lint probe, no lint union, run only the requested tags/modules; `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision
@@ -831,9 +856,12 @@ If `SendMessage` is in your toolset you are running as a teammate: your turn's t
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`INSTANCE_HANDLE` - the handle to create/drive/report on; target series/version;
-the module list to init/update; demo-data + languages flags; `addons_path`; the
-provision-once/forward-everywhere rule per `instance-handle-contract.md`). Graduated response, per
-ODOO-AI-ETHOS #2 ask-vs-self-decide:
+the module list to init/update; demo-data + languages flags; `addons_path`; for every `run-tests`
+(or test-enable `init-modules`/`update-modules`) dispatch, `GATE_ROLE` (`pre-pr-lint-gate` |
+`per-module-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
+designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,
+never guessed either way); the provision-once/forward-everywhere rule per
+`instance-handle-contract.md`). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal

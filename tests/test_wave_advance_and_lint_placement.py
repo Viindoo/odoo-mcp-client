@@ -510,9 +510,6 @@ STRUCTURALLY_EXCLUDED_DIRS = (
     "skills/_shared",  # shared reference material (coding_guidelines, frontend-fidelity pitfall
                         # catalogue) consumed by many skills - same category as snippets/, not a
                         # per-module execution body
-    "skills/odoo-instance",  # infra-capability skill (installs/unions lint modules on ANY
-                             # test-run build) - describes mechanics, not a gating decision, same
-                             # category as agents/odoo-instance-ops.md
     "skills/odoo-onboarding",  # a different skill entirely: one-time repo setup (discovers the
                                # REPO's OWN existing ruff/eslint config) - unrelated to per-wave
                                # coding-run gating
@@ -527,7 +524,6 @@ STRUCTURALLY_EXCLUDED_DIRS = (
                                           # in the Phase-2 round-2 report as worth a follow-up
                                           # look, not silently resolved as clean.
     "snippets",  # cross-cutting SSOT snippets describing WHO/WHAT, not per-module execution bodies
-    "agents/odoo-instance-ops.md",  # infra capability (installs lint modules) - not a gating decision
     "agents/odoo-backend-debugger.md",  # diagnostic reference for interpreting a lint FAILURE message
     "agents/odoo-ui-debugger.md",  # grounding-doc pointer (read before diagnosing), not an execution site
     "agents/odoo-ui-reviewer.md",  # grounding-doc pointer, not an execution site
@@ -543,6 +539,33 @@ PENDING_HANDOFF_FILES = (
     "agents/odoo-code-reviewer.md",
 )
 
+# `agents/odoo-instance-ops.md` and `skills/odoo-instance/SKILL.md` are DELIBERATELY NOT
+# structurally excluded (R7a/R12 F1 fix): both were previously blindly excluded here with a
+# "describes mechanics, not a gating decision" rationale that each file's OWN Verdict/Dispatch
+# contract for `run-tests` contradicted - installing + tagging a lint module IS the gating
+# decision, because a tagged/installed lint test that fails is indistinguishable, in the returned
+# status, from any other failing test, and both fed the SAME BLOCKING `tests-failed` /
+# bounded-fix-loop machinery for EVERY per-module, per-wave dispatch. A blind name-presence scan
+# cannot see that class of bug either way - the strings `test_lint`/`test_pylint` legitimately
+# belong in BOTH files (the agent is the ONE place that probes for and unions them; the skill is
+# the front door that resolves and threads the deciding field before dispatch), now CONDITIONALLY
+# on an explicit `GATE_ROLE` field in both - see `agents/odoo-instance-ops.md` "Lint modules -
+# installed ONLY for the designated pre-PR lint gate (HARD RULE)" and
+# `skills/odoo-instance/SKILL.md` "Agent-side unions this skill does not compute itself" +
+# "GATE_ROLE resolution". So both files are measured here (a capped, visible bucket, never
+# silently re-hidden) AND separately covered by dedicated behavioral tests
+# (`test_odoo_instance_ops_lint_union_is_gated_by_gate_role`,
+# `test_odoo_instance_skill_resolves_and_forwards_gate_role` below) that check the actual
+# reachability/consequence fix, not just string presence. There is NO remaining out-of-lane gap:
+# `skills/odoo-instance/**` was assigned to this same fix owner in a scope-extension round, so the
+# sibling file that used to sit in a separate "out of lane, tracked" bucket is now fixed and folded
+# into this ONE bucket - a cap that existed only to tolerate an unfixed sibling does not survive
+# the sibling being fixed.
+GATED_MECHANISM_FILES = (
+    "agents/odoo-instance-ops.md",
+    "skills/odoo-instance/SKILL.md",
+)
+
 
 def _is_structurally_excluded(rel_posix: str) -> bool:
     return any(rel_posix.startswith(d) for d in STRUCTURALLY_EXCLUDED_DIRS)
@@ -554,15 +577,22 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
     `test_lint` (the trap this repo has been bitten by before: a guard pinned to one name goes
     green while a sibling walks past).
 
-    Reports two buckets separately:
-      - TRUE offenders: any file outside the structural exclusions AND outside the 4 pending
-        hand-off files. This must be EMPTY - a true regression here is a real bug.
+    Reports THREE buckets separately (never a per-offender allowlist - each bucket is a small,
+    named, capped set with a stated reason, and every cap is measured against the CURRENT count,
+    not an arbitrarily wide ceiling):
+      - TRUE offenders: any file outside every other bucket. This must be EMPTY - a true
+        regression here is a real bug.
       - PENDING (known, tracked): the 4 named per-module agent files. Their lint-class content is
         REQUIRED to disappear too (see 44-handoff-E.md), but Group E does not own agents/*.md this
         round (arbitration A-06) - measured and reported, not silently hidden.
+      - GATED MECHANISM (both fixed, both behaviorally covered): `agents/odoo-instance-ops.md` +
+        `skills/odoo-instance/SKILL.md` - see `GATED_MECHANISM_FILES` above and the two dedicated
+        `test_odoo_instance_*_gate_role*` tests below for the real coverage this blind scan cannot
+        provide.
     """
     true_offenders = []
     pending = []
+    gated_mechanism = []
     for f in _all_plugin_md_files():
         rel_posix = f.relative_to(PLUGIN).as_posix()
         if _is_structurally_excluded(rel_posix):
@@ -573,13 +603,15 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
             continue
         if rel_posix in PENDING_HANDOFF_FILES:
             pending.append((rel_posix, len(hits)))
+        elif rel_posix in GATED_MECHANISM_FILES:
+            gated_mechanism.append((rel_posix, len(hits)))
         else:
             true_offenders.append((rel_posix, len(hits)))
 
     assert not true_offenders, (
         "Lint-class names found in a file that is NEITHER a structurally-excluded reference/peer "
-        "location NOR one of the 4 files pending the Group-A hand-off - this is a genuine R7a "
-        "regression:\n" + "\n".join(f"{p}: {n} hit(s)" for p, n in true_offenders)
+        "location NOR one of the tracked buckets above - this is a genuine R7a regression:\n"
+        + "\n".join(f"{p}: {n} hit(s)" for p, n in true_offenders)
     )
 
     # The pending bucket is EXPECTED to be non-empty until 44-handoff-E.md is applied. Assert
@@ -591,4 +623,148 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
         "Lint-class references in the 4 pending hand-off files grew well beyond the Phase-2 "
         f"survey's measured baseline (~25-34 regex hits): {pending}. New lint-class content was "
         "added on top of the known pending debt - that is a NEW regression, not the tracked one."
+    )
+
+    # Both gated-mechanism files legitimately mention test_lint/test_pylint - the agent is the ONE
+    # place that probes for and unions them at execution time, the skill is the front door that
+    # resolves and forwards the deciding GATE_ROLE field before dispatch. Capped PER FILE against
+    # the CURRENT measured count so unrelated NEW lint-class content cannot hide inside this
+    # bucket, and so a regression in either file is attributable rather than lost in a combined sum.
+    gated_by_file = dict(gated_mechanism)
+    assert gated_by_file.get("agents/odoo-instance-ops.md", 0) <= 20, (
+        "Lint-class references in agents/odoo-instance-ops.md grew beyond the measured baseline "
+        f"(16 hits after the GATE_ROLE fix): {gated_mechanism}. Confirm any new mention is still "
+        "gated by GATE_ROLE (see test_odoo_instance_ops_lint_union_is_gated_by_gate_role below), "
+        "not a reintroduction of the unconditional union."
+    )
+    assert gated_by_file.get("skills/odoo-instance/SKILL.md", 0) <= 12, (
+        "Lint-class references in skills/odoo-instance/SKILL.md grew beyond the measured baseline "
+        f"(8 hits after the GATE_ROLE fix): {gated_mechanism}. Confirm any new mention is still "
+        "gated by GATE_ROLE (see test_odoo_instance_skill_resolves_and_forwards_gate_role below), "
+        "not a reintroduction of the unconditional union."
+    )
+
+
+# ---------------------------------------------------------------------------
+# R7a / R12 F1 BREAK - the lint-module union is CONDITIONAL on an explicit GATE_ROLE field, never
+# unconditional for "ANY run-tests op". This is the real fix the blind name-presence scan above
+# cannot express: the defect was in the REACHABILITY/CONSEQUENCE of the HARD RULE from a per-wave
+# call site, not in the mere presence of the strings `test_lint`/`test_pylint`.
+# ---------------------------------------------------------------------------
+
+INSTANCE_OPS_AGENT = PLUGIN / "agents" / "odoo-instance-ops.md"
+ODOO_CODER_AGENT = PLUGIN / "agents" / "odoo-coder.md"
+INSTANCE_SKILL_MD = PLUGIN / "skills" / "odoo-instance" / "SKILL.md"
+
+
+def test_odoo_instance_ops_lint_union_is_gated_by_gate_role():
+    """Behavior protected (R12 F1, BREAK): the lint-module install+tag union in
+    `agents/odoo-instance-ops.md` must be CONDITIONAL on an explicit `GATE_ROLE` field the
+    dispatching caller states - never unconditional for "ANY run-tests op". Unconditional wiring is
+    exactly what let a `test_lint`/`test_pylint` violation surface as a BLOCKING `tests-failed`
+    verdict inside `odoo-coder`'s own per-module, per-wave integrated verification (never the pre-PR
+    tail R7a intended).
+
+    Fails if the two decidable branches (`pre-pr-lint-gate` unions, `per-module-verify` does not),
+    the NEEDS_CONTEXT refusal for an absent GATE_ROLE, or the still-unconditional old phrasing is
+    missing/reintroduced.
+    """
+    text = _norm_ws(_read(INSTANCE_OPS_AGENT))
+
+    assert "gate_role" in text, (
+        "agents/odoo-instance-ops.md must name GATE_ROLE as the field that decides the lint-module "
+        "union - the union cannot be unconditional for every run-tests dispatch."
+    )
+    assert "pre-pr-lint-gate" in text and "per-module-verify" in text, (
+        "agents/odoo-instance-ops.md must state BOTH GATE_ROLE values - pre-pr-lint-gate (unions "
+        "test_lint/test_pylint) and per-module-verify (does not) - so a per-module dispatch can "
+        "opt out by name, not by omission."
+    )
+    assert "needs_context" in text, (
+        "agents/odoo-instance-ops.md must refuse (NEEDS_CONTEXT) a run-tests/test-enable dispatch "
+        "whose GATE_ROLE is unresolved - never silently default to installing (reinstates the "
+        "per-wave gate) or skipping (risks a false-green pre-PR gate)."
+    )
+    assert "do not probe for, install, or tag" in text or "do not install" in text, (
+        "agents/odoo-instance-ops.md must explicitly state that a per-module-verify dispatch skips "
+        "the lint probe/install/tag entirely, not merely 'also' union it."
+    )
+
+
+def test_odoo_instance_skill_resolves_and_forwards_gate_role():
+    """Behavior protected (R12 F1 scope extension, BREAK sibling): the `odoo-instance` SKILL - the
+    front door every caller routes through before `odoo-instance-ops` ever sees a brief - must
+    resolve and forward the SAME `GATE_ROLE` field, not a second spelling or a parallel mechanism.
+    This is the reachability half of the fix: an agent-side gate is worthless if the front door that
+    composes its brief never threads the deciding field through.
+
+    Fails if the skill does not name GATE_ROLE, does not state both values, does not give a
+    decidable resolution rule for a caller that stated no role (never a silent default toward the
+    dangerous "install" side), or still claims the lint union applies with "callers pass nothing
+    extra" (the old, unconditional framing this fix replaces).
+    """
+    text = _norm_ws(_read(INSTANCE_SKILL_MD))
+
+    assert "gate_role" in text, (
+        "skills/odoo-instance/SKILL.md must name GATE_ROLE as a dispatch parameter - the SAME field "
+        "agents/odoo-instance-ops.md reads, not a differently-spelled parallel mechanism."
+    )
+    assert "pre-pr-lint-gate" in text and "per-module-verify" in text, (
+        "skills/odoo-instance/SKILL.md must state BOTH GATE_ROLE values, matching "
+        "agents/odoo-instance-ops.md's vocabulary exactly."
+    )
+    assert "default to `gate_role: per-module-verify`" in text, (
+        "the skill must state a decidable default for an unstated role (per-module-verify - the "
+        "never-escalates-to-lint choice) rather than silently guessing toward installing lint "
+        "modules for an ad-hoc request."
+    )
+    assert "gated, never unconditional" in text or "not automatic like" in text, (
+        "the skill must explicitly disclaim the OLD unconditional framing for the lint union - it "
+        "is no longer true that 'callers pass nothing extra' for the lint-module union the way they "
+        "do for to_base."
+    )
+
+
+def test_odoo_coder_opts_out_of_the_lint_gate_on_its_per_module_dispatch():
+    """Behavior protected (R12 F1, BREAK, caller side): `odoo-coder`'s own integrated-module
+    verification - the exact per-wave call site the review found colliding with the lint gate -
+    must explicitly declare `GATE_ROLE: per-module-verify` on every run-tests dispatch it makes, and
+    must no longer claim the lint-module union applies to it.
+
+    Fails if `odoo-coder.md` still claims the `/test_lint`+`/test_pylint` install union is one of
+    the instance HARD RULES applied to its own integrated test, or drops the explicit GATE_ROLE
+    opt-out.
+    """
+    raw = _read(ODOO_CODER_AGENT)
+    text = _norm_ws(raw)
+
+    assert "gate_role: per-module-verify" in text, (
+        "odoo-coder.md must state GATE_ROLE: per-module-verify on its own integrated-module "
+        "verification dispatch(es) - the caller-side half of the GATE_ROLE contract."
+    )
+    assert "the `/test_lint`+`/test_pylint` install union" not in raw, (
+        "odoo-coder.md must no longer claim the lint-module install union is one of the "
+        "unconditional instance HARD RULES applied to its own per-module integrated test - that "
+        "claim is what let the per-wave lint collision survive."
+    )
+
+
+def test_pre_pr_lint_gate_declares_its_own_gate_role():
+    """Behavior protected (R12 F1, BREAK, the ONE authorized caller): the pre-PR lint-class gate in
+    `wave-integration.md` - the ONE dispatch authorized to trigger the lint-module union - must
+    explicitly state `GATE_ROLE: pre-pr-lint-gate` on its provisioning dispatch, the SAME way it
+    already mandates `WORKTREE_PATH`/`SELF_PROVISION` explicitly rather than leaving them inferred.
+
+    Fails if the Pre-PR lint-class gate section does not name GATE_ROLE explicitly.
+    """
+    text = _read(WAVE_INTEGRATION)
+    section = _section(
+        text,
+        "**3 - Pre-PR lint-class gate",
+        "**4 - Terminal land-tail PR",
+    )
+    norm = _norm_ws(section)
+    assert "gate_role: pre-pr-lint-gate" in norm, (
+        "the pre-PR lint-class gate must explicitly state GATE_ROLE: pre-pr-lint-gate on its "
+        "run-tests dispatch - never inferred from being 'the last stage'."
     )

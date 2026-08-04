@@ -52,17 +52,20 @@ After ALL your WIs return, verify the WHOLE module together (backend behavior + 
 
 - **`SELF_PROVISION: worktree-addons` in your brief** -> self-provision an EPHEMERAL instance by
   invoking `Skill(odoo-instance)` INLINE in your own context (never by launching
-  `odoo-instance-ops`), forwarding your `WORKTREE_PATH` so the instance loads YOUR worktree, and
-  RELEASE it before you report (the release rule below). One lease carries one addons path and cannot
+  `odoo-instance-ops`), forwarding your `WORKTREE_PATH` so the instance loads YOUR worktree, stating
+  `GATE_ROLE: per-module-verify` on the `run-tests` request (this is a per-module verification, never
+  the run's pre-PR lint gate - `agents/odoo-instance-ops.md` § Lint modules HARD RULE), and RELEASE
+  it before you report (the release rule below). One lease carries one addons path and cannot
   be correct for N module worktrees - that is why the dispatcher authorized this
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
-- **`INSTANCE_HANDLE` present** -> run the integrated module test against that handed-in instance; do
+- **`INSTANCE_HANDLE` present** -> run the integrated module test against that handed-in instance,
+  stating `GATE_ROLE: per-module-verify` on the `run-tests` request for the same reason; do
   NOT self-provision. First apply
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion; if the
   brief carries no `ADDONS_PATH` field, or it names no directory covering your module's source root,
   return `NEEDS_CONTEXT(instance handle does not cover the module's worktree)` - never run the suite
   to see what happens.
-- **No handle -> self-provision via `Skill(odoo-instance)`** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`). Provision the way that fits your context - inline in your own context, or by launching the `odoo-instance-ops` agent - either way `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union, the `/test_lint`+`/test_pylint` install union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Request an isolated ephemeral instance with the module installed + tested (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <module>`, `MODE: fresh`). Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
+- **No handle -> self-provision via `Skill(odoo-instance)`** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`). Provision the way that fits your context - inline in your own context, or by launching the `odoo-instance-ops` agent - either way `odoo-instance` applies the instance HARD RULES that are unconditional for every build (`en_US` union, Viindoo `to_base` union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Your integrated module test is a PER-MODULE, PER-WAVE verification, never the run's ONE designated lint gate - state `GATE_ROLE: per-module-verify` on this dispatch so the lint-module union (`agents/odoo-instance-ops.md` § Lint modules HARD RULE) never fires here: a `test_lint`/`test_pylint` violation in freshly written code is caught ONLY at `run-harness`'s pre-PR tail, never as a blocking `tests-failed` verdict inside your own bounded fix loop. Request an isolated ephemeral instance with the module installed + tested (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <module>`, `MODE: fresh`, `GATE_ROLE: per-module-verify`). Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
 
 **After the integrated test, RELEASE the instance you self-provisioned.** If you self-provisioned
 (no `INSTANCE_HANDLE` was handed to you), once the integrated-test verdict is captured: RELEASE
@@ -138,15 +141,19 @@ Your turn's terminal action is the completion-report push to your launcher (`REP
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
-`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt
-mode]). `RED_TEST_PATH` is PRODUCED by you (you launch `odoo-test-writer` to author it) - it is NOT
-required inbound; never self-block looking for it in your own brief.
+`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
+(the key itself must be present - not even the literal `none` may be omitted, same rule as
+`dispatch-brief.md` skeleton field 4 `INPUTS` - forward it unchanged when you re-brief your
+leaves), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by you (you
+launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking for
+it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `WORKTREE_PATH`, or another load-bearing field with no safe
-  default: surface the gap to your own caller before dispatching any leaf - do not silently guess
-  or degrade, and do not dispatch a leaf on an unresolved brief. `WORKTREE_PATH` in particular has
-  NO safe default: an absent value is never read as "current checkout" (S9 forbids writing to the
-  principal checkout) - it is always a load-bearing gap to surface, never a silent fallback.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `WORKTREE_PATH`, `SURVEY` (the key entirely absent, not even
+  the literal `none`), or another load-bearing field with no safe default: surface the gap to your
+  own caller before dispatching any leaf - do not silently guess or degrade, and do not dispatch a
+  leaf on an unresolved brief. `WORKTREE_PATH` in particular has NO safe default: an absent value
+  is never read as "current checkout" (S9 forbids writing to the principal checkout) - it is
+  always a load-bearing gap to surface, never a silent fallback.
 - Brief carries BOTH `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons`: malformed, never a
   safe default - surface the gap to your own caller before dispatching any leaf or running the
   integrated verification (§ Own the integrated module verification above keys directly on

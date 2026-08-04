@@ -209,3 +209,145 @@ def test_each_individually_owned_subpath_sweeps_with_a_bounded_find():
         f"These skills do not sweep their own stale sibling directories with a bounded "
         f"'find ... -mmin +<N> ... -exec rm -rf' orphan sweep: {missing}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The two rows this table once admitted were NOT YET wired (`wave/<slug>/` and
+# `followups/<slug>.md` - found by grepping every `mmin +` site plugin-wide
+# against this table's own claims: 15/17 present, 2 absent) are now wired at
+# their owner files (R12 F1 second continuation). The table must claim
+# coverage again - the table and reality must agree in the HONEST direction,
+# which now means claiming, not disclaiming. The companion guard below
+# (`test_gc_coverage_table_owner_actually_contains_a_sweep_whole_table_scan`)
+# is what proves the claim is TRUE, not just present - a table asserting
+# "wired" without that check would reopen the exact defect class this file
+# exists to catch (a claim the code does not back up).
+# --------------------------------------------------------------------------- #
+def test_table_no_longer_disclaims_the_two_rows_it_used_to_flag_as_unwired():
+    norm = _norm(_contract_text())
+    assert "not yet wired" not in norm, (
+        "the GC-coverage table must no longer contain a NOT YET WIRED disclaimer anywhere - "
+        "both wave/<slug>/ and followups/<slug>.md are now wired at their owner files; a "
+        "leftover disclaimer would misrepresent reality in the OTHER direction now"
+    )
+    assert re.search(r"(?i)wave/<slug>/.{0,400}(wired|stale wave-dir sweep)", norm), (
+        "the wave/<slug>/ table row must positively state it is wired (and point at the sweep)"
+    )
+    assert re.search(r"(?i)followups/<slug>\.md.{0,400}wired", norm), (
+        "the followups/<slug>.md table row must positively state it is wired"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# GC-coverage table <-> reality cross-check (R12 F1 second continuation): the
+# guard that would have caught B7 structurally, instead of needing a human to
+# notice the same shape again. Fully table-driven - parses § 3.1's own
+# Owner/Subpath columns and resolves each Owner cell to real file(s)
+# mechanically (a *.md token glob-searched plugin-wide; a "... command" token
+# resolved to commands/<token>.md; any other backtick token treated as a
+# skill name and resolved to EVERY *.md file under that skill's own directory,
+# covering a references/ subfile the way wave/<slug>/'s own sweep actually
+# lives there). NO hand-picked filename allowlist - a row added to the table
+# in the future is covered by construction, not by remembering to update a
+# list here.
+# --------------------------------------------------------------------------- #
+
+
+def _section_3_1_rows() -> list[tuple[str, str]]:
+    text = _contract_text()
+    start = text.index("### 3.1 - Eligible")
+    end = text.index("\n### 3.2", start)
+    section = text[start:end]
+    rows: list[tuple[str, str]] = []
+    for line in section.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or line.startswith("|---"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2 or cells[0] == "Subpath":
+            continue
+        rows.append((cells[0], cells[1]))
+    assert rows, "Could not parse any § 3.1 table rows from the GC-coverage table"
+    return rows
+
+
+def _resolve_owner_files(owner_cell: str):
+    """Mechanically resolve a table row's Owner cell to the file(s) that should carry its
+    sweep. Returns None for the one row with no backtick-quoted owner at all (the "see Clause 2"
+    grouped-for-completeness row) - the caller special-cases that one against Clause 2 directly.
+    """
+    tokens = re.findall(r"`([^`]+)`", owner_cell)
+    if not tokens:
+        return None
+    token = tokens[0]
+    if token.endswith(".md"):
+        return sorted(PLUGIN.rglob(token))
+    if "command" in owner_cell.lower():
+        return [PLUGIN / "commands" / f"{token}.md"]
+    skill_dir = SKILLS_DIR / token
+    if skill_dir.is_dir():
+        return sorted(skill_dir.rglob("*.md"))
+    return []
+
+
+def test_gc_coverage_table_owner_actually_contains_a_sweep_whole_table_scan():
+    """Behavior protected: every § 3.1 table row's claimed Owner must ACTUALLY carry a
+    `mmin +` sweep for the row's claimed Subpath - a row naming an owner that does not sweep is
+    exactly the defect this contract shipped twice before this fix (`wave/<slug>/`,
+    `followups/<slug>.md`).
+
+    Fails if any row's resolved owner file(s) contain no `mmin +` sweep at all. Reports the
+    checked/offending counts in the assertion message so a regression is diagnosable at a glance.
+    """
+    rows = _section_3_1_rows()
+    checked = 0
+    offenders = []
+    for subpath, owner in rows:
+        if owner.strip() == "see Clause 2":
+            continue  # the grouped completeness row - verified separately below
+        checked += 1
+        files = _resolve_owner_files(owner)
+        assert files is not None, f"could not extract an owner token from: {owner!r}"
+        found = any(f.exists() and "mmin +" in f.read_text(encoding="utf-8") for f in files)
+        if not found:
+            offenders.append((subpath, owner, [str(f) for f in files]))
+
+    assert not offenders, (
+        f"{len(offenders)}/{checked} GC-coverage table rows claim an owner that does not "
+        "actually contain a sweep for the claimed subpath:\n"
+        + "\n".join(f"{s} -> owner {o!r}, checked {fs}" for s, o, fs in offenders)
+    )
+
+
+def test_gc_coverage_table_clause_2_grouped_row_sweeps_all_four_subpaths():
+    """Companion to the table-driven scan above: the ONE row whose Owner column reads
+    'see Clause 2' (grouped, for completeness) stands for 4 real subpaths - verify Clause 2's own
+    prose actually sweeps all 4, so the shortcut is never itself a silent gap."""
+    text = _contract_text()
+    start = text.index("## Clause 2")
+    end = text.index("\n## Clause 3", start)
+    section = text[start:end]
+    hits = len(re.findall(r"mmin \+", section))
+    assert hits >= 4, (
+        "Clause 2 must sweep all 4 grouped subpaths (visual/current/, visual/qa/, "
+        f"visual/debug/, visual/screenshots/) - found only {hits} 'mmin +' occurrence(s)"
+    )
+
+
+def test_section_3_6_documents_a_fail_closed_correlated_criterion_for_wave_slug():
+    norm = _norm(_contract_text())
+    assert "3.6" in norm, "Expected a § 3.6 documenting the two known implementation gaps"
+    # The corrected criterion must correlate against the run's OWN recorded status
+    # (never a bare mtime check) and must fail closed on every unprovable case -
+    # absent correlating file, unreadable status, or a still-mid-flight NEEDS_NEXT.
+    assert "NEEDS_NEXT" in norm, (
+        "§ 3.6 must name NEEDS_NEXT (the non-terminal run status) as a case the wave/<slug>/ "
+        "criterion must NOT reap - this is exactly the live-paused-run danger being closed"
+    )
+    assert re.search(r"(?i)fail.closed", norm), (
+        "§ 3.6 must state the wave/<slug>/ criterion is fail-closed on any unprovable condition"
+    )
+    assert re.search(r"(?i)run-\$\{slug\}\.json|run-<id>\.json", norm), (
+        "§ 3.6's corrected criterion must correlate wave/<slug>/ against its OWN run-<id>.json, "
+        "not act on mtime alone"
+    )

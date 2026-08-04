@@ -26,8 +26,8 @@ parameters - hand them over, get back a structured `instance-ops` block.
 **Single owner of instance provisioning.** This skill is the SINGLE PLACE that OWNS Odoo instance
 fan-out: any component needing a live instance routes here via the Skill tool instead of driving
 the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (`en_US`
-union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) are enforced in
-one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
+union, Viindoo `to_base`, the GATE_ROLE-conditioned lint-module install, per-version `cli_help`
+grounding) are enforced in one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
 agent-role SSOT, `generator/skill_tool_deps.json`), this skill MUST provision INLINE (see "Inline
 leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline leaf-mode is
 mandatory for a leaf caller, not a judgment call. For a spawner/coordinator/skill caller, provision
@@ -57,6 +57,7 @@ When invoked, gather the following from the caller's request:
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
+| `GATE_ROLE` | `pre-pr-lint-gate` / `per-module-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions `test_lint`/`test_pylint` into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a per-module/per-wave integrated verification, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `per-module-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
 | `log_mode` | `warn` / `info` / `debug` / `sql` (optional; `run-tests` only) - sets the odoo log verbosity; omitted keeps `--log-level=test` |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
@@ -68,6 +69,21 @@ When invoked, gather the following from the caller's request:
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
+
+**`GATE_ROLE` resolution (mandatory, resolved by THIS skill before dispatch - never left for the
+agent to guess).** For any `run-tests` (or test-enable `init`/`update`) request: an explicit value
+already present in the caller's context (e.g. an orchestrating caller like `run-harness`'s pre-PR
+tail, or `odoo-coder`'s per-module coordinator, stating its own role) always wins - forward it
+verbatim. For a direct/human-initiated invocation with no stated role ("run the tests for the
+account module", eval #2), default to `GATE_ROLE: per-module-verify` and state the assumption - an
+ad-hoc human test run is NEVER the run's ONE designated pre-PR lint gate, so this default never
+risks silently reinstating the lint-class gate the pre-PR tail owns. Only forward
+`GATE_ROLE: pre-pr-lint-gate` when the caller explicitly identifies itself as that ONE gate - never
+inferred from module count, phrasing, or any other proxy. This resolution happens HERE so the
+dispatched `odoo-instance-ops` agent always receives a resolved `GATE_ROLE` and never has to guess
+on this skill's behalf (its own contract refuses with `NEEDS_CONTEXT` if it ever does see one
+missing - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY
+for the designated pre-PR lint gate (HARD RULE)").
 
 **Log verbosity default.** `create` / `init` / `update` builds run at `--log-level=warn` by DEFAULT
 (quieter than Odoo's stock `info`); `run-tests` keeps `--log-level=test`. A caller may ESCALATE to
@@ -117,17 +133,27 @@ not a duplicate.
 `viindoo_profile` in `<SHARE_DIR>/context.md`, omitted when absent) and threads it into the brief. The
 dispatched `odoo-instance-ops` agent then PINS that profile (`set_active_profile` + explicit
 `profile_name=` on every probe - never profile-less) and performs two further DATA-DRIVEN unions
-before building the `odoo-bin` command, on top of the `en_US` union above - callers pass nothing
-extra for either:
-- **Viindoo `to_base` on `--load`.** The agent pins the resolved profile (brief `PROFILE`, or the
-  series' vanilla profile when absent, or `NEEDS_CONTEXT`) then checks it for `to_base`; when
-  present, it unions `to_base` into the server-wide `--load` list (never as an ordinary `-i`) - see
+before building the `odoo-bin` command, on top of the `en_US` union above:
+- **Viindoo `to_base` on `--load`.** Callers pass nothing extra for this one - it is unconditional
+  for every `create`/`init`/`update`/`run-tests` build, by design (R7's scope is lint-class gates
+  only, never `to_base`). The agent pins the resolved profile (brief `PROFILE`, or the series'
+  vanilla profile when absent, or `NEEDS_CONTEXT`) then checks it for `to_base`; when present, it
+  unions `to_base` into the server-wide `--load` list (never as an ordinary `-i`) - see
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Server-wide modules (`--load`) - Viindoo
   `to_base` (HARD RULE)".
-- **Lint modules for `run-tests`.** For a test-run build, the agent reuses that pinned profile to
-  probe for `test_lint`/`test_pylint` and unions every present one into BOTH the `-i`/`-u` install
-  list and `--test-tags` - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules -
-  installed for test-run builds (HARD RULE)" and
+- **Lint modules for `run-tests` - GATED, never unconditional.** This union is NOT automatic like
+  `to_base` above - it fires ONLY when this dispatch's `GATE_ROLE` (resolved above) is
+  `pre-pr-lint-gate`. For that ONE role, the agent reuses the pinned profile to probe for
+  `test_lint`/`test_pylint` and unions every present one into BOTH the `-i`/`-u` install list and
+  `--test-tags`. For `GATE_ROLE: per-module-verify` (every per-module/per-wave integrated
+  verification and every leaf self-provision), the agent does NOT probe, install, or tag either
+  module at all - a `test_lint`/`test_pylint` violation in that dispatch's own module is caught
+  ONLY at the run's designated pre-PR gate, never as a per-module `tests-failed` blocker. A
+  `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved refuses with
+  `NEEDS_CONTEXT` rather than guess either way (installing would silently reinstate a per-wave lint
+  gate; skipping could silently produce a false-green pre-PR gate). Full contract:
+  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY for the
+  designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
 
 **Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
@@ -153,6 +179,7 @@ PROFILE: <viindoo_profile from SHARE_DIR/context.md, or omit if absent>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
+GATE_ROLE: <pre-pr-lint-gate|per-module-verify>   # REQUIRED for run-tests / test-enable init/update; resolved above - never omitted, never left for the agent to guess
 MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
 LOG_MODE: <warn|info|debug|sql or 'default'>   # run-tests only; 'default' keeps --log-level=test
 FRESH_VENV: <true|false>
@@ -175,6 +202,9 @@ SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, ALLOCATOR gains --addons-path-override per § WORKTREE_PATH substitution
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
+  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
 
 ### WORKTREE_PATH substitution (mechanical - run before `acquire`, never edit the catalog)
@@ -264,9 +294,13 @@ them here):
 3. **Apply the HARD RULES** as the agent does - `en_US` union
    (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "en_US - always loaded on every build"),
    Viindoo `to_base` union into `--load` (same file, "Server-wide modules (`--load`) - Viindoo
-   `to_base` (HARD RULE)"), and lint-module install for test-run builds (same file, "Lint modules -
-   installed for test-run builds (HARD RULE)"). Resolve + PIN the profile before any probe; never
-   probe profile-less.
+   `to_base` (HARD RULE)"), and lint-module install for a test-run build ONLY when `GATE_ROLE:
+   pre-pr-lint-gate` (same file, "Lint modules - installed ONLY for the designated pre-PR lint gate
+   (HARD RULE)"). A HARD LEAF self-provisioning here (e.g. `odoo-test-writer` confirming RED via a
+   live run) is never the run's designated pre-PR lint gate, so it always self-resolves
+   `GATE_ROLE: per-module-verify` per the resolution rule above before this step - it never installs
+   or tags `test_lint`/`test_pylint`. Resolve + PIN the profile before any probe; never probe
+   profile-less.
 4. **Run the operation** via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`
    (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
    contract above (background launch + poll `LOG_PATH` to a terminal marker; never idle-stall).
