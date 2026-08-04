@@ -630,12 +630,18 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
     # resolves and forwards the deciding GATE_ROLE field before dispatch. Capped PER FILE against
     # the CURRENT measured count so unrelated NEW lint-class content cannot hide inside this
     # bucket, and so a regression in either file is attributable rather than lost in a combined sum.
+    # The agents/odoo-instance-ops.md cap was bumped from 20 to 28 (measured: 25) for the
+    # checker-load coverage confirmation fix - a legitimate, reviewed addition that discusses
+    # test_lint/test_pylint's own one-method checker-sweep shape (grounding) and the decidable
+    # coverage rule (§ Verdict contract), not a reintroduction of the unconditional union it composes
+    # with (still gated by GATE_ROLE, see the dedicated test below).
     gated_by_file = dict(gated_mechanism)
-    assert gated_by_file.get("agents/odoo-instance-ops.md", 0) <= 20, (
+    assert gated_by_file.get("agents/odoo-instance-ops.md", 0) <= 28, (
         "Lint-class references in agents/odoo-instance-ops.md grew beyond the measured baseline "
-        f"(16 hits after the GATE_ROLE fix): {gated_mechanism}. Confirm any new mention is still "
-        "gated by GATE_ROLE (see test_odoo_instance_ops_lint_union_is_gated_by_gate_role below), "
-        "not a reintroduction of the unconditional union."
+        f"(25 hits after the checker-load coverage confirmation fix): {gated_mechanism}. Confirm "
+        "any new mention is still gated by GATE_ROLE (see "
+        "test_odoo_instance_ops_lint_union_is_gated_by_gate_role below), not a reintroduction of "
+        "the unconditional union."
     )
     assert gated_by_file.get("skills/odoo-instance/SKILL.md", 0) <= 12, (
         "Lint-class references in skills/odoo-instance/SKILL.md grew beyond the measured baseline "
