@@ -499,7 +499,7 @@ SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<mo
   (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
    text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
    separate child worktree, so there is no WRITE-TO location distinct from where this is read.)
-INTENT: <one-liner from THIS module's own intents/<module>/<sha>.md, written by that module's P1
+INTENT: <one-liner from THIS module's own <module>/intents/<sha>.md, written by that module's P1
       extractor - § P1 write path>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
 BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for the source

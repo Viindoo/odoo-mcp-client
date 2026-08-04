@@ -696,11 +696,11 @@ directly via OSM `impact_analysis` per that snippet's Step 1.
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
 or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
 (read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
-`merge-log.md` + each touched module's own `intents/<module>/<sha>.md` (§ P1 write path), `odoo_version`
+`merge-log.md` + each touched module's own `<module>/intents/<sha>.md` (§ P1 write path), `odoo_version`
 = target series; `INSTANCE_HANDLE` from P9 if
 still live (reuse - never re-provision; else pass `none provisioned` and `odoo-acceptance` still
 scopes + plans its oracle, then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) =
-each ported commit's behavioral contract recorded in the touched module's own `intents/<module>/<sha>.md`
+each ported commit's behavioral contract recorded in the touched module's own `<module>/intents/<sha>.md`
 and any P3 design doc's §9
 - NEVER a pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own
 Phase 1 from that intent, the same oracle-independence guarantee the new-module lifecycle
@@ -827,7 +827,7 @@ that is opus-grade to ADAPT if that commit's target re-implementation is cross-m
 `design_doc` path for any commit P3 routed to `odoo-solution-design`. P0 reads it and skips
 `status=done` commits (and resumes a `status=designed` commit at the P4 plan gate with its
 recorded `design_doc`, so a crash between design-approval and re-entry resumes correctly). A
-crash mid-batch is recovered by re-reading the checkpoint + the on-disk `intents/<module>/`
+crash mid-batch is recovered by re-reading the checkpoint + the on-disk `<module>/intents/`
 per-module subdirectories, `plan.md`, and `merge-log.md` (file existence is the source of truth,
 the JSON is the fast index). Child
 worktrees left dangling by a crash are removed and recreated from integration. Record the executor's
@@ -914,14 +914,14 @@ contracts are unchanged - only the grounding source degrades.
 
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
-`produced` lists `plan.md`, each touched module's own `intents/<module>/<sha>.md` (§ P1 write path -
+`produced` lists `plan.md`, each touched module's own `<module>/intents/<sha>.md` (§ P1 write path -
 never the bare `intents/<sha>.md`), `merge-log.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
 URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 gate, or P12 final
 PR/merge gate). When P3 routes a commit out to design,
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
-modules: [<names>], intent_records: [<one intents/<module>/<sha>.md path per module in `modules`
+modules: [<names>], intent_records: [<one <module>/intents/<sha>.md path per module in `modules`
 above>], classification: <bucket-(c) summary> }` and the
 run YIELDS - the run-harness advances the hop and re-enters forward-port with the returned
 `design_doc`. Additive output for the run-harness - it does not change anything produced above.
