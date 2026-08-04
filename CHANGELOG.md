@@ -6,6 +6,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.20.1] - 2026-08-04
+
+### Fixed
+
+Every item below was found by exercising the plugin as an INSTALLED plugin, so `${CLAUDE_PLUGIN_ROOT}`
+and the Skill tool resolved to the shipped contract rather than a working copy. All of it was present
+while the full test suite, the schema validators and the generator idempotency check were green -
+gate colour is not evidence that a runtime agent is driven to the right behaviour.
+
+The dominant defect class was a mechanism that is fully described and never reached. It appeared
+three times independently, and each instance is fixed at its wiring, not at its description:
+
+- `odoo-ai-agents` - `scripts/lib/allocator.py reap-orphans` existed, was tested, and was called by
+  nothing: the session-end hook ran only `gc`, which by its own documentation cannot see the class
+  reap-orphans was written for. Its discovery half now runs from that hook and records candidates;
+  the destructive half stays a deliberate human action, because an unattended crash-time sweep across
+  a whole cluster is a worse risk than the leak it closes.
+- `odoo-ai-agents` - the evidence-lifecycle contract named an owning file for each of its seventeen
+  cleanup sweeps; two of those files contained no sweep. Both are now written at their owner sites,
+  the table agrees with reality again, and a guard asserts that agreement so a row cannot claim
+  coverage that does not exist.
+- `odoo-ai-agents` - lint-class gates were removed from the coder agents but continued to gate every
+  wave through instance provisioning, which unioned them into any test run. Provisioning now takes an
+  explicit gate role, refuses rather than guesses when it is absent, and resolves to per-module
+  verification at the front door, so an unstated caller can never drift back toward installing lint.
+
+Also fixed:
+
+- `odoo-ai-agents` - forward-port wrote one intent record per commit under a run-level slug, so a
+  commit touching two modules had both modules' workers writing the same path with no owner and no
+  merge rule. Records are now namespaced per module. The extractor's own slug fallback, which
+  silently reconstructed the unsafe shape whenever a caller omitted the field, is gone: the field is
+  required and its absence is refused.
+- `odoo-ai-agents` - a failed forward-port module pass had no legal retry outside the resume-capable
+  handoff tier, because a fresh dispatch was banned outright. The other tiers now have a named,
+  non-concurrent superseding path.
+- `odoo-ai-agents` - a dispatch brief could satisfy its own self-check while dropping the survey
+  findings a human had handed over, because the survey pointer was named nowhere in the brief
+  skeleton. It is registered now and verified by the coder-family self-checks. The caller identity
+  field was classified as always-required in one file and as conditional in another; the
+  contradiction is resolved, and five concrete dispatch templates that omitted it carry it.
+- `odoo-ai-agents` - the four read-only analyst agents that returned in an ad hoc format now carry the
+  same always-on completion report and the same ban on an unqualified "waiting" as every other agent.
+- `odoo-ai-agents` - the recon tier rule and the scouting-persistence contract reached only a fraction
+  of the sites they govern: one guard matched four of eighteen dispatch sites, another was a
+  hardcoded file allowlist, and recon performed by invoking a leaf skill directly had no tier lever at
+  all. The allowlist is replaced by a whole-tree structural scan, the two detectors share one verb
+  alternation so phrasing cannot exempt a site from registration, and the leaf-skill path has a stated
+  rule. A debug scout whose findings were persisted nowhere now writes them where a resumed session
+  can read them back.
+- `odoo-ai-agents` - `allocator.py` leaked a lease when a subcommand was invoked with the single-dash
+  help flag; help is now intercepted before argument parsing for every subcommand and every spelling
+  the parser accepts.
+- `odoo-ai-agents` - five cross-references described the documentation language resolver by a tier
+  count it no longer has, pointing readers at a tier that was removed precisely because it hardcoded a
+  default locale. A guard now checks that a cited count agrees with its target heading. Self-referential
+  tracker citations are out of the shipped tree, and the one hook whose file mode differed from its
+  twelve siblings matches them.
+
 ## [4.20.0] - 2026-08-03
 
 ### Added
