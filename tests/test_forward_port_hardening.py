@@ -2691,13 +2691,15 @@ class TestSharedCommitIntentWritePathPerModule:
 # no-safe-default field in forward-port mode (mirrors this agent's own
 # established Brief self-check pattern for OBJECTIVE/ACCEPTANCE/INPUTS) - the
 # agent STOPs and returns NEEDS_CONTEXT(SLUG) instead of deriving anything.
-# Rebase mode's OWN, separate slug-derivation rule (§ Rebase mode) is untouched
-# - this fix is forward-port-mode-scoped only.
-#
-# RED-before-green evidence (measured via `git show HEAD:<path>`):
-#   - 'if absent, derive it' (the bypass phrase): 1 occurrence -> 0 post-fix.
-#   - 'SLUG is REQUIRED in forward-port mode': 0 occurrences -> 1 post-fix.
-#   - 'NEEDS_CONTEXT(SLUG)': 0 occurrences -> 1 post-fix.
+# Rebase mode's OWN, separate slug-derivation rule (§ Rebase mode) was left
+# untouched by THIS fix - it carried an identical bypass ("Slug fallback:
+# ... derive it as <feature-ref>-onto-<new-base>") reachable once
+# odoo-git-rebase's own module-batched dispatch (SKILL.md P2, "Above ~30
+# non-(a) commits, batch intent extraction by MODULE") shares a commit
+# between two modules' bundles. That gap was closed in a later round: § Rebase
+# mode now also requires a concrete SLUG with no derived fallback, mirroring
+# this same pattern - see `tests/test_git_rebase_intent_race.py` for that
+# fix's own red-before-green evidence and guard suite.
 # ---------------------------------------------------------------------------
 
 class TestForwardPortSlugMandatoryNoFallback:
@@ -2743,18 +2745,29 @@ class TestForwardPortSlugMandatoryNoFallback:
             "forward-port-mode-required field, not leave the gap undiscoverable until Step 3"
         )
 
-    def test_rebase_mode_derivation_rule_is_explicitly_untouched(self):
-        """The fix must not reach into rebase mode's OWN, separate slug-derivation rule -
-        that is a different mode with a different (out-of-scope-for-this-round) hazard
-        profile, reported but not fixed this round (see report § Rebase-mode finding)."""
-        assert "Slug fallback:" in self.text and "<feature-ref>-onto-<new-base>" in self.text, (
-            "agents/odoo-intent-extractor.md's rebase-mode slug-derivation rule (§ Rebase "
-            "mode) must remain present and unmodified - this fix is forward-port-mode-scoped"
+    def test_rebase_mode_no_longer_derives_a_fallback_slug(self):
+        """Rebase mode's OWN slug-derivation rule carried an identical B2-shaped bypass -
+        reachable once odoo-git-rebase's module-batched dispatch (SKILL.md P2, above the
+        ~30-non-(a)-commit threshold) shares a commit between two modules' bundles. That gap
+        was closed in a later round (see tests/test_git_rebase_intent_race.py for the full
+        red-before-green guard suite); this test only confirms the old bypass phrase is gone
+        and the two modes' requirements are still cross-referenced correctly, not conflated."""
+        assert "Slug fallback:" not in self.text, (
+            "agents/odoo-intent-extractor.md must not carry the old 'Slug fallback:' "
+            "derivation heading in rebase mode - it was replaced with a required, "
+            "no-fallback SLUG rule mirroring forward-port mode's own fix"
+        )
+        assert "SLUG` is REQUIRED in rebase mode" in self.text, (
+            "agents/odoo-intent-extractor.md § Rebase mode must now state SLUG is REQUIRED "
+            "with no fallback, mirroring forward-port mode's own established rule"
         )
         # Whitespace-normalized: this clause wraps across a Markdown line.
-        assert "does NOT apply to the rebase-mode override" in _ws_normalize(self.text), (
-            "the forward-port SLUG-required rule must explicitly disclaim the rebase-mode "
-            "override so a reader does not conflate the two slug-handling paths"
+        assert "rebase mode's own identical no-fallback SLUG requirement is" in _ws_normalize(
+            self.text
+        ), (
+            "the forward-port SLUG-required rule must still cross-reference rebase mode's "
+            "(now also required, no-fallback) SLUG rule so a reader does not conflate the "
+            "two modes' Brief self-check triggers"
         )
 
 

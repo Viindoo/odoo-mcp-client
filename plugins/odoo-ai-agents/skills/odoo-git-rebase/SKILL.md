@@ -88,11 +88,18 @@ state file below is this skill's concrete realization of it.
 ```json
 {
   "phase": "P8",
-  "<sha>": "extracted|designed|resolved|reviewed|done",
+  "<sha>": "extracted-pending-consolidation|extracted|designed|resolved|reviewed|done",
   "rebase_in_progress": true,
   "integration_worktree": "<absolute path to rb-integration worktree>"
 }
 ```
+
+`extracted-pending-consolidation` is a module-batched-dispatch-only intermediate: it means the
+`odoo-intent-extractor` instance for that commit's module returned, but the commit's CANONICAL
+`intents/<sha>.md` copy has not yet been confirmed - see P2 consolidation
+(`references/rb-phase-detail.md` § P2 consolidation). The default per-commit dispatch never
+passes through this state - it writes the canonical file directly and is marked `extracted` in
+one step.
 
 **P0 reads checkpoint.json first (before intake dispatch):**
 - If `rebase_in_progress: true` and the integration worktree still has a live rebase
@@ -102,10 +109,19 @@ state file below is this skill's concrete realization of it.
   a `status=designed` commit at P6 design_doc ingestion.
 - If `rebase_in_progress: false` (clean checkpoint): skip `status=done` phases and
   resume from the last incomplete phase.
+- A `status=extracted-pending-consolidation` commit RESUMES by re-running ONLY the P2
+  consolidation copy for that sha (idempotent - safe even if a prior partial copy already
+  landed; never re-dispatch the extractor, whose module-scoped source file is untouched), then
+  promotes it to `status=extracted`. Never treat `extracted-pending-consolidation` as
+  equivalent to `extracted` - P3's completeness gate refuses to proceed past it (see P3 below).
 - A dangling integration worktree from a crash is detected from `integration_worktree`
   path and resumed, not blindly recreated.
 
-P2 writes `<sha>: extracted` after each intent file is written. P5 writes `<sha>: designed`.
+P2 writes `<sha>: extracted-pending-consolidation` after each intent file is written in
+module-batched mode (the default per-commit dispatch writes `<sha>: extracted` directly - its
+record already IS the canonical file, so there is no intermediate state). The P2 consolidation
+fan-in promotes a module-batched sha to `<sha>: extracted` only after git-ops confirms the
+canonical record exists and is non-empty. P5 writes `<sha>: designed`.
 P8 writes `<sha>: resolved` after the --continue step succeeds for that commit.
 P8b writes `phase: P8b_done` after the collection gate passes.
 P9b writes `<sha>: reviewed` after the code-review loop returns no CRITICAL/HIGH for that commit.
@@ -193,14 +209,32 @@ Pre-step: invoke git-ops to write the full commit output (message + diff) for
 each non-(a) commit to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; collect the resulting
 `{ <sha>: <abs-path> }` map. Then dispatch one `odoo-intent-extractor` per non-(a) commit with
 rebase MODE brief: ground at `<new-base>` HEAD, do NOT call cross-version `api_version_diff`.
-Pass `commit_dump_path: <abs-path>` in every extractor brief. Model per EXTRACT tier
-(`references/rb-triage-table.md` Table 1). Each writes `intents/<sha>.md`:
-{intent_one_liner, symbols, outcome_hint, grounding}. **Above ~30 non-(a) commits, batch
-intent extraction by MODULE (one extractor per module covering its commits) rather than
-per-commit, to bound dispatch waves and the P3 context load.** Brief template:
-`references/rb-phase-detail.md` P2.
+Pass `commit_dump_path: <abs-path>` and `SLUG: <slug>` (the bare run slug - exactly one
+dispatch ever owns a given commit below the batching threshold, so no write collision is
+possible) in every extractor brief. Model per EXTRACT tier (`references/rb-triage-table.md`
+Table 1). Each writes `intents/<sha>.md`: {intent_one_liner, symbols, outcome_hint, grounding}.
+**Above ~30 non-(a) commits, batch intent extraction by MODULE (one extractor per module
+covering its commits) rather than per-commit, to bound dispatch waves and the P3 context
+load - when batching, a commit touching two modules is dispatched inside BOTH modules'
+bundles, so set that dispatch's `SLUG` to `<slug>/<module>` (never the bare run `<slug>`) so
+the two concurrent instances write to different paths instead of racing on the same
+`intents/<sha>.md`; a consolidation fan-in step (before P3, module-batched mode only) then
+copies each commit's canonical record back to the bare-slug path so every downstream phase
+(P3/P5/P8/P9) keeps reading the SAME unqualified `intents/<sha>.md` it always has. Consolidation
+is SEPARATELY checkpointed (`extracted-pending-consolidation` -> `extracted`, see Checkpoint /
+resume above) and idempotent - a crash between extraction and consolidation resumes by
+re-copying, never by silently treating "the extractor returned" as "the canonical record
+exists".** Brief template: `references/rb-phase-detail.md` P2.
 
-**P3 - Cluster behavior comparison [odoo-diff-comparator opus - no gate].**
+**P3 - Cluster behavior comparison [odoo-diff-comparator opus - completeness gate MUST pass
+before dispatch; no human-confirm gate].**
+Before dispatch: confirm every non-(a) commit has a canonical, non-empty `intents/<sha>.md`
+record (delegated read-only check, never inline). A missing or empty record returns `BLOCKED`
+and P3 does NOT proceed - the SAME status `odoo-intent-extractor`/`odoo-diff-comparator` already
+return for their own absent-required-input refusals, never a new status; the caller's response
+is the same as any other `BLOCKED`: re-run the named remediation (the P2 consolidation copy for
+the listed shas - idempotent, safe to redo), then retry. Full gate:
+`references/rb-phase-detail.md` P3.
 One `odoo-diff-comparator` reads the three-dot diff (range `<new-base>...<feature-ref>`,
 pre-computed by a git-ops pre-step per `references/rb-phase-detail.md` P3) + all
 `intents/*.md`. Compare nghiệp vụ / ý đồ / expected outcomes / acceptance criteria of the

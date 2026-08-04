@@ -204,11 +204,148 @@ OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
 ```
 
-Mark each `status=extracted` in a lightweight `checkpoint.json` for crash-resume.
+The dispatch above is the DEFAULT (per-commit) shape - use it while the range stays at or
+below ~30 non-(a) commits. `SLUG: <slug>` here is the bare run slug: exactly one dispatch ever
+owns a given commit in this shape, so there is no path collision to guard against.
+
+### P2 dispatch (module-batched, above ~30 non-(a) commits)
+
+**BAN: at most one `odoo-intent-extractor` instance per module for this run, once the
+threshold trips.** Above the threshold, walk a `module -> [ordered sha list]` map built from
+`recon.md`'s per-commit `modules[]` rows; for each module, launch exactly ONE
+`odoo-intent-extractor` carrying that module's full ordered commit list - never a fresh
+dispatch per individual commit once this threshold trips. Model = the module bundle's triaged
+EXTRACT tier (worst-case commit in the bundle, per Table 1).
+
+**`SLUG` is PER-MODULE here, never the bare run slug (closes the shared-commit write race).**
+A commit that touches two modules is intentionally dispatched to BOTH modules' single
+extractor instances - two independent, concurrently-running instances legitimately process the
+identical SHA. Without a namespace, both would target the SAME `intents/<sha>.md` path with no
+owner or merge rule - a write race. Set this brief's `SLUG` field to `<slug>/<module>` (the run
+`<slug>` plus this module's own name) for EVERY module's dispatch - the extractor's own
+write-path template (`agents/odoo-intent-extractor.md` § Rebase mode,
+`<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md`, substituted verbatim from this field) then
+resolves per module with no change needed to that agent: module A's instance writes
+`<ISOLATE_DIR>/git-rebase/<run-slug>/A/intents/<sha>.md`; module B's writes
+`.../B/intents/<sha>.md` for the SAME sha - two distinct files, never a last-write-wins
+collision.
+
+Brief (run-specific inputs only):
+
+```
+DISPATCH MODEL: <extract-tier>            # the MODULE bundle's tier, per Table 1
+GROUNDING MODE: rebase-base-head
+NEW BASE REF: <new-base>
+MODULE: <module-name>
+commit_dump_paths:
+  <sha1>: <ISOLATE_DIR>/git-rebase/<slug>/commits/<sha1>.dump
+  <sha2>: <ISOLATE_DIR>/git-rebase/<slug>/commits/<sha2>.dump
+  # ... every non-(a) sha touching this module, oldest first (run-level <slug> - shared,
+  # read-only, single writer - unchanged regardless of dispatch shape)
+SERIES: <e.g. 17.0>
+SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
+TASK: For EACH commit in commit_dump_paths (in order), extract the business intent and
+      behavioral contract. Ground the touched symbols at <NEW BASE REF> HEAD (same-version
+      grounding, NOT a cross-version diff). Do NOT call api_version_diff (same series; no
+      version jump). Write ONE <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md per commit
+      (the module-scoped <slug> above, so this module's write path never collides with
+      another module's for a shared sha). Note any overlap or revert between commits in this
+      SAME module bundle. Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome
+      bucket (caller's job).
+OUTPUT FIELDS: sha, intent_file, intent_one_liner, symbols[], outcome_hint, grounding
+USER LANGUAGE: <lang | omit when English>
+```
+
+Aggregate every returned summary (`sha` / `intent_file` / `intent_one_liner` / `symbols` /
+`outcome_hint` / `grounding` - one per commit, across every module's single dispatch;
+`intent_file` is that module's own module-scoped path per the `SLUG` substitution above) - this
+is the input to the P2 consolidation fan-in below.
+
+### P2 consolidation (module-batched mode only, before P3)
+
+Runs ONLY when the module-batched dispatch above was used; the default per-commit dispatch
+already writes directly to the canonical bare-slug path and is marked `<sha>: extracted` in one
+step (see "Default per-commit checkpoint marking" below) - it needs no consolidation and no
+intermediate state.
+
+**Checkpoint the two facts SEPARATELY - "the extractor returned" is not "the canonical record
+exists".** The instant a module-batched extractor for a commit's module returns, mark that
+commit `<sha>: extracted-pending-consolidation` in `checkpoint.json` - NEVER `<sha>: extracted`
+yet. Conflating the two would let a crash between extraction and consolidation (or a resumed run
+that reads a premature `extracted` and assumes the canonical file exists) leave P3/P5/P8/P9
+reading a path that was never written - a green-looking run built on nothing. Only after the
+copy below is confirmed does a commit earn `<sha>: extracted`.
+
+For each non-(a) commit `<sha>` still recorded at `extracted-pending-consolidation`, using the
+`modules[]` list `recon.md` already recorded for that commit:
+
+- `len(modules[sha]) == 1`: the sole module's returned `intent_file` IS the commit's only
+  record - invoke git-ops to copy it to the canonical
+  `<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` (a plain file copy inside the gitignored
+  ISOLATE scratch dir - not a git mutation).
+- `len(modules[sha]) > 1` (the shared-commit case): invoke git-ops to copy the FIRST module's
+  (by `modules[sha]` order as recorded at P1 - deterministic, never last-write-wins)
+  `intent_file` to the canonical `<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md`; record
+  `owner_module: <first-module>` for that sha in `checkpoint.json` so a resumed run does not
+  re-derive a possibly-different owner. The non-owning module's own copy is left in place
+  under its per-module namespace (harmless scratch state, swept by the existing orphan-sweep
+  rule) - it is simply not the one downstream phases read.
+
+**Idempotent by construction, so resume is a blind re-attempt, not a diff.** The copy is a
+plain file overwrite: re-running it against a sha whose canonical file is already correct
+reproduces the same bytes - a no-op, never an error. A resumed run therefore does NOT need to
+determine which copies already landed before the crash; it simply re-attempts the copy for
+EVERY sha still at `extracted-pending-consolidation` (never re-dispatches the extractor itself -
+its module-scoped source file at `<ISOLATE_DIR>/git-rebase/<slug>/<module>/intents/<sha>.md` is
+untouched by a crash here). After git-ops confirms the destination file exists and is
+non-empty, promote that sha to `<sha>: extracted` in `checkpoint.json`. A sha that never gets
+promoted past `extracted-pending-consolidation` (a repeatedly-failing copy, a missing source) is
+exactly what the P3 completeness gate below exists to catch - it must never reach P3 silently.
+
+After consolidation, every downstream phase (P3/P5/P8/P9) reads the SAME unqualified
+`<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` it always has - no consumer needs to know
+whether P2 ran per-commit or module-batched this run.
+
+**Default per-commit checkpoint marking.** For the default (non-batched) dispatch shape, mark
+each commit `<sha>: extracted` directly, in one step, immediately after its intent file is
+written - it already IS the canonical record, so `extracted-pending-consolidation` never
+applies to it.
 
 ---
 
 ## P3 - Cluster behavior comparison
+
+### P3 gate: canonical intent record completeness (MUST pass before any P3 dispatch)
+
+**Fail CLOSED, not silently through.** P2 consolidation (above) is a NEW moving part that can
+be skipped without anyone noticing: a crash between extraction and consolidation, a resumed run
+that misreads its own state, or simply a future edit to this pipeline that forgets consolidation
+is conditional. If that happens, module-batched mode has written ONLY the per-module-namespaced
+files - nothing lands at the canonical `intents/<sha>.md` path P3 reads. An absent or empty
+record must never be read as "nothing to compare"; that produces a green-looking `comparison.md`
+built on no evidence, the exact shape of the defect this whole fix closes.
+
+Before the pre-step below (and before dispatching `odoo-diff-comparator`): for every non-(a)
+commit in `recon.md`, delegate a read-only existence + non-empty check on
+`<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` (invoke git-ops or Explore - never read
+inline). If ANY non-(a) commit's canonical record is missing or empty, STOP and return:
+
+```
+status: BLOCKED - <N> non-(a) commit(s) missing a canonical intents/<sha>.md record: [<sha, ...>].
+  Re-run the P2 consolidation fan-in for these commits (idempotent - safe to redo even if a
+  prior partial copy already landed) before retrying P3.
+```
+
+This reuses the SAME `BLOCKED` vocabulary `agents/odoo-intent-extractor.md` (Step 1: "neither
+commit_dump_path nor commit_dump_paths provided") and `agents/odoo-diff-comparator.md` (Step 1:
+"diff_path not provided") already return for their own absent-required-input guards - never a
+new status, never a silent pass-through. The orchestrator's response to this `BLOCKED` is
+identical to any other `BLOCKED` return in this pipeline: do not proceed, re-run the named
+remediation (here: the P2 consolidation copy for the listed shas), confirm the gate passes, then
+retry P3 from the top.
+
+Only once every non-(a) commit's canonical record is confirmed present and non-empty does P3
+proceed to the pre-step below.
 
 ### P3 pre-step: git-ops three-dot diff
 
