@@ -6,6 +6,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.20.2] - 2026-08-04
+
+### Fixed
+
+Found by walking a three-level dispatch chain - a front-door skill, the per-module coordinator it
+launches, and the three workers that coordinator launches - as the executing agents would read it,
+with the plugin installed so every pointer resolved to the shipped contract. The previous release's
+own gates were green throughout.
+
+- `odoo-ai-agents` - a worker returning `NEEDS_CONTEXT` could hang its whole coordinator, and through
+  it every caller above. The coordinator's wait released only on a two-state task-board vocabulary
+  (`completed`/`blocked`) that its own cited contract never defined, and that no terminal status
+  outside `DONE`/`BLOCKED` could ever reach - so a legally-emitted `NEEDS_CONTEXT` left a barrier that
+  never lifted. The release condition is now defined once, against the four Continuation Contract
+  terminal statuses, and never against a tool-native label: a `BLOCKED` or `NEEDS_CONTEXT` child is as
+  terminal for barrier purposes as a `DONE` one, even where the task tool has no label for the
+  distinction. Tool availability varies by context and by grant, so a contract must not depend on it.
+- `odoo-ai-agents` - a coordinator that died mid-flight was not merely undetected; it was actively
+  reported as healthy. The coordination ledger refreshed a liveness timestamp for every module the run
+  believed it was building, and its lifecycle had no transition for a dispatch that returned no status
+  at all, so a dead build kept advertising itself to other runs. The accounting now recognises that
+  case rather than inventing a polling loop.
+- `odoo-ai-agents` - an instance whose owner process was alive and healthy was destroyed once its
+  lease TTL lapsed: process group killed, ephemeral database dropped, work in progress lost. Owner
+  liveness could only condemn a lease, never protect it. Liveness is now authoritative - a same-host
+  owner pid whose recorded process-start fingerprint still matches protects its lease regardless of
+  TTL, and needs no heartbeat to survive. A dead pid, or one positively recycled onto another process,
+  still condemns immediately. TTL now governs only the residual case where liveness cannot be verified
+  at all, and its default is reduced accordingly. The same defect existed a second time, in the shell
+  mirror of that check inside the teardown hook, and is fixed there too. The bias is stated in the
+  code: an un-reaped orphan costs memory, a wrongly-reaped lease costs the owner's work.
+- `odoo-ai-agents` - the deep-survey pointer reached the per-module coordinator and stopped there. The
+  coordinator's own self-check demanded the field, but the enumeration it follows when briefing its
+  workers named six fields and omitted it, so the grounding a human handed over never reached the
+  agents that needed it - including the one that authors the failing test, which could not name the
+  field at all.
+- `odoo-ai-agents` - six sites in the forward-port pipeline described the per-module intent record
+  with its path segments in the wrong order, contradicting the write path shipped in the same release.
+  One of them was the crash-recovery instruction, so a resumed batch searched a directory shape that
+  never existed and concluded there was no prior work. A guard now fails when one logical path is
+  described two different ways anywhere in the tree; it deliberately does not decide which order is
+  correct, because before this fix the wrong order was the majority.
+- `odoo-ai-agents` - three guards were closed-class enumerations that passed their own tests while
+  missing every phrasing outside the list. Each now keys on the property it is actually testing rather
+  than on incidental vocabulary, and each was verified against constructed bypasses.
+- `odoo-ai-agents` - a rule changed at its definition site left restatements behind in four further
+  places, which then disagreed with it. All four are now pointers, and two guards fail when a
+  restatement diverges from the source it cites.
+
 ## [4.20.1] - 2026-08-04
 
 ### Fixed
