@@ -56,12 +56,21 @@ Rules:
   `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 1, which reuses this exact 3-part
   shape rather than defining its own - this file owns the shape, Ask 1 only owns the transport.
 - `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
-- **"Waiting" is never a bare statement.** `status` has no `waiting` value by design - a genuine
-  pause IS `BLOCKED` or `NEEDS_CONTEXT`, with `blocked_reason` naming (a) what you are waiting on,
-  (b) who or what can unblock it, and (c) what the caller should do next. Ending a turn on an
-  unqualified "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, or with
-  no `continuation` block at all, is a protocol violation: it leaves the caller unable to tell
-  finished-without-reporting from still-working.
+- **"Waiting" is never a bare statement, and a technically-shaped `blocked_reason` is not
+  automatically a real one.** `status` has no `waiting` value by design - a genuine pause IS
+  `BLOCKED` or `NEEDS_CONTEXT`, with `blocked_reason` naming (a) what you are waiting on, (b) who
+  or what can unblock it, and (c) what the caller should do next - AND each of (a)-(c) MUST cite a
+  concrete, checkable referent from THIS turn's actual work (a specific file path, symbol/field/
+  method name, error message, or tool-call result you already produced), never a generic
+  paraphrase of the category ("missing information", "the coordinator", "more context", "additional
+  detail"). **Decidability check (apply it):** if you could swap in a different module, task, or
+  caller and the sentence would read equally true unchanged, it names nothing and fails this rule -
+  a `blocked_reason` that could be copy-pasted verbatim into any OTHER agent's report on any OTHER
+  module without becoming false is, by construction, ungrounded. Ending a turn on an unqualified
+  "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, a `blocked_reason` that
+  fails the copy-paste check, or with no `continuation` block at all, is a protocol violation: it
+  leaves the caller unable to tell finished-without-reporting from still-working, or unable to act
+  without a clarifying round-trip the ground-worthy version would have made unnecessary.
 - `risk_level`: L0 read-only/chat · L1 writes internal state (Tier-2 SHARE/ISOLATE `.odoo-ai/`-rooted
   files, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never a
   project-relative `./.odoo-ai/`) · L2 irreversible/outward (touches an instance, git push/merge,

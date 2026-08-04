@@ -38,3 +38,19 @@ Ephemeral, in-session progress UI only - it does not persist across sessions and
 substitute for writing `produced` / `contract` / worklog entries. Maintain the live list AND the
 durable state together; neither replaces the other. When no task-list tool is available, degrade
 silently: proceed without one, exactly as before this contract existed.
+
+## Terminal-state vocabulary - this file does NOT own it
+
+This file names only the generic UI states a live checklist item passes through (`in-progress` when
+started, `done` when finished) - it does NOT define, and has never defined, a status enum for a
+SPAWNER deciding when its launched children have all finished. That release vocabulary is a SEPARATE
+concept, owned once by `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1: a
+spawner's batch barrier clears when every launched child has returned one of the four Continuation
+Contract terminal statuses (`DONE`/`BLOCKED`/`NEEDS_NEXT`/`NEEDS_CONTEXT`,
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`) - never a tool-native label. Do not gate a
+barrier on this file naming `completed`/`blocked`/`pending`/`in_progress` as if it were that enum;
+it never has been. When you mark a task-list item `done` in the sense this file uses, that MUST mean
+"its owner reached ANY of the four terminal statuses", not merely "succeeded" - a `BLOCKED` or
+`NEEDS_CONTEXT` child is just as terminal for THIS checklist's purposes as a `DONE` one, even though
+your task-list tool may have no dedicated label for the distinction (see `spawner-completion-contract.md`
+R1 for how to track the distinction elsewhere when the tool cannot).
