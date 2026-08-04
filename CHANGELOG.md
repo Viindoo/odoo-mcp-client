@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.20.3] - 2026-08-04
+
+### Fixed
+
+- `odoo-ai-agents` - a lint gate could report a clean pass while none of its custom checkers had
+  loaded. The whole checker sweep runs inside a single test method, so when the plugins fail to load
+  that method still passes with nothing to assert: no failures, no errors, no skips, no warnings, and
+  the run resolved to the one verdict that lets a caller proceed with nothing to address. Among the
+  checkers silently absent is a SQL-injection check, so the gate was reporting safety it had never
+  established. A pre-PR lint run now requires positive evidence in its own log that every installed
+  lint-class module's checker set actually loaded; a shortfall, or a log that cannot confirm one, is
+  no longer a pass. The containment loop that reacts to a failing pre-PR gate was reacting to only
+  one of the non-passing verdicts, so the widened verdict would have slipped through the one gate
+  that matters in an unattended run - that is fixed too.
+- `odoo-ai-agents` - the git-rebase pipeline had the same shared-commit write race that was fixed in
+  forward-port: above its batching threshold it dispatches one extractor per module, and a commit
+  touching two modules had both extractors writing the identical intent record with no owner rule.
+  Records are now namespaced per module and reconciled by a deterministic owner - the first module in
+  the order recorded upstream, persisted so a resumed run cannot choose differently. The extractor's
+  own slug fallback, which silently reconstructed the unsafe shape whenever a caller omitted the
+  field, is gone: the field is required and its absence is refused. Because that reconciliation is a
+  step that can fail to happen, it carries its own resume state, and the first phase that reads those
+  records now refuses rather than proceeding when one is missing.
+- `odoo-ai-agents` - the setup step that grants the state-root helper its permissions embedded the
+  installed version's own directory in the rule, so every upgrade added a rule pair and removed
+  nothing. Rules now converge on the current version. The prune is anchored to this plugin's own
+  path, not merely to the script name, so a different plugin shipping an identically-named script
+  keeps its rule; and when the installed path carries no version segment at all, pruning is skipped
+  rather than guessed, because guessing there would widen the match to sibling plugins.
+
 ## [4.20.2] - 2026-08-04
 
 ### Fixed
