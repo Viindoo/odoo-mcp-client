@@ -137,7 +137,9 @@ When you finish, append a Continuation Contract block per
 `produced: [<abs path to doc-plan.yaml>]`, and `next` pointing back to the caller (the
 `module-packaging` workflow's `provision-capture` phase, or the `odoo-doc-illustration` skill's
 per-instance loop) with `inputs: {doc_plan: <path>}` - gated on the single whole-plan approval. Use
-`status: NEEDS_CONTEXT` / `BLOCKED` instead per the fallback rules when the plan cannot be resolved.
+`status: NEEDS_CONTEXT` / `BLOCKED` instead per the fallback rules when the plan cannot be resolved;
+"waiting" is never a bare statement (see the snippet's own rule) - a genuine pause is
+`BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
 You only EMIT this; you never dispatch the next step or provision an instance yourself.
 
 ## Agent Team mode

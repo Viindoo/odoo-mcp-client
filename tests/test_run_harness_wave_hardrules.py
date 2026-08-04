@@ -91,35 +91,69 @@ def test_human_confirm_merge_present():
 _SINGLE_RUN_PR_RE = re.compile(r"(?i)(exactly\s+one\s+pr\b|single[\s-]run(?:-level)?\s+pr\b)")
 _PER_WAVE_PR_INVERSION_RE = re.compile(r"(?i)one\s+pr\s+per\s+wave")
 
-# #199 hardening (R12 F1, PARTIAL): the four checks above test independent substring/regex
-# presence ANYWHERE in the body, never that the SAME sentence asserts RUN-level (not WAVE-level)
-# cardinality. A natural-sounding negation-of-negation rewrite defeats all four while asserting the
-# EXACT policy #199 exists to rule out - verified against this constructed, policy-inverting text
-# (executed against the actual compiled regexes, not a paraphrase):
+# #199 hardening (R12 F1, PARTIAL, then V3 R2 P6 - STILL PARTIAL). The four checks above test
+# independent substring/regex presence ANYWHERE in the body, never that the SAME sentence asserts
+# RUN-level (not WAVE-level) cardinality. A natural-sounding negation-of-negation rewrite defeats
+# all four while asserting the EXACT policy #199 exists to rule out - verified against this
+# constructed, policy-inverting text (executed against the actual compiled regexes, not a
+# paraphrase):
 #
 #   "Each coding wave now opens exactly one PR of its own before advancing. There is no per-wave
 #   PR restriction preventing this any longer - every wave independently opens exactly one PR,
 #   reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run advances to the next
 #   wave."
 #
-# This passes all four checks above: "no per-wave pr" occurs as a sub-phrase of an incidental
-# negation ("no per-wave PR restriction preventing this"); "exactly one pr" occurs verbatim; the
-# literal 4-gram "one pr per wave" never occurs contiguously; both required tokens are present.
 # What makes it an inversion is that a WAVE - not the run - is the grammatical actor that "opens"
 # the PR ("each/every wave ... opens ... one PR"), the opposite of every legitimate occurrence in
-# this file (where "the run"/"the terminal integrate land-tail" opens the ONE PR, and any "wave"
-# mention nearby is a temporal anchor like "after the final wave" or a negated compound like
-# "NO per-wave PR" - never the subject of "opens"). Anchor on that actor relationship directly:
-# reject a wave-referring phrase acting as the near subject of an "open(s)" verb bound to a PR
-# cardinality claim, in the SAME clause (bounded by '.'/';' so it cannot cross into an unrelated
-# sentence), unless it is itself a negation ("not ... per wave", "no per-wave ...").
-_WAVE_ACTOR = r"\b(?:each|every|any|per)[\s-]+(?:coding[\s-]+)?waves?\b"
+# this file. The R12 fix anchored on THAT actor relationship correctly, but keyed the wave-actor
+# itself to a closed 4-word quantifier set ("each|every|any|per"). A reviewer constructed and RAN
+# 4 more sentences against the compiled regex using ordinary wave-referring phrasings outside that
+# set - "this wave", "the current wave", bare plural "waves", "a wave" - and all 4 evaded it while
+# asserting the identical policy inversion. Widening the quantifier list a second time repeats the
+# same closed-class mistake with a longer list; the PROPERTY that actually matters is not WHICH
+# quantifier introduces "wave" - it is whether ANY wave-referring noun (quantified, articled, bare,
+# or plural - there is no closed set of ways to refer to "a wave" in English) is the near
+# grammatical subject of an "opens ... PR" clause. Anchor on the noun itself (`\bwaves?\b`, no
+# quantifier prefix required at all) and handle the one thing that actually needs enumerating -
+# negation, a genuinely small, closed, non-domain-specific class of English function words
+# ("no"/"not"/"never"/...) - via a bounded same-clause window check instead of a fixed-width
+# lookbehind, so "not one per wave" and "NO per-wave PR" (real, legitimate text in THIS file) are
+# excluded regardless of how many words sit between the negation and "wave".
+_WAVE_ACTOR = r"\bwaves?\b"
 _OPEN_VERB = r"\bopen(?:s|ing|ed)?\b"
 _PR_TOKEN = r"\bprs?\b"
-_WAVE_AS_PR_OPENER_RE = re.compile(
-    rf"(?i)(?<!not one )(?<!not )(?<!no ){_WAVE_ACTOR}[^.;]{{0,25}}"
+_WAVE_OPENER_CORE_RE = re.compile(
+    rf"(?i){_WAVE_ACTOR}[^.;]{{0,25}}"
     rf"(?:{_OPEN_VERB}[^.;]{{0,40}}{_PR_TOKEN}|{_PR_TOKEN}[^.;]{{0,40}}{_OPEN_VERB})"
 )
+# English clause-negation is a genuinely closed, small function-word class - unlike "ways to refer
+# to a wave", this is safe to enumerate.
+_NEGATION_RE = re.compile(r"(?i)\b(?:no|not|never|cannot|isn't|aren't|without)\b")
+_NEGATION_WINDOW = 20  # chars scanned immediately before the wave-actor match, same clause only
+
+
+def _wave_as_pr_opener_matches(text: str) -> list[re.Match]:
+    """Every 'wave opens PR' candidate (`_WAVE_OPENER_CORE_RE`), excluding one whose wave-actor is
+    itself under a same-clause negation within `_NEGATION_WINDOW` chars before it - a Python-level
+    bounded-window check rather than a fixed-width regex lookbehind, so an arbitrary number of
+    intervening words ("not ONE per wave", not just "not per-wave") is still caught. The window
+    never crosses a preceding '.'/';' clause boundary, so a negation in an EARLIER, unrelated
+    sentence can never suppress a real match."""
+    matches = []
+    for m in _WAVE_OPENER_CORE_RE.finditer(text):
+        start = m.start()
+        clause_start = max(text.rfind(".", 0, start), text.rfind(";", 0, start)) + 1
+        window_start = max(clause_start, start - _NEGATION_WINDOW)
+        if _NEGATION_RE.search(text[window_start:start]):
+            continue
+        matches.append(m)
+    return matches
+
+
+def _wave_as_pr_opener_search(text: str):
+    """`.search()`-shaped wrapper over `_wave_as_pr_opener_matches` - first match or `None`."""
+    matches = _wave_as_pr_opener_matches(text)
+    return matches[0] if matches else None
 
 
 def test_between_wave_auto_advances_and_never_merges():
@@ -145,11 +179,11 @@ def test_between_wave_auto_advances_and_never_merges():
         "integration never merges) - a bare \"merge\" mention anywhere in the doc is not proof of this; "
         "the specific 'l2-merge-gate' token is."
     )
-    assert not _WAVE_AS_PR_OPENER_RE.search(low), (
+    assert not _wave_as_pr_opener_search(low), (
         "run-harness text reads as a WAVE (not the run) being the grammatical actor that 'opens' a "
         "PR - the #199 policy inversion (a per-wave PR cadence dressed as a cardinality claim). The "
-        "single run-level PR is opened by the run / the terminal integrate land-tail, never by "
-        "'each wave' or 'every wave'."
+        "single run-level PR is opened by the run / the terminal integrate land-tail, never by any "
+        "wave-referring noun (quantified, articled, or bare)."
     )
 
 
@@ -175,13 +209,78 @@ def test_single_run_pr_claim_rejects_the_verified_wave_scoped_inversion():
     assert not _PER_WAVE_PR_INVERSION_RE.search(low_candidate)
     assert "odoo-pr-monitoring" in low_candidate and "l2-merge-gate" in low_candidate
     # ...but the new actor-relationship guard must catch it anyway.
-    assert _WAVE_AS_PR_OPENER_RE.search(low_candidate), (
+    assert _wave_as_pr_opener_search(low_candidate), (
         "the wave-as-PR-opener guard must catch this constructed policy-inverting sentence - if "
         "this fails, the guard regressed to the pre-fix blind spot verified in #199."
     )
 
     real_body_low = _skill_body().lower()
-    assert not _WAVE_AS_PR_OPENER_RE.search(real_body_low), (
+    assert not _wave_as_pr_opener_search(real_body_low), (
         "the wave-as-PR-opener guard fired against the REAL run-harness/SKILL.md text - a false "
         "positive that would block legitimate single-run-PR prose."
+    )
+
+
+def test_wave_actor_guard_catches_the_v3_quantifier_evasions():
+    """V3 R2 P6 hardening. The R12 fix above anchored `_WAVE_ACTOR` on a closed 4-word quantifier
+    set ("each|every|any|per"). A reviewer constructed and RAN 4 sentences against the compiled
+    production regex using ordinary wave-referring phrasings outside that set - "this wave", "the
+    current wave", bare plural "waves", "a wave" - each asserting the identical wave-opens-PR
+    policy inversion; all 4 evaded the guard. `_wave_as_pr_opener_matches` no longer keys on a
+    quantifier at all (see the axis-error note above `_WAVE_ACTOR`), so all 4 must now be caught.
+
+    Fails if: the guard regresses to requiring an enumerated quantifier before "wave" again.
+    """
+    verified_evasions = [
+        "This wave now opens exactly one PR of its own before advancing. There is no per-wave PR "
+        "restriction preventing this any longer - this wave independently opens exactly one PR, "
+        "reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run advances to the "
+        "next wave.",
+        "The current wave now opens exactly one PR of its own before advancing. There is no "
+        "per-wave PR restriction preventing this any longer - the current wave independently opens "
+        "exactly one PR, reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run "
+        "advances to the next wave.",
+        "Waves now open exactly one PR of their own before advancing. There is no per-wave PR "
+        "restriction preventing this any longer - waves independently open exactly one PR, "
+        "reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run advances to the "
+        "next wave.",
+        "A wave now opens exactly one PR of its own before advancing. There is no per-wave PR "
+        "restriction preventing this any longer - a wave independently opens exactly one PR, "
+        "reviewed and gated by odoo-pr-monitoring's l2-merge-gate before the run advances to the "
+        "next wave.",
+    ]
+    for sentence in verified_evasions:
+        low = sentence.lower()
+        # each candidate still satisfies every OTHER assertion, same trap shape as the meta-test above.
+        assert "no per-wave pr" in low
+        assert _SINGLE_RUN_PR_RE.search(low)
+        assert not _PER_WAVE_PR_INVERSION_RE.search(low)
+        assert "odoo-pr-monitoring" in low and "l2-merge-gate" in low
+        assert _wave_as_pr_opener_search(low), (
+            f"the wave-as-PR-opener guard must catch the verified V3 evasion: {sentence!r}"
+        )
+
+
+def test_wave_negation_guard_survives_variable_word_gaps():
+    """False-positive regression guard. `_wave_as_pr_opener_matches` excludes a wave-actor under a
+    same-clause negation, via a bounded WINDOW check rather than a fixed-width lookbehind, so an
+    arbitrary number of words between the negation and 'wave' is still excluded correctly - not
+    just the exact 'no per-wave'/'not per-wave' adjacency. Measured real text this must never flag:
+    'one PR, not one per wave (git-ops open-PR -> odoo-pr-monitoring merge)' - here 'wave' precedes
+    'open-pr' within the proximity window, but 'not one per ' (3 words) sits between the negation
+    and 'wave', wider than a simple '(?<!not )' lookbehind would tolerate.
+
+    This is not a pin of the guard's own blind spot - it pins the opposite: this is legitimate,
+    already-correct prose (the negation of a per-wave PR policy), and must stay excluded.
+
+    Fails if: a future edit narrows the negation check back to fixed-width adjacency and this real
+    sentence starts firing again.
+    """
+    real_negated_text = (
+        "this is the ONE land mechanism for the whole run - one pr, not one per wave "
+        "(git-ops open-pr -> odoo-pr-monitoring merge); no local merge into the principal checkout"
+    )
+    assert not _wave_as_pr_opener_search(real_negated_text), (
+        "the wave-as-PR-opener guard must not fire on 'not one per wave (... open-pr ...)' - a "
+        "negated, legitimate mention, not a policy-inverting claim."
     )
