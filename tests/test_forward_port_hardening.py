@@ -208,27 +208,67 @@ class TestErrorCountNotAPassRule:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 4 - P5 isolation flags: fp-phase-detail.md must contain both
-# --skip-auto-install and --http-port flags in the P5 verify section.
+# Invariant 4 - verify isolates auto_install modules and NEVER via a raw CLI
+# flag: fp-phase-detail.md must set the delegated `skip_auto_install: true`
+# field on the P9 odoo-instance dispatch and must NOT contain a raw
+# --skip-auto-install / --http-port CLI flag anywhere.
+#
+# Superseded assertion (fixed here, not restated): the two tests this class
+# replaced (`test_skip_auto_install_present`, `test_http_port_present`)
+# asserted the LITERAL '--skip-auto-install' / '--http-port' CLI-flag strings
+# were present ANYWHERE in the file. Those strings' only surviving source was
+# the raw `odoo-bin -d $ALLOC_DB_NAME --test-enable ... --skip-auto-install
+# --http-port=$ALLOC_HTTP_PORT` recipe at P7's collection-gate fallback - the
+# exact P8 (PARTIAL, issue #197 sibling) defect this round fixes: a raw
+# odoo-bin/allocator recipe bypassing the DELEGATE mandate this SAME file
+# enforces at P9 ("DELEGATE - never a raw `allocator.py`/`odoo-bin` recipe").
+# Removing that raw block (the correct fix) legitimately makes both old
+# assertions RED - requiring the raw CLI flags to survive would require
+# keeping the defect. The underlying business rule (auto_install modules
+# isolated; port assignment never hand-built by this orchestrator) is
+# untouched and re-asserted below against its delegate-consistent form.
 # ---------------------------------------------------------------------------
 
-class TestP5IsolationFlags:
-    """fp-phase-detail.md P5 section must instruct use of --skip-auto-install
-    and --http-port to isolate auto_install modules and avoid port collisions."""
+class TestVerifyIsolatesAutoInstallViaDelegate:
+    """P9's `odoo-instance` dispatch brief must isolate auto_install modules via the
+    delegated `skip_auto_install: true` field: fp-phase-detail.md must never contain a raw
+    `--skip-auto-install` / `--http-port` CLI flag - port assignment and auto-install isolation
+    are the delegated `odoo-instance`/allocator's own job, never a raw recipe this orchestrator
+    hand-builds (the same DELEGATE mandate P9 already states, now unbroken by P7's fallback)."""
 
     def setup_method(self):
         self.text = PHASE_DETAIL.read_text(encoding="utf-8")
 
-    def test_skip_auto_install_present(self):
-        """P5 must include --skip-auto-install flag."""
-        assert "--skip-auto-install" in self.text, (
-            "fp-phase-detail.md missing --skip-auto-install in P5 verify section"
+    def test_skip_auto_install_field_present_on_p9_dispatch(self):
+        """P9's odoo-instance dispatch brief must set skip_auto_install: true."""
+        assert "skip_auto_install: true" in self.text, (
+            "fp-phase-detail.md P9 dispatch brief missing 'skip_auto_install: true' - "
+            "auto_install modules must be isolated via the delegated odoo-instance field, "
+            "never a raw --skip-auto-install CLI flag"
         )
 
-    def test_http_port_present(self):
-        """P5 must include --http-port flag for port isolation."""
-        assert "--http-port" in self.text, (
-            "fp-phase-detail.md missing --http-port in P5 verify section"
+    def test_no_raw_skip_auto_install_cli_flag_anywhere(self):
+        """No raw '--skip-auto-install' CLI flag may survive anywhere in the file.
+
+        RED-before-green (git show HEAD): 1 occurrence, in the P7 collection-gate fallback's
+        raw odoo-bin block (now removed and replaced with a DELEGATE-consistent instruction).
+        """
+        assert "--skip-auto-install" not in self.text, (
+            "fp-phase-detail.md must not contain a raw '--skip-auto-install' CLI flag anywhere - "
+            "use the delegated odoo-instance dispatch field 'skip_auto_install: true' instead "
+            "(this orchestrator never hand-builds an odoo-bin recipe)"
+        )
+
+    def test_no_raw_http_port_cli_flag_anywhere(self):
+        """No raw '--http-port' CLI flag may survive anywhere in the file.
+
+        RED-before-green (git show HEAD): 1 occurrence, in the same P7 raw odoo-bin block.
+        Port assignment is the delegated odoo-instance/allocator's own job - this orchestrator
+        never issues a raw port flag.
+        """
+        assert "--http-port" not in self.text, (
+            "fp-phase-detail.md must not contain a raw '--http-port' CLI flag anywhere - port "
+            "assignment belongs to the delegated odoo-instance/allocator, never this orchestrator"
         )
 
     def test_p5_triages_coinstalled_dep_reds_against_baseline(self):
@@ -2514,4 +2554,221 @@ class TestAcceptanceAndReviewBothPrecedeThePrOpening:
             "the bot-comment cross-check must run AFTER PR creation (bot comments cannot "
             "predate the PR they are posted on) - it is the one sub-step this phase's own "
             "reordering must keep post-PR, never a reason to keep the whole review pre-PR-open"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (B2) - shared-commit intent write race: a commit touching modules
+# A and B is dispatched to BOTH modules' single P1 extractor instances (by
+# design - R2a/R2b), so both would write the identical `intents/<sha>.md` path
+# with no owner or merge rule. Fix: the P1 dispatch brief's SLUG field is set
+# per-module (`<slug>/<module>`), which the extractor's own write-path
+# template (`<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md`, substituted
+# from that field) resolves into a per-module-namespaced path with no change
+# needed to agents/odoo-intent-extractor.md.
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>`):
+#   - fp-phase-detail.md P1 brief template: bare 'SLUG: <slug>' (1 occurrence at the
+#     line that causes the race) - 'SLUG: <slug>/<module>' -> 0 occurrences.
+#   - SKILL.md / fp-phase-detail.md: 'PER-MODULE NAMESPACED' / per-module namespace
+#     rationale -> 0 occurrences in either file.
+# ---------------------------------------------------------------------------
+
+class TestSharedCommitIntentWritePathPerModule:
+    """A commit shared between modules A and B must never let both modules'
+    P1 extractor instances write the SAME intents/<sha>.md path - the SLUG
+    field driving the extractor's own write-path template must be per-module,
+    not the bare run slug."""
+
+    def setup_method(self):
+        self.skill_text = SKILL_MD.read_text(encoding="utf-8")
+        self.phase_text = PHASE_DETAIL.read_text(encoding="utf-8")
+
+    def test_phase_detail_p1_brief_sets_per_module_slug(self):
+        """fp-phase-detail.md's P1 dispatch brief template must set
+        SLUG: <slug>/<module> - never the bare run SLUG: <slug>."""
+        assert "SLUG: <slug>/<module>" in self.phase_text, (
+            "fp-phase-detail.md P1 brief template must set 'SLUG: <slug>/<module>' so each "
+            "module's extractor writes to a per-module-namespaced intents/ path"
+        )
+
+    def test_no_bare_run_slug_survives_in_p1_brief_template(self):
+        """The P1 brief template must not still carry a bare 'SLUG: <slug>' line - that
+        is exactly the shape that lets two modules' extractors collide on one sha.
+
+        RED-before-green (git show HEAD): 1 occurrence (line 96), the race-causing line
+        this fix replaces.
+        """
+        # Match the exact brief-field line, not the broader "<slug>" token used
+        # elsewhere (e.g. commit_dump_paths, which legitimately keeps the bare
+        # run-level slug - those are already-resolved, single-writer paths).
+        offenders = [
+            line for line in self.phase_text.splitlines()
+            if line.strip() == "SLUG: <slug>"
+        ]
+        assert not offenders, (
+            "fp-phase-detail.md P1 brief template must not contain a bare 'SLUG: <slug>' "
+            "line - it must be 'SLUG: <slug>/<module>' (per-module namespace) to avoid the "
+            "shared-commit write race"
+        )
+
+    def test_skill_md_states_the_per_module_namespace_rationale(self):
+        """SKILL.md's P1 section must explain WHY the namespace is per-module (the
+        shared-commit write race), not just change the mechanic silently."""
+        assert "PER-MODULE NAMESPACED" in self.skill_text, (
+            "SKILL.md P1 must carry the 'PER-MODULE NAMESPACED' write-path rationale"
+        )
+        assert "write race" in self.skill_text.lower(), (
+            "SKILL.md P1 must name the write race this namespace closes"
+        )
+
+    def test_extractor_agent_write_path_template_still_slug_parametrized(self):
+        """The main B2 fix does not require editing agents/odoo-intent-extractor.md's write-path
+        TEMPLATE - it is already parametrized by the brief's SLUG field, so a per-module SLUG
+        value alone resolves the collision with no template change. (A SEPARATE hardening of
+        this SAME agent's missing-SLUG BEHAVIOR - closing the bypass where an absent SLUG was
+        silently derived back to the bare, non-module-scoped shape - is covered by
+        TestForwardPortSlugMandatoryNoFallback below; that fix touches this file, just not this
+        template line.)"""
+        text = INTENT_EXTRACTOR_AGENT.read_text(encoding="utf-8")
+        assert "<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md" in text, (
+            "agents/odoo-intent-extractor.md's write-path template must still read the "
+            "SLUG field verbatim (unchanged) - the per-module namespace is achieved entirely "
+            "by what value the caller passes into that field, not by editing this template"
+        )
+
+    def test_p3_route_out_carries_one_intent_record_per_module(self):
+        """P3's design route-out payload must point at each touched module's OWN
+        intent record, not a single flat path shared across modules."""
+        assert "<ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md" in self.phase_text, (
+            "fp-phase-detail.md P3's intent_records payload must use the per-module path "
+            "shape, one entry per module in the `modules` list"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (B2 bypass) - the caller-side fix above (SLUG: <slug>/<module> in the
+# P1 dispatch brief) only closes the shared-commit write race if the CALLEE
+# (agents/odoo-intent-extractor.md) actually uses whatever SLUG it is given. The
+# agent's own Step 3 (forward-port mode) documented a fallback - "if absent,
+# derive it from the source and target branch names" - that reconstructs the
+# bare, non-module-scoped run slug whenever a caller omits SLUG, silently
+# reopening the exact write race B2 closes. Fix: SLUG is now a REQUIRED,
+# no-safe-default field in forward-port mode (mirrors this agent's own
+# established Brief self-check pattern for OBJECTIVE/ACCEPTANCE/INPUTS) - the
+# agent STOPs and returns NEEDS_CONTEXT(SLUG) instead of deriving anything.
+# Rebase mode's OWN, separate slug-derivation rule (§ Rebase mode) is untouched
+# - this fix is forward-port-mode-scoped only.
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>`):
+#   - 'if absent, derive it' (the bypass phrase): 1 occurrence -> 0 post-fix.
+#   - 'SLUG is REQUIRED in forward-port mode': 0 occurrences -> 1 post-fix.
+#   - 'NEEDS_CONTEXT(SLUG)': 0 occurrences -> 1 post-fix.
+# ---------------------------------------------------------------------------
+
+class TestForwardPortSlugMandatoryNoFallback:
+    """agents/odoo-intent-extractor.md must never derive a fallback SLUG in forward-port
+    mode - a derived, non-module-scoped slug would silently reopen the B2 shared-commit
+    write race. A missing SLUG must STOP the agent, never be silently patched over."""
+
+    def setup_method(self):
+        self.text = INTENT_EXTRACTOR_AGENT.read_text(encoding="utf-8")
+
+    def test_forward_port_slug_derivation_bypass_removed(self):
+        """The old 'if absent, derive it from the source and target branch names' fallback
+        must not survive anywhere in the file - that phrase IS the bypass."""
+        assert "if absent, derive it" not in self.text, (
+            "agents/odoo-intent-extractor.md must not silently derive a fallback SLUG in "
+            "forward-port mode - that reconstructs the bare, non-module-scoped run slug and "
+            "reopens the B2 shared-commit intents/<sha>.md write race"
+        )
+
+    def test_slug_stated_as_required_no_safe_default(self):
+        assert "SLUG` is REQUIRED in forward-port mode" in self.text, (
+            "agents/odoo-intent-extractor.md Step 3 must state SLUG is REQUIRED in "
+            "forward-port mode - never a field with a silently-derivable safe default"
+        )
+        assert "NEVER derive a fallback here" in self.text, (
+            "agents/odoo-intent-extractor.md must explicitly forbid deriving a fallback SLUG"
+        )
+
+    def test_missing_slug_returns_needs_context_not_a_guess(self):
+        """A missing SLUG must produce a structured NEEDS_CONTEXT status, mirroring this
+        agent's own established Brief self-check pattern - never a silent derived value."""
+        assert "NEEDS_CONTEXT(SLUG)" in self.text, (
+            "agents/odoo-intent-extractor.md must return NEEDS_CONTEXT(SLUG) when SLUG is "
+            "absent in forward-port mode, per its own load-bearing-field-no-safe-default rule"
+        )
+
+    def test_brief_self_check_names_slug_as_a_required_field(self):
+        """The Brief self-check section (run BEFORE any Steps 1-2 work) must also name SLUG,
+        so the gap is caught up front rather than only discovered at Step 3's write time."""
+        self_check = self.text[self.text.index("## Brief self-check"):]
+        assert "`SLUG`" in self_check and "forward-port mode" in self_check, (
+            "agents/odoo-intent-extractor.md's Brief self-check must name SLUG as a "
+            "forward-port-mode-required field, not leave the gap undiscoverable until Step 3"
+        )
+
+    def test_rebase_mode_derivation_rule_is_explicitly_untouched(self):
+        """The fix must not reach into rebase mode's OWN, separate slug-derivation rule -
+        that is a different mode with a different (out-of-scope-for-this-round) hazard
+        profile, reported but not fixed this round (see report § Rebase-mode finding)."""
+        assert "Slug fallback:" in self.text and "<feature-ref>-onto-<new-base>" in self.text, (
+            "agents/odoo-intent-extractor.md's rebase-mode slug-derivation rule (§ Rebase "
+            "mode) must remain present and unmodified - this fix is forward-port-mode-scoped"
+        )
+        # Whitespace-normalized: this clause wraps across a Markdown line.
+        assert "does NOT apply to the rebase-mode override" in _ws_normalize(self.text), (
+            "the forward-port SLUG-required rule must explicitly disclaim the rebase-mode "
+            "override so a reader does not conflate the two slug-handling paths"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (B3) - Tier-C has a legal retry for a failed/incomplete P1 module
+# pass. The contract sanctions exactly one retry (a CHP Tier-A `SendMessage`
+# resume of the SAME instance) and calls a second instance "a pipeline
+# defect, never a valid retry" - with no carve-out for when Tier-A itself is
+# unavailable (SendMessage absent). Fix: an explicit Tier-C retry path - a
+# SUPERSEDING fresh dispatch (never a second CONCURRENT one) once the failed
+# instance's turn has fully ended.
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>`): 0
+# occurrences of 'Tier-C retry', 'SUPERSEDING dispatch', or 'PRIOR ATTEMPT' in
+# either SKILL.md or fp-phase-detail.md.
+# ---------------------------------------------------------------------------
+
+class TestTierCRetryForFailedModulePass:
+    """A failed or incomplete P1 module pass must have a legal retry path even when
+    CHP Tier-A (`SendMessage`) is unavailable - never an unsatisfiable instruction."""
+
+    def setup_method(self):
+        self.skill_text = SKILL_MD.read_text(encoding="utf-8")
+        self.phase_text = PHASE_DETAIL.read_text(encoding="utf-8")
+
+    def test_skill_md_states_a_tier_c_retry_path(self):
+        assert "Tier-C retry" in self.skill_text, (
+            "SKILL.md P1 must name an explicit Tier-C retry path for a failed/incomplete "
+            "module pass - the contract cannot sanction only a Tier-A SendMessage resume "
+            "with no fallback when SendMessage is unavailable"
+        )
+        assert "SUPERSEDING" in self.skill_text, (
+            "SKILL.md's Tier-C retry must be framed as a SUPERSEDING dispatch (replacing the "
+            "dead instance), never a second concurrent one - otherwise it would re-violate R2b"
+        )
+
+    def test_phase_detail_mirrors_the_tier_c_retry_path(self):
+        assert "Tier-C" in self.phase_text and "SendMessage" in self.phase_text, (
+            "fp-phase-detail.md's P1 section must mirror the Tier-C retry carve-out, not "
+            "leave the stricter (unsatisfiable) SendMessage-only retry rule unqualified"
+        )
+
+    def test_retry_ban_still_requires_the_first_instance_to_have_ended(self):
+        """The superseding dispatch must be gated on the failed instance's turn having
+        fully ended - never a second instance dispatched while the first might still be
+        running (that would reopen the R2b race, not close the retry gap)."""
+        normalized = _ws_normalize(self.skill_text)
+        assert "fully ended" in normalized or "turn has fully ended" in normalized, (
+            "SKILL.md must require the failed instance's turn to have fully ended before "
+            "a superseding dispatch - never a second CONCURRENT instance"
         )

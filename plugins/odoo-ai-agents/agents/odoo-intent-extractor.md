@@ -168,8 +168,29 @@ The output of Step 2 is a **confirmed symbol list**: `model.field`, `model.metho
 For EACH commit in the bundle (Steps 1-2 already ran for all of them), compose a structured record
 and write it to `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md` - one file per commit, same
 output granularity as the single-SHA case, so P2/P3/`plan.md` (which key by SHA) need no change.
-The `<slug>` is provided in the dispatch brief; if absent, derive it from the source and target
-branch names (`<source-series>-to-<target-series>`). Write the records in commit order (oldest
+
+**`SLUG` is REQUIRED in forward-port mode - NEVER derive a fallback here.** The caller
+(`odoo-forward-port` `SKILL.md` § P1 "Write path is PER-MODULE NAMESPACED") sets `SLUG` to
+`<run-slug>/<module>`, not the bare run slug, so that a commit shared between two modules resolves
+to two DIFFERENT write paths instead of colliding on the same `intents/<sha>.md`. Deriving a
+fallback slug here from the source/target branch names alone would silently reconstruct the bare,
+non-module-scoped shape and reopen that exact write race - this agent has no way to confirm such a
+derived value would not collide with another module's instance running concurrently this same run,
+so it is not a safe default. If `SLUG` is absent from the brief (forward-port mode only - this does
+NOT apply to the rebase-mode override above, which has its own slug derivation rule): STOP
+immediately, per this agent's own Brief self-check pattern for a load-bearing field with no safe
+default, and return
+
+```
+sha: <the module name - no single sha applies to the whole bundle>
+grounding: ungrounded
+status: NEEDS_CONTEXT(SLUG) - forward-port mode requires a per-module SLUG (<run-slug>/<module>) in
+  the dispatch brief; the caller must set it before re-dispatching. Do NOT derive one - a derived,
+  non-module-scoped slug would reopen the shared-commit intents/<sha>.md write race.
+```
+
+Do NOT write any intent record and do NOT proceed to Step 3's write for ANY commit in the bundle
+until a correctly-shaped `SLUG` is supplied. Write the records in commit order (oldest
 first) - a later commit's record may reference an earlier commit's record in this SAME bundle (see
 the "Symbols touched" note below) since both were read in this one turn.
 
@@ -255,6 +276,18 @@ source_series: <e.g. 16.0>
 The orchestrator aggregates every summary in the returned array (across every module-bundle
 instance it dispatched this run) to build the Phase 2 classify queue.
 
+## Continuation Contract
+
+After the per-commit summary block(s) above, append ONE Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` covering the WHOLE bundle: `status: DONE`
+with `produced: [<one intents/<sha>.md path per commit actually written this turn>]`. Use
+`status: NEEDS_CONTEXT`/`BLOCKED` per this agent's own Brief self-check section below when a
+required input was missing - including the `NEEDS_CONTEXT(SLUG)` refusal in § Step 3 above
+(forward-port mode, absent `SLUG`) and the `BLOCKED` refusal in § Step 1 (neither
+`commit_dump_path` nor `commit_dump_paths` supplied) - do not restate those conditions here, only
+route their `status` through this block. "Waiting" is never a bare statement (see the snippet's
+own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` naming what/who/next.
+
 ## Agent Team mode
 
 If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your intent record file as usual. If `SendMessage` is absent, behave as today (final summary block per § Continuation).
@@ -265,15 +298,18 @@ If `SendMessage` is in your toolset you are running as a teammate: your turn's t
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
 family's own named artifact-path field) as an explicit value - a path, or the literal `none yet` -
 EXACTLY ONE of `commit_dump_path` (single SHA) or `commit_dump_paths` (ordered module bundle -
-never both), and this family's other required fields (the ask framed as an open QUESTION rather
-than a scripted
+never both), `SLUG` (forward-port mode ONLY - a load-bearing field with no safe default, per §
+Step 3 "SLUG is REQUIRED in forward-port mode"; do not confuse with rebase mode's OWN slug
+derivation rule in § Rebase mode above, which is unaffected), and this family's other required
+fields (the ask framed as an open QUESTION rather than a scripted
 search-command sequence; structured findings FILE vs inline chat answer; explicit instruction to
 report uncertainty/confidence, never present a guess as fact). Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
-  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `none yet`), `SLUG` in forward-port mode, or another load-bearing family field with no safe
+  default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an

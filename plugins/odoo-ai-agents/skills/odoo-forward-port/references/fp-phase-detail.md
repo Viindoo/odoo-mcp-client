@@ -68,7 +68,12 @@ never narrated - carrying that module's FULL ordered commit list. Set BOTH the `
 brief. Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 - the budget counts MODULES in flight, not commits); rolling-window beyond the budget. No child
 worktree - extraction is read-only on git history + OSM. A second instance for a module already
-dispatched this run is a defect; resume the SAME instance (CHP Tier-A `SendMessage`) instead.
+dispatched this run, WHILE the first is still live or already succeeded, is a defect; resume the
+SAME instance (CHP Tier-A `SendMessage`) for a failed or incomplete pass. **Tier-C (no
+`SendMessage` available):** once the failed/incomplete instance's turn has fully ended, dispatch
+ONE superseding `general-purpose` worker carrying the SAME full `commit_dump_paths` plus `PRIOR
+ATTEMPT: <failure detail>` - a replacement, never a second concurrent instance. Full rule: `SKILL.md`
+§ P1.
 
 Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
@@ -83,6 +88,20 @@ using the P0 `module -> [ordered sha list]` map to build each module's `commit_d
 extractor brief MUST include `commit_dump_paths` (the module's ordered map) from this grouping;
 the extractor mandates this field for its P1 bulk-sweep use and never runs git itself.
 
+**SLUG is PER-MODULE here, never the bare run slug (closes the B2 shared-commit write race).** R2a's
+module map and R2b's per-module cap together mean a commit shared between modules A and B is
+intentionally dispatched to BOTH modules' single extractor instances - two independent instances
+legitimately process the identical SHA, and would otherwise both write the SAME `intents/<sha>.md`
+path with no owner or merge rule. Set this brief's `SLUG` field to `<slug>/<module>` (the run
+`<slug>` plus this module's own name) - the extractor's own write-path template
+(`agents/odoo-intent-extractor.md` Step 3, `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md`,
+substituted verbatim from this field) then resolves per module automatically, with no change needed
+to that agent: module A's instance writes `<ISOLATE_DIR>/forward-port/<run-slug>/A/intents/<sha>.md`;
+module B's writes `.../B/intents/<sha>.md` for the SAME sha - two distinct files, each module's own
+perspective, never a last-write-wins collision. `commit_dump_paths` below is UNCHANGED - those are
+already-resolved absolute paths the orchestrator wrote ONCE (single writer, shared read-only),
+keyed by the run-level `<slug>`, never per-module.
+
 Brief (run-specific inputs only - the agent's system prompt owns every procedure):
 
 ```
@@ -91,13 +110,15 @@ MODULE: <module-name>
 commit_dump_paths:
   <sha1>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha1>.dump
   <sha2>: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha2>.dump
-  # ... every sha touching this module, oldest first
+  # ... every sha touching this module, oldest first (run-level <slug> - shared, read-only, single writer)
 SOURCE SERIES: <e.g. 16.0>
-SLUG: <slug>
+SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
 TASK: For EACH commit in commit_dump_paths (in order), extract the business intent + behavioral
       contract. Read commit message -> PR/issue -> test changes -> code comments (in that
       priority). OSM-ground the touched symbols at the SOURCE version. Write ONE
-      <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md per commit. Note any overlap or revert
+      <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md per commit (the module-scoped <slug>
+      above, so this module's write path never collides with another module's for a shared sha).
+      Note any overlap or revert
       between commits in this SAME module bundle. Do NOT copy diff hunks as intent. Do NOT
       classify the 4-outcome bucket (caller's job).
 CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
@@ -107,7 +128,9 @@ USER LANGUAGE: <lang | omit when English>
 ```
 
 Aggregate every returned summary (`sha / intent_file / intent_one_liner / symbols /
-4_outcome_hint / grounding` - one per commit, all returned from the module's single dispatch) into
+4_outcome_hint / grounding` - one per commit, all returned from the module's single dispatch;
+`intent_file` is that module's own module-scoped path per the SLUG substitution above, so
+P2/P3/8a/8b read THAT returned path rather than reconstructing one from the bare run `<slug>`) into
 the P2 classify queue. Mark each commit `status=extracted` in `checkpoint.json`.
 
 ---
@@ -207,7 +230,9 @@ inputs:
   design_slug_hint: <slug>-fp-<sha>
   target_version: <target>
   modules: [<module-name>, ...]
-  intent_records: [<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md]
+  intent_records: [<ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md, ...]
+    # one entry per module in `modules` above (§ P1 write path - each module's own
+    # intent perspective on this sha), never the bare run-slug intents/<sha>.md
   classification: <bucket-(c) summary>
 ```
 
@@ -386,30 +411,46 @@ append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 8a
 
 **ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
 
-At P7 no instance DB has been acquired yet (allocator runs at P9) - use the `pytest --collect-only` path; the odoo-bin collection option requires first acquiring a temp DB.
+At P7 no instance DB has been acquired yet (allocator runs at P9) - use the `pytest --collect-only`
+path; it needs no DB and catches ImportError / missing-fixture breaks for ordinary test modules.
 
 ```bash
 # pytest collection smoke-test
 python -m pytest <test_files> --collect-only -q 2>&1 | tail -20
-# OR Odoo collection (for TestCase subclasses with setUpClass) - requires a DB acquired via allocator
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
-  --skip-auto-install --http-port=$ALLOC_HTTP_PORT \
-  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | grep -E 'ERROR|setUpClass'
 ```
 
-Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
+**DELEGATE here too - never a raw `odoo-bin`/`allocator.py` recipe to work around the "no DB yet"
+gap (SKILL.md P9's DELEGATE mandate is not scoped to P9 alone; a bare provisioning call from ANY
+non-leaf phase in this pipeline bypasses the SAME instance HARD RULES regardless of which phase
+issues it).** When a `setUpClass` performs DB-dependent work that `--collect-only` cannot exercise
+(a TestCase subclass that touches the ORM during class setup), do NOT acquire an ad hoc DB here to
+work around it - the ONLY provisioning path this pipeline uses is P9's `odoo-instance` dispatch
+(`## P9` below). Record the residual (a `setUpClass` `--collect-only` cannot verify) as an open
+ACCEPTANCE GATE item on that test file's `merge-log.md` row, and treat P9's own collection/run-tests
+result for that file as the gate's true confirmation once the P9 instance exists. The
+`pytest --collect-only` result above is still mandatory and still blocks P8 for every OTHER file it
+covers.
+
+Memory-cap policy (applies at P9's instance dispatch, not here):
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
 RAN in P9 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
 crashed before any test method ran). Resolve every drift finding (P7 SYMBOL-BROKEN entries)
 before entering the P8 adapt loop.
 
-**View-topology sub-check (bucket-(c) same-module inherit stacks).** Different in TIMING from the
-checks above (P6/P7 run over the git-merged tree before any commit is re-implemented; this
-sub-check runs once a bucket-(c) re-implement itself lands or modifies an `ir.ui.view` record, at
-the same converge-back point the 8b bucket-(c) leg already passes through) but IDENTICAL in SHAPE
-(a finding line triaged into `merge-log.md`, confirmed before the gate). Full predicate, the two
+**View-topology sub-check (bucket-(b)/(c) same-module inherit stacks).** Different in TIMING from
+the checks above (P6/P7 run over the git-merged tree before any commit is re-implemented; this
+sub-check runs once a bucket-(b) OR bucket-(c) commit's own adapt step lands or modifies an
+`ir.ui.view` record - the bucket-(c) re-implement leg, or the bucket-(b) 3-way-merge-and-adapt leg
+INCLUDING a clean auto-merge that passed through with no conflict marker at all (e.g. an
+alias-preserving module fold at target that leaves the old base `xml_id` still resolving, so P6
+finds nothing broken and P2 classifies bucket-(b) instead of (c) even though the resulting view
+shape is identical to the canonical bucket-(c) defect) - at the same 8a/8b converge-back point
+those legs already pass through) but IDENTICAL in SHAPE
+(a finding line triaged into `merge-log.md`, confirmed before the gate). Buckets (a)/(d) land no
+new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
+Full predicate, the two
 non-defect exceptions, and the merge-unsafe escape: `references/fp-triage-table.md` § Bucket-(c)
 same-module inherit-view check.
 
@@ -458,7 +499,8 @@ SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<mo
   (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
    text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
    separate child worktree, so there is no WRITE-TO location distinct from where this is read.)
-INTENT: <one-liner from intents/<sha>.md>   BUCKET: <a|b|c|d>
+INTENT: <one-liner from THIS module's own intents/<module>/<sha>.md, written by that module's P1
+      extractor - § P1 write path>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
 BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for the source
       test's base class - the kwargs the target setUpClass/setUp actually accepts, so the author
@@ -512,7 +554,9 @@ coder brief lacks:
 ```
 DISPATCH MODEL: <adapt-tier>
 REQUEST: Adapt the forwarded intent to the target platform.
-INTENT RECORD: <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md   (the why - build to this, not the source diff)
+INTENT RECORD: <ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md   (THIS module's own
+      perspective on the sha, written by its P1 extractor per § P1 write path - the why, build to
+      this, not the source diff)
 BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-code>
 FAILING TEST (RED, written by the odoo-test-writer above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
