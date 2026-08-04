@@ -95,7 +95,7 @@
 #   the narrower anchored form matches any run of characters (not just one
 #   path segment), so it auto-approves more than a version substitution.
 #   Pruning keeps every live rule exact while still converging - see
-#   `cmd_apply`'s use of `config_merge.py json-ensure-allow-pruning` and
+#   `cmd_apply`'s unconditional `config_merge.py json-prune-allow` call and
 #   `cmd_check`'s `_stale_bash_present` guard, and
 #   tests/test_state_root_permissions.py's
 #   `test_apply_prunes_prior_version_bash_rules` /
@@ -110,18 +110,67 @@
 #   skipped for that run - plain add-only, never a guess - see
 #   `test_dev_checkout_without_version_segment_skips_pruning_safely`.
 #
+# SUBSUMPTION - do NOT add a rule the user already has (do NOT let this
+# regress into over-eager clutter, mirroring the earlier over-eager PRUNE
+# mistake above): the root cause of the accumulation complaint was never just
+# "the Bash rules pile up across versions" - it is that on a machine whose
+# `permissions.allow[]` already contains a blanket like `Bash(*)`, `Read`, or
+# `Edit`, ALL FOUR of this step's rules were redundant the moment they were
+# FIRST written, version-pinning aside. `apply` (below) checks EVERY rule
+# against `config_merge.py json-rule-covered` before writing it, and adds
+# NOTHING when an existing permission already grants it.
+#   The two ways to be wrong here are NOT symmetric, and the bias is
+#   deliberately conservative in only ONE direction: wrongly concluding
+#   "already covered" silently withholds a needed permission (a missed
+#   prompt with no error - BREAKS FUNCTION); wrongly concluding "not
+#   covered" only writes one harmless redundant rule (visible, self-
+#   correcting clutter - today's complaint, but the LESSER failure). So
+#   `json-rule-covered` recognizes coverage ONLY for a small, explicitly
+#   enumerated set of forms it can prove from Claude Code's own documented
+#   semantics (https://code.claude.com/docs/en/permissions) - see that
+#   subcommand's docstring in config_merge.py for the exact list and the
+#   citation for each. Anything else, however blanket-looking, is treated as
+#   NOT covering and the rule is still added.
+#     One documented form was deliberately EXCLUDED despite looking like an
+#     obvious blanket: a bare relative `Read(**)` / `Edit(**)` (no `//` or
+#     `~/` anchor). Per the docs, "To allow all file access, use only the
+#     tool name without parentheses: `Read`, `Edit`, or `Write`" - a
+#     parenthesized `(**)` pattern is a gitignore-style path glob anchored at
+#     the SESSION's actual working directory at match time, not a filesystem-
+#     root blanket, so it cannot be proven ahead of time to contain an
+#     absolute target like `$ODOO_AI_HOME` (which is not generally nested
+#     under whatever directory a session happens to start in). Treating it as
+#     coverage would risk silently withholding the permission on a session
+#     started elsewhere - the worse failure mode above. See
+#     `test_relative_double_star_is_not_treated_as_coverage_still_added`.
+#   Pruning (above) and subsumption (this section) compose independently:
+#   `cmd_apply` always runs the prune step for the two Bash rules first
+#   (removing stale same-plugin debris from a prior version) REGARDLESS of
+#   whether the current rule then turns out to be covered and gets skipped.
+#   Leaving that debris in place when the rule is skipped would not be
+#   defensible - it is exactly the accumulation this step exists to fix, and
+#   it grants nothing extra a broader existing permission does not already
+#   cover. See `json-prune-allow`'s docstring in config_merge.py.
+#
 # Subcommands:
 #   describe   One-line description.
-#   check      Exit 0 if all 4 rules already in permissions.allow[] AND no
-#              stale prior-version Bash rule remains for the same script;
-#              exit 1 if either is true. Also reports (non-blocking) whether
+#   check      Exit 0 if every rule is either already present OR already
+#              covered by an existing broader permission (config_merge.py
+#              json-rule-covered), AND no stale prior-version Bash rule
+#              remains for the same script; exit 1 otherwise - kept
+#              consistent with what `apply` would actually do, so a rule
+#              `apply` legitimately skips as covered never makes `check`
+#              report the setup as incomplete (that mismatch would loop the
+#              SessionStart hook). Also reports (non-blocking) whether
 #              mcp__odoo-semantic is present, pointing at its real owner.
-#   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out), then
-#              idempotently append the 4 rules via config_merge.py
-#              json-ensure-allow (Read/Edit) / json-ensure-allow-pruning
-#              (the two version-pinned Bash rules - also removes any stale
-#              prior-version Bash rule for the same script), print them,
-#              instruct one restart, and self-verify by re-running check.
+#   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out); for the two
+#              version-pinned Bash rules, unconditionally prunes stale same-
+#              plugin entries first (config_merge.py json-prune-allow); then
+#              for all 4 rules, skips any rule config_merge.py json-rule-
+#              covered reports as already granted, and idempotently appends
+#              the rest via config_merge.py json-ensure-allow; prints what
+#              was added/skipped, instructs one restart, and self-verifies by
+#              re-running check.
 #
 # CONFIG PATH:
 #   CLAUDE_SETTINGS  permissions file  ${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}
@@ -237,19 +286,16 @@ cmd_describe() {
 # ---------------------------------------------------------------------------
 # check
 # ---------------------------------------------------------------------------
-_allow_has() {
-    # $1 = rule string. Exit 0 if present in permissions.allow[].
-    [[ -f "$CLAUDE_SETTINGS" ]] || return 1
-    python3 - "$CLAUDE_SETTINGS" "$1" <<'PY'
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-except Exception:
-    sys.exit(1)
-allow = (data.get("permissions") or {}).get("allow") or []
-sys.exit(0 if sys.argv[2] in allow else 1)
-PY
+_rule_satisfied() {
+    # $1 = rule string. Exit 0 if EITHER it is already exactly in
+    # permissions.allow[] OR an existing entry already provably covers it
+    # (config_merge.py json-rule-covered - see the SUBSUMPTION section
+    # above for the exact enumerated forms and the conservative bias).
+    # Replaces a bare exact-membership check so `check` stays consistent
+    # with what `apply` would actually do: a rule `apply` legitimately
+    # skips as covered must not make `check` report incompleteness.
+    [[ -f "$LIB" ]] || return 1
+    python3 "$LIB" json-rule-covered "$CLAUDE_SETTINGS" "$1" >/dev/null 2>&1
 }
 
 _odoo_semantic_present() {
@@ -302,7 +348,7 @@ PY
 cmd_check() {
     local missing=0
     for r in "${RULES[@]}"; do
-        _allow_has "$r" || missing=1
+        _rule_satisfied "$r" || missing=1
     done
     # A stale same-plugin, prior-version rule also counts as "not converged
     # yet" so the SessionStart hook re-triggers `apply` (which prunes it) on
@@ -354,25 +400,48 @@ cmd_apply() {
     local i r rc had_io_error=0
     for i in "${!RULES[@]}"; do
         r="${RULES[$i]}"
-        # The two Bash(...) rules are version-pinned (embed $PLUGIN_ROOT). When
-        # PRUNE_ANCHOR=1 (a real MAJOR.MINOR.PATCH version segment was found -
-        # see above), writing them also PRUNES any stale rule for a PRIOR
-        # version of THIS SAME plugin (json-ensure-allow-pruning, anchored to
-        # BASH_STABLE_PREFIX_MATCH so it can never touch a different plugin's
-        # rule for an identically-suffixed script). When PRUNE_ANCHOR=0 (a
-        # --plugin-dir dev checkout with no version segment to anchor on),
-        # pruning is skipped and this falls back to plain add-only - see the
-        # PRUNE_ANCHOR comment above for why that is the safe choice. The
-        # Read/Edit rules key off $ODOO_AI_HOME (not $PLUGIN_ROOT) and never
-        # drift across versions, so plain json-ensure-allow is always
-        # sufficient for them. Exit contract for both calls: 0 = success /
-        # already converged, 1 = general I/O error, 2 = invalid JSON.
-        set +e
+
+        # Step 1 - prune (Bash rules only, UNCONDITIONAL): the two Bash(...)
+        # rules are version-pinned (embed $PLUGIN_ROOT). When PRUNE_ANCHOR=1
+        # (a real MAJOR.MINOR.PATCH version segment was found - see above),
+        # remove any stale rule for a PRIOR version of THIS SAME plugin
+        # (json-prune-allow, anchored to BASH_STABLE_PREFIX_MATCH so it can
+        # never touch a different plugin's rule for an identically-suffixed
+        # script). This runs REGARDLESS of whether step 2 below then skips
+        # adding the current rule as already-covered - see the SUBSUMPTION
+        # section above for why leaving that debris in place is not
+        # defensible. When PRUNE_ANCHOR=0 (a --plugin-dir dev checkout with
+        # no version segment to anchor on), pruning is skipped - see the
+        # PRUNE_ANCHOR comment above for why that is the safe choice.
         if [[ "$r" == Bash\(* && "$PRUNE_ANCHOR" -eq 1 ]]; then
-            python3 "$LIB" json-ensure-allow-pruning "$CLAUDE_SETTINGS" "$r" "${STALE_BASH_SUFFIXES[$i]}" "$BASH_STABLE_PREFIX_MATCH"
-        else
-            python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r"
+            set +e
+            python3 "$LIB" json-prune-allow "$CLAUDE_SETTINGS" "${STALE_BASH_SUFFIXES[$i]}" "$BASH_STABLE_PREFIX_MATCH" "$r"
+            rc=$?
+            set -e
+            if [[ "$rc" -eq 2 ]]; then
+                echo "x $CLAUDE_SETTINGS is not valid JSON. Fix it by hand (or restore a .bak.*) and re-run." >&2
+                return 2
+            elif [[ "$rc" -eq 1 ]]; then
+                echo "x failed to prune stale entries for '$r' in $CLAUDE_SETTINGS (I/O error)." >&2
+                had_io_error=1
+            fi
         fi
+
+        # Step 2 - subsumption check: skip the add entirely when an existing
+        # allow[] entry already provably covers this rule (see the
+        # SUBSUMPTION section above for the exact enumerated forms and why
+        # the bias only ever runs toward "add", never toward "skip", on
+        # anything not in that small list).
+        if python3 "$LIB" json-rule-covered "$CLAUDE_SETTINGS" "$r" >/dev/null 2>&1; then
+            echo "i  $r already covered by an existing permission - not adding."
+            continue
+        fi
+
+        # Step 3 - add (Read/Edit rules never drift across versions, so
+        # plain json-ensure-allow is always sufficient for them; Bash rules
+        # were already pruned above, so a plain add is sufficient here too).
+        set +e
+        python3 "$LIB" json-ensure-allow "$CLAUDE_SETTINGS" "$r"
         rc=$?
         set -e
         if [[ "$rc" -eq 2 ]]; then

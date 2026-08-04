@@ -23,23 +23,58 @@ Subcommands:
       Mirrors the exact logic from odoo-semantic-mcp/commands/connect.md
       step 5: setdefault, backup, refuse invalid JSON (exit 2), idempotent.
 
-  json-ensure-allow-pruning <settings.json> <new_rule> <stale_suffix> <stable_prefix>
-      Idempotently ensure <new_rule> is present in permissions.allow[], and
-      additionally remove any OTHER entry that BOTH starts with <stable_prefix>
-      AND ends with <stale_suffix> - the same plugin's own script, pinned to a
-      DIFFERENT (stale) absolute path (e.g. a previous version of that SAME
-      plugin's directory). An entry EQUAL to <new_rule> is never removed, even
-      though it also matches. <stable_prefix> is REQUIRED and must be specific
-      enough to identify this one plugin (e.g. "Bash(bash <path-up-to-and-
-      including-the-plugin-name-dir>/") - a suffix match alone is NOT anchored
-      to any plugin identity and would also prune a DIFFERENT plugin's rule
-      for an identically-named script (e.g. two plugins that each ship their
-      own scripts/lib/resolve_project_dir.sh); requiring both the prefix AND
-      the suffix keeps the match scoped to one specific plugin's own rule
-      family. Used to converge version-pinned rules across plugin upgrades
-      instead of accumulating one new rule per version forever. Same safety
-      contract as json-ensure-allow: backup before write, refuse invalid JSON
-      (exit 2), idempotent no-op when nothing needs to change.
+  json-prune-allow <settings.json> <stale_suffix> <stable_prefix> <keep_exact>
+      Remove every permissions.allow[] entry that BOTH starts with
+      <stable_prefix> AND ends with <stale_suffix>, EXCEPT an entry equal to
+      <keep_exact> (never removed even though it also matches). Prune-only:
+      never adds anything, including <keep_exact> itself if absent. Used to
+      converge version-pinned rules across plugin upgrades - see
+      json-rule-covered's docstring for why pruning must stay UNCONDITIONAL
+      (independent of whether the current version's own rule gets added).
+      Same safety contract as json-ensure-allow: backup before write, refuse
+      invalid JSON (exit 2), idempotent no-op (no backup, no write) when
+      nothing matches.
+
+  json-rule-covered <settings.json> <rule>
+      Read-only (never writes, never backs up). Exit 0 if <rule> is ALREADY
+      GRANTED by an existing permissions.allow[] entry - an exact duplicate,
+      or a small, explicitly enumerated set of provably-broader forms (see
+      below); exit 1 otherwise. Used before writing a permission rule so a
+      setup step adds NOTHING when the permission is already covered.
+      DELIBERATELY CONSERVATIVE: coverage is recognized ONLY for forms whose
+      semantics are unambiguous per Claude Code's own documentation
+      (https://code.claude.com/docs/en/permissions). Anything not on this
+      list - including a same-tool relative glob like "Read(**)", whose
+      anchor is the SESSION's actual working directory and therefore cannot
+      be proven to contain an absolute target path ahead of time - is NOT
+      treated as coverage, so the caller still adds the rule. This bias is
+      intentional: concluding "covered" when it is not means the permission
+      is silently never granted (breaks function, a missed prompt with no
+      error); concluding "not covered" when it actually is means one harmless
+      redundant rule gets written (visible, self-correcting clutter). The
+      two errors are NOT symmetric - do not "improve" this matcher to guess
+      at forms outside the enumerated set. Recognized forms:
+        1. Exact string duplicate of <rule>.
+        2. A bare tool-name rule (e.g. "Bash", "Read", "Edit" with no
+           parentheses) for the SAME tool - documented to match every use of
+           that tool unconditionally.
+        3. "<Tool>(*)" for the SAME tool - documented equivalent to the bare
+           tool-name form (established explicitly for Bash in the docs;
+           applied here to any tool since the underlying glob semantics -
+           "*" matches any sequence of characters - are tool-agnostic for a
+           lone, unanchored "*" specifier).
+        4. An existing "<Tool>(//<ancestor>/**)" entry (filesystem-root
+           anchored, via the "//" prefix) whose <ancestor> is <rule>'s own
+           anchor path or a strict parent directory of it, when <rule> is
+           itself of the SAME "<Tool>(//<path>/**)" shape. Both sides share
+           the unambiguous filesystem-root anchor, so containment is a plain
+           string-prefix check, independent of any session's working
+           directory.
+        5. For Bash rules only: an existing "Bash(<P> *)" or "Bash(<P>:*)"
+           entry (a literal, wildcard-free <P> followed by the documented
+           trailing-wildcard form) where <rule>'s own command text starts
+           with "<P> " (P then a literal space) - the documented prefix-match
+           semantics for Bash rules.
 
 Exit codes:
   0  success / no change needed
@@ -489,18 +524,30 @@ def cmd_json_ensure_allow(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Subcommand: json-ensure-allow-pruning
+# Subcommand: json-prune-allow
 # ---------------------------------------------------------------------------
 
-def cmd_json_ensure_allow_pruning(args: list[str]) -> int:
-    """json-ensure-allow-pruning <settings.json> <new_rule> <stale_suffix> <stable_prefix>
+def _is_stale_entry(entry: str, keep_exact: str, stale_suffix: str, stable_prefix: str) -> bool:
+    """Shared predicate: True iff `entry` is a version-pinned rule for the SAME
+    plugin/script family as `keep_exact` but pinned to a DIFFERENT (stale) path.
+    `entry == keep_exact` is never stale, even though it also matches the
+    prefix/suffix - see json-prune-allow's docstring for the anchoring
+    rationale (a suffix-only match is not enough; it must also share
+    `stable_prefix`, which identifies ONE specific plugin's own directory)."""
+    if entry == keep_exact:
+        return False
+    return entry.startswith(stable_prefix) and entry.endswith(stale_suffix)
 
-    Idempotently ensure <new_rule> is present in permissions.allow[], AND
-    remove any OTHER allow[] entry that BOTH starts with <stable_prefix> AND
-    ends with <stale_suffix> - the SAME plugin's own script, differing only in
-    the version segment of its absolute path (e.g. a prior version of that
-    plugin's directory). An entry equal to <new_rule> itself is NEVER removed,
-    even though it also matches.
+
+def cmd_json_prune_allow(args: list[str]) -> int:
+    """json-prune-allow <settings.json> <stale_suffix> <stable_prefix> <keep_exact>
+
+    Remove every permissions.allow[] entry that BOTH starts with
+    <stable_prefix> AND ends with <stale_suffix> - the SAME plugin's own
+    script, pinned to a DIFFERENT (stale) absolute path (e.g. a prior version
+    of that plugin's directory) - EXCEPT an entry equal to <keep_exact> (never
+    removed even though it also matches). Prune-ONLY: does not add anything,
+    including <keep_exact> itself if it is not already present.
 
     <stable_prefix> is REQUIRED. A suffix-only match is NOT anchored to any
     plugin's identity: two different plugins can each ship a same-named
@@ -510,31 +557,33 @@ def cmd_json_ensure_allow_pruning(args: list[str]) -> int:
     including the plugin-name directory) keeps the match scoped to that one
     plugin's own rule family.
 
-    This converges a version-pinned rule instead of letting it accumulate one
-    new pair per plugin upgrade forever: installing version B's rule prunes
-    version A's rule for the SAME plugin's SAME script, while leaving every
-    other allow[] entry (a different plugin's identically-suffixed rule, a
-    different script under the same plugin, or a user's own hand-written
-    rule) untouched.
+    This is called UNCONDITIONALLY by the version-pinned-rule setup step,
+    regardless of whether the current version's own rule ends up being added
+    (see json-rule-covered) - stale debris from a prior plugin version is
+    removed either way. Leaving it sitting there when the current rule is
+    skipped as already-covered would NOT be defensible: it is exactly the
+    accumulation this pruning exists to fix, and it grants nothing extra (if
+    the current rule is redundant because of a broader existing permission,
+    the stale prior-version rule is equally redundant under that same broader
+    permission).
 
       - Backup before any write (same as json-ensure-allow).
       - Refuse to overwrite invalid JSON (exit 2).
-      - Idempotent: if allow[] is already exactly {non-matching entries +
-        new_rule} (in the same order), prints "unchanged" and exits 0
-        without writing or backing up.
+      - Idempotent: if nothing matches (no stale entries), prints "unchanged"
+        and exits 0 without writing or backing up.
     """
     if not args or args[0] in ("-h", "--help"):
-        print(cmd_json_ensure_allow_pruning.__doc__)
+        print(cmd_json_prune_allow.__doc__)
         return 0
     if len(args) != 4:
         print(
-            "Usage: config_merge.py json-ensure-allow-pruning "
-            "<settings.json> <new_rule> <stale_suffix> <stable_prefix>",
+            "Usage: config_merge.py json-prune-allow "
+            "<settings.json> <stale_suffix> <stable_prefix> <keep_exact>",
             file=sys.stderr,
         )
         return 1
 
-    settings_path, new_rule, stale_suffix, stable_prefix = args
+    settings_path, stale_suffix, stable_prefix, keep_exact = args
 
     # Load existing settings (exits 2 on invalid JSON)
     data = _load_json_target(settings_path)
@@ -542,17 +591,10 @@ def cmd_json_ensure_allow_pruning(args: list[str]) -> int:
     perms = data.setdefault("permissions", {})
     allow = perms.setdefault("allow", [])
 
-    def _is_stale(entry: str) -> bool:
-        if entry == new_rule:
-            return False
-        return entry.startswith(stable_prefix) and entry.endswith(stale_suffix)
-
-    kept = [a for a in allow if not _is_stale(a)]
-    if new_rule not in kept:
-        kept.append(new_rule)
+    kept = [a for a in allow if not _is_stale_entry(a, keep_exact, stale_suffix, stable_prefix)]
 
     if kept == allow:
-        print(f"ok {new_rule} already in allow-list, no stale entries - no change.")
+        print("ok no stale entries - no change.")
         return 0
 
     removed = [a for a in allow if a not in kept]
@@ -566,14 +608,114 @@ def cmd_json_ensure_allow_pruning(args: list[str]) -> int:
 
     os.makedirs(os.path.dirname(os.path.abspath(settings_path)), exist_ok=True)
     _write_json(settings_path, data)
-    if removed:
-        print(
-            f"ok Added {new_rule} to permissions.allow in {settings_path}; "
-            f"removed stale entries: {removed}."
-        )
-    else:
-        print(f"ok Added {new_rule} to permissions.allow in {settings_path}.")
+    print(f"ok removed stale entries from {settings_path}: {removed}.")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Subcommand: json-rule-covered
+# ---------------------------------------------------------------------------
+
+def _parse_rule(rule: str) -> tuple[str, str | None]:
+    """Split "Tool(specifier)" into ("Tool", "specifier"), or a bare "Tool"
+    rule into ("Tool", None)."""
+    if "(" in rule and rule.endswith(")"):
+        idx = rule.index("(")
+        return rule[:idx], rule[idx + 1 : -1]
+    return rule, None
+
+
+def _rule_is_covered(allow: list[str], rule: str) -> tuple[bool, str]:
+    """Core matcher for json-rule-covered. Returns (covered, reason). See the
+    module docstring's json-rule-covered entry for the exact enumerated forms
+    and the conservative bias driving this function: when in doubt, False."""
+    if rule in allow:
+        return True, "exact duplicate already in allow[]"
+
+    tool, spec = _parse_rule(rule)
+
+    # Form 2: a bare tool-name rule for the SAME tool matches every use of it.
+    if tool in allow:
+        return True, f"bare {tool!r} rule matches every use of this tool"
+
+    # Form 3: "<Tool>(*)" - documented equivalent of the bare tool-name form
+    # (explicitly stated for Bash; the underlying glob semantics of a lone,
+    # unanchored "*" specifier are tool-agnostic).
+    blanket = f"{tool}(*)"
+    if blanket in allow:
+        return True, f"{blanket!r} is equivalent to a bare {tool!r} rule"
+
+    if spec is not None:
+        # Form 4: filesystem-root-anchored ("//...") directory glob whose
+        # anchor is an existing rule's anchor or a descendant of it. Only
+        # meaningful when OUR OWN rule is also of this exact shape (our 4
+        # rules' Read/Edit entries are; the Bash entries are not, so this
+        # never fires for them).
+        if spec.startswith("//") and spec.endswith("/**"):
+            target_anchor = spec[2:-3]
+            existing_prefix = f"{tool}(//"
+            for entry in allow:
+                if not (entry.startswith(existing_prefix) and entry.endswith("/**)")):
+                    continue
+                existing_spec = entry[len(tool) + 1 : -1]
+                existing_anchor = existing_spec[2:-3]
+                if target_anchor == existing_anchor or target_anchor.startswith(existing_anchor + "/"):
+                    return True, f"{entry!r} already covers this path (ancestor directory)"
+
+        # Form 5: Bash literal-prefix wildcard ("<P> *" / "<P>:*"), P
+        # wildcard-free, where our command text starts with "<P> ".
+        if tool == "Bash":
+            for entry in allow:
+                if not entry.startswith("Bash("):
+                    continue
+                inner = entry[len("Bash(") : -1]
+                if inner.endswith(" *"):
+                    p = inner[:-2]
+                elif inner.endswith(":*"):
+                    p = inner[:-2]
+                else:
+                    continue
+                if "*" not in p and spec.startswith(p + " "):
+                    return True, f"{entry!r} already covers this command (prefix wildcard)"
+
+    return False, "not covered by any recognized form - adding"
+
+
+def cmd_json_rule_covered(args: list[str]) -> int:
+    """json-rule-covered <settings.json> <rule>
+
+    Read-only (never writes). Exit 0 and print the reason if <rule> is
+    already GRANTED by an existing permissions.allow[] entry (see the module
+    docstring for the exact, deliberately small enumerated set of recognized
+    forms); exit 1 otherwise. A missing or unreadable settings file, or any
+    form not in the enumerated set, is treated as NOT covered (the caller
+    should add the rule) - this function never widens the enumerated set to
+    "look more broadly"; see the module docstring for why that asymmetry is
+    intentional.
+    """
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_json_rule_covered.__doc__)
+        return 0
+    if len(args) != 2:
+        print(
+            "Usage: config_merge.py json-rule-covered <settings.json> <rule>",
+            file=sys.stderr,
+        )
+        return 1
+
+    settings_path, rule = args
+
+    try:
+        with open(settings_path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:
+        print("not covered - settings file missing or unreadable")
+        return 1
+
+    allow = (data.get("permissions") or {}).get("allow") or []
+    covered, reason = _rule_is_covered(allow, rule)
+    print(reason)
+    return 0 if covered else 1
 
 
 # ---------------------------------------------------------------------------
@@ -585,7 +727,8 @@ SUBCOMMANDS = {
     "toml-ensure-table": cmd_toml_ensure_table,
     "toml-append-array-item": cmd_toml_append_array_item,
     "json-ensure-allow": cmd_json_ensure_allow,
-    "json-ensure-allow-pruning": cmd_json_ensure_allow_pruning,
+    "json-prune-allow": cmd_json_prune_allow,
+    "json-rule-covered": cmd_json_rule_covered,
 }
 
 
