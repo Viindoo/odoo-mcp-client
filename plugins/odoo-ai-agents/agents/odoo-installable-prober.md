@@ -152,9 +152,19 @@ evidence: |
 
 Do NOT include diff excerpts, stack traces, or more than 2 evidence lines.
 
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `status: DONE` with `produced: []`
+(this agent returns its verdict inline, not to a file) unless a findings file was also written, in
+which case list it. Use `status: BLOCKED`/`NEEDS_CONTEXT` per this agent's own Brief self-check
+section below when `degraded_check: yes` or a required input was missing; "waiting" is never a
+bare statement (see the snippet's own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with
+`blocked_reason` naming what/who/next.
+
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write any findings file as usual. If `SendMessage` is absent, behave as today (final structured verdict block).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write any findings file as usual. If `SendMessage` is absent, behave as today (final structured verdict block + Continuation Contract).
 
 ## Brief self-check
 

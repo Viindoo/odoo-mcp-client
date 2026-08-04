@@ -381,3 +381,203 @@ def test_odoo_coder_brief_self_check_validates_self_provision():
         "brief must be caught by this self-check gate, not silently take the "
         "wrong branch"
     )
+
+
+# ---------------------------------------------------------------------------
+# B4 - SURVEY field reachability. Before this fix, the literal token `SURVEY`
+# appeared 0 times in dispatch-brief.md: absent from field 4 INPUTS's
+# canonical reuse-key list, absent from the Coder family delta, and absent
+# from all 3 Coder-family `## Brief self-check` sections. A brief carrying
+# `INPUTS: DESIGN_DOC=...` (every OTHER field present) passed every checked
+# gate while silently dropping deep-survey findings a human handed over -
+# the caller had no textual reason to know the field even existed.
+# ---------------------------------------------------------------------------
+
+_SURVEY_TOKEN = "SURVEY"
+
+
+def test_dispatch_brief_inputs_row_names_survey():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    inputs_rows = [
+        line for line in text.splitlines() if line.startswith("| 4 | `INPUTS`")
+    ]
+    assert inputs_rows, "dispatch-brief.md: field 4 `INPUTS` row not found"
+    assert _SURVEY_TOKEN in inputs_rows[0], (
+        "dispatch-brief.md field 4 (INPUTS) must reuse the literal `SURVEY` "
+        "key name in its canonical key-name list - a caller reading only "
+        "the universal skeleton must learn deep-survey findings have a "
+        "named home, the same way DESIGN_DOC/GAP_MATRIX/ORACLE_PATH already do"
+    )
+
+
+def test_dispatch_brief_coder_family_declares_survey():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    coder_section = _section(text, "### Coder", "### Reviewer / auditor")
+    assert _SURVEY_TOKEN in coder_section, (
+        "dispatch-brief.md's Coder family delta must declare `SURVEY` as a "
+        "required field carrying the same 'key must be present even at its "
+        "safe value' rule as skeleton field 4 INPUTS - otherwise a "
+        "Coder-family brief can silently drop the deep-survey pointer and "
+        "pass every checked gate clean (the exact R4 symptom)"
+    )
+
+
+@pytest.mark.parametrize(
+    "agent_name", ["odoo-coder.md", "odoo-backend-coder.md", "odoo-frontend-coder.md"]
+)
+def test_coder_family_brief_self_check_requires_survey(agent_name):
+    agent = ODOO_AGENTS_DIR / agent_name
+    text = agent.read_text(encoding="utf-8")
+    self_check_section = _section(text, "## Brief self-check")
+    assert _SURVEY_TOKEN in self_check_section, (
+        f"{agent_name}: '## Brief self-check' must check for `SURVEY` (the "
+        "deep-survey findings pointer) both in its required-field list and "
+        "its missing-field STOP/NEEDS_CONTEXT clause - before this fix none "
+        "of the Coder-family self-checks caught a brief that silently "
+        "omitted the field entirely"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cross-group registration - GATE_ROLE (pre-pr-lint-gate | per-module-verify)
+# was wired into odoo-instance-ops.md's lint-union enforcement point and
+# odoo-coder.md's dispatch branches by another fix group this round, but was
+# never registered in dispatch-brief.md - a caller reading only the
+# caller-side SSOT skeleton would not learn the obligation exists.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_brief_instance_ops_family_declares_gate_role():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    instance_section = _section(text, "### Instance / ops", "### Survey / analyst")
+    assert "GATE_ROLE" in instance_section, (
+        "dispatch-brief.md's Instance/ops family delta must register "
+        "`GATE_ROLE` (pre-pr-lint-gate | per-module-verify) - it is a "
+        "load-bearing field with no safe default, enforced in "
+        "odoo-instance-ops.md, but was never surfaced in the caller-side SSOT"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P4 - CALLER_ID/REPLY_TO must not read as conditional on Agent Team mode.
+# worker-brief.md previously grouped REPLY_TO under a heading literally
+# titled "present only when team mode is on" alongside the genuinely
+# conditional TASK_ID/NOTIFY keys, directly contradicting dispatch-brief.md
+# field 11's ALWAYS classification - a real, textual root cause for why
+# dispatch-composing skills treated REPLY_TO as Tier-A-only.
+# ---------------------------------------------------------------------------
+
+WORKER_BRIEF = (
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "snippets" / "worker-brief.md"
+)
+
+
+def test_worker_brief_reply_to_not_gated_on_team_mode():
+    text = WORKER_BRIEF.read_text(encoding="utf-8")
+    assert "present only when team mode is on" not in text, (
+        "worker-brief.md must not frame REPLY_TO as conditional on team "
+        "mode - dispatch-brief.md field 11 classifies CALLER_ID/REPLY_TO "
+        "ALWAYS; a team-mode-only heading covering REPLY_TO contradicts "
+        "that and is the root cause of callers treating it as Tier-A-only"
+    )
+    assert "NOT" in text and "conditional on team mode" in text, (
+        "worker-brief.md must explicitly state CALLER_ID/REPLY_TO is NOT "
+        "conditional on team mode, unlike TASK_ID/NOTIFY"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P5 - Survey/analyst family must carry the Continuation Contract (ODOO-AI-
+# ETHOS #10 always-on 3-part report + explicit "waiting" ban), same as the
+# other 21 agents in the plugin. Before this fix, 5/26 agents (this family)
+# used an ad hoc "Return..." format with neither the always-on report shape
+# nor the generic banned-phrase enumeration.
+# ---------------------------------------------------------------------------
+
+SURVEY_ANALYST_FAMILY = [
+    "odoo-backend-debugger.md",
+    "odoo-ui-debugger.md",
+    "odoo-review-scoper.md",
+    "odoo-intent-extractor.md",
+    "odoo-installable-prober.md",
+    "odoo-gap-analyzer.md",
+    "odoo-feature-cataloger.md",
+    "odoo-doc-scoper.md",
+]
+
+# SHRINK-ONLY allowlist, now EMPTY: odoo-intent-extractor.md was initially
+# excluded here (owned by another fix group this round, actively editing the
+# same file for an unrelated SLUG defect at the time this test was first
+# written) but was wired into the Continuation Contract once that other
+# group's edit landed - see the F3 fix report. Stays empty: a future
+# Survey/analyst-family agent that ships without continuation-contract.md
+# must fail test_survey_analyst_family_carries_continuation_contract rather
+# than being silently re-added here.
+_MISSING_CONTINUATION_CONTRACT_ALLOWLIST = set()
+
+
+@pytest.mark.parametrize("agent_name", SURVEY_ANALYST_FAMILY)
+def test_survey_analyst_family_carries_continuation_contract(agent_name):
+    agent = ODOO_AGENTS_DIR / agent_name
+    assert agent.exists(), f"{agent} not found"
+    if agent_name in _MISSING_CONTINUATION_CONTRACT_ALLOWLIST:
+        pytest.skip(f"{agent_name}: known-red, owned by another fix group this round")
+    text = agent.read_text(encoding="utf-8")
+    assert "continuation-contract.md" in text, (
+        f"{agent_name}: Survey/analyst family member must reference "
+        "continuation-contract.md (the ALWAYS-ON 3-part report + explicit "
+        "'waiting' ban) - the same contract the other 21 agents in the "
+        "plugin already carry"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P4 residual - concrete agent-dispatch brief TEMPLATES (not just the generic
+# "read dispatch-brief.md by path" instruction) must include the CALLER_ID
+# (REPLY_TO) field literal, matching the established correct pattern in
+# odoo-forward-port/references/fp-phase-detail.md. Before this fix, 5 of 6
+# concrete agent-targeting templates across 4 skill files omitted it entirely
+# even though their parent skill's generic dispatch instruction already
+# points at dispatch-brief.md (field 11 is ALWAYS) - the gap was in the
+# filled-in example a caller actually copies values into, not in the generic
+# pointer sentence. Skill-to-skill (not skill-to-agent) templates are
+# intentionally excluded: dispatch-brief.md's own skeleton is scoped to "a
+# spawner ... dispatches a specialist agent", not a Skill-tool invocation of
+# another skill (odoo-git-rebase's odoo-coding template, odoo-modules-
+# upgrade's odoo-instance/odoo-i18n templates) - adding CALLER_ID there would
+# be a scope-violating misapplication, not a genuine fix.
+# ---------------------------------------------------------------------------
+
+_AGENT_DISPATCH_TEMPLATE_FILES = [
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-coding" / "SKILL.md",
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-doc-illustration" / "SKILL.md",
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-icon-design" / "SKILL.md",
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-instance" / "SKILL.md",
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-forward-port" / "references" / "fp-phase-detail.md",
+]
+
+
+@pytest.mark.parametrize("path", _AGENT_DISPATCH_TEMPLATE_FILES, ids=lambda p: p.name)
+def test_agent_dispatch_template_carries_caller_id(path):
+    assert path.exists(), f"{path} not found"
+    text = path.read_text(encoding="utf-8")
+    assert "CALLER_ID" in text, (
+        f"{path.relative_to(REPO_ROOT)}: a concrete agent-dispatch brief "
+        "template in this file must carry the literal `CALLER_ID` "
+        "(REPLY_TO) field, matching field 11 of dispatch-brief.md's "
+        "universal skeleton and the established pattern already correct in "
+        "odoo-forward-port/references/fp-phase-detail.md"
+    )
+
+
+def test_missing_continuation_contract_allowlist_is_shrink_only():
+    for agent_name in sorted(_MISSING_CONTINUATION_CONTRACT_ALLOWLIST):
+        agent = ODOO_AGENTS_DIR / agent_name
+        assert agent.exists(), f"{agent_name} does not exist"
+        text = agent.read_text(encoding="utf-8")
+        assert "continuation-contract.md" not in text, (
+            f"{agent_name} now references continuation-contract.md - remove "
+            "it from _MISSING_CONTINUATION_CONTRACT_ALLOWLIST (shrink-only: "
+            "an entry that gains the reference must be removed, never "
+            "silently kept)"
+        )

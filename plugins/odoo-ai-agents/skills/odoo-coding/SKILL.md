@@ -497,6 +497,9 @@ COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>')
 BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase - cr.commit() FORBIDDEN, isolation is savepoint rollback>
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
+CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
+  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
+  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
 GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```

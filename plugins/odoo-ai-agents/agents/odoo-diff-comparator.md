@@ -377,6 +377,20 @@ grounding: <osm | local-source | ungrounded>
 
 Do NOT include diff excerpts, file contents, or stack traces in the return block. The findings file carries the detail; the return block is the gate-able summary only.
 
+---
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`: `status: DONE` with `produced: [<the
+comparison_file | verify_file | absorption_file path for this dispatch's mode>]`, and when the
+verdict routes onward (e.g. upgrade-mode `RECONCILE` -> `odoo-solution-design`, or a rebase-mode
+`duplicate_blockers > 0` -> the orchestrator's own gate), a `next:` entry naming that step - you
+only EMIT this, you never dispatch. Use `status: BLOCKED`/`NEEDS_CONTEXT` per this agent's own
+Brief self-check section below when grounding failed or a required input was missing; "waiting" is
+never a bare statement (see the snippet's own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT`
+with `blocked_reason` naming what/who/next.
+
 ## Brief self-check
 
 (run before any work)
@@ -406,4 +420,4 @@ Full caller-side schema (reference only, not required to resolve): `dispatch-bri
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your findings file as usual. If `SendMessage` is absent, behave as today (final return block).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your findings file as usual. If `SendMessage` is absent, behave as today (final return block + Continuation Contract).
