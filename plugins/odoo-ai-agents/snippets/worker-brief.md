@@ -22,8 +22,7 @@ and/or `odoo-frontend-coder` (code to green) - per R0
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: its own launch capability exposes a
 blocking switch (`run_in_background: false`), so it blocks on each teammate it needs an answer from),
 tests the integrated module via `Skill(odoo-instance)` inline, and - once the integrated test is
-green - COMMITS its module by invoking `git-toolkit:git-ops` via the Skill tool (it can launch
-agents, so it is a spawner, not a leaf - the Nesting rule lets a spawner invoke git-ops inline), then
+green - COMMITS its module by invoking `git-toolkit:git-ops` via the Skill tool, then
 returns the SHA to `odoo-coding` (which collects it and no longer re-commits). See
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 
@@ -33,22 +32,21 @@ returns the SHA to `odoo-coding` (which collects it and no longer re-commits). S
   …). An MCP tool call is never a subagent spawn, so it is always allowed. Follow your own
   agent conventions.
 - **OSM version/profile pin - never `'auto'`.** `set_active_version` / `set_active_profile` are
-  session-scoped server state (keyed to this MCP session); ANY other actor sharing that session -
-  a coordinator that dispatched you, or a sibling teammate - can overwrite the pin between your
-  calls. Pass the CONCRETE version (and profile) on EVERY OSM call; call the setters once at
-  Round 0 only, as the reachability probe, and never rely on the ambient pin afterward. Full rule
-  (why, plus the authz-safety of a profile clobber): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+  session-scoped server state (keyed to this MCP session); ANY other actor sharing that session
+  can overwrite the pin between your calls. Pass the CONCRETE version (and profile) on EVERY OSM
+  call; call the setters once at Round 0 only, as the reachability probe, and never rely on the
+  ambient pin afterward. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
   § OSM session-pin race.
 - **You do NOT run git - at all.** Not even git add / git commit / git stash in your own
-  worktree. You do not own the project's git/commit conventions, so git is never your job. Write
-  and edit your files directly in your assigned worktree (`WORKTREE_PATH`), then RETURN the list of
-  files you touched to the orchestrator. Do NOT stage, commit, stash, branch, checkout, switch,
-  cherry-pick, merge, rebase, reset, tag, push, force-push, fetch, pull, or add/remove worktrees.
-  The orchestrator commits your output for you by invoking `git-toolkit:git-ops`. You cannot launch
-  agents and cannot delegate to git-toolkit yourself; just return your files (or BLOCKED with the
-  reason) and let the orchestrator handle every git step. Full policy:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree. A leaf never
-  invokes git-ops even via the Skill tool - see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+  worktree. Write and edit your files directly in your assigned worktree (`WORKTREE_PATH`), then
+  RETURN the list of files you touched to the orchestrator. Do NOT stage, commit, stash, branch,
+  checkout, switch, cherry-pick, merge, rebase, reset, tag, push, force-push, fetch, pull, or
+  add/remove worktrees. The orchestrator commits your output for you by invoking
+  `git-toolkit:git-ops`. You cannot launch agents and cannot delegate to git-toolkit yourself; just
+  return your files (or BLOCKED with the reason) and let the orchestrator handle every git step.
+  Full policy: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree.
+  A leaf never invokes git-ops even via the Skill tool - see
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
   Unlike git-ops, `odoo-backend-coder` (for its bounded `/test_lint` gate) and the other
   instance-touching leaves MAY invoke `Skill(odoo-instance)` to self-provision a live Odoo instance
@@ -61,11 +59,10 @@ returns the SHA to `odoo-coding` (which collects it and no longer re-commits). S
   carries `SELF_PROVISION: worktree-addons`
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
   you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
-  `odoo-instance-ops`) - this is a MUST, not a judgment call, per its own binding rule.
-  `odoo-frontend-coder` is INSTANCE-FREE - it never self-provisions; its only gate is the static
-  `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated
-  test or a delegated `odoo-instance` run. Contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-frontend-coder` is
+  INSTANCE-FREE - it never self-provisions; its only gate is the static `verify-frontend.sh`, and
+  any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
+  `odoo-instance` run. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
   **Self-provisioning carries teardown:** what you acquire under this carve-out you release
   before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T1/T3.
