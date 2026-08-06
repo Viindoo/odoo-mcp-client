@@ -1,29 +1,48 @@
-"""Topology guard for the module-primary / coder-coordinator model (v4.9.0).
+"""Topology guard for the module-primary / coder-coordinator model.
 
-Protects the BEHAVIOR of the reconciled two-tier decomposition (not a wording snapshot):
+Protects the BEHAVIOR of the two-tier decomposition (not a wording snapshot).
+
+Ground truth (reverse-engineered from the installed Claude Code binary, corrected here after a
+prior pass pinned a FALSE premise): a subagent CAN launch a child and CAN receive its result via a
+blocking launch (`run_in_background: false`), or - when the Agent tool exposes no such parameter -
+launch async and END ITS TURN to be resumed by a wake router on completion; it is never simply
+killed. The real hazards are the silent nesting cap (no Agent tool at all -> do the work inline or
+return NEEDS_NEXT) and the non-interactive surface (where nothing resumes a parked turn, so never
+end a turn with uncommitted work). This is `spawner-completion-contract.md` R0. A PRIOR pass
+misread "a subagent may never be woken" out of an early, incomplete reading of the same evidence
+and retargeted this whole file to an "odoo-coder authors everything inline, launches nothing"
+topology. That premise is FALSE and has been retired in turn; the three-teammate topology below is
+RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blocking launches via
+`run_in_background: false`, never a passive/unbounded wait):
 
 - The OUTER unit is the MODULE. `odoo-coding` dispatches ONE `odoo-coder` COORDINATOR per module
   (EVERY module - backend-only, frontend-only, or full-stack). There is no single-stack
-  direct-to-worker path anymore.
+  direct-to-worker path.
 - `odoo-coder` is the per-module COORDINATOR that OWNS the module's INTERNAL work-item (WI) split:
   it divides its ONE module into 1..N disjoint-file-set WIs, schedules INDEPENDENT WIs in PARALLEL
   and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and per WI launches
   THREE teammates - `odoo-test-writer` FIRST (authors the RED test, test-first), then
   `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests) -
-  tests the integrated module via `Skill(odoo-instance)` (inline in its own context, or by launching
+  blocking on each via R0 move 2 (`run_in_background: false`) when it needs the result. It tests
+  the integrated module via `Skill(odoo-instance)` (inline in its own context, or by launching
   `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its module by
   invoking `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and
   returns the SHA to `odoo-coding` (which collects it, no longer re-committing). It also reacts to a
-  WI worker's own pre-integration BLOCKED within its bounded loop (excluding the manifest-dependency
-  case, which still relays up unchanged) and, as the module LEAD, monitors its WI workers on a live
-  task list per `agent-team-protocol.md` Ask 2 / `execution-tasklist-contract.md`.
-- `odoo-test-writer`, `odoo-backend-coder`, and `odoo-frontend-coder` are HARD LEAVES - they launch nothing.
+  WI worker's own pre-integration BLOCKED within its bounded loop (excluding the
+  manifest-dependency case, which still relays up unchanged) and, as the module LEAD, monitors its
+  WI workers on a live task list per `agent-team-protocol.md` Ask 2 / `execution-tasklist-contract.md`.
+- `odoo-test-writer`, `odoo-backend-coder`, and `odoo-frontend-coder` are HARD LEAVES - they launch
+  nothing.
 - The WI is `odoo-coder`'s PRIVATE unit: it MUST NOT appear as an outer-layer unit in
   odoo-planning / plan-mode-schema / phase-p / run-harness.
 - `odoo-module-graph.md` states the two-tier axis (module outer, WI internal to odoo-coder).
-- The new agent is registered in plugin.json and reflected in the orchestration SSOT.
+- The agent is registered in plugin.json and reflected in the orchestration SSOT (`odoo-coding`'s
+  spawns list names the coordinator + all three teammates).
 
-Red-before-green: each assertion fails if its wiring is dropped or inverted.
+Red-before-green: each assertion fails if its wiring is dropped or inverted. Several assertions
+below were RESTORED (not merely reworded) after a prior pass wrongly retargeted them to the
+inline-only premise - each restoration states the WRONG (false-premise) assertion it replaces, the
+RESTORED one, and why the underlying business rule is the one that was true all along.
 """
 from __future__ import annotations
 
@@ -87,9 +106,19 @@ def test_backend_coder_agent_exists_and_is_registered():
 
 
 def test_coordinator_assigns_wis_to_the_three_teammates_backend_first():
-    """The odoo-coder COORDINATOR launches THREE teammates - odoo-test-writer (test-first) +
-    odoo-backend-coder + odoo-frontend-coder per WI - and sequences the backend WI before a frontend
-    WI that binds it."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass replaced this with "test_coordinator_authors_every_wi_itself_backend_before_frontend",
+    asserting the coordinator authors every WI inline and launches no agent - built on the false
+    premise that a subagent has no barrier to release a launched child with (R0). The corrected R0
+    (spawner-completion-contract.md) establishes the opposite: the Agent tool's own
+    `run_in_background: false` parameter IS a blocking-launch lever, so a coordinator well inside
+    the nesting cap can launch a teammate and block on its result. The repo owner has restored the
+    three-teammate topology on this corrected physics.
+
+    RESTORED assertion: the odoo-coder COORDINATOR launches THREE teammates - odoo-test-writer
+    (test-first) + odoo-backend-coder + odoo-frontend-coder per WI - and sequences the backend WI
+    before a frontend WI that binds it."""
     body = _norm(LEAD)
     assert "odoo-test-writer" in body, (
         "the coordinator must launch odoo-test-writer (the test-first teammate)"
@@ -98,17 +127,37 @@ def test_coordinator_assigns_wis_to_the_three_teammates_backend_first():
         "the coordinator must assign WIs to BOTH odoo-backend-coder and odoo-frontend-coder"
     )
     low = body.lower()
-    assert "backend" in low and "first" in low or "backend before" in low, (
+    # A bare `"backend" in low and "first" in low` is satisfied vacuously - both words appear
+    # dozens of times elsewhere in the doc (e.g. "author the RED test FIRST") regardless of
+    # whether backend-before-frontend sequencing is stated anywhere. Require the actual phrase.
+    assert "backend before" in low, (
         "the coordinator must sequence a backend WI before a frontend WI that binds it"
     )
 
 
 def test_coordinator_launches_test_writer_first_and_coders_do_not_author():
-    """Test-first: the coordinator launches odoo-test-writer FIRST (the RED test), then the coder;
-    the coders no longer author tests."""
-    low = _norm(LEAD).lower()
-    assert "odoo-test-writer" in low and "first" in low, (
-        "the coordinator must launch odoo-test-writer FIRST per WI (test-first)"
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass replaced this with "test_coordinator_authors_red_test_first_inline_and_leaves_do_not_author",
+    asserting the coordinator authors the RED test itself via Skill(odoo-test-writing) inline. That
+    was built on the same false premise as the sibling test above (R0: no barrier to block on a
+    launched child) - now corrected: the coordinator DOES launch odoo-test-writer and blocks on it
+    via R0 move 2.
+
+    RESTORED assertion (test-first): the coordinator launches odoo-test-writer FIRST (the RED
+    test), then the coder; the coders themselves still never author tests."""
+    body = _norm(LEAD)
+    low = body.lower()
+    # A bare `"odoo-test-writer" in low and "first" in low` is satisfied vacuously - "first"
+    # appears 15+ times elsewhere in the doc (e.g. the backend-before-frontend sequencing prose,
+    # and the compound "test-first" methodology name that legitimately sits near almost every
+    # odoo-test-writer mention). Require the LAUNCH VERB tightly bound to both odoo-test-writer
+    # and "first" (e.g. "launch `odoo-test-writer` FIRST"), not incidental co-occurrence.
+    assert re.search(
+        r"(?i)launch(?:es|ing)?\s*`?odoo-test-writer`?\s+first\b", body
+    ), (
+        "the coordinator must launch odoo-test-writer FIRST per WI (test-first) - a launch verb "
+        "must sit directly against 'odoo-test-writer ... first', not merely co-occur anywhere"
     )
     # The coder agents must explicitly disclaim test authoring (write code only).
     for path in (BACKEND, FRONTEND):
@@ -120,12 +169,20 @@ def test_coordinator_launches_test_writer_first_and_coders_do_not_author():
 
 def test_coordinator_owns_the_internal_wi_breakdown():
     """odoo-coder OWNS the internal WI split: 1..N disjoint WIs, parallel-vs-sequential schedule,
-    per-WI worker assignment - and states the WI is its PRIVATE intra-module unit."""
+    per-WI worker assignment - and states the WI is its PRIVATE intra-module unit.
+
+    RESTORE note: a prior pass required the NEGATION 'no parallel launch' (independent WIs cannot
+    run in parallel because a subagent supposedly has no barrier to release a batch with). That
+    premise is false - R0 move 2 (`run_in_background: false`) is exactly the mechanical barrier
+    an independent batch releases on, per spawner-completion-contract.md R1. This restores the
+    positive claim: independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY."""
     low = _norm(LEAD).lower()
     assert "work-item" in low or "wi" in low, "the coordinator must name the work-item unit"
     assert "disjoint" in low, "the WI split must be by DISJOINT file sets"
     assert "parallel" in low and "sequential" in low, (
-        "independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY"
+        "independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY (R0 move 2 supplies the "
+        "mechanical barrier for both - a blocking launch for the dependent chain, a held batch for "
+        "the parallel one)"
     )
     assert "1..n" in low or "1..N".lower() in low or "one or more" in low, (
         "one module -> 1..N WIs"
@@ -177,9 +234,16 @@ def test_coordinator_reacts_to_wi_level_blocked_excluding_manifest_dependency():
 
 
 def test_coordinator_monitors_wi_workers_on_a_live_task_list():
-    """As the module's LEAD teammate, the coordinator applies Ask 2 of agent-team-protocol.md -
-    tracking its own dispatched WI workers on a live task list - not merely waiting on the Ask-1
-    SendMessage push as its only progress signal."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass replaced this with "test_coordinator_keeps_own_live_task_list_not_a_teammate_board",
+    asserting the coordinator explicitly disclaims Ask 2 (team-lead tracking) because it launches
+    no teammates. That was the false-premise topology; the coordinator DOES launch three teammates
+    and therefore IS a module lead that tracks them.
+
+    RESTORED assertion: as the module's LEAD teammate, the coordinator applies Ask 2 of
+    agent-team-protocol.md - tracking its own dispatched WI workers on a live task list - not
+    merely waiting on the Ask-1 SendMessage push as its only progress signal."""
     body = _norm(LEAD)
     assert "agent-team-protocol.md" in body, "the coordinator must cite agent-team-protocol.md"
     assert "Ask 2" in body, "the coordinator must apply Ask 2 (team-lead tracking), not only Ask 1"
@@ -275,8 +339,16 @@ def test_coding_dispatches_one_coder_per_module_for_every_module():
 
 
 def test_orchestration_ssot_reflects_module_primary_topology():
-    """The orchestration SSOT (skill_tool_deps.json) odoo-coding spawns list names the coordinator +
-    both workers so the generated ORCHESTRATION-MAP reflects the module-primary topology."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass required the spawns list to name ONLY the coordinator (and forbade the three
+    teammate names), plus `agents.odoo-coder.spawns == []` - a field that does not even exist in
+    this schema (every other agent entry carries only `role`, never `spawns`), so that half of the
+    prior assertion was unsatisfiable by construction, not merely false.
+
+    RESTORED assertion: the orchestration SSOT (skill_tool_deps.json) odoo-coding spawns list
+    names the coordinator + both workers so the generated ORCHESTRATION-MAP reflects the
+    module-primary topology."""
     orch = json.loads(_text(DEPS))["orchestration"]["odoo-coding"]
     spawns = " ".join(orch["spawns"])
     low = spawns.lower()
@@ -305,11 +377,14 @@ def test_module_graph_states_two_tier_axis():
 
 
 def test_survey_field_closes_the_whole_forwarding_chain():
-    """D1 - SURVEY reaches odoo-coder and its own self-check requires it, but the pre-fix
-    operative forward list (§ What the brief carries + step 3 forward list) and odoo-test-writer
-    (the agent that authors the RED test and most needs the grounding) never named it. Close the
-    whole chain: odoo-coder's inbound-fields prose AND its step-3 forward-to-teammates list AND
-    odoo-test-writer's own brief-carries section must all name SURVEY."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass required odoo-coder to state it "reads SURVEY itself before authoring" and "never
+    a separate agent" - built on the false premise that odoo-coder authors the RED test inline
+    instead of dispatching odoo-test-writer. Restored: SURVEY reaches odoo-coder AND its own
+    step-3 forward-to-teammates list (a literal `forward WORKTREE_PATH, INSTANCE_HANDLE, ...,
+    SURVEY, WORKLOG` sentence) AND odoo-test-writer's own brief-carries section - closing the
+    whole chain to the teammate that actually authors the RED test and most needs the grounding."""
     coder = _norm(LEAD)
     assert "SURVEY" in coder, "odoo-coder.md must name SURVEY in its inbound brief-carries prose"
     # The forward-to-teammates sentence (step 3) must include SURVEY alongside the other forwarded
@@ -324,8 +399,8 @@ def test_survey_field_closes_the_whole_forwarding_chain():
     )
     test_writer = _text(TEST_WRITER)
     assert "SURVEY" in test_writer, (
-        "odoo-test-writer.md must name SURVEY - the pre-fix defect was 0 mentions in the agent "
-        "that authors the RED test and most needs the grounding"
+        "odoo-test-writer.md must name SURVEY - the agent that authors the RED test and most "
+        "needs the grounding"
     )
 
 
@@ -347,10 +422,13 @@ def test_wi_worker_dependency_gate_defines_green_against_status_enum():
 
 
 def test_coordinator_verifies_red_test_path_before_forwarding():
-    """D4 - a RED_TEST_PATH present but pointing at a nonexistent file had no named check anywhere
-    in the load path. The coordinator must verify the returned path resolves to a real file BEFORE
-    handing it to a coder, and treat an unresolved path exactly like 'no test handed in' (the
-    SAME bounded re-dispatch path), never forward it unverified."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass moved this gate to sit between the coordinator's OWN test-authoring and OWN
+    code-writing steps - built on the false premise that there is no separate coder to forward the
+    path TO. Restored: a RED_TEST_PATH present but pointing at a nonexistent file must be caught
+    BEFORE FORWARDING it to a separate coder agent, treated exactly like "no test handed in" (the
+    same bounded re-dispatch path), never forwarded unverified."""
     low = _norm(LEAD).lower()
     assert "verify it resolves to a real file" in low, (
         "odoo-coder.md must state the RED_TEST_PATH is verified to resolve to a real file before "
@@ -369,10 +447,13 @@ def test_coordinator_verifies_red_test_path_before_forwarding():
 
 
 def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
-    """D6 - on contradicting sibling reports, the pre-fix re-dispatch loop targeted only the
-    complaining worker, not the sibling whose claim was false. Must now name the ACCUSED sibling
-    as the first re-dispatch target when a BLOCKED reason contradicts a sibling's earlier DONE
-    claim, still within the same bounded loop."""
+    """RESTORE of the topology this file originally pinned.
+
+    A prior pass reframed the re-verification target as an "accused sibling WI" being re-looped
+    (not re-dispatched) - built on the false premise that there is no separate worker to dispatch.
+    Restored: on contradicting sibling reports, the re-DISPATCH loop must target the ACCUSED
+    sibling's WORKER first, and forbid "loop[ing] the complaining WORKER alone" against unchanged
+    ground truth."""
     low = _norm(LEAD).lower()
     assert "contradicts a sibling" in low or "contradicting sibling" in low, (
         "odoo-coder.md must name the sibling-contradiction case explicitly"
@@ -386,6 +467,39 @@ def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
     ), (
         "the rule must explicitly forbid re-dispatching only the complaining worker against "
         "unchanged ground truth"
+    )
+
+
+def test_wi_checkpoint_rule_present():
+    """M1c (12-design-final.md) - uncommitted work must not survive a turn boundary.
+
+    Root cause this protects: odoo-coder authors 1..N work-items per module inside ONE turn; if
+    that turn ends early (context limit, an interrupt, a crash) with no commit yet, every WI
+    written so far is lost - a stall costs the WHOLE MODULE, not just the WI in flight. The fix:
+    before ending its turn for ANY reason (DONE, NEEDS_NEXT, BLOCKED, or a budget cutoff), the
+    coordinator must request a checkpoint commit of everything written so far via
+    Skill(git-toolkit:git-ops), so a stall costs at most one work-item.
+
+    What this proves: the rule is stated in the prose an executing agent reads. What it does NOT
+    prove: that a commit actually happens at runtime - the only evidence for that is on disk
+    (`git log <base>..HEAD` / `git status --short`), exactly as 12-design-final.md's own M1c guard
+    note says."""
+    low = _norm(LEAD).lower()
+    assert "uncommitted work must not survive a turn boundary" in low, (
+        "odoo-coder.md must state the M1c checkpoint rule: uncommitted work must not survive a "
+        "turn boundary"
+    )
+    assert "done, needs_next, blocked" in low, (
+        "the checkpoint rule must cover ALL terminal-status exits (DONE, NEEDS_NEXT, BLOCKED, or "
+        "a budget cutoff), not only the happy-path DONE"
+    )
+    assert "skill(git-toolkit:git-ops)" in low, (
+        "the checkpoint commit must be requested via Skill(git-toolkit:git-ops), same as the "
+        "final integrated-green commit"
+    )
+    assert "a stall must cost one work-item, never the module" in low, (
+        "the rule must state the bound explicitly: a stall costs at most one work-item, never "
+        "the whole module"
     )
 
 

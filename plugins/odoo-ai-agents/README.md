@@ -90,10 +90,14 @@ Everything runs through the **main agent**, which acts as an **orchestrator + de
 only** - it routes, decides at gates, and delegates the heavy work to specialists so its own
 context stays clean across a long session. Roles: orchestrating context (main agent) ->
 dispatched specialist (skill/workflow) -> named-agent interior worker (e.g. `odoo-coder`) or
-fan-out leaf-worker. Multi-level nesting is supported (platform depth cap 5); `context: fork`
-fan-out workers carry a hard-rules line that prevents them from dispatching further spawner
-skills. Orchestrator skills that dispatch worker agents use the **Context-Handoff Protocol
-(CHP)** - a 3-tier dispatch optimization (Tier A `SendMessage`-resume / Tier B fork /
+fan-out leaf-worker. Multi-level nesting is supported up to a depth cap
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3) - at the cap the agent-launch tool is silently
+removed from the toolset, no error raised; `context: fork` fan-out workers additionally carry a
+hard-rules line banning them from dispatching further spawner skills or subagents, on top of that
+platform limit. Dispatch is capability-branching, not role-based - read your own toolset before
+acting; SSOT `snippets/spawner-completion-contract.md` §R0. Orchestrator skills that dispatch
+worker agents use the **Context-Handoff Protocol (CHP)** -
+a 3-tier dispatch optimization (Tier A `SendMessage`-resume / Tier B fork /
 Tier C fresh spawn + worklog) whose SSOT is `snippets/context-handoff-protocol.md`. Resources
 are platform-managed.
 

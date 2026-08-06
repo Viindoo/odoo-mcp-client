@@ -17,11 +17,15 @@ worker-side behavior once dispatched, not how the caller composed your brief.
 
 **The `odoo-coder` per-module coordinator is NOT a leaf and does NOT carry this brief.** It is a
 sanctioned nested spawner (one agent level below `odoo-coding`, launched for EVERY module) that
-launches the two hard-leaf workers above, tests the integrated module via `Skill(odoo-instance)`
-inline, and - once the integrated test is green - COMMITS its module by invoking `git-toolkit:git-ops`
-via the Skill tool (it can launch agents, so it is a spawner, not a leaf - the Nesting rule lets a
-spawner invoke git-ops inline), then returns the SHA to `odoo-coding` (which collects it and no longer
-re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
+launches the three hard-leaf teammates - `odoo-test-writer` (RED test, first), `odoo-backend-coder`
+and/or `odoo-frontend-coder` (code to green) - per R0
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: its own launch capability exposes a
+blocking switch (`run_in_background: false`), so it blocks on each teammate it needs an answer from),
+tests the integrated module via `Skill(odoo-instance)` inline, and - once the integrated test is
+green - COMMITS its module by invoking `git-toolkit:git-ops` via the Skill tool (it can launch
+agents, so it is a spawner, not a leaf - the Nesting rule lets a spawner invoke git-ops inline), then
+returns the SHA to `odoo-coding` (which collects it and no longer re-commits). See
+`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
@@ -85,3 +89,7 @@ End your turn with a `SendMessage` completion report to `REPLY_TO` (and each `NO
 never end on a bare tool call or plain-text-only output. When `SendMessage` is absent, return the
 report as your final message instead (Tier-C transcript-return) - `REPLY_TO` still names who that
 transcript is FOR even though no explicit push is possible.
+
+**A failed or unaddressable send means RETURN INLINE - never wait.** If `REPLY_TO` is absent or
+unroutable, or `SendMessage` fails, return your completion report as your final message. Never guess
+an address, never broadcast to `main`, never end on a bare tool call or on plain text with no report.

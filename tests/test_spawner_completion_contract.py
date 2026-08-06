@@ -432,3 +432,66 @@ def test_worker_brief_reply_to_never_defaults_to_main():
     assert "spawner-completion-contract.md" in norm, (
         "must defer to the spawner-completion-contract.md R3 SSOT"
     )
+
+
+# ---------------------------------------------------------------------------
+# 16. run_in_background is named only as the Agent tool's OWN blocking-launch lever (corrected)
+# ---------------------------------------------------------------------------
+
+# A prior version of this test asserted the FALSE premise that `run_in_background` may only appear
+# inside framings that warn it away from an agent launch (treating it as an unrelated Bash
+# subprocess flag). The corrected R0 (spawner-completion-contract.md) establishes the opposite:
+# the Agent tool ITSELF exposes `run_in_background`, and `run_in_background: false` IS the
+# sanctioned blocking-launch mechanism (R0 move 2) - a subagent well inside the nesting cap uses it
+# to launch a child and block on the result. This test now asserts the ROLE every occurrence must
+# play - the Agent tool's own capability-probe / blocking-launch lever - never a bare mention and
+# never paired with a poll/sleep loop (which would misuse it as something to wait ON rather than
+# the parameter that makes the launch itself synchronous).
+_RUN_IN_BACKGROUND_ROLE_MARKERS = (
+    # R0 move 2's capability probe: the Agent tool HAS the parameter -> a blocking launch exists.
+    "a blocking launch is available",
+    # R0 move 3's capability probe: the Agent tool has NO parameter -> every launch is async.
+    "every launch is asynchronous",
+    # R1's synchronous-launch framing.
+    "launches it synchronously",
+    # R1's dependent-topology framing: the launch itself blocks.
+    "so the launch itself blocks",
+)
+
+
+def test_run_in_background_named_only_as_the_agent_tools_own_blocking_launch_lever():
+    """Every occurrence of `run_in_background` in the contract must sit inside a window that
+    frames it as the Agent tool's OWN parameter controlling whether a launch blocks - present means
+    a blocking launch is available (R0 move 2, `run_in_background: false`), absent means every
+    launch is asynchronous (R0 move 3) - never as an unrelated Bash flag, and never paired with an
+    instruction to poll or sleep against it (which would misuse it as a thing you wait ON rather
+    than the parameter that makes the launch call itself return synchronously).
+
+    What this proves: the text names the token only in its correct role everywhere it appears.
+    What it does NOT prove: that any agent actually reads or obeys it, or that the repo-wide
+    [wait-mechanism] lint (generator/check_orchestration.py, warn-only) is clean elsewhere - this
+    test is scoped to this one SSOT file only."""
+    text = _norm(CONTRACT_MD)
+    low = text.lower()
+    occurrences = [m.start() for m in re.finditer(r"run_in_background", low)]
+    assert occurrences, (
+        "sanity: run_in_background must appear in R0/R1 as the Agent tool's blocking-launch lever "
+        "- R0 move 2 REQUIRES it as the mechanism a spawner blocks a child launch with"
+    )
+    # A wide window (e.g. 150 chars) can accidentally "borrow" a role marker that legitimately
+    # belongs to a DIFFERENT, nearby occurrence (e.g. R0 move 3's marker sitting just past a
+    # gutted move-2 paragraph) - a bare, unexplained mention would then falsely read as
+    # role-attributed. The real SSOT text's max token-to-marker span is ~63 chars (the marker
+    # phrase itself must fit fully inside the window); 70 gives a little headroom for prose
+    # rewording while staying well short of the ~100-char borrowed-marker leak a proven mutation
+    # exposed at radius 150.
+    for pos in occurrences:
+        window = low[max(0, pos - 70):pos + 70]
+        assert any(marker in window for marker in _RUN_IN_BACKGROUND_ROLE_MARKERS), (
+            "an occurrence of 'run_in_background' does not sit inside a window framing it as the "
+            f"Agent tool's own blocking-launch lever: ...{window}..."
+        )
+        assert "poll" not in window and "sleep" not in window, (
+            "run_in_background must never be framed as something you poll or sleep against - it "
+            f"is the Agent tool's own synchronous-launch parameter: ...{window}..."
+        )

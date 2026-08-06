@@ -27,9 +27,38 @@ is complete and that skills thread the shared contracts they are required to:
                     agent, its body must carry the never-SPAWN clause and show neither positive
                     spawn language nor a positive git-mutation instruction. (Historically this
                     pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
+  9. wait-scope   - WARN-ONLY (see below). Ground truth (corrected - see R0,
+                    spawner-completion-contract.md): a subagent CAN launch a child and block on it
+                    (a blocking Agent-tool launch), or launch async and park (end its turn) to be
+                    resumed by the wake router - it is never simply killed. A park/wait instruction
+                    (end turn / park / hold until / wait to be resumed / await) near turn/child/
+                    worker/agent vocabulary, anywhere under skills/*/SKILL.md, agents/*.md,
+                    snippets/*.md, is a finding when EITHER of two real hazards is present: (a) its
+                    section names no R0 branch (no R0/move-N/run_in_background/NEEDS_NEXT/
+                    nesting-cap/spawner-completion-contract.md citation) - an unattributed park
+                    instruction leaves a reader unable to tell which of the three R0 moves it is
+                    exercising; (b) its section shows file-writing language (write/author/edit) but
+                    states no commit/checkpoint safeguard - the non-interactive-surface hazard R0
+                    itself names: never end a turn with uncommitted work.
+ 10. wait-mechanism - WARN-ONLY (see below). Two real hazards, neither ever correct under any R0
+                    branch: (a) an instruction to POLL or SLEEP while waiting for a child - a
+                    blocking launch (`run_in_background: false`) already blocks the call itself,
+                    and an async launch parks via end-of-turn, so nothing ever legitimately polls
+                    or sleeps FOR a child's completion (Ask 2's periodic TaskList/TaskGet board
+                    check is a DIFFERENT, sanctioned pattern - tracking status, not busy-waiting -
+                    and is excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
+                    the Agent tool) with no nearby capability-handling language (own toolset /
+                    Agent tool absent / nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires
+                    checking your own toolset FIRST, so a dispatch claim with no cap-check nearby
+                    reads as though the Agent tool is always assumed present.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding - flip that on once all skills comply.
+(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8 - flip that on once all skills
+comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) are additionally WARN-ONLY FOR ONE RELEASE
+BY DESIGN, independent of --strict/ORCH_STRICT: they are new and proximity/citation-based (not a
+full semantic read), so a legitimate turn-boundary instruction that is merely worded unusually can
+still false-positive - they print but never flip the exit code. Flip them into the strict gate
+(fold their list into `findings`) once the tree is clean, one release after they ship.
 
 Run from the repo root or anywhere; paths are resolved relative to this file.
 """
@@ -44,6 +73,7 @@ PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
+SNIPPETS_DIR = PLUGIN_ROOT / "snippets"
 
 OSM_SNIPPET = "osm-first-contract"
 DESIGN_DOC = "odoo-frontend-fidelity"
@@ -267,6 +297,185 @@ def check_agent_roles(findings: list[str]) -> None:
             )
 
 
+# --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
+#
+# Corrected ground truth (R0, spawner-completion-contract.md): a subagent CAN launch a child and
+# CAN block on its result (a blocking Agent-tool launch, `run_in_background: false`), or - when the
+# launch tool exposes no such lever - launch async and END ITS TURN to be resumed by a wake router
+# on completion; it is never simply killed. The real hazards are NOT "a subagent parked" (that is
+# often correct) - they are: an unattributed park instruction (a reader cannot tell which R0 branch
+# it exercises), uncommitted work surviving a turn boundary, a poll/sleep loop standing in for the
+# mechanical barrier a blocking launch or a park-and-resume already provides, and a dispatch claim
+# made with no visible check that the launching capability exists in the first place.
+#
+# [wait-scope] (rule 9) - a park/wait instruction (end turn / park / hold until / wait to be
+# resumed / await) near turn/child/worker/agent vocabulary, anywhere under skills/*/SKILL.md,
+# agents/*.md, snippets/*.md, is a finding when its enclosing section:
+#   (a) names no R0 branch - no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/
+#       spawner-completion-contract.md citation - so a reader cannot tell whether this is a
+#       blocking launch, an async park, or the no-capability branch; or
+#   (b) shows file-writing language (write/author/edit) with no commit/checkpoint safeguard
+#       stated nearby - the non-interactive-surface bound R0 itself names: never end a turn with
+#       uncommitted work.
+#
+# [wait-mechanism] (rule 10) - two independent detectors, neither ever correct under any R0
+# branch:
+#   (a) an instruction to POLL or SLEEP while waiting for a child - a blocking launch already
+#       blocks the call itself, and an async launch parks via end-of-turn; nothing legitimately
+#       polls or sleeps FOR a child's completion. Ask 2's periodic TaskList/TaskGet board check is
+#       a DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
+#   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
+#       capability-handling language (own toolset / Agent tool absent / nesting cap / R0 /
+#       NEEDS_NEXT) - R0 move 1 requires checking your own toolset FIRST, so an unattended dispatch
+#       claim reads as though the Agent tool is always assumed present.
+#
+# Both are proximity/citation-based (not a full semantic read), so a legitimate instruction worded
+# unusually can still false-positive - exactly why they ship WARN-FIRST for one release: findings
+# from these two rules are collected into a SEPARATE list and never flip the exit code, even under
+# --strict/ORCH_STRICT - only the 8 rules above (and the agent-role pass) gate the strict exit.
+# This mirrors the whole-script migration pattern this file already documents at its own top
+# (WARN-FIRST docstring, line ~31): ship loud-but-inert, then flip to enforcing once the tree is
+# clean. Flip these two to strict-gating in the release after this one lands.
+
+WAIT_VERB_RE = re.compile(
+    r"(END your turn|end the turn|\bpark\b|hold until|wait to be resumed|\bawait\b)",
+    re.I,
+)
+WAIT_SCOPE_CONTEXT_RE = re.compile(r"\b(turn|child|worker|agent)\b", re.I)
+H2_RE = re.compile(r"^##\s+(.*)$", re.M)
+LAUNCH_VERB_RE = re.compile(r"\b(launch|dispatch|spawn|Agent tool)\b", re.I)
+
+# R0-branch attribution: any citation proving the instruction states WHICH branch it belongs to
+# (move 1 no-capability / move 2 blocking-launch / move 3 async-park), or a pointer to the R0 SSOT
+# itself.
+R0_BRANCH_CITE_RE = re.compile(
+    r"\bR0\b|move\s*[123]\b|run_in_background|NEEDS_NEXT|nesting cap|"
+    r"spawner-completion-contract\.md",
+    re.I,
+)
+# Uncommitted-work bound: a section that shows file-writing language must also show SOME
+# commit/checkpoint safeguard, per R0's own non-interactive-surface rule.
+WRITE_CONTEXT_RE = re.compile(r"\bwrit(?:e|es|ing|ten)\b|\bauthor(?:s|ed|ing)?\b|\bedit(?:s|ed|ing)?\b", re.I)
+COMMIT_SAFEGUARD_RE = re.compile(r"\bcommit(?:ted|s|ting)?\b|\bcheckpoint\b|uncommitted work", re.I)
+
+# [wait-mechanism] (a): poll/sleep paired with wait-for-a-child vocabulary, excluding the
+# sanctioned Ask-2 task-board check (TaskList/TaskGet/TaskCreate polling is status tracking, not a
+# busy-wait loop standing in for the mechanical barrier).
+POLL_SLEEP_RE = re.compile(r"\bpoll(?:s|ing|ed)?\b|\bsleep\b", re.I)
+TASK_BOARD_RE = re.compile(r"tasklist|taskget|taskcreate|task board|task list", re.I)
+# [wait-mechanism] (b): a dispatch claim with no nearby capability-handling language.
+DISPATCH_CLAIM_RE = re.compile(
+    r"(invoke the Agent tool|call the Agent tool"
+    r"|dispatch(?:es)? (?:to )?the `?[a-z][a-z-]+`? agent"
+    r"|launch(?:es|ing)? (?:the )?`?[a-z][a-z-]+`? agent)",
+    re.I,
+)
+CAP_HANDLING_RE = re.compile(
+    r"own toolset|Agent tool (?:is|is not|absent|has|exposes)|nesting cap|no Agent tool|"
+    r"capability (?:is )?absent|NEEDS_NEXT|\bR0\b",
+    re.I,
+)
+# Reuses the same lookback-negation convention as _has_positive_spawn/_has_positive_git_mutation
+# above (module-level NEGATION_RE) so "do not poll" / "never sleep" are never flagged as if they
+# were positive instructions to poll/sleep.
+
+
+def _enclosing_h2(text: str, pos: int) -> str:
+    """The H2 heading text whose section contains offset `pos` ('' if none precede it)."""
+    heading = ""
+    for m in H2_RE.finditer(text):
+        if m.start() > pos:
+            break
+        heading = m.group(1)
+    return heading
+
+
+def _wait_scope_scan_files() -> list[Path]:
+    files = sorted(SNIPPETS_DIR.glob("*.md")) if SNIPPETS_DIR.exists() else []
+    files += sorted(SKILLS_DIR.rglob("SKILL.md")) if SKILLS_DIR.exists() else []
+    files += sorted(AGENTS_DIR.glob("*.md")) if AGENTS_DIR.exists() else []
+    return files
+
+
+def _wait_instructions(text: str):
+    """Yield (match, heading, section_text) for each park-the-turn verb sitting near
+    turn/child/worker/agent vocabulary (a 200-char window on each side - a wait verb far from
+    that vocabulary is not a spawner-completion concern, e.g. 'await confirmation from the
+    user')."""
+    for m in WAIT_VERB_RE.finditer(text):
+        window = text[max(0, m.start() - 200): m.start() + 200]
+        if not WAIT_SCOPE_CONTEXT_RE.search(window):
+            continue
+        heading = _enclosing_h2(text, m.start())
+        section_start = text.rfind("\n## ", 0, m.start())
+        section_text = text[max(0, section_start):m.start()]
+        yield m, heading, section_text
+
+
+def check_wait_scope(warn_only_findings: list[str]) -> None:
+    """[wait-scope] (rule 9) - see module-level note above. A park/wait instruction is a finding
+    when its section names no R0 branch, OR shows file-writing language with no stated commit/
+    checkpoint safeguard (the two real hazards; a bare park instruction is not itself one)."""
+    for f in _wait_scope_scan_files():
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(PLUGIN_ROOT)
+        for m, heading, section_text in _wait_instructions(text):
+            if not R0_BRANCH_CITE_RE.search(section_text):
+                warn_only_findings.append(
+                    f"[wait-scope] {rel}: {m.group()!r} park/wait instruction names no R0 branch "
+                    f"(no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/"
+                    f"spawner-completion-contract.md citation in its section, heading: {heading!r})"
+                )
+            if WRITE_CONTEXT_RE.search(section_text) and not COMMIT_SAFEGUARD_RE.search(section_text):
+                warn_only_findings.append(
+                    f"[wait-scope] {rel}: {m.group()!r} sits in a section with file-writing "
+                    f"language but no stated commit/checkpoint safeguard - risks ending a turn "
+                    f"with uncommitted work (heading: {heading!r})"
+                )
+
+
+def check_wait_mechanism(warn_only_findings: list[str]) -> None:
+    """[wait-mechanism] (rule 10) - see module-level note above. Two detectors: (a) poll/sleep
+    paired with wait-for-a-child vocabulary (excluding the sanctioned Ask-2 task-board check), and
+    (b) a dispatch claim with no nearby capability-handling language."""
+    for f in _wait_scope_scan_files():
+        text = f.read_text(encoding="utf-8")
+        lines = text.splitlines()
+        rel = f.relative_to(PLUGIN_ROOT)
+
+        # (a) poll/sleep while waiting for a child.
+        for i, line in enumerate(lines):
+            for m in POLL_SLEEP_RE.finditer(line):
+                preceding = line[max(0, m.start() - 45):m.start()]
+                if NEGATION_RE.search(preceding):
+                    continue  # "do not poll" / "never sleep" - a prohibition, not an instruction
+                window = "\n".join(lines[max(0, i - 3): i + 4])
+                if TASK_BOARD_RE.search(window):
+                    continue  # Ask 2's sanctioned task-board status check, not a busy-wait loop
+                if WAIT_SCOPE_CONTEXT_RE.search(window):
+                    warn_only_findings.append(
+                        f"[wait-mechanism] {rel}:{i + 1}: {m.group()!r} instructs polling/"
+                        f"sleeping near wait-for-a-child vocabulary - never correct under any R0 "
+                        f"branch (a blocking launch already blocks; an async launch parks via "
+                        f"end-of-turn, never a poll/sleep loop)"
+                    )
+
+        # (b) a dispatch claim with no nearby capability-handling language.
+        for m in DISPATCH_CLAIM_RE.finditer(text):
+            preceding = text[max(0, m.start() - 45):m.start()]
+            if NEGATION_RE.search(preceding):
+                continue  # "does not launch the X agent" - a self-declared leaf, not a claim
+            window = text[max(0, m.start() - 300): m.start() + 300]
+            if not CAP_HANDLING_RE.search(window):
+                line_no = text.count("\n", 0, m.start()) + 1
+                warn_only_findings.append(
+                    f"[wait-mechanism] {rel}:{line_no}: {m.group()!r} claims a dispatch with no "
+                    f"nearby capability-handling language (own toolset / Agent tool absent / "
+                    f"nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires checking your own "
+                    f"toolset before every launch"
+                )
+
+
 def main(argv: list[str]) -> int:
     strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
@@ -388,17 +597,33 @@ def main(argv: list[str]) -> int:
     # 8. Agent role (see check_agent_roles docstring - LIVE: roles are populated for every agent)
     check_agent_roles(findings)
 
+    # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
+    # into their OWN list, never gating the strict exit below, no matter how many fire (see the
+    # module-level note above these functions for why and for the flip-to-strict plan).
+    warn_only_findings: list[str] = []
+    check_wait_scope(warn_only_findings)
+    check_wait_mechanism(warn_only_findings)
+
     if findings:
         print(f"check_orchestration: {len(findings)} finding(s)"
               f" ({'STRICT' if strict else 'warn-only'}):")
         for fnd in findings:
             print(f"  - {fnd}")
-        if strict:
-            return 1
-        print("  (warn-only mode - exit 0; pass --strict to enforce)")
-        return 0
+        if not strict:
+            print("  (warn-only mode - exit 0; pass --strict to enforce)")
 
-    print("check_orchestration: OK - all orchestration contracts satisfied.")
+    if warn_only_findings:
+        print(f"check_orchestration: {len(warn_only_findings)} warn-only finding(s) "
+              f"([wait-scope]/[wait-mechanism], ships warn-first for one release - "
+              f"NEVER gates --strict):")
+        for fnd in warn_only_findings:
+            print(f"  - {fnd}")
+
+    if findings and strict:
+        return 1
+
+    if not findings and not warn_only_findings:
+        print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 
 

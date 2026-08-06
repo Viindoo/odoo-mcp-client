@@ -10,13 +10,18 @@
 
 # Agent Team Protocol - completion-report push + low-context task board
 
+**Ending a turn without a report strands the launcher, in ANY mode.** A dispatched agent that ends
+its turn on a bare tool call or on plain text - reporting nothing - leaves its launcher unable to
+tell *finished-without-reporting* from *still-working* (R0,
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). This holds identically whether or
+not Agent Team mode is on; Agent Team mode additionally NAMES the failure mode: the launcher sees
+only a content-less `idle_notification`.
+
 When the runtime is in **Agent Team mode**, a subagent spawned with a `name` is a TEAMMATE running
 in the background, addressable via `SendMessage({to: "<name>"})`; the orchestrating context is the
 team LEAD, addressed by whichever context launched you (`main` ONLY when main is that launcher -
 see the Addressing section below). In that mode a teammate's plain-text output AND any file it writes
-are INVISIBLE to the lead - only an explicit `SendMessage` delivers content. A finished teammate
-that ends its turn on a tool call or on plain text emits only a content-less `idle_notification`,
-which strands the lead (it cannot tell *finished-without-reporting* from *still-working*).
+are INVISIBLE to the lead - only an explicit `SendMessage` delivers content.
 
 This protocol fixes that with two contracts: **Ask 1** - the teammate pushes a completion report to
 the lead; **Ask 2** - the lead tracks teammates on a cheap task board. Agent Team mode is OPTIONAL:
@@ -146,7 +151,9 @@ coordinator (every module) pushes its completion report to that COORDINATOR (its
 to `main` - the coordinator then rolls the module result up to `odoo-coding`. This direct
 launcher<->child report channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag (it
 is not a team-roster feature); when `SendMessage` is absent the worker returns its report as its
-final message and the coordinator reads it from the returned transcript. See
+final message and the coordinator reads it from the returned transcript. `odoo-coder` itself then
+pushes ITS OWN completion report to `odoo-coding` (its `REPLY_TO`), never to `main`, exactly as any
+other worker addresses its own launcher. See
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested spawner".
 
 ## Fallback - team mode off

@@ -65,7 +65,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
 │  context: fork subagents - carry hard-rules line, no spawner-  │
-│    skill dispatch (depth-cap-5; non-fork interior agents CAN    │
+│    skill dispatch (depth-cap-3; non-fork interior agents CAN    │
 │    spawn their own subagents - see §6 Skill delegation rule)    │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -77,8 +77,11 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
   a command shim and a skill body.
 - **Fan-out worker constraint**: `context: fork` fan-out workers carry the hard-rules
   line and do NOT dispatch spawner skills or spawn further subagents. Non-fork interior
-  agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents;
-  the platform enforces a depth cap of 5. Resources are platform-managed.
+  agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents up to the
+  platform depth cap (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3 - the launch tool is
+  silently removed from the toolset at the cap). Dispatch capability is capability-branching,
+  SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0. Resources are
+  platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
   Skill tool, launching agents, and the `run-harness` loop - it deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
@@ -694,7 +697,7 @@ orchestrating context (main agent / run-harness / odoo-intake)
   └── dispatched-specialist (workflow skill / spawner-agent skill)
         └── leaf-worker (context: fork worker)                ← hard-rules line; no spawner-skill dispatch
         └── named interior agent (odoo-coder coordinator, odoo-code-reviewer, …)
-              └── may spawn its own subagents (depth cap 5)
+              └── may spawn its own subagents (depth cap 3, capability-branching - §R0)
                     └── odoo-coder is the per-module COORDINATOR (launched for EVERY
                         module): it launches odoo-backend-coder and/or
                         odoo-frontend-coder (hard leaves) and tests the integrated
@@ -719,8 +722,9 @@ frontend-only, or full-stack - which itself launches `odoo-backend-coder` and/or
 `odoo-frontend-coder`; `odoo-coding` never dispatches a worker directly), `odoo-debug`,
 `odoo-solution-design`, `odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` /
 `odoo-qa-tester`). The `odoo-coder` coordinator is the sanctioned NESTED spawner (one AGENT
-level below `odoo-coding`); its `odoo-backend-coder` / `odoo-frontend-coder` workers are HARD
-LEAVES that launch nothing.
+level below `odoo-coding`, well under the depth cap - SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0); its `odoo-backend-coder` /
+`odoo-frontend-coder` workers are HARD LEAVES that launch nothing.
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `odoo-intake` / `run-harness` / `workflow-chaining`
@@ -753,8 +757,10 @@ The "no spawner-skill dispatch" restriction binds **`context: fork` fan-out work
 a fork worker dispatching a spawner skill kicks off a fresh agent pipeline that wastes a depth
 level and breaks fan-out isolation - hence the mandatory hard-rules line. Named interior agents
 (e.g. `odoo-coder`, `odoo-code-reviewer`) ARE allowed to dispatch further agents or use the Skill
-tool; the platform depth cap (5) is the hard guard. Commands dispatch via the Skill tool
-(canonical) or NL description-match (fallback) - either is correct at the command level.
+tool; dispatch capability is capability-branching (read your own toolset - SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0), and the platform depth cap
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3) is the hard guard. Commands dispatch via the
+Skill tool (canonical) or NL description-match (fallback) - either is correct at the command level.
 
 ### Context-Handoff Protocol (CHP)
 
@@ -902,17 +908,20 @@ invoking a spawner skill and forbid launching any sub-agent, and forbid integrat
 author inside their assigned worktree only and return the file list
 (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). The `odoo-coder` per-module COORDINATOR (launched
 by `odoo-coding` for EVERY module) is NOT a leaf - it is a sanctioned nested spawner (one agent level
-below `odoo-coding`) that owns the module's INTERNAL work-item split, launches those hard leaves per
-WI (independent WIs in parallel - siblings at the SAME depth), tests the integrated module via
-`Skill(odoo-instance)` (inline in its own context, or by launching `odoo-instance-ops` - whichever
-fits), and COMMITS its module via `git-toolkit:git-ops`
+below `odoo-coding`, well under the depth cap - dispatch capability decided per
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0) that owns the module's
+INTERNAL work-item split, launches those hard leaves per WI (independent WIs in parallel -
+siblings at the SAME depth), tests the integrated module via `Skill(odoo-instance)` (inline in its
+own context, or by launching `odoo-instance-ops` - whichever fits), and COMMITS its module via
+`git-toolkit:git-ops`
 (inline Skill; git-ops cold-spawns exactly one internal leaf below it). A conflict resolver
 subagent is likewise a leaf that edits files in the worktree and runs no git op.
 
 run-harness is an inline orchestrating skill folded into main (the former git-executor level is
-gone), so the deepest nesting chain stays
-`main -> odoo-coding -> odoo-coder coordinator -> odoo-backend-coder/odoo-frontend-coder`; the
-commit chain is `odoo-coder -> git-ops[inline] -> (git-ops's own internal leaf)`. The coordinator may launch
+gone), so the deepest nesting chain stays: `main` -> `odoo-coding` (a skill, runs inline in its
+caller's context, costs no level) -> `odoo-coder` (level 1) -> `odoo-backend-coder`/
+`odoo-frontend-coder` (level 2) - well under the depth cap. The commit chain is
+`odoo-coder -> git-ops[inline] -> (git-ops's own internal leaf)`. The coordinator may launch
 MULTIPLE workers in parallel (one per independent WI), but they are siblings at the same leaf
 level and add NO further depth.
 
