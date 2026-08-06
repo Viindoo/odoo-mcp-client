@@ -1,0 +1,129 @@
+{
+  "run_id": "multi-repo-clean-20260806-m1n2",
+  "schema_version": "run/1.0",
+  "intent": "add fleet billing in the addon repo and the matching core hook in the core repo",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 16, "nodes_run": 6},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    },
+    {
+      "id": "core-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fleet-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "core-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_core_hook/models/res_config.py"],
+      "contract": {"status": "DONE", "produced": ["viin_core_hook/models/res_config.py"], "next": []}
+    },
+    {
+      "id": "run-summary",
+      "approach": "inline synthesis of both repos' results",
+      "approach_kind": "inline",
+      "repo": null,
+      "inputs": {},
+      "depends_on": ["fleet-wave-1", "core-wave-1"],
+      "gate_tier": "L0",
+      "status": "DONE",
+      "produced": [],
+      "contract": {"status": "DONE", "produced": [], "next": []}
+    },
+    {
+      "id": "fleet-land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["fleet-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/1"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/1"], "next": []}
+    },
+    {
+      "id": "core-land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": ["core-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/core-addons/pull/7"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/core-addons/pull/7"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [
+    {
+      "id": "fleet-monitor",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {"pr": "https://example.invalid/org/fleet-addons/pull/1"},
+      "depends_on": ["fleet-land"],
+      "gate_tier": "L2",
+      "status": "DONE",
+      "produced": [],
+      "contract": {"status": "DONE", "produced": [], "next": []}
+    },
+    {
+      "id": "core-monitor",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "repo": "core-addons",
+      "inputs": {"pr": "https://example.invalid/org/core-addons/pull/7"},
+      "depends_on": ["core-land"],
+      "gate_tier": "L2",
+      "status": "DONE",
+      "produced": [],
+      "contract": {"status": "DONE", "produced": [], "next": []}
+    }
+  ],
+  "gate_log": [
+    {"node": "fleet-wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "core-wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "fleet-monitor", "tier": "L2", "decision": "approve"},
+    {"node": "core-monitor", "tier": "L2", "decision": "approve"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [
+      "https://example.invalid/org/fleet-addons/pull/1",
+      "https://example.invalid/org/core-addons/pull/7"
+    ],
+    "summary": "two repos, two PRs - one per repo, each opened after that repo's own work settled"
+  }
+}

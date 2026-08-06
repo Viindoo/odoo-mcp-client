@@ -1,0 +1,47 @@
+{
+  "run_id": "pr-never-landed-20260806-i9j0",
+  "schema_version": "run/1.0",
+  "intent": "add a discount ceiling but never land it",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 1},
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["mod_a/models/a.py"],
+      "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
+    },
+    {
+      "id": "land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "BLOCKED",
+      "produced": [],
+      "contract": {
+        "status": "BLOCKED",
+        "produced": [],
+        "next": [],
+        "blocked_reason": "push rejected - fork remote unreachable"
+      }
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [],
+    "summary": "the run reports DONE but its declared land-tail never opened the PR"
+  }
+}

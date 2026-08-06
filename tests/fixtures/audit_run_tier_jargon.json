@@ -1,0 +1,56 @@
+{
+  "run_id": "tier-jargon-20260806-g7h8",
+  "schema_version": "run/1.0",
+  "intent": "review a UI change",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 2},
+  "nodes": [
+    {
+      "id": "review-1",
+      "approach": "odoo-code-review",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L0",
+      "status": "DONE",
+      "produced": ["review/mod_a.md"],
+      "contract": {
+        "status": "NEEDS_NEXT",
+        "produced": ["review/mod_a.md"],
+        "next": [
+          {
+            "skill": "odoo-acceptance",
+            "reason": "change touches a UI surface with dependents",
+            "inputs": {"changed_set": ["mod_a"]},
+            "confidence": 0.7,
+            "risk_level": "L2"
+          }
+        ],
+        "blocked_reason": null
+      }
+    },
+    {
+      "id": "land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["review-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/repo/pull/1"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "review-1", "tier": "L0", "decision": "auto-pass"},
+    {"node": "land", "tier": "L1", "decision": "approve"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/repo/pull/1"],
+    "summary": "the emitted contract still carries the removed risk_level tier token"
+  }
+}

@@ -230,10 +230,19 @@ shown that path, it may read both files and the byte-cost saving is lost. `snipp
 is discoverable only from this section and from `[ref-scope]`'s lint (`check_orchestration.py`),
 which also asserts no consumer-facing file contains the literal substring `snippets/references/`.
 
-`[card-budget]` (same lint) asserts every hot file stays under its declared budget
-(`tests/fixtures/card_budget_grandfather.json` for files that already exceeded the 4,096 B default
-cap when their budget was recorded, else the default cap itself) - grow one deliberately, never
-silently.
+`[card-budget]` (same lint) asserts every hot file stays under its declared budget - grow one
+deliberately, never silently. A file becomes subject to it two ways:
+
+- **Declared** - it has an entry in `tests/fixtures/card_budget_grandfather.json`. The entry is
+  both the qualification and the budget, and the file is measured wherever it lives. This is the
+  only door for a hot contract that is not a shared snippet - notably a top-level
+  `skills/<name>/SKILL.md` runtime contract such as `run-harness`, whose basename is shared by
+  every skill and so is invisible to the citer heuristic below.
+- **Discovered** - it is a `snippets/*.md` or `skills/_shared/*.md` file cited by >=3 distinct
+  skills+agents, and its budget is the default 4,096 B cap.
+
+When you trim a budgeted file, lower its entry to the new actual size in the same change. A budget
+left above the real size quietly hands the reclaimed bytes back.
 
 ## 7. Confidentiality and style (public repo)
 

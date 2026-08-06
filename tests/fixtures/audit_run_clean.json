@@ -1,0 +1,105 @@
+{
+  "run_id": "clean-run-20260806-a1b2",
+  "schema_version": "run/1.0",
+  "intent": "add a discount ceiling to sale.order.line",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 4},
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["sale_discount_ceiling/models/sale_order_line.py"],
+      "contract": {
+        "status": "DONE",
+        "produced": ["sale_discount_ceiling/models/sale_order_line.py"],
+        "next": [],
+        "blocked_reason": null
+      }
+    },
+    {
+      "id": "review-1",
+      "approach": "odoo-code-review",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L0",
+      "status": "DONE",
+      "produced": ["review/sale_discount_ceiling.md"],
+      "contract": {
+        "status": "DONE",
+        "produced": ["review/sale_discount_ceiling.md"],
+        "next": [],
+        "blocked_reason": null
+      }
+    },
+    {
+      "id": "skipped-doc",
+      "approach": "odoo-doc-illustration",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": ["review-1"],
+      "gate_tier": "L1",
+      "status": "SKIPPED",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["review-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/repo/pull/1"],
+      "contract": {
+        "status": "NEEDS_NEXT",
+        "produced": ["https://example.invalid/org/repo/pull/1"],
+        "next": [
+          {
+            "skill": "odoo-pr-monitoring",
+            "reason": "watch CI on the opened PR and drive it to merge",
+            "inputs": {"pr": "https://example.invalid/org/repo/pull/1"},
+            "confidence": 0.95
+          }
+        ],
+        "blocked_reason": null
+      }
+    }
+  ],
+  "dynamic_nodes": [
+    {
+      "id": "monitor-1",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "inputs": {"pr": "https://example.invalid/org/repo/pull/1"},
+      "depends_on": ["land"],
+      "gate_tier": "L2",
+      "status": "DONE",
+      "produced": ["monitor/pr-1.md"],
+      "contract": {
+        "status": "DONE",
+        "produced": ["monitor/pr-1.md"],
+        "next": [],
+        "blocked_reason": null
+      }
+    }
+  ],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "review-1", "tier": "L0", "decision": "auto-pass"},
+    {"node": "monitor-1", "tier": "L2", "decision": "approve"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/repo/pull/1"],
+    "summary": "one PR opened after the final wave closed green; merged after the L2 gate"
+  }
+}

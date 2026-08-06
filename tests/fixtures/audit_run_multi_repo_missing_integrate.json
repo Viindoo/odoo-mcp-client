@@ -1,0 +1,75 @@
+{
+  "run_id": "multi-repo-missing-integrate-20260806-p3q4",
+  "schema_version": "run/1.0",
+  "intent": "code in two repos but land only one of them",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 16, "nodes_run": 4},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    },
+    {
+      "id": "core-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fleet-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "core-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_core_hook/models/res_config.py"],
+      "contract": {"status": "DONE", "produced": ["viin_core_hook/models/res_config.py"], "next": []}
+    },
+    {
+      "id": "fleet-land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["fleet-wave-1", "core-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/2"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/2"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "fleet-wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "core-wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/fleet-addons/pull/2"],
+    "summary": "core-addons was coded but never landed - its work has no PR of its own"
+  }
+}

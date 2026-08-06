@@ -1,0 +1,43 @@
+{
+  "run_id": "chat-only-20260806-k1l2",
+  "schema_version": "run/1.0",
+  "intent": "compare the ORM API between two Odoo series",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 2},
+  "nodes": [
+    {
+      "id": "diff-1",
+      "approach": "odoo-version-diff",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L0",
+      "status": "DONE",
+      "produced": [],
+      "contract": {"status": "DONE", "produced": [], "next": [], "blocked_reason": null}
+    },
+    {
+      "id": "audit-1",
+      "approach": "odoo-deprecation-audit",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": ["diff-1"],
+      "gate_tier": "L0",
+      "status": "DONE",
+      "produced": [],
+      "contract": {"status": "DONE", "produced": [], "next": [], "blocked_reason": null}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "diff-1", "tier": "L0", "decision": "auto-pass"},
+    {"node": "audit-1", "tier": "L0", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [],
+    "summary": "read-only run - nothing to land, so no PR-opening node is declared"
+  }
+}

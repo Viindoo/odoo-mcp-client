@@ -1,0 +1,123 @@
+{
+  "run_id": "multi-repo-scoped-20260806-r5s6",
+  "schema_version": "run/1.0",
+  "intent": "land fleet-addons early while core-addons is still being built",
+  "autonomy": "auto",
+  "status": "NEEDS_NEXT",
+  "cursor": "core-wave-1",
+  "budget": {"max_nodes": 16, "nodes_run": 3},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    },
+    {
+      "id": "core-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "fleet-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "fleet-i18n",
+      "approach": "odoo-i18n",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["fleet-wave-1"],
+      "gate_tier": "L2",
+      "status": "READY",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "fleet-land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["fleet-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/3"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/3"], "next": []}
+    },
+    {
+      "id": "core-wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "RUNNING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "core-review",
+      "approach": "odoo-code-review",
+      "approach_kind": "skill",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": ["core-wave-1"],
+      "gate_tier": "L0",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "core-land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "core-addons",
+      "inputs": {},
+      "depends_on": ["core-review"],
+      "gate_tier": "L1",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "run-summary",
+      "approach": "inline synthesis across both repos",
+      "approach_kind": "inline",
+      "repo": null,
+      "inputs": {},
+      "depends_on": ["fleet-land", "core-land"],
+      "gate_tier": "L0",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "fleet-wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "fleet-land", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": null,
+    "evidence": [],
+    "summary": null
+  }
+}
