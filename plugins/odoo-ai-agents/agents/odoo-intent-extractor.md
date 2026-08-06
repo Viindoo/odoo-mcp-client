@@ -152,7 +152,7 @@ entity_lookup(kind='method', model='account.move', method_name='_post', odoo_ver
 api_version_diff(symbol='account.move._post', from_version='16.0', to_version='17.0')
 ```
 
-`odoo_version=` is mandatory in every odoo-semantic-mcp call - never omit it, never rely on a default. The pin is session-scoped state that any other actor sharing this session can overwrite (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
+`odoo_version=` is mandatory in every odoo-semantic-mcp call - never omit it, never rely on a default. The pin is session-scoped state that any other actor sharing this session can overwrite (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § OSM session-pin race).
 
 **When the diff contains test changes:** If Step 1 found added or modified test methods, ground
 the test class alongside the production symbols. Fire in parallel with the production-symbol
@@ -315,12 +315,16 @@ own rule) - a genuine pause is `BLOCKED`/`NEEDS_CONTEXT` with `blocked_reason` n
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your intent record file as usual. If `SendMessage` is absent, behave as today (final summary block per § Continuation).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field) as an explicit value - a path, or the literal `none yet` -
 EXACTLY ONE of `commit_dump_path` (single SHA) or `commit_dump_paths` (ordered module bundle -
 never both), `SLUG` (REQUIRED in BOTH forward-port mode and rebase mode - a load-bearing field
@@ -328,11 +332,11 @@ with no safe default in either, per § Step 3 "SLUG is REQUIRED in forward-port 
 Rebase mode "SLUG is REQUIRED in rebase mode"; never derive a fallback for either mode), and this
 family's other required fields (the ask framed as an open QUESTION rather than a scripted
 search-command sequence; structured findings FILE vs inline chat answer; explicit instruction to
-report uncertainty/confidence, never present a guess as fact). Graduated response, per
+report uncertainty/confidence, never present a guess as fact). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), `SLUG` in forward-port mode OR rebase mode, or another load-bearing family field
   with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
@@ -344,7 +348,8 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

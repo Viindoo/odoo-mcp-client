@@ -394,16 +394,16 @@ with `blocked_reason` naming what/who/next.
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+Confirm the dispatch brief carries this family's
 required fields (`mode` - `rebase` or `upgrade`; rebase mode's `diff_path` + `diff_scope` +
 `intents_dir`, or upgrade mode's `diff_scope` + `repo_root` + `source_version`/`target_version`;
 `slug` for output paths; its OWN output vocabulary - upgrade-mode `KEEP`/`DELETE-absorbed`/
 `OBSOLETE`/`REWRITE(api|model)`/`MERGE`/`SPLIT`/`RECONCILE` classification, or rebase-mode outcome
-buckets (a)-(d) plus `range_diff_verdict: PASS | FAIL` for P10 verify). Graduated response, per
+buckets (a)-(d) plus `range_diff_verdict: PASS | FAIL` for P10 verify). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+- Missing or a load-bearing family field with no safe default: STOP and
   return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
   irreversible/large). Do not silently guess or degrade.
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
@@ -413,11 +413,17 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your findings file as usual. If `SendMessage` is absent, behave as today (final return block + Continuation Contract).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+

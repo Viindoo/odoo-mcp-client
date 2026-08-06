@@ -660,7 +660,20 @@
   },
   "agents": {
     "odoo-coder": {
-      "role": "coordinator"
+      "role": "coordinator",
+      "brief": {
+        "required": [
+          "DESIGN_DOC",
+          "SURVEY",
+          "WORKTREE_PATH"
+        ],
+        "optional": [
+          "INSTANCE_HANDLE",
+          "SELF_PROVISION",
+          "MASTER_DESIGN_DOC",
+          "BASE"
+        ]
+      }
     },
     "odoo-test-writer": {
       "role": "leaf",
@@ -682,10 +695,35 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (test-first teammate), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate), odoo-forward-port / odoo-git-rebase (adapt-mode test translation). Returns the authored RED test file paths. min_server 0.15.0 for the test-surface tools."
+      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (test-first teammate), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate), odoo-forward-port / odoo-git-rebase (adapt-mode test translation). Returns the authored RED test file paths. min_server 0.15.0 for the test-surface tools.",
+      "brief": {
+        "required": [
+          "MODE",
+          "TARGET BEHAVIOR",
+          "TEST TYPE",
+          "SURVEY"
+        ],
+        "optional": [
+          "INSTANCE_HANDLE",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-backend-coder": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "RED_TEST_PATH",
+          "DESIGN_DOC",
+          "SURVEY",
+          "WORKTREE_PATH"
+        ],
+        "optional": [
+          "INSTANCE_HANDLE",
+          "MASTER_DESIGN_DOC",
+          "SELF_PROVISION"
+        ]
+      }
     },
     "odoo-diff-comparator": {
       "role": "leaf",
@@ -699,34 +737,159 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption)."
+      "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption).",
+      "brief": {
+        "required": [
+          "mode",
+          "diff_path",
+          "diff_scope",
+          "intents_dir",
+          "target_version",
+          "source_version",
+          "slug",
+          "repo_root"
+        ],
+        "optional": [
+          "verify_mode"
+        ]
+      }
     },
     "odoo-solution-architect": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "REQUIREMENT"
+        ],
+        "optional": [
+          "MODE",
+          "PEERS",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-planner": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "DESIGN_INDEX",
+          "GAP_MATRIX"
+        ],
+        "optional": [
+          "QA_ORACLE",
+          "SURVEY",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-code-reviewer": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "MODE"
+        ],
+        "optional": [
+          "DESIGN_DOC",
+          "MASTER_DESIGN_DOC",
+          "UI_REVIEW",
+          "INSTANCE_HANDLE",
+          "USER LANGUAGE",
+          "CHANGED_SET",
+          "SCOPE_FILES"
+        ]
+      }
     },
     "odoo-review-scoper": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "TARGET",
+          "odoo_version",
+          "review_root",
+          "pr_meta",
+          "pr_changed_files",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "BASE",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-ui-reviewer": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "SLUG"
+        ],
+        "optional": [
+          "ARTIFACT_DIR",
+          "ARTIFACT_FILE",
+          "USER LANGUAGE",
+          "BROWSER MODE"
+        ]
+      }
     },
     "odoo-frontend-coder": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "RED_TEST_PATH",
+          "DESIGN_DOC",
+          "SURVEY",
+          "WORKTREE_PATH"
+        ],
+        "optional": [
+          "INSTANCE_HANDLE",
+          "MASTER_DESIGN_DOC",
+          "SELF_PROVISION"
+        ]
+      }
     },
     "odoo-backend-debugger": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "SYMPTOM",
+          "ODOO_VERSION",
+          "SLUG",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "REPRODUCTION",
+          "SUSPECTED_LAYER",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-ui-debugger": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "SYMPTOM",
+          "ODOO_VERSION",
+          "SLUG",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "REPRODUCTION",
+          "USER LANGUAGE",
+          "BROWSER MODE"
+        ]
+      }
     },
     "odoo-intent-extractor": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "commit_dump_path"
+        ],
+        "optional": [
+          "commit_dump_paths",
+          "GROUNDING MODE",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-installable-prober": {
       "role": "leaf",
@@ -735,10 +898,33 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Read-only forward-port pipeline leaf: resolves the target-series installable state for a single module by reading the target clean-tip __manifest__.py the orchestrator wrote (manifest_path, REQUIRED - the flag is a per-file manifest fact, not an indexed-graph fact), plus the source manifest history dump for the category-3 transition. OSM is used only as a reachability probe. No writes, no further spawns."
+      "notes": "Read-only forward-port pipeline leaf: resolves the target-series installable state for a single module by reading the target clean-tip __manifest__.py the orchestrator wrote (manifest_path, REQUIRED - the flag is a per-file manifest fact, not an indexed-graph fact), plus the source manifest history dump for the category-3 transition. OSM is used only as a reachability probe. No writes, no further spawns.",
+      "brief": {
+        "required": [
+          "module",
+          "source_ref",
+          "target_ref",
+          "target_version",
+          "manifest_path"
+        ],
+        "optional": [
+          "repo_root",
+          "history_dump_path"
+        ]
+      }
     },
     "odoo-translator": {
-      "role": "leaf"
+      "role": "leaf",
+      "brief": {
+        "required": [
+          "WORKTREE_PATH"
+        ],
+        "optional": [
+          "LANGUAGES",
+          "GLOSSARY_PATH",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-instance-ops": {
       "role": "leaf",
@@ -752,7 +938,19 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. check_module_exists (+ set_active_profile / profile_inspect to pin and confirm the active profile) grounds two build-time HARD RULES: union Viindoo to_base into --load when present, and union present test_lint/test_pylint into the test-run install set. Does NOT call OSM for code-structure queries otherwise - only for CLI surface + module-presence discovery. min_server 0.13.1 for profile_inspect."
+      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. check_module_exists (+ set_active_profile / profile_inspect to pin and confirm the active profile) grounds two build-time HARD RULES: union Viindoo to_base into --load when present, and union present test_lint/test_pylint into the test-run install set. Does NOT call OSM for code-structure queries otherwise - only for CLI surface + module-presence discovery. min_server 0.13.1 for profile_inspect.",
+      "brief": {
+        "required": [
+          "INSTANCE_HANDLE",
+          "GATE_ROLE"
+        ],
+        "optional": [
+          "addons_path",
+          "demo",
+          "languages",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-gap-analyzer": {
       "role": "leaf",
@@ -770,7 +968,18 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Gap-analysis leaf worker: dispatched by the odoo-gap-analysis skill (one per requirement cluster) to classify Configuration vs Extension and ground coverage in OSM; mirrors the skill's tool set. min_server 0.13.1 for profile_inspect."
+      "notes": "Gap-analysis leaf worker: dispatched by the odoo-gap-analysis skill (one per requirement cluster) to classify Configuration vs Extension and ground coverage in OSM; mirrors the skill's tool set. min_server 0.13.1 for profile_inspect.",
+      "brief": {
+        "required": [
+          "REQUIREMENTS",
+          "CLUSTER_LABEL",
+          "ODOO_VERSION",
+          "OUTPUT_DIR"
+        ],
+        "optional": [
+          "PROFILE"
+        ]
+      }
     },
     "odoo-qa-planner": {
       "role": "leaf",
@@ -782,7 +991,19 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version."
+      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version.",
+      "brief": {
+        "required": [
+          "REQUIREMENT",
+          "odoo_version",
+          "CHANGED_SET",
+          "SCOPE_MANIFEST"
+        ],
+        "optional": [
+          "SCENARIOS_PATH",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-qa-tester": {
       "role": "leaf",
@@ -793,7 +1014,20 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version."
+      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version.",
+      "brief": {
+        "required": [
+          "ORACLE_PATH",
+          "INSTANCE_HANDLE",
+          "SCOPE",
+          "BROWSER_MODE",
+          "ISOLATE_DIR"
+        ],
+        "optional": [
+          "REPORT_PATH",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-icon-designer": {
       "role": "leaf",
@@ -805,7 +1039,17 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module."
+      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module.",
+      "brief": {
+        "required": [
+          "MODULE_PATH",
+          "WORKTREE_PATH"
+        ],
+        "optional": [
+          "BRIEF",
+          "VERSION"
+        ]
+      }
     },
     "odoo-feature-cataloger": {
       "role": "leaf",
@@ -818,7 +1062,20 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module."
+      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module.",
+      "brief": {
+        "required": [
+          "MODULE",
+          "ODOO_VERSION",
+          "OUTPUT_DIR"
+        ],
+        "optional": [
+          "MODULE_PATH",
+          "PROFILE",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
+        ]
+      }
     },
     "odoo-doc-scenarist": {
       "role": "leaf",
@@ -830,7 +1087,20 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0."
+      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0.",
+      "brief": {
+        "required": [
+          "MODULE",
+          "ODOO_VERSION",
+          "SLUG"
+        ],
+        "optional": [
+          "MODULE_PATH",
+          "CATALOG_PATH",
+          "OUTPUT_DIR",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-doc-scoper": {
       "role": "leaf",
@@ -842,7 +1112,18 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
+      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (5-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module.",
+      "brief": {
+        "required": [
+          "TARGET"
+        ],
+        "optional": [
+          "BASE",
+          "LANGUAGES",
+          "doc_layer",
+          "version"
+        ]
+      }
     },
     "odoo-doc-planner": {
       "role": "leaf",
@@ -854,7 +1135,18 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml"
+      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml",
+      "brief": {
+        "required": [
+          "plan_source"
+        ],
+        "optional": [
+          "MAX_CLUSTER_MODULES",
+          "REDOC",
+          "purity",
+          "USER LANGUAGE"
+        ]
+      }
     },
     "odoo-user-doc-writer": {
       "role": "leaf",
@@ -866,7 +1158,28 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect."
+      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
+      "brief": {
+        "required": [
+          "MODULE",
+          "MODULE PATH",
+          "WORKTREE_PATH",
+          "ADDONS_PATH",
+          "WALKTHROUGH",
+          "extends_in_scope"
+        ],
+        "optional": [
+          "RUN_ID",
+          "SHARE_DIR",
+          "ISOLATE_DIR",
+          "INSTANCE_HANDLE",
+          "FEATURE CATALOG",
+          "LANGUAGES",
+          "DOC SCOPE",
+          "CAPTURE MODE",
+          "BROWSER MODE"
+        ]
+      }
     },
     "odoo-marketing-writer": {
       "role": "leaf",
@@ -879,7 +1192,27 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures hero/feature-grid screenshots + assembles static/description/index.html (and per-locale variants) from supplied marketing copy + feature-catalog.jsonl + app-store-template.md; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1."
+      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures hero/feature-grid screenshots + assembles static/description/index.html (and per-locale variants) from supplied marketing copy + feature-catalog.jsonl + app-store-template.md; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1.",
+      "brief": {
+        "required": [
+          "MODULE",
+          "MODULE PATH",
+          "WORKTREE_PATH",
+          "ADDONS_PATH",
+          "MARKETING COPY",
+          "FEATURE CATALOG",
+          "extends_in_scope"
+        ],
+        "optional": [
+          "RUN_ID",
+          "SHARE_DIR",
+          "ISOLATE_DIR",
+          "INSTANCE_HANDLE",
+          "LANGUAGES",
+          "CAPTURE MODE",
+          "BROWSER MODE"
+        ]
+      }
     }
   },
   "orchestration": {
@@ -892,7 +1225,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-deep-survey": {
       "spawn_class": "spawner-agent",
@@ -903,7 +1237,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-addon-diff": {
       "spawn_class": "leaf",
@@ -911,7 +1246,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-brl": {
       "spawn_class": "spawner-agent",
@@ -922,7 +1258,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-campaign-plan": {
       "spawn_class": "leaf",
@@ -930,7 +1267,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-capability-proof": {
       "spawn_class": "leaf",
@@ -938,7 +1276,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-coding": {
       "spawn_class": "spawner-agent",
@@ -953,7 +1292,13 @@
       "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-coder",
+        "odoo-test-writer",
+        "odoo-backend-coder",
+        "odoo-frontend-coder"
+      ]
     },
     "odoo-code-review": {
       "spawn_class": "spawner-agent",
@@ -968,7 +1313,13 @@
       "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-code-reviewer",
+        "odoo-review-scoper",
+        "odoo-ui-reviewer",
+        "odoo-test-writer"
+      ]
     },
     "odoo-competitive-brief": {
       "spawn_class": "leaf",
@@ -976,7 +1327,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-content-draft": {
       "spawn_class": "leaf",
@@ -984,7 +1336,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-customization-inventory": {
       "spawn_class": "leaf",
@@ -992,7 +1345,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-deal-followup": {
       "spawn_class": "leaf",
@@ -1000,7 +1354,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-demo-recording": {
       "spawn_class": "leaf",
@@ -1008,7 +1363,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-deploy-checklist": {
       "spawn_class": "leaf",
@@ -1016,7 +1372,8 @@
       "stack": "none",
       "instance_touching": true,
       "output_mode": "chat-only",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": []
     },
     "odoo-deprecation-audit": {
       "spawn_class": "leaf",
@@ -1024,7 +1381,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-discovery-summary": {
       "spawn_class": "leaf",
@@ -1032,7 +1390,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-feature-check": {
       "spawn_class": "leaf",
@@ -1040,7 +1399,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-feature-highlights": {
       "spawn_class": "leaf",
@@ -1048,7 +1408,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-frontend-design": {
       "spawn_class": "leaf",
@@ -1056,7 +1417,8 @@
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-gap-analysis": {
       "spawn_class": "spawner-agent",
@@ -1067,7 +1429,10 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": [
+        "odoo-gap-analyzer"
+      ]
     },
     "odoo-git-rebase": {
       "spawn_class": "spawner-agent",
@@ -1085,7 +1450,12 @@
       "stack": "fullstack",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-intent-extractor",
+        "odoo-diff-comparator",
+        "odoo-test-writer"
+      ]
     },
     "odoo-objection-handling": {
       "spawn_class": "leaf",
@@ -1093,7 +1463,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-onboarding": {
       "spawn_class": "leaf",
@@ -1101,7 +1472,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-override-finding": {
       "spawn_class": "leaf",
@@ -1109,7 +1481,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-solution-design": {
       "spawn_class": "spawner-agent",
@@ -1120,7 +1493,10 @@
       "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-solution-architect"
+      ]
     },
     "odoo-planning": {
       "spawn_class": "spawner-agent",
@@ -1132,7 +1508,11 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-planner",
+        "odoo-doc-planner"
+      ]
     },
     "odoo-pr-monitoring": {
       "spawn_class": "spawner-agent",
@@ -1145,14 +1525,16 @@
       "instance_touching": false,
       "outward": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": []
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": []
     },
     "odoo-risk-overview": {
       "spawn_class": "leaf",
@@ -1160,7 +1542,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-support-triage": {
       "spawn_class": "orchestrator-nl",
@@ -1168,7 +1551,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
@@ -1182,7 +1566,13 @@
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-doc-scoper",
+        "odoo-doc-planner",
+        "odoo-user-doc-writer",
+        "odoo-marketing-writer"
+      ]
     },
     "odoo-ui-review": {
       "spawn_class": "spawner-agent",
@@ -1192,7 +1582,10 @@
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": [
+        "odoo-ui-reviewer"
+      ]
     },
     "odoo-version-diff": {
       "spawn_class": "leaf",
@@ -1200,7 +1593,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-visual-regression": {
       "spawn_class": "leaf",
@@ -1208,7 +1602,8 @@
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",
@@ -1218,7 +1613,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "run-harness": {
       "spawn_class": "orchestrator-nl",
@@ -1231,7 +1627,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-test-writing": {
       "spawn_class": "leaf",
@@ -1239,7 +1636,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-security-audit": {
       "spawn_class": "leaf",
@@ -1247,7 +1645,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-data-migration": {
       "spawn_class": "leaf",
@@ -1255,7 +1654,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": []
     },
     "odoo-perf-audit": {
       "spawn_class": "leaf",
@@ -1263,7 +1663,8 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-pricing-proposal": {
       "spawn_class": "leaf",
@@ -1271,7 +1672,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-rfp-response": {
       "spawn_class": "leaf",
@@ -1279,7 +1681,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-customer-health": {
       "spawn_class": "leaf",
@@ -1287,7 +1690,8 @@
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "default_gate_tier": "L0",
+      "spawns_agents": []
     },
     "odoo-debug": {
       "spawn_class": "spawner-agent",
@@ -1298,7 +1702,11 @@
       "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-backend-debugger",
+        "odoo-ui-debugger"
+      ]
     },
     "odoo-forward-port": {
       "spawn_class": "spawner-agent",
@@ -1316,7 +1724,12 @@
       "stack": "fullstack",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-intent-extractor",
+        "odoo-installable-prober",
+        "odoo-test-writer"
+      ]
     },
     "odoo-i18n": {
       "spawn_class": "spawner-agent",
@@ -1326,7 +1739,10 @@
       "stack": "backend",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-translator"
+      ]
     },
     "odoo-instance": {
       "spawn_class": "spawner-agent",
@@ -1336,7 +1752,10 @@
       "stack": "backend",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-instance-ops"
+      ]
     },
     "odoo-modules-upgrade": {
       "spawn_class": "spawner-agent",
@@ -1356,7 +1775,11 @@
       "stack": "fullstack",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-diff-comparator",
+        "odoo-solution-architect"
+      ]
     },
     "odoo-acceptance": {
       "spawn_class": "spawner-agent",
@@ -1371,7 +1794,13 @@
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L2",
+      "spawns_agents": [
+        "odoo-qa-planner",
+        "odoo-qa-tester",
+        "odoo-ui-reviewer",
+        "odoo-test-writer"
+      ]
     },
     "odoo-icon-design": {
       "spawn_class": "spawner-agent",
@@ -1381,7 +1810,10 @@
       "stack": "frontend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-icon-designer"
+      ]
     },
     "odoo-doc-feature-map": {
       "spawn_class": "spawner-agent",
@@ -1391,7 +1823,10 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-feature-cataloger"
+      ]
     },
     "odoo-doc-walkthrough": {
       "spawn_class": "spawner-agent",
@@ -1401,7 +1836,10 @@
       "stack": "backend",
       "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "default_gate_tier": "L1",
+      "spawns_agents": [
+        "odoo-doc-scenarist"
+      ]
     }
   },
   "vocabulary": {

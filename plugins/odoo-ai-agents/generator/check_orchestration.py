@@ -51,14 +51,36 @@ is complete and that skills thread the shared contracts they are required to:
                     Agent tool absent / nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires
                     checking your own toolset FIRST, so a dispatch claim with no cap-check nearby
                     reads as though the Agent tool is always assumed present.
+ 11. role-scope   - LIVE and enforcing. Data-driven from `agents.<name>.role` (never a hardcoded
+                    name list). Two halves: (a) a `role: leaf` agent body may not cite any member
+                    of the spawner-tier set (`agent-team-protocol.md`, `spawner-completion-
+                    contract.md`, `concurrency-guard.md`) - a leaf launches nothing, so those
+                    contracts do not bind it (see `snippets/spawner-completion-contract.md`'s own
+                    "vacuously compliant" sentence); (b) a `role: spawner|coordinator` agent body
+                    MUST cite `spawner-completion-contract.md`. Half (b)'s subject set (agents with
+                    role in {spawner, coordinator}) is asserted NON-EMPTY before the check runs -
+                    an empty subject set would let half (b) pass vacuously (zero agents checked,
+                    zero findings), so an empty set is itself a finding unless the registry sets
+                    the explicit top-level flag `_role_scope_no_spawners_expected: true`.
+ 12. brief-fields - WARN-ONLY, PERMANENTLY (not a migration window - see docstring below). For
+                    every `(skill, agent)` edge in `orchestration.<skill>.spawns_agents`, report
+                    any key in `agents.<agent>.brief.required` that never appears inside the
+                    skill's own dispatch fences (fenced ``` code blocks in its SKILL.md) - the
+                    literal brief template the skill hands the agent. Measured reality this rule
+                    exists to surface, not hide: 39 real dispatch briefs across 133 ad-hoc key
+                    names, none carrying all four ALWAYS-tier fields - see M7 in
+                    `12-design-final.md`. Full corpus normalization is explicitly out of scope;
+                    this rule reports the diff and blocks nothing.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8 - flip that on once all skills
-comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) are additionally WARN-ONLY FOR ONE RELEASE
-BY DESIGN, independent of --strict/ORCH_STRICT: they are new and proximity/citation-based (not a
-full semantic read), so a legitimate turn-boundary instruction that is merely worded unusually can
-still false-positive - they print but never flip the exit code. Flip them into the strict gate
-(fold their list into `findings`) once the tree is clean, one release after they ship.
+(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8 and 11 - flip that on once all
+skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) are additionally WARN-ONLY FOR ONE
+RELEASE BY DESIGN, independent of --strict/ORCH_STRICT: they are new and proximity/citation-based
+(not a full semantic read), so a legitimate turn-boundary instruction that is merely worded
+unusually can still false-positive - they print but never flip the exit code. Flip them into the
+strict gate (fold their list into `findings`) once the tree is clean, one release after they ship.
+Rule 12 ([brief-fields]) is warn-only PERMANENTLY, by design (see rule 12 above) - it is never
+scheduled to flip, unlike rules 9-10.
 
 Run from the repo root or anywhere; paths are resolved relative to this file.
 """
@@ -295,6 +317,113 @@ def check_agent_roles(findings: list[str]) -> None:
             findings.append(
                 f"[agent-role] '{name}' has role=leaf but body instructs a git mutation"
             )
+
+
+# Spawner-tier contract set (M6, 12-design-final.md): a `role: leaf` agent launches nothing, so
+# none of these bind it - see spawner-completion-contract.md's own "vacuously compliant" sentence.
+# Matched as a BARE FILENAME (not a full path) so it catches a citation regardless of which
+# relative prefix (snippets/, skills/_shared/) precedes it in a given body.
+SPAWNER_TIER_FILES = (
+    "agent-team-protocol.md",
+    "spawner-completion-contract.md",
+    "concurrency-guard.md",
+)
+
+
+def check_role_scope(findings: list[str]) -> None:
+    """11. [role-scope] - data-driven from `agents.<name>.role` (V-01 SSOT), never a hardcoded
+    name list. Two halves:
+
+    (a) a `role: leaf` agent body may not cite any member of SPAWNER_TIER_FILES - it launches
+        nothing, so the spawner-tier contracts do not bind it.
+    (b) a `role: spawner|coordinator` agent body MUST cite `spawner-completion-contract.md` - it
+        launches agents, so R3 (the completion-report addressing rule) binds it directly.
+
+    Half (b)'s subject set (agents with role in {spawner, coordinator}) is asserted NON-EMPTY
+    before the check runs, so the half can never pass vacuously (an empty subject set would
+    silently produce zero findings and look identical to "every spawner complies"). If a tree
+    genuinely has no spawner/coordinator agent, set the top-level registry flag
+    `_role_scope_no_spawners_expected: true` to make that an explicit, reviewable choice instead
+    of a silent gap.
+    """
+    data = json.loads(DEPS_FILE.read_text(encoding="utf-8"))
+    agents = data.get("agents", {})
+    no_spawners_expected = bool(data.get("_role_scope_no_spawners_expected"))
+
+    leaves = sorted(n for n, e in agents.items() if e.get("role") == "leaf")
+    spawners = sorted(n for n, e in agents.items() if e.get("role") in ("spawner", "coordinator"))
+
+    # (a) leaves may not cite the spawner-tier set.
+    for name in leaves:
+        body = agent_body(name)
+        if body is None:
+            continue  # coverage gap already reported by check_agent_roles
+        for banned in SPAWNER_TIER_FILES:
+            if banned in body:
+                findings.append(
+                    f"[role-scope] '{name}' has role=leaf but its body cites '{banned}' "
+                    f"(spawner-tier contract) - a leaf launches nothing, so this does not bind it"
+                )
+
+    # (b) the spawner/coordinator subject set must be non-empty, or the check is vacuous.
+    if not spawners:
+        if not no_spawners_expected:
+            findings.append(
+                "[role-scope] subject set for the spawner-completion-contract.md citation check "
+                "(agents with role in {spawner, coordinator}) is EMPTY - this would let half (b) "
+                "of the rule pass vacyously. If no spawner/coordinator agent is genuinely expected, "
+                "set the top-level registry flag `_role_scope_no_spawners_expected: true` to make "
+                "that explicit; otherwise this is a real coverage gap."
+            )
+        return
+
+    for name in spawners:
+        body = agent_body(name)
+        if body is None:
+            findings.append(
+                f"[role-scope] '{name}' has role={agents[name].get('role')!r} in the SSOT but "
+                f"agents/{name}.md does not exist"
+            )
+            continue
+        if "spawner-completion-contract.md" not in body:
+            findings.append(
+                f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its body never "
+                f"cites spawner-completion-contract.md - a spawner/coordinator launches agents, so "
+                f"R3's completion-report addressing rule binds it directly"
+            )
+
+
+# Fenced ``` code blocks - the literal dispatch-prompt template a skill hands its agent. Scoping
+# the [brief-fields] key search to these (not the whole SKILL.md prose) matches what the rule is
+# actually checking: does the skill's OWN dispatch template emit this key, not merely mention it
+# somewhere in surrounding explanation.
+FENCE_BLOCK_RE = re.compile(r"```.*?```", re.S)
+
+
+def check_brief_fields(warn_only_findings: list[str]) -> None:
+    """12. [brief-fields] - WARN-ONLY, PERMANENTLY (see module docstring). For every `(skill,
+    agent)` edge in `orchestration.<skill>.spawns_agents`, report any key in
+    `agents.<agent>.brief.required` that never appears inside the skill's own dispatch fences.
+    Never gates --strict/ORCH_STRICT, no matter how many findings - this is a permanent
+    diagnostic, not a migration-window rule (contrast rules 9-10)."""
+    orch = load_orch()
+    agents = load_agents()
+    for skill_name in sorted(orch):
+        entry = orch[skill_name]
+        spawns_agents = entry.get("spawns_agents") or []
+        if not spawns_agents:
+            continue
+        body = skill_body(skill_name) or ""
+        fences = "\n".join(m.group(0) for m in FENCE_BLOCK_RE.finditer(body))
+        for agent_name in spawns_agents:
+            required = ((agents.get(agent_name) or {}).get("brief") or {}).get("required") or []
+            for key in required:
+                if key not in fences:
+                    warn_only_findings.append(
+                        f"[brief-fields] '{skill_name}' dispatches '{agent_name}' but its "
+                        f"dispatch fences never emit required key '{key}' "
+                        f"(agents.{agent_name}.brief.required)"
+                    )
 
 
 # --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
@@ -597,12 +726,21 @@ def main(argv: list[str]) -> int:
     # 8. Agent role (see check_agent_roles docstring - LIVE: roles are populated for every agent)
     check_agent_roles(findings)
 
+    # 11. [role-scope] - LIVE and enforcing (part of `findings`, gates --strict like rules 1-8).
+    check_role_scope(findings)
+
     # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
     # into their OWN list, never gating the strict exit below, no matter how many fire (see the
     # module-level note above these functions for why and for the flip-to-strict plan).
     warn_only_findings: list[str] = []
     check_wait_scope(warn_only_findings)
     check_wait_mechanism(warn_only_findings)
+
+    # 12. [brief-fields] - WARN-ONLY, PERMANENTLY (never scheduled to flip to strict - contrast
+    # rules 9-10 above). Collected into its OWN list so the print message does not claim a
+    # migration window that does not apply to it.
+    permanent_warn_only_findings: list[str] = []
+    check_brief_fields(permanent_warn_only_findings)
 
     if findings:
         print(f"check_orchestration: {len(findings)} finding(s)"
@@ -619,10 +757,17 @@ def main(argv: list[str]) -> int:
         for fnd in warn_only_findings:
             print(f"  - {fnd}")
 
+    if permanent_warn_only_findings:
+        print(f"check_orchestration: {len(permanent_warn_only_findings)} warn-only finding(s) "
+              f"([brief-fields], warn-only PERMANENTLY by design - NEVER gates --strict, no "
+              f"migration window):")
+        for fnd in permanent_warn_only_findings:
+            print(f"  - {fnd}")
+
     if findings and strict:
         return 1
 
-    if not findings and not warn_only_findings:
+    if not findings and not warn_only_findings and not permanent_warn_only_findings:
         print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 

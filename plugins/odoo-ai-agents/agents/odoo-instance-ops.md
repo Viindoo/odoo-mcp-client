@@ -37,7 +37,7 @@ cli_help(command='server', odoo_version='<series>')
 cli_help(command='db', odoo_version='<series>')
 ```
 
-The OSM `set_active_version` pin is session-scoped server state; any other actor sharing this session can overwrite it (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). HARD RULE: pass the CONCRETE version on EVERY subsequent OSM call - never rely on the ambient pin.
+The OSM `set_active_version` pin is session-scoped server state; any other actor sharing this session can overwrite it (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § OSM session-pin race). HARD RULE: pass the CONCRETE version on EVERY subsequent OSM call - never rely on the ambient pin.
 
 **Step C - Resolve venv.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`. If `ALLOC_PYTHON` is already in scope AND non-empty (from an allocator acquire), use it directly - an empty `ALLOC_PYTHON` does NOT count as "in scope" and routes to the "build one first" branch below, never to a guessed system `python3`. If no suitable venv exists, build one first:
 
@@ -765,9 +765,8 @@ does NOT impose a hard count ceiling - the orchestrator manages the budget. For 
 capture phases, cap at W workers equal to the number of distinct browser server families
 available; state-mutating (CRUD-heavy) scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, copy,
 icon) need no instance at all and can fan out without this constraint. `W` is per-family,
-RAM-permitting - never a global single-flight across families:
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity is the SSOT for
-the `W` number; full exclusivity rule + rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
+RAM-permitting - never a global single-flight across families. Full exclusivity rule + rationale
+(including the `W` pool-cap figure): `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
 
 **Per-instance provisioning (caller invokes per instance needed):**
 
@@ -884,12 +883,16 @@ When you finish (or BLOCK on a missing instance / venv / lease), append a Contin
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your instance log and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`INSTANCE_HANDLE` - the handle to create/drive/report on; target series/version;
 the module list to init/update; demo-data + languages flags; `addons_path`; for every `run-tests`
@@ -897,10 +900,10 @@ the module list to init/update; demo-data + languages flags; `addons_path`; for 
 `per-module-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
 designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,
 never guessed either way); the provision-once/forward-everywhere rule per
-`instance-handle-contract.md`). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+`instance-handle-contract.md`). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), or a load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
@@ -911,7 +914,8 @@ never guessed either way); the provision-once/forward-everywhere rule per
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

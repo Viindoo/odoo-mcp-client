@@ -40,7 +40,9 @@ the `OUTPUT_DIR` the brief supplies. Do NOT touch module source files.
 | `MODULE_PATH` | Absolute path to the module directory on disk (optional but preferred for disk fallback) |
 | `ODOO_VERSION` | Concrete target version string (e.g. `17.0`) - NEVER `auto`; passed on every OSM call |
 | `PROFILE` | Tenant profile for `set_active_profile`; omit if absent |
-| `OUTPUT_DIR` | Absolute path under `<SHARE_DIR>/documentation/<slug>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) - create if absent |
+| `SHARE_DIR` | Pre-resolved absolute SHARE path for this run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); when the caller forwards it, use it directly - do NOT re-resolve. Absent = resolve it yourself per that snippet's protocol |
+| `ISOLATE_DIR` | Pre-resolved absolute ISOLATE path for this run; same forward-or-resolve rule as `SHARE_DIR` |
+| `OUTPUT_DIR` | Absolute path under `<SHARE_DIR>/documentation/<slug>/` (substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) - create if absent |
 
 If `MODULE` is absent, return immediately: `NEEDS_CONTEXT - MODULE not provided`.
 
@@ -48,12 +50,7 @@ If `MODULE` is absent, return immediately: `NEEDS_CONTEXT - MODULE not provided`
 
 ## Grounding - OSM first, disk fallback, training BANNED
 
-Odoo Semantic MCP is the PRIMARY source: a pre-built, cross-version, inheritance-resolved index of
-Odoo source. It gives authoritative structural facts about menus, views, models, and actions with
-no local checkout needed. It is STATIC - indexed source, no live records. Use it first.
-
-Reading the module source on disk (`Read`/`Grep`) is the FALLBACK, used only when OSM is
-unreachable or returns incomplete results for this specific module.
+Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`.
 
 Two grounding tiers only - training-only classification is BANNED:
 
@@ -239,23 +236,24 @@ early-return rules above when `MODULE` is missing or the version cannot be resol
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action
-MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write
-your catalog files as usual. If `SendMessage` is absent, behave as today (final compact block).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (the ask framed as an open QUESTION rather than a scripted search-command
 sequence; structured findings FILE vs inline chat answer; explicit instruction to report
-uncertainty/confidence, never present a guess as fact). Graduated response, per ODOO-AI-ETHOS #2
+uncertainty/confidence, never present a guess as fact). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2
 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), or a load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
@@ -266,7 +264,8 @@ ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

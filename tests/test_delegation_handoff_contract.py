@@ -89,6 +89,17 @@ def _self_check_section(agent_path: Path) -> str:
     return _section(text, "## Brief self-check")
 
 
+def _agent_roles() -> dict[str, str]:
+    """agents.<name>.role from the SSOT registry (data-driven - never a hardcoded name list)."""
+    import json
+
+    deps = json.loads((PLUGIN / "generator" / "skill_tool_deps.json").read_text(encoding="utf-8"))
+    return {name: entry.get("role") for name, entry in deps.get("agents", {}).items()}
+
+
+_AGENT_ROLES = _agent_roles()
+
+
 # ---------------------------------------------------------------------------
 # Discovery floors - a broken glob must fail loudly, not silently pass vacuously.
 # ---------------------------------------------------------------------------
@@ -217,9 +228,17 @@ def test_agent_self_check_handles_missing_reply_to(agent):
         "caller that omits it under Agent Team mode would leave this agent with no rule "
         "telling it not to wait indefinitely for a reply address"
     )
-    assert "spawner-completion-contract.md" in normalized, (
+    # M6 (12-design-final.md): a role=leaf agent body may not cite spawner-completion-contract.md
+    # at all (spawner-tier contract) - R3's leaf-facing REPLY_TO fallback moved to
+    # worker-brief.md under M1 (#204 AC4), so leaves point there instead. A role=spawner/
+    # coordinator is exempt from that ban (it MUST still cite spawner-completion-contract.md
+    # elsewhere in its body - see test_role_scoped_citation.py) and may keep pointing at it
+    # directly here too. Either way the pointer must be non-restated, never bare-copied prose.
+    role = _AGENT_ROLES.get(agent.stem)
+    expected_pointer = "spawner-completion-contract.md" if role in ("spawner", "coordinator") else "worker-brief.md"
+    assert expected_pointer in normalized, (
         f"{agent.relative_to(REPO_ROOT)}: the REPLY_TO check must point at "
-        "spawner-completion-contract.md R3's malformed-input fallback rather than restating it"
+        f"{expected_pointer}'s malformed-input fallback (role={role!r}) rather than restating it."
     )
 
 
