@@ -16,10 +16,8 @@ mode below are EXAMPLES of skills that already resolve to one side of the rule, 
 ## Mode A - subagent batching (legacy, default for un-migrated skills)
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
-for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Example: odoo-debug,
-workflow-chaining, odoo-brl (inner MCP
-parallelism), and the YAML workflow fan-out ceiling (workflows/_schema.md,
-docs/reference/workflow-harness.md) - none fans out >1 worker writing a shared module/worktree.
+for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). None of Mode A's
+current users fan out >1 worker writing a shared module/worktree.
 
 ## Mode B - model-weighted budget (rolling-window / weighted-batch skills)
 
@@ -33,8 +31,6 @@ docs/reference/workflow-harness.md) - none fans out >1 worker writing a shared m
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
 case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
-Example: odoo-coding (subagent weighted batches - each `odoo-coder` per-module coordinator's WI
-workers write a disjoint file set within the same module/worktree, coordinated via the ledger).
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.
@@ -123,8 +119,8 @@ narrower-than-intended result, which is reason enough to keep passing `profile_n
 
 The OSM rule above protects the static index; this protects LIVE instances. Under
 concurrency, never reuse the single declared `db_name`/`http_port` for a MUTATION -
-tests (`--test-enable`), `-i`/`-u`, or a throwaway server - because a concurrent
-agent or another session may hold it. Acquire an isolated lease instead:
+tests (`--test-enable`), `-i`/`-u`, or a throwaway server - a concurrent agent or
+another session may hold it. Acquire an isolated lease instead:
 `scripts/lib/allocator.py acquire --mode ephemeral --run-id <id>` (reserves a unique DB name +
 ports under that run's ownership; the DB is created through Odoo by your `-i` run and dropped
 through Odoo on release)
