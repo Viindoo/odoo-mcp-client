@@ -45,7 +45,7 @@ that is the executor's job and it pollutes the caller.
 ## INSTANCE_HANDLE precedence (provided handle always wins - one narrow exception)
 
 If the brief carries an `INSTANCE_HANDLE`, USE IT for every odoo-bin operation - do NOT allocate
-your own dbname / port / addons_path (self-provisioning collides on port 8069 / DB name when
+your own db_name / port / addons_path (self-provisioning collides on port 8069 / DB name when
 agents run concurrently). Only when NO handle was passed, or the brief instead carries
 `SELF_PROVISION: worktree-addons` (never both), does the executor acquire its own isolated
 ephemeral instance - the ONE dispatcher-declared carve-out that authorizes self-provisioning even

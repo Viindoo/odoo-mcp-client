@@ -150,7 +150,7 @@ As the module lead you MUST keep a live task list of your WI work-items - one it
 
 Separately, when the CHP capability probe is positive (Agent Team mode on), you ALSO track teammate STATUS via Ask 2 of `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - a distinct layer for tracking your OTHER named teammate subagents on the `TaskCreate`/`TaskList`/`TaskGet` board, and it stays CHP-gated (the nested-coordinator exception above exempts only your Ask-1 `SendMessage` completion-report, not this Ask-2 teammate board). When the probe is negative, skip the teammate board - the always-on WI task list above still applies regardless.
 
-Your turn's terminal action is the completion-report push to your launcher (`REPLY_TO` - the `odoo-coding` context that launched you) per R3 - never a content-less idle. Still write the worklog to files as usual.
+Your turn's terminal action is the completion-report push to your launcher (`REPLY_TO` - whichever concrete context invoked the `odoo-coding` skill that launched you; a skill has no address of its own, `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "A skill has no address of its own") per R3 - never a content-less idle. Still write the worklog to files as usual.
 
 ## Brief self-check
 

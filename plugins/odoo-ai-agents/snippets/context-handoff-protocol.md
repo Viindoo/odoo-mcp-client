@@ -103,6 +103,21 @@ A two-way exchange therefore closes ONLY if the lead embeds the worker's reply-t
 sends. Workers MUST NOT self-address or assume an id; if a worker needs to reply to a specific peer,
 the lead supplies that address explicitly in the brief.
 
+**No agent can read its own address.** The roster/context an agent is shown always excludes its own
+entry, so "pass your own address to your child" is executable ONLY for `main` (the one fixed-literal
+address). A non-main agent can supply an address for itself in a child's brief in exactly ONE way:
+its OWN launcher told it, in ITS OWN dispatch brief, what spawn `name` it was launched under - it
+repeats that name; it never derives or introspects it.
+
+## A skill has no address of its own
+
+A skill's instructions execute inline in whatever context invoked it - a skill is not a separate
+addressable entity. Its dispatches therefore carry the address of the context that ran it (`main`
+when main invoked the skill directly; a nested coordinator's own address when the coordinator
+invoked it), never the skill's own name. Exception: a skill whose frontmatter declares it runs in a
+forked/background subagent context IS a real subagent once launched that way - inside it, "your
+caller" resolves to that subagent's own launcher, not to whoever invoked the skill by name.
+
 ## No nested teams = roster only
 
 "No nested teams" constrains TEAM MEMBERSHIP only: only the lead adds or removes teammates from the

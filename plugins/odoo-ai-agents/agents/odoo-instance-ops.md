@@ -433,14 +433,16 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
 ```
 
 Only when NO lease token exists - the DB is genuinely unmanaged, nothing an allocator lease tracks -
-may you delegate to the bare `scripts/setup-steps/55-instance-ops.sh drop`. Always pass `--run-id`
+may you delegate to the bare `scripts/setup-steps/55-instance-ops.sh drop`. This branch never runs
+Step D's acquire, so `--db` takes the db name from this operation's own **Inputs** above directly,
+as `<db_name>` - never `$ALLOC_DB_NAME`, which this branch mints nothing into. Always pass `--run-id`
 so the script can confirm via its own `assert-droppable` check that the DB is truly unmanaged before
 dropping it (it refuses on a fresh foreign lease, routing you back to `release`; `--force` overrides
 for an explicit foreign/stale reap):
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" drop \
-  --db "$DB_NAME" \
+  --db "<db_name>" \
   --python "$ALLOC_PYTHON" \
   --run-id "$ALLOC_RUN_ID" \
   [--db-host "$ALLOC_DB_HOST"] \
@@ -675,7 +677,7 @@ v8-v18 where demo is on by default), `--load-language=<csv>` (v8-v18; v19+ see o
 EXCLUSIVE lease, `--ports 1` (HTTP for browser). Confirm every flag via
 `cli_help(command='server', odoo_version='<series>')`. Emit the output block with
 `status: ready-for-doc`; mint the live handle as
-`INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>` (i.e. the output block's `dbname` : its
+`INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>` (i.e. the output block's `db_name` : its
 `http_port`). Return `ALLOC_TOKEN`, `ALLOC_DB_NAME`, `ALLOC_PORTS` in the block so the caller
 passes them back on subsequent calls.
 
@@ -795,7 +797,7 @@ After every operation, emit a fenced `instance-ops` block. This is the machine-r
 ```instance-ops
 op: create-instance | drop-instance | init-modules | update-modules | run-tests | ensure-up | status | load-language
 series: <X.Y>
-dbname: <db_name>
+db_name: <db_name>
 http_port: <port or null>
 gevent_port: <port or null>
 db_port: <resolved port or empty>
@@ -818,7 +820,7 @@ notes: <one-line summary of any non-obvious decision or error>
 ```
 ````
 
-The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<dbname>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
+The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db_name>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
 
 The `db_port` and `run_id` fields: populate them from Step D's acquire result - `db_port` from
 `$ALLOC_DB_PORT` (empty when the lease carries none) and `run_id` from `$ALLOC_RUN_ID` (empty for

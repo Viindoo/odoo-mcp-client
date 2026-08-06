@@ -501,7 +501,7 @@ MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest_
 WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
-INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - dbname/http_port/db_port/addons_path/venv_python/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>
+INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/db_port/addons_path/venv_python/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>
 SELF_PROVISION: worktree-addons | none - set `worktree-addons` for EVERY per-module dispatch that names a WORKTREE_PATH (then OMIT INSTANCE_HANDLE above; never send both); `none` only when the forwarded handle's ADDONS_PATH already covers this module's worktree
 ADDONS_PATH: <comma-joined dirs the forwarded instance loads - REQUIRED whenever INSTANCE_HANDLE is set; omit when SELF_PROVISION: worktree-addons>
 DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
@@ -530,7 +530,7 @@ GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codin
   own ephemeral instance via `Skill(odoo-instance)` (inline) with the worktree re-rooted onto the
   addons list, and releases it before reporting. When you DO forward a handle, also state its
   `ADDONS_PATH` so the receiver can run the coverage assertion. A receiver that holds a handle MUST
-  use it and MUST NOT invent a `dbname` or port; it MUST NOT re-derive `addons_path` from the
+  use it and MUST NOT invent a `db_name` or port; it MUST NOT re-derive `addons_path` from the
   catalog; and it self-provisions ONLY under the authorizing token. Neither hard-leaf worker
   self-provisions an instance any more: `odoo-backend-coder`'s per-work-item lint-class self-check
   moved to `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`

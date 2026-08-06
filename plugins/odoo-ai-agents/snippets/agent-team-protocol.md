@@ -51,6 +51,12 @@ team lead). Run the probe ONCE per run and cache it as CHP specifies - do NOT re
 > plus one `SendMessage` to each `NOTIFY:` teammate. NEVER end the turn on a bare tool call or on
 > plain-text-only output.
 
+`SendMessage`'s `to:` resolves only a concrete address - the literal `main`, a live spawn `name`, or
+a raw `agentId` (grammar: `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11). A skill name
+or an agent TYPE name is never registered as a target; sending to one fails. When replying to a peer
+that messaged you first, address the reply to the sender the runtime stamped on that incoming
+message, never a name you recall or guess.
+
 NOTIFY peer-push is best-effort - it reaches only already-running dependents; a not-yet-spawned
 dependent receives the result via the lead's `REPLY_TO` report (the lead routes it), not a direct
 peer push. So `REPLY_TO` (the launcher named in the brief) is the authoritative delivery channel -
@@ -140,9 +146,10 @@ to `main` - the coordinator then rolls the module result up to `odoo-coding`. Th
 launcher<->child report channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag; when
 `SendMessage` is absent the worker returns its report as its final message and the coordinator
 reads it from the returned transcript. `odoo-coder` itself then pushes ITS OWN completion report to
-`odoo-coding` (its `REPLY_TO`), never to `main`, exactly as any other worker addresses its own
-launcher. See `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested
-spawner".
+whichever concrete context invoked the `odoo-coding` skill (its `REPLY_TO`) - `odoo-coding` is a
+skill, not an address (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "A skill has no
+address of its own"), exactly as any other worker addresses its own launcher. See
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested spawner".
 
 ## Fallback - team mode off
 

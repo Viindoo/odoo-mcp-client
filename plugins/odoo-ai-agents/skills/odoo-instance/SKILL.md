@@ -239,7 +239,7 @@ overridable via `ODOO_AI_LIMIT_MEMORY_HARD`. Policy SSOT (do not restate it here
 ```instance-ops
 op: <create-instance|drop-instance|init-modules|update-modules|run-tests|ensure-up|status>
 series: <X.Y>
-dbname: <db_name>
+db_name: <db_name>
 http_port: <port or null>
 gevent_port: <port or null (omit if not bound)>
 db_port: <resolved port or empty>
@@ -261,7 +261,7 @@ notes: <short human-readable summary or error>
 ```
 
 This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the orchestrator forwards
-it (`dbname` / `http_port` / `db_port` / `addons_path` / `venv_python` / `lease_token` / `run_id`) as
+it (`db_name` / `http_port` / `db_port` / `addons_path` / `venv_python` / `lease_token` / `run_id`) as
 an `INSTANCE_HANDLE:` field into every downstream code / test brief, and downstream agents consume
 it instead of self-provisioning. Forwarding `db_port` and `run_id` (not just `http_port` and
 `lease_token`) is what lets a later turn drop or release the right instance on the right Postgres
@@ -319,7 +319,7 @@ is present let the driver surface it, else confirm the mutation with the human f
 
 ### Multi-instance parallel provisioning
 
-The allocator issues each concurrent caller an independent ephemeral lease (distinct `dbname` +
+The allocator issues each concurrent caller an independent ephemeral lease (distinct `db_name` +
 port pool). Safe cap is ~3 simultaneous ephemeral instances before RAM / port-pool pressure; the
 allocator enforces port uniqueness but imposes no count ceiling - the orchestrator manages the
 budget. Use `CONTEXT: doc` for clean documentation instances (demo on + skip-auto-install; target

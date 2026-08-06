@@ -18,7 +18,9 @@ Before launching any agent, look at the launch capability you actually have:
    naming what must be dispatched above you - never report a dispatch you could not make.
 2. A background/foreground switch is exposed (e.g. `run_in_background`) -> a blocking launch is
    available: set it to block when you need the child's result, which then returns inside your
-   current turn. Use this whenever you need the answer.
+   current turn. Use this whenever you need the answer. On this path the child's result IS your own
+   launch call's return value - no `REPLY_TO`, no `SendMessage`, no reply field needed; this is the
+   DEFAULT, preferred shape, including when you yourself are a subagent.
 3. No such switch -> every launch is asynchronous, returning a receipt, not a result: launch, then
    END YOUR TURN. You are parked and resumed when the child completes. Do NOT poll, sleep, or
    re-launch.
@@ -63,6 +65,12 @@ and must never be the release condition. The task list persists across the re-in
 background model wakes you with; a blocking launch (R0 move 2) never needs it for the child it just
 blocked on - only an async batch (R0 move 3) does. "Wait" is the synchronous return or the
 all-children-terminal barrier - never a passive hope.
+
+**Boundary - a background child outlives a non-`main` launcher.** If you are a subagent (not `main`)
+and you launch a child in the background (R0 move 3) but your OWN turn later completes/returns
+before that child finishes, the child's eventual completion is re-addressed to `main`, never resumed
+on you. Do not rely on a background grandchild's result coming back to you - this boundary is exactly
+why this barrier forbids composing your own result while a launched child still runs.
 
 ## R2 - No early DONE
 

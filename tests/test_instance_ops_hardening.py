@@ -379,7 +379,7 @@ def test_skill_relay_forwards_db_port_and_run_id():
     assert "run_id: <owning run id or empty>" in text, (
         "relayed instance-ops schema must add a run_id field"
     )
-    assert "forwards it (`dbname` / `http_port` / `db_port`" in text, (
+    assert "forwards it (`db_name` / `http_port` / `db_port`" in text, (
         "the enumerated forwarding list must include db_port"
     )
     assert "`lease_token` / `run_id`" in text, (
