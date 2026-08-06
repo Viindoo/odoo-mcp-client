@@ -238,9 +238,7 @@ grep -nE "installable" <target-tree>/<module>/__manifest__.py
 
 **Ground + record:** confirm the post-merge end-state of `installable` for each affected module
 and record it. A flip is not auto-broken, but it MUST be a recorded finding (Section 4,
-kind=installable-flag) because it determines whether the forward-ported code in that module is
-actually loaded and verified in P9 - an un-noticed `True` -> `False` flip is a silent drop
-of the whole module from the verify set.
+kind=installable-flag).
 
 ### (g) ORM create/write dict-key field literals
 

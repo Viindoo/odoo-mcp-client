@@ -353,10 +353,9 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 > for each runtime idempotently. See [Standalone / fallback](#standalone-fallback) for
 > manual equivalents.
 >
-> **Claude-specific change:** `/odoo-setup` no longer writes the browser servers into
-> `~/.claude.json` for Claude Code - Claude is served by the bundled `.mcp.json`, so
-> re-running won't recreate the "skipped duplicate" notes there. Step `10-browser-mcp`
-> never touches `~/.claude.json` (it wires Codex and Gemini only).
+> **Claude:** Step `10-browser-mcp` never writes the browser servers into
+> `~/.claude.json` - Claude is served by the bundled `.mcp.json`, so re-running produces
+> no "skipped duplicate" notes there. It wires Codex and Gemini only.
 
 ## Step-specific notes (what each `apply` does)
 

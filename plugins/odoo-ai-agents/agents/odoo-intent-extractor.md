@@ -65,7 +65,7 @@ For EACH commit in the bundle (or the single commit, in the degenerate case), pa
 
 **What you are NOT extracting:** the diff itself - individual lines changed, internal variable names, private method calls, ORM internals - is implementation, not intent. A diff that rewrites `_compute_balance` is not an intent; "balance must recompute when a payment is confirmed" is.
 
-The output of Step 1, for EACH commit in the bundle, is a draft intent sentence: one or two sentences that complete the prompt "This commit exists because...". When a later commit in the SAME bundle changes a symbol an earlier commit in the bundle also touched (or reverts it outright), say so explicitly in that later commit's draft sentence - this cross-commit awareness is the reason the bundle is read in one turn instead of one commit per dispatch.
+The output of Step 1, for EACH commit in the bundle, is a draft intent sentence: one or two sentences that complete the prompt "This commit exists because...". When a later commit in the SAME bundle changes a symbol an earlier commit in the bundle also touched (or reverts it outright), say so explicitly in that later commit's draft sentence.
 
 ---
 

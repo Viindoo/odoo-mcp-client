@@ -72,7 +72,7 @@ brief) - call the `-headed` tool directly when needed:
 
 > Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video).
 > **pagecast and playwright are OPT-IN** - only the headless `chrome-devtools` is eager (bundled
-> `.mcp.json`); the recorder families ship no longer eager and must be wired first via
+> `.mcp.json`); the recorder families must be wired first via
 > `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If the
 > recorder MCP is not wired (its tools are absent) or only screenshot capture is available, fall
 > back to a `chrome-devtools take_screenshot` frame sequence assembled into a GIF.

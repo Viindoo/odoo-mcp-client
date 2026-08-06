@@ -76,7 +76,7 @@ Era-specific deprecation patterns and data priority guidance:
 
 Use parallel MCP calls - full audit completes in 3 rounds.
 
-**Round 0 - Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from <SHARE_DIR>/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope - otherwise the report is polluted with standard-Odoo deprecations irrelevant to this codebase.
+**Round 0 - Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from <SHARE_DIR>/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope.
 
 **Round 1 - Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These
 are completely independent: one scans the codebase, the other fetches the version spec. No
@@ -129,9 +129,9 @@ version-range table) rather than trusting an OSM MISS as "symbol absent". Scan A
 `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy
 `web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the legacy
 Widget API is deprecated from v14 and OWL becomes the primary component path from v16 onward -
-`web.Widget`/`AbstractField` are NOT actually removed at v16 (see
+`web.Widget`/`AbstractField` are NOT removed at v16 (see
 `references/era-reference.md`), but usage declines from v16 and the symbols are absent from the
-OSM index by v18, so Era1 patches still need rewriting to stay supportable at the target. Flag
+OSM index by v18. Flag
 each patch as BREAKING if target version is v14+ and the patch still references
 `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
 

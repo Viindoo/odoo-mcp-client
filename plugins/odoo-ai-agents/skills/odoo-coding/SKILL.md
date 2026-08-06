@@ -148,9 +148,7 @@ COORDINATOR `cd`s there, its hard-leaf coders author + RETURN their file list (n
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), then - once the integrated module test is green -
 the COORDINATOR itself COMMITS the module by invoking `git-toolkit:git-ops` and returns the SHA.
 THIS skill no longer re-commits: it COLLECTS the coordinator's returned SHA(s) and passes them up
-(to `run-harness`'s between-wave integration for cherry-pick, or reports them). The coordinator can commit
-directly because its worktree is dependency-correct - forked from the integrated state, the property
-the planned worktree graph (Block 2W) guarantees. If invoked standalone with NO `WORKTREE_PATH`,
+(to `run-harness`'s between-wave integration for cherry-pick, or reports them). If invoked standalone with NO `WORKTREE_PATH`,
 this skill FIRST invokes `git-toolkit:git-ops` to provision a worktree/branch (never the principal
 checkout, resolving the fork point per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` §
 Base-branch resolution rather than the caller's ambient checkout) and hands its path to the
@@ -532,10 +530,10 @@ GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codin
   `ADDONS_PATH` so the receiver can run the coverage assertion. A receiver that holds a handle MUST
   use it and MUST NOT invent a `db_name` or port; it MUST NOT re-derive `addons_path` from the
   catalog; and it self-provisions ONLY under the authorizing token. Neither hard-leaf worker
-  self-provisions an instance any more: `odoo-backend-coder`'s per-work-item lint-class self-check
-  moved to `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
-  § Pre-PR tail), so it is now INSTANCE-FREE the same as `odoo-frontend-coder` - the coordinator's
-  OWN integrated-module-test self-provision (below) is the only per-module instance acquire left.
+  self-provisions an instance: both `odoo-backend-coder` and `odoo-frontend-coder` are
+  INSTANCE-FREE (the lint-class gate runs at `run-harness`'s pre-PR tail instead -
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail) - the
+  coordinator's OWN integrated-module-test self-provision (below) is the only per-module instance acquire left.
   Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` (§ Worktree-addons carve-out,
   § Addons coverage assertion).
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per

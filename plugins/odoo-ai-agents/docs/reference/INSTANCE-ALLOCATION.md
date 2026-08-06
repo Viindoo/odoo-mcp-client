@@ -253,7 +253,7 @@ existing reader, so shell consumers stay simple.
 | `heartbeat <token>` | bump `heartbeat_at` - matters ONLY for a lease whose liveness `_is_stale` cannot prove (a different host, or no `--pid` ever recorded); a same-host lease with a verified-alive pid is protected regardless of heartbeat freshness |
 | `gc` | under flock: reclaim leases per `_is_stale` (§7): a same-host owner pid that is DEAD (`os.kill(pid,0)`) is reclaimed immediately, TTL-independent; a same-host owner pid that is VERIFIED ALIVE (its `pid_started` fingerprint still matches) is NEVER reclaimed, TTL-independent; every other case (different host, no pid recorded, or an unverifiable fingerprint) falls back to `now - heartbeat_at > ttl_s`. When reclaiming a lease whose `owner.pid` IS recorded and alive on this host but was condemned via the fingerprint-mismatch (recycled-pid) or TTL-fallback path, STOP its process group first (`_stop_group`) before reclaim + drop. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
 | `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via raw `dropdb` (no lease means no stored venv path to go through Odoo) |
-| `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - P5.8: unowned is no longer a synonym for "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
+| `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - unowned does not mean "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
 `acquire`/`release`/`gc` all do their read-modify-write **inside one `fcntl.flock`** so concurrent
@@ -448,11 +448,11 @@ but unreachable in practice.
 - `scripts/setup-steps/50-instance-spinup.sh` - the spun-up server is the SHARED read-only render
   target for the visual stack, so it registers a `shared` (non-exclusive) lease with its actual port
   + server pid AFTER the server answers, NOT an exclusive lease (that would defeat the sharing).
-- `agents/odoo-backend-coder.md` - the `odoo-bin` (scaffold / `/test_lint` gate) note points at the
-  allocator (self-provisions its bounded lint gate); `agents/odoo-coder.md` (the per-module
-  coordinator) - owns the INTEGRATED whole-module instance test (self-provisions it via
-  `Skill(odoo-instance)`); `agents/odoo-frontend-coder.md`
-  is INSTANCE-FREE (static gate only - no allocator). This is also where `venv-resolution` belongs
+- `agents/odoo-coder.md` (the per-module coordinator) - owns the INTEGRATED whole-module instance
+  test (self-provisions it via `Skill(odoo-instance)`); `agents/odoo-backend-coder.md` and
+  `agents/odoo-frontend-coder.md` are BOTH INSTANCE-FREE (static gate only - no allocator; the
+  `/test_lint`/`/test_pylint` lint-class gate runs once at `run-harness`'s pre-PR tail, never in
+  either leaf). This is also where `venv-resolution` belongs
   long-term (see the open item the brief slim-down surfaced).
 - `skills/_shared/concurrency-guard.md` - add an "Odoo instance allocation" section (sibling to the
   OSM session-pin race) so the rule is discoverable where the other concurrency rules live.

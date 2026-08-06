@@ -182,15 +182,14 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 ## Round 6 - Post-write verify gate (both workflows)
 
-Do not declare done until the Tier-2 static check is green (Tier-1 is no longer a per-work-item gate
-here - see below):
+Do not declare done until the Tier-2 static check is green (Tier-1 is not gated here - see below):
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
 ```
 
 - Tier-2 static OWL/SCSS pitfall checks always run and are your MANDATORY gate here - a BLOCK (classes 1/3/6) is a hard stop: fix and re-run; a WARN (classes 2/4/5) must be justified or fixed.
-- Tier-1 JS lint (repo-pinned eslint) is NOT a per-work-item gate any more - it now runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). The script above still prints its Tier-1 result; treat that result as INFORMATIONAL here - do not block on it and do not require the eslint toolchain to be resolvable before you return.
+- Tier-1 JS lint (repo-pinned eslint) is not a per-work-item gate here - it runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). The script above still prints its Tier-1 result; treat that result as INFORMATIONAL here - do not block on it and do not require the eslint toolchain to be resolvable before you return.
 - If OSM is reachable, cross-check with `lint_check(language='javascript', odoo_version='<N>.0', code=...)` (`odoo_version` required).
 
 Once green, APPEND your significant decisions to the run worklog - approach taken, asset/template impact + mitigation, model tier - so later agents inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).

@@ -33,8 +33,7 @@ RELAYS of subagent results - mirrors the USER'S language:
    and tool-layer API output stay English regardless of the user's language,
    unless the user explicitly asks otherwise - never write source code or
    docstrings in the user's chat language. The Intent & Business Value section
-   of a design doc and any gate SHOWN in chat follow the user's language,
-   because their audience is the human approver.
+   of a design doc and any gate SHOWN in chat follow the user's language.
 
 Building for the audience is the why: the audience of chat output is
 the human in front of the screen, in their language - not the skill author.

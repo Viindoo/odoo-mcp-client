@@ -330,8 +330,7 @@ hand-translate only the residual untranslated entries -> reload with `-u`. Detai
 
 **P5.8 - Acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape only].**
 Goal: prove the whole upgraded cluster works end-to-end on a real running instance/UI - the SAME
-acceptance rigor new-module development applies, so an upgrade is not held to a lighter bar just
-because it is an upgrade. P5's ephemeral-DB install+test proves the code loads and the unit/
+acceptance rigor new-module development applies. P5's ephemeral-DB install+test proves the code loads and the unit/
 integration suite passes; it does NOT prove the cluster behaves correctly for a real user across
 roles/state/search - closing that gap is this stage's job.
 Compute the cluster-wide verify scope by invoking `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`

@@ -506,8 +506,7 @@ WHOLE run):** name the worker `fp-adapt-<slug>-<module>` (module- and run-scoped
 on its FIRST dispatch for that module; when a LATER source commit in this run also touches the
 module, RESUME that SAME instance via `SendMessage` (never a fresh dispatch) - the brief for the
 resume carries the NEW commit's own intent record and bucket; the Worktree path field (below) never
-changes across a resume, because P8 always adapts directly in the SAME integration worktree for the
-whole run (§ Git topology above) - there is no per-commit worktree to re-mint. The worker keeps
+changes across a resume (§ Git topology above). The worker keeps
 its full prior context (earlier commits' intent records, bucket history) - far
 cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
 its own whole picture across commits, not just within one commit's retry loop.
@@ -681,8 +680,7 @@ Pre-PR tail). Acceptance and the i18n reconcile (P9.5, already mandatory per bat
 P10 gate) both land ahead of the PR and its review for the same reason run-harness gives: neither
 a PR reviewer nor a merge decision should be presented before the run's own independent oracle has
 adjudicated the batch. Goal: prove the forward-ported batch works end-to-end on a real running
-instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies, so
-a forward-port is not held to a lighter bar just because it moves existing behavior. P9's per-batch
+instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies. P9's per-batch
 verify-by-behavior proves RED-then-GREEN + confirm-by-toggle for the ported intent tests; it does
 NOT prove the touched cluster behaves correctly for a real user across roles/state/search -
 closing that gap is this stage's job. This is a DIFFERENT concept from the P7 pre-adapt drift-scan

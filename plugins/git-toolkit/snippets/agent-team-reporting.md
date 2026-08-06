@@ -57,5 +57,5 @@ is a teammate handing results to its lead, nothing sensitive.
 
 Team mode only changes how your turn ENDS - it never relaxes any other contract. You still obey your
 safety, scale, and read-only boundaries exactly as in cold-spawn mode; you still do only your one
-scoped job; and (for the leaves) you still cannot fan out, because you hold no subagent-spawning
-tool. The report is a delivery step layered on top of the same work, not new authority.
+scoped job; and (for the leaves) you still cannot fan out. The report is a delivery step layered on
+top of the same work, not new authority.

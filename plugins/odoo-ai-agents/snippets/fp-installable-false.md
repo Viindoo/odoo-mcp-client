@@ -17,7 +17,7 @@ This rule applies to THREE categories of module during forward-port:
    `installable: True` for the first time at source series X (previously dormant
    or absent) but has NOT yet been verified/upgraded for target series Y. When
    forward-ported X->Y it must land `installable: False` - same treatment as a
-   brand-new module - because it is not ready for the target stack.
+   brand-new module.
 
 ## Discriminator - read TARGET CLEAN-TIP state (before merge)
 
@@ -40,7 +40,7 @@ Decision:
 
 This covers all three categories: a new module is absent at target; a dormant
 module is `installable: False` at target; a category-3 first-enabled module is
-absent or `installable: False` at target because it was never upgraded there.
+absent or `installable: False` at target.
 
 ### Category 2/3 - manifest reset after merge (upgraded-then-forwarded)
 
@@ -161,8 +161,7 @@ explicitly between two modes and record the decision in the merge-log:
 Record the mode in the merge-log entry for this module:
 `<module> CARRY installable:False` or `<module> DISCARD - reason`.
 
-The CARRY mode is the default because it advances the merge-base and prevents
-the module from re-appearing in every subsequent port cycle.
+CARRY is the default.
 
 ---
 

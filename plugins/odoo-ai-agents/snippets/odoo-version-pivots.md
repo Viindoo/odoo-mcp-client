@@ -69,7 +69,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 |---|---|---|
 | Disable demo data | `--without-demo` | v8-v19 (present in ALL versions) |
 | Demo ON is the default; no extra flag needed to get demo | *(default)* | v8-v18 |
-| Enable demo data (explicit opt-in needed because default is OFF) | `--with-demo` | **v19+ only** - this flag does NOT exist in v8-v18 |
+| Enable demo data | `--with-demo` | **v19+ only** - this flag does NOT exist in v8-v18 |
 | Demo default | **ON** when `-i`/`-u` given | v8-v18 |
 | Demo default | **OFF** | v19+ |
 

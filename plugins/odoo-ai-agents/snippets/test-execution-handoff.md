@@ -3,9 +3,10 @@
      output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
      odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
      the odoo-coder per-module coordinator (launched for EVERY module) owns the INTEGRATED whole-module
-     instance test; odoo-backend-coder self-provisions its own bounded /test_lint gate; odoo-frontend-coder
-     is instance-free (static gate only; its live checks go to the coordinator or a delegated
-     odoo-instance run). Canonical NEEDS_NEXT
+     instance test; odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate
+     only - ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a
+     delegated odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail).
+     Canonical NEEDS_NEXT
      example lives in odoo-test-writing Round 5.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
