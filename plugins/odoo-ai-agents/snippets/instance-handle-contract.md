@@ -32,29 +32,28 @@ here without updating both.
 ## Provision once, forward everywhere
 
 The orchestrator provisions ONE instance via the `odoo-instance` skill, which owns port allocation
-and leasing (the `ALLOC_*` outputs, including `ALLOC_DB_PORT` and `ALLOC_RUN_ID`; see
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`). It captures that skill's canonical
-`instance-ops` output block ONCE and forwards it as an `INSTANCE_HANDLE:` field in EVERY downstream
-brief that touches code or tests (coder, test-author, verify, debug).
+and leasing (the `ALLOC_*` outputs, incl. `ALLOC_DB_PORT`/`ALLOC_RUN_ID`; see
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`), captures its canonical `instance-ops`
+output block ONCE, and forwards it as an `INSTANCE_HANDLE:` field in EVERY downstream brief that
+touches code or tests (coder, test-author, verify, debug).
 
 ## Downstream agents consume, never self-provision
 
 An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
 (confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `dbname`, port, or
-`addons_path`. Collision is NOT solved merely by going through `odoo-instance`: the shared/spinup
-path collides on the same declared/`8069` numbers even when every caller carries a handle -
-`persist: shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only
-`persist: exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
-`run_id`) prevents a collision outright; a `shared-running` instance stays shared on purpose but
-MUST be owner-stamped (`run_id`) so a foreign session cannot bare-drop it (see
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed (a
-run that never provisioned one), the agent self-provisions by invoking `Skill(odoo-instance)` in its
-own context - passing `persist: ephemeral` (default) or `persist: exclusive-running` when the
-process must stay listening - which acquires its own isolated instance UNDER the instance HARD RULES
-(`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation - rather than
-a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
-never re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.
+`addons_path`. Going through `odoo-instance` does NOT by itself solve collision: `persist:
+shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only `persist:
+exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
+`run_id`) prevents a collision outright; a `shared-running` instance MUST still be owner-stamped
+(`run_id`) so a foreign session cannot bare-drop it (see
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed,
+the agent self-provisions by invoking `Skill(odoo-instance)` in its own context - `persist:
+ephemeral` (default) or `persist: exclusive-running` when the process must stay listening - which
+applies the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
+`cli_help` grounding) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance
+allocation - never a bare `allocator.py` call, which would bypass those rules. A provided handle
+always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons carve-out
+below.
 
 **Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session
 owns. Give it a distinct port, database, config and log, and let it run.
@@ -86,31 +85,24 @@ above, and it is DISPATCHER-declared, never receiver-inferred:
 
 Before any `odoo-bin` run that decides a verdict (`--test-enable`, an i18n export, a doc capture),
 assert the resolved addons list contains a directory `D` such that `D/<module>/__manifest__.py`
-exists AND `D` is inside the tree you were told to work in (`WORKTREE_PATH` when your brief names
-one, else the catalog tree). Compare `pwd -P`-normalized absolute paths; a prefix match is
-sufficient. On a miss, STOP with
-`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH> - a green result here
-would prove nothing)`. Never run the operation "to see what happens": a suite that loads a different
-copy of the module is structurally biased toward green.
+exists AND `D` is inside the tree you were told to work in (`WORKTREE_PATH` when named, else the
+catalog tree; compare `pwd -P`-normalized absolute paths, a prefix match is sufficient). On a miss,
+STOP with `BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH> - a green
+result here would prove nothing)` - never run the operation "to see what happens".
 
 This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
 a `dbname` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
 and MUST NOT self-provision to change the series, add a module, or because a handle looks stale.
 
-**Structural backstop (belt-and-braces, not the sole protection for every case).**
-`scripts/lib/allocator.py`'s `_addons_path_worktree_mismatch` guard (`cmd_acquire`) independently
-REFUSES (exit 5) an acquire in `shared`/`ephemeral`/`exclusive` mode whenever the caller's cwd is a
-linked git worktree of the SAME repository as a catalog `addons_path` entry at a DIFFERENT
-checkout path AND no `--addons-path-override` was passed - the exact "silently defaults to the
-principal checkout" shape this carve-out exists to prevent (`readonly` mode is exempt: it never
-builds, so there is nothing to mis-verify). The guard's scope stops there: it never inspects an
-override's CONTENT, so once ANY `--addons-path-override` is present the guard trusts it
-unconditionally and never re-checks it against cwd. For that one residual shape - a dispatcher
-that passes an override naming the WRONG worktree, or drops `SELF_PROVISION: worktree-addons` on
-one dispatch branch while still forwarding some override - this POLICY step (the dispatcher
-correctly computing the override value and setting the flag, per this section) remains the SOLE
-protection; no structural guard can verify a caller's true intent from a value it was simply
-handed. Do not restate the guard's mechanics elsewhere - point back here.
+**Structural backstop (belt-and-braces, not the sole protection).** `scripts/lib/allocator.py`'s
+`_addons_path_worktree_mismatch` guard (`cmd_acquire`) independently REFUSES (exit 5) the common
+case - a linked-worktree cwd acquiring against a mismatched catalog `addons_path` entry with no
+`--addons-path-override` (`readonly` mode is exempt: it never builds). It never inspects an
+override's CONTENT, so once ANY override is present it trusts it unconditionally and never
+re-checks it against cwd. For that residual shape - a dispatcher passing a WRONG override, or
+dropping `SELF_PROVISION: worktree-addons` on one branch while still forwarding some override -
+this POLICY step is the SOLE protection. Do not restate the guard's mechanics elsewhere - point
+back here.
 
 ## Prefork (`--workers>0`) needs a second port
 
