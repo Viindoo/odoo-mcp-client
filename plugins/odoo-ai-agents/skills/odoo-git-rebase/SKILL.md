@@ -338,8 +338,8 @@ recorded for the P12 PR review, not blocking. Cap at 3 review->fix iterations: a
 CRITICAL/HIGH STOPS and escalates BLOCKED per ETHOS #7. Proceed to P10 ONLY when the review returns
 no CRITICAL/HIGH. Full delegation - the orchestrator dispatches reviewer + fixer, never reviews or
 fixes inline. Write `<sha>: reviewed` in checkpoint.json. Brief + loop protocol:
-`references/rb-phase-detail.md` P9b. This is the in-pipeline review; the final pre-merge review
-stays at P12 (two review points total).
+`references/rb-phase-detail.md` P9b. This is the in-pipeline review; the final pre-PR review
+stays at P12 (two review points total) - both clear before the PR opens.
 
 **P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditionally the `odoo-instance` skill (via the Skill tool)].**
 Two-step: (1) invoke git-ops to run `git range-diff <old-base>..<feature-tip>
@@ -362,13 +362,18 @@ When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags
 **P11 - Gate (STOP, human-confirm).**
 Present `rebase-log.md` + `verify.md`. STOP. Wait for human approval before any push or PR.
 
-**P12 - PR + review [delegated review capability - human merge].**
-Resolve fork remote name and upstream org/repo from `git remote get-url origin` (bounded read,
-inline). Invoke git-ops to push rb/<slug> to the fork remote. Invoke git-ops
-to open the PR against new-base on the upstream repo (head: fork-remote:rb/<slug>); pass the
-fork remote name and upstream org/repo as brief fields - never hardcode them. Delegate a code
-review of the integration worktree before merge. Wait for human merge. NEVER squash. Full
-dispatch briefs: `references/rb-phase-detail.md` P12.
+**P12 - Final review + PR [delegated review capability - human merge].**
+Order inside this phase is fixed by the **Terminal stage order** constant
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+owner). FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
+its CRITICAL/HIGH findings on that worktree: this review can force CODE CHANGES, so it runs BEFORE
+the branch is pushed and the PR opened - a review that lands after would make the PR churn and leave
+regression testing chasing a moving target. THEN resolve fork remote name and upstream org/repo from
+`git remote get-url origin` (bounded read, inline), invoke git-ops to push rb/<slug> to the fork
+remote, and invoke git-ops to open the PR against new-base on the upstream repo (head:
+fork-remote:rb/<slug>); pass the fork remote name and upstream org/repo as brief fields - never
+hardcode them. Only PR-OBSERVING work stays after the PR exists: CI-failure triage and the human
+merge. Wait for human merge. NEVER squash. Full dispatch briefs: `references/rb-phase-detail.md` P12.
 
 ## Model triage
 
@@ -426,8 +431,8 @@ When the run finishes or pauses at a gate, append a Continuation Contract block 
 with canonical payload and the run YIELDS; the run-harness advances the hop and re-enters
 odoo-git-rebase with the returned `design_doc`. In-pipeline review findings (P9b) are folded
 into `rebase-log.md`; a resume after a crash mid-loop re-reads them from there. This workflow
-has TWO review points: P9b (in-pipeline, fix-until-clean, before verify) and P12 (final PR
-review, pre-merge) - both are active.
+has TWO review points: P9b (in-pipeline, fix-until-clean, before verify) and P12 (final review of
+the integration worktree, before the PR opens) - both are active.
 
 ## Additional resources
 
