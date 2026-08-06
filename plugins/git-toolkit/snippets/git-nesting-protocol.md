@@ -10,6 +10,13 @@ The phased pipeline runs BELOW the caller so the caller's context stays pristine
 thousand-file ops. This snippet defines how the nesting stays bounded and how it degrades when the
 spawn tool is unavailable.
 
+**Before launching, read your own toolset.** If agent-launch capability is absent, do the work
+yourself or return BLOCKED with the resumable state - never report a dispatch you could not make.
+When the launch capability exposes a background/foreground switch, launch in the blocking mode when
+you need the result - it returns inside your turn. When it does not, the launch is asynchronous:
+launch, then end your turn to be resumed - never poll, never re-launch. Because a parked agent is
+not resumed on every surface, never end a turn with uncommitted work.
+
 ## N1 - Cold-spawn handoff (the default handoff mode)
 
 Every dispatch is a stateless COLD spawn by launching an agent: self-contained brief in, compact
