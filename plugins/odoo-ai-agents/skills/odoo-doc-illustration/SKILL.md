@@ -263,9 +263,9 @@ default, supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`/`FEATURE 
 see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only the appstore
 `index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens` - both unchanged
 from before. A bare dispatch that omits every axis field now produces a marketing-toned App-Store
-landing page by default: pass `TONE: technical` explicitly to keep the previous plain-technical
-`index.html` (previously the default, which left the pre-fetch un-fired and could BLOCK
-`odoo-marketing-writer` on its own REQUIRED inputs).
+landing page by default: pass `TONE: technical` explicitly to keep the plain-technical
+`index.html` (this leaves the pre-fetch un-fired and could BLOCK `odoo-marketing-writer` on its
+own REQUIRED inputs).
 
 **DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
 `install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this

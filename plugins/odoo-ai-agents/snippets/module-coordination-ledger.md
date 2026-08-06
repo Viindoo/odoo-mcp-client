@@ -42,13 +42,10 @@ LEDGER_ROOT="$SHARE_DIR/coordination/modules"
 
 Each module's entry lives at `$LEDGER_ROOT/<module>/entry.json`.
 
-WHY SHARE (not ISOLATE): the SHARE dir is keyed off
-`sha256(realpath(git rev-parse --git-common-dir))` - the SAME resolved path for every linked
-worktree and every concurrent invocation of THIS repo, because `--git-common-dir` always points
-back to the ONE shared common git dir. A per-worktree ISOLATE dir is private - two concurrent runs
-in two worktrees would each
-write their own copy and never see each other, exactly the cross-run blindness this ledger
-removes. Do NOT collapse this to a bare `$ODOO_AI_HOME/coordination/` (cross-project-global) - two
+WHY SHARE (not ISOLATE): the SHARE dir is keyed off `sha256(realpath(git rev-parse --git-common-dir))`
+- the SAME resolved path for every linked worktree and every concurrent invocation of THIS repo, so
+a per-worktree ISOLATE dir (which would go blind to a claim made in a sibling worktree) is never a
+fit here. Do NOT collapse this to a bare `$ODOO_AI_HOME/coordination/` (cross-project-global) - two
 UNRELATED repos on the same host would then see each other's module claims.
 
 **No git repo and no project marker (resolver refuses).** If `resolve_project_dir.sh share` fails,
@@ -160,8 +157,7 @@ which would succeed on an existing dir and destroy the mutual exclusion).
   Continuation Contract - a harness-level dispatch error, an empty/content-less return, or output
   that does not parse to one of the four terminal `status` values
   (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`). This is DISTINCT from a stale
-  heartbeat (an ABSENCE of fresh evidence, bounded by ticks because a slow-but-alive build and a dead
-  one look identical on the clock): a dead-dispatch signal IS fresh, PROVABLE evidence the dispatch
+  heartbeat (an ABSENCE of fresh evidence, bounded by ticks): a dead-dispatch signal IS fresh, PROVABLE evidence the dispatch
   ended, so `odoo-coding` never leaves that module's entry sitting at `building` with a heartbeat that
   keeps looking recent to every OTHER run watching the ledger - a live-looking heartbeat on a module
   whose dispatch has already terminated would actively mislead a concurrent run into treating a dead

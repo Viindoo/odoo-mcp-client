@@ -1,7 +1,6 @@
 # odoo-plan-upgrade.workflow.yaml
 # Declarative SSOT for the end-to-end Odoo upgrade planning workflow.
-# Replaces the prose phase definitions that previously lived in
-# commands/odoo-plan-upgrade.md. The command becomes a thin dispatcher.
+# commands/odoo-plan-upgrade.md is a thin dispatcher onto this file.
 name: odoo-plan-upgrade
 domain: engineering
 team_pattern: Pipeline

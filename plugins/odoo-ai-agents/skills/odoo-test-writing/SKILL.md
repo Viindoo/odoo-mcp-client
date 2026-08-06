@@ -148,9 +148,9 @@ Write `<addon>/tests/test_<feature>.py` (or `<addon>/static/tests/test_<feature>
 - `@api.depends` paths used in `Form` interactions pass `validate_depends`
 - Field names in `env['<model>'].create({...})` match `model_inspect` output
 
-Backend code-quality gate - moved: the `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles)
-CI-parity gate is no longer appended per test-run here - it runs ONCE, over the run-integration
-branch's aggregate diff, at `run-harness`'s pre-PR tail
+Backend code-quality gate: the `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles)
+CI-parity gate runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s
+pre-PR tail - not appended per test-run here
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply on Viindoo Standard/Internal profiles. On later execution under `--test-enable` (FRESH DB `-i <module>`; already-installed DB `-u <module>`, since `-i` is then a no-op; confirm flags via `cli_help`, full rule `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`), resolve the interpreter (the instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
 On newer series (17.0+ illustrative - confirm via `cli_help`) you MUST add `--skip-auto-install` to the install/init run (`-i <module> --test-enable`, or `-u <module>` on an installed DB) to avoid auto-installed-module noise.

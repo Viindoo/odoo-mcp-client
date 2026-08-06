@@ -221,13 +221,6 @@ this pass does not implement. Recorded here as a known gap, not silently dropped
 
 ### 3.4 - SHARE tier: closed - no disk-TTL sweep is coming, ever, by design
 
-Every SHARE-tier row in `state-root-resolution.md`'s own table is valuable PRECISELY BECAUSE it
-survives across runs/worktrees (a reusable cache or knowledge artifact - bucket 1, by that
-file's own "Why" column for each row). A TTL sweep would destroy the exact property that
-justifies placing something in SHARE rather than ISOLATE in the first place - "the cache went
-stale" is a CONTENT-correctness problem, never a disk-leak problem (this contract's actual
-subject).
-
 **Decision: SHARE is OUT OF SCOPE for this GC rule, by design - and that decision is now FINAL,
 not merely deferred.** No SHARE row gets a TTL sweep from this contract, and no future revision
 of this contract will add one: a generalized disk-age sweep is the WRONG tool for SHARE by
@@ -241,9 +234,8 @@ cache. If growth on disk (not staleness of content) becomes a real operational p
 SPECIFIC SHARE cache, the fix is a size- or count-based cap owned by that cache's OWN consumer
 contract (e.g. "keep the 20 most recent `survey/<slug>-<date>/` trees, prune the rest"), never a
 retrofit of this contract's mtime-TTL mechanism - the two are different tools for different
-problems and must not be conflated. **This closes the question this clause used to leave open**
-("is SHARE growth bounded?"): the answer is "not by disk age, deliberately, and any future
-bound is a different, per-cache mechanism" - not "unaddressed."
+problems and must not be conflated. SHARE growth is bounded not by disk age but, when a
+specific cache needs a bound, by that cache's own size/count cap.
 
 ### 3.5 - Where the sweep for each § 3.1 row lives
 
@@ -286,9 +278,6 @@ exact danger `run-<id>.json` is excluded from this sweep for (§ 3.3): `run-harn
 L2 human-confirm gate for an UNBOUNDED period mid-run (`run-harness/SKILL.md` § Gate-tier
 resolution - "ALWAYS human - emit gate, end turn, resume after approve/skip/cancel"), during which
 `wave/<slug>/plan.md` sits untouched - its mtime goes stale while the run is PAUSED, not abandoned.
-The original "24h crash-only backstop" label this row was given contradicted the reasoning this
-SAME contract applies three rows later to `run-<id>.json` for the identical pause-while-alive
-shape - that contradiction is what this criterion corrects.
 
 **The criterion (mtime alone is never sufficient; a candidate must ALSO be positively correlated
 to a TERMINAL run status before it may be deleted) - read the status with `jq`, never `grep`.**

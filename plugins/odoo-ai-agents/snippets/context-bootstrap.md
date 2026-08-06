@@ -1,10 +1,10 @@
 <!-- SSOT snippet. The single home for the "Round 0 - read project context before asking
-     anything" step. Referenced (not copy-pasted) by every skill that used to ask the user for
-     odoo_version / profile / module list / instance URL. Edit here only; consumers point at
+     anything" step. Referenced (not copy-pasted) by every skill that needs odoo_version / profile /
+     module list / instance URL. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md. Written by the odoo-onboarding skill.
-     Because this snippet is referenced fleet-wide, its resolve-capture-substitute step (1 below)
-     propagates to every Round 0 in the plugin - see
-     ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md for the full protocol this implements. -->
+     This snippet's resolve-capture-substitute step (1 below) propagates to every Round 0 in the
+     plugin - see ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md for the full protocol
+     this implements. -->
 
 # Round 0 - Context Bootstrap (read before you ask)
 

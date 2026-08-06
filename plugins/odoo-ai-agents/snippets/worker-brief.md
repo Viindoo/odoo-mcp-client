@@ -48,10 +48,10 @@ returns the SHA to `odoo-coding` (which collects it and no longer re-commits). S
   A leaf never invokes git-ops even via the Skill tool - see
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
-  Unlike git-ops, `odoo-backend-coder` (for its bounded `/test_lint` gate) and the other
-  instance-touching leaves MAY invoke `Skill(odoo-instance)` to self-provision a live Odoo instance
-  when handed NO `INSTANCE_HANDLE`, or when your brief carries `SELF_PROVISION: worktree-addons`.
-  This is allowed because `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
+  Unlike git-ops, an instance-touching leaf (e.g. `odoo-qa-tester`) MAY invoke
+  `Skill(odoo-instance)` to self-provision a live Odoo instance when handed NO `INSTANCE_HANDLE`,
+  or when your brief carries `SELF_PROVISION: worktree-addons`.
+  `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
   `to_base`, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
   it re-roots the addons list onto your `WORKTREE_PATH` so the instance loads YOUR code, not the
   principal checkout; do NOT call `scripts/lib/allocator.py` directly, which would bypass all of
@@ -59,10 +59,13 @@ returns the SHA to `odoo-coding` (which collects it and no longer re-commits). S
   carries `SELF_PROVISION: worktree-addons`
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
   you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
-  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-frontend-coder` is
-  INSTANCE-FREE - it never self-provisions; its only gate is the static `verify-frontend.sh`, and
+  `odoo-instance-ops`) - this is a MUST, not a judgment call. `odoo-backend-coder` and
+  `odoo-frontend-coder` are BOTH INSTANCE-FREE - neither self-provisions; each runs only its own
+  static gate (ORM-validation for the backend leg, `verify-frontend.sh` for the frontend leg), and
   any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
-  `odoo-instance` run. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+  `odoo-instance` run - the `/test_lint`/`/test_pylint` lint-class gate runs ONCE at
+  `run-harness`'s pre-PR tail, never inside either leaf. Contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
   **Self-provisioning carries teardown:** what you acquire under this carve-out you release
   before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T1/T3.

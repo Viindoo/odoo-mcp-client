@@ -7,11 +7,9 @@ description: Connect Claude Code to the Odoo Semantic MCP server by registering 
 
 Interactive command to connect Claude Code to your Odoo Semantic MCP server.
 
-Run this **after** `claude plugin install` because Claude Code v2.1.x has a known
-bug where `userConfig` values are never prompted at install time
-(github.com/anthropics/claude-code/issues/39455). Without this step the
-`odoo-semantic-mcp` plugin's `.mcp.json` template cannot resolve and the
-`odoo-semantic` MCP server silently fails to load.
+Run this **after** `claude plugin install` - `userConfig` values are not always prompted at
+install time. Without this step the `odoo-semantic-mcp` plugin's `.mcp.json` template cannot
+resolve and the `odoo-semantic` MCP server silently fails to load.
 
 ## Steps for the AI agent
 

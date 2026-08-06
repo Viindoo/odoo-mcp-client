@@ -123,7 +123,7 @@ caller" resolves to that subagent's own launcher, not to whoever invoked the ski
 "No nested teams" constrains TEAM MEMBERSHIP only: only the lead adds or removes teammates from the
 roster. It does NOT stop a non-lead agent from cold-spawning its own subagents. So
 a non-lead orchestrator can still dispatch fresh workers (Tier C) - it simply cannot grow the team
-roster for Tier-A resume, which is why probe condition 4 routes non-lead orchestrators to Tier C.
+roster for Tier-A resume.
 Whether a given launch BLOCKS or must be async is a separate question, decided per R0
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`) by inspecting your own launch
 capability's parameters - it does not depend on team-roster membership either.

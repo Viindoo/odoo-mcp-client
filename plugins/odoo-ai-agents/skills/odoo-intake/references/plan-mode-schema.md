@@ -100,9 +100,8 @@ it is the wave grouping **re-projected onto worktree lineage**, the same "extend
 reconciliation Block 2 uses. Block 2W is **SYMBOLIC**: it carries worktree **TOPOLOGY + LIFECYCLE**
 (node names, fork-from lineage, cherry-pick-into points, the per-wave integration node, and the
 loop) but NEVER concrete ref **STATE** - no SHAs, no branch tips, no resolved worktree filesystem
-paths, no lease tokens; those are RUNTIME, resolved by the executor. Because the topology is a
-**deterministic function of the wave grouping** (same `dag_layers` -> same waves -> same fork
-lineage), the plan stays as reproducible as Block 2 itself.
+paths, no lease tokens; those are RUNTIME, resolved by the executor. Same `dag_layers` -> same
+waves -> same fork lineage.
 
 Nodes (all SYMBOLIC - names, never SHAs/paths):
 - `base` - the run's base ref: the version-named main branch, resolved per

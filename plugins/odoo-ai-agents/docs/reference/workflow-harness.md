@@ -102,8 +102,7 @@ every consumer follows to turn one of these relative forms into a real absolute 
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - this section does not restate
 those tables, only cross-references each row's Tier). A Tier-2 path (SHARE or ISOLATE) resolves
 under `$ODOO_AI_HOME` (machine-global, outside any git working tree), so nothing listed here is
-committed to the repo; the historical "gitignored under `./.odoo-ai/`" framing predates the
-namespaced convention and no longer describes where these artifacts physically live.
+committed to the repo.
 
 ### File-ownership table
 
@@ -713,8 +712,8 @@ Examples: `odoo-feature-check`, `odoo-gap-analysis`, `odoo-version-diff`, and th
 leaf specialists.
 
 A **spawner-agent skill** (`spawn_class: spawner-agent`) runs in the orchestrating
-context and dispatches a named agent by launching it. Because it requires the
-orchestrating context, it is itself launched via the **Skill tool** (by the main agent
+context and dispatches a named agent by launching it. It is itself launched via the
+**Skill tool** (by the main agent
 or by an orchestrator like `run-harness`), never by launching an agent with its name and never
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ **ONE `odoo-coder` COORDINATOR per module, for EVERY module** - backend-only,

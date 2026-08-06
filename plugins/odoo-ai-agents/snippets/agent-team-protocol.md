@@ -102,7 +102,7 @@ just stop and wait to be resumed if the lead has more for you (CHP async park-an
 If `TaskCreate` is absent while `SendMessage` is present, skip the task board and rely on the
 SendMessage push alone - never error (silent degradation). `TaskList`/`TaskGet` return only the
 cheap status surface (a `local_agent`'s `.output` file is a symlink to the full JSONL conversation
-and overflows the lead's context window; `TaskOutput` is deprecated), so the lead can poll which
+and overflows the lead's context window), so the lead can poll which
 teammates are done/blocked without loading any transcript, pairing that status with the pushed
 report content.
 

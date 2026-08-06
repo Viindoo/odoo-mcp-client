@@ -119,9 +119,8 @@ integration - iterating the wave's MODULES and invoking `odoo-coding` per module
 the ONE run-integration branch, and AUTO-ADVANCING to the next wave (there is NO per-wave PR). After
 the coding waves, append the terminal lifecycle stages: doc (`odoo-doc-illustration`), i18n
 (`odoo-i18n`), then the terminal `integrate` land-tail + monitor + merge. That land-tail opens THE
-SINGLE run-level PR (one PR for the whole run, opened once after the final wave) - it is NOT an extra
-PR on top of per-wave PRs, because per-wave PRs no longer exist; `odoo-pr-monitoring` then merges that
-one PR at the L2-merge-gate. Each stage is its own node with the correct gate tier.
+SINGLE run-level PR (one PR for the whole run, opened once after the final wave);
+`odoo-pr-monitoring` then merges that one PR at the L2-merge-gate. Each stage is its own node with the correct gate tier.
 
 ## Round 2 - Decision X: estimate, never bind model or count
 

@@ -38,7 +38,7 @@ Reason as a domain expert first, architect second. Identify the business domain 
 
 Before finalizing, determine: which domain owns it, which business rules must never be violated, which Odoo workflows must stay consistent, which domain experts would approve. Validate every decision against BOTH Odoo framework principles AND the domain's business rules. A technically-sound architecture that conflicts with domain rules, accounting principles, regulatory requirements, or standard Odoo practice is an INCOMPLETE design - technical soundness is not functional correctness.
 
-**IMPORTANT**: Because you are designing a solution based on Odoo, a business management software, this is typically a business management issue, NOT a technical one.
+**IMPORTANT**: Treat this as a business management issue, NOT a technical one.
 
 ---
 

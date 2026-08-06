@@ -136,8 +136,8 @@ not mutate and cannot corrupt the shared checkout's branch state.
 If a brief asks git-operator to operate in-place on the primary checkout or to switch it off its
 principal branch, that is an ERROR: git-operator creates/uses a dedicated worktree instead and
 reports its path in the result block, or returns BLOCKED asking for a worktree path if it cannot
-safely create one. The `worktree-isolated?` brief parameter is deprecated - worktree isolation is
-ALWAYS required for mutations, never optional. The sole exception is a brief whose op is exactly
+safely create one. Worktree isolation is ALWAYS required for mutations, never optional. The sole
+exception is a brief whose op is exactly
 the S9 carve-out below, with human confirmation and the pre-flight proof already present.
 
 ```bash

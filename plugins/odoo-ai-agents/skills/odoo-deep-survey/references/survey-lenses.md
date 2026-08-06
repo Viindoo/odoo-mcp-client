@@ -86,7 +86,7 @@ full audit is `odoo-security-audit`): `groups=` on the method / field, `sudo()` 
 one-line reason, `@api.constrains` that intersects the hot-spot. Use `model_inspect` (methods
 view). Output a **Cross-cutting** subsection.
 
-### L7. Prior art + existing patterns (anti-reinvention - the reason this lens exists)
+### L7. Prior art + existing patterns
 
 Before the downstream agent writes anything, tell it what already solves this so it ADAPTS, not reinvents:
 

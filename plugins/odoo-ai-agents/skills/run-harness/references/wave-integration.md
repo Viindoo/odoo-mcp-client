@@ -635,10 +635,10 @@ module, every wave): `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles) an
 leg of `verify-frontend.sh`. Invocation mechanics (commands, flags, PASS/CANNOT-VERIFY semantics)
 are owned by `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md` +
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` - not restated here. This REPLACES every
-per-work-item / per-module lint-class self-check and re-verification that used to run inside each
-wave (moved here per the owner's instruction) - see `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md`
-and its per-module hard-leaf workers for what stays per-module instead (OSM-grounded ORM validation,
-inline review, zero-toolchain static OWL/SCSS checks - none of these are lint-class and none moved).
+per-work-item / per-module lint-class self-check and re-verification - see
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` and its per-module hard-leaf workers for what
+stays per-module instead (OSM-grounded ORM validation, inline review, zero-toolchain static OWL/SCSS
+checks - none of these are lint-class and none run here).
 
 **Worktree targeting is explicit, never inferred from cwd (mandatory).** This gate's ephemeral
 instance MUST load `run-integration`'s tree, not the principal checkout - the SAME requirement

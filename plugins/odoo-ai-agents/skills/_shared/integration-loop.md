@@ -79,22 +79,18 @@ NOT restate them. The executor (or the git-toolkit operator it delegates to) MUS
   the primary checkout never leaves its principal branch. The saga rollback's re-provisioned
   worktree honors this the same as every other mutation.
 
-**Saga rollback fires no destructive-confirm gate, by construction - not by exemption.** The saga
-unwind (clean-abort | resume-from-checkpoint) is a `worktree remove` + a fresh `worktree add` that
-re-forks run-integration at the anchor SHA (the pre-wave SHA, or the last passing checkpoint SHA) -
-it never invokes a git reset --hard against a live worktree. git-toolkit's destructive human-confirm
-gate (`git-safety-contract.md` item 4) names git reset --hard specifically because it can discard
-uncommitted work with no other copy; here there is nothing unique to discard: run-integration is a
-disposable, never-pushed, run-scoped branch, the anchor SHA and every cherry-picked commit up to it
-remain fully reachable (each module's own commits still live independently on that module's own
-branch, untouched by this rollback), and `worktree add`/`worktree remove` is an ordinary, ungated
+**Saga rollback fires no destructive-confirm gate.** The saga unwind (clean-abort |
+resume-from-checkpoint) is a `worktree remove` + a fresh `worktree add` that re-forks run-integration
+at the anchor SHA (the pre-wave SHA, or the last passing checkpoint SHA) - never a git reset --hard
+against a live worktree, and here there is nothing unique to discard: run-integration is a
+disposable, never-pushed, run-scoped branch, and the anchor SHA and every cherry-picked commit up to
+it remain fully reachable (each module's own commits still live independently on that module's own
+branch, untouched by this rollback). `worktree add`/`worktree remove` is an ordinary, ungated
 mutation verb (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git lists it among
-the routine git-ops verbs, distinct from the 8-item destructive gate list). This is WHY the
-between-wave advance can stay a genuinely autonomous L1 drive-to-done
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, "NO per-wave stop"): the
-one operation that could have forced an unplanned human stop never reaches a gated op in the first
-place, so there is exactly ONE decidable conclusion for an agent hitting a mid-wave failure - it does
-NOT stop for human confirmation. The terminal closing push is, separately, a fresh FIRST push of the
+the routine git-ops verbs, distinct from the 8-item destructive gate list). So a mid-wave failure has
+exactly ONE decidable outcome for the between-wave advance: it does NOT stop for human confirmation -
+drive-to-done continues autonomously (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier
+resolution, "NO per-wave stop"). The terminal closing push is, separately, a fresh FIRST push of the
 never-pushed run-integration branch (non-force, no history rewrite on any remote branch) - also NOT a
 destructive op, also firing no confirm gate; it runs as part of drive-to-done. The only human-gated
 LANDING is the downstream outward MERGE (odoo-pr-monitoring's L2-merge-gate). odoo-ai-agents

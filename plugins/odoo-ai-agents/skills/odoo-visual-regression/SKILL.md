@@ -214,8 +214,7 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 - Baselines are written under `screenshot_baseline_dir` from `<SHARE_DIR>/context.md`.
 - This skill detects drift only; hand fixes to `odoo-coding`.
 - **Tier split (do not merge them).** Baselines are SHARE (reusable across runs); this run's
-  comparison set is ISOLATE and per-slug, because two concurrent runs comparing different state-B
-  builds write the same screen filenames. Classification SSOT:
+  comparison set is ISOLATE and per-slug. Classification SSOT:
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 - **Retention (do this, every run - ALL terminal paths, not just the happy one).** Before emitting
   ANY terminal status - `DONE` after the Round-4 verdict, or `BLOCKED` / `NEEDS_CONTEXT` /
@@ -225,9 +224,7 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
   comparison set; the baselines it was compared against survive in SHARE. Enforcer: the agent
   executing this skill, at its own terminal-status emission - same posture as
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4 ("BLOCKED / NEEDS_CONTEXT do not
-  waive teardown"), restated here rather than folded into that contract because a disk directory is
-  not one of its two live-process resource classes (browser page / Odoo instance) - see that file's
-  Verb glossary.
+  waive teardown") (see that file's Verb glossary).
 - **TTL backstop for a run that never reaches its own terminal status** (crash, `-9`, a compaction
   mid-round that is never resumed). The rule above is self-enforced prose, not hook-blocked - no
   ledger like the allocator's tracks a filesystem directory - so a killed session still leaks one

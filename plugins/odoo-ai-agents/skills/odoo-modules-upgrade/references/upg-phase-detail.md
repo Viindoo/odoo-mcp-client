@@ -145,8 +145,6 @@ FULL TRANSITIVE CLOSURE (incl. external/core deps):
   - dep where the module was RENAMED, MOVED, or SPLIT at target (e.g. a community module
     absorbed into core, or an account_* reorg): use api_version_diff + module_inspect to
     detect identity changes. Flag as 'dep_identity_changed: true' with the new identity.
-  A dep that was renamed/moved is as dangerous as a missing dep - both cause install
-  failures that only surface at P5 without this check.
 
 Output: graph.md (YAML block listing each module + deps + missing flag + identity_changed flag)
 ```
@@ -628,8 +626,6 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      - `demo/*.xml` - same as data/
      - `security/*.csv` (ir.model.access.csv) - update model names if model was renamed
      - `ir.rule` records - update domain expressions referencing renamed/removed fields
-     These files break installation just as hard as Python or view files when a field
-     or model they reference no longer exists at target.
   4. Do NOT bump the manifest `version` - keep the existing short form unchanged.
   4b. Set `installable: True` (flip from False) AFTER all other P4 fixes are applied, BEFORE P5
      runs - per the upg-classification-table.md manifest-break row. P5 confirms it installs.

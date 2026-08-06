@@ -61,10 +61,9 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 An ephemeral `--stop-after-init` build self-terminates its process, but the LEASE (db + port
 reservation) is still yours - release it so `drop_on_release` reclaims the DB.
 
-The run-level owner's end-of-run release is crash-safe only because a mechanical backstop
-exists below this contract: allocator GC, SessionEnd gc, and gc-on-acquire reap an owner that
-died before releasing - immediately when its pid is dead, or (only when liveness cannot be
-verified at all) once the allocator's TTL (default 3600s) lapses with no `heartbeat`. A same-host
+A mechanical backstop below this contract reaps an owner that died before releasing: allocator
+GC, SessionEnd gc, and gc-on-acquire - immediately when its pid is dead, or (only when liveness
+cannot be verified at all) once the allocator's TTL (default 3600s) lapses with no `heartbeat`. A same-host
 owner whose pid is verified alive is NEVER TTL-reaped, by design. The backstop is a safety net,
 not an alternative - you still release; the net catches crashes, not laziness.
 
