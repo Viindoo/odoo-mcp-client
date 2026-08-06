@@ -56,8 +56,7 @@ Rules:
 - **Spawner completion barrier (distinct from the no-self-dispatch rule above).** If you launched
   any agent this turn, `status: DONE` is legal only when every child you launched returned
   DONE/BLOCKED; while a child runs you are not done. Full rule:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2. Different guarantee from
-  'you never dispatch the next step yourself'; both hold.
+  `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2.
 - `status: DONE` when the run's goal is met (add `concerns:` when a caveat remains worth
   flagging - never a fifth status value); `NEEDS_NEXT` when more work should follow (fill
   `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
@@ -71,10 +70,10 @@ Rules:
   this file declares in its own right and which diverges from ETHOS #10's own value set (see the
   `DONE_WITH_CONCERNS` note above). Your output, in order, is
   (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
-  evidence, (c) this fenced `continuation` block. This holds identically whether your final
-  message IS the report (no `SendMessage` in your toolset) or is pushed via `SendMessage` per
+  evidence, (c) this fenced `continuation` block. This holds whether your final message IS the
+  report (no `SendMessage` in your toolset) or is pushed via `SendMessage` per
   `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 1, which reuses this exact 3-part
-  shape rather than defining its own - this file owns the shape, Ask 1 only owns the transport.
+  shape rather than defining its own.
 - `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
 - **"Waiting" is never a bare statement, and a technically-shaped `blocked_reason` is not
   automatically a real one.** `status` has no `waiting` value by design - a genuine pause IS
@@ -88,23 +87,19 @@ Rules:
   a `blocked_reason` that could be copy-pasted verbatim into any OTHER agent's report on any OTHER
   module without becoming false is, by construction, ungrounded. Ending a turn on an unqualified
   "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, a `blocked_reason` that
-  fails the copy-paste check, or with no `continuation` block at all, is a protocol violation: it
-  leaves the caller unable to tell finished-without-reporting from still-working, or unable to act
-  without a clarifying round-trip the ground-worthy version would have made unnecessary.
+  fails the copy-paste check, or with no `continuation` block at all, is a protocol violation.
 - `risk_level`: L0 read-only/chat · L1 writes internal state (Tier-2 SHARE/ISOLATE `.odoo-ai/`-rooted
   files, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never a
   project-relative `./.odoo-ai/`) · L2 irreversible/outward (touches an instance, git push/merge,
   sends to a third party). When unsure, pick the higher tier.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
-  the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward. **Superseded
-  for `odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, and `odoo-instance-ops`**
-  (V-34): these four now emit their conditional follow-up (a UI-review suggestion, a code-agent
-  handoff) as an in-block `next:` entry instead - a bare `SUGGESTED_NEXT:` line was silently
-  dropped whenever the fenced block ALSO set a status (the parser's back-compat branch only reads
-  `SUGGESTED_NEXT` when `status` is empty, `parse-continuation.sh:46`), and all four always emit a
-  fenced block. Do not emit both channels for these four agents - the in-block `next:` is the only
-  one the parser is guaranteed to see.
+  the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward. Superseded
+  for `odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, and `odoo-instance-ops`:
+  these four emit their conditional follow-up as an in-block `next:` entry instead - never both
+  channels (the parser's back-compat branch only reads `SUGGESTED_NEXT` when `status` is empty,
+  `parse-continuation.sh:46`, so a bare `SUGGESTED_NEXT:` line is silently dropped once the fenced
+  block also sets a status).
 - **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
   `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
   `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so
