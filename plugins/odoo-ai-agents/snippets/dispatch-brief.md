@@ -15,11 +15,9 @@ form, not literal headings. Reference existing homes for intent/acceptance/artif
 `ORACLE_PATH`, worklog, etc. - do not restate their content here or in a filled brief.
 
 This file is **READ BY PATH** by non-leaf spawners while they compose a dispatch prompt. It is
-**NEVER inlined verbatim into a hard-leaf brief**: a leaf does not author dispatch prompts, so it
-does not need the caller schema - it self-checks against the family-delta field list already
-carried inline in its own body (see `## Brief self-check` below). This is the opposite of
-`worker-brief.md`, which IS inlined into leaves because it is worker-side behavior the leaf must
-execute.
+**NEVER inlined verbatim into a hard-leaf brief**: a leaf self-checks against the family-delta
+field list already carried inline in its own body (see `## Brief self-check` below) - the opposite
+of `worker-brief.md`, which IS inlined into leaves because it is worker-side behavior.
 
 ## Universal skeleton (11 fields)
 
@@ -39,9 +37,8 @@ execute.
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (resolve the Tier-2 SHARE dir per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s resolve-capture-substitute protocol
-and read `context.md` there first - never a bare `.odoo-ai/context.md` literal; ask the caller
-only when absent). This file references that snippet rather than re-specifying those two fields.
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and read `context.md` there first; ask
+the caller only when absent).
 
 ## Two rules that decide whether the brief works
 
@@ -90,8 +87,7 @@ pointer back to this file - never the full skeleton table.
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
   `none` when no deep survey ran. Same load-bearing-KEY rule as skeleton field 4 `INPUTS`: the key
   itself must be present - omitting it entirely (not even the literal `none`) is a gap the
-  receiving agent's `## Brief self-check` STOPS on, never silently drops (this closes the exact gap
-  where a brief carrying every other field still silently dropped a human-handed-over survey).
+  receiving agent's `## Brief self-check` STOPS on, never silently drops.
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
   rebase/adapt mode - a normal build's worktree already encodes the base).
 
@@ -285,8 +281,7 @@ coordinator's self-check carves it out.
 
 ## How a caller uses it
 
-Any spawner - the main agent, `odoo-coding`, `odoo-code-review`, `odoo-coder`, `run-harness`,
-`workflow-chaining`, or any other dispatching skill/agent - reads this file BY PATH, then fills the
-universal skeleton + the target agent's family delta into the dispatch prompt. There is **no
-verbatim inlining** of this file into a hard-leaf brief: a leaf receives a filled brief, not this
-caller schema, and self-checks against the family delta already inline in its own body.
+Any spawner reads this file BY PATH, then fills the universal skeleton + the target agent's family
+delta into the dispatch prompt. There is **no verbatim inlining** into a hard-leaf brief: a leaf
+receives a filled brief, not this caller schema, and self-checks against the family delta already
+inline in its own body.
