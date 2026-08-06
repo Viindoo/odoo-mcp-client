@@ -151,5 +151,4 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 If the produced draft contains one or more `[Image: ...]` placeholders (image slots emitted in Round 3), set `status: NEEDS_NEXT` and include in the `next` field:
 - skill: odoo-doc-illustration
   confidence: 0.8
-  risk_level: L1
   reason: fill screenshot into image placeholder(s) in draft

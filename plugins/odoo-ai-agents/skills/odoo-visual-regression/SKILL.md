@@ -179,7 +179,6 @@ reused. This step is unconditional: run it even when Round 2/3 stayed on one pag
       reason: provision the Odoo instance needed for screenshot baseline capture
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to compare>"]}
       confidence: 0.9
-      risk_level: L2
   ```
   so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 

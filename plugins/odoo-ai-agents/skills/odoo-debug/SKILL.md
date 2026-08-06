@@ -267,9 +267,9 @@ let the driver advance.
 | 4 Synthesize (this orchestrator) | **opus** | compile + decide hand-off |
 
 **Fable escalation (Phase 2 only).** Fire fable ONLY after one full opus pass returns no
-falsifiable root cause. Always get explicit human confirmation first (state tier, cost, and
-one-line why: e.g. `Fable escalation: opus pass returned no falsifiable root cause (~2x opus
-cost). Confirm fable?`). If declined or unavailable, fall back to **opus** and note the
+falsifiable root cause. Always get explicit human confirmation first, asked as the TRADEOFF and
+never by tier name (e.g. `The deep pass found no provable root cause. Try the deepest-reasoning
+setting? Costs about 2x. (approve / skip / cancel)`). On `skip` or unavailable, fall back to **opus** and note the
 downgrade in the Phase 4 Output Contract (`dispatch: opus (fable declined/unavailable)`).
 
 Pass the chosen model explicitly on each subagent launch. The complexity score from Phase 1 picks
@@ -288,7 +288,6 @@ the Phase 2 tier; do not silently fall back to the inherited default.
       reason: provision the Odoo instance needed for browser-layer diagnosis
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
       confidence: 0.9
-      risk_level: L2
   ```
   so the run-harness provisions one; fall back to `BLOCKED` for that leg only if
   provisioning is itself impossible. Never ask the user to paste console output or screenshots -

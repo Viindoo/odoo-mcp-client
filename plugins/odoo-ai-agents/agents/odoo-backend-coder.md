@@ -289,7 +289,6 @@ next:
     reason: view XML modified
     inputs: {target: <instance_base_url>/<view path>}
     confidence: 0.4
-    risk_level: L0
 blocked_reason: null
 ```
 

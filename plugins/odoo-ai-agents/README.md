@@ -128,7 +128,7 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
   open the run's ONE PR against the principal branch) -> read the step's **Continuation Contract**
   -> advance. Once a PR is open the async
   poller **`odoo-pr-monitoring`** drives it to merge (watches CI + review; any failure routes to
-  `odoo-debug` with the re-push human-gated; the L2-merge-gate). A step can chain the next one
+  `odoo-debug` with the re-push human-gated; the merge approval gate). A step can chain the next one
   (including across workflows via `on_complete`), so the run keeps moving without re-prompting.
 
 Each step carries a **gate tier** that decides what stops for you (see
@@ -180,7 +180,7 @@ flowchart TD
     INT -. "materializes next @ L2" .-> MON["odoo-pr-monitoring<br/>/loop | /schedule poller"]
     MON -->|"CI warn/error/fail = D3"| DBG["odoo-debug -> odoo-coding<br/>re-push human-gated (X2)"]
     DBG --> MON
-    MON -->|"green + approved"| MG["L2-merge-gate -><br/>merge + post-merge cleanup"]
+    MON -->|"green + approved"| MG["merge approval gate -><br/>merge + post-merge cleanup"]
     MG --> DONE
 
     F1 --> I[("OSM MCP")]
@@ -634,7 +634,7 @@ flowchart TD
 | `/odoo-draft-followup` | Sales follow-up email saved to `<ISOLATE_DIR>/followups/` | `odoo-deal-followup` |
 | `/odoo-summarize-discovery` | Synthesize discovery notes into a structured profile, saves to `<ISOLATE_DIR>/discovery/` | `odoo-discovery-summary` |
 | `/odoo-position-feature` | Positioning copy for marketing and sales use, saves to `<ISOLATE_DIR>/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
-| `/odoo-plan-upgrade` | Comprehensive upgrade plan (replaces legacy `odoo-upgrade-planner` agent), saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
+| `/odoo-plan-upgrade` | Comprehensive upgrade plan, saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
 | `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
 | `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
@@ -903,7 +903,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-doc-walkthrough` | Marketer | Produces happy-path usage walkthroughs for a module's key flows; dispatches `odoo-doc-scenarist`; standalone-first, browser capture optional. |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
 | `odoo-acceptance` | Coder / QA | End-to-end acceptance on a change AND its blast-radius - map the affected cluster, plan an INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with evidence; dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute) and chains tours/HttpCase via `odoo-instance` (needs a live instance + browser MCP) |
-| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - `run-harness`'s terminal `integrate` land node, the single land-tail every `writes-files` plan ends on (runs ONCE after the final wave) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the L2-merge-gate, merges, and runs post-merge cleanup |
+| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - `run-harness`'s terminal `integrate` land node, the single land-tail every `writes-files` plan ends on (runs ONCE after the final wave) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the merge approval gate, merges, and runs post-merge cleanup |
 | `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
 | `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each ready node, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent. Owns the per-wave **between-wave integration** directly (consumes Block 2W; per module invokes `odoo-coding`, cherry-picks the returned SHA onto the ONE run-level integration branch forked at run start, runs the cumulative close-gate, and AUTO-ADVANCES to the next wave with no per-wave PR); after the FINAL wave, the terminal `integrate` land-tail runs ONCE - squash + fresh non-force push + open the run's ONE PR against principal - and STOPS at "PR opened" (no merge) |
 

@@ -56,9 +56,10 @@ Constraints:
 
 **Opus human-confirm gate (R2d - Table 1 has no fable band, so opus is the ONLY tier this table can
 reach above sonnet/haiku; it is NOT a silent auto-assign.)** When a module's bundle resolves to
-row 1 (**opus**), the P4 Plan Mode gate MUST call it out on its own line - module name, tier, and
-a one-line why (the SAME format Table 2's fable gate below already uses) - and the human's Plan
-Mode approval covers it. If the human declines, downgrade that module's EXTRACT tier to **sonnet**
+row 1 (**opus**), the P4 Plan Mode gate MUST call it out on its own line as a TRADEOFF in plain
+words, never by tier name - module name, why it needs a deeper read, the cost (the SAME format
+Table 2's fable gate below already uses) - and the human's Plan
+Mode approval covers it. On a decline, downgrade that module's EXTRACT tier to **sonnet**
 (fable is not in the EXTRACT band, so there is no intermediate step down from opus) and record
 `<module>: sonnet (opus declined)` in `plan.md`. **Suppressed-gate auto-downgrade** (same pattern
 `skills/odoo-coding/SKILL.md` § Model triage already uses for its own fable gate - reused here by
@@ -90,9 +91,10 @@ deterministic tier table verbatim (SSOT - do not fork it). The condition set, su
 | 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module - and ANY case not confidently classified | **sonnet** (default) |
 
 Constraints:
-- **fable is never a default and ALWAYS needs explicit human confirmation** (~2x opus). When a
-  row resolves to fable, the P4 plan gate must call it out on its own line (tier, cost,
-  one-line why); the human's yes covers it. If the human declines fable, downgrade that
+- **fable is never a default and ALWAYS needs explicit human confirmation** (about 2x the price of
+  the tier below). When a row resolves to fable, the P4 plan gate must call out the TRADEOFF on its
+  own line in plain words, never by tier name - which module, why it needs the deepest reasoning,
+  the cost - with the reply set `approve / skip / cancel`. On `skip`, downgrade that
   work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`. Fable-grade work
   with no approved design doc -> recommend `odoo-solution-design` first.
 - **Suppressed-gate auto-downgrade** (same pattern `skills/odoo-coding/SKILL.md` § Model triage
@@ -116,11 +118,15 @@ Constraints:
 
 Each commit in `plan.md` carries two tier columns:
 
-| Commit SHA | Intent summary | Bucket | EXTRACT tier | ADAPT tier |
+| Commit SHA | What it does | Outcome at target | Model that reads the intent | Model that writes the port |
 |---|---|---|---|---|
-| `abc1234` | double-post guard on `account.move` | (b) | sonnet | sonnet |
-| `def5678` | rename field across 4 modules | (b) | opus | fable (confirm) |
-| `ghi9012` | fix typo in docstring | (a) | haiku | haiku (test-only) |
+| `abc1234` | double-post guard on `account.move` | (b) still needed - APIs compatible | sonnet | sonnet |
+| `def5678` | rename field across 4 modules | (b) still needed - APIs compatible | opus | fable (confirm) |
+| `ghi9012` | fix typo in docstring | (a) already in the target | haiku | haiku (test-only) |
+
+Outcome values (full definitions: `[[fp-intent-4outcome]]`): **(a)** already in the target ·
+**(b)** still needed, APIs compatible · **(c)** still needed, the old API is gone (re-implement) ·
+**(d)** no longer relevant.
 
 The EXTRACT tier drives the P1 dispatch; the ADAPT tier drives the P8 dispatch.
 Buckets are assigned in P2 (after extraction), so the ADAPT tier may be refined once the
@@ -146,13 +152,15 @@ OWL, QUnit -> Hoot, an API removed wholesale at the target). The gate trips if E
 late):**
 
 ```
-This cluster (<modules>) looks like an upgrade-scale re-implement, not a mechanical port
-(~<LOC> LOC / <framework-migration>). Options:
-  (a) defer  - carry as installable:False now, re-implement in a dedicated later effort
-               (lint-only lane meanwhile - see [[fp-installable-false]])
-  (b) do now - estimate ~<X> hours; proceed at the ADAPT tier from Table 2
-Choose (a) or (b).
+This cluster (<modules>) is really a version-upgrade rewrite, not a mechanical port
+(~<LOC> new lines / <framework-migration>). Two ways forward:
+  (a) defer  - mark these modules not-installable for now and re-implement them later as
+               their own piece of work (they get lint-only checks meanwhile)
+  (b) do now - roughly <X> hours of re-implementation inside this run
+`approve` = (b) do now · `skip` = (a) defer · `cancel` = stop.  (approve / skip / cancel)
 ```
+
+(The `(a)`/`(b)` here label the two OPTIONS, not the outcome buckets (a)-(d) above.)
 
 Record the choice in `plan.md`. On **(a)**, the cluster moves to the lint-only lane - its modules
 go `installable:False` and B2 deferral mode = CARRY (`[[fp-installable-false]]`). On **(b)**,

@@ -31,7 +31,9 @@ Use when you already want discovery synthesis and want to skip natural-language 
 
 3. **Phase 2: Show output**
    - Display the skill's output to the user.
-   - Ask: "Save this profile? (yes / no / change-name)"
+   - Ask: "Save this profile? (approve / skip / cancel)" - the STEP gate set
+     (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`). `approve` saves it; a filename
+     supplied alongside `approve` overrides the default name; `skip` leaves it unsaved.
    - If the user provides a custom filename, use it. Otherwise, default to
      `<ISOLATE_DIR>/discovery/<label>-<date>.md` where `<date>` is YYYY-MM-DD (resolve
      `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
@@ -79,9 +81,9 @@ Skill output:
   **Recommended product fit:** Odoo Accounting + Invoice Automation...
   **Next step:** Demo accounts module, pricing discussion...
 
-Agent: Save to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md? (yes / no / change-name)
+Agent: Save to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md? (approve / skip / cancel)
 
-User: yes
+User: approve
 
 Agent: ✓ Profile saved to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md
 ```

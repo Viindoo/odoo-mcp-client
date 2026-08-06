@@ -26,9 +26,10 @@ The rows below are the UPGRADE-specific instantiations of those same four condit
 - **sonnet is the ambiguous-case default.** If two rows seem to apply, the higher row
   (smaller #) wins; if NO row clearly applies, use sonnet.
 - **fable is never a default and ALWAYS needs explicit human confirmation.** When a module
-  resolves to fable, the P3 plan-gate message must call it out:
-  `Fable row: <module> - <reason> (~2x opus cost). Confirm fable?`
-  If the human declines, downgrade to opus and record the downgrade in plan.md.
+  resolves to fable, the P3 plan-gate message must call out the TRADEOFF in plain words, never
+  the tier name: `<module> - <reason>: run it on the deepest-reasoning setting? Costs about 2x.
+  (approve / skip / cancel)`
+  On `skip`, downgrade to opus and record the downgrade in plan.md.
 - **DELETE-absorbed modules always use haiku** (the work is dangling-reference sweep + dep list edits;
   directory removal is delegated to git-toolkit via `git-ops`; no business logic is written; haiku is sufficient).
 - Record the chosen tier in plan.md per module. Never assign a tier at dispatch time

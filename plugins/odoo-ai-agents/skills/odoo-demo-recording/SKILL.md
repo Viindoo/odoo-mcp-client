@@ -269,7 +269,6 @@ any file here regardless of suffix:
       reason: provision the Odoo instance needed to record the demo
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules required for workflow>"]}
       confidence: 0.9
-      risk_level: L2
   ```
   so the run-harness provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 

@@ -15,10 +15,13 @@ RELAYS of subagent results - mirrors the USER'S language:
    and write all sentences in it. Skill bodies and templates are written in
    English - they are instructions TO you, not text to paste. When a skill shows
    a gate/proposal template, keep its STRUCTURE (lines, table columns, the
-   `(approve / refine / cancel)` options) but translate every label and sentence.
+   reply options) but translate every label and sentence.
 2. **Keep verbatim:** code, identifiers, model/field/module names, file paths,
    CLI commands, tool and skill names, URLs, version strings, and the literal
-   keywords the user must type back (`approve`, `refine:`, `cancel`, `yes`).
+   keywords the user must type back. There are exactly two reply sets and no
+   others - `approve / refine: [feedback] / cancel` and `approve / skip / cancel`
+   (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md`); `yes` is not one of
+   them. Translate the surrounding sentence, never the keyword.
 3. **Explain unavoidable technical terms** in plain words in the user's language
    the first time each appears in a conversation (keep the term, add a short
    plain-language gloss in parentheses). Prefer the plain-language phrasing over

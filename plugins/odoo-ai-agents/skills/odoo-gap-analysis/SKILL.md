@@ -275,10 +275,10 @@ Emit the chat continuation block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuatio
 (status / produced / next); it MUST mirror `gap-continuation-contract.json`. `produced` lists the
 three artifact paths. Three branches, evaluated in order (mirrors `odoo-brl`'s
 Extension-L/Custom-XL vs Standard/Config/Extension-M split, § Stay format-compatible):
-1. `meta.has_nontrivial` true -> `status: NEEDS_NEXT`, `next: [{skill: odoo-solution-design, reason: "non-trivial item(s) need a designed-and-approved solution before code", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}, risk_level: L1}]`.
+1. `meta.has_nontrivial` true -> `status: NEEDS_NEXT`, `next: [{skill: odoo-solution-design, reason: "non-trivial item(s) need a designed-and-approved solution before code", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}}]`.
 2. `meta.has_nontrivial` false BUT buildable work exists (any row `classification` in
    `{config, extension, custom}` - not purely `standard` activation) -> `status: NEEDS_NEXT`,
-   `next: [{skill: odoo-planning, reason: "one-approach (standard/config/extension-M) work still needs the mandatory minimal plan before coding", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of every non-standard row>]}, risk_level: L1}]` (mirrors `odoo-brl`'s
+   `next: [{skill: odoo-planning, reason: "one-approach (standard/config/extension-M) work still needs the mandatory minimal plan before coding", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of every non-standard row>]}}]` (mirrors `odoo-brl`'s
    "Standard/Config/Extension-M only -> `odoo-planning` instead of `odoo-coding` directly").
 3. Purely `standard` (every row `classification: standard`) -> `status: DONE`, `next: []`.
 

@@ -73,12 +73,13 @@ Pattern:      <team_pattern>
 Chain:        <phase-1.id> → <phase-2.id> → ... → <phase-N.id>
 Output:       <output_dir>/
 Est. effort:  <count> phase(s), gates between each
-Model tiers:  <per-phase list>
 
 Gate: approve / refine: [feedback] / cancel
 ```
 
-Wait for user response before proceeding to Phase 1.
+Wait for user response before proceeding to Phase 1. Write this block in the USER'S language
+(translate labels and prose; keep phase ids, workflow/skill names, file paths, and the reply
+keywords verbatim - SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ## Live task list
 
@@ -182,8 +183,8 @@ After each phase completes successfully:
 After the **final** phase completes, if the YAML declares a top-level `on_complete:` list,
 evaluate each entry's `when:` predicate (same mechanism as `phases[].when` - read accumulated
 phase outputs; the key MUST have surfaced in that phase's output). For every matching entry,
-**add it to your Continuation Contract `next[]`** (`next → skill`, `reason`, `inputs`,
-`gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
+**add it to your Continuation Contract `next[]`** (`next → skill`, `reason`, `inputs`).
+Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 
 **HARD RULE - EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill MUST NOT
 invoke a spawner - the run-harness dispatches it.
@@ -196,11 +197,19 @@ trigger `<next>` manually." Never silently drop. (To AUTO-chain, enter via intak
 
 ## Gate handling
 
-Present options from the YAML `gate` field - the PLAN gate set
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), no others:
-- `approve` → proceed.
-- `refine: [feedback]` → incorporate feedback and re-propose.
-- `cancel` → stop; report completed phases and artifact locations.
+Present the options from the YAML `gate` field verbatim. A `gate` is always ONE of the two
+declared reply sets (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), never a third:
+
+- PLAN set - `approve / refine: [feedback] / cancel`: `approve` proceeds, `refine: [feedback]`
+  incorporates the feedback and re-proposes, `cancel` stops.
+- STEP set - `approve / skip / cancel`: `approve` runs the phase, `skip` moves to the next phase
+  without running it, `cancel` stops.
+
+On `cancel`, report the completed phases and where their artifacts are.
+
+Write the gate message in the USER'S language (translate labels and prose; keep phase ids, file
+paths, skill names, and the reply keywords verbatim - SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ## Out of Scope
 
