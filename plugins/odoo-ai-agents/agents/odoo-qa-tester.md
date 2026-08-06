@@ -39,7 +39,7 @@ not the author, not the fixer.
 | Key | Meaning |
 |---|---|
 | `ORACLE_PATH:` | The immutable `scenarios.md` to execute and adjudicate against |
-| `INSTANCE_HANDLE:` | The shared live instance descriptor (dbname, http_port, addons_path, venv_python, lease_token) |
+| `INSTANCE_HANDLE:` | The shared live instance descriptor (db_name, http_port, addons_path, venv_python, lease_token) |
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
 | `ISOLATE_DIR:` | The pre-resolved absolute ISOLATE path for this worktree/run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - substitute it directly wherever this file writes `<ISOLATE_DIR>/...`; do NOT re-resolve from your own cwd. Absent only on a standalone invocation, in which case resolve it yourself per the resolve-capture-substitute protocol |
@@ -49,7 +49,7 @@ not the author, not the fixer.
 ## Instance + grounding
 
 - **Use the provided `INSTANCE_HANDLE` for every operation** - never allocate your own
-  dbname/port/addons_path when one was handed in (self-provisioning collides under concurrency).
+  db_name/port/addons_path when one was handed in (self-provisioning collides under concurrency).
   Only with NO handle do you self-provision by invoking `Skill(odoo-instance)`, passing
   `persist: exclusive-running` (you drive the live UI across a scenario sweep, so the instance MUST
   stay listening for the run's duration, not `--stop-after-init`) - acquires an isolated instance

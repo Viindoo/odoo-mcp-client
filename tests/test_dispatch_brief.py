@@ -685,10 +685,12 @@ def test_no_procedural_field_values_in_instance_brief():
 # ---------------------------------------------------------------------------
 # M4 - INSTANCE_HANDLE field names. instance-handle-contract.md is the SSOT
 # for the fields an INSTANCE_HANDLE carries; agents/odoo-instance-ops.md's
-# canonical `instance-ops` output block is the actual PRODUCER. Before this
-# fix the contract declared `db_name`/`venv` while the producer emitted
-# `dbname`/`venv_python` (and 4 producer fields - gevent_port, log_path,
-# demo, languages_loaded - were undocumented in the contract entirely).
+# canonical `instance-ops` output block is the actual PRODUCER. The contract
+# must declare `db_name`/`venv_python`, matching the producer's actual field
+# names - `db_name` because that is Odoo's own spelling (odoo.conf's
+# `db_name =` key, the `--db_host`/`--db_port`/`--db_user` CLI flags; Odoo
+# never spells this `dbname`) - and every producer field describing the ONE
+# live instance must be documented in the contract, and vice versa.
 # Data-driven both directions, scoped to the fields that describe the ONE
 # live instance (never the per-operation-only fields: op, series,
 # modules_installed, failed, errors, warnings, skipped, findings_path,
@@ -748,9 +750,9 @@ def test_instance_handle_field_names_match_producers():
         f"documents: {sorted(undocumented_in_contract)}"
     )
 
-    assert "dbname" in contract_fields and "db_name" not in contract_fields, (
-        "instance-handle-contract.md must declare `dbname` (the producer's "
-        "actual field name), not the stale `db_name`"
+    assert "db_name" in contract_fields and "dbname" not in contract_fields, (
+        "instance-handle-contract.md must declare `db_name` (the producer's "
+        "actual field name, and Odoo's own spelling), not the stale `dbname`"
     )
     assert "venv_python" in contract_fields and "venv" not in contract_fields, (
         "instance-handle-contract.md must declare `venv_python` (the "

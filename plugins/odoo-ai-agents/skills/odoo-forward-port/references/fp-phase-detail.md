@@ -709,7 +709,7 @@ CONFIRM: "confirm each module in this closure emits a Loading line before readin
           status in modules_installed and the test result in findings_path"
 ```
 
-Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`dbname`,
+Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`db_name`,
 `lease_token`, `run_id`, `addons_path`) - memory-cap is applied automatically inside
 `odoo-instance-ops`, no separate field to pass
 (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). The closure suite can be very

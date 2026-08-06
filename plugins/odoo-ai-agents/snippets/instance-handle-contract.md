@@ -8,7 +8,7 @@
 `INSTANCE_HANDLE` is the canonical, run-scoped descriptor of the ONE live Odoo instance a
 multi-agent run shares. It carries exactly:
 
-- `dbname` - the database the run operates against
+- `db_name` - the database the run operates against
 - `http_port` - the bound HTTP port (null for `--stop-after-init` runs)
 - `gevent_port` - the second (longpolling/gevent) port, when a prefork/`--workers>0` build
   requested one via `--ports 2`; null when only one port was bound
@@ -40,7 +40,7 @@ touches code or tests (coder, test-author, verify, debug).
 ## Downstream agents consume, never self-provision
 
 An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
-(confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `dbname`, port, or
+(confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
 `addons_path`. Going through `odoo-instance` does NOT by itself solve collision: `persist:
 shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only `persist:
 exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
@@ -91,7 +91,7 @@ STOP with `BLOCKED(verification addons-path does not cover <module> under <WORKT
 result here would prove nothing)` - never run the operation "to see what happens".
 
 This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
-a `dbname` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
+a `db_name` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
 and MUST NOT self-provision to change the series, add a module, or because a handle looks stale.
 
 **Structural backstop (belt-and-braces, not the sole protection).** `scripts/lib/allocator.py`'s
