@@ -17,24 +17,23 @@ ONE thing a single run cannot see on its own: whether `<D>` is being built RIGHT
 run or worktree, was already built elsewhere, or is genuinely absent. It exists so `odoo-coding` can
 turn that raw BLOCKED into a specific, evidence-backed decision.
 
-**Scope note (Block 2W).** The planned worktree dependency graph's fork-from-integrated-parent
-lineage (every wave's worktrees fork from the ONE `run-integration` branch, which already carries
-all prior waves' cherry-picked code) means a dependent wave's worktree always CONTAINS its
-dependencies' committed source by construction - but containing the source is NOT the same as that
-source being on the verification instance's addons-path (the allocator emits the CATALOG addons
-list, pointing at the principal checkout, by default). Reaching the addons-path is a POLICY step,
-not a structural one: the per-module brief must carry `WORKTREE_PATH` + `SELF_PROVISION:
-worktree-addons` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
-carve-out), which `odoo-coding` sets on EVERY per-module dispatch naming a `WORKTREE_PATH`. With
-that policy step taken, this ledger and the `odoo-backend-coder` dependency pre-flight now backstop
-ONLY concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net; the intra-run false
-BLOCKED no longer fires.
+**Scope note (Block 2W).** Every wave's worktrees fork from the ONE `run-integration` branch, so a
+dependent wave's worktree always CONTAINS its dependencies' committed source by construction - but
+containing the source is NOT the same as that source being on the verification instance's
+addons-path (the allocator emits the CATALOG addons list, pointing at the principal checkout, by
+default). Reaching the addons-path is a POLICY step: the per-module brief must carry
+`WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out), which
+`odoo-coding` sets on EVERY per-module dispatch naming a `WORKTREE_PATH`. With that policy step
+taken, this ledger and the `odoo-backend-coder` dependency pre-flight now backstop ONLY concurrent
+INDEPENDENT runs (cross-run) + the manifest-crash safety net; the intra-run false BLOCKED no
+longer fires.
 
 ## Location and why the SHARE dir
 
-Resolve the ledger root ONCE per run via the Tier-2 SHARE resolver (Problem 3 - full policy +
-classification tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), following its
-mandatory resolve-capture-substitute protocol:
+Resolve the ledger root ONCE per run via the Tier-2 SHARE resolver (full policy + classification
+tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), following its mandatory
+resolve-capture-substitute protocol:
 
 ```bash
 SHARE_DIR="$(bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share)"
@@ -43,24 +42,19 @@ LEDGER_ROOT="$SHARE_DIR/coordination/modules"
 
 Each module's entry lives at `$LEDGER_ROOT/<module>/entry.json`.
 
-WHY SHARE (not ISOLATE, and not a per-worktree `./.odoo-ai/`): the SHARE dir is keyed off
-`sha256(realpath(git rev-parse --git-common-dir))` - a linked worktree has its own `.git` file, but
-it points back to the ONE shared common git dir of the principal checkout, so `--git-common-dir`
-(and therefore the resolved SHARE dir) is the SAME path for every linked worktree and every
-concurrent invocation of THIS repo. A per-worktree ISOLATE dir is private to that worktree - two
-concurrent runs in two worktrees would each write their own copy and never see each other, which is
-exactly the cross-run blindness this ledger removes. The SHARE dir lives under `$ODOO_AI_HOME`
-(machine-global, outside any git working tree), so it needs no gitignore entry and is never
-committed - it is live cross-run state, not source. Do NOT collapse this to a bare
-`$ODOO_AI_HOME/coordination/` (cross-project-global) - that would regress cross-repo isolation:
-two UNRELATED repos on the same host would then see each other's module claims. The SHARE dir
-already gives exactly what this ledger needs: repo-scoped, worktree-converged coordination.
+WHY SHARE (not ISOLATE): the SHARE dir is keyed off
+`sha256(realpath(git rev-parse --git-common-dir))` - the SAME resolved path for every linked
+worktree and every concurrent invocation of THIS repo, because `--git-common-dir` always points
+back to the ONE shared common git dir. A per-worktree ISOLATE dir is private - two concurrent runs
+in two worktrees would each
+write their own copy and never see each other, exactly the cross-run blindness this ledger
+removes. Do NOT collapse this to a bare `$ODOO_AI_HOME/coordination/` (cross-project-global) - two
+UNRELATED repos on the same host would then see each other's module claims.
 
-**No git repo and no project marker (resolver refuses).** If `resolve_project_dir.sh share` fails
-(the run is outside any git repo AND no `.odoo-ai-root`/`__manifest__.py` marker exists up the
-chain), there is no shared ledger: degrade to per-run behavior with NO ledger (the per-run
-pre-flight still produces graceful BLOCKEDs), and LOG that the ledger was unavailable. Never fabricate
-a ledger location outside the repo.
+**No git repo and no project marker (resolver refuses).** If `resolve_project_dir.sh share` fails,
+there is no shared ledger: degrade to per-run behavior with NO ledger (the per-run pre-flight
+still produces graceful BLOCKEDs), and LOG that the ledger was unavailable outside the repo. Never
+fabricate a ledger location.
 
 ## Entry schema
 
@@ -84,23 +78,22 @@ a ledger location outside the repo.
 ## Ownership - `odoo-coding` is the sole writer
 
 ONLY `odoo-coding` writes the ledger: it owns the NEW-module build boundary and the DONE barrier, so
-it is the only actor that knows when a module transitions state. The one consistent statement of who
-reads and who writes:
+it is the only actor that knows when a module transitions state.
 
 - **WRITE - `odoo-coding` alone.** No other actor ever writes an entry or a status.
 - **READ for coordination decisions - `odoo-coding` alone.** It reads its own ledger to run the
   § Decision table and to drive the bounded N-barrier WAIT INTERNALLY (§ N-barrier WAIT ownership).
 - **The hard-leaf `odoo-backend-coder`/`odoo-frontend-coder` workers stay LEDGER-UNAWARE** (as does
-  the `odoo-coder` coordinator) - they never read or write `$LEDGER_ROOT`; only the `odoo-backend-coder`
+  the `odoo-coder` coordinator) - they never read or write `$LEDGER_ROOT`; only `odoo-backend-coder`
   runs the § Dependency pre-flight and emits a RAW `BLOCKED: manifest dependency <D> unresolved on
   addons-path` (the coordinator relays it up unchanged).
 - **`run-harness`'s between-wave integration neither writes the ledger nor drives any ledger
   decision.** It receives `odoo-coding`'s already-classified BLOCKED and runs its saga path; it may
-  read the ledger read-only for its own execution-log, but it never runs the WAIT or the decision table.
+  read the ledger read-only for its own execution-log, but never runs the WAIT or the decision table.
 
 The ledger write is NOT a worklog entry (`snippets/worklog-contract.md`) and NOT a
-Continuation-Contract dispatch (`snippets/continuation-contract.md`) - it is per-module shared
-cross-run coordination state with a single writer (`odoo-coding`).
+Continuation-Contract dispatch (`snippets/continuation-contract.md`) - per-module shared cross-run
+coordination state with a single writer (`odoo-coding`).
 
 ## N-barrier WAIT ownership - `odoo-coding` owns it internally
 
