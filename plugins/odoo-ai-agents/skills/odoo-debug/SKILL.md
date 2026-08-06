@@ -191,6 +191,9 @@ literal wherever this file's evidence paths say <slug>; odoo-backend-debugger ig
 ISOLATE_DIR: [the absolute path captured at Phase 0 - odoo-ui-debugger writes its captured evidence
 under <ISOLATE_DIR>/visual/debug/<slug>/ using this literal, never re-resolving from its own cwd;
 odoo-backend-debugger ignores this field]
+USER LANGUAGE: <lang | omit when the user works in English> - write the summary/human-facing prose
+in this language; identifiers, file paths, and tool names stay English (per
+`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`, which both debugger agents already consume).
 
 Step 0 (if mcp__odoo-semantic__* available): set_active_version('<version>'). If OSM is
 unreachable, use your Standalone-first fallback (disk Read/Grep) and label grounding accordingly.

@@ -94,8 +94,8 @@ cluster needing deep local-source fallback plus cross-module reasoning -> opus. 
 the tier principle - read it from the SSOT.
 
 **Synthesize from disk, do not re-classify.** After the workers finish:
-1. Read every worker's `clusters/<NN>-<area>.jsonl` shard and concatenate the rows into the
-   top-level `gap-matrix.jsonl` (one row per `req_id`, no duplicates).
+1. Read every worker's `clusters/<NN>-<area>/gap-matrix.jsonl` shard and concatenate the rows into
+   the top-level `gap-matrix.jsonl` (one row per `req_id`, no duplicates).
 2. **Deduplicate by build signature** - requirements that resolve to the SAME module + pattern /
    override point / core API are ONE build. Count that build's `effort_tier` ONCE in the effort
    summary and total; tag the dependent rows `notes: "shares build with <req_id>"`. Every
@@ -139,10 +139,13 @@ correct. Each worker brief carries:
 5. **Brand rule** - take module identity only from OSM `check_module_exists` / `describe_module`
    / `module_inspect` (`author`, `shortdesc`); a vendor-like token in a slug is NOT proof of a
    provider. If unprovable, leave `module` empty (`null`) and set `grounded: unknown`.
-6. **Output contract** - write one JSON object PER requirement to
-   `<SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>.jsonl` with the EXACT keys
+6. **Output contract** - `OUTPUT_DIR: <SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>/`
+   (a distinct DIRECTORY per cluster, never a bare filename - this is what keeps concurrent
+   workers from racing on one path). The agent's own LOCKED contract writes one JSON object PER
+   requirement to `<OUTPUT_DIR>/gap-matrix.jsonl` with the EXACT keys
    `{req_id, requirement, coverage, classification, effort_tier, module, grounded, notes}`
-   (enums per § Context). Be conservative - upgrade `effort_tier` when in doubt.
+   (enums per § Context) - do not rename that file. Be conservative - upgrade `effort_tier` when
+   in doubt.
 
 The `odoo-gap-analyzer` agent owns the per-requirement OSM method (the `check_module_exists` ->
 `model_inspect` / `module_inspect` -> `find_examples` / `suggest_pattern` rounds) and the
@@ -192,7 +195,8 @@ Keys EXACTLY: `{"req_id","requirement","coverage","classification","effort_tier"
 - `notes` - EE-license flag, dedup pointer (`shares build with <req_id>`), or the
   `BLOCKED - needs OSM index or checkout` marker.
 
-Built by concatenating the worker shards (`clusters/*.jsonl`), deduped per § When to invoke.
+Built by concatenating the worker shards (`clusters/<NN>-<area>/gap-matrix.jsonl`), deduped per
+§ When to invoke.
 
 ### `gap-report.md` (human deliverable)
 
@@ -250,11 +254,12 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
 **Example 1 - small scope, fast path:**
 Prompt: "gap analysis for a client who needs multi-company invoicing, approval workflows, and a
 custom loyalty program"
-Action: One cohesive list -> ONE `odoo-gap-analyzer` worker (sonnet). It writes
-`clusters/01-finance.jsonl`; the orchestrator emits the artifact set under
-`<SHARE_DIR>/gap-analysis/<slug>-<date>/`. Rows: multi-company invoicing -> standard/S; approval
-workflows -> extension/M (`mail.activity.mixin`); custom loyalty -> custom/XL. `has_nontrivial:
-true` -> `next: [{skill: odoo-solution-design}]` (branch 1).
+Action: One cohesive list -> ONE `odoo-gap-analyzer` worker (sonnet), given
+`OUTPUT_DIR: clusters/01-finance/`. It writes `clusters/01-finance/gap-matrix.jsonl`; the
+orchestrator emits the artifact set under `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. Rows:
+multi-company invoicing -> standard/S; approval workflows -> extension/M (`mail.activity.mixin`);
+custom loyalty -> custom/XL. `has_nontrivial: true` -> `next: [{skill: odoo-solution-design}]`
+(branch 1).
 
 **Example 2 - larger scope, clustered fan-out:**
 Prompt: "Classify these 40 requirements across manufacturing, inventory, accounting and HR for a

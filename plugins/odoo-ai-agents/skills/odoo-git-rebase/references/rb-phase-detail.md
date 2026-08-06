@@ -373,7 +373,7 @@ REFS:
   FEATURE_REF: <branch>
   NEW_BASE: <branch>
   diff_path: <ISOLATE_DIR>/git-rebase/<slug>/three-dot-diff.txt
-  INTENT_FILES: <ISOLATE_DIR>/git-rebase/<slug>/intents/*.md
+  intents_dir: <ISOLATE_DIR>/git-rebase/<slug>/intents/
 OUTCOME_CONTRACT: [[rb-intent-4outcome]] (${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md)
 STEPS:
   1. Read diff_path and all intent files.
@@ -821,7 +821,7 @@ mode: rebase
 verify_mode: true
 TASK: Verify the rebase outcome via range-diff and duplicate-behavior guard.
 diff_path: <ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt
-INTENT_FILES: <ISOLATE_DIR>/git-rebase/<slug>/intents/*.md
+intents_dir: <ISOLATE_DIR>/git-rebase/<slug>/intents/
 PLAN: <ISOLATE_DIR>/git-rebase/<slug>/plan.md
 STEPS:
   1. Read the file at diff_path (the range-diff output produced by the git-ops pre-step above).
