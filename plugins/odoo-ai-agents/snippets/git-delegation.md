@@ -112,10 +112,9 @@ through git-ops. The ONLY git a worker may run inline is the bounded-read allowl
 ## How git-ops resolves a request (informational)
 
 You do NOT pick or name a specialist - you describe the op and git-ops classifies + routes
-internally. Four op classes exist under the front door: read-only git cognition, local mutation,
-GitHub API, and large/complex jobs (>500 files OR >10k LOC OR a multi-commit history rewrite OR a
-thousand-file port). Which one applies is git-ops's decision, never yours; you never need a
-specialist's name to compose a valid request.
+internally, never you, among four op classes: read-only git cognition, local mutation, GitHub API,
+and large/complex jobs (>500 files OR >10k LOC OR a multi-commit history rewrite OR a
+thousand-file port).
 
 ## Worktree isolation - mandatory for every mutation
 
@@ -146,18 +145,18 @@ Invoke `git-toolkit:git-ops` via the Skill tool. In the request, describe AT MIN
 - For destructive (L2) ops: `confirmed: <yes + quoted human approval | no>`
 - `USER LANGUAGE: <language>`
 
-git-ops classifies the op, routes it to the right git agent, and returns a compact result
-block. Do NOT inline unbounded output (full diffs, PR bodies, file contents) - that is why
-you route through git-ops instead of running git yourself.
+git-ops classifies the op, routes it, and returns a compact result block. Do NOT inline unbounded
+output (full diffs, PR bodies, file contents) - that is why you route through git-ops instead of
+running git yourself.
 
 ## Nesting
 
-Invoking a SKILL via the Skill tool runs IN the caller's own context - unlike launching an
-agent, which runs in a separate context. This makes it safe for any SKILL/orchestrator caller
-(main context, a wave work-item, a workflow pipeline) to invoke git-ops inline: git-ops then
-cold-spawns exactly ONE git leaf agent to run the op, and that leaf cannot launch anything
-further - it holds no agent-launch capability. This does not extend to an agent-launched leaf
-(see below), which never invokes git-ops itself. (Ref: git-toolkit `git-nesting-protocol` N1.)
+Invoking a SKILL via the Skill tool runs IN the caller's own context - unlike launching an agent,
+which runs in a separate context. This makes it safe for any SKILL/orchestrator caller to invoke
+git-ops inline: git-ops then cold-spawns exactly ONE git leaf agent to run the op, and that leaf
+cannot launch anything further - it holds no agent-launch capability. This does not extend to an
+agent-launched leaf (see below), which never invokes git-ops itself. (Ref: git-toolkit
+`git-nesting-protocol` N1.)
 
 A HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`,
 `odoo-icon-designer`, ANY leaf domain subagent) NEVER invokes git-ops, not even via the Skill tool:
@@ -184,8 +183,7 @@ BLOCKED return, obtain confirmation and invoke git-ops again.
 
 Ask git-ops to resolve ALL mechanical conflicts (.po / .pot / binary / generated) and advance
 to the next Odoo-semantic conflict. When it stops on an unresolved semantic conflict it returns
-`BLOCKED-CONFLICT` (distinct from plain `BLOCKED`) with two additional fields in its result
-block:
+`BLOCKED-CONFLICT` (distinct from plain `BLOCKED`) with two extra result-block fields:
 - `conflicted_files: [<relative-paths>]` - files carrying unresolved conflict markers
 - `stopped_commit: <sha>` - the commit at which the rebase / cherry-pick stopped
 
