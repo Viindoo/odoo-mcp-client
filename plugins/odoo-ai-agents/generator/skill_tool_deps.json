@@ -167,7 +167,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. profile_inspect(modules) verifies profile-owned modules in one call (Round 3.5), upgrading Confidence-Low rows. min_server 0.13.1 for profile_inspect."
+      "notes": "Standalone-first. profile_inspect(modules) verifies profile-owned modules in one call (Round 3.5), upgrading Confidence-Low rows. min_server 0.13.1 for profile_inspect. `set_active_profile`/`model_inspect`/`lint_check` appear ONLY in the SKILL.md's explicit 'Do NOT call' line (developer-oriented tools out of scope for this business-analysis skill) - intentionally left undeclared, not a registry gap."
     },
     "odoo-feature-check": {
       "mcp_tools": [
@@ -237,11 +237,12 @@
         "find_override_point",
         "find_test_examples",
         "test_base_classes",
-        "tests_covering"
+        "tests_covering",
+        "cli_help"
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Same-series rebase orchestrator (pure delegation): subagents read diffs + compare behavior; model_inspect/entity_lookup ground replayed symbols at the NEW BASE HEAD to catch rename/move/already-present absorption failures git does not flag; find_override_point checks refactored override points; test tools ground test-survival at the shared series. No cross-version api_version_diff (same series). min_server 0.15.0 for test tools."
+      "notes": "Same-series rebase orchestrator (pure delegation): subagents read diffs + compare behavior; model_inspect/entity_lookup ground replayed symbols at the NEW BASE HEAD to catch rename/move/already-present absorption failures git does not flag; find_override_point checks refactored override points; test tools ground test-survival at the shared series. cli_help grounds odoo-bin flags for the CONDITIONAL P10 odoo-instance dispatch. No cross-version api_version_diff (same series) - the SKILL.md line saying so ('do NOT call cross-version api_version_diff') is an explicit negative instruction, not a registry gap, and stays undeclared. min_server 0.15.0 for test tools."
     },
     "odoo-objection-handling": {
       "mcp_tools": [
@@ -345,10 +346,18 @@
       "notes": "profile_inspect(modules) auto-enumerates the in-scope modules in Round 0. min_server 0.13.1 for profile_inspect."
     },
     "odoo-intake": {
-      "mcp_tools": [],
-      "min_server_version": "0.1.0",
+      "mcp_tools": [
+        "model_inspect",
+        "check_module_exists",
+        "find_override_point",
+        "impact_analysis",
+        "list_available_versions",
+        "list_available_profiles",
+        "profile_inspect"
+      ],
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Pure text routing and brainstorm - no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
+      "notes": "Mostly text routing and brainstorm, but NOT MCP-tool-free: Phase R explicitly allows read-only OSM calls (model_inspect/check_module_exists/find_override_point/impact_analysis) during optional recon, and the version/profile-unknown inline fallback (only when the user declines odoo-onboarding) directly calls list_available_versions -> list_available_profiles -> profile_inspect to resolve and confirm a profile for the current turn. Corrects a stale note that claimed zero MCP calls. min_server 0.13.1 for profile_inspect. No SKILL.md '## MCP tools' block is generated here - odoo-intake is in gen_surface.py SKIP_SKILL_DIRS by design."
     },
     "odoo-ui-review": {
       "mcp_tools": [
@@ -390,11 +399,12 @@
         "module_inspect",
         "model_inspect",
         "resolve_stylesheet",
-        "set_active_version"
+        "set_active_version",
+        "list_available_versions"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs. resolve_stylesheet adds the @import-chain blast radius; set_active_version pins the target version."
+      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs. resolve_stylesheet adds the @import-chain blast radius; set_active_version pins the target version. list_available_versions is the context-bootstrap fallback when <SHARE_DIR>/context.md is absent/missing the version key."
     },
     "odoo-support-triage": {
       "mcp_tools": [],
@@ -405,11 +415,15 @@
     "odoo-qa-suite": {
       "mcp_tools": [
         "set_active_version",
-        "cli_help"
+        "cli_help",
+        "tests_covering",
+        "test_coverage_audit",
+        "test_base_classes",
+        "js_test_inspect"
       ],
-      "min_server_version": "0.8.0",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to <ISOLATE_DIR>/qa/."
+      "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to <ISOLATE_DIR>/qa/. Test inventory pre-flight (before Phase 1): tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline; test_base_classes grounds the cr.commit()-forbidden base-class menu before any TransactionCase/HttpCase row; js_test_inspect grounds the per-module JS framework (hoot/qunit/tour) for frontend modules. min_server 0.15.0 for the test-surface tools (was 0.8.0 - too low for these)."
     },
     "run-harness": {
       "mcp_tools": [],
@@ -432,14 +446,17 @@
         "api_version_diff",
         "resolve_orm_chain",
         "validate_relation",
-        "validate_depends"
+        "validate_depends",
+        "cli_help"
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); test_class_inspect resolves an extended test-helper's base chain + cursor contract (Round 2); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline (Round 2.5); model_inspect/resolve_orm_chain/validate_relation/validate_depends ground field names + relational chains + @api.depends paths (Rounds 2/5); api_version_diff grounds the adapt-mode (forward-port) renamed/removed-API mapping. min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit/test_class_inspect)."
+      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); test_class_inspect resolves an extended test-helper's base chain + cursor contract (Round 2); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline (Round 2.5); model_inspect/resolve_orm_chain/validate_relation/validate_depends ground field names + relational chains + @api.depends paths (Rounds 2/5); api_version_diff grounds the adapt-mode (forward-port) renamed/removed-API mapping; cli_help confirms the -i/-u/--test-enable/--skip-auto-install flag set for the series under test before the run. min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit/test_class_inspect)."
     },
     "odoo-security-audit": {
       "mcp_tools": [
+        "set_active_version",
+        "set_active_profile",
         "model_inspect",
         "find_examples",
         "lookup_core_api",
@@ -452,6 +469,8 @@
     },
     "odoo-data-migration": {
       "mcp_tools": [
+        "set_active_version",
+        "set_active_profile",
         "model_inspect",
         "api_version_diff",
         "lookup_core_api",
@@ -464,10 +483,14 @@
     },
     "odoo-perf-audit": {
       "mcp_tools": [
+        "set_active_version",
+        "set_active_profile",
         "model_inspect",
         "resolve_orm_chain",
         "find_examples",
-        "validate_depends"
+        "validate_depends",
+        "entity_lookup",
+        "suggest_pattern"
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
@@ -526,11 +549,13 @@
         "find_test_examples",
         "test_base_classes",
         "test_coverage_audit",
-        "tests_covering"
+        "tests_covering",
+        "cli_help",
+        "impact_analysis"
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test verification at target version (PR #323, v0.15.0). min_server 0.15.0 for test tools."
+      "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test verification at target version (PR #323, v0.15.0). cli_help grounds odoo-bin flags for the P9 per-batch odoo-instance dispatch; impact_analysis derives the P9 reverse-closure verify scope directly (no pre-built dependency DAG file the way odoo-modules-upgrade has). min_server 0.15.0 for test tools."
     },
     "odoo-i18n": {
       "mcp_tools": [
@@ -547,11 +572,12 @@
         "check_module_exists",
         "model_inspect",
         "module_inspect",
-        "set_active_version"
+        "set_active_version",
+        "cli_help"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-user-doc-writer (userguide RST) and odoo-marketing-writer (App-Store landing HTML) per DOC LAYER; pre-fetches copy from odoo-content-draft on the marketing path; scoped via odoo-doc-scoper; scheduled via odoo-doc-planner."
+      "notes": "Spawner: dispatches odoo-user-doc-writer (userguide RST) and odoo-marketing-writer (App-Store landing HTML) per DOC LAYER; pre-fetches copy from odoo-content-draft on the marketing path; scoped via odoo-doc-scoper; scheduled via odoo-doc-planner. cli_help resolves the exact install/reinstall flags (--with-demo, per-locale load, --skip-auto-install) at runtime for the pre-capture provisioning precondition this skill verifies."
     },
     "odoo-instance": {
       "mcp_tools": [
@@ -590,11 +616,12 @@
         "set_active_version",
         "impact_analysis",
         "module_inspect",
-        "model_inspect"
+        "model_inspect",
+        "cli_help"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Phase 0 also calls module_inspect(dependencies) + model_inspect(views) (via acceptance-scope.md) to enumerate the affected screens before the planner runs. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). min_server 0.6.0 for set_active_version (impact_analysis 0.1.0, module_inspect/model_inspect 0.5.0 in the surface)."
+      "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Phase 0 also calls module_inspect(dependencies) + model_inspect(views) (via acceptance-scope.md) to enumerate the affected screens before the planner runs. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). Phase 2 SKILL.md names cli_help as the per-series odoo-bin flag grounding the odoo-instance dispatch performs (documented here for the same reason all other cli_help-via-odoo-instance orchestrators declare it - odoo-git-rebase, odoo-forward-port, odoo-doc-illustration, odoo-modules-upgrade, odoo-i18n, odoo-instance, odoo-deploy-checklist). min_server 0.6.0 for set_active_version (impact_analysis/cli_help 0.1.0, module_inspect/model_inspect 0.5.0 in the surface)."
     },
     "odoo-icon-design": {
       "mcp_tools": [

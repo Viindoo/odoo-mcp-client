@@ -413,8 +413,8 @@ review modules in dependency order). Wait for human merge.
    confirmation step, distinct from the overall plan approval. A single "approve plan"
    does NOT satisfy (b) - each DELETE row requires its own explicit confirm.
    For OBSOLETE verdict (module is moot at target, not absorbed by a named feature): the
-   commit message uses `upg: delete <module> - obsolete at <tgt> (<reason>)` - do NOT
-   invent a fake `absorbing_core_feature`.
+   commit request's business outcome states the module is obsolete at `<tgt>` (`<reason>`) -
+   do NOT invent a fake `absorbing_core_feature`.
 7. **Acceptance is mandatory (narrow escape only).** P5.8 dispatches `odoo-acceptance` ONCE for
    the whole surviving cluster before the P6 human gate - mirroring the rigor a new module build
    gets. This is NOT opt-in: skip it only when `graph.md` proves the cluster is a true dependency
@@ -470,9 +470,10 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - Branch: `upg/<src>-<tgt>-<cluster>` (e.g. `upg/16.0-17.0-l10n_vn`).
 - Integration worktree: invoke `git-toolkit:git-ops` to add a worktree (branch
   `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
-- Commit messages (adapt): `upg: <module> <src>-><tgt> - <KEEP|REWRITE|MERGE|SPLIT> <summary>`.
-- Commit messages (absorbed delete): `upg: delete <module> - absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`.
-- Commit messages (obsolete delete): `upg: delete <module> - obsolete at <tgt> (<one-line reason>)`.
+- Commit messages: request the commit via `git-toolkit:git-ops` - the files touched, the business
+  outcome (which module moved from which series to which, and what action was taken: KEEP,
+  REWRITE, MERGE, SPLIT, or delete-absorbed/delete-obsolete with the reason), and `WORKTREE_PATH`.
+  git-ops detects this repo's convention and composes the message; do not compose or prescribe one.
 - Push to fork: invoke `git-toolkit:git-ops` to push branch `upg/<src>-<tgt>-<cluster>` to the fork
   remote (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
 - PR: invoke `git-toolkit:git-ops` to create the PR (resolve upstream org/repo and base from
@@ -489,7 +490,7 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 > Do NOT use Odoo Semantic for:
 > - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
 >
-> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
@@ -500,7 +501,7 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_deprecated_usage` - Scan the indexed codebase for usages of deprecated API patterns.
-- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `entity_lookup` ★ - Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module.
 - `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - `validate_depends` ⊕ - Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
 - `cli_help` - Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.

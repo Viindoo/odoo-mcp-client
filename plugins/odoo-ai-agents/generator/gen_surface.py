@@ -466,6 +466,27 @@ def gen_gemini_tools_block(surface: dict) -> str:
 # Marker injection helpers
 # ---------------------------------------------------------------------------
 
+def _raise_on_duplicate_pair(path: Path, lines: list[str], first_end_idx: int, begin_re) -> None:
+    """Fail loudly if a SECOND `BEGIN GENERATED TOOLS` marker follows the first pair.
+
+    Case 1 above only ever locates and rewrites the FIRST BEGIN/END pair (it `break`s
+    at the first END found after a BEGIN) - a second pair is therefore never revisited
+    by `make gen`/`make gen-check`, so it silently freezes forever instead of tracking
+    the SSOT (the odoo-icon-design SKILL.md incident this guard closes). One marker
+    pair per file is the only supported shape; a second is an authoring mistake to be
+    fixed by hand (delete the duplicate), not a pattern to auto-regenerate - mirrors
+    the strictness of the orphan-BEGIN guard above.
+    """
+    for i in range(first_end_idx + 1, len(lines)):
+        if begin_re.match(lines[i]):
+            raise RuntimeError(
+                f"duplicate marker pair in {path}: a second "
+                f"<!-- BEGIN GENERATED TOOLS --> appears at line {i + 1}, after the first "
+                f"pair ending at line {first_end_idx + 1}. Only one marker pair per file is "
+                f"supported - delete the extra pair (and its END marker) by hand."
+            )
+
+
 def inject_markers_into_file(path: Path, new_block: str) -> bool:
     """
     Insert or replace content between BEGIN/END markers in a file.
@@ -502,6 +523,7 @@ def inject_markers_into_file(path: Path, new_block: str) -> bool:
         )
 
     if begin_idx is not None and end_idx is not None:
+        _raise_on_duplicate_pair(path, lines, end_idx, begin_re)
         # Replace content between markers (keep markers)
         new_content = (
             lines[: begin_idx + 1]
@@ -581,6 +603,7 @@ def inject_markers_into_snippet(path: Path, new_block: str) -> bool:
         )
 
     if begin_idx is not None and end_idx is not None:
+        _raise_on_duplicate_pair(path, lines, end_idx, begin_re)
         new_content = (
             lines[: begin_idx + 1]
             + [new_block + "\n"]

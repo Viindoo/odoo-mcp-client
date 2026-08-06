@@ -179,7 +179,9 @@ family delta; never inline that file verbatim into a hard-leaf brief. The brief 
 ```
 OPERATION: <operation>
 SERIES: <series or 'unspecified'>
-PROFILE: <viindoo_profile from SHARE_DIR/context.md, or omit if absent>
+PROFILE: <the resolved viindoo_profile value this skill already read from SHARE_DIR/context.md
+  before composing this brief, e.g. "viindoo_17"; omit the field entirely when absent - never
+  forward the pointer for the agent to go re-read>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
@@ -187,29 +189,26 @@ GATE_ROLE: <pre-pr-lint-gate|per-module-verify>   # REQUIRED for run-tests / tes
 MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
 LOG_MODE: <warn|info|debug|sql or 'default'>   # run-tests only; 'default' keeps --log-level=test
 FRESH_VENV: <true|false>
-INSTANCE_RESOLUTION: follow ${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - see the dispatch table above
 RUN_ID: <the caller's session/run id>                   # ALWAYS set - the lease-ownership identity; never omit
-ALLOCATOR: PERSIST=ephemeral -> acquire --mode ephemeral --ports 0 (mutations that need no listener: init/update/run-tests, or a throwaway create);
-           PERSIST=exclusive-running -> acquire --mode ephemeral --ports 1 (or 2 when a gevent/longpolling port is needed too) --run-id <RUN_ID> - a LIVE, listening instance that is MINE, never converging on 8069;
-           PERSIST=shared-running -> the SHARED render target, owner-stamped via --run-id (never a bare acquire alongside it - the spinup mechanism registers this lease internally);
-           query for ensure-up/status (read-only, no lease needed)
-OSM_GROUNDING: call cli_help(command='server', odoo_version='<series>') to discover per-version CLI flags;
-               call set_active_version(odoo_version='<series>') before other OSM calls;
-               fall back to odoo-bin --help on the live binary when cli_help is silent;
-               when cli_help lists MORE THAN ONE port-flag candidate for the series, PREFER
-               --http-port/--gevent-port whenever present (use --xmlrpc-port only for v8-v10,
-               --longpolling-port only where --gevent-port is absent) - never a coin-flip between two listed flags
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'none' -> en_US alone>
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
-WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, ALLOCATOR gains --addons-path-override per § WORKTREE_PATH substitution
+WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent's own acquire gains --addons-path-override per § WORKTREE_PATH substitution
 CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
   main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
   skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
+
+`INSTANCE_RESOLUTION`, `ALLOCATOR`, and `OSM_GROUNDING` are deliberately NOT brief fields: the
+dispatched `odoo-instance-ops` agent's own "Common preamble" (Steps A-D) and its per-version
+port-flag tie-break HARD RULE already own that procedure end to end, keyed off `SERIES`/`PERSIST`/
+`RUN_ID`/`WORKTREE_PATH` above - restating "follow `instance-resolution.md`" or the acquire-mode
+decision table here would be a hidden sub-task duplicating what the agent's own body already does,
+never a resolved value this skill could supply ahead of the agent's live `cli_help`/`allocator.py`
+calls.
 
 ### WORKTREE_PATH substitution (mechanical - run before `acquire`, never edit the catalog)
 
@@ -369,7 +368,7 @@ MCP) is skipped and flagged `grounded: log-signal (not live-verified)` in the ou
 > Do NOT use Odoo Semantic for:
 > - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
 >
-> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.

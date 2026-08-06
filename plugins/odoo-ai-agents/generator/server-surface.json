@@ -14,7 +14,10 @@
       "entity_lookup",
       "validate_domain",
       "validate_depends",
-      "validate_relation"
+      "validate_relation",
+      "describe_module",
+      "check_module_exists",
+      "resolve_orm_chain"
     ],
     "overlap_note": "These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server."
   },
@@ -23,7 +26,7 @@
       "name": "model_inspect",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, extenders}. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50/20/10) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
+      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, field, method, extenders}. method='field' drills into one field (requires field=); method='method' drills into one method (requires method_name=) - prefer entity_lookup(kind='field'|'method', ...) for a single-entity lookup unless you're already mid model_inspect dispatch. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50/20/10) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
       "persona_tags": [
         "dev",
         "CEO",
@@ -105,7 +108,7 @@
       "name": "entity_lookup",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6).",
+      "description": "Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module. kind='report' lists/filters ir.actions.report entries, optionally scoped by model= (reports that run on this business model) and/or name=/xmlid= (title/xmlid substring filter, name and xmlid are aliases) - neither is required, omitting both lists all caller-visible reports. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6).",
       "persona_tags": [
         "dev"
       ],
@@ -128,7 +131,8 @@
         "method":  ["model", "method_name"],
         "view":    ["xmlid"],
         "module":  ["name"],
-        "pattern": ["name"]
+        "pattern": ["name"],
+        "report":  []
       },
       "return_type": "object",
       "example_call": "entity_lookup(kind='field', model='sale.order', field='amount_total', odoo_version='17.0')",
@@ -148,7 +152,7 @@
       "name": "profile_inspect",
       "version_added": "0.13.1",
       "version_removed": null,
-      "description": "Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + inheritance-inclusive module count (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles.",
+      "description": "Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules, coverage}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + inheritance-inclusive module count (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. coverage = module count by category for this profile plus a superset-diff (indexed_elsewhere = modules of that category visible to the caller but NOT in this profile) as a 'may be incomplete' signal (requires name=) - absence from the list is NOT proof of absence from the product; cross-check live ir.module.module to confirm. Use this to answer 'is this genuinely absent, or just absent from the index' instead of hand-rolling a repos= proxy. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -183,7 +187,7 @@
       "name": "find_examples",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Semantic code search returning real indexed code snippets from the Odoo codebase. When the embedder is unavailable the server degrades to an entity-name lexical (ILIKE) fallback labeled match='lexical' instead of failing; treat lexical hits as approximate.",
+      "description": "Semantic code search returning real indexed code snippets from the Odoo codebase. Optional chunk_types narrows results to one or more of method/field/view/qweb/js_era1/js_era2/js_era3 (default: all types). When the embedder is unavailable the server degrades to an entity-name lexical (ILIKE) fallback labeled match='lexical' instead of failing; treat lexical hits as approximate.",
       "persona_tags": [
         "dev",
         "consultant",
@@ -197,6 +201,7 @@
       "optional_params": [
         "limit",
         "context_module",
+        "chunk_types",
         "profile_name"
       ],
       "return_type": "array",
@@ -472,7 +477,7 @@
       "name": "describe_module",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect with method='summary' returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default - the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content.",
+      "description": "Module manifest + defined/extended model counts + view/JS inventory in one call. include_description=True appends the module's full manifest description (the long marketing/RST write-up) as a 'Description' block - default False keeps the overview lean; turn it on for sales/marketing/documentation work that needs the full text. Note: module_inspect with method='summary' returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default - the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content.",
       "persona_tags": [
         "CEO",
         "dev",
@@ -485,6 +490,7 @@
         "odoo_version"
       ],
       "optional_params": [
+        "include_description",
         "profile_name"
       ],
       "return_type": "object",

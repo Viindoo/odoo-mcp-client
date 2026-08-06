@@ -490,10 +490,10 @@ skill does not define its own Plan-Mode mechanics.
 - <m3>: 2.0.0 (unchanged)
 
 ### Commit plan
-- `upg: m3 16.0->17.0 - KEEP update API call sites`
-- `upg: m2 16.0->17.0 - REWRITE(api) <summary>`
-- `upg: delete m1 - absorbed by core account/reconcile_model in 17.0 (no custom delta remains)`
-- `upg: delete m4 - obsolete at 17.0 (<reason>)`
+Each row in the classification table above becomes one commit, requested via
+`git-toolkit:git-ops`: the files touched, the business outcome (module, source series, target
+series, action taken), and `WORKTREE_PATH`. git-ops detects this repo's convention and composes
+the message; do not compose or prescribe one.
 
 ### Risks
 - <any dep_missing_at_target or dep_identity_changed flags from P1>
@@ -579,7 +579,8 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   odoo_version='<source_version>')` + the module's data/security XML at SOURCE (the module is
   about to be deleted, so it is no longer at target - read it at source). For EACH dangling
   reference found: either rehome it to the absorbing core module/feature OR remove it.
-  Document the rehoming decisions in the commit message or a `# upg: rehomed` comment.
+  Document the rehoming decisions in the commit request's business-outcome description or an
+  inline rehoming comment in the touched file.
 
   After the sweep, report findings to the orchestrator. The orchestrator then invokes
   the `git-toolkit:git-ops` skill (in this child worktree) to remove the module directory, stage the
@@ -587,8 +588,10 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   git-ops request fields:
     - op: rm -r module dir + stage deletion + commit -s
     - confirmed: yes - user confirmed DELETE <module> at P3 Plan Mode gate
-    - commit_message (absorbed): `upg: delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)`
-    - commit_message (obsolete): `upg: delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)`
+    - business outcome (absorbed): delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)
+    - business outcome (obsolete): delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)
+  git-ops detects this repo's convention and composes the commit message from the business
+  outcome above; do not compose or prescribe one.
   dependers: <list of modules pre-populated by the orchestrator from graph.md that list
   '<module>' in their depends - the orchestrator resolves this BEFORE dispatching the
   brief so the coder does not need to re-discover them>
@@ -636,7 +639,8 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
   5. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
   The coders run NO git; after they write their files the orchestrating skill (odoo-coding) commits
   via the git-toolkit:git-ops skill (DCO -s sign-off; per snippets/git-delegation.md).
-  Commit message: "upg: <module> <source_version>-><target_version> - <ACTION> <one-line summary>"
+  Commit request: files touched + business outcome (<module> <source_version>-><target_version> -
+  <ACTION> <one-line summary>) + `WORKTREE_PATH`; git-ops composes the message.
 
 AUTONOMOUS FIX: if the P5 install+test run returns a failure for this module, you will
 be re-dispatched with the root cause from the debugger. Fix to that root cause only.
@@ -655,7 +659,7 @@ For each adapted module in topo_order (leaves first); skip DELETE-absorbed/OBSOL
 ```
 SKILL: odoo-code-review
 TARGET: worktree:<path>/upg-integration
-SCOPE: module '<module>' adapt diff only (the upg: <module> ... commit); attribute findings to
+SCOPE: module '<module>' adapt diff only (the module's adapt commit); attribute findings to
        adapted lines only.
 SERIES: <target_version>
 CONTEXT: cross-major upgrade <src>-><tgt>; verdict <KEEP|REWRITE(api)|REWRITE(model)|MERGE|SPLIT>;
@@ -821,7 +825,9 @@ Delegate the entire consolidation sequence to git-toolkit via the `git-ops` skil
   git-ops converge step and pass it as `base` in this request. Do not re-discover
   the base from the log - when modules' commits interleave, log-based discovery is
   ambiguous. Fallback when no recorded SHA: `<work-base>`.
-- commit_message: `upg: <module> <src>-><tgt> - <ACTION> <summary>` (signed)
+- business outcome: <module> <src>-><tgt> - <ACTION> <summary> (signed via git-ops; git-ops
+  detects this repo's convention and composes the message from the business outcome - do not
+  compose or prescribe one)
 - confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-ops)
 - Steps git-ops performs: safety backup ref at HEAD -> reset-mixed to base ->
   stage `<module>/` only -> commit -s -> tree-identity verify (`git diff --quiet`
@@ -881,7 +887,7 @@ Please review modules in dependency order (leaves first):
    (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
 2. Open PR - invoke `git-toolkit:git-ops` to create the PR: upstream org/repo and base branch resolved
    from `git remote get-url origin`; head `upg/<src>-<tgt>-<cluster>`; title
-   `upg: <cluster> <src>-><tgt> - cluster upgrade`; body from the PR body template above.
+   `<cluster> cluster upgrade <src>-><tgt>`; body from the PR body template above.
 
 Review delegation brief:
 ```

@@ -140,8 +140,8 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 
 ### Commit structure verification
 
-- [ ] Adapted modules: commit message format `upg: <module> <src>-><tgt> - <ACTION> <summary>`
-- [ ] Absorbed-deleted modules: commit message format `upg: delete <module> - absorbed by core <core> in <tgt> (no custom delta remains)`
-- [ ] Obsolete-deleted modules: commit message format `upg: delete <module> - obsolete at <tgt> (<one-line reason why the need evaporated>)` (do NOT invent a fake `absorbing_core_feature`)
+- [ ] Adapted modules: commit requested via `git-toolkit:git-ops` with business outcome `<module> <src>-><tgt> - <ACTION> <summary>`; git-ops composed the message
+- [ ] Absorbed-deleted modules: commit requested via `git-toolkit:git-ops` with business outcome `delete <module> - absorbed by core <core> in <tgt> (no custom delta remains)`; git-ops composed the message
+- [ ] Obsolete-deleted modules: commit requested via `git-toolkit:git-ops` with business outcome `delete <module> - obsolete at <tgt> (<one-line reason why the need evaporated>)` (do NOT invent a fake `absorbing_core_feature`); git-ops composed the message
 - [ ] No squash commits
 - [ ] Each deleted module's name removed from all dependers' `depends` in the cluster
