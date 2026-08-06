@@ -127,7 +127,8 @@ anchor, reflog only the net for an op where a backup was missed.
 Any op that mutates the working tree or moves a branch ref (checkout/switch, commit, rebase,
 merge, cherry-pick, reset, tag-move, push-from, etc.) MUST run in a dedicated worktree - never
 in the primary/shared checkout, and NEVER by switching the primary checkout off its principal
-branch. The primary checkout stays on its principal branch at all times.
+branch. The primary checkout stays on its principal branch at all times. The single narrow
+exception is the S9 carve-out below.
 
 Pure bounded reads (`git status`, `git log -n<N>`, `git diff --stat`) may run anywhere; they do
 not mutate and cannot corrupt the shared checkout's branch state.
@@ -136,7 +137,8 @@ If a brief asks git-operator to operate in-place on the primary checkout or to s
 principal branch, that is an ERROR: git-operator creates/uses a dedicated worktree instead and
 reports its path in the result block, or returns BLOCKED asking for a worktree path if it cannot
 safely create one. The `worktree-isolated?` brief parameter is deprecated - worktree isolation is
-ALWAYS required for mutations, never optional.
+ALWAYS required for mutations, never optional. The sole exception is a brief whose op is exactly
+the S9 carve-out below, with human confirmation and the pre-flight proof already present.
 
 ```bash
 git worktree add ../worktree-<branch>-$(date +%Y%m%d%H%M%S) <ref>   # create; run mutation here
@@ -163,6 +165,37 @@ correct ancestor by definition.
 
 A brief that requests one of the four forms without naming `<ref>` fails the Brief self-check's
 BASE-ref requirement - a missing-field STOP, never a silent HEAD substitution.
+
+### S9 carve-out - RESTORE-PRIMARY-TO-PRINCIPAL-CLEAN
+
+The one exception to S9, invoked by name as op `RESTORE-PRIMARY-TO-PRINCIPAL-CLEAN`: bringing an
+already-dirty primary checkout back into S9 compliance. Scope is exactly:
+
+```bash
+git status --porcelain     # pre-flight: prove the work exists elsewhere (e.g. already copied
+                            # into the worktree that will carry it) before discarding anything
+git reset --hard HEAD      # restore tracked files to the committed state
+git clean -fd              # remove untracked files
+```
+
+Restores tracked files and removes untracked files - nothing else. Never moves a branch ref,
+never switches branches, never commits. This invokes destructive-gate items 4 and 5 below: human
+confirmation is still required, and the stated pre-flight proof is part of the gate procedure. The
+S1 backup branch does not apply here - it cannot capture uncommitted work - so the pre-flight
+proof is the substitute safeguard.
+
+## S11 - Positional self-check before first mutation
+
+Before the FIRST mutating command in a brief, resolve the repo root of the path about to be
+written and compare it against the worktree path the brief named:
+
+```bash
+git -C <path-about-to-be-written> rev-parse --show-toplevel
+```
+
+Mismatch against the brief's worktree path -> STOP before mutating; return BLOCKED naming both
+paths. Run this once per brief, before the first `Edit`/`Write`/mutating `Bash` call - never
+after, and never as a self-correction once files are already changed.
 
 ## S8 - filter-repo requires a FRESH clone
 

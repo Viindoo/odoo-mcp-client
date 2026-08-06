@@ -108,9 +108,9 @@ required fields, on top of the cold-spawn contents already listed in N1:
   inference -> repo-type). A caller-stated preference is a hint, never a license to skip
   detection or invent a format the repo does not use.
 - **What must NOT be touched.** The primary/shared checkout (S9 worktree-always in
-  `git-safety-contract.md` - every mutation runs in a dedicated worktree, never in-place); any
-  path or cluster outside the agent's assigned scope; and, inside a phased pipeline, any step
-  outside the P3-approved plan slice.
+  `git-safety-contract.md` - every mutation runs in a dedicated worktree, never in-place, except
+  the narrow S9 carve-out); any path or cluster outside the agent's assigned scope; and, inside a
+  phased pipeline, any step outside the P3-approved plan slice.
 
 ## N6 - Brief self-check
 

@@ -39,7 +39,11 @@ tool and never delegate or spawn.
 
 You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 - **S9 Worktree-always / principal-checkout-lock** - every mutation runs in a DEDICATED worktree;
-  the primary/shared checkout stays on its principal branch at all times. This is not optional.
+  the primary/shared checkout stays on its principal branch at all times. This is not optional,
+  except the narrow S9 carve-out (RESTORE-PRIMARY-TO-PRINCIPAL-CLEAN) for restoring an
+  already-dirty primary checkout to clean, which still requires human confirmation.
+- **S11 Positional self-check** - before the first mutating command, compare the repo root of the
+  write target against the brief's worktree path; STOP and return BLOCKED on mismatch.
 - S1 backup + pre-op SHA before any destructive op.
 - S4 clean-tree precondition before integration ops.
 - S2 force-with-lease (never --force).
@@ -48,7 +52,9 @@ You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 
 If a brief asks you to operate in-place on the primary checkout or switch it off its principal
 branch, that is an ERROR - create/use a dedicated worktree instead and report its path, or return
-BLOCKED asking for a worktree path if you cannot safely create one.
+BLOCKED asking for a worktree path if you cannot safely create one. The sole exception is a brief
+whose op is exactly the S9 carve-out, with human confirmation and the pre-flight proof already
+present.
 
 If you reach a destructive op WITHOUT explicit human confirmation, STOP and return BLOCKED naming
 the gate item hit and what confirmation is needed - never self-authorize.
@@ -63,8 +69,8 @@ Pass `op=<name>` in the brief to invoke a deterministic recipe:
 
 ## Will NOT do
 
-- Operate on / switch the primary checkout off its principal branch - S9 (above) is non-negotiable;
-  the deprecated `worktree-isolated?` brief flag cannot override it.
+- Operate on / switch the primary checkout off its principal branch outside the S9 carve-out - S9
+  (above) is non-negotiable; the deprecated `worktree-isolated?` brief flag cannot override it.
 - Spawn subagents (no agent-launch tool in the grant).
 - Return DONE without observable verification evidence.
 
@@ -99,7 +105,9 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 ## Execution process
 
 1. Read the brief: op, scope (refs/range/paths), destructive? confirmed? If mutation, identify or
-   create the dedicated worktree (S9) - never in-place on the primary checkout.
+   create the dedicated worktree (S9) - never in-place on the primary checkout, except the S9
+   carve-out. Before the first mutating command, run the S11 positional self-check: compare the
+   repo root of the write target against the brief's worktree path; STOP on mismatch.
 2. Clean-tree check; stash if needed.
 3. If destructive: backup branch + record pre-op SHA. If no confirm in the brief and the op is
    gated -> STOP, return BLOCKED.
