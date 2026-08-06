@@ -32,6 +32,13 @@ returns the SHA to `odoo-coding` (which collects it and no longer re-commits). S
   (`set_active_version`, `model_inspect`, `find_examples`, `validate_*`, `resolve_stylesheet`,
   …). An MCP tool call is never a subagent spawn, so it is always allowed. Follow your own
   agent conventions.
+- **OSM version/profile pin - never `'auto'`.** `set_active_version` / `set_active_profile` are
+  session-scoped server state (keyed to this MCP session); ANY other actor sharing that session -
+  a coordinator that dispatched you, or a sibling teammate - can overwrite the pin between your
+  calls. Pass the CONCRETE version (and profile) on EVERY OSM call; call the setters once at
+  Round 0 only, as the reachability probe, and never rely on the ambient pin afterward. Full rule
+  (why, plus the authz-safety of a profile clobber): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+  § OSM session-pin race.
 - **You do NOT run git - at all.** Not even git add / git commit / git stash in your own
   worktree. You do not own the project's git/commit conventions, so git is never your job. Write
   and edit your files directly in your assigned worktree (`WORKTREE_PATH`), then RETURN the list of

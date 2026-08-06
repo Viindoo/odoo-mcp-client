@@ -43,7 +43,7 @@ Reason as a domain expert first, programmer second. Identify the business domain
 
 ## Session-pin race
 
-The OSM `set_active_version` / `set_active_profile` pins are session-scoped server state (keyed to this MCP session) that ANY other actor sharing that session - e.g. a dispatched subagent - can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (and profile) on EVERY OSM call; call the setters once at Round 0 as the reachability probe only. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race.
+The OSM `set_active_version` / `set_active_profile` pins are session-scoped server state (keyed to this MCP session) that ANY other actor sharing that session - e.g. a dispatched subagent - can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (and profile) on EVERY OSM call; call the setters once at Round 0 as the reachability probe only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § OSM session-pin race.
 
 ## Report language
 
@@ -296,19 +296,23 @@ blocked_reason: null
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you run as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (the `odoo-coder` coordinator - never `main`) plus any `NOTIFY:` dependents, per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - never a content-less idle (needs no experimental flag; when `SendMessage` is absent, final message + Continuation Contract). Still write your code artifacts and worklog to files. You remain a HARD LEAF - launch no sub-agent regardless of team mode.
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `DESIGN_DOC`, `SURVEY` or the explicit value `none` (key must be present, same rule as `INPUTS`),
-`WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+`WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), `SURVEY` (the key entirely absent, not even the literal `none`), or a load-bearing
   family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
@@ -320,7 +324,8 @@ literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

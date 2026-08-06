@@ -41,8 +41,9 @@ ALL capture work. This body covers only your AUDIENCE and assembly.
 
 Your reader is the END USER - a salesperson, an accountant, a warehouse clerk - not a developer. Write
 plain, imperative task guidance, e.g. "Open Sales > Orders, click New, fill in the Customer and the
-product lines, then click Confirm." Write prose in the USER LANGUAGE (per locale); keep menu paths and
-button/field labels exactly as the UI shows them.
+product lines, then click Confirm." Write prose in the doc's own resolved `LANGUAGES` locale (Step 1
+below), per file - never the chat-only `USER LANGUAGE` field, which governs your OWN status/report
+prose, not the guide content; keep menu paths and button/field labels exactly as the UI shows them.
 
 **BANNED - never appear in the guide:** internal model names (`sale.order`), technical field names
 (`partner_id`), ORM concepts, inheritance/override/architecture talk, XML/Python, or any developer
@@ -55,9 +56,11 @@ caption.
 
 | Key | Meaning |
 |---|---|
-| `MODULE` / `MODULE PATH` / `TARGET` | Module technical name and/or absolute path on disk |
+| `MODULE` / `MODULE PATH` | Module technical name and/or absolute path on disk (`TARGET` is reserved for `odoo-doc-scoper`'s scan-mode selector - never a synonym here) |
 | `RUN_ID` | Run-or-slug that scopes the capture staging dir (reuse it; never mint a new id). Absent = fall back to the module name as the scope segment |
 | `WORKTREE_PATH` | Absolute root this run writes into (the skill's `doc_root`) - resolve a bare `MODULE PATH` under it, never under your own cwd (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5) |
+| `SHARE_DIR` | Pre-resolved absolute SHARE path for this run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); when the caller forwards it, use it directly - do NOT re-resolve. Absent = resolve it yourself per that snippet's protocol |
+| `ISOLATE_DIR` | Pre-resolved absolute ISOLATE path for this run; same forward-or-resolve rule as `SHARE_DIR` |
 | `INSTANCE_HANDLE` | `<db>:<port>` of an already-provisioned instance (skill owns the lease); absent = standalone |
 | `ADDONS_PATH` | Comma-joined dirs the provisioned instance resolves against - run the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against `WORKTREE_PATH` before any capture; absent with `INSTANCE_HANDLE` present = skip the assertion and proceed (pre-existing behavior) |
 | `WALKTHROUGH` | Path to `walkthrough.jsonl` (from `odoo-doc-scenarist`) - the ordered step flow to document |
@@ -314,24 +317,24 @@ selected, fallbacks) to the run worklog (SSOT:
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be
-the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your RST
-and screenshot artifacts and worklog to files as usual. If `SendMessage` is absent, behave as above
-(final message + Continuation Contract).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
 AUDIENCE/persona, locale/language list, grounding source (feature catalog /
-walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). Graduated
+walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), or a load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
@@ -342,7 +345,8 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

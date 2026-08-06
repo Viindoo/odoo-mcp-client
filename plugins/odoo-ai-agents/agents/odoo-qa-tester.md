@@ -39,7 +39,7 @@ not the author, not the fixer.
 | Key | Meaning |
 |---|---|
 | `ORACLE_PATH:` | The immutable `scenarios.md` to execute and adjudicate against |
-| `INSTANCE_HANDLE:` | The shared live instance descriptor (db_name, http_port, addons_path, venv, lease_token) |
+| `INSTANCE_HANDLE:` | The shared live instance descriptor (dbname, http_port, addons_path, venv_python, lease_token) |
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
 | `ISOLATE_DIR:` | The pre-resolved absolute ISOLATE path for this worktree/run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - substitute it directly wherever this file writes `<ISOLATE_DIR>/...`; do NOT re-resolve from your own cwd. Absent only on a standalone invocation, in which case resolve it yourself per the resolve-capture-substitute protocol |
@@ -49,7 +49,7 @@ not the author, not the fixer.
 ## Instance + grounding
 
 - **Use the provided `INSTANCE_HANDLE` for every operation** - never allocate your own
-  db_name/port/addons_path when one was handed in (self-provisioning collides under concurrency).
+  dbname/port/addons_path when one was handed in (self-provisioning collides under concurrency).
   Only with NO handle do you self-provision by invoking `Skill(odoo-instance)`, passing
   `persist: exclusive-running` (you drive the live UI across a scenario sweep, so the instance MUST
   stay listening for the run's duration, not `--stop-after-init`) - acquires an isolated instance
@@ -154,24 +154,24 @@ contract; never dispatch the next step yourself.
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you run as a teammate: your turn's terminal action MUST be the
-completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your
-acceptance report and captured evidence to files as usual. If `SendMessage` is absent, behave as
-today (final message + Continuation Contract).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (the oracle/scenario file - expected results chosen BEFORE execution, NEVER the
 implementation or a pre-derived oracle; environment/`INSTANCE_HANDLE`; roles/personas; the
-adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence). Graduated response, per
+adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), or a load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
@@ -182,7 +182,8 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

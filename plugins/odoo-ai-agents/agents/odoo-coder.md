@@ -155,16 +155,19 @@ Your turn's terminal action is the completion-report push to your launcher (`REP
 ## Brief self-check
 
 (run before dispatching any leaf)
-Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
+Validate your OWN inbound dispatch brief carries the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
 (the key itself must be present - not even the literal `none` may be omitted, same rule as
 `dispatch-brief.md` skeleton field 4 `INPUTS` - forward it unchanged when you re-brief your
-leaves), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by you (you
+leaves), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are not literal
+dispatch-brief keys - no real dispatch site emits either; the Coder family's own required fields
+above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking
+for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` is PRODUCED by you (you
 launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking for
 it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `WORKTREE_PATH`, `SURVEY` (the key entirely absent, not even
+- Missing `WORKTREE_PATH`, `SURVEY` (the key entirely absent, not even
   the literal `none`), or another load-bearing field with no safe default: surface the gap to your
   own caller before dispatching any leaf - do not silently guess or degrade, and do not dispatch a
   leaf on an unresolved brief. `WORKTREE_PATH` in particular has NO safe default: an absent value

@@ -33,12 +33,10 @@ run git/`gh`/github-MCP.
 
 ## OSM-first grounding (PRIMARY) - light, read-only
 
-Odoo Semantic MCP (OSM) is the PRIMARY source for Odoo source/structure (indexed, cross-version,
-inheritance-resolved, checkout-free); Read/Grep is the FALLBACK, only when OSM is incomplete or
-unreachable. OSM is STATIC (no live records). Do NOT re-derive the module DAG (the design already
-did) - CONSUME the design DAG by pointer; use OSM only to confirm a named module exists / its
-dependency edge holds before batching it into a wave. Probe reachability with one cheap
-`set_active_version` call.
+Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`. Do NOT re-derive the module
+DAG (the design already did) - CONSUME the design DAG by pointer; use OSM only to confirm a named
+module exists / its dependency edge holds before batching it into a wave. Probe reachability with
+one cheap `set_active_version` call.
 
 ## Report language
 
@@ -192,24 +190,24 @@ When you finish, append a Continuation Contract block per
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you run as a teammate: your turn's terminal action MUST be the
-completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your
-plan artifact to a file. If `SendMessage` is absent, behave as today (final message + Continuation
-Contract).
+You never launch an agent, so the spawner contracts do not bind you. Your obligations are
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
+checked against your own Inputs table below; the caller-side schema is
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (a pointer to the current architecture/constraint snapshot to fit inside; which
 decisions need an ADR-style tradeoff vs are already-settled; non-negotiable interfaces other
-modules assume; whether a human gate precedes code). Graduated response, per ODOO-AI-ETHOS #2
+modules assume; whether a human gate precedes code). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2
 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), or a load-bearing family field with no safe default: STOP and return
   `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
   Do not silently guess or degrade.
@@ -220,7 +218,8 @@ ask-vs-self-decide:
   own domain judgment would reject.
 - Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
   brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
+  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
+  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
+  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

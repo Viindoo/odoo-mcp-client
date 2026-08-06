@@ -203,13 +203,16 @@ by `test_agent_body_convention.py`).
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (<family fields>). Graduated response, per
-ODOO-AI-ETHOS #2 ask-vs-self-decide:
+literal `none yet` - and this family's required fields (<family fields>). `OBJECTIVE`/`ACCEPTANCE`
+are NOT literal dispatch-brief keys - no real dispatch site emits either (0 of 40 measured briefs);
+this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that
+substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
+response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+- Missing `INPUTS` (the key entirely absent, not even the literal
   `none yet`), a family field that carries the SAME "key must be present even at its safe value"
   rule (e.g. `SURVEY` for the Coder family - the key entirely absent, not even the literal `none`),
   or another load-bearing family field with no safe default: STOP and return
@@ -243,15 +246,18 @@ re-brief.
 ## Brief self-check
 
 (run before dispatching any leaf)
-Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
+Validate your OWN inbound dispatch brief carries the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
 (the key itself must be present - not even the literal `none` may be omitted, same rule as skeleton
-field 4 `INPUTS`), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by
-this coordinator (you launch `odoo-test-writer` to author it) - it is NOT required inbound; never
-self-block looking for it in your own brief.
+field 4 `INPUTS`), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are
+NOT literal dispatch-brief keys - no real dispatch site emits either; the Coder family's own
+required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do
+not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` is
+PRODUCED by this coordinator (you launch `odoo-test-writer` to author it) - it is NOT required
+inbound; never self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, `SURVEY` (the key entirely absent, not even the literal
+- Missing `SURVEY` (the key entirely absent, not even the literal
   `none`), or a load-bearing field with no safe default: surface the gap
   to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
   dispatch a leaf on an unresolved brief.
