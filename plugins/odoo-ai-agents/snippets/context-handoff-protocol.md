@@ -42,6 +42,9 @@ The resumed worker keeps its full prior context - it is the mind that wrote the 
 reader. `SendMessage` returns immediately and parks the worker in the background (see async
 park-and-be-resumed below); it is NOT a synchronous reply.
 
+A stable spawn `name` is OPTIONAL for a leaf and REQUIRED for any agent that will itself dispatch or
+be messaged: its children have no address to reply to otherwise, and the failure is silent.
+
 ## Completion-report complement
 
 CHP owns the LEAD->WORKER direction: dispatch (Tier C), reuse-dispatch (Tier A resume / Tier B
@@ -87,7 +90,11 @@ changes the outcome, then proceed on Tier C as if CHP were never attempted.
 `SendMessage` is fire-and-forget: it returns immediately and the worker is resumed in the background.
 After sending, END your turn and wait to be resumed when the worker's reply arrives. NEVER write
 call-and-await-a-return-value logic around `SendMessage` - there is no synchronous return to read.
-Structure every Tier-A exchange as park-and-be-resumed: send, stop, resume on reply.
+Structure every Tier-A exchange as park-and-be-resumed: send, stop, resume on reply. This is legal
+for a subagent lead exactly as for main - see R0 in
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: a parked agent is resumed when the
+runtime wakes it, never killed; what actually gates a launch is whether your OWN launch capability
+exposes a blocking call for it, not whether you are main.
 
 ## Lead is the address authority
 
@@ -102,19 +109,25 @@ the lead supplies that address explicitly in the brief.
 roster. It does NOT stop a non-lead agent from cold-spawning its own subagents. So
 a non-lead orchestrator can still dispatch fresh workers (Tier C) - it simply cannot grow the team
 roster for Tier-A resume, which is why probe condition 4 routes non-lead orchestrators to Tier C.
+Whether a given launch BLOCKS or must be async is a separate question, decided per R0
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`) by inspecting your own launch
+capability's parameters - it does not depend on team-roster membership either.
 
 ## Sanctioned nested spawner - the `odoo-coder` per-module coordinator
 
 `odoo-coder` (the per-module COORDINATOR launched by `odoo-coding` for EVERY module) is the
-sanctioned nested spawner: although it is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own two
-hard-leaf workers (`odoo-backend-coder`, `odoo-frontend-coder`). This is legal exactly because of the
-rule above - a non-lead may cold-spawn its own subagents. The lead<->worker CONTROL channel is
-DIRECT (launcher to the child it just launched), NOT a team-roster resume, so `SendMessage` on that
-channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag and without the four-condition
-probe: the lead may `SendMessage` a worker it launched, and when `SendMessage` is unavailable it
-re-launches the worker fresh (Tier C, always correct). The flag-gated Tier-A roster-resume
-optimization above applies to the MAIN team lead only; the nested lead never needs it. The nested
-lead must not launch anything deeper than its two hard-leaf workers.
+sanctioned nested spawner: although it is itself a subagent of `odoo-coding`, it LAUNCHES and
+coordinates its own three teammates (`odoo-test-writer`, `odoo-backend-coder`,
+`odoo-frontend-coder`). This is legal exactly because of the rule above - a non-lead may cold-spawn
+its own subagents - and because it sits well within the nesting cap
+(`main -> odoo-coding -> odoo-coder -> teammate`, 2 levels deep against a default cap of 3; R0 move
+1 above). The lead<->worker CONTROL channel is DIRECT (launcher to the child it just launched), NOT
+a team-roster resume, so `SendMessage` on that channel works WITHOUT the
+`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag and without the four-condition probe: the lead may
+`SendMessage` a worker it launched, and when `SendMessage` is unavailable it re-launches the worker
+fresh (Tier C, always correct). The flag-gated Tier-A roster-resume optimization above applies to
+the MAIN team lead only; the nested lead never needs it. The nested lead must not launch anything
+deeper than its three teammates.
 
 ## Confidentiality guard
 

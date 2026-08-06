@@ -9,6 +9,28 @@
 
 # Spawner Completion Contract (barrier + no-early-DONE + report-up-one-level)
 
+## R0 - Dispatch physics: observe your own toolset, then act
+
+Before launching any agent, look at the launch capability you actually have:
+
+1. NO agent-launch capability -> you are at the nesting cap (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`,
+   default 3; the capability is removed silently at the cap). Do the work inline via the Skill tool,
+   or return `NEEDS_NEXT` naming what must be dispatched above you. Never report that you dispatched
+   something you could not.
+2. Your launch capability exposes a background/foreground switch (e.g. `run_in_background`) -> a
+   blocking launch is available. Set it to block when you need the child's result; the call returns
+   that result inside your current turn. Use this whenever you need the answer.
+3. Your launch capability exposes no such switch -> every launch is asynchronous and returns a
+   receipt, not a result. Launch, then END YOUR TURN. You are parked and resumed when the child
+   completes. Do NOT poll, do NOT sleep, do NOT re-launch.
+
+Rule 3 is unreliable on a non-interactive surface (`-p` / SDK), where nothing resumes a parked
+agent. You cannot detect that surface, so bound the damage instead: never end a turn with
+uncommitted work.
+
+Never end silently, never end on a bare tool call, never end on plain text with no report: emit
+one of the four terminal statuses every time.
+
 You are a SPAWNER this turn iff you launched at least one agent (a direct dispatch call) or invoked a
 spawner skill that fans out agents below you. A HARD LEAF that launched nothing is vacuously compliant
 on R1/R2; only R3 addresses it.
@@ -20,10 +42,14 @@ Launching a child dispatches it in the BACKGROUND by default (you are notified o
 finishes). You MUST NOT compose your own result while any child you launched this turn is still
 running. Pick the blocking shape by topology:
 
-- DEPENDENT children (a later child needs an earlier one's output): launch each with
-  `run_in_background: false` so the launch itself blocks; consume its result, then launch the next.
-- INDEPENDENT children (a parallel sibling batch): launch the whole batch in one message, then hold
-  until EVERY child has returned before you read results or synthesize.
+- DEPENDENT children (a later child needs an earlier one's output): with a blocking launch
+  available (R0 move 2), launch each with `run_in_background: false` so the launch itself blocks;
+  consume its result, then launch the next. Without one (R0 move 3), launch the first child, end
+  your turn, consume its result on resume, then launch the next the same way.
+- INDEPENDENT children (a parallel sibling batch): with a blocking launch available, launch the
+  whole batch in one message, then hold until EVERY child has returned before you read results or
+  synthesize. Without one, launch the whole batch in one message, end your turn, and track each
+  child's arrival on your task list until every one is terminal before you synthesize.
 
 Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-contract.md`) - create one
 task per child at/ before launch, and treat the batch barrier as clear ONLY when every child has
@@ -40,8 +66,11 @@ equivalent) - the tool's own state is not guaranteed to distinguish them, and a 
 tool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable
 and must never be the release condition. The task list is the persistent counter across the
 re-invocations the background model wakes you with; never rely on turn memory to remember how many
-children are outstanding. "Wait" is the synchronous return or the all-children-terminal barrier -
-never a passive hope, never a synthesis from context you held before the batch.
+children are outstanding. A blocking launch (R0 move 2) never needs this counter for the child it
+just blocked on - the counter matters for an async batch (R0 move 3), where re-invocation on child
+completion is the wake you are relying on. "Wait" is the synchronous return or the
+all-children-terminal barrier - never a passive hope, never a synthesis from context you held
+before the batch.
 
 ## R2 - No early DONE
 
@@ -87,6 +116,10 @@ return, exactly as in Tier-C) and STATE the missing-`REPLY_TO` condition explici
 your launcher reads it from your returned transcript regardless of transport tier. Never broadcast a
 completion report to `main` on a guess - a guessed address can silently misdeliver to a context that
 is not blocking on you (R1), which is worse than the honest transcript-return fallback.
+
+**A failed or unaddressable send means RETURN INLINE - never wait.** If `REPLY_TO` is absent or
+unroutable, or `SendMessage` fails, return your completion report as your final message. Never guess
+an address, never broadcast to `main`, never end on a bare tool call or on plain text with no report.
 
 ## Transport
 
