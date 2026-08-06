@@ -29,7 +29,7 @@ The approved TDD is the plan the code Plan Mode executes; do not flip this order
 
 ## Input port - gap-analysis artifact (read before designing)
 
-Before the Phase 0 preview, look for a gap-analysis artifact on disk - the per-requirement
+Before dispatching the architect, look for a gap-analysis artifact on disk - the per-requirement
 classification/effort is the design PRECONDITION, read it; do NOT re-derive the tier from
 conversational text:
 
@@ -42,42 +42,32 @@ conversational text:
   need a TDD and at what depth (extension/custom + L/XL drive the design; standard/config with
   a single obvious approach skip DESIGN and route straight to `odoo-planning` instead - planning
   is mandatory for all work, see "Skip DESIGN for trivial work" below). Cite the artifact path in the
-  Phase 0 preview and pass it to the architect (`GAP_MATRIX:` line in the P1 template). When
+  design doc and pass it to the architect (`GAP_MATRIX:` line in the P1 template). When
   the artifact exists it is authoritative - do NOT re-derive tiers from memory.
 - **Not found AND the change is non-trivial:** recommend running `odoo-gap-analysis` first to
   classify/cost the requirements rather than guessing the tier. (Trivial single-approach
   change: proceed without it.)
 
-## Phase 0 - Design intent gate (1-turn gate)
+## Before dispatch - no scope-preview gate, one scope QUESTION
 
-**Exception: when `return_to` is set**, SKIP this Phase 0 scope-preview gate entirely. The
-caller (e.g. `odoo-forward-port`) has already classified scope and approved entering the design
-step. Go straight to the architect dispatch (Agent invocation - prompt template below) and
-then the single design-approval gate after the architect returns.
+Do NOT ask the human to approve a scope preview before dispatching the architect. Whoever sent
+the work here already gated that same decision: the front door (`odoo-intake`) approved scope,
+approach and expected output with the human, and a `return_to` caller (e.g. `odoo-forward-port`)
+classified scope itself. Asking again is friction, not safety. The single approval checkpoint this
+skill owns is the § Design-approval gate, after the architect returns - one design, one gate, the
+same shape the sibling self-driving front doors use (`odoo-forward-port` P4, `odoo-git-rebase` P6,
+`odoo-modules-upgrade` P3).
 
-**Default (no `return_to`):** Before invoking the agent, emit a concise **design scope
-preview**, then **stop** for confirmation. The preview names what the design will decide and
-which artifact it produces - it does NOT write production code (this is a read-only design step):
+The architect writes ONLY the design doc under the machine-global `$ODOO_AI_HOME` state root
+(two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never source
+files, so nothing irreversible happens before that gate.
 
-```
-Design scope: <one-line of the change to be designed>
-Will decide:  approach (inherit axis / new vs extend) · data model · override strategy ·
-              module structure · sequencing · test outline · risks · platform-principles
-              (multi-company/branch, localization strategy, app-menu) · bidirectional
-              (upstream+downstream) impact · dynamic demo-data plan
-Artifact:     <SHARE_DIR>/designs/<slug>-<YYYY-MM-DD>.md (design doc, no production code)
-OSM:          backed | standalone
-Proceed? (approve / refine: [feedback] / cancel)
-```
+Ask only genuine open questions, in ONE short message. There is exactly ONE such question, and
+only when the multi-module heuristic below fires - it decides something no upstream gate decided:
+whether this scope is designed as one document or split per module.
 
-Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint for
-the default (no `return_to`) path and applies even on a direct (intake-bypass) entry. It is a
-**preview, not a write-block** - on confirmation the architect writes ONLY the design doc under
-the machine-global `$ODOO_AI_HOME` state root (two-axis convention:
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never source files.
-
-**Multi-module scope heuristic.** Before emitting the preview, check for these qualitative
-signals - a cluster of them suggests master-child decomposition is worth offering:
+**Multi-module scope heuristic.** Check for these qualitative signals - a cluster of them means
+the split is worth offering:
 - Multiple independent modules each needing a new model or new inheritance axis.
 - Independent business domains where sub-designs are mostly orthogonal.
 - Several Custom-XL / Extension-L items (from `odoo-brl` / `odoo-gap-analysis`) referencing
@@ -87,18 +77,16 @@ Module enumeration priority (first available): deep-survey `synthesis.md` → br
 → modules-upgrade `graph.md` → fallback: scan `__manifest__.py` + topo-sort `depends`
 (pattern: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P1(a)).
 
-When the heuristic fires, replace `Proceed? (approve / refine: [feedback] / cancel)` with:
+When it fires - and ONLY then - ask (never for a single-module or narrowly-scoped design):
 
 ```
-Proceed?
-  approve-master-child  - one master TDD + one child TDD per module (see Decompose branch)
-  approve-single        - flat TDD covering full scope (default; use when in doubt)
-  refine: [feedback]    - clarify scope first
+This change spans <n> modules. Design it as one document, or one per module?
+  approve-single        - one design covering the whole scope (default; use when in doubt)
+  approve-master-child  - one overall design plus one per module (see Decompose branch)
   cancel
 ```
 
-Default is `approve-single`. Show `approve-master-child` only when the heuristic
-fires - never for a single-module or narrowly-scoped design.
+Default is `approve-single`.
 
 **`approve-single`:** MUST set `MODE: single` in the architect dispatch brief (P1
 template). Without this explicit field, the architect's decompose-bounce heuristic may re-evaluate
@@ -108,7 +96,7 @@ scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
 
 ## Decompose branch (master-child mode)
 
-Only entered when the user replied `approve-master-child` at Phase 0.
+Only entered when the user replied `approve-master-child` to the scope question above.
 Contract SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 Artifact root: `<SHARE_DIR>/designs/<master-slug>/`.
 
@@ -311,7 +299,7 @@ When composing the dispatch prompt for any specialist agent you dispatch, fill t
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
-When the user confirms intent (Phase 0 gate passed), launch `odoo-solution-architect` as a subagent.
+Launch `odoo-solution-architect` as a subagent (single mode, or after the scope question resolved).
 Use the template below **verbatim**, filling the bracketed placeholders.
 
 **Model per dispatch** - set as the subagent `model` parameter (the `DISPATCH MODEL` line

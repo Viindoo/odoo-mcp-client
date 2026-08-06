@@ -51,7 +51,7 @@ phases:
   - id: synthesize
     inline: true
     model_tier: inherit
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
 
 resume: true
 fallback: standalone

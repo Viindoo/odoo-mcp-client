@@ -57,7 +57,7 @@ phases:
   - id: review
     inline: true
     model_tier: sonnet
-    gate: "accept / revise: [feedback] / cancel"
+    gate: "approve / refine: [feedback] / cancel"
     # Inline editorial review (read-only) of the draft phase output against:
     #   (a) message clarity and audience fit,
     #   (b) tone consistency with the brief's stated guidance,
@@ -76,7 +76,7 @@ phases:
   - id: publish-schedule
     inline: true
     model_tier: sonnet
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner finalizes the publish artifact:
     #   1. Final approved draft (incorporating any review edits)
     #   2. Recommended publish date and time band (by channel best-practice)

@@ -239,7 +239,7 @@ MISS for the overall solution, but NOT a regression: the child doc is valid for 
 behavior is not incorrect, and no wrong document is substituted. The degradation is silent and
 safe by construction (missing key, not wrong value).
 
-A caller that uses `return_to` to skip Phase 0 of the solution-design skill bypasses the
+A `return_to` caller skips the scope question and bypasses the
 decompose branch by construction - master-child output cannot reach `odoo-forward-port` or
 `odoo-modules-upgrade` P2b via that route. Skills that consume master-child output must read
 `design_index:` from the Continuation Contract, not `design_doc:` (singular).

@@ -188,7 +188,7 @@ phases:
     model_tier: sonnet
     fanout: true
     chunk_by: modules
-    gate: "approve / regenerate / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # refine: [feedback] re-generates the icon with that feedback
 
   # ------------------------------------------------------------------
   # Phase 4 - Marketing copy (browser-free, fan-out per doc:true module - Mode B)
@@ -250,7 +250,7 @@ phases:
   - id: manifest-audit
     inline: true
     model_tier: sonnet
-    gate: "save / dismiss / cancel"
+    gate: "approve / skip / cancel"   # approve = save the audit; skip = do not save
     # For each module with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false
     # dedup modules - they are install-only deps, not documented), audit App-Store manifest keys:
     #   REQUIRED (blocking if missing): name, summary, description, images[0] (cover),
@@ -270,7 +270,7 @@ phases:
   - id: aggregate-index
     inline: true
     model_tier: inherit
-    gate: "save / cancel"
+    gate: "approve / skip / cancel"   # approve = write the index; skip = do not write
     # Collect all per-module output paths (icon.png, index.html, doc/index.rst, per-locale
     # variants, walkthrough.jsonl, walkthrough.md, feature-catalog.md, manifest-audit.md) for each
     # doc:true module from its .odoo-ai/packaging/<run>/<module>/ subdir and write a combined run

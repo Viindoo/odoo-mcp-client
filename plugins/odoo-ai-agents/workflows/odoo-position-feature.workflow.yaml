@@ -73,7 +73,7 @@ phases:
   - id: positioning-copy
     inline: true
     model_tier: sonnet
-    gate: "save / terminal / cancel"
+    gate: "approve / skip / cancel"   # approve = produce the copy; skip = skip this phase, no copy produced; cancel = abort
     # Produce a positioning block whose SHAPE is chosen by output_channel:
     #   slide    -> 1 headline value statement + 2-3 concrete benefit-focused bullets
     #               + 1 differentiator (Odoo vs typical alternatives)
@@ -89,8 +89,10 @@ phases:
     #   sales     -> proof points, customer success, objection removal
     #   developer -> technical depth, integration patterns, API / module names
     #   marketer  -> messaging hooks, social proof, differentiator framing
-    # On gate "save": write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md.
-    # On "terminal": display only. On "cancel": discard.
+    # On gate `approve`: ask a separate output-destination question - save the copy to a file, or
+    # show it in chat only? File -> write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md.
+    # Chat-only -> display the copy in chat, write nothing.
+    # On gate `skip`: produce no copy. On `cancel`: discard.
     # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy - this
     # output is EXTERNAL-facing and may be shared/published, unlike the internal
     # competitive-brief artifact above (see that phase's nl_trigger for the distinction).

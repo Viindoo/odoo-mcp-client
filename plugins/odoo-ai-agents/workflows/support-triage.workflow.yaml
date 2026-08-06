@@ -98,7 +98,7 @@ phases:
   - id: output
     inline: true
     model_tier: inherit
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # On Gate confirm:
     #   1. Write .odoo-ai/support/<customer-label>-<YYYY-MM-DD>.md (abstract labels only)
     #   2. Print full triage to terminal for copy-paste

@@ -36,12 +36,12 @@ phases:
       total effort band, risk flags, and recommended phasing. The output must be
       ready to paste into a proposal.
     model_tier: sonnet
-    gate: "approve / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   - id: synthesize
     inline: true
     model_tier: inherit
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
 
 resume: true
 fallback: standalone

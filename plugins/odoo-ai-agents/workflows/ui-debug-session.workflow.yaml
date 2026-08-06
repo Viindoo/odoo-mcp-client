@@ -42,7 +42,7 @@ phases:
   - id: reproduce
     inline: true
     model_tier: sonnet
-    gate: "confirmed / cannot-reproduce: [notes] / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # refine: [notes] also carries "I cannot reproduce it" - the notes say so
     # Runner analyzes the symptom card and produces:
     #   1. Minimal reproduction path (menu / action sequence)
     #   2. Expected vs actual behavior statement
@@ -70,7 +70,7 @@ phases:
       contributing factors. Do not write the fix yet - focus on diagnosis.
       This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence in the two read-back artifacts above; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
-    gate: "approve / re-investigate: [feedback] / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
   # Phase 3 - Hypothesize fix options (inline)
@@ -78,7 +78,7 @@ phases:
   - id: hypothesize
     inline: true
     model_tier: sonnet
-    gate: "select: [option number] / skip / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # approve = take the recommended option; refine: [option B] = pick another
     # Runner takes the root cause from the inspect phase and produces 2-3 fix hypotheses:
     #   - Option A: minimal patch (low risk, targeted)
     #   - Option B: proper override (medium effort, correct pattern)
@@ -105,7 +105,7 @@ phases:
   - id: verify
     inline: true
     model_tier: inherit
-    gate: "resolved / still-failing: [notes] / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # approve = fixed; refine: [notes] = still failing, loops back to inspect
     # Runner prompts user to apply the fix and report back:
     #   - If resolved: writes a closure summary with root cause + fix applied
     #   - If still failing: loops back to inspect with updated symptom card (resume)
