@@ -71,17 +71,24 @@ is complete and that skills thread the shared contracts they are required to:
                     names, none carrying all four ALWAYS-tier fields - see M7 in
                     `12-design-final.md`. Full corpus normalization is explicitly out of scope;
                     this rule reports the diff and blocks nothing.
- 13. card-budget    - LIVE and enforcing (M9, 12-design-final.md). Data-driven: compute every
-                    `snippets/*.md` + `skills/_shared/*.md` file cited by >=3 distinct
-                    skills+agents (a "hot" shared contract), and assert its size is under its
-                    declared budget. Budget resolution: `tests/fixtures/card_budget_grandfather.json`
-                    (checked-in data, generated ONCE at the start of the M9 wave from files that
-                    already exceeded the cap and sit OUTSIDE that wave's 13 inverted files) wins
-                    when the file has an entry; otherwise the default cap (4,096 B) applies. A
-                    wave-13 file earns its own permanent budget entry the moment it is trimmed and
-                    committed - that entry is its post-trim actual size, so the rule fires only on
-                    (a) a listed file that GROWS past its recorded budget, or (b) a NEW file (no
-                    grandfather entry) entering the >=3-citer set above the default cap.
+ 13. card-budget    - LIVE and enforcing (M9, 12-design-final.md). Data-driven, and a file
+                    qualifies through EITHER of two doors. Door (a) DECLARED: it carries an entry
+                    in `tests/fixtures/card_budget_grandfather.json` (checked-in data, generated
+                    ONCE at the start of the M9 wave from files that already exceeded the cap and
+                    sit OUTSIDE that wave's 13 inverted files); the entry is both the qualification
+                    and the budget, and it is measured wherever the file lives. Door (b)
+                    DISCOVERED: it is a `snippets/*.md` or `skills/_shared/*.md` file cited by >=3
+                    distinct skills+agents (a "hot" shared contract), and its budget is the default
+                    cap (4,096 B). Door (b) is a heuristic for hotness that door (a) states
+                    outright - which is how a hot contract door (b) cannot see gets capped: a
+                    top-level `skills/<name>/SKILL.md` runtime contract (e.g. `run-harness`, the
+                    drive-to-done loop re-entered on every node and every resume) shares the
+                    basename `SKILL.md` with every skill, so no basename-keyed citer count can
+                    single it out. A wave-13 file earns its own permanent budget entry the moment
+                    it is trimmed and committed - that entry is its post-trim actual size, so the
+                    rule fires only on (a) a listed file that GROWS past its recorded budget, or
+                    (b) a NEW file (no grandfather entry) entering the >=3-citer set above the
+                    default cap.
  14. ref-scope      - (M9, 12-design-final.md). Two independent halves, DIFFERENT gate status:
                     (a) WARN-ONLY FOR ONE RELEASE - a `skills/*/SKILL.md` or `agents/*.md` body
                     may not cite another file (a real relative path, not a bare filename - avoids
@@ -96,11 +103,34 @@ is complete and that skills thread the shared contracts they are required to:
                     the (now-inverted) decidable rule file. `docs/` is exempt from (b) - the
                     reference tree is discoverable from `docs/authoring-skills-and-agents.md` and
                     from this lint, by design.
- 15. no-provenance  - LIVE and enforcing (M10, X-50, 12-design-final.md). A parenthesized
-                    `(V-NN...)` or `(Problem N)` tag (two-or-more digits, so an Odoo version
-                    string like `v8` cannot collide) anywhere under `skills/`, `agents/`,
-                    `snippets/` is a finding - agent-facing prose carries no changelog/
-                    issue-tracking provenance.
+ 15. no-provenance  - LIVE and enforcing (M10, X-50, 12-design-final.md). Agent-facing prose
+                    carries no PLUGIN-SELF changelog / issue-tracking provenance: the internal
+                    `(V-NN...)` / `(Problem N)` tags, the changelog vocabulary a rewrite leaves
+                    behind (`Replaces `, `formerly`, `renamed from`, `was previously`,
+                    `as of version`, `since 4.x`, `new in 4.x`, `deprecated in favour of`,
+                    `legacy `, `no longer exists`, `moved here from`, `originally lived in`,
+                    `consolidated from`), and issue/PR references (`see PR`, `tracked in`,
+                    a qualified `PR #123` / `issue #7`). Scanned over the WHOLE agent-facing
+                    corpus (`agent_facing_files()` - skills/, agents/, snippets/, commands/,
+                    workflows/, plus the docs/ files agent-facing prose actually points an agent
+                    at), not just the first three trees. The discriminator: RESIDUE narrates what
+                    THIS PLUGIN used to do (free to delete - git has it); OPERATIVE text tells the
+                    agent what to DO about something that still exists (deleting it breaks a live
+                    consumer). Guards, all window-scoped: (1/1b/1c/1d) the match names a domain
+                    OUTSIDE this plugin - an Odoo version anchor or role-named series
+                    (`<src-series>`), an Odoo framework-era idiom (`web.Widget`, `oe_*`), the
+                    PROSPECT's incumbent system ("legacy POS", "legacy accounting software"), or
+                    the codebase under work evolving (Odoo core absorbed it, the rebase base
+                    superseded it); (1e) the file itself DEFINES a legacy era in a heading with an
+                    Odoo version anchor (`## Legacy v8-v14 workflow`), so a later bare `legacy` is
+                    anaphoric to that defined term; (2) the match sits inside a double-quoted span
+                    (a quoted user utterance / routing trigger, e.g. `"review PR #123"`, is not the
+                    file asserting its own history); (3) OPERATIVE BACK-COMPAT - the window carries
+                    handling vocabulary ("back-compat", "read only as a fallback", "is still read",
+                    "treats ... as"), which only ever accompanies a live instruction about a shape
+                    still in the wild. Guard 3 is offered ONLY to alternatives that can name such a
+                    shape (`legacy`, `no longer exists`, `formerly`, ...), never to a pure
+                    provenance tag like `(V-34)` or `see PR #12`.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
 (or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, and 15 - flip that on
@@ -128,8 +158,78 @@ DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 SNIPPETS_DIR = PLUGIN_ROOT / "snippets"
+COMMANDS_DIR = PLUGIN_ROOT / "commands"
+WORKFLOWS_DIR = PLUGIN_ROOT / "workflows"
+DOCS_DIR = PLUGIN_ROOT / "docs"
 REFERENCES_DIR = SNIPPETS_DIR / "references"
 SHARED_DIR = SKILLS_DIR / "_shared"
+
+# --- The agent-facing corpus (what a content rule is allowed to see) --------------------------
+#
+# `skills/`, `agents/`, `snippets/`, `commands/`, and `workflows/` are agent-facing IN FULL: every
+# file in them is prose (or declarative YAML) a running agent reads. `docs/` is MIXED - some of it
+# is an authoring guide addressed to a HUMAN contributor, some of it is reference material that
+# agent-facing prose sends an agent off to read mid-run. Rather than hardcode which is which, the
+# in-scope docs set is DERIVED: a docs file is agent-facing exactly when the per-invocation corpus
+# cites it (see `agent_facing_docs`).
+
+# A `docs/<...>.md` citation. Requires a real relative path so a bare `setup.md` cannot collide.
+DOC_CITE_RE = re.compile(r"\bdocs/[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\.md\b")
+
+# Explicit carve-out: the authoring guide is addressed to a HUMAN authoring a skill/agent, not to an
+# agent executing one, so it stays out of scope even if agent-facing prose starts citing it.
+AGENT_FACING_DOCS_EXCLUDED = ("docs/authoring-skills-and-agents.md",)
+
+
+def _doc_citing_files() -> list[Path]:
+    """The PER-INVOCATION corpus whose citations define which docs/ files are agent-facing.
+
+    `snippets/references/` is excluded as a citer on purpose: per M9 / [ref-scope] half (b) it is
+    the read-if-you-need-the-why tier that no executing agent is ever pointed at, so what IT cites
+    says nothing about what an agent is handed mid-run."""
+    files = list(SKILLS_DIR.rglob("*.md")) if SKILLS_DIR.exists() else []
+    if SNIPPETS_DIR.exists():
+        files += [f for f in SNIPPETS_DIR.rglob("*.md") if f.parent != REFERENCES_DIR]
+    if AGENTS_DIR.exists():
+        files += list(AGENTS_DIR.glob("*.md"))
+    if COMMANDS_DIR.exists():
+        files += list(COMMANDS_DIR.glob("*.md"))
+    if WORKFLOWS_DIR.exists():
+        files += list(WORKFLOWS_DIR.glob("*.md")) + list(WORKFLOWS_DIR.glob("*.yaml"))
+    return files
+
+
+def agent_facing_docs() -> list[Path]:
+    """Every `docs/` file the per-invocation corpus actually points an agent at, on disk.
+
+    Data-driven, never a hardcoded list: a new reference doc enters scope the moment a skill/agent/
+    snippet/command/workflow cites it, and leaves scope when the last citation goes."""
+    if not DOCS_DIR.is_dir():
+        return []
+    cited: set[str] = set()
+    for f in _doc_citing_files():
+        cited.update(m.group(0) for m in DOC_CITE_RE.finditer(f.read_text(encoding="utf-8")))
+    cited -= set(AGENT_FACING_DOCS_EXCLUDED)
+    return sorted(p for p in (PLUGIN_ROOT / rel for rel in cited) if p.is_file())
+
+
+def agent_facing_files(include_docs: bool = True) -> list[Path]:
+    """Every file a running agent may be handed - the scan corpus for the content rules.
+
+    `include_docs=False` is for [ref-scope] half (b), whose own contract exempts `docs/` (the
+    reference tree is meant to stay discoverable from the authoring guide and from this lint)."""
+    files = list(SKILLS_DIR.rglob("*.md")) if SKILLS_DIR.exists() else []
+    if SNIPPETS_DIR.exists():
+        files += list(SNIPPETS_DIR.rglob("*.md"))
+    if AGENTS_DIR.exists():
+        files += list(AGENTS_DIR.glob("*.md"))
+    if COMMANDS_DIR.exists():
+        files += list(COMMANDS_DIR.glob("*.md"))
+    if WORKFLOWS_DIR.exists():
+        files += list(WORKFLOWS_DIR.glob("*.md")) + list(WORKFLOWS_DIR.glob("*.yaml"))
+    if include_docs:
+        files += agent_facing_docs()
+    return sorted(set(files))
 
 # M9 (12-design-final.md): the 13 files inverted to their measured minimum. Each earns a sibling
 # `snippets/references/<name>.md` carrying the explanation moved out of the per-invocation path.
@@ -668,13 +768,26 @@ CARD_BUDGET_MIN_CITERS = 3
 
 def _card_budget_candidates() -> list[Path]:
     """Every `snippets/*.md` + `skills/_shared/*.md` file - the shared-contract corpus a hot cold
-    context might load repeatedly. `snippets/references/*.md` is excluded on purpose: per M9/
-    [ref-scope], no consumer-facing file may ever cite it, so it can never reach the >=3-citer
-    threshold and including it would only slow the scan."""
+    context might load repeatedly - PLUS every path carrying an explicit budget entry in the
+    grandfather file, wherever it lives.
+
+    The >=3-citer count is a DISCOVERY heuristic for "this shared file is hot"; an explicit budget
+    entry is a DECLARATION of the same fact, so it is an entry ticket in its own right. That second
+    door is the only way in for a hot contract the heuristic structurally cannot see - notably a
+    top-level `skills/<name>/SKILL.md` runtime contract, whose basename `SKILL.md` is shared by
+    every skill and so makes any basename-keyed citer count meaningless.
+
+    `snippets/references/*.md` is excluded on purpose: per M9/[ref-scope], no consumer-facing file
+    may ever cite it, so it can never reach the >=3-citer threshold and including it would only
+    slow the scan."""
     files = list(SNIPPETS_DIR.glob("*.md"))
     if SHARED_DIR.exists():
         files += list(SHARED_DIR.glob("*.md"))
-    return [f for f in files if f.parent != REFERENCES_DIR]
+    files = [f for f in files if f.parent != REFERENCES_DIR]
+    files += [
+        p for p in (PLUGIN_ROOT / rel for rel in _load_card_budget_grandfather()) if p.is_file()
+    ]
+    return sorted(set(files))
 
 
 def _consumer_bodies() -> dict[Path, str]:
@@ -694,24 +807,30 @@ def _load_card_budget_grandfather() -> dict[str, int]:
 
 
 def check_card_budget(findings: list[str]) -> None:
-    """13. [card-budget] - see module docstring. Data-driven: a candidate qualifies when >=3
-    distinct skills+agents cite its basename; its budget is the grandfather-file entry for its
-    relpath if one exists, else the default cap. Fires only on a size that exceeds that budget."""
+    """13. [card-budget] - see module docstring. Data-driven, two ways a file qualifies:
+    (a) it carries an explicit grandfather entry - the declaration IS the qualification, and its
+    budget is that entry; or (b) >=3 distinct skills+agents cite its basename, and its budget is
+    the default cap. Fires only on a size that exceeds that budget."""
     bodies = _consumer_bodies()
     grandfather = _load_card_budget_grandfather()
     for cand in sorted(_card_budget_candidates()):
         relpath = str(cand.relative_to(PLUGIN_ROOT))
-        name = cand.name
-        citers = sum(1 for text in bodies.values() if name in text)
-        if citers < CARD_BUDGET_MIN_CITERS:
-            continue
+        if relpath in grandfather:
+            budget = grandfather[relpath]
+            why = "declared hot contract - explicit budget entry"
+        else:
+            citers = sum(1 for text in bodies.values() if cand.name in text)
+            if citers < CARD_BUDGET_MIN_CITERS:
+                continue
+            budget = CARD_BUDGET_DEFAULT_CAP
+            why = (
+                f"cited by {citers} skills/agents, >= the {CARD_BUDGET_MIN_CITERS}-citer threshold"
+            )
         size = cand.stat().st_size
-        budget = grandfather.get(relpath, CARD_BUDGET_DEFAULT_CAP)
         if size > budget:
             findings.append(
                 f"[card-budget] '{relpath}' is {size}B, over its budget of {budget}B "
-                f"(cited by {citers} skills/agents, >= the {CARD_BUDGET_MIN_CITERS}-citer "
-                f"threshold) - grow it only with a deliberate grandfather-file bump, never silently"
+                f"({why}) - grow it only with a deliberate grandfather-file bump, never silently"
             )
 
 
@@ -778,12 +897,11 @@ def check_ref_scope_no_reference_pointer(findings: list[str]) -> None:
     skills/agents/snippets file may name the 'snippets/references/' path shape at all - the
     read-both hazard closure at the heart of M9's safety design: an executing agent must never be
     handed a pointer to the reference sibling it could follow instead of the (now-inverted)
-    decidable rule file. docs/ is exempt - the reference tree is discoverable from
-    docs/authoring-skills-and-agents.md and from this lint, by design."""
-    scope_files = list(SKILLS_DIR.rglob("*.md")) + list(SNIPPETS_DIR.rglob("*.md"))
-    if AGENTS_DIR.exists():
-        scope_files += list(AGENTS_DIR.glob("*.md"))
-    for f in scope_files:
+    decidable rule file. Scanned over the agent-facing corpus MINUS docs/ - docs/ is exempt because
+    the reference tree is meant to stay discoverable from docs/authoring-skills-and-agents.md and
+    from this lint, by design; commands/ and workflows/ ARE in scope (an agent reads them in
+    full)."""
+    for f in agent_facing_files(include_docs=False):
         text = f.read_text(encoding="utf-8")
         rel = f.relative_to(PLUGIN_ROOT)
         if REFERENCES_PATH_SUBSTRING in text:
@@ -796,23 +914,197 @@ def check_ref_scope_no_reference_pointer(findings: list[str]) -> None:
 
 # --- [no-provenance] (rule 15, M10, X-50) -------------------------------------------------------
 
-# Two-or-more digits so an Odoo version string (e.g. "v8") can never collide with a `(V-NN)` tag.
-NO_PROVENANCE_RE = re.compile(r"\(V-\d{2,}[^)]*\)|\(Problem \d+\)")
+# PLUGIN-SELF provenance vocabulary. Three families, one union:
+#   (a) the internal design tags - `(V-NN)` uses two-or-more digits so an Odoo version string
+#       (e.g. "v8") can never collide, and `(Problem N)`;
+#   (b) the changelog phrasing a rewrite leaves behind - `Replaces ` is deliberately CASE-SENSITIVE
+#       (`(?-i:...)`) because the capitalized sentence-opener is the changelog shape, while a
+#       lower-case mid-sentence "replaces" is ordinary prose ("v19 replaces the server flags");
+#       `since 4.` / `new in 4.` require a following digit so they mean THIS plugin's 4.x line;
+#   (c) issue/PR references - a bare `#\d+` is unusable (it collides with `ETHOS #10`, `Gate #1`,
+#       a hex colour, a markdown anchor), so the reference must be QUALIFIED by issue/PR/ticket/
+#       bug/GH vocabulary, plus the two bare provenance phrasings `see PR` / `tracked in`.
+# `\bsee PR\b` needs its word boundary: without it, "See prose below" matches.
+NO_PROVENANCE_RE = re.compile(
+    r"\(V-\d{2,}[^)]*\)"
+    r"|\(Problem \d+\)"
+    r"|(?-i:\bReplaces\s)"
+    r"|\bformerly\b"
+    r"|\brenamed from\b"
+    r"|\bwas previously\b"
+    r"|\bas of version\b"
+    r"|\bsince 4\.\d"
+    r"|\bnew in 4\.\d"
+    r"|\bdeprecated in fav(?:ou)?r of\b"
+    r"|\blegacy\s"
+    r"|\bno longer exists\b"
+    r"|\bmoved here from\b"
+    r"|\boriginally lived in\b"
+    r"|\bconsolidated from\b"
+    r"|\bsee PR\b"
+    r"|\btracked in\b"
+    r"|\b(?:issues?|PRs?|pull[- ]requests?|tickets?|bugs?|GH)\s*#\d+",
+    re.I,
+)
+
+# THE DISCRIMINATOR every guard below approximates: RESIDUE narrates what THIS PLUGIN used to do
+# (worthless to an executing agent, and free to delete - git already has it). OPERATIVE text tells
+# the agent what to DO about something that still exists (a lease field the allocator still reads,
+# a `SUGGESTED_NEXT:` line the parser still accepts, a prospect's incumbent POS, an Odoo CSS era) -
+# deleting that BREAKS a live consumer. Same vocabulary, opposite value; the guards split them.
+
+# Guard 1 - ODOO DOMAIN version history is legitimate, load-bearing knowledge, never residue.
+# An Odoo version anchor: a real Odoo major series (8..29 - a bare `v0.5` or `v3` is therefore NOT
+# one), the series notation `17.0`, a `saas-` build, the explicit "Odoo version/series/era"
+# phrasing the generated tool-surface blurb uses ("spanning every indexed Odoo version (legacy
+# through latest)"), or a PARAMETERIZED series placeholder (`<src-series>`, "the target series") -
+# a series named by ROLE instead of by number is still a series, and the forward-port /
+# modules-upgrade corpus names them that way throughout.
+ODOO_VERSION_ANCHOR_RE = re.compile(
+    r"\bOdoo[\s-]*(?:[89]|1\d|2\d)\b"
+    r"|\bOdoo[\s-]*(?:versions?|series|majors?|releases?|eras?)\b"
+    r"|\bv(?:[89]|1\d|2\d)(?:\.\d)?\b"
+    r"|\b(?:[89]|1\d|2\d)\.0\b"
+    r"|\bsaas[-~]\d"
+    r"|\b(?:src|tgt|source|target)[-\s]series\b",
+    re.I,
+)
+# Guard 1b - Odoo FRAMEWORK-ERA idioms. "legacy `web.Widget`" / "legacy widgets" / "legacy AMD" /
+# "legacy `oe_*` classes" name Odoo's own frontend eras; the adjective there is domain vocabulary,
+# not self-history.
+ODOO_ERA_IDIOM_RE = re.compile(
+    r"\b(?:OWL|AMD|QWeb|QUnit|Hoot|SCSS|LESS|widgets?)\b|odoo\.define|web\.Widget|@api\."
+    r"|\boe_[a-z*]",
+    re.I,
+)
+# Guard 1c - INCUMBENT-SYSTEM vocabulary. In the sales/discovery corpus `legacy` names the
+# PROSPECT's pre-Odoo system - their POS, their accounting package, the format their history has to
+# be migrated out of. Recording that is the entire point of a discovery profile; it is the
+# customer's history, never this plugin's.
+INCUMBENT_SYSTEM_RE = re.compile(
+    r"\bcurrent system\b"
+    r"|\bdata migration\b"
+    r"|\bincumbent\b"
+    r"|\bspreadsheets?\b"
+    r"|\bExcel\b"
+    r"|\bPOS\b"
+    r"|\bERP\b"
+    r"|\baccounting (?:software|system|package|migration)\b",
+    re.I,
+)
+# Guard 1d - CODE-UNDER-WORK evolution. `legacy` / `no longer exists` often describe the codebase
+# the agent OPERATES ON, not this plugin: Odoo core absorbing a custom feature, or a rebase base
+# whose design superseded the commit being replayed. Those are findings the agent MUST state.
+# `core` is matched without a leading `\b` so `absorbing_core_feature` counts.
+CODE_UNDER_WORK_RE = re.compile(
+    r"\b(?:target|upstream|Odoo)[-\s]core\b"
+    r"|(?<![A-Za-z0-9])core[ _-](?:features?|modules?|mechanisms?|APIs?|computes?|fields?|behaviou?rs?)\b"
+    r"|\bcore absorbed\b"
+    r"|\bbase (?:HEAD|branch|tip|design|idioms?)\b",
+    re.I,
+)
+DOMAIN_ANCHOR_RES = (
+    ODOO_VERSION_ANCHOR_RE,
+    ODOO_ERA_IDIOM_RE,
+    INCUMBENT_SYSTEM_RE,
+    CODE_UNDER_WORK_RE,
+)
+# Guard 1e - DEFINED-TERM anaphora. A document that DEFINES a legacy ERA in a heading carrying an
+# Odoo version anchor (`## Legacy v8-v14 workflow`) uses a later bare `legacy` as a back-reference
+# to that defined term ("same as the legacy Round 5"), not as a claim about its own past. Only the
+# bare `legacy` token is anaphoric this way - every other alternative still fires in such a file.
+LEGACY_ERA_HEADING_RE = re.compile(r"^#{1,6} +.*\blegacy\b.*$", re.I | re.M)
+# Guard 3 - OPERATIVE BACK-COMPAT. A back-compat instruction has a LIVE consumer (the allocator
+# still reads `owner.session_id`; the continuation parser still accepts `SUGGESTED_NEXT:`), so it
+# is a rule, not a memoir - deleting it breaks the reader. Detected by the handling vocabulary such
+# an instruction cannot be phrased without: an explicit back-compat/fallback label, or a verb
+# applied TO the old shape ("is still read", "treats ... as", "skips the stop", "maps to").
+# `fallback` must head a noun phrase ("as a fallback", "its `session_id` fallback") so an unrelated
+# "there is no hard fallback locale" cannot launder a finding.
+OPERATIVE_BACKCOMPAT_RE = re.compile(
+    r"\bback[- ]?compat"
+    r"|\bbackwards?[- ]compatib"
+    r"|\b(?:as an?|its|the)\s+(?:\S+\s+){0,3}fallback\b"
+    r"|\bfalls? back\b"
+    r"|\bread (?:only )?as\b"
+    r"|\btreats?\b"
+    r"|\btreated as\b"
+    r"|\bskips?\b"
+    r"|\bmaps? to\b"
+    r"|\bstill (?:read|accepted|honou?red|supported|works?|valid|parsed|handled|fires|recogni\w+)\b",
+    re.I,
+)
+# Which alternatives guard 3 may exempt: only vocabulary that CAN name a still-live old artifact.
+# A pure provenance tag (`(V-34)`, `see PR #12`, `since 4.2`) can never BE an operative
+# instruction, so nearby back-compat wording must never launder it.
+BACKCOMPAT_ELIGIBLE_RE = re.compile(
+    r"\blegacy\b"
+    r"|\bno longer exists\b"
+    r"|\bformerly\b"
+    r"|\brenamed from\b"
+    r"|\bwas previously\b"
+    r"|\bdeprecated in fav",
+    re.I,
+)
+# How far around a match to look for the domain signal. One sentence-ish on each side: wide enough
+# that "renamed from `test_pylint` at v13" is read as one statement, narrow enough that an
+# unrelated version string three paragraphs away cannot launder a real finding.
+PROVENANCE_DOMAIN_WINDOW = 160
+
+
+def _match_window(text: str, start: int, end: int) -> str:
+    return text[max(0, start - PROVENANCE_DOMAIN_WINDOW): end + PROVENANCE_DOMAIN_WINDOW]
+
+
+def _is_domain_context(text: str, start: int, end: int) -> bool:
+    """True if the match is talking about a domain OUTSIDE this plugin - Odoo's own version/era
+    history, the prospect's incumbent system, or the codebase under work - not this plugin's past."""
+    window = _match_window(text, start, end)
+    return any(rx.search(window) for rx in DOMAIN_ANCHOR_RES)
+
+
+def _is_operative_backcompat(text: str, start: int, end: int) -> bool:
+    """True if the window reads as a LIVE handling instruction for an old-but-still-extant shape
+    (guard 3) rather than a narration of what this plugin used to do."""
+    return bool(OPERATIVE_BACKCOMPAT_RE.search(_match_window(text, start, end)))
+
+
+def _defines_legacy_era(text: str) -> bool:
+    """True if the file itself defines `legacy` as an Odoo ERA in a heading (guard 1e)."""
+    return any(ODOO_VERSION_ANCHOR_RE.search(h) for h in LEGACY_ERA_HEADING_RE.findall(text))
+
+
+def _inside_quoted_example(text: str, pos: int) -> bool:
+    """True if `pos` sits inside a double-quoted span - a QUOTED EXAMPLE (a user utterance in a
+    routing trigger list, a literal string), which is never the file asserting its own history.
+    Parity is counted from the start of the enclosing blank-line-delimited block so a wrapped YAML
+    `description:` or a multi-row trigger table is measured as one unit."""
+    block_start = text.rfind("\n\n", 0, pos) + 2
+    return text.count('"', block_start, pos) % 2 == 1
 
 
 def check_no_provenance(findings: list[str]) -> None:
-    """15. [no-provenance] - see module docstring. Agent-facing prose carries no changelog/
-    issue-tracking provenance (`(V-34)`, `(Problem 3)`, ...) - that history belongs in git, not in
-    the per-invocation path."""
-    scope_files = list(SKILLS_DIR.rglob("*.md")) + list(SNIPPETS_DIR.rglob("*.md"))
-    if AGENTS_DIR.exists():
-        scope_files += list(AGENTS_DIR.glob("*.md"))
-    for f in scope_files:
+    """15. [no-provenance] - see module docstring. Agent-facing prose carries no PLUGIN-SELF
+    changelog / issue-tracking provenance (`(V-34)`, `Replaces X`, `legacy <old name of ours>`,
+    `see PR #12`, ...) - that history belongs in git, not in the per-invocation path. What passes:
+    DOMAIN history (guards 1/1b/1c/1d), a legacy era the document itself defines (1e), a quoted
+    example (2), and an OPERATIVE back-compat instruction about a shape that still exists (3)."""
+    for f in agent_facing_files():
         text = f.read_text(encoding="utf-8")
         rel = f.relative_to(PLUGIN_ROOT)
+        legacy_era_file = _defines_legacy_era(text)
         for m in NO_PROVENANCE_RE.finditer(text):
+            token = m.group()
+            if _is_domain_context(text, m.start(), m.end()):
+                continue
+            if _inside_quoted_example(text, m.start()):
+                continue
+            if BACKCOMPAT_ELIGIBLE_RE.search(token) and _is_operative_backcompat(text, m.start(), m.end()):
+                continue
+            if legacy_era_file and token.strip().lower() == "legacy":
+                continue
             line_no = text.count("\n", 0, m.start()) + 1
-            findings.append(f"[no-provenance] {rel}:{line_no}: {m.group()!r}")
+            findings.append(f"[no-provenance] {rel}:{line_no}: {token!r}")
 
 
 def main(argv: list[str]) -> int:

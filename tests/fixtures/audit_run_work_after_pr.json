@@ -1,0 +1,64 @@
+{
+  "run_id": "work-after-pr-20260806-e5f6",
+  "schema_version": "run/1.0",
+  "intent": "add a discount ceiling, then keep coding after the PR is up",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 3},
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["mod_a/models/a.py"],
+      "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
+    },
+    {
+      "id": "land",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/repo/pull/1"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
+    },
+    {
+      "id": "i18n-reconcile",
+      "approach": "odoo-i18n",
+      "approach_kind": "skill",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "READY",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "monitor-1",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "inputs": {"pr": "https://example.invalid/org/repo/pull/1"},
+      "depends_on": ["land"],
+      "gate_tier": "L2",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/repo/pull/1"],
+    "summary": "PR opened while the i18n reconcile of the pre-PR tail was still unfinished"
+  }
+}

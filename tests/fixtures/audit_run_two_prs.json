@@ -1,0 +1,68 @@
+{
+  "run_id": "two-prs-20260806-c3d4",
+  "schema_version": "run/1.0",
+  "intent": "add a discount ceiling across two modules",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 4},
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["mod_a/models/a.py"],
+      "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
+    },
+    {
+      "id": "land-wave-1",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/repo/pull/1"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
+    },
+    {
+      "id": "wave-2",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "inputs": {},
+      "depends_on": ["land-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["mod_b/models/b.py"],
+      "contract": {"status": "DONE", "produced": ["mod_b/models/b.py"], "next": []}
+    },
+    {
+      "id": "land-wave-2",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "inputs": {},
+      "depends_on": ["wave-2"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/repo/pull/2"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/2"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "wave-2", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [
+      "https://example.invalid/org/repo/pull/1",
+      "https://example.invalid/org/repo/pull/2"
+    ],
+    "summary": "per-wave PR topology - the defect this audit exists to catch"
+  }
+}
