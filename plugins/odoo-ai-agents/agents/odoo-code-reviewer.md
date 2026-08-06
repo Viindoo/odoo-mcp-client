@@ -247,7 +247,7 @@ explain why it is preferred over the submitted implementation.>
 than advice to a human; this agent is read-only and produces findings only, so it does not spawn
 the reviewer itself: `next: odoo-debug` (reason=reactivity/render-failure finding) or
 `next: odoo-ui-review` (reason=layout/styling finding), low confidence (advisory - not a
-blocker). Do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34). The
+blocker). Do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form. The
 orchestrator decides whether to run it.>
 ````
 
@@ -326,7 +326,7 @@ Detailed rules + severity live in `### Test coverage of the behavior` (under `##
 
 Before finishing, APPEND your significant findings to the run worklog - CRITICAL/HIGH findings, design-principle deviations, blast-radius ripples, unmet TDD acceptance criteria, and any missing-test gap - so later phases inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` with `inputs: {odoo_version: <the version pinned in Step 0>, report_path: <this report>, design_doc: <path, when present>, ...}` so the fix runs against the same pinned version; if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing` with `inputs: {odoo_version: <same version>, ...}`. If Step 3.6 deferred the deprecation audit because the module is mid-upgrade, also emit `next: odoo-modules-upgrade` with `inputs: {odoo_version: <same version>, module: <module>, ...}` instead of invoking `odoo-deprecation-audit` inline. When a finding touches an OWL component, an XML view, or SCSS (`### Visual verification suggested` above), also emit `next: odoo-debug` (reactivity/render-failure finding) or `next: odoo-ui-review` (layout/styling finding), `confidence: 0.4` (advisory, not a blocker) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34).
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` with `inputs: {odoo_version: <the version pinned in Step 0>, report_path: <this report>, design_doc: <path, when present>, ...}` so the fix runs against the same pinned version; if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing` with `inputs: {odoo_version: <same version>, ...}`. If Step 3.6 deferred the deprecation audit because the module is mid-upgrade, also emit `next: odoo-modules-upgrade` with `inputs: {odoo_version: <same version>, module: <module>, ...}` instead of invoking `odoo-deprecation-audit` inline. When a finding touches an OWL component, an XML view, or SCSS (`### Visual verification suggested` above), also emit `next: odoo-debug` (reactivity/render-failure finding) or `next: odoo-ui-review` (layout/styling finding), `confidence: 0.4` (advisory, not a blocker) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form.
 
 ## Brief self-check
 

@@ -1,0 +1,134 @@
+{
+  "_comment": "SSOT fixture for tests/test_inversion_scope_preserved.py (PR7/M9). The 14 path:line items the audit measured as BEHAVIOR-changing (not merely cost-changing) if their adjacent explanation is removed during the wave-7 contract-inversion pass. Each 'sentences' entry must survive, whitespace-normalized, verbatim in its file after every commit of the wave and forever after. Two are hang/deadlock risks (ids 1-2); the rest silently destroy a guarantee (mutual exclusion, OOM bound, lease-leak visibility, status-enum authority, blocked_reason groundedness, teardown obligation, base-branch correctness, evidence placement, lead-strand prevention, active-run data safety, red-before-green semantics).",
+  "items": [
+    {
+      "id": 1,
+      "file": "snippets/module-coordination-ledger.md",
+      "lines": "194-196",
+      "hazard": "HANG (infinite re-queue) - without the failed-sibling exclusion, decision-table case 2 re-queues a dependent forever",
+      "sentences": [
+        "it will never complete, so a re-queue would loop forever; it falls"
+      ]
+    },
+    {
+      "id": 2,
+      "file": "snippets/spawner-completion-contract.md",
+      "lines": "R1 (barrier release condition)",
+      "hazard": "DEADLOCK - a barrier gated on a tool-native label the tool never exposes can never release",
+      "sentences": [
+        "a barrier gated on a\ntool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable\nand must never be the release condition."
+      ]
+    },
+    {
+      "id": 3,
+      "file": "snippets/module-coordination-ledger.md",
+      "lines": "118-129",
+      "hazard": "MUTUAL EXCLUSION DESTROYED - the obvious simplification (mkdir -p everywhere) defeats the atomic-mkdir lock",
+      "sentences": [
+        "NEVER `mkdir -p` on the per-module dir - `-p` succeeds on",
+        "an already-existing dir and would defeat the mutual exclusion"
+      ]
+    },
+    {
+      "id": 4,
+      "file": "skills/_shared/concurrency-guard.md",
+      "lines": "64-76",
+      "hazard": "OOM regression (unbounded-opus-fanout-oom) - an unstated model silently inherits the caller's tier",
+      "sentences": [
+        "never leave `model` unstated \"to be safe\" - silence is not neutral, it is a hidden opus default."
+      ]
+    },
+    {
+      "id": 5,
+      "file": "snippets/instance-handle-contract.md",
+      "lines": "78-83",
+      "hazard": "Lease leak invisible to enforcement - self-provisioning via a sub-agent hides the acquire call from the SubagentStop teardown gate's transcript correlation",
+      "sentences": [
+        "the SubagentStop\nteardown gate correlates a live lease to YOUR dispatch by finding the `allocator.py acquire`\ncall in YOUR transcript, so provisioning through a sub-agent makes your own leak invisible to it"
+      ]
+    },
+    {
+      "id": 6,
+      "file": "snippets/continuation-contract.md",
+      "lines": "60-73",
+      "hazard": "Status-enum authority confusion - conflating this file's status enum with ODOO-AI-ETHOS #10's different DONE_WITH_CONCERNS field",
+      "sentences": [
+        "it is NOT the authority for the four-value `status` enum above, which\nthis file declares in its own right and which diverges from ETHOS #10's own value set"
+      ]
+    },
+    {
+      "id": 7,
+      "file": "snippets/continuation-contract.md",
+      "lines": "79-87",
+      "hazard": "Ungrounded blocked_reason - without the decidability check, a copy-paste-generic blocked_reason passes silently",
+      "sentences": [
+        "if you could swap in a different module, task, or\ncaller and the sentence would read equally true unchanged, it names nothing and fails this rule"
+      ]
+    },
+    {
+      "id": 8,
+      "file": "snippets/resource-teardown-contract.md",
+      "lines": "22-24,38-46,165-174",
+      "hazard": "Browser/instance teardown-rule conflation - three separate clauses prevent (a) an instance-only prohibition being misread onto browser pages, (b) 'advisory enforcement' being misread as 'no obligation', (c) the two teardown tiers being equalized",
+      "sentences": [
+        "not forbid, and never excuses skipping, the browser CLOSE rules below.",
+        "You remain contract-bound to close\n  every page you opened before DONE; only the ENFORCEMENT tier differs, not the obligation.",
+        "Do not equalize them in either direction - tightening browsers to a ledger-block or loosening\n  instances to advisory-only breaks this design; the asymmetry is intentional, not an oversight."
+      ]
+    },
+    {
+      "id": 9,
+      "file": "snippets/git-delegation.md",
+      "lines": "162-172",
+      "hazard": "Leaf-vs-spawner git-ops confusion - without the agent-launch-capability discriminator, a launched-by-an-agent leaf could be mistaken for a spawner allowed to invoke git-ops",
+      "sentences": [
+        "The discriminator is agent-launch capability, not \"was I launched by an agent\":"
+      ]
+    },
+    {
+      "id": 10,
+      "file": "snippets/git-delegation.md",
+      "lines": "51-59",
+      "hazard": "Base-branch defect reintroduced - resolving `base` from the invoking checkout's ambient branch is the exact defect this rule exists to close",
+      "sentences": [
+        "it MUST NEVER be the value assigned to a `base` / `work-base` /\nRepo Capability Card `base` field."
+      ]
+    },
+    {
+      "id": 11,
+      "file": "snippets/state-root-resolution.md",
+      "lines": "248-259",
+      "hazard": "Scattered evidence files - without the family-conditional refusal fallback, playwright/pagecast would write an untracked file with no destination on resolver refusal",
+      "sentences": [
+        "Both families write by default and neither can be told where; scattering files is\n  the defect this rule exists to prevent."
+      ]
+    },
+    {
+      "id": 12,
+      "file": "snippets/agent-team-protocol.md",
+      "lines": "76-79",
+      "hazard": "Silent lead-strand - the file's own annotation marks this rationale load-bearing, not narration",
+      "sentences": [
+        "**Rationale (state it; it is load-bearing, not narration):** in Agent Team mode your plain text and\nyour written files are invisible to the lead; only `SendMessage` delivers the report."
+      ]
+    },
+    {
+      "id": 13,
+      "file": "snippets/worklog-contract.md",
+      "lines": "81-92",
+      "hazard": "Active-run data loss - without the mtime-refresh explanation, the destructive orphan-sweep `rm -rf` could be 'simplified' into deleting a still-active run's worklog dir",
+      "sentences": [
+        "a directory's own\nmtime refreshes every time ANY writer appends a new per-writer file inside it, so a still-active\nrun is never touched"
+      ]
+    },
+    {
+      "id": 14,
+      "file": "snippets/test-first-contract.md",
+      "lines": "51-59",
+      "hazard": "Red-before-green misapplication - without this distinction, a forward-ported test's RED-on-target could be treated as a violation of red-before-green instead of the platform-gap signal it is",
+      "sentences": [
+        "This is **different from red-before-green** (writing a new test that fails first)."
+      ]
+    }
+  ]
+}

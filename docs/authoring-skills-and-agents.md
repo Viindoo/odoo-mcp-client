@@ -215,6 +215,26 @@ Names encode role so a router can tell the layers apart even when a name appears
   is 100% generated - never hand-edit it). `make gen` must be idempotent: a clean tree produces
   zero diff (`make gen-check` enforces this in CI).
 
+## 6.5. Shared contracts: decidable rule vs. explanation (`snippets/references/`)
+
+Every `snippets/*.md` (and `skills/_shared/*.md`) file cited by 3+ distinct skills+agents is a
+HOT file, loaded into many cold agent contexts per run - its byte size is a per-invocation cost.
+When authoring or editing one, keep it to DECIDABLE RULES ONLY (thresholds, exceptions, schemas,
+procedures a reader can act on without further judgment). Move rationale, worked examples, and
+historical "why" prose to a sibling `snippets/references/<name>.md` - a file for humans and future
+authors doing repo archaeology, not for a runtime agent.
+
+**The read-both hazard - the one hard rule.** The main file must NEVER name its `references/`
+sibling's path, in any form (no "see snippets/references/X.md for more"). If an executing agent is
+shown that path, it may read both files and the byte-cost saving is lost. `snippets/references/`
+is discoverable only from this section and from `[ref-scope]`'s lint (`check_orchestration.py`),
+which also asserts no consumer-facing file contains the literal substring `snippets/references/`.
+
+`[card-budget]` (same lint) asserts every hot file stays under its declared budget
+(`tests/fixtures/card_budget_grandfather.json` for files that already exceeded the 4,096 B default
+cap when their budget was recorded, else the default cap itself) - grow one deliberately, never
+silently.
+
 ## 7. Confidentiality and style (public repo)
 
 - ASCII hyphen `-` (U+002D) only - no en/em/figure dashes (enforced for several snippets, e.g.

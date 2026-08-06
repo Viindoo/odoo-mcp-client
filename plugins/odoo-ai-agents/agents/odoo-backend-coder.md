@@ -262,7 +262,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 
 If any item is unmet, re-implement, or emit a structured signal stating what blocks finishing to the original requirements.
 
-If the change includes view XML that affects form/list rendering, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34).
+If the change includes view XML that affects form/list rendering, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form.
 
 ## Examples
 
