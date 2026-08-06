@@ -6,6 +6,75 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.21.0] - 2026-08-06
+
+### Added
+
+- `odoo-ai-agents` - a new `SubagentStop` hook records each dispatched agent that stops carrying no
+  terminal status, or that leaves a tool call unresolved, so the rate of silently-stopped agents is
+  measurable instead of inferred. It fails open: if its dependencies or state directory are
+  unavailable, it exits without affecting the session.
+
+### Fixed
+
+- `odoo-ai-agents` + `git-toolkit` - agents carried contradictory rules for whether they could launch
+  a child and receive its result; some instructions produced an agent that ended its turn with no
+  output and no error, indistinguishable from a normal finish. There is now one rule: an agent
+  inspects its own launch capability and branches - no capability means it is at the nesting cap, so
+  it works inline or returns; a blocking-launch switch means it launches blocking and gets the result
+  in the same turn; no such switch means it launches async and ends its turn to be resumed, never
+  polling. An agent must never end a turn with uncommitted work. A stale nesting-depth figure in the
+  reference docs was corrected at the same time. Closes #204, #205.
+- `git-toolkit` - the toolkit detected each repo's commit-message convention but never enforced it: a
+  caller-supplied message reached `git commit` guarded only by a comment, and one skill hardcoded a
+  third format of its own and passed it through as a literal. A supplied message is now validated
+  against the detected convention, rewritten when the intent is recoverable, and refused when it is
+  not; the sign-off is applied by the commit command itself and verified as a post-condition rather
+  than assumed up front; and the skill that hardcoded its own format now requests a commit by naming
+  the touched files and the business outcome, leaving the message to the toolkit.
+- `odoo-ai-agents` - the plugin carried three incompatible status vocabularies and three different
+  gate-reply keyword sets, mixed within single files, so an executing agent had to reconcile them at
+  every handoff and every gate. One status value was
+  emitted by several skills but recognized by neither the continuation parser nor the run loop, so a
+  real caveat used to vanish with no signal at all. A single glossary now owns the
+  continuation-status enum, both gate-reply keyword sets, and the operative meaning of terms that
+  were overloaded across the plugin; consumers point at it instead of restating it.
+- `odoo-ai-agents` - twenty-five agents that cannot launch anything were still citing the
+  delegation-and-await contract that governs launching, regardless of whether they could spawn
+  anything - pulling roughly 640,000 bytes of unusable guidance into cold contexts that could never
+  act on it. The citation is now kept only on the coordinator that actually launches teammates, with
+  the few clauses a leaf genuinely needed inlined into the brief contracts it already reads.
+  Separately, five dispatch briefs sent field names that disagreed with what the receiving agent's
+  contract required - in one case every concurrent worker was directed at the same output filename -
+  so briefs now carry resolved values and real addresses in place of pointers a callee would
+  otherwise have to go resolve itself, and each caller sends the field names its callee documents.
+  The hottest shared contracts (`dispatch-brief`, `git-delegation`, `module-coordination-ledger`,
+  `agent-team-protocol`, `worker-brief`, `spawner-completion`, `continuation-contract`,
+  `worklog-contract`, `test-first-contract`, `instance-handle-contract`, `resource-teardown-contract`,
+  `concurrency-guard`, `state-root-resolution`) keep their normative rules in the always-loaded
+  snippet and move their rationale/explanation into a companion reference file executing agents are
+  never pointed at.
+- `odoo-ai-agents` - the SSOT generator's injector stopped regenerating at the first end marker, so a
+  file carrying a second marker pair had that region frozen indefinitely and invisible to the
+  idempotency check, since nothing was ever written there to diff; a second marker pair is now a loud
+  error. In the tool registry, five live capabilities were undocumented, leaving three of them
+  unreachable from anywhere in the plugin; several skills called tools their own registry entry
+  omitted; two skills declared a far older minimum server version than the tools they actually use;
+  and one skill claimed it made no tool calls while making seven. The dependency checker now also
+  verifies that every tool named in hand-written prose is declared, ignores tools named only to
+  forbid them, and fails by default rather than warning.
+- `git-toolkit` - the safety contract required every mutation to run in a dedicated worktree and
+  never touch the shared checkout, but gave no compliant way back once a shared checkout had already
+  accrued uncommitted work - the only remedy read as a violation, so operators correctly refused it.
+  A single narrowly-scoped restore path now exists, still behind the human-confirm gate and still
+  requiring proof the work survives elsewhere before anything already in the shared checkout is
+  discarded. Separately, the nesting protocol now runs a positional self-check before an agent's
+  first mutation, instead of only noticing a drift back to the shared checkout after the fact.
+
+### Changed
+
+- `git-toolkit` bumped 0.6.1 -> 0.6.3 across two intermediate patch cuts (versions independently).
+
 ## [4.20.3] - 2026-08-04
 
 ### Fixed
