@@ -277,13 +277,13 @@ After P4 adapts the cluster into the integration worktree, dispatch `odoo-code-r
 Skill tool) per adapted module IN DEP ORDER (leaves first), scoped to that module's adapt diff
 (`TARGET: worktree:<path>/upg-integration`, module-scoped; DELETE-absorbed/OBSOLETE modules have no
 adapt diff - skip them). On any CRITICAL/HIGH finding for a module, dispatch `odoo-coding` (same
-ADAPT tier) to fix to root cause, then RE-REVIEW that module; MED/LOW are recorded for the P7 PR
-review, not blocking. Cap at 3 review->fix iterations per module: a 3rd iteration still CRITICAL/HIGH
+ADAPT tier) to fix to root cause, then RE-REVIEW that module; MED/LOW are recorded for the P7
+pre-PR review, not blocking. Cap at 3 review->fix iterations per module: a 3rd iteration still CRITICAL/HIGH
 STOPS and escalates BLOCKED per ETHOS #7. Proceed to P5 ONLY when every adapted module's review
 returns no CRITICAL/HIGH. Full delegation - the orchestrator dispatches reviewer + fixer, never
 reviews or fixes inline. Write `<module>: reviewed` in checkpoint.json. Brief + loop protocol:
-`references/upg-phase-detail.md` P4b. This is the in-pipeline review; the final pre-merge dep-order
-review stays at P7 (two review points total).
+`references/upg-phase-detail.md` P4b. This is the in-pipeline review; the final dep-order
+review stays at P7 (two review points total) - both clear before the PR opens.
 
 **P4b acceptance hand-off (consumption clause).** Each dispatched `odoo-code-review`'s
 Continuation Contract MAY carry a `next: odoo-acceptance` entry - its Phase A.5 emits this
@@ -364,19 +364,27 @@ Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the 
 DELETED-absorbed modules + their reasons) + the P5.8 acceptance verdict (or its recorded
 narrow-escape). Wait for human sign-off before the PR.
 
-**P7 - PR + review [human merge].**
+**P7 - Final review + PR [human merge].**
+Stage order inside this phase is the **Terminal stage order** constant
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+owner): every code-changing check clears, THEN the PR opens. Do not reorder it locally.
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
 add a convention-compliance pass (manifest version-form + always-invisible XML comment + rename
 via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).
-Push branch and open PR: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push the
-branch, then to create the PR - resolve upstream org/repo and base from `git remote get-url origin`.
+Then delegate the final dep-order code review of the integration worktree - via the plugin's review
+capability, passing `worktree:<path>/upg-integration` and asking it to review modules in dependency
+order - and fix its CRITICAL/HIGH findings on that worktree. This review can force CODE CHANGES, so
+it runs BEFORE the PR opens; a review landing on an open PR makes the PR churn and leaves regression
+testing chasing a moving target.
+ONLY once that review is clean, push branch and open PR: invoke the `git-toolkit:git-ops` skill (via
+the Skill tool) to push the branch, then to create the PR - resolve upstream org/repo and base from
+`git remote get-url origin`.
 No cluster-squash (per-module consolidation is allowed - see `references/upg-phase-detail.md` § Commit consolidation).
-Delegate a dep-order code review of the integration worktree before human merge (via the
-plugin's review capability, passing `worktree:<path>/upg-integration` and asking it to
-review modules in dependency order). Wait for human merge.
+After the PR exists, only PR-OBSERVING work remains (CI-failure triage, the human merge). Wait for
+human merge.
 
 ## Hard rules
 
@@ -530,4 +538,5 @@ Contract payload and the run YIELDS. Additive output for the run-harness - does 
 anything produced above.
 Note: this workflow has TWO review points - the P4b in-pipeline code-review loop (per module,
 dep order, fix-until-clean, findings folded into the module rows of `install-test.md`) and the
-P7 final dep-order PR review (pre-merge). Both are required; neither substitutes for the other.
+P7 final dep-order review of the integration worktree, which clears BEFORE the PR opens. Both are
+required; neither substitutes for the other.

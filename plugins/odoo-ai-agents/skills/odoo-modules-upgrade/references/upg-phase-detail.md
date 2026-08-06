@@ -650,7 +650,8 @@ be re-dispatched with the root cause from the debugger. Fix to that root cause o
 
 Goal: review each adapted module's diff BEFORE the P5 ephemeral-instance install/test waves,
 fixing in a loop until no CRITICAL/HIGH remains. Two review points exist: this in-pipeline loop
-and the final P7 dep-order PR review - do NOT remove P7.
+and the final P7 dep-order review of the integration worktree, which runs ahead of the PR - do NOT
+remove P7.
 
 For each adapted module in topo_order (leaves first); skip DELETE-absorbed/OBSOLETE (no adapt diff):
 
@@ -841,7 +842,11 @@ Keep exactly ONE commit per module; never one commit per cluster.
 
 ---
 
-## P7 - PR creation command
+## P7 - Final review, then PR creation command
+
+Stage order inside this phase is the **Terminal stage order** constant
+(${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md § Pre-PR tail, its ONE
+owner): checklist -> final dep-order review -> push -> open PR. Do not reorder it locally.
 
 **Pre-PR checklist (extends P6 sign-off).** Run the Runbot parity gates
 (${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md) PLUS
@@ -855,6 +860,24 @@ these three passes before opening the PR, each cross-referencing its owning snip
 - i18n: P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape
   (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` § Escape hatches) - never a silent
   content-diff skip.
+
+**Final dep-order review (runs BEFORE the push and the PR - it can force CODE CHANGES).**
+Delegate the review of the integration worktree with the brief below, fix every CRITICAL/HIGH
+finding on `<path>/upg-integration` (dispatch `odoo-coding` at the module's ADAPT tier, the SAME
+loop shape as § P4b), and review again until none remains; MED/LOW are recorded on the module rows
+of `install-test.md`. Only when it returns no CRITICAL/HIGH do the push and PR steps below run - a
+review landing on an already-open PR makes the PR churn and leaves regression testing chasing a
+moving target.
+
+Review delegation brief:
+```
+TARGET: worktree:<path>/upg-integration
+REVIEW ORDER: <topo_order from graph.md> (leaves first)
+CONTEXT: cross-major upgrade <src>-><tgt> for cluster <cluster>
+         modules in scope: <cluster_list>
+         breaking changes applied: see version-delta.md
+         deleted modules: <delete_list> (absorbed by core or obsolete - do NOT raise business findings for these)
+```
 
 **PR body construction (pre-render from structured artifacts - not grep of plan.md prose):**
 The orchestrator constructs adapted-modules and deleted-modules lists from the structured
@@ -887,15 +910,8 @@ Please review modules in dependency order (leaves first):
    from `git remote get-url origin`; head `upg/<src>-<tgt>-<cluster>`; title
    `<cluster> cluster upgrade <src>-><tgt>`; body from the PR body template above.
 
-Review delegation brief:
-```
-TARGET: worktree:<path>/upg-integration
-REVIEW ORDER: <topo_order from graph.md> (leaves first)
-CONTEXT: cross-major upgrade <src>-><tgt> for cluster <cluster>
-         modules in scope: <cluster_list>
-         breaking changes applied: see version-delta.md
-         deleted modules: <delete_list> (absorbed by core or obsolete - do NOT raise business findings for these)
-```
+After the PR exists, only PR-OBSERVING work remains: CI-failure triage and the human merge. Do NOT
+delegate another worktree review here - the final review above already cleared.
 
 ---
 

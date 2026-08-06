@@ -292,21 +292,24 @@ Mode: continuous | one-shot
 Integration worktree: <path>  (branched from <target-branch>, B untouched)
 Modules (<N>, after --scope/--since filter):
 
-## Module: account_reports  (EXTRACT tier: sonnet)
+Outcome at target: (a) already in the target · (b) still needed, APIs compatible ·
+(c) still needed, the old API is gone (re-implement) · (d) no longer relevant.
 
-| SHA | summary | bucket | ADAPT tier | installable routing | design_doc |
-|-----|---------|--------|------------|----------------------|------------|
-| abc1234 | double-post guard | (b) | sonnet | normal | - |
+## Module: account_reports  (intent read at EXTRACT tier: sonnet)
 
-## Module: report_engine_custom  (EXTRACT tier: opus - CONFIRMED at Plan Mode: cross-module report
-engine rewrite)
+| SHA | what it does | outcome at target | model that writes the port | ships on target? | design doc |
+|-----|--------------|-------------------|----------------------------|------------------|------------|
+| abc1234 | double-post guard | (b) APIs compatible | sonnet | yes | - |
 
-| SHA | summary | bucket | ADAPT tier | installable routing | design_doc |
-|-----|---------|--------|------------|----------------------|------------|
-| def5678 | new report engine | (c) do-now | opus | normal | <SHARE_DIR>/designs/...md |
+## Module: report_engine_custom  (intent read at EXTRACT tier: opus - CONFIRMED at Plan Mode:
+cross-module report engine rewrite)
 
-Fable rows (if any, ADAPT tier only - Table 1 has no fable band): <module>: <sha> - <why> (~2x
-opus). (confirmed in Plan Mode)
+| SHA | what it does | outcome at target | model that writes the port | ships on target? | design doc |
+|-----|--------------|-------------------|----------------------------|------------------|------------|
+| def5678 | new report engine | (c) old API gone - re-implement, do now | opus | yes | <SHARE_DIR>/designs/...md |
+
+Deepest-reasoning rows (if any, ADAPT tier only - Table 1 has no fable band): <module>: <sha> -
+<why> (about 2x the cost of the tier below). (confirmed in Plan Mode)
 Opus-declined / gate-suppressed downgrades (if any, EXTRACT tier): <module>: sonnet (opus declined
 | opus auto-downgraded - gate suppressed)
 ```

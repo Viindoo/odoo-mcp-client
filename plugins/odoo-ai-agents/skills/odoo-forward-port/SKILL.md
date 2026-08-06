@@ -129,9 +129,9 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 
 9. **Acceptance is mandatory (narrow escape only)** - P11 dispatches `odoo-acceptance` ONCE for
    the whole forward-ported batch BEFORE P12 pushes the branch, opens the PR, or runs its
-   lint-class review gate - the SAME relative order the sibling `run-harness` tail already
-   established (i18n, then acceptance, then the lint-class gate, then the PR:
-   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail),
+   lint-class review gate - the position the **Terminal stage order** constant assigns it
+   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail is that
+   constant's ONE owner: read the order there, never restate it here),
    mirroring the rigor a new module build gets. This is NOT opt-in: skip it only when the touched
    module set is a true dependency leaf with zero in-repo dependents and no behavioral surface,
    and record that proof - never skip silently. The forward-port is not DONE without an ACCEPTED
@@ -673,13 +673,12 @@ merge or a symbol/drift check.
 **P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
 only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
 commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
-the PR, or runs its lint-class review gate - the SAME relative order the sibling `run-harness`
-tail already established for its own pre-PR sequence (i18n, then acceptance, then the lint-class
-gate, then the PR: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` §
-Pre-PR tail). Acceptance and the i18n reconcile (P9.5, already mandatory per batch, ahead of every
-P10 gate) both land ahead of the PR and its review for the same reason run-harness gives: neither
-a PR reviewer nor a merge decision should be presented before the run's own independent oracle has
-adjudicated the batch. Goal: prove the forward-ported batch works end-to-end on a real running
+the PR, or runs its lint-class review gate - the position the **Terminal stage order** constant
+assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail
+is that constant's ONE owner: read the order there, never restate it here). Acceptance and the i18n
+reconcile (P9.5, already mandatory per batch, ahead of every P10 gate) both land ahead of the PR and
+its review for the reason the constant states: a stage that can force a CODE CHANGE runs before the
+PR opens, so the PR does not churn and regression testing is not chasing a moving target. Goal: prove the forward-ported batch works end-to-end on a real running
 instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies. P9's per-batch
 verify-by-behavior proves RED-then-GREEN + confirm-by-toggle for the ported intent tests; it does
 NOT prove the touched cluster behaves correctly for a real user across roles/state/search -
@@ -722,8 +721,9 @@ from `merge-log.md`.
 inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
 JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
 so the skill reviews the fp integration tree, not the principal tree - this lint-class review gate
-runs BEFORE the PR is opened, same order as P11 above (SSOT: the sibling `run-harness` Pre-PR
-tail cited above). It is OPTIONAL for a trivial port
+runs BEFORE the PR is opened, at the position the **Terminal stage order** constant assigns it
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). It can
+force code changes, so it must precede the PR, not follow it. It is OPTIONAL for a trivial port
 (docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
 group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -

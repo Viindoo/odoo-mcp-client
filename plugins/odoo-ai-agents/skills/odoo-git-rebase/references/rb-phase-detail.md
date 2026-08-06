@@ -480,7 +480,7 @@ Two-arg onto form: target <new-base>, upstream <old-base>. Avoids 'already used 
 ## Conflict-resolution policy
 Resolve each stopped commit to INTENT on the new-base idiom via the `odoo-coding` skill
 (dispatched through the Skill tool; it owns the backend/frontend coder fan-out and synthesis).
-Review is the `odoo-code-review` skill (P9b in-pipeline + P12 final PR review).
+Review is the `odoo-code-review` skill (P9b in-pipeline + P12 final pre-PR review).
 outcome-(a) stops -> git-ops skips that commit (--skip).
 Never leave a line referencing a renamed/moved symbol.
 
@@ -758,8 +758,8 @@ RULE: Forward the source test as the behavioral oracle. Adapt API to target idio
 ## P9b - Code-review loop (in-pipeline; fix-until-clean before verify)
 
 Goal: catch review-class defects in the just-adapted diff BEFORE the P10 verify, fixing in a loop
-until no CRITICAL/HIGH remains. Two review points exist: this in-pipeline loop and the final P12 PR
-review - do NOT remove P12.
+until no CRITICAL/HIGH remains. Two review points exist: this in-pipeline loop and the final P12
+review of the whole integration worktree, which runs ahead of the PR - do NOT remove P12.
 
 Dispatch (orchestrator -> Skill tool, full delegation):
 
@@ -883,10 +883,21 @@ P9 for test failures) before re-presenting.
 
 ---
 
-## P12 - PR + review
+## P12 - Final review + PR
 
-Resolve the fork remote name and upstream org/repo from `git remote get-url origin` (bounded
-read, inline). Never hardcode the fork remote or upstream repo.
+Stage order inside this phase is the **Terminal stage order** constant
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+owner): review -> push -> open PR. Do not reorder it locally.
+
+**Step 1 (FIRST) - final code review of the integration worktree, BEFORE any push or PR.**
+Delegate a code review passing `TARGET: worktree:<WT_ROOT>/rb-integration`. This review can force
+CODE CHANGES, so it must clear first - fix CRITICAL/HIGH findings on that worktree (dispatch
+`odoo-coding` at the P8 ADAPT tier, the SAME loop shape as § P9b) and review again until none
+remains; MED/LOW are recorded in `rebase-log.md`. Only when the review returns no CRITICAL/HIGH do
+steps 2-3 run.
+
+**Step 2 - push.** Resolve the fork remote name and upstream org/repo from
+`git remote get-url origin` (bounded read, inline). Never hardcode the fork remote or upstream repo.
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push rb/<slug> to the fork remote:
 
@@ -898,7 +909,7 @@ remote: <fork-remote-name>  # resolved from git remote get-url origin
 confirmed: yes - human approved at P11
 ```
 
-Invoke git-ops to open the PR:
+**Step 3 - open the PR.** Invoke git-ops to open the PR:
 
 ```
 op: create PR for rebase result
@@ -923,11 +934,12 @@ body:
   <links if P5 fired, else "none">
 ```
 
-After the PR opens, delegate a code review of the integration worktree before merge:
-pass `TARGET: worktree:<WT_ROOT>/rb-integration`. Wait for human merge.
-NEVER squash commits. The `rb/<slug>` branch must merge as-is; the orchestrator does not
-rewrite commit messages (an outcome-(a) skip records the reason in `rebase-log.md`, not in
-a commit).
+**After the PR opens, only PR-OBSERVING work remains** - CI-failure triage and the human merge (the
+constant's post-PR band). Do NOT delegate another worktree code review here: step 1 above already
+cleared it, and a code-changing review on an open PR is exactly what makes the PR churn.
+Wait for human merge. NEVER squash commits. The `rb/<slug>` branch must merge as-is; the
+orchestrator does not rewrite commit messages (an outcome-(a) skip records the reason in
+`rebase-log.md`, not in a commit).
 
 ---
 
