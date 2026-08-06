@@ -93,7 +93,7 @@ drive-to-done continues autonomously (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/
 resolution, "NO per-wave stop"). The terminal closing push is, separately, a fresh FIRST push of the
 never-pushed run-integration branch (non-force, no history rewrite on any remote branch) - also NOT a
 destructive op, also firing no confirm gate; it runs as part of drive-to-done. The only human-gated
-LANDING is the downstream outward MERGE (odoo-pr-monitoring's L2-merge-gate). odoo-ai-agents
+LANDING is the downstream outward MERGE (odoo-pr-monitoring's merge approval gate). odoo-ai-agents
 (consumer) pointing at git-toolkit (provider) is the legal direction; git-toolkit never names a
 consumer.
 
