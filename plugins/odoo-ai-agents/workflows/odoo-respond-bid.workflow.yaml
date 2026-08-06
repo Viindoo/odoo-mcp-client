@@ -1,6 +1,5 @@
 # odoo-respond-bid.workflow.yaml
 # Declarative SSOT for the /odoo-respond-bid command.
-# Replaces the inline prose logic in commands/odoo-respond-bid.md.
 # Runner: skills/workflow-chaining - auto-discovered at runtime.
 name: odoo-respond-bid
 domain: presales
@@ -34,7 +33,7 @@ phases:
     # Checks for .odoo-ai/context.md; warns + offers /odoo-onboarding if absent.
     # Hard rules enforced inline:
     #   - Abstract labels only (no real company/contact names in saved files)
-    #   - No external writes before Gate 5
+    #   - No external writes before the assemble-proposal gate
 
   # ------------------------------------------------------------------
   # Phase 1 - Discovery synthesis
@@ -48,7 +47,7 @@ phases:
       contact names.
       Input: {prospect_input}
     model_tier: sonnet
-    gate: "yes / edit / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
   # Phase 2 - Gap analysis
@@ -63,7 +62,7 @@ phases:
       Flag Custom items as "to be quoted separately". Write the locked artifact set and
       report the run directory path so downstream phases can read it by file path.
     model_tier: sonnet
-    gate: "yes / edit / cancel"
+    gate: "approve / refine: [feedback] / cancel"
     # Artifact output (locked file-handoff contract; written by odoo-gap-analysis, READ by
     # capability-proof + objection-preempt + assemble-proposal instead of re-deriving from chat):
     #   .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl  - one JSON object per requirement
@@ -89,7 +88,7 @@ phases:
       with the note "to be quoted separately in commercial proposal". Odoo version: use
       .odoo-ai/context.md if available, else ask.
     model_tier: sonnet
-    gate: "yes / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
   # Phase 4a - Objection list (inline; GENERATES the objections[] fan-out input)
@@ -125,7 +124,7 @@ phases:
     model_tier: sonnet
     fanout: true
     chunk_by: objections
-    gate: "yes / edit / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
   # Phase 5 - Assemble proposal draft (inline assembly)
@@ -147,7 +146,7 @@ phases:
     # Extension/Custom items: "Custom development items will be quoted separately
     # after technical scope confirmation."
     # Confirms close_date and cost tier are consistent with Phase 0 inputs.
-    gate: "yes - save file + export / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # approve = save the proposal file and print it for copy-paste
 
   # ------------------------------------------------------------------
   # Phase 6 - Output (inline write)
@@ -155,7 +154,7 @@ phases:
   - id: output
     inline: true
     model_tier: inherit
-    # On Gate 5 confirm:
+    # On the assemble-proposal gate `approve`:
     #   1. Write .odoo-ai/bids/<customer_label>-<YYYY-MM-DD>.md (create dir if needed)
     #   2. Print full proposal to terminal for copy-paste
     #   3. Show summary: "Bid response saved: .odoo-ai/bids/<file>"

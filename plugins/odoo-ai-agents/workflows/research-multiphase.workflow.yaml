@@ -40,13 +40,13 @@ phases:
       (Standard/Config/Extension/Custom with sizing) and the evidence behind it, ready to fold
       into a synthesis.
     model_tier: sonnet
-    gate: "approve / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   # Phase 3 - synthesis: one high-tier pass unifying all deep-dive outputs into one brief.
   - id: synthesize
     inline: true
     model_tier: opus
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
 
 resume: true
 fallback: standalone

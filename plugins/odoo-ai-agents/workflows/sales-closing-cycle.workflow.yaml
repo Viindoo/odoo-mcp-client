@@ -64,7 +64,7 @@ phases:
   - id: next-step-plan
     inline: true
     model_tier: sonnet
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner assembles the final closing plan:
     #   1. Deal health summary (risk score + blocker)
     #   2. Recommended sequence of closing actions with owner and deadline band

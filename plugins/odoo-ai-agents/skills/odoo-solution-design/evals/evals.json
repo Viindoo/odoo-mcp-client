@@ -244,7 +244,7 @@
       "prompt": "[Programmatic invocation from odoo-forward-port] return_to=odoo-forward-port, target_version=18.0, modules=[account_reconcile_extra], intent_records=[.odoo-ai/forward-port/account_reconcile_extra/intent-<sha>.md], design_slug_hint=account-reconcile-extra-fp-18, classification=bucket-(c) module whose manifest was untouched by the cherry-pick range but OSM shows installable on 18.0. Design the adaptation.",
       "expected_decision": "return_to-dispatch",
       "expected_next_routing": "return_to:odoo-forward-port",
-      "expected_output": "Caller supplied return_to -> SKIP Phase 0 preview, dispatch architect, hand back to caller (no code Plan Mode, no coder).",
+      "expected_output": "Caller supplied return_to -> skip the scope question, dispatch architect, hand back to caller (no code Plan Mode, no coder).",
       "category": "return_to-dispatch",
       "assertions": [
         {

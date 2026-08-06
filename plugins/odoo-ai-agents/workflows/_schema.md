@@ -73,7 +73,7 @@ Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and
 | `agent` | string | ONE OF | Agent bundle name to launch for read-only passes (e.g. `odoo-code-reviewer`) |
 | `nl_trigger` | string | YES (if skill/agent) | NL prompt written to fire the target skill via description-match dispatch |
 | `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; `sonnet` is the floor for a WRITE/AUTHORING phase (any `skill:`/`agent:` phase producing net-new content). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
-| `gate` | string | NO | Gate options shown to user before this phase (e.g. `"yes / edit / cancel"`) |
+| `gate` | string | NO | Gate options shown to user before this phase. Exactly ONE of the two declared reply sets, verbatim, no third set: `"approve / refine: [feedback] / cancel"` (the phase output can be iterated on) or `"approve / skip / cancel"` (do-it-or-skip-it). SSOT: `snippets/planning-gate-contract.md` |
 | `when` | string | NO | Conditional predicate; phase fires only when it evaluates true (otherwise the runner skips the phase). Used by Expert-Pool for per-item specialist selection, and by Pipeline to carry mutually-exclusive conditional branches (e.g. `classification == 'bug'`) |
 | `fanout` | bool | NO | Fan-out pattern: split input by `chunk_by` and run parallel workers |
 | `chunk_by` | string | NO (with `fanout`) | Field name or expression to split the input for Fan-out |
@@ -144,12 +144,12 @@ phases:
       analysis effort matrix (Standard/Config/Extension/Custom + day estimates) ready
       for a proposal.
     model_tier: sonnet
-    gate: "approve / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   - id: synthesize
     inline: true
     model_tier: inherit
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"
 
 resume: true
 fallback: standalone

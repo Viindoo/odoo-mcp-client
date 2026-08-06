@@ -27,7 +27,7 @@ phases:
   - id: storyboard
     inline: true
     model_tier: sonnet
-    gate: "approve / edit / cancel"
+    gate: "approve / refine: [feedback] / cancel"
     # Runner collects:
     #   - project_label  (default "Demo-Project")
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
@@ -64,7 +64,7 @@ phases:
       Support retake: if the user marks a scene for retake,
       re-record that scene only (stop + close it too) before proceeding to assembly.
     model_tier: sonnet
-    gate: "approve-all / retake: [scene numbers] / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # refine: [scene numbers] re-takes just those scenes
 
   # ------------------------------------------------------------------
   # Phase 2 - Assemble clips into final deliverable (inline gate)
@@ -72,7 +72,7 @@ phases:
   - id: assemble
     inline: true
     model_tier: sonnet
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner assembles the individual scene clips into a single deliverable:
     #   1. Concatenate clips in storyboard order using pagecast convert_to_mp4 / convert_to_gif
     #      or, if concatenation is unavailable, produce a numbered frame sequence with a

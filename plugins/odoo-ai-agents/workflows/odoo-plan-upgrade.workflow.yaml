@@ -8,7 +8,7 @@ description: |
   Generate a comprehensive Odoo upgrade plan from source version to target version.
   Chains executive risk overview -> deprecation audit -> API/feature version diff ->
   action ordering + effort synthesis into one gated, developer-readable action checklist
-  and executive-readable effort estimate. Replaces the legacy odoo-upgrade-planner agent.
+  and executive-readable effort estimate.
   Trigger: "full upgrade plan", "upgrade from v16 to v17", "odoo migration plan",
   "upgrade plan with risk overview and deprecation audit", "end-to-end upgrade planning",
   "upgrade checklist and effort estimate"
@@ -29,7 +29,7 @@ phases:
       (breaking framework changes, OWL migration, removed APIs, ecosystem readiness), and
       a go/no-go signal with rationale.
     model_tier: sonnet
-    gate: "yes / dig deeper / cancel"
+    gate: "approve / refine: [feedback] / cancel"   # refine: [feedback] re-runs the overview deeper
 
   - id: deprecation-audit
     skill: odoo-deprecation-audit
@@ -40,7 +40,7 @@ phases:
       STYLE (optional cleanup; no functional impact). Show a count summary first, then the
       full findings table (file | symbol | line | tier | recommended replacement).
     model_tier: sonnet
-    gate: "yes / export / cancel"
+    gate: "approve / skip / cancel"   # export is an option of the phase itself, not a gate reply
 
   - id: version-diff
     skill: odoo-version-diff
@@ -51,7 +51,7 @@ phases:
       qweb template namespaces or view keys, and any relevant ir.model.data external ID
       renames.
     model_tier: sonnet
-    gate: "yes / cancel"
+    gate: "approve / skip / cancel"
 
   # ------------------------------------------------------------------
   # Phase synthesis - action ordering + effort estimate + assemble (inline)
@@ -61,7 +61,7 @@ phases:
   - id: synthesis
     inline: true
     model_tier: opus
-    gate: "save / terminal / cancel"
+    gate: "approve / skip / cancel"   # approve = produce the plan; skip = skip this phase, no plan produced; cancel = abort
     # 1. ACTION ORDERING - fixed order regardless of which items are present:
     #    (1) Pre-flight CRITICAL fixes (BREAKING tier from deprecation audit + any
     #        CRITICAL risk factors needing code changes before upgrade starts)
@@ -92,8 +92,10 @@ phases:
     #    API and Feature Diff (Phase 3), Action Order (this phase, numbered with
     #    severity + owner), Effort Estimate (table + totals + deadline fit),
     #    Rollback Plan (expanded snapshot procedure + decision criteria + owner).
-    # On gate "save": write .odoo-ai/upgrade-plans/<source>-<target>-<YYYY-MM-DD>.md
-    # (create dir if needed). On "terminal": display only, no file. On "cancel": discard.
+    # On gate `approve`: ask a separate output-destination question - save the plan to a file, or
+    # show it in chat only? File -> write .odoo-ai/upgrade-plans/<source>-<target>-<YYYY-MM-DD>.md
+    # (create dir if needed). Chat-only -> display the plan in chat, write nothing.
+    # On gate `skip`: produce no plan. On `cancel`: discard.
     # Standalone (OSM unreachable): mark degraded phases with TBD placeholders and
     # prefix the plan header "PARTIAL PLAN - verify TBD sections before use".
     # 4. DESIGN HANDOFF FLAG - surface a boolean key `needs_design` in the plan output:

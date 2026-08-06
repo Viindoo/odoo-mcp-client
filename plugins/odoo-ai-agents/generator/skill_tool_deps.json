@@ -1370,9 +1370,9 @@
       "spawn_class": "leaf",
       "spawns": [],
       "stack": "none",
-      "instance_touching": true,
+      "instance_touching": false,
       "output_mode": "chat-only",
-      "default_gate_tier": "L2",
+      "default_gate_tier": "L0",
       "spawns_agents": []
     },
     "odoo-deprecation-audit": {
