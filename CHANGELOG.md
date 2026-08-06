@@ -6,6 +6,99 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.22.0] - 2026-08-06
+
+Four user-reported defects, fixed by changing structure rather than restating rules. Two of them -
+the pull request opening before the work finished, and one pull request per wave instead of one per
+repository - had already been fixed twice in prose (4.17.1 and 4.20.0) and recurred both times,
+most recently on 4.20.3. Each entry below names the structural property that permitted the
+behaviour, because a rule stated more firmly a third time was predicted to fail the same way.
+
+### Added
+
+- `scripts/audit-run.py` - asserts over a finished run file what a test suite cannot see: one
+  pull-request-opening node per repository, no pull request opened while substantive nodes are
+  unfinished, no gate-tier token in any recorded continuation contract, and a human-gate count with
+  a per-node breakdown. A green suite proves the shape of the text; it was green throughout both
+  previous failed fixes. This is the only check that observes what a run actually did.
+- `odoo-ai-agents` - the run file gains `repos[]` and a per-node `repo`, so "one pull request per
+  REPOSITORY" is expressible for the first time. Previously the repo capability card was filled once
+  per run, nodes carried no repo identity, and the rule could only be stated as "one PR per run" -
+  which is wrong the moment a run touches two repositories, and a rule that is wrong for multi-repo
+  runs invites improvisation in all of them. One `integrate` node is now keyed per repo, the driver
+  resolves its readiness scope from the field instead of describing it, and a node belonging to no
+  repository carries `repo: null` explicitly and sits outside every repo's readiness scope. The
+  audit checks one landed PR per declared repo and scopes the after-PR rule per repo, so one
+  repository's pull request no longer waits on another's unfinished work.
+- `odoo-ai-agents` - the context-budget rule resolved its corpus by file BASENAME, and every skill
+  file is named `SKILL.md`, so it structurally could not cap any skill - including `run-harness`, the
+  most re-entered contract in the plugin, which nothing capped at all. An explicit budget entry is
+  now itself an entry ticket and its file is measured wherever it lives. Nine caps that sat above
+  their file's real size after trimming are tightened, so reclaimed space cannot silently regrow.
+- `odoo-ai-agents` - the orchestration lint scanned `skills/`, `snippets/` and `agents/` only, so
+  `docs/`, `commands/` and `workflows/` were invisible to EVERY rule in the file rather than to one
+  of them. Those trees are now in scope, with the `docs/` subset derived from what agent-facing
+  prose actually cites instead of a hardcoded list. Its provenance rule now covers the vocabulary
+  that occurs in practice, with guards that keep Odoo domain-version history, a prospect's incumbent
+  system, and operative back-compat instructions passing - a back-compat rule has a live reader, so
+  deleting it breaks a consumer, while a note about what this plugin used to do costs context on
+  every dispatch and can be read as current fact.
+
+### Fixed
+
+- `odoo-ai-agents` - the run driver loaded the run file once, outside its own loop, so after the
+  first iteration every invariant the run depended on survived only in conversational context and
+  decayed over a long run. The file is now re-read at the top of every iteration and is the live
+  source of truth over anything the agent remembers. Three status mutations that were never
+  persisted - two blocked paths and the finalize step - are now written, so a terminal status is
+  visible to a resume.
+- `odoo-ai-agents` - the terminal `integrate` node had no stated readiness precondition, so with
+  `depends_on` under-specified the tie-break was plan authoring order and whether the pull request
+  opened before or after the review, doc and acceptance nodes was decided by accident. The driver
+  now re-derives the precondition rather than trusting `depends_on`: `integrate` for a repository is
+  ready only when every node of that repository outside the land tail is done or skipped. The
+  land-tail carve-out is stated as mandatory in the text, because the obvious simplification of it
+  deadlocks every run against the monitor node.
+- `odoo-ai-agents` - the only worked example plan in the repository placed a doc node inside a
+  coding wave and omitted the `integrate` node entirely, so the sole artifact an executing agent
+  imitates never showed the step that opens the pull request. The example now carries the terminal
+  lifecycle wave in dependency order, the `integrate` node as the one-pull-request opener, a
+  repository annotation on every node, and an explicit note locating a second repository's own
+  `integrate` node - making one pull request per repository expressible, which it previously was not.
+- `odoo-ai-agents` - terminal stage order was restated in five places that disagreed, and two peer
+  orchestrators ordered the final code review after the pull request opened while a third ordered it
+  before. There is now one Terminal stage order constant with a single owner, and the discriminator
+  is stated with it: work that can force a code change runs before the pull request, and only work
+  that must observe the opened pull request runs after it. Both inverted reviews read a worktree
+  diff, never the pull request, so neither needed it to exist. No review stage was removed.
+- `odoo-ai-agents` - the continuation contract carried a `risk_level` field holding a gate-tier
+  token, and that block is appended to nearly every visible agent output, so users were shown
+  internal tier codes on essentially every turn. No consumer read the field - the driver re-derives
+  the tier and forces any unplanned node to the top tier regardless. It is removed rather than
+  renamed. Gate prompts now read as plain language, model-tier names no longer appear in questions
+  put to a user, and the Odoo Semantic acronym is expanded where a user must act on it.
+- `odoo-ai-agents` - design and planning each imposed a scope-preview approval on top of the one
+  intake already takes, asking the user to approve substantially the same thing twice; both are
+  removed, following the pattern three sibling orchestrators already use. The genuine
+  scope-decomposition question is kept. Fifty workflow gates that had invented their own reply
+  keywords are normalized onto the two declared sets, and `yes` is retired as a gate reply
+  everywhere, including in the mirroring rule that had contradicted the glossary. A chat-only skill
+  that calls static tools only no longer declares that it touches an instance, so it stops gating as
+  an irreversible action.
+- `odoo-ai-agents` - changelog notes, provenance tags and references to files, scripts and agents
+  that no longer exist are removed from agent-facing runtime files. The bulk sat in one reference
+  loaded on every instance-provisioning dispatch, which still carried the section headings of the
+  implementation plan it was written from.
+- `odoo-ai-agents` - the coding gate showed the user a `model` column of vendor tier names, which
+  say nothing to an Odoo consultant about depth or cost while the choice itself has a real price
+  spread. The column now reads `depth` with `quick / standard / deep / deepest` and a one-line cost
+  ordering; the raw tier is still recorded in the plan because it drives dispatch, and a fixed
+  rendering map keeps the translation deterministic rather than improvised per run.
+- `odoo-ai-agents` - a workflow gate reply meaning "show it in chat, do not write a file" had been
+  folded onto `skip`, which means something else everywhere else in the plugin. Where the output
+  goes is now asked as its own question after approval, so no gate keyword carries a second meaning
+  and no third keyword set was introduced.
+
 ## [4.21.0] - 2026-08-06
 
 ### Added
