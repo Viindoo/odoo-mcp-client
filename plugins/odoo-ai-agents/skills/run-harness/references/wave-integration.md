@@ -15,11 +15,14 @@ invocation.
 
 ## Repo Capability Card Template
 
-Fill this once at the start of the coding waves and embed it verbatim in every per-module
-`odoo-coding` brief.
+Fill ONE card PER REPOSITORY the run touches, at the start of the coding waves, and embed the card
+of a module's OWN repo verbatim in that module's `odoo-coding` brief. The cards are the run file's
+`repos[]` list (harness §8.3): one entry per repo, `id` + the five fields below. A single-repo run is
+a one-entry list - same card, no extra ceremony.
 
 ```
-Repo Capability Card
+Repo Capability Card  (one per repo; serialized as a repos[] entry in run-<id>.json)
+  id            : <repo identity - the value every node's `repo` field names>
   base          : <principal branch name>
   verify        : <command that must pass after every cherry-pick, e.g. "make test" or "make gen-check && make deps-check && make test">
   commit        : <resolved by git-toolkit:git-ops at commit time - do not pre-declare a standard>
@@ -28,6 +31,9 @@ Repo Capability Card
 ```
 
 Notes:
+- `id` is what ties nodes to a repo: a node's `repo` names one `id`, or is `null` when the node
+  belongs to no repository. Each `id` gets its OWN run-integration branch+worktree, its own
+  `integrate` node, and its own PR - N repos = N PRs.
 - `base` is resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch
   resolution - never inherited from the invoking checkout's HEAD/current branch.
 - Discover `verify` from Makefile targets, CI config, or README. If multiple commands
@@ -174,8 +180,9 @@ Generated: <ISO datetime>
 Principal branch: <name>
 Run-integration branch: run-integration-<slug>
 
-## Repo Capability Card
+## Repo Capability Cards (one block per repo in repos[])
 
+  id            : <repo>
   base          : <principal>
   verify        : <command>
   commit        : <resolved by git-toolkit:git-ops at commit time>
@@ -221,9 +228,10 @@ odoo-coder's private concern, not logged here.)
 | Integrated cross-cutting review | Opus | <summary> | <yes/no + detail> |
 | odoo-code-review | odoo-code-review skill | <findings> | <yes/no + detail> |
 
-## PR (ONE per run - opened once after the final wave)
+## PR (ONE per REPO - each opened once after the final wave; one row per repos[] entry)
 
-URL     : <to be filled by the terminal integrate land-tail>
+Repo    : <repos[].id>
+URL     : <to be filled by that repo's terminal integrate land-tail>
 Squash  : <backup ref> -> tree-identity <confirmed | FAILED>
 Status  : <open | merged | closed>
 
@@ -240,7 +248,7 @@ Status  : <open | merged | closed>
 
 ## Cleanup Checklist
 
-Post-merge cleanup is owned by `odoo-pr-monitoring` (it runs AFTER the `L2-merge-gate` merge);
+Post-merge cleanup is owned by `odoo-pr-monitoring` (it runs AFTER the merge approval gate's merge);
 run-harness's between-wave integration itself stops at "PR opened" (drive-to-done) and never merges
 or cleans up the run-integration branch. This checklist is the one the post-merge owner runs; it
 covers the ONE run-integration branch plus every per-module worktree/branch across all waves.
@@ -358,7 +366,7 @@ git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> rese
 
 After git-ops returns, confirm its reported tree-identity exit code is 0. This is run-harness's
 terminal RUN-level land step - it STOPS at "PR opened" (drive-to-done) and does NOT merge; the merge
-is owned by `odoo-pr-monitoring` at the L2-merge-gate.
+is owned by `odoo-pr-monitoring` at the merge approval gate.
 
 ---
 
@@ -414,7 +422,8 @@ ISOLATE_DIR      : <captured absolute path - resolved ONCE by run-harness agains
 design_index     : <absolute path under SHARE_DIR, e.g. <SHARE_DIR-literal>/designs/<slug>/index.yaml | none>
 ODOO VERSION     : <one resolved version for the run>
 REQUEST          : <precise description of what this module implements>
-Repo Capability Card: base=<principal> verify=<command> commit=<resolved by git-ops> confidential=<level>
+Repo Capability Card: id=<this module's repo> base=<principal> verify=<command> commit=<resolved by git-ops> confidential=<level>
+                   (the repos[] entry whose id equals this wave node's `repo` - never another repo's card)
 WORKLOG          : <runSlug> - read it, then append significant decisions
 Return: the commit SHA(s) on the module's branch (REQUIRED - a DONE with no SHA is a failed contract;
         the odoo-coder coordinator obtains the SHA by committing its coders' files via
@@ -536,9 +545,10 @@ regardless of wave size - measure the wave and escalate when it is large:
 Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and module count N.
 
 - **Large wave** (>~1500 changed lines OR N >= 8 modules): escalate to a **fable** review subagent
-  dispatched from run-harness's own context. fable costs ~2x opus - ALWAYS needs explicit
-  confirmation: state the tier, the cost, and a one-line why; wait for an explicit human `yes`. If
-  declined or unavailable, fall back to **opus inline review** and note the downgrade.
+  dispatched from run-harness's own context. ALWAYS confirm with the human first, and ask as a
+  TRADEOFF, never by tier name - how big the wave is, that the review runs on the deepest-reasoning
+  setting, and that it costs about 2x - with the reply set `approve / skip / cancel`. On `skip` or
+  when the setting is unavailable, fall back to **opus inline review** and note the downgrade.
 - **Otherwise** (the common case): **opus inline review**, in run-harness's own context.
 
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to produce the full diff
@@ -570,17 +580,56 @@ clean does the cumulative regression close-gate (SKILL.md step 3) run.
 
 ## Pre-PR tail (mandatory sequence, after the final wave closes green)
 
-After the LAST wave's cumulative regression close-gate is GREEN (`SKILL.md` § Between-wave
-integration step 3) and BEFORE the terminal `integrate` land-tail dispatches, run-harness drives
-three tail stages IN THIS ORDER - i18n reconcile, then acceptance, then the pre-PR lint-class gate.
-This order is a real data dependency, not an arbitrary sequence: i18n reconcile MUTATES what the
-live UI renders (translated labels/messages, per `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`
-"The mandate"), and acceptance's evidence (screenshots, asserted UI text) must reflect that FINAL,
-translated state - running acceptance first would capture pre-i18n evidence that i18n then
-invalidates. The SAME relative order (i18n before acceptance) is already established and shipping in
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` (i18n reconcile precedes its Acceptance
-stage) and `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/SKILL.md` (i18n reconcile precedes its
-later Acceptance stage) - this section composes with both, not a third, diverging convention.
+### Terminal stage order (THE constant - this section is its ONE owner)
+
+Cite this constant by name. Do NOT restate the order in another file, and do NOT reorder it
+locally. Every orchestrator with a terminal tail (`odoo-forward-port`, `odoo-git-rebase`,
+`odoo-modules-upgrade`) and every `writes-files` plan
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` Block 2) resolves its
+terminal stage order HERE.
+
+```text
+  final coding wave closes GREEN
+    +--> (1)  i18n        [skill: odoo-i18n]             reconcile translations
+    +--> (2)  acceptance  [skill: odoo-acceptance]       live blast-radius oracle
+    +--> (2b) doc         [skill: odoo-doc-illustration] user guide + App-Store landing
+    +--> (3)  lint        pre-PR lint-class gate over the aggregate diff
+    +--> (4)  PR          ONE PR per REPO, opened ONCE - the run's only land step
+    |
+    +-------> monitor     [skill: odoo-pr-monitoring]    CI triage, review polling  [post-PR]
+    +-------> merge       [skill: odoo-pr-monitoring]    the single outward L2 gate [post-PR]
+```
+
+Each edge is a dependency, not a style preference:
+
+- **i18n before acceptance.** i18n MUTATES what the live UI renders (translated labels/messages,
+  per `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` "The mandate"), and acceptance's
+  evidence (screenshots, asserted UI text) must reflect that FINAL, translated state - acceptance
+  first would capture pre-i18n evidence that i18n then invalidates.
+- **doc after acceptance.** The doc stage CAPTURES the live UI (screenshots for `doc/index.rst`
+  and `static/description/index.html`), so it consumes exactly what acceptance may still change: an
+  acceptance FAIL routes a code fix, and every screenshot taken before that fix is stale. Placing
+  doc after acceptance also puts it after i18n, so captures show the translated strings.
+- **doc before lint.** The doc stage WRITES committed files and wires `__manifest__.py` (images,
+  store keys). The single full-diff lint-class pass at (3) must see those edits, or the run's ONE
+  PR ships manifest changes no gate ever read.
+- **Anything that can force a CODE CHANGE runs at or before (3).** A review, oracle, capture, or
+  gate whose findings are fixed by editing source belongs BEFORE the PR opens. Running it after
+  makes the PR churn and makes regression testing chase a moving target - the exact failure this
+  order exists to prevent.
+- **Only work that must OBSERVE the opened PR runs after (4).** CI-failure triage and fix,
+  static-review-bot comment cross-check, review/approval polling, the MERGE itself, and post-merge
+  cleanup - all owned by `${CLAUDE_PLUGIN_ROOT}/skills/odoo-pr-monitoring/SKILL.md`. A bot comment
+  cannot predate the PR it is posted on; a worktree diff review can, and therefore must.
+- **ONE PR per REPO, never per wave.** The PR stage opens exactly one PR for each repo the run
+  touched, after every non-land-tail node in that repo is DONE or SKIPPED (readiness rule:
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, `integrate` readiness
+  precondition - re-derived by the driver, not trusted from `depends_on`).
+- **A pipeline that has no stage at some position SKIPS that position - it never reorders the
+  rest.** A run with no user-guide/App-Store goal has no doc node (`odoo-planning` P1b fast-path
+  `doc: none`); a forward-port has no doc stage at all. Both still run (1) -> (2) -> (3) -> (4).
+
+The stage blocks below are the execution detail for (1), (2), (2b), (3), (4) in that order.
 
 **1 - i18n reconcile (MANDATORY, narrow-escape only, ONCE for the whole run).** Dispatch the
 `odoo-i18n` skill exactly ONCE, over the run-integration branch's aggregate diff (every module,
@@ -612,7 +661,6 @@ next:
     reason: one or more waves changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster BEFORE the PR opens
     inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>", worktree_path: "<path>/run-integration"}
     confidence: 0.7
-    risk_level: L2
 ```
 
 `scope_hint` is advisory - `odoo-acceptance` Phase 0 regenerates the verify-scope manifest from the
@@ -621,13 +669,39 @@ changed set. `worktree_path` is NOT advisory: `odoo-acceptance`'s own Inputs sec
 either a caller-supplied `INSTANCE_HANDLE` or the catalog-default
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` - neither path is worktree-aware, so without
 this field its Phase 2 provisioning would silently target the principal checkout instead of
-`run-integration`, the SAME false-green shape the stage 3 Worktree-targeting paragraph above closes.
+`run-integration`, the SAME false-green shape the stage 3 Worktree-targeting paragraph below closes.
 Whoever executes this continuation MUST thread `worktree_path` into `odoo-acceptance`'s Phase 2
 `odoo-instance` dispatch as `WORKTREE_PATH` (optionally `SELF_PROVISION: worktree-addons` when
-dispatching a bounded subagent for that phase) - the SAME shape stage 3 above and Example 3 below
+dispatching a bounded subagent for that phase) - the SAME shape stage 3 below and Example 3 below
 already use (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
 carve-out). When no wave ever widened its `render_check_set`, this stage does not fire and the tail
-proceeds straight to stage 3.
+proceeds straight to stage 2b.
+
+**2b - Doc (conditional, L1, ONCE for the whole run - after acceptance, before the lint gate).**
+Fires when the approved plan carries a doc node (user guide `doc/index.rst` and/or App-Store landing
+`static/description/index.html`); an internal-only run has none (`odoo-planning` P1b fast-path
+`doc: none`) and the tail proceeds straight to stage 3. Position is fixed by the Terminal stage
+order constant above: doc CAPTURES the live UI, so it must see the accepted (stage 2) and translated
+(stage 1) state, and it WRITES committed files plus `__manifest__.py` image/store-key wiring, so it
+must land before the single full-diff lint pass at stage 3 reads them.
+
+Dispatch the `odoo-doc-illustration` skill ONCE for the whole run, over the run-integration branch's
+aggregate module set (every module, every wave) - never per module and never per wave.
+`gate_tier: L1` per the registry (`generator/skill_tool_deps.json` `orchestration.odoo-doc-illustration`).
+State `WORKTREE_PATH: <path>/run-integration` on the dispatch, and `SELF_PROVISION: worktree-addons`
+when a bounded subagent carries it - the SAME two fields stages 2 and 3 and § Per-module Invocation
+Brief Template already use, for the SAME reason
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out): without
+them the capture instance loads the CATALOG addons path and every screenshot documents the principal
+checkout instead of the tree the PR ships.
+
+**The doc output must reach `run-integration` before stage 3 (mandatory - docs do not ship
+otherwise).** `run-integration` is the ONLY branch the terminal land-tail squashes and pushes.
+Commit the authored doc files via the `git-toolkit:git-ops` skill; when they were authored in a
+worktree other than `<path>/run-integration`, bring the returned SHA onto `run-integration` with the
+SAME `cherry_pick(sha, into=run_integration)` step § Per-module Integration Loop performs for every
+module SHA, via `git-toolkit:git-ops` - never a raw git command inline. A semantic conflict follows
+the SAME § Conflict Resolver path as any other cherry-pick.
 
 **3 - Pre-PR lint-class gate (L0/L1 - ephemeral instance, not a SHARED-instance L2 case).** Run the
 FULL CI-parity lint-class suite ONCE, over the run-integration branch's aggregate diff (every
@@ -737,9 +811,13 @@ replaces:
   obligation) is untouched and continues exactly as before. Net effect across a run is FEWER
   acquire/release cycles overall, not a wash.
 
-**4 - Terminal land-tail PR.** Only after stages 1-3 above clear does run-harness dispatch the
-`integrate` node (`SKILL.md` § `integrate` node dispatch): squash `run-integration`, fresh
-FIRST-push, open ONE PR. Unchanged from before this section.
+**4 - Terminal land-tail PR.** Only after stages 1, 2, 2b, and 3 above clear does run-harness
+dispatch the `integrate` node (`SKILL.md` § `integrate` node dispatch): squash `run-integration`,
+fresh FIRST-push, open ONE PR - per REPO, never per wave. The driver RE-DERIVES the readiness rule
+here (`SKILL.md` § Gate-tier resolution, `integrate` readiness precondition) rather than trusting
+`depends_on`, so an under-specified plan cannot open the PR ahead of a doc / review / acceptance
+node. Everything after this point (CI-failure triage and fix, review/approval polling, the merge,
+post-merge cleanup) is `odoo-pr-monitoring`'s, per the Terminal stage order constant above.
 
 ---
 

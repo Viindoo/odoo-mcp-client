@@ -30,7 +30,16 @@ open a RUN-DAG.
    (harness §8.3). The plan's OUTER unit is the MODULE, never a work-item (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis). Emit
    one `nodes[]` entry per plan node, with `depends_on` from the dependency graph and
-   `approach`/`approach_kind` from the assignment. **PRESERVE the Block 2 `Wave N` grouping:** the
+   `approach`/`approach_kind` from the assignment. **Serialize `repos[]` and every node's `repo`:**
+   one `repos[]` entry per repository the plan's Block-2 `[repo: <repo>]` annotations name, each
+   carrying that repo's Repo Capability Card (`id` + `base`/`verify`/`commit`/`confidential`/
+   `worktree_root`, template in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+   § Repo Capability Card Template); stamp each node's `repo` from its own `[repo: ...]` annotation,
+   or `null` when the node belongs to no repository (a chat-only synthesis / routing node - it is
+   then outside EVERY repo's `integrate` readiness scope and is never provisioned a worktree). A
+   `wave` or `integrate` node ALWAYS names a declared repo - `null` there is a serialization bug.
+   Emit exactly ONE `integrate` node per `repos[]` entry: N repos = N integrate nodes = N PRs; a
+   single-repo run is a one-entry list and one `integrate`. **PRESERVE the Block 2 `Wave N` grouping:** the
    coding modules within one `Wave N` are grouped into a SINGLE wave node (`approach_kind: wave`)
    that carries the wave's MODULES + their module-DAG + `topology` (value set and the `n <= 1`
    collapse rule are owned by `run-harness/references/wave-integration.md` § Topology values - not
@@ -38,7 +47,11 @@ open a RUN-DAG.
    Block-2W lineage slice - this is the wave node `run-harness` drives via its § Between-wave
    integration (it iterates the wave's modules and invokes `odoo-coding` per module; there is no
    separate git-executor skill). A terminal lifecycle stage (doc / i18n /
-   acceptance / PR / monitor / merge) is its own node. The work-item never appears at this layer - it
+   acceptance / PR / monitor / merge) is its own node, tagged with its repo. Serialize each terminal
+   `integrate@R` node's `depends_on` to AGREE with the driver's `integrate` readiness precondition - declared in
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, not restated here -
+   which `run-harness` RE-DERIVES anyway: under-specifying it cannot open the PR early, but naming a
+   land-tail node in it deadlocks the run. The work-item never appears at this layer - it
    is `odoo-coder`'s INTERNAL intra-module unit. The `<id>` is
    `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
    concurrent runs never collide.

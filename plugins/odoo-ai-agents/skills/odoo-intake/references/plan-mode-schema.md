@@ -24,8 +24,9 @@ decomposition axis is module-only (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/o
 appears in the plan). Borrow the requirement shape in `odoo-brl/reference/schema.md` (~lines
 116-197). Each module entry carries: `id` (the module name), a one-line description, and
 `files-in-scope` (each module owns a directory, so module file-sets are naturally **disjoint**; a
-terminal lifecycle node - doc / i18n / acceptance / integrate - is its own entry). For a multi-module
-delivery also note worktree + branch + verify command per module (Repo Capability Card).
+terminal lifecycle node - i18n / acceptance / doc / integrate, in that order - is its own entry). For a multi-module
+delivery also note worktree + branch + verify command per module, and ONE Repo Capability Card per
+REPO (serialized as the run file's `repos[]`; a single-repo delivery has a one-entry list).
 
 **Block 2 - Dependency graph.** Borrow the DAG schema from `odoo-brl/reference/schema.md`
 (~lines 316-385): `nodes` (= modules) + `edges` where each edge has a `type` of
@@ -42,9 +43,12 @@ regression-scope union and is NEVER the count. This governs the single-module pl
 **REQUIRED - module-DAG ASCII dependency-graph block.** Every `writes-files` plan MUST render Block
 2 with a fenced ```` ```text ```` ASCII dependency-graph of the module-DAG (NOT mermaid - mermaid
 does not render in the plan file or the terminal where the human reviews the plan). Nodes = modules;
-each node marked `(NEW)`/`(existing)` and tagged `[skill: <execute-skill>]`; nodes grouped under
-`Wave N` headers; the `depends` direction shown per node (a `depends-on:` line) AND as a flat edge
-list (`X --> Y` = Y depends on X, X builds first). ASCII only (ETHOS rule 0): use only `-`, `|`,
+each node marked `(NEW)`/`(existing)`, annotated `[repo: <repo>]`, and tagged
+`[skill: <execute-skill>]`; nodes grouped under `Wave N` headers; the `depends` direction shown per
+node (a `depends-on:` line) AND as a flat edge
+list (`X --> Y` = Y depends on X, X builds first). The LAST wave is the terminal lifecycle wave and
+holds every lifecycle node - no lifecycle node ever sits inside a coding wave - ending in ONE
+`integrate` node per repo. ASCII only (ETHOS rule 0): use only `-`, `|`,
 `+`, `>`, `[`, `]` - NO box-drawing Unicode. Exact template (reusable verbatim):
 
 ````
@@ -53,31 +57,75 @@ list (`X --> Y` = Y depends on X, X builds first). ASCII only (ETHOS rule 0): us
 
 ```text
 Module dependency graph
-  Legend: [module] (NEW|existing) [skill: <execute-skill>] ; "X --> Y" = Y depends on X (X builds first)
+  Legend: [module] (NEW|existing) [repo: <repo>] [skill: <execute-skill>]
+          "X --> Y" = Y depends on X (X builds first)
   Waves run top-to-bottom; modules within a wave are independent - build ORDER is unconstrained
   (run-harness still dispatches them SEQUENTIALLY, ONE AT A TIME - not concurrently).
+  [repo: ...] renders a SERIALIZED schema field: intake Phase P writes it onto every node as
+  `repo`, and each repo's capability card into the run file's `repos[]` (harness section 8.3).
+  It makes the PR topology visible: ONE integrate node -> ONE PR -> per REPO, NEVER per wave.
+  This example is SINGLE-REPO, so repos[] is a one-entry list and it carries ONE integrate node.
+  Terminal lifecycle ORDER is not chosen per plan - it is the Terminal stage order constant in
+  run-harness/references/wave-integration.md section Pre-PR tail. Copy the order, never invent one.
 
-  Wave 1
-    [viin_fleet_billing] (NEW) [skill: odoo-coding]
+  Wave 1 (coding)
+    [viin_fleet_billing] (NEW) [repo: fleet-addons] [skill: odoo-coding]
         depends-on: (none)
 
-  Wave 2
-    [viin_fleet_billing_account] (NEW) [skill: odoo-coding]
-        depends-on: viin_fleet_billing
-    [viin_fleet_billing docs] (existing) [skill: odoo-doc-illustration]
+  Wave 2 (coding)
+    [viin_fleet_billing_account] (NEW) [repo: fleet-addons] [skill: odoo-coding]
         depends-on: viin_fleet_billing
 
-  Wave 3 (terminal lifecycle)
-    [cluster acceptance] [skill: odoo-acceptance]
-        depends-on: viin_fleet_billing_account, viin_fleet_billing docs
+  Wave 3 (terminal lifecycle - runs ONCE, after ALL coding waves, in the constant's order)
+    [cluster i18n] [repo: fleet-addons] [skill: odoo-i18n]
+        depends-on: viin_fleet_billing, viin_fleet_billing_account
+    [cluster acceptance] [repo: fleet-addons] [skill: odoo-acceptance]
+        depends-on: cluster i18n
+    [viin_fleet_billing docs] (existing) [repo: fleet-addons] [skill: odoo-doc-illustration]
+        depends-on: cluster acceptance
+    [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
+        depends-on: viin_fleet_billing docs
+        opens THE ONE PR for [repo: fleet-addons]. READY only when EVERY node in this repo that
+        is NOT in the land-tail set (integrate, monitor, merge) is DONE or SKIPPED - run-harness
+        RE-DERIVES this, never trusting depends-on alone.
+    [monitor] [repo: fleet-addons] [skill: odoo-pr-monitoring]
+        depends-on: integrate
+        post-PR ONLY: CI-failure triage, review polling, then the single outward L2 merge gate.
+
+  The pre-PR lint-class gate runs INSIDE run-harness between the doc node and integrate - a driver
+  step, not a plan node, so it gets no box here.
+
+  Second repo (absent from this example): a run touching repo-2 adds a SIBLING terminal chain -
+  i18n / acceptance / docs / integrate / monitor, every node tagged [repo: <repo-2>] - and THAT
+  chain's own [integrate] opens repo-2's ONE PR. Two repos = two integrate nodes = two PRs.
 
   Edges (depends direction; flat list for grep/diff stability):
     viin_fleet_billing         --> viin_fleet_billing_account
-    viin_fleet_billing         --> viin_fleet_billing docs
-    viin_fleet_billing_account --> cluster acceptance
-    viin_fleet_billing docs    --> cluster acceptance
+    viin_fleet_billing         --> cluster i18n
+    viin_fleet_billing_account --> cluster i18n
+    cluster i18n               --> cluster acceptance
+    cluster acceptance         --> viin_fleet_billing docs
+    viin_fleet_billing docs    --> integrate
+    integrate                  --> monitor
 ```
 ````
+
+**Serialized form (what Phase P writes from those tags).** Each `[repo: <repo>]` becomes a node's
+`repo` field, and each repo's Repo Capability Card becomes one `repos[]` entry (harness §8.3):
+
+```json
+"repos": [{"id": "fleet-addons", "base": "<principal branch>", "verify": "<command>",
+           "commit": "<resolved by git-toolkit:git-ops>", "confidential": "public",
+           "worktree_root": "<parent path outside the repo tree>"}],
+"nodes": [{"id": "viin_fleet_billing", "repo": "fleet-addons", "approach_kind": "wave"},
+          {"id": "integrate",          "repo": "fleet-addons", "approach_kind": "integrate"},
+          {"id": "run-summary",        "repo": null,           "approach_kind": "inline"}]
+```
+
+A second repo adds a second `repos[]` entry AND its own `integrate` node - N repos = N PRs.
+`repo: null` means the node belongs to no repository (chat-only synthesis / routing): it gets no
+worktree and sits outside EVERY repo's `integrate` readiness scope. A `wave` or `integrate` node
+never carries `null`.
 
 **Data source (never hand-drawn).** The dep-graph is DERIVED from the design's `dag_layers`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` `index.yaml`, the LOGICAL truth)
@@ -85,8 +133,12 @@ grouped into integration waves - OR, for the few-module topology path, from the 
 `topological_order` - PLUS the Block 3 `module/stage -> SKILL` assignment for each `[skill: ...]`
 tag. NEW vs existing comes from the module-graph resolution
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`: a module resolving to NEITHER OSM NOR
-disk is `(NEW)`; otherwise `(existing)`). Terminal lifecycle nodes (doc, i18n, acceptance,
-PR/monitor/merge) appear as their own nodes wired to their execute-SKILL.
+disk is `(NEW)`; otherwise `(existing)`). Terminal lifecycle nodes (i18n, acceptance, doc,
+PR/monitor/merge) appear as their own nodes wired to their execute-SKILL, in ONE terminal wave
+AFTER every coding wave - never interleaved into a coding wave. Their ORDER is not a per-plan
+choice: read it from the Terminal stage order constant
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail), which is
+its ONE owner. A stage the run does not have is skipped in place; the rest keep their order.
 
 **Master-child reconciliation (extend, not fork).** The dep-graph is a RENDERING of `index.yaml`
 `dag_layers`; it adds no field to `index.yaml` and introduces no second DAG schema - the `[skill:]`
@@ -176,15 +228,25 @@ conflict), and it surfaces the regression scope to the human at plan-approval ti
 plan is ALWAYS authored by `odoo-planning` (its `odoo-planner`); planning is mandatory for all work
 - `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule.
 
-**Terminal `integrate` land node (every `writes-files` plan).** The plan does not end at `review`;
-it carries a terminal `integrate` node so the change is committed AND landed. The minimal plan
-`odoo-planning` emits for a single-module change is therefore `[code, review, integrate]`. `integrate` is the SAME land tail the
-full lifecycle and the between-wave integration use: after review is clean, `run-harness` invokes `git-toolkit:git-ops`
-to push the change's branch and open a PR against the principal branch, then emits a Continuation-Contract
-`next` -> `odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge gate). No squash machinery
-is needed for one reviewed commit. This is the ONE land mechanism (git-ops open-PR ->
-`odoo-pr-monitoring` merge); there is no local merge to the principal. Block 3 line:
-`integrate -> run-harness invokes git-toolkit:git-ops (push + open PR) -> next: odoo-pr-monitoring @ L2`.
+**Terminal `integrate` land node (ONE per REPO the plan touches).** The plan does not end at
+`review`; it carries a terminal `integrate` node so the change is committed AND landed. The minimal
+plan `odoo-planning` emits for a single-module change is therefore `[code, review, integrate]`.
+`integrate` is the SAME land tail the full lifecycle and the between-wave integration use: after
+every non-land-tail node in that repo is DONE or SKIPPED, `run-harness` invokes `git-toolkit:git-ops`
+to push the change's branch and open a PR against the principal branch, then emits a
+Continuation-Contract `next` -> `odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge
+gate). No squash machinery is needed for one reviewed commit. This is the ONE land mechanism
+(git-ops open-PR -> `odoo-pr-monitoring` merge); there is no local merge to the principal. Block 3
+line: `integrate -> run-harness invokes git-toolkit:git-ops (push + open PR) -> next:
+odoo-pr-monitoring @ L2`.
+
+**Emit exactly ONE `integrate` node per REPO - never one per wave.** A wave CLOSES on its cumulative
+close-gate and AUTO-ADVANCES; it never lands. A multi-repo plan carries one sibling terminal chain
+per repo, each ending in its own `integrate`. The readiness rule the driver re-derives (`integrate@R`
+waits on every node whose serialized `repo == R` and that is outside the land-tail set) is declared in
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution - serialize
+`integrate.depends_on` to AGREE with it, and never name a land-tail node in it (that deadlocks the
+run).
 
 **Workflow-as-node in the schema (G-B):** when a node's approach is a workflow-command, it is
 **one node** - `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the

@@ -134,7 +134,7 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
   close-gate + auto-advance, then ONE run-level PR + squash after the FINAL wave, STOP at "PR opened")
   is `run-harness`'s INTERNAL between-wave integration, which it drives from the approved plan (there
   is no separate git-executor skill); it never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the L2-merge-gate. The between-wave integration is internal to
+  `odoo-pr-monitoring` at the merge approval gate. The between-wave integration is internal to
   `run-harness` - never route a user prompt to an executor.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
@@ -186,7 +186,7 @@ commits to replay and a few conflicts to resolve."
   continuous range is performed by `run-harness`'s INTERNAL between-wave integration (driven
   from the approved plan), not by the user. It lands the whole run as ONE PR (opened once after the
   final wave) and STOPS at "PR opened"; it never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the L2-merge-gate.
+  `odoo-pr-monitoring` at the merge approval gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many

@@ -5,9 +5,9 @@ description: >
   Single planning front-door for the FULL product lifecycle - turns an APPROVED Odoo technical
   design into one gate-able plan spanning code AND doc. Dispatches TWO planners: odoo-planner
   (wave-batched code-DAG + integration cadence) AND odoo-doc-planner (dependency-cluster doc
-  schedule + instance allocation for user-guide + marketing landing). One plan covers:
-  code -> review -> test/QA -> user-doc -> marketing-doc -> PR -> monitor -> merge. Code executes
-  first; doc executes after code/review/QA lands. Estimates only (ADVISORY). Fire on:
+  schedule + instance allocation for user-guide + marketing landing). One plan covers the full
+  lifecycle from code to merge, in run-harness's Terminal stage order. Code executes first; doc
+  executes after code/review/QA lands. Estimates only (ADVISORY). Fire on:
   "plan the implementation", "execution plan", "what order do we build", "sequence this rollout".
   Vietnamese: "lập kế hoạch thực hiện", "thứ tự build module", "lên kế hoạch triển khai".
   Route the technical DESIGN (data model / override strategy) to odoo-solution-design; WRITING
@@ -94,31 +94,22 @@ mandatory for ALL work (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.m
 Mandatory-planning rule); it is the DESIGN gate that may be skipped for a one-approach change,
 never the plan.
 
-## Phase 0 - Plan intent gate (1-turn gate)
+## No scope-preview gate - go straight to the planners
 
-**Exception: when `return_to` is set**, SKIP this Phase 0 gate (the caller already classified
-scope). Go straight to the planner dispatch, then the single plan-approval gate after it returns.
+Do NOT ask the human to approve a scope preview before dispatching. Whoever sent the work here
+already gated that same decision: the front door (`odoo-intake`) approved scope, approach and
+expected output with the human before dispatching this skill, and a `return_to` caller classified
+scope itself. Asking again is friction, not safety.
 
-**Default:** before dispatching, emit a concise **plan scope preview**, then **stop** for
-confirmation:
+Ask only the genuine open questions the Input port could not resolve (a missing design artifact,
+an ambiguous module set) - in ONE short message - then dispatch both planners. The single
+approval checkpoint this skill owns is the § Plan-approval gate below, after both planners return.
+Same shape as the sibling self-driving front doors (`odoo-forward-port` P4, `odoo-git-rebase` P6,
+`odoo-modules-upgrade` P3): one plan, one gate.
 
-```
-Plan scope:   <one-line of the change to be planned>
-Will decide:  code plan: wave-batched module-DAG + integration cadence + module/stage->skill
-              wiring · doc plan: dependency clusters + instance allocation (user-guide + marketing)
-              · full lifecycle (code -> review -> test/QA -> user-doc -> marketing-doc -> PR ->
-              monitor -> merge) · effort + est_agents ESTIMATES (ADVISORY, non-binding)
-Inputs:       design <path> · gap-matrix <path|none> · qa oracle <path|none> · survey <path|none>
-Artifacts:    <SHARE_DIR>/plans/<slug>-<date>.md (code 3-block plan) ·
-              <SHARE_DIR>/plans/<slug>-doc-<date>.yaml (doc cluster plan)
-              (no run-<id>.json - that is intake Phase P)
-OSM:          backed | standalone
-Proceed? (approve / refine: [feedback] / cancel)
-```
-
-Wait for the reply before proceeding. This is a preview, not a write-block - on confirmation the
-planner writes ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - see
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
+The planners write ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - see
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); no source file is touched before the
+plan is approved.
 
 ## Agent invocation - prompt templates (P1: code + doc)
 
@@ -240,8 +231,8 @@ WHEN clause). This skill runs in the MAIN context, so it CAN call `EnterPlanMode
 Enter IFF ALL THREE hold: `plan_mode_active` is absent/false AND `return_to` is unset AND the
 session is not already in native Plan Mode (Shift+Tab / `/plan`). Skip iff `plan_mode_active:
 true` (a caller already holds Plan Mode open across this dispatch for its own reason - never a
-pre-open on THIS skill's behalf). When `return_to` is SET (caller-return flow - Phase 0 above
-already skips the plan-intent preview for this case) the caller owns the gate: do NOT enter here;
+pre-open on THIS skill's behalf). When `return_to` is SET (caller-return flow) the caller owns the
+gate: do NOT enter here;
 hand control back via the Continuation Contract (`next: <return_to>`) without ever opening or
 closing Plan Mode.
 
@@ -266,19 +257,23 @@ Plan ready:
   Doc plan:   <SHARE_DIR>/plans/<slug>-doc-<YYYY-MM-DD>.yaml
 Build order: <wave-1 modules> -> <wave-2 modules> -> ...   (integration cadence: <one line>)
 Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
-Lifecycle:   code -> review -> test/QA -> [user-doc + marketing-doc] -> PR -> monitor -> merge
+Lifecycle:   <Terminal stage order constant, rendered in full>
              (doc executes AFTER code/review/QA; both plans gate here in ONE approval)
 Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY / du kien - the runtime skill
              decides the actual count + model; the plan binds only WHICH skill)
 Approve plan? (approve / refine: [feedback] / cancel)
 ```
 
+- `Lifecycle:` renders the Terminal stage order constant IN FULL - resolve it from
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail >
+  Terminal stage order, that section being the order's ONE owner. Never restate the order here.
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then
     hand the approved 3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`
     and dispatches `run-harness` to walk it (coding waves via its own between-wave integration,
-    then doc/i18n/PR/monitor/merge). This skill never serializes the run file itself.
+    then the terminal tail in the Terminal stage order constant). This skill never serializes the
+    run file itself.
   - **`return_to` SET (caller-return flow):** do NOT enter Plan Mode for code and do NOT dispatch
     any executor. Emit the Continuation Contract with `next: <return_to>` and hand control back.
 - `cancel` -> stop; the plan file remains on disk.

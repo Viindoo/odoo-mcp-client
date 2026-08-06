@@ -95,7 +95,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 ## 2. `.odoo-ai/` artifact convention
 
 Every `.odoo-ai/`-rooted sub-path below is a **relative form** of a Tier-1/Tier-2 location in
-the namespaced state-root convention (Problem 3) - never a literal project-relative `./.odoo-ai/`
+the namespaced state-root convention - never a literal project-relative `./.odoo-ai/`
 on disk. Full Tier-1 (flat, machine-global)/Tier-2-SHARE (per-repo, worktree-converged)/Tier-2-
 ISOLATE (per-worktree) classification tables + the mandatory resolve-capture-substitute protocol
 every consumer follows to turn one of these relative forms into a real absolute path:
@@ -128,10 +128,10 @@ registration point for that workflow's artifacts.
 **never** rewritten. At execution time, `workflow-chaining` resolves the ISOLATE dir once (via
 `scripts/lib/resolve_project_dir.sh isolate`, resolve-capture-substitute) and treats every
 `output_dir`-rooted write as relative to that resolved absolute ISOLATE path. All 13
-`output_dir:` values across `workflows/*.workflow.yaml` are Tier-2 ISOLATE. This is intentionally
-unchanged by Problem-3 namespacing: the YAML literals and the `generator/check_workflows.py`
+`output_dir:` values across `workflows/*.workflow.yaml` are Tier-2 ISOLATE. This is intentional:
+the YAML literals and the `generator/check_workflows.py`
 `output_dir` must-start-with-`.odoo-ai/` assertion (~line 241) are untouched - only the *runtime*
-resolution of that literal moved from a bare project-relative path to the namespaced ISOLATE dir.
+resolution of that literal is the namespaced ISOLATE dir, not a bare project-relative path.
 
 ---
 
@@ -852,7 +852,7 @@ principal branch (untouched throughout)
               |
         STOP at "PR opened"  (drive-to-done; run-harness never merges)
               |
-        merge + post-merge cleanup owned by odoo-pr-monitoring (L2-merge-gate)
+        merge + post-merge cleanup owned by odoo-pr-monitoring (merge approval gate)
 ```
 
 ### 7.2 Why the per-wave integration lives in run-harness, NOT a separate skill or a team-pattern
@@ -893,7 +893,7 @@ context via `approach_kind: wave`, not a standalone skill and not a `team_patter
 | 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto run-integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via run-harness |
 | 4 - Close the wave -> AUTO-ADVANCE | Inline integrated cross-cutting review over the INTEGRATED tree, then `odoo-code-review` inline from main context, then the cumulative regression close-gate (GREEN); on green AUTO-ADVANCE to the next wave (NO per-wave PR) - the next wave forks from run-integration | run-harness (orchestrating context) |
 | 5 - After the FINAL wave: land-tail (ONCE) | Squash run-integration to 1 commit, `git diff --quiet` vs backup, fresh FIRST-push (non-force), open ONE PR (run-integration -> principal); STOP at "PR opened" | git-toolkit:git-ops skill via run-harness (squash/verify + first-push + PR) |
-| (merge) | Merge + post-merge cleanup at the L2-merge-gate | `odoo-pr-monitoring` (NOT run-harness) |
+| (merge) | Merge + post-merge cleanup at the merge approval gate | `odoo-pr-monitoring` (NOT run-harness) |
 
 ### 7.4 The spawner ban is leaf-only - run-harness legally invokes odoo-coding
 
@@ -1016,7 +1016,6 @@ next:                                       # [] unless status == NEEDS_NEXT
     reason: <why this is the next step>
     inputs: {<key>: <value>}
     confidence: 0.0..1.0                     # driver arbitration; <0.5 ⇒ not auto-materialized
-    risk_level: L0 | L1 | L2
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
 
@@ -1025,7 +1024,7 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
   `tool_use`/`text`, `parse-continuation.sh` emits text-only - but both select assistant-authored
   text the same way, guarding against a continuation block quoted in a tool_result/instruction).
 - **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
-  `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
+  `next: [{skill, reason, confidence: 0.5}]` with `status: NEEDS_NEXT`. This
   lets the rollout be gradual - an un-migrated skill still drives at low confidence.
 - **Nesting safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
   run-harness's job. fanout leaf-workers emit contracts that bubble up to their
@@ -1064,8 +1063,17 @@ references a driver-required workflow directly.
   "status": "NEEDS_NEXT | DONE | BLOCKED | NEEDS_CONTEXT",
   "cursor": "<next READY node id the driver will pick>",
   "budget": {"max_nodes": 12, "nodes_run": 3},
+  "repos": [                    // one entry per repository the run touches; ONE PR each
+    {"id": "fleet-addons",      // repo identity - the value every node's `repo` names
+     "base": "<principal branch name>",
+     "verify": "<command that must pass after every cherry-pick>",
+     "commit": "<resolved by git-toolkit:git-ops at commit time>",
+     "confidential": "public | restricted | internal",
+     "worktree_root": "<parent path for this repo's worktrees, outside the repo tree>"}
+  ],
   "nodes": [
     {"id": "mod-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|wave|inline|integrate",
+     "repo": "fleet-addons",    // which repos[].id this node belongs to; null = belongs to none
      "inputs": {}, "depends_on": [], "gate_tier": "L1",
      "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT",
      "produced": [], "contract": { /* last emitted continuation block */ }}
@@ -1076,13 +1084,29 @@ references a driver-required workflow directly.
 }
 ```
 
+**`repos[]` + the per-node `repo` field - PR topology is per REPOSITORY.** `repos[]` promotes the
+Repo Capability Card (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Repo Capability Card Template) from one-per-run to one-per-repo: every card field is preserved
+verbatim and keyed by `id`. A single-repo run is simply a ONE-ENTRY list - no extra ceremony. Each
+entry gets its OWN `run-integration` branch+worktree, its own terminal `integrate` node, and its own
+PR: **N repos = N `integrate` nodes = N PRs.** Every node names the repo it belongs to via `repo`;
+`repo: null` (chat-only synthesis, routing, a report) means the node belongs to NO repository - it is
+never provisioned a worktree and sits outside EVERY repo's `integrate` readiness scope. A `wave` or
+`integrate` node must always name a declared repo (a null there is a serialization bug -
+`scripts/audit-run.py` fails it). Readers: the driver re-derives `integrate@R` readiness from
+`repo` (`run-harness` SKILL.md § Gate-tier resolution) and forks each module worktree from ITS
+repo's run-integration branch; intake Phase P writes both fields
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`); `scripts/audit-run.py`
+audits one-PR-per-repo against them. A run file written before this field existed is still audited:
+the auditor falls back to the legacy single-repo form and names the form it ran in.
+
 **`approach_kind: integrate`** is the terminal *land* node (the tail of every `writes-files`
-plan), dispatched ONCE after the final coding wave closes green. Its dispatch is not a
-skill/agent/workflow call: `run-harness` invokes `git-toolkit:git-ops` to squash the run-integration
-branch, fresh FIRST-push it (non-force - no history rewrite, so no destructive-op gate fires), and
-open ONE PR against the principal branch, then materializes a dynamic `next` node ->
+plan), dispatched ONCE PER REPO after the final coding wave closes green. Its dispatch is not a
+skill/agent/workflow call: `run-harness` invokes `git-toolkit:git-ops` to squash that repo's
+run-integration branch, fresh FIRST-push it (non-force - no history rewrite, so no destructive-op
+gate fires), and open ONE PR against the principal branch, then materializes a dynamic `next` node ->
 `odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge gate). There is exactly ONE PR per
-run - never one per wave. Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate`
+REPO - never one per wave. Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate`
 node dispatch (the land tail)".
 
 **Three coordination surfaces (no overlap).** A run coordinates over three distinct surfaces,
@@ -1162,7 +1186,7 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   (`_derive_gate_tier` has no wave branch). A STATIC `wave` advance DRIVES to done: run-harness's
   between-wave integration is worktree-isolated, so its instance touches are EPHEMERAL test DBs; on a
   GREEN cumulative close-gate the wave AUTO-ADVANCES to the next wave (NO per-wave PR), and the only
-  irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate) of the
+  irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's merge approval gate) of the
   single run-level PR the terminal `integrate` land-tail opens once after the final wave. Auto-pass
   under `--auto`; gated under `--step`. A DYNAMIC (unplanned) wave is NOT a static plan node - it
   stays L2 via run-harness's all-dynamic-L2 rule (§8.1 driver loop; GATE E-4).

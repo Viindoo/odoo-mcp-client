@@ -58,8 +58,8 @@ contract.
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
 5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
    L2 (irreversible/outward: shared instance, git MERGE to the principal branch, send to a third
-   party). Opening the run's ONE PR - the terminal `integrate` land-tail's fresh FIRST-push of the
-   run-integration branch to the fork + PR-open - is NOT L2: it is a non-destructive first push (no
+   party). Opening a repo's ONE PR - the terminal `integrate` land-tail's fresh FIRST-push of that
+   repo's run-integration branch to the fork + PR-open - is NOT L2: it is a non-destructive first push (no
    history rewrite, no force, so no git-toolkit destructive-op gate fires) and runs as part of
    drive-to-done under `--auto`. The ONLY coding-run L2 is the outward MERGE (owned by
    `odoo-pr-monitoring`). No local merge into the principal checkout; no auto-merge.
@@ -81,20 +81,32 @@ contract.
   intake Phase P from the approved plan, schema in harness §8.3) - run-harness is dispatched only
   after this file exists; it never receives a raw plan `.md`.
 - `autonomy` ∈ {auto (default), step, plan} read from that file.
+- `repos[]` from that file: one entry per repository the run touches, each carrying that repo's
+  Repo Capability Card (`id`, `base`, `verify`, `commit`, `confidential`, `worktree_root`). A
+  single-repo run is a ONE-ENTRY list. Each node's `repo` names one of those `id`s, or is `null`
+  when the node belongs to no repository. **N repos = N `integrate` nodes = N PRs.**
 
 ## The loop
 
 ```
-load RUN = read(<ISOLATE_DIR>/run-<id>.json)        # the active run; if several, the one intake just wrote / the user named
+RUN_FILE = <ISOLATE_DIR>/run-<id>.json             # resolve WHICH run ONCE, out here: the active run; if
+                                                   # several, the one intake just wrote / the user named
 
-while RUN.status == "NEEDS_NEXT":
+loop:
+    RUN = read(RUN_FILE)          # RE-READ the run file from disk at the TOP of EVERY iteration - the file
+                                  # on disk wins over anything you remember from earlier in this run.
+    if RUN.status != "NEEDS_NEXT": break
+
     if RUN.budget.nodes_run >= RUN.budget.max_nodes:        # runaway guard
-        set RUN.status = "BLOCKED"; blocked_reason = "node budget exhausted - human review"; break
+        set RUN.status = "BLOCKED"; blocked_reason = "node budget exhausted - human review"; write(RUN); break
 
     node = pick_ready(RUN)        # READY = every depends_on is DONE; topo-order; tie → lowest node id
                                   # (plan authoring order; `confidence` is a dynamic-next[] field, NOT a static-node field)
+                                  # `integrate@R`: RE-DERIVE its extra precondition here, scoped by
+                                  # node.repo, never trust depends_on alone (§ Gate-tier resolution
+                                  # → `integrate` readiness precondition)
     if node is None:              # nothing ready but not all done → cycle / deadlock
-        set RUN.status = "BLOCKED"; blocked_reason = "no ready node (dependency cycle?)"; break
+        set RUN.status = "BLOCKED"; blocked_reason = "no ready node (dependency cycle?)"; write(RUN); break
 
     tier = rederive_floor(node)   # NOT raw node.gate_tier - re-assert the floor (see §Gate-tier
                                   # resolution): an `outward` MERGE | a non-wave instance_touching
@@ -124,9 +136,9 @@ while RUN.status == "NEEDS_NEXT":
                               integrated review + cumulative close-gate; then AUTO-ADVANCE to the next
                               wave - NO per-wave PR, NO per-wave stop). run-harness owns this directly -
                               there is no git-executor skill.
-        - integrate         → the terminal land-tail, dispatched ONCE after the FINAL wave closes green:
-                              invoke git-toolkit:git-ops (squash the run-integration branch + fresh
-                              FIRST-push to the fork + open ONE PR against principal) from main context,
+        - integrate         → the terminal land-tail, dispatched ONCE PER REPO after the FINAL wave closes
+                              green: invoke git-toolkit:git-ops (squash node.repo's run-integration branch
+                              + fresh FIRST-push to the fork + open ONE PR against principal) from main context,
                               then materialize next -> odoo-pr-monitoring @ gate_tier L2 (single outward
                               merge gate). The push is a non-force first push - no destructive-op gate fires.
         - inline            → do the small synth step yourself
@@ -155,7 +167,7 @@ while RUN.status == "NEEDS_NEXT":
     write(RUN)
 
 # Completion Contract (#8): terminal report with evidence
-finalize: RUN.completion = {status, evidence: flatten(all produced), summary}
+finalize: RUN.completion = {status, evidence: flatten(all produced), summary}; write(RUN)
 emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per claim
 ```
 
@@ -181,6 +193,11 @@ track the spawner's teammate tasks (single main context - no double-tracking). F
 dispatched directly, inject its brief and read the result from its SendMessage push (NEVER the
 `.output` transcript). When the CHP probe is off, teammate tracking is skipped - the always-on node
 checklist above still applies regardless.
+
+Every gate this loop emits (`emit_human_gate`, the dynamic-node preview, the close-the-wave
+confirmation, the terminal report) is chat-facing: write it in the USER'S language (translate
+labels and prose; keep node ids, module names, paths, skill names, and the reply keywords verbatim
+- SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ## Gate-tier resolution
 
@@ -210,8 +227,11 @@ unit and never appears in a run node.
   re-inserts a between-wave stop: it raises the floor to L1, and an L1 node under non-`auto` autonomy
   emits a human gate.
 - **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
-  approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Gate: approve / refine:
-  [feedback] / cancel` - the PLAN gate set, `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`)
+  approved plan): driver MUST emit a preview (`Proposed / Files / OSM: backed | standalone` -
+  spelling OSM out on first use: Odoo Semantic, the indexed Odoo source; backed = facts checked
+  against it, standalone = not reachable, local files only - then
+  `Gate: approve / refine: [feedback] / cancel`, the PLAN gate set,
+  `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`)
   and **END ITS TURN** before dispatching. Treat ANY dynamic (unplanned) node as **L2**:
   `--auto` cannot auto-pass (GATE E-4 all-dynamic-L2). A DYNAMIC (unplanned) wave is one such node,
   so it stays L2 (unchanged). A dynamic source-writing node is additionally provisioned by Hard
@@ -230,15 +250,30 @@ mandatory gate; a wave node that mutated a SHARED (non-ephemeral) instance would
 re-classification, and none exists today. This L1 is a run-harness NODE tier applied here by the
 driver - NOT a registry `default_gate_tier` value (`_derive_gate_tier` has no wave branch).
 
-**`integrate` node dispatch (the land tail).** Dispatched ONCE, after the FINAL coding wave closes
-green. Invoke `git-toolkit:git-ops` from the main context to squash the run-integration branch, do a
-fresh FIRST push of it to the fork (a non-force push - no history rewrite, so no git-toolkit
-destructive-op gate fires), and open ONE PR against the principal branch, then materialize
-`next -> odoo-pr-monitoring` at `gate_tier: L2` - the single outward merge gate (L2 never
-auto-passes, so the human approves the merge even under `--auto`). `odoo-coding` never pushes or opens
-a PR; per module it returns the SHA on its branch, which run-harness cherry-picks onto the ONE
-run-integration branch during the between-wave integration. This is the ONE land mechanism for the
-whole run - one PR, not one per wave (git-ops open-PR -> `odoo-pr-monitoring` merge); no local merge
+**`integrate` readiness precondition (RE-DERIVE it; `depends_on` alone is NOT trusted).** This is the
+same defense-in-depth move as `rederive_floor` above: the driver re-derives the rule at `pick_ready`
+instead of believing what the plan serialized. **`R` is the node's own `repo` field** (harness §8.3;
+one `integrate` node per entry in `RUN.repos[]`). **`integrate@R` is READY only when EVERY node whose
+`repo == R` and which is NOT in the land-tail set is DONE or SKIPPED. land-tail set =
+{`integrate`, `monitor`, `merge`}.** The land-tail carve-out is MANDATORY - never "simplify" it away:
+`monitor` depends on `integrate`, so a rule phrased "every OTHER node in the repo must be DONE"
+deadlocks EVERY run (`integrate` waits for `monitor`, `monitor` waits for `integrate`, run ends
+BLOCKED). Nodes of ANOTHER repo, and nodes with `repo: null` (belonging to no repository), are OUTSIDE
+this scope - each repo's PR waits only on ITS OWN nodes, so a slow second repo never holds the first
+repo's PR hostage. A one-entry `repos[]` collapses this to "every non-land-tail node in the run", with
+no special case. This is what keeps the PR from opening ahead of the doc / review / acceptance nodes
+when the plan under-specified `integrate.depends_on` (tie-break by lowest node id would otherwise
+decide that by accident).
+
+**`integrate` node dispatch (the land tail).** Dispatched ONCE PER REPO (`integrate@R`), after the
+FINAL coding wave closes green. Invoke `git-toolkit:git-ops` from the main context to squash repo
+`R`'s run-integration branch, do a fresh FIRST push of it to the fork (a non-force push - no history
+rewrite, so no git-toolkit destructive-op gate fires), and open ONE PR against `R`'s `base` branch,
+then materialize `next -> odoo-pr-monitoring` at `gate_tier: L2` - the single outward merge gate (L2
+never auto-passes, so the human approves the merge even under `--auto`). `odoo-coding` never pushes or
+opens a PR; per module it returns the SHA on its branch, which run-harness cherry-picks onto ITS
+REPO's run-integration branch during the between-wave integration. This is the ONE land mechanism -
+one PR per REPO, not one per wave (git-ops open-PR -> `odoo-pr-monitoring` merge); no local merge
 into the principal checkout, and no auto-merge.
 
 ## Between-wave integration (consumes Block 2W)
@@ -260,9 +295,11 @@ never be reaped) - `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-int
 § Stale wave-dir sweep (full recipe there, not restated here). THEN create the JOB-tier
 integration worktree: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to add a
 worktree (branch `run-integration-<slug>`, worktree `<worktree_root>/run-integration`, base
-`base`/principal). This single branch+worktree pair is the cherry-pick target for EVERY wave and is
-the branch the terminal `integrate` land-tail eventually squashes + pushes as the run's ONE PR.
-There is NO per-wave integration branch or worktree.
+`base`/principal) - **one such pair PER ENTRY in `RUN.repos[]`**, each resolved from THAT entry's own
+card (`base`, `worktree_root`); a one-entry `repos[]` makes this exactly one pair, as before. A
+repo's branch+worktree pair is the cherry-pick target for EVERY wave node whose `repo` is that repo,
+and is the branch that repo's terminal `integrate` land-tail eventually squashes + pushes as that
+repo's ONE PR. There is NO per-wave integration branch or worktree.
 
 Then, per wave N, in module-DAG order:
 
@@ -275,8 +312,9 @@ Then, per wave N, in module-DAG order:
    the `n <= 1` predicate:
    `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
    Field ABSENT -> steps 1-2 as written.
-1. **Fork module worktrees from run-integration.** Each module's worktree forks from the ONE
-   run-integration branch (NOT from `base`/principal, NOT from a per-wave branch) per the planned
+1. **Fork module worktrees from run-integration.** Each module's worktree forks from the
+   run-integration branch OF THE WAVE NODE'S OWN `repo` (NOT from `base`/principal, NOT from a
+   per-wave branch, NOT from another repo's run-integration) per the planned
    Block-2W lineage. Because run-integration already carries every PRIOR wave's cherry-picked code, a
    dependent wave's worktree already CONTAINS its dependencies' committed source - the
    fork-from-integrated-parent property, now realized on ONE branch instead of a chain of per-wave
@@ -294,9 +332,10 @@ Then, per wave N, in module-DAG order:
 3. **Close the wave.** Run the integrated-tree cross-cutting review over the whole integration
    worktree - SCALE-BASED, never a flat inline review regardless of wave size: a large wave
    (`git diff <principal>...HEAD --shortstat` > ~1500 changed lines OR module count N >= 8)
-   escalates to a **fable** review subagent (cost ~2x opus - state tier + cost + a one-line why,
-   wait for an explicit human `yes`; on decline/unavailable fall back to opus inline and note the
-   downgrade); otherwise run an **opus inline** review in this context (full rule + coverage/
+   escalates to a **fable** review subagent. Ask the human as a TRADEOFF, never by tier name -
+   how big the wave is, that the review runs on the deepest-reasoning setting, and that it costs
+   about 2x - with the reply set `approve / skip / cancel`; on `skip`/unavailable fall back to opus
+   inline and note the downgrade. Otherwise run an **opus inline** review in this context (full rule + coverage/
    blast-radius review lenses: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
    § Review Escalation). Then the **cumulative regression close-gate** - the growing
    `cumulative_modules` suite run GREEN (never open a PR on red). On green the wave is CLOSED and the
@@ -309,15 +348,16 @@ review subagent above), fill the caller-side skeleton in
 family delta; never inline that file verbatim into a hard-leaf brief.
 
 4. **After the FINAL wave: the pre-PR tail, THEN the single land-tail PR.** There is NO per-wave PR.
-   After the LAST wave closes green, run-harness drives the pre-PR tail IN ORDER - i18n reconcile,
-   then acceptance (when triggered), then the pre-PR lint-class gate - and ONLY THEN dispatches the
-   terminal `integrate` land-tail ONCE (§ `integrate` node dispatch): squash the run-integration
-   branch, fresh FIRST-push it to the fork (non-force - no history rewrite, so no git-toolkit
-   destructive-op gate fires), and open ONE PR against principal. The outward MERGE stays
+   After the LAST wave closes green, run-harness drives the pre-PR tail IN THE ORDER FIXED BY the
+   Terminal stage order constant (cited below), and ONLY THEN dispatches the
+   terminal `integrate` land-tail ONCE PER REPO (§ `integrate` node dispatch): squash that repo's
+   run-integration branch, fresh FIRST-push it to the fork (non-force - no history rewrite, so no
+   git-toolkit destructive-op gate fires), and open ONE PR against principal. The outward MERGE stays
    `odoo-pr-monitoring`'s (the single L2-merge-gate). Drive-to-done STOPS at "PR opened". Full
    sequence, the acceptance-vs-i18n order justification, the lint-class gate's containment prose, and
    the acceptance hand-off's `next` block: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
-   § Pre-PR tail (mandatory sequence, after the final wave closes green) - not restated here.
+   § Pre-PR tail (mandatory sequence, after the final wave closes green) > Terminal stage order -
+   not restated here.
 
 The invoked `odoo-coding` DRIVES its own per-module `odoo-code-review` inline and returns a SHA;
 run-harness does NOT advance a per-module `next` for that in-wave invocation (the review loop
@@ -326,7 +366,7 @@ between-wave advance is L1 (autonomous drive-to-done, auto-advance with NO per-w
 coding-run L2 is the downstream MERGE of the single run PR (`odoo-pr-monitoring`'s L2-merge-gate).
 This is the drive-to-done invariant: the wave may auto-advance between waves ONLY because each wave
 proves a GREEN cumulative close-gate before the next wave forks from run-integration - and the run
-opens exactly ONE PR after the final wave.
+opens exactly ONE PR per REPO after the final wave.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 
