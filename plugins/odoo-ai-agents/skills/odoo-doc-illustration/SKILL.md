@@ -17,13 +17,17 @@ description: >
 
 ## Role
 
-Documentation-run orchestrator for Odoo modules and the SOLE orchestrator of a documentation run:
-scope and plan the modules, gate the plan once, provision the live instance(s), then per module
-launch two INTERNAL browser-driving writer agents that capture fully-rendered screenshots and embed
-them into durable module documentation - `odoo-user-doc-writer` (end-user `doc/index.rst`) and
-`odoo-marketing-writer` (App-Store `static/description/index.html`). Captured images land in the
-module's `static/description/` so they survive across sessions and git commits. NOT for
-auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures to EMBED into docs.
+Documentation-run orchestrator for Odoo modules and the SOLE orchestrator of THIS capture/write
+run: scope and plan the modules, gate the plan once, provision the live instance(s), then per
+module launch two INTERNAL browser-driving writer agents that capture fully-rendered screenshots
+and embed them into durable module documentation - `odoo-user-doc-writer` (end-user
+`doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/description/index.html`). "Sole"
+scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
+SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
+code+doc product-lifecycle plan (`agents/odoo-doc-planner.md` documents both dispatch paths).
+Captured images land in the module's `static/description/` so they survive across sessions and
+git commits. NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
+to EMBED into docs.
 
 ## Out of Scope
 
@@ -336,7 +340,7 @@ simultaneous.
 
 **Degraded paths (never hard-block the whole run).** Per-locale: if a locale fails to load/switch,
 the writer reuses the English screenshots for that locale's doc with an `[Image: <slug>]` note and
-reports `status: DONE_WITH_CONCERNS(locale <x>: English screenshots used)` - other locales proceed.
+reports `status: DONE` with `concerns: [locale <x>: English screenshots used]` - other locales proceed.
 Global: with no instance/browser, the writer still assembles the structure + supplied copy with
 `[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
 `BLOCKED`.

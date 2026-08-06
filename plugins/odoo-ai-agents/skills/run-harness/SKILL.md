@@ -51,7 +51,9 @@ contract.
    dispatch is, by itself, never one of these - and a run that plows past a genuine (a)-(d)
    condition instead of stopping is BLOCKED behavior too (a real blocker ignored), not
    drive-to-done.
-3. **Only run-harness writes `run-<id>.json`.** Hooks never write it (no write race).
+3. **Writes to `run-<id>.json` after creation are run-harness's alone.** Intake's Phase P performs
+   the one-time bootstrap write that creates the file; from that point only this loop writes it.
+   Hooks never write it (no write race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
 5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
@@ -136,7 +138,10 @@ while RUN.status == "NEEDS_NEXT":
                                                              # transcript (Tier-C fallback only). See prose below + agent-team-protocol.md.
     node.contract = contract
     node.produced = contract.produced
-    node.status   = map(contract.status)                     # DONE | (FAILED→retry<3 else BLOCKED) | BLOCKED | NEEDS_CONTEXT
+    node.status   = map(contract.status)                     # DONE | NEEDS_NEXT→DONE (next[] already
+                                                             # materialized into dynamic_nodes above) |
+                                                             # FAILED→retry<3 else BLOCKED | BLOCKED |
+                                                             # NEEDS_CONTEXT
     for nx in contract.next:                                 # SUGGEST → CHAIN ; cross-workflow on_complete lands here too
         if nx.confidence >= 0.5 and not duplicate(nx) and within_budget:
             RUN.dynamic_nodes.append(materialize(nx))        # new READY node, depends_on = node;
@@ -205,8 +210,9 @@ unit and never appears in a run node.
   re-inserts a between-wave stop: it raises the floor to L1, and an L1 node under non-`auto` autonomy
   emits a human gate.
 - **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
-  approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
-  cancel)`) and **END ITS TURN** before dispatching. Treat ANY dynamic (unplanned) node as **L2**:
+  approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Gate: approve / refine:
+  [feedback] / cancel` - the PLAN gate set, `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`)
+  and **END ITS TURN** before dispatching. Treat ANY dynamic (unplanned) node as **L2**:
   `--auto` cannot auto-pass (GATE E-4 all-dynamic-L2). A DYNAMIC (unplanned) wave is one such node,
   so it stays L2 (unchanged). A dynamic source-writing node is additionally provisioned by Hard
   rule 6 at its human-gated dispatch, so the coder never authors on the principal checkout on the

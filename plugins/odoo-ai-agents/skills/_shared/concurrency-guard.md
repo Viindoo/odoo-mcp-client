@@ -51,7 +51,7 @@ needs, never by wall-clock time.
 |------|-----------------------|----------|
 | **haiku** | mechanical, low-reasoning, fully bounded - a recipe with no judgement | one field/label/CSV row; copy a known pattern; collect/format already-known facts; a single small file |
 | **sonnet** (default) | medium reasoning, balanced - and the ambiguous-case default | normal computed/onchange/constraint; one override; a bounded analysis cluster; anything you cannot confidently place |
-| **opus** | heavy reasoning OR large scope - cross-cutting judgement, wide blast radius | core create/write/unlink override; cross-model / multi-company logic; large or high-dependency target; cross-cluster synthesis |
+| **opus** | heavy reasoning - cross-cutting judgement across MULTIPLE hard domains AND entangled with many interacting modules, together, never size/blast-radius alone (`odoo-coding` § Phase 0 refines this row; do not escalate on size/file-count/blast-radius by itself) | core create/write/unlink override whose correctness spans many dependents; cross-model / multi-company logic spanning modules; cross-cluster synthesis |
 | **fable** | ultra-complex, design-first - rare top band (~2x opus); ALWAYS needs explicit human confirmation | Custom-XL whole-subsystem build; change an inheritance axis across modules |
 
 Principle: haiku is fast but only earns its speed on mechanical work; opus is

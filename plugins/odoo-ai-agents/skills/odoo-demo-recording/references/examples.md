@@ -54,7 +54,8 @@ co-loader as vendor - fix is already merged - `--label before`, then `--label af
   `close_page` (chrome-devtools has no recorder to stop - pagecast is excluded here, see § Overlay
   mechanism).
 - Round 4: no frame-to-clip assembler configured in this deployment → the ordered PNG sequence is
-  the deliverable for each label; report `DONE_WITH_CONCERNS` naming the missing assembler, with
+  the deliverable for each label; report `status: DONE` with a `concerns:` entry naming the
+  missing assembler, with
   paths `<ISOLATE_DIR>/visual/videos/lcl-coloader-vendor-20260803-a1b2-before/` and
   `.../lcl-coloader-vendor-20260803-a1b2-after/` (frame sequences, same minted slug from Round 0,
   `-before`/`-after` suffix - the random suffix is what keeps this pair from colliding with any

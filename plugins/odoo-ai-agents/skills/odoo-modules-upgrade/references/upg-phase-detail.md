@@ -238,10 +238,10 @@ FIX LIST (prepended before the deprecation + breaking-change fixes).
 
 ### P1 gate
 
-Assert: DAG is acyclic. On cycle: surface the cycle edges as `DONE_WITH_CONCERNS` +
+Assert: DAG is acyclic. On cycle: surface the cycle edges as a `concerns:` entry +
 list the cycle + ask the user to break it before P2 proceeds (do NOT hard-fail).
-Assert: no dep_missing_at_target or dep_identity_changed (if any flagged, surface as
-`DONE_WITH_CONCERNS` + list affected deps with their new identity or missing status +
+Assert: no dep_missing_at_target or dep_identity_changed (if any flagged, surface as a
+`concerns:` entry + list affected deps with their new identity or missing status +
 ask user to confirm the resolution before P2).
 Record P1d `blockers[]` for P3/P4; a non-empty blockers list is NOT a hard-fail (it is the
 preemptive fix list), but list it in the P3 plan so the human sees what P4 will fix up front.

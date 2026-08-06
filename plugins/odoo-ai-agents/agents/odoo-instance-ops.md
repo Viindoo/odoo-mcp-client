@@ -545,8 +545,8 @@ The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TES
 
 **Verdict contract.** Derive `status` from the counts, in this precedence order:
 - `failed + errors > 0` -> `status: tests-failed` (equivalently `TEST_RESULT=failed`): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
-- else `skipped > 0` -> `status: tests-inconclusive` (equivalently `TEST_RESULT=inconclusive`; DONE_WITH_CONCERNS at minimum, a HOLD not a green light): skips are NOT fatal (legitimately produced by `@tagged` filters or a missing optional external dependency) but they are also NOT proof the suite ran clean - `TEST_SKIPPED>0` NEVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` (which lists the skipped test names) first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` to the caller rather than swallow it.
-- else `warnings > 0` -> `status: tests-passed-with-warnings` (DONE_WITH_CONCERNS): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
+- else `skipped > 0` -> `status: tests-inconclusive` (equivalently `TEST_RESULT=inconclusive`; a `concerns:` entry at minimum, a HOLD not a green light): skips are NOT fatal (legitimately produced by `@tagged` filters or a missing optional external dependency) but they are also NOT proof the suite ran clean - `TEST_SKIPPED>0` NEVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` (which lists the skipped test names) first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` to the caller rather than swallow it.
+- else `warnings > 0` -> `status: tests-passed-with-warnings` (a `concerns:` entry, not a bare pass): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
 - clean (`failed + errors = 0`, `skipped = 0`, and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address - **unless the checker-load coverage check below downgrades it.**
 
 **Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** The four-branch ladder above adjudicates entirely on `failed`/`errors`/`skipped`/`warnings` - counters that a lint-class module's own test method increments as it runs. A custom checker (or an entire checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of those four signals: it is not a failure (the checker never ran, so nothing could fail), not a skip (it is not a test - `@tagged` filters do not apply to it), and not a warning (nothing objected - there was simply nothing there to object). All four counters can legitimately read `0/0/0/0` while the run silently checked fewer things than the caller asked for, and the ladder above - unmodified - would resolve that straight to `tests-passed`, the ONE verdict its own text calls "the only verdict that lets the caller proceed with nothing to address." That is exactly the false-green shape this axis exists to close.
@@ -626,8 +626,8 @@ caller's `languages` omits it. Run via the venv python, capture `LOG_PATH=` from
 the log for `Loaded <lang>` as a weaker signal and flag
 `grounded: log-signal (not live-verified)` in the output notes.
 
-**Per-locale degradation:** If a locale fails to activate, emit
-`DONE_WITH_CONCERNS(locale <x>: load failed - log: <log_path>)` and continue loading remaining
+**Per-locale degradation:** If a locale fails to activate, emit a `concerns:` entry
+(`locale <x>: load failed - log: <log_path>`) and continue loading remaining
 locales. Never abort the entire run for one failing locale.
 
 **Output block:** include `languages_loaded: [<locales confirmed active>]`; include

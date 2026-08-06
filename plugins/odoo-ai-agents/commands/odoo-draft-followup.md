@@ -24,7 +24,7 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
   - Last touch date - only if not already provided
   - Current pipeline stage - only if not already provided
   - Prior commitments or blockers (e.g., "waiting on PO", "evaluating competing offer")
-- **Gate before saving**: Display the drafted email to the user. Explicitly ask: "Email draft OK? (yes / iterate / cancel)". Do not write to disk unless the user confirms "yes".
+- **Gate before saving**: Display the drafted email to the user. Explicitly ask: "Email draft OK? (approve / refine: [feedback] / cancel)" - the PLAN gate set (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`). Do not write to disk unless the user confirms "approve".
 - **No auto-send**: This command **only drafts**. It does not send email, update CRM systems, or trigger workflows.
 
 ## Phases
@@ -71,14 +71,14 @@ Risk Score: [yellow]
 Next-Best-Action: [Schedule a 30-min call next week]
 ```
 
-Ask explicitly: **"Email draft OK? Reply with `yes` to save, `iterate` to refine, or `cancel` to discard."**
+Ask explicitly: **"Email draft OK? Reply with `approve` to save, `refine: [feedback]` to change it, or `cancel` to discard."**
 
-- **`yes`** → Phase 3.
-- **`iterate`** → Ask what to change (tone, specifics, objection, next action), invoke skill again with updated context, loop back to Phase 2.
+- **`approve`** → Phase 3.
+- **`refine: [feedback]`** → Ask what to change (tone, specifics, objection, next action), invoke skill again with updated context, loop back to Phase 2.
 - **`cancel`** → End command, discard draft.
 
 ### Phase 3: Write to disk and confirm
-On user "yes":
+On user "approve":
 1. Create directory `<ISOLATE_DIR>/followups/` if it does not exist.
 2. Slugify customer-label: lowercase, replace whitespace and non-alphanumeric with `-`, collapse repeats. Example: `ABC Manufacturing` → `abc-manufacturing`.
 3. Derive filename: `<slugified-customer-label>-<YYYY-MM-DD>.md` (e.g., `abc-manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short suffix (e.g., `-v2`) or ask the user for a unique name.

@@ -291,14 +291,14 @@ Plan:
 Design: <DESIGN_DOC child path | none> [Master: <MASTER_DESIGN_DOC path | none>]
 OSM: backed | standalone
 Dispatch: subagent launch model-weighted batches
-Proceed? (yes / refine: [feedback] / cancel)
+Proceed? (approve / refine: [feedback] / cancel)
 ```
 
 The `wave` column stays for the reader's benefit (it shows depends-on), but the
 executor does not barrier on waves - dependency order is enforced per-module
 during execution.
 
-On `yes`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
+On `approve`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
 ## Execution - dispatch ONE odoo-coder per module (model-weighted batches)
 

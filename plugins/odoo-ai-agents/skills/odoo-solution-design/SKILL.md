@@ -67,7 +67,7 @@ Will decide:  approach (inherit axis / new vs extend) · data model · override 
               (upstream+downstream) impact · dynamic demo-data plan
 Artifact:     <SHARE_DIR>/designs/<slug>-<YYYY-MM-DD>.md (design doc, no production code)
 OSM:          backed | standalone
-Proceed? (yes / refine: [feedback] / cancel)
+Proceed? (approve / refine: [feedback] / cancel)
 ```
 
 Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint for
@@ -87,20 +87,20 @@ Module enumeration priority (first available): deep-survey `synthesis.md` → br
 → modules-upgrade `graph.md` → fallback: scan `__manifest__.py` + topo-sort `depends`
 (pattern: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P1(a)).
 
-When the heuristic fires, replace `Proceed? (yes / refine: [feedback] / cancel)` with:
+When the heuristic fires, replace `Proceed? (approve / refine: [feedback] / cancel)` with:
 
 ```
 Proceed?
   approve-master-child  - one master TDD + one child TDD per module (see Decompose branch)
-  approve-single / yes  - flat TDD covering full scope (default; use when in doubt)
+  approve-single        - flat TDD covering full scope (default; use when in doubt)
   refine: [feedback]    - clarify scope first
   cancel
 ```
 
-Default is `approve-single` / plain `yes`. Show `approve-master-child` only when the heuristic
+Default is `approve-single`. Show `approve-master-child` only when the heuristic
 fires - never for a single-module or narrowly-scoped design.
 
-**`approve-single` / plain `yes`:** MUST set `MODE: single` in the architect dispatch brief (P1
+**`approve-single`:** MUST set `MODE: single` in the architect dispatch brief (P1
 template). Without this explicit field, the architect's decompose-bounce heuristic may re-evaluate
 scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
 

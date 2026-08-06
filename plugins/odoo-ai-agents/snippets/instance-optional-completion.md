@@ -11,8 +11,9 @@ on whether the instance is OPTIONAL or REQUIRED for its PRIMARY deliverable - no
 per-skill judgment call:
 
 - **Instance-OPTIONAL** (the PRIMARY deliverable is complete WITHOUT an instance - static
-  source/code review). Finish the static deliverable, mark the instance-gated dimension
-  `DONE_WITH_CONCERNS`, and emit an OPT-IN `next: odoo-acceptance` (L2, human-gated)
+  source/code review). Finish the static deliverable, `status: DONE` with a `concerns:` entry for
+  the instance-gated dimension (per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`),
+  and emit an OPT-IN `next: odoo-acceptance` (L2, human-gated)
   recommending a live verification pass rather than blocking. Example: `odoo-code-review` -
   Python/XML/OWL source review completes fully from static analysis; only the rendered-UI
   dimension needs a live render, so that one dimension is flagged while the overall review
@@ -25,5 +26,5 @@ per-skill judgment call:
   `odoo-acceptance` (live oracle execution).
 
 Rule of thumb: if the skill can finish with a caveat, it is instance-optional
-(`DONE_WITH_CONCERNS` + opt-in `next: odoo-acceptance`); if there is nothing to finish without
-the instance, it is instance-required (`NEEDS_NEXT: odoo-instance`).
+(`status: DONE` + `concerns:` + opt-in `next: odoo-acceptance`); if there is nothing to finish
+without the instance, it is instance-required (`NEEDS_NEXT: odoo-instance`).

@@ -96,7 +96,7 @@ Emit a one-screen preview before dispatching anything:
 Symptom: <one line>
 Suspected layer(s): <backend | ui | perf | security | install> (why)
 Plan: Phase 1 triage (<model>) → Phase 2 localize via <agent(s)/audit(s)> → Phase 3 verify → Phase 4 synthesize
-Proceed? (yes / refine: [feedback] / cancel)
+Proceed? (approve / refine: [feedback] / cancel)
 ```
 
 This skill writes its run notes under `<ISOLATE_DIR>/debug/` (gate tier L1; resolve `<ISOLATE_DIR>`

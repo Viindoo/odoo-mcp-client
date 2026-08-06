@@ -985,7 +985,9 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
    • PreToolUse  remind-delegate  → main Write/Edit/Bash during active run ⇒ additionalContext
                  nudge "consider delegating" (permissionDecision=defer, never allow/deny/ask)
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
-                 (block applies ONLY to subagents as a quality gate, never to main)
+                 (HARD CONTRACT: never blocks, purely advisory - see the script's own header; the
+                 SubagentStop array's two hard blocks live in its enforce-grounding and
+                 enforce-teardown siblings, quality gates that apply ONLY to subagents, never main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
                  advisory (continue=true, never block) - main keeps the right to stop
   blackboard <ISOLATE_DIR>/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒
@@ -1066,7 +1068,7 @@ references a driver-required workflow directly.
   "nodes": [
     {"id": "mod-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|wave|inline|integrate",
      "inputs": {}, "depends_on": [], "gate_tier": "L1",
-     "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED",
+     "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT",
      "produced": [], "contract": { /* last emitted continuation block */ }}
   ],
   "dynamic_nodes": [],          // nodes added at runtime from a Contract's next[]
@@ -1120,7 +1122,7 @@ this loop via the Continuation Contract (a subagent never re-dispatches itself) 
 iterations before escalating - same bounded-iteration safety as every other chain here. When the
 reviewed change touches a UI/behavior surface whose blast-radius reaches DEPENDENT modules (the
 `render_check_set` widened per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` extends beyond the
-changed modules) - or the rendered-UI dimension is left `DONE_WITH_CONCERNS` because no instance was
+changed modules) - or the rendered-UI dimension is left flagged via `concerns:` because no instance was
 reachable - `odoo-code-review` (and run-harness's between-wave close review) additionally emit `next: odoo-acceptance` at
 **L2 (conditional, human-gated)**. It never auto-runs and never auto-blocks the review, and
 `odoo-acceptance` then drives the independent oracle (`odoo-qa-planner`) + live execution
@@ -1171,9 +1173,14 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
 ### 8.5 Command / Skill / Agent - the three axes
 
 These are three **different axes** with a one-way reference chain `Command → Skill → Agent`
-(a DAG, no cycle - consistent with the rule that an agent never calls back into a skill).
-There is no chicken-and-egg: the recipe (skill) is authored at design-time; the agent is
-instantiated at run-time by the recipe.
+(a DAG, no cycle in ORCHESTRATION AUTHORITY - an agent never becomes another skill's
+orchestrator). There is no chicken-and-egg: the recipe (skill) is authored at design-time; the
+agent is instantiated at run-time by the recipe. **Narrow, named exception:** a `role: leaf` agent
+MAY invoke ONE specific skill INLINE, within its own turn, purely as an authoring/read-only
+capability it does not orchestrate - e.g. `odoo-test-writer` invokes `odoo-test-writing` via the
+Skill tool and stays a HARD LEAF throughout (`agents/odoo-test-writer.md`). This does not reopen
+the chain into a cycle: the invoked skill has no awareness of, and never dispatches back to, the
+calling agent.
 
 | Concept | Axis | Nature | When |
 |---|---|---|---|

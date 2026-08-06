@@ -129,17 +129,17 @@ For each module with `needs_ui_review` (`true` or `candidate`), plus each depend
 - **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
 - **Resolve an instance.** Read `instance_base_url` from `<SHARE_DIR>/context.md` (the SAME `SHARE_DIR` captured in Phase 0), else `$ODOO_AI_HOME/instances.toml` (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`), and confirm a browser MCP is reachable.
 - **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0 and briefing `ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/` (the captured literal, not the placeholder) and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). `ARTIFACT_DIR` is only the review-REPORT destination; the SEPARATE `ISOLATE_DIR:` field passed alongside it is what the reviewer composes `<ISOLATE_DIR>/visual/screenshots/<slug>/` from for its own captured screenshots - the two never collapse into one field. These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
-- **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `DONE_WITH_CONCERNS` for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
+- **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `status: DONE` with a `concerns:` entry for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
 
 **Principle (instance-optional completion).** `odoo-code-review`'s PRIMARY deliverable (static
 Python/XML/OWL review) is complete WITHOUT a live instance - only the rendered-UI dimension is
-instance-gated, so a missing instance downgrades that one dimension to `DONE_WITH_CONCERNS` +
-opt-in `next: odoo-acceptance` rather than blocking the whole review. This differs from a skill
+instance-gated, so a missing instance downgrades that one dimension to a `concerns:` entry on an
+otherwise-`DONE` run + opt-in `next: odoo-acceptance` rather than blocking the whole review. This differs from a skill
 whose deliverable REQUIRES a live render (e.g. `odoo-ui-review`), which emits
 `NEEDS_NEXT: odoo-instance` instead. Full rule + more examples:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`.
 
-**Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left `DONE_WITH_CONCERNS` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
+**Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left flagged via `concerns:` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
 
 ```
 next:
@@ -177,7 +177,7 @@ It reviews only what per-module legs cannot: override-chain conflicts, inheritan
 All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
 - `_scope.md` - scoper output (written by scoper agent)
 - `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per the `odoo-code-reviewer` agent output contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md`)
-- `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE_WITH_CONCERNS` for UI)
+- `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE` with a `concerns:` entry for UI)
 - `_synthesis.md` - Opus integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
 - `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
