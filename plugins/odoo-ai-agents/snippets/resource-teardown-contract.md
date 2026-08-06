@@ -1,7 +1,7 @@
 <!-- SSOT snippet. The single home for the resource-teardown-before-DONE invariant: browser
      pages/contexts/recordings (T2) and Odoo instance leases (T3) with one DONE-gate (T0),
      one ownership rule (T1), and one failure-path rule (T4). Also the SSOT for the browser
-     single-flight (exclusivity) rule formerly restated per-agent. Edit here only; consumers
+     single-flight (exclusivity) rule. Edit here only; consumers
      point at ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md.
      This contract operationalizes ODOO-AI-ETHOS Principle #10 (DONE needs observable evidence)
      for tool-using agents: a resource you left running is evidence the task is NOT done. It does

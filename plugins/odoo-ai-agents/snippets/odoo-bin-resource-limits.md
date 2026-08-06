@@ -1,4 +1,4 @@
-<!-- SSOT snippet. odoo-bin memory/time resource-limit POLICY (Problem 1 hardening).
+<!-- SSOT snippet. odoo-bin memory/time resource-limit POLICY.
      The numeric resolution logic lives ONLY in
      scripts/lib/resource_limits.sh - this file documents the policy those
      values implement; it does not restate full command lines. Consumers

@@ -123,7 +123,7 @@ lease that never recorded a pid, or on a legacy lease from before this field exi
 treats an absent/unverifiable fingerprint as "cannot prove liveness", never as "proven dead" or
 "proven alive".
 
-`drop_on_release` replaces the old `created_db` flag (B2): True for ephemeral leases where the
+`drop_on_release`: True for ephemeral leases where the
 caller builds the DB via Odoo create-on-init and the allocator must drop it at release/gc via
 `scripts/lib/odoo_db.py` (through-Odoo path); raw `dropdb` is the logged fallback when the venv
 is unavailable. False when `--no-create` is passed, and always False for shared/exclusive (those
@@ -254,7 +254,7 @@ existing reader, so shell consumers stay simple.
 | `gc` | under flock: reclaim leases per `_is_stale` (§7): a same-host owner pid that is DEAD (`os.kill(pid,0)`) is reclaimed immediately, TTL-independent; a same-host owner pid that is VERIFIED ALIVE (its `pid_started` fingerprint still matches) is NEVER reclaimed, TTL-independent; every other case (different host, no pid recorded, or an unverifiable fingerprint) falls back to `now - heartbeat_at > ttl_s`. When reclaiming a lease whose `owner.pid` IS recorded and alive on this host but was condemned via the fingerprint-mismatch (recycled-pid) or TTL-fallback path, STOP its process group first (`_stop_group`) before reclaim + drop. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
 | `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via raw `dropdb` (no lease means no stored venv path to go through Odoo) |
 | `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - unowned does not mean "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
-| `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
+| `list` | print current leases (debug); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
 `acquire`/`release`/`gc` all do their read-modify-write **inside one `fcntl.flock`** so concurrent
 allocators serialise on the registry; the lock is held only for the short critical section, not for
@@ -422,8 +422,8 @@ but unreachable in practice.
     lease kills a live server and destroys the owner's in-progress work. See `_is_stale`'s
     docstring in `scripts/lib/allocator.py` for the full writeup; §12 covers why `DEFAULT_TTL_S`
     was reconsidered under this narrower scope.
-- GC runs opportunistically at the start of every `acquire` (no daemon needed) and is also callable
-  from `odoo-doctor` / a setup step.
+- GC runs opportunistically at the start of every `acquire` (no daemon needed); it can also be
+  invoked directly via `allocator.py gc`.
 - Registry write is atomic (temp + `os.replace`); a torn/corrupt registry is detected (JSON parse
   fail) and quarantined to `leases.json.bak` with a fresh empty registry, logged loudly.
 
@@ -438,100 +438,9 @@ but unreachable in practice.
 | `$ODOO_AI_HOME` on a network FS without working flock | documented requirement: registry must live on a local FS; setup checks and warns. |
 | Old `instances.toml` with no pool fields | derive pool from `http_port`; fully backward compatible. |
 
-## 9. Consumers to wire (the change list when implemented)
+## 9. TTL default
 
-- `snippets/instance-resolution.md` - add an "allocate, don't just resolve" section for mutation
-  callers (resolution stays for read-only URL needs).
-- `snippets/venv-resolution.md` - the venv `python` comes back in the `ALLOC_*` payload.
-- `docs/reference/ODOO-TESTING.md` + `skills/odoo-coding` / `odoo-test-writing` / `odoo-qa-suite`
-  test guidance - tests acquire an `ephemeral` DB, run `--stop-after-init`, release.
-- `scripts/setup-steps/50-instance-spinup.sh` - the spun-up server is the SHARED read-only render
-  target for the visual stack, so it registers a `shared` (non-exclusive) lease with its actual port
-  + server pid AFTER the server answers, NOT an exclusive lease (that would defeat the sharing).
-- `agents/odoo-coder.md` (the per-module coordinator) - owns the INTEGRATED whole-module instance
-  test (self-provisions it via `Skill(odoo-instance)`); `agents/odoo-backend-coder.md` and
-  `agents/odoo-frontend-coder.md` are BOTH INSTANCE-FREE (static gate only - no allocator; the
-  `/test_lint`/`/test_pylint` lint-class gate runs once at `run-harness`'s pre-PR tail, never in
-  either leaf). This is also where `venv-resolution` belongs
-  long-term (see the open item the brief slim-down surfaced).
-- `skills/_shared/concurrency-guard.md` - add an "Odoo instance allocation" section (sibling to the
-  OSM session-pin race) so the rule is discoverable where the other concurrency rules live.
-- `odoo-doctor` / setup - expose `allocator gc` + `allocator list`.
-
-**Wired:** the coding agents that touch a DB (`odoo-backend-coder`'s lint gate + the `odoo-coder`
-coordinator's integrated module test; `odoo-frontend-coder` is instance-free), `concurrency-guard.md`,
-`odoo-coding`, and `ODOO-TESTING.md` route DB-touching runs through `ephemeral`/`exclusive` leases; `50-instance-spinup.sh` registers the
-shared render server as a `shared` lease (actual port + server pid) once it answers, and
-`instance-resolution.md` consults `allocator.py query` so every visual consumer discovers that live
-port across sessions with no per-consumer edits. A concurrent same-series start is benign: the
-second spin-up loses the OS port bind and exits, then both sessions attach to the one live server
-(only a live pid is recorded, so gc never reclaims a running server). Covered by `test_allocator.py`
-(shared mint / attach / query / gc-keeps-declared-DB) and `test_step45_50_harden.py`
-(register-after-up / attach-without-relaunch / no-lease-on-failure / degrade-without-allocator).
-`hooks/session-end-gc.sh` also now runs `reap-orphans` (list-only, never `--yes`) after `gc` on
-every SessionEnd - see §6.5 "Wired (discovery half only)" - closing the "the fix exists but
-nothing calls it" gap; covered by `tests/test_enforce_teardown.py`.
-
-## 10. Test outline (behavior-first, red-before-green)
-
-- Two concurrent `acquire(ephemeral)` calls return DISTINCT db_name (and distinct ports when
-  `needs_http`) - never the same.
-- A lease whose owner pid is dead is reclaimed by the next `gc`/`acquire`; its ephemeral DB is
-  dropped.
-- `release` drops exactly the ephemeral DB the caller built (via Odoo create-on-init) and leaves declared DBs untouched.
-- Degrade: with `ephemeral_ok=false`, `acquire(ephemeral)` returns an `exclusive` lease on the
-  declared DB and logs the downgrade.
-- flock serialises RMW: N parallel acquires yield N unique ports with no duplicate in the registry.
-- Path resolution honors `$ODOO_AI_HOME` / `$ODOO_AI_INSTANCES` and never reads a hardcoded home.
-- Old `instances.toml` (no pool fields) still allocates (derives the pool).
-
-## 11. Decisions taken (this pass)
-
-1. **Deliverable = this design doc first**, implement after review.
-2. **B2 model: caller-side create, through-Odoo drop** (mechanism §6.1): `ephemeral` acquire
-   reserves the DB name; the caller's `-i` run does Odoo create-on-init; release/gc drops through
-   `scripts/lib/odoo_db.py` (raw `dropdb` fallback). Automatic degrade to an `exclusive` lease when
-   `db_user` cannot `CREATEDB` (create-on-init needs the same privilege).
-3. **Form = a deterministic SCRIPT (`scripts/lib/allocator.py`) run via `Bash` at any depth** - NOT an
-   LLM agent. Subagent-nesting IS available (Claude Code 2.1.172+, depth cap 5) but an LLM agent for a
-   deterministic allocation is slow, token-costly, non-deterministic on port choice, and would force
-   opening agent-launch capability on consumers (breaking the worker-brief + `test_skill_format` net).
-   `Bash` is allowed at any nesting level, so even a leaf-worker calls the script directly.
-4. **Version-specific stays OUT of the allocator.** It returns resource facts only (db_name, free port
-   numbers, token); the CONSUMER builds the `odoo-bin` command - how many ports, and which flags
-   (`--http-port`, longpoll/gevent, `--test-enable`, `--stop-after-init`) - from `cli_help` for the `<series>`
-   at runtime, so future Odoo CLI changes never touch the script.
-5. **`readonly` is lease-free (v1)**; the allocator governs only `ephemeral` + `exclusive`.
-6. **On-demand / lazy** - runs only when a caller needs an instance; GC runs opportunistically inside
-   each `acquire`. No SessionStart/eager hook.
-
-## 12. Open questions for review
-
-- RESOLVED: pool size default 10. Port-to-flag mapping (longpoll/gevent etc.) is NOT hardcoded - the
-  consumer derives it from `cli_help` for the `<series>` at runtime; the allocator only hands out N
-  version-agnostic free port numbers via `--ports N`.
-- RESOLVED: `readonly` stays lease-free. The visual stack's shared render server is served by the
-  `shared` mode rather than a refcount - the long-lived server pid IS the refcount (gc reclaims the
-  row when the process dies), so no fragile manual increment/decrement is needed.
-- RESOLVED: no SessionStart/eager hook - GC runs opportunistically inside `acquire` (on-demand).
-- RESOLVED: the `ttl_s` default is `DEFAULT_TTL_S = 3600` (1h) in `scripts/lib/allocator.py` (the
-  SSOT; §4.2's example mirrors it). It governs ONLY the residual "liveness unprovable" bucket (a
-  different host, no pid ever recorded, or an unverifiable fingerprint) - a same-host owner pid
-  whose `pid_started` fingerprint is verified alive protects the lease REGARDLESS of `ttl_s` (see
-  §7), so this constant carries no risk of reclaiming a live, verified process. 1h was chosen for
-  that narrower residual scope specifically: long enough to stay generous against every documented
-  heartbeat cadence (agents heartbeat between phases/scenarios, not between seconds), short enough
-  to bound the orphan-leak window for exactly the leases the allocator can never verify at all. (An
-  earlier revision of this constant held 7200s/2h, from when TTL alone governed every lease
-  regardless of pid liveness and even a verifiably-alive, same-host owner could be reclaimed once
-  `ttl_s` lapsed without a `heartbeat`; once liveness became authoritative for the provable case,
-  keeping that longer value would only have widened the unprovable bucket's leak window for no
-  remaining benefit.) `heartbeat` (`heartbeat <token>` bumps `heartbeat_at`) is still needed, but
-  ONLY for that same residual bucket: a long-lived holder whose lease cannot carry a
-  locally-verifiable pid (a path-incremental doc run, an acceptance run spanning phases, on a
-  different host) calls `heartbeat <token>` between phases so the TTL backstop never reaps a
-  healthy run it cannot otherwise verify; a same-host, pid-bound holder no longer needs it for
-  staleness purposes at all. Combined with the process-group stop that `release`/`gc` perform
-  before the drop, an owner in the unprovable bucket that dies before releasing is reaped
-  (group-stopped + dropped) within one TTL window at worst; a provably-alive, same-host owner is
-  never TTL-reaped, by design (§7's "do not reap when unsure" tradeoff).
+`ttl_s` defaults to `DEFAULT_TTL_S = 3600` (1h) in `scripts/lib/allocator.py` (SSOT). It governs
+only the liveness-unprovable bucket (different host, no pid recorded, unverifiable fingerprint) -
+a same-host owner with a verified-alive pid is NEVER TTL-reclaimed. Call `heartbeat <token>` on
+any long operation in that bucket.

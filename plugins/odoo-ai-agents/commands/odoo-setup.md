@@ -418,11 +418,11 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   user-confirmed mapping (AI-1..AI-3) and passes it as env before `40 apply`.
   addons_path ordering is own-repos-first → ancestor → core-last; the user may
   reorder at CONFIRM #3. The file is machine-global (resolvable from any cwd);
-  a project-local `./.odoo-ai/instances.toml` (pre-migration legacy location) is
-  honored only as a transitional migration source, folded into the machine-global
-  catalog automatically. Step 40 also gitignores the legacy project-relative
-  `.odoo-ai/` directory (a repo-relative gitignore glob, distinct from the
-  machine-global state root - left as-is) and writes a defensive
+  a project-local `./.odoo-ai/instances.toml` is honored only as a migration
+  source, folded into the machine-global catalog automatically. Step 40 also
+  gitignores the project-relative `.odoo-ai/` directory (a repo-relative
+  gitignore glob, distinct from the machine-global state root - left as-is) and
+  writes a defensive
   `$ODOO_AI_HOME/.gitignore`. Backup + idempotent.
   Also seeds `$ODOO_AI_HOME/i18n.json` (idempotent, no-clobber) with `{"default_languages":[]}` -
   empty, so no locale is assumed on the user's behalf - the machine-global default
@@ -453,9 +453,9 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
-  no longer exist; re-parses and reformats legacy dotted-key blocks to modern
-  `[[instance]]` shape (it does NOT drop version-`0.0`/dotted-key records - the
-  only filter is path existence). Hard mode (`apply --hard`): wipes all entries
+  no longer exist; re-parses and reformats any dotted-key block into the
+  `[[instance]]` array-of-tables shape (it does NOT drop version-`0.0`/dotted-key
+  records - the only filter is path existence). Hard mode (`apply --hard`): wipes all entries
   unconditionally. `check` always exits 0 (reset is always available); it is
   excluded from the `all`/`instance` loops so it never runs silently.
 - **50-instance-spinup** - before launching anything, runs a **fail-loud

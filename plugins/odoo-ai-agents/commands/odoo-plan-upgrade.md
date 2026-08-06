@@ -2,7 +2,7 @@
 name: odoo-plan-upgrade
 argument-hint: "[version-range]"
 description: |
-  Generate a comprehensive Odoo upgrade plan from source version to target version. Chains executive risk overview -> deprecation audit -> API/feature version diff -> synthesis with action ordering and effort estimate. Replaces the legacy odoo-upgrade-planner agent
+  Generate a comprehensive Odoo upgrade plan from source version to target version. Chains executive risk overview -> deprecation audit -> API/feature version diff -> synthesis with action ordering and effort estimate
 ---
 # /odoo-plan-upgrade
 
@@ -52,7 +52,6 @@ step, separate from the `on_complete` design chain above: this plan writes no co
 
 - A client asks for a **full upgrade plan** covering risk, deprecation, and API diff in one deliverable.
 - You need **executive-readable risk overview** and **dev-readable action items** in the same artifact.
-- Replacing a legacy `agents/odoo-upgrade-planner.md` invocation (removed; this command replaces it).
 
 Do **not** use when:
 - Only a deprecation check is needed: invoke `odoo-deprecation-audit` directly.
