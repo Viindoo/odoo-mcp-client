@@ -215,7 +215,6 @@ next:
     reason: provision the live instance needed to run the suite and confirm RED; pass mode (fresh|reuse) and log_mode through when known; add http_port: true if the module has tour/HttpCase tests requiring --http-port
     inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"], mode: "<fresh|reuse - fresh installs with -i, reuse re-runs with -u; omit to let the executor decide>", log_mode: "<warn|info|debug|sql verbosity - optional>", http_port: "<true if tour/HttpCase present, else omit>"}
     confidence: 0.9
-    risk_level: L2
 ```
 so the run-harness provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless. This is the canonical NEEDS_NEXT pattern referenced by `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 

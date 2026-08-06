@@ -67,7 +67,6 @@ next:
     reason: provision the live instance needed to run the suite / tours and adjudicate
     inputs: {operation: run-tests, series: "<series>", modules: [<test_set>]}
     confidence: 0.9
-    risk_level: L2
 ```
 
 Authoring (writing the test/oracle) proceeds regardless; only EXECUTION waits on the instance.

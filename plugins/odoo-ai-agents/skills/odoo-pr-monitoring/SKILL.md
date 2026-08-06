@@ -7,7 +7,7 @@ description: >
   reading through git-toolkit's git-ops skill. On ANY CI warning/error/fail it routes to odoo-debug
   (root-cause first; fixes authored by odoo-coding) - the fix re-push is ALWAYS human-gated (X2), never an
   autonomous push from the unattended poller; a max_review_rounds cap stops review ping-pong (exhaustion ->
-  BLOCKED for a human). On green + approved it presents the L2-merge-gate, merges via git-ops, then runs
+  BLOCKED for a human). On green + approved it presents the merge approval gate, merges via git-ops, then runs
   post-merge cleanup. Fire on: "watch PR #N", "babysit this PR", "drive the PR to merge", "poll CI until it
   goes green". Vietnamese: "theo dõi PR", "canh PR đến khi merge". Route opening + squashing the PR to
   run-harness; writing a fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger to open a
@@ -33,7 +33,7 @@ run-harness final wave closes green  ->  integrate land-tail: squash + fresh fir
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
         -> proposed re-push is HUMAN-GATED (X2); max_review_rounds cap; exhaustion -> BLOCKED
-   -> green + approved  ->  present L2-merge-gate  ->  merge (git-ops)
+   -> green + approved  ->  present merge approval gate  ->  merge (git-ops)
         -> post-merge cleanup (worktrees/branches/tag via git-ops)
 ```
 
@@ -46,7 +46,7 @@ cron poll.
 
 PR release-watcher. After the executor opens the PR, this poller babysits it to merge: it samples
 CI + review on an interval, surfaces failures to the right specialist, holds the irreversible merge
-behind the human `L2-merge-gate`, and tidies up afterwards. It owns the WATCH and the MERGE; it owns
+behind the human merge approval gate, and tidies up afterwards. It owns the WATCH and the MERGE; it owns
 no code, no design, and no git authority of its own (all git/GitHub work is delegated).
 
 ## Inputs - the PR handle (re-attachable across sessions)
@@ -108,7 +108,7 @@ one of three branches:
 
 - **pending** -> record the tick, keep polling (no action).
 - **any warning / error / fail** -> Phase 3 (D3).
-- **green + approved + mergeable** -> Phase 4 (the L2-merge-gate).
+- **green + approved + mergeable** -> Phase 4 (the merge approval gate).
 
 Record each tick's classification in the poll-state note so the next tick (or a resumed session)
 sees the history.
@@ -142,9 +142,9 @@ NEVER pushed autonomously.
    `max_review_rounds`.
 6. After an approved re-push, return to Phase 2 (poll the re-triggered CI).
 
-## Phase 4 - Green + approved -> the L2-merge-gate -> merge -> cleanup
+## Phase 4 - Green + approved -> the merge approval gate -> merge -> cleanup
 
-1. **Present the L2-merge-gate (always human).** The merge is irreversible/outward (git merge to the
+1. **Present the merge approval gate (always human).** The merge is irreversible/outward (git merge to the
    principal branch), so it is L2 and the autonomy dial can NEVER lower it (`run-harness` hard rule
    #5). Present a tight summary - PR URL, CI green, review approved, squashed SHA + tree-identity
    result from run-harness's terminal integrate land-tail - and WAIT for human approval. Write the gate in the USER'S LANGUAGE
@@ -229,12 +229,12 @@ state), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`:
 
 - **Still watching / pending CI** -> `status: NEEDS_NEXT`, `produced: [<ISOLATE_DIR>/pr-monitoring/<id>.md]`,
-  `next: [{skill: odoo-pr-monitoring, reason: "CI still pending - keep polling", inputs: {pr: <url>}, risk_level: L0}]`
+  `next: [{skill: odoo-pr-monitoring, reason: "CI still pending - keep polling", inputs: {pr: <url>}}]`
   so the run re-attaches on the next tick.
 - **Failure routed (D3)** -> `status: NEEDS_NEXT` with `next` to `odoo-debug` then `odoo-coding`; the
-  re-push stays `risk_level: L2` (human-gated).
-- **Green + approved, merge pending the gate** -> `status: NEEDS_NEXT` with the `L2-merge-gate` as an
-  `L2` next; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL and the
+  re-push stays human-gated (X2).
+- **Green + approved, merge pending the gate** -> `status: NEEDS_NEXT` with the merge approval gate as
+  the next step; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL and the
   cleanup result in `produced`.
 - **Bounded out / blocked** -> `status: BLOCKED` with `blocked_reason` (e.g. "max_review_rounds
   exhausted - human review") or `NEEDS_CONTEXT` when the PR handle is missing.

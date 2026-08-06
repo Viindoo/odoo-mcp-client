@@ -335,7 +335,6 @@ next:
     reason: widget renders
     inputs: {target: <instance_base_url>/<path>}
     confidence: 0.4
-    risk_level: L0
 blocked_reason: null
 ```
 

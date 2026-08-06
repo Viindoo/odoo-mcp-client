@@ -229,7 +229,6 @@ next:
     reason: provision the Odoo instance needed for runtime bug reproduction
     inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
     confidence: 0.9
-    risk_level: L2
 ```
 so the run-harness provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
 

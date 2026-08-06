@@ -8,8 +8,11 @@ Business contract under protection (behavior-first, ETHOS #11):
 2. Every fan-out skill references that SSOT instead of restating the numbers.
 3. odoo-coding dispatches the coders via Agent-tool model-weighted batches (the
    JS Workflow dispatch engine was removed to kill the args-undefined crash
-   class): it must NOT regress to the legacy fixed "fire 3, wait" barrier, and
-   its gate table carries an explicit model column with all four tiers.
+   class): it must NOT regress to the legacy fixed "fire 3, wait" barrier; it
+   still resolves all four tiers deterministically; and the human-facing plan
+   gate still carries the per-module cost signal - as a plain-language DEPTH
+   word, never a raw tier name (the plugin-wide "TRADEOFF, never by tier name"
+   rule, which this gate table used to be the last exception to).
 
 These tests fail when the rule is duplicated again, when a skill drops its
 pointer, or when the fixed fire-3 barrier regresses back into odoo-coding.
@@ -78,11 +81,59 @@ def test_odoo_coding_has_no_fire3_batch_barrier():
     )
 
 
-def test_odoo_coding_gate_table_has_model_column_with_all_tiers():
-    text = _skill_text("odoo-coding")
-    assert re.search(r"\|\s*module\s*\|\s*stack\s*\|\s*wave\s*\|\s*model\s*\|", text), (
-        "odoo-coding gate table must carry a model column"
+DEPTH_BY_TIER = {"haiku": "quick", "sonnet": "standard", "opus": "deep", "fable": "deepest"}
+
+
+def _gate_block(text: str) -> str:
+    """The fenced block odoo-coding EMITS TO THE USER at the Phase-0 plan gate - located by the
+    two lines that make it that block (`Proposed:` opens it, the reply set closes it), never by a
+    line offset. Absent => the caller's assertion should fail loudly, not pass vacuously."""
+    match = re.search(
+        r"^```\n(Proposed:.*?Proceed\? \(approve / refine: \[feedback\] / cancel\)\n)```",
+        text,
+        re.DOTALL | re.MULTILINE,
     )
+    assert match, "odoo-coding must still emit a fenced Phase-0 plan-gate block to the user"
+    return match.group(1)
+
+
+def test_odoo_coding_gate_table_shows_depth_not_the_model_tier_name():
+    """CONTRACT CHANGE (not a weakened assertion): the gate table still has to carry the per-module
+    cost/depth signal - the user is approving how much reasoning each module gets, and that has a
+    real price - but it must express it the way the rest of the plugin already does at every other
+    human-facing gate: as a plain-language TRADEOFF, never by tier name (see this same file's fable
+    trade-off line and run-harness's wave-close escalation). So the column is still asserted, the
+    tier-resolution table is still asserted intact, and one NEW assertion is added on top: no raw
+    tier name may appear inside the block that gets emitted to the user."""
+    text = _skill_text("odoo-coding")
+    assert re.search(r"\|\s*module\s*\|\s*stack\s*\|\s*wave\s*\|\s*depth\s*\|", text), (
+        "odoo-coding gate table must still carry the per-module cost/depth column - dropping it "
+        "hides a real cost decision from the human at the gate"
+    )
+    gate = _gate_block(text)
+    leaked = [tier for tier in DEPTH_BY_TIER if re.search(rf"\b{tier}\b", gate)]
+    assert not leaked, (
+        f"model tier name(s) {leaked} leaked into the user-facing gate block - express the "
+        f"tradeoff in plain words (see the depth mapping in § step 5 constraints)"
+    )
+    # The depth words are the gate's whole vocabulary: every one must actually be usable there.
+    for tier, depth in DEPTH_BY_TIER.items():
+        assert re.search(rf"\|\s*{tier}\s*\|\s*`{depth}`\s*\|", text), (
+            f"the tier->depth rendering map must pin {tier} -> {depth}, else the gate's depth "
+            f"word is improvised per run instead of resolved deterministically"
+        )
+    # The example rows must exercise the mapping, not just declare it.
+    assert re.search(r"\|\s*<m\d>\s*\|[^|]*\|[^|]*\|\s*(quick|standard|deep|deepest)\s*\|", gate), (
+        "the gate block's example rows must show a depth word in the depth column"
+    )
+
+
+def test_odoo_coding_tier_table_still_resolves_all_four_tiers():
+    """Unchanged contract: the DEPTH word shown to the human is a rendering of a tier the skill
+    resolves deterministically. Renaming the gate column must not dissolve that resolution - the
+    internal table still has to land on each of the four tiers, with sonnet as the explicit
+    default, because that is what the dispatch actually passes as `model`."""
+    text = _skill_text("odoo-coding")
     # Anchor each tier to a row of the deterministic tier table (| # | ... | **tier** |),
     # not to incidental mentions elsewhere in the file.
     for tier in ("haiku", "opus", "fable"):

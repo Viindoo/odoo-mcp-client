@@ -139,7 +139,7 @@ the artifact:
 gap-matrix OR a BRL results dir (`<SHARE_DIR>/brl/<job-id>/`). Keep BRL's per-req rows carrying the same
 recognizable keys (`req_id`, `requirement`, `module`, an effort axis, `notes`) and keep the
 § Continuation Contract handoff to `odoo-solution-design` in the same shape as a gap-analysis handoff
-(`{<deliverable path>, items: [REQ-…], risk_level}`), so the architect reads either interchangeably.
+(`{<deliverable path>, items: [REQ-…]}`), so the architect reads either interchangeably.
 
 ### Phase A - CLASSIFY (outer sequential per chunk, inner <=3 parallel MCP)
 
@@ -529,7 +529,7 @@ output for the run-harness.
 
 **Hand off to planning/design before coding.** Set `status: NEEDS_NEXT`:
 - Any Extension-L or Custom-XL item → `next: odoo-solution-design` (designed + approved before code),
-  inputs `{rtm: <path>, items: [REQ-…]}`, `risk_level: L1`.
+  inputs `{rtm: <path>, items: [REQ-…]}`.
 - Standard/Config/Extension-M only (no L/XL) → route to `odoo-planning` instead of `odoo-coding`
   directly - `next: odoo-planning`, inputs `{rtm: <path>, items: [REQ-…]}`.
 

@@ -131,7 +131,6 @@ warn the human rather than dispatching a doomed run.
       reason: provision the Odoo instance needed for live screenshot capture
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to install>"]}
       confidence: 0.9
-      risk_level: L2
   ```
   so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for review)` only if provisioning is itself impossible. Do NOT ask the caller to paste a URL or attach screenshots. Prefix (if pre-captured evidence used) with `⚠ Instance unreachable - review limited to pre-captured screenshots`.
 

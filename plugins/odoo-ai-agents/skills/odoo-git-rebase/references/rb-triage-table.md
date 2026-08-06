@@ -63,10 +63,10 @@ deterministic tier table (SSOT - do not fork it). Conditions summarized:
 | 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module - and ANY case not confidently classified | **sonnet** (default) |
 
 Constraints:
-- **fable is NEVER a default and ALWAYS needs explicit human confirmation** (~2x opus cost).
-  When a row resolves to fable, the P6 plan gate must call it out on its own line
-  (tier, cost estimate, one-line why); the human's plan-gate approval covers it. If the human
-  declines fable, downgrade that commit to **opus** and record `<sha>: opus (fable declined)`
+- **fable is NEVER a default and ALWAYS needs explicit human confirmation** (about 2x the price of
+  the tier below). When a row resolves to fable, the P6 plan gate must call out the TRADEOFF on its
+  own line in plain words, never by tier name - which commit, why it needs the deepest reasoning,
+  the cost; the plan-gate approval covers it. On a decline, downgrade that commit to **opus** and record `<sha>: opus (fable declined)`
   in `plan.md`.
 - A bucket (a)/(d) commit needs no adapt code - only test-forward - so it lands at haiku
   even if the source commit was opus-grade.

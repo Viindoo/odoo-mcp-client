@@ -138,5 +138,4 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 In the `next` field, include optional suggestions:
 - skill: odoo-doc-illustration
   confidence: 0.5
-  risk_level: L1
   reason: illustrate new features with annotated screenshots for sales deck or blog post (use when static images are needed, not a recorded video)

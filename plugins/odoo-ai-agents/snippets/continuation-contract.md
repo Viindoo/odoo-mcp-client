@@ -29,7 +29,6 @@ next:                                       # [] when nothing to add; REQUIRED (
     reason: <why this is the next step>
     inputs: {<key>: <value>}                 # odoo_version, viindoo_profile are RESERVED - see Rules
     confidence: 0.0..1.0                     # <0.5 ⇒ driver surfaces it as a suggestion, not auto-run
-    risk_level: L0 | L1 | L2
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
 ````
@@ -88,10 +87,6 @@ Rules:
   module without becoming false is, by construction, ungrounded. Ending a turn on an unqualified
   "waiting"/"in progress"/"standing by" sentence with none of (a)-(c) named, a `blocked_reason` that
   fails the copy-paste check, or with no `continuation` block at all, is a protocol violation.
-- `risk_level`: L0 read-only/chat · L1 writes internal state (Tier-2 SHARE/ISOLATE `.odoo-ai/`-rooted
-  files, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never a
-  project-relative `./.odoo-ai/`) · L2 irreversible/outward (touches an instance, git push/merge,
-  sends to a third party). When unsure, pick the higher tier.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
   the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward. Superseded

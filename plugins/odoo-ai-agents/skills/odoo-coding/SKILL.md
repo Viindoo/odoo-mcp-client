@@ -226,11 +226,12 @@ Constraints on the table:
   sonnet. Do NOT escalate to opus for size, file count, or blast radius alone -
   Row 2 requires multi-domain difficulty AND cross-module entanglement together.
 - **fable is never a default and ALWAYS needs explicit human confirmation.** It is
-  the rare top band (~2x opus price). When any row resolves to fable, the gate
-  message must call it out on its own line - tier, cost, and a one-line why
-  (e.g. `Fable row: <m2> - Custom-XL cross-module inheritance change (~2x opus
-  cost). Confirm fable?`) - and the human's yes covers it. If the human declines
-  fable, downgrade that row to **opus** before dispatch and record the downgrade
+  the rare top band, about 2x the price of the tier below it. When any row resolves
+  to fable, the gate message must call out the TRADEOFF on its own line, in plain
+  words and never by tier name - which module, why it needs the deepest reasoning,
+  and the cost (e.g. `<m2> changes an inheritance axis across several modules: run
+  it on the deepest-reasoning setting? Costs about 2x. (approve / skip / cancel)`).
+  On `approve` it fires; on `skip`, downgrade that row to **opus** before dispatch and record the downgrade
   in plan.md (`<m2>: opus (fable declined)`). If the work is fable-grade but NO
   approved design doc exists, recommend `SUGGESTED_NEXT: odoo-solution-design`
   first (Custom-XL work is design-first).
@@ -242,8 +243,22 @@ Constraints on the table:
 - A fullstack module gets ONE tier applied to both legs by default; you MAY set a
   lower `frontendModel` when the design doc splits effort (e.g. opus backend +
   sonnet frontend). Never set the frontend leg HIGHER than the module tier.
-- Record the chosen tier in the gate table and later in plan.md - the tier is part
-  of the approved plan, not a runtime improvisation.
+- **The human-facing gate shows DEPTH, never the tier name** - same rule as the fable
+  trade-off line above, applied to the whole table instead of one row. The user is
+  choosing how much reasoning (and cost) each module gets; a vendor tier name does not
+  tell them that, a depth word does. Render the tier into the gate's `depth` column
+  with this fixed mapping - it is a rendering step, not a second judgment call:
+
+  | Tier (internal) | `depth` shown at the gate |
+  |---|---|
+  | haiku | `quick` |
+  | sonnet | `standard` |
+  | opus | `deep` |
+  | fable | `deepest` |
+
+- Record the RAW tier in plan.md and the DEPTH word in the gate table - the tier is part
+  of the approved plan, not a runtime improvisation, and plan.md is what a later
+  review / fix / resume step re-dispatches from.
 
 **6. Coverage pre-flight per module (red before green - authoring is universal).** The test protects
 the business behavior and is written BEFORE the code
@@ -282,13 +297,18 @@ return their summaries pre-mirrored:
 ```
 Proposed: <one-line summary of the change>.
 Plan:
-  | module | stack     | wave | model  | test        | files (intended) |
-  | <m1>   | backend   | 1    | haiku  | test-writer | <m1>/models/*.py, __manifest__.py |
-  | <m2>   | fullstack | 1    | opus   | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
-  | <m3>   | frontend  | 2    | sonnet | test-writer | <m3>/static/src/*.js (depends on <m1>) |
+  | module | stack     | wave | depth    | test        | files (intended) |
+  | <m1>   | backend   | 1    | quick    | test-writer | <m1>/models/*.py, __manifest__.py |
+  | <m2>   | fullstack | 1    | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
+  | <m3>   | frontend  | 2    | standard | test-writer | <m3>/static/src/*.js (depends on <m1>) |
+depth = how much reasoning each module gets, and what it costs: quick (cheapest, mechanical
+     edits) < standard (the default) < deep (costlier - multi-domain, many dependents) <
+     deepest (rare, ~2x deep, and always asked separately). Reply `refine:` to change one.
 Design: <DESIGN_DOC child path | none> [Master: <MASTER_DESIGN_DOC path | none>]
-OSM: backed | standalone
-Dispatch: subagent launch model-weighted batches
+OSM: backed | standalone   (OSM = Odoo Semantic, the indexed Odoo source. backed = every Odoo
+     fact was checked against it; standalone = it is unreachable, so this runs on the local files
+     plus model knowledge)
+Dispatch: modules run in parallel batches
 Proceed? (approve / refine: [feedback] / cancel)
 ```
 
@@ -576,7 +596,8 @@ membership in `git-delegation.md` § Self-provisioning specialists; an orchestra
 
 Write the orchestration plan to `<ISOLATE_DIR>/coding/<slug>-<YYYY-MM-DD>/plan.md` (the whole
 `$ODOO_AI_HOME` state root lives outside any git working tree, so this needs no gitignore entry -
-it is live run state, not source): the module/stack/wave/**model** table, the computed dependency order, and the design
+it is live run state, not source): the module/stack/wave table carrying the **raw model tier** (plan.md
+is agent state, so it records the tier itself, not the gate's depth word), the computed dependency order, and the design
 doc referenced. The agents write source directly; `plan.md` records what was built so a later
 review / fix / resume step can pick up without recomputing the graph. `<slug>` derives from the
 change (branch, feature name, or the module set).
