@@ -71,16 +71,47 @@ is complete and that skills thread the shared contracts they are required to:
                     names, none carrying all four ALWAYS-tier fields - see M7 in
                     `12-design-final.md`. Full corpus normalization is explicitly out of scope;
                     this rule reports the diff and blocks nothing.
+ 13. card-budget    - LIVE and enforcing (M9, 12-design-final.md). Data-driven: compute every
+                    `snippets/*.md` + `skills/_shared/*.md` file cited by >=3 distinct
+                    skills+agents (a "hot" shared contract), and assert its size is under its
+                    declared budget. Budget resolution: `tests/fixtures/card_budget_grandfather.json`
+                    (checked-in data, generated ONCE at the start of the M9 wave from files that
+                    already exceeded the cap and sit OUTSIDE that wave's 13 inverted files) wins
+                    when the file has an entry; otherwise the default cap (4,096 B) applies. A
+                    wave-13 file earns its own permanent budget entry the moment it is trimmed and
+                    committed - that entry is its post-trim actual size, so the rule fires only on
+                    (a) a listed file that GROWS past its recorded budget, or (b) a NEW file (no
+                    grandfather entry) entering the >=3-citer set above the default cap.
+ 14. ref-scope      - (M9, 12-design-final.md). Two independent halves, DIFFERENT gate status:
+                    (a) WARN-ONLY FOR ONE RELEASE - a `skills/*/SKILL.md` or `agents/*.md` body
+                    may not cite another file (a real relative path, not a bare filename - avoids
+                    colliding every skill's own `SKILL.md`) larger than 20,480 B without a
+                    `§ <anchor>` within 150 chars of the citation; a real measured backlog (81
+                    findings, dominated by two non-wave-7 files) means this ships loud-but-inert
+                    like rules 9-10, not silently declared - see
+                    check_ref_scope_citation_anchor's docstring. (b) LIVE and enforcing - NO file
+                    under `skills/`, `agents/`, or `snippets/` may contain the substring
+                    `snippets/references/` - the read-both hazard closure: an executing agent must
+                    never be handed a pointer to the reference sibling it could follow instead of
+                    the (now-inverted) decidable rule file. `docs/` is exempt from (b) - the
+                    reference tree is discoverable from `docs/authoring-skills-and-agents.md` and
+                    from this lint, by design.
+ 15. no-provenance  - LIVE and enforcing (M10, X-50, 12-design-final.md). A parenthesized
+                    `(V-NN...)` or `(Problem N)` tag (two-or-more digits, so an Odoo version
+                    string like `v8` cannot collide) anywhere under `skills/`, `agents/`,
+                    `snippets/` is a finding - agent-facing prose carries no changelog/
+                    issue-tracking provenance.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8 and 11 - flip that on once all
-skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) are additionally WARN-ONLY FOR ONE
-RELEASE BY DESIGN, independent of --strict/ORCH_STRICT: they are new and proximity/citation-based
-(not a full semantic read), so a legitimate turn-boundary instruction that is merely worded
-unusually can still false-positive - they print but never flip the exit code. Flip them into the
-strict gate (fold their list into `findings`) once the tree is clean, one release after they ship.
-Rule 12 ([brief-fields]) is warn-only PERMANENTLY, by design (see rule 12 above) - it is never
-scheduled to flip, unlike rules 9-10.
+(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, and 15 - flip that on
+once all skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) and 14a (ref-scope's citation-
+anchor half) are additionally WARN-ONLY FOR ONE RELEASE BY DESIGN, independent of --strict/
+ORCH_STRICT: they are new and proximity/citation-based (not a full semantic read, and - for 14a -
+measured against a real backlog this wave did not have time to individually verify site-by-site),
+so a false positive or a hastily-placed meaningless anchor is a real risk - they print but never
+flip the exit code. Flip them into the strict gate (fold their list into `findings`) once the tree
+is clean, one release after they ship. Rule 12 ([brief-fields]) is warn-only PERMANENTLY, by
+design (see rule 12 above) - it is never scheduled to flip, unlike rules 9-10 and 14a.
 
 Run from the repo root or anywhere; paths are resolved relative to this file.
 """
@@ -92,10 +123,33 @@ import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
+REPO_ROOT = PLUGIN_ROOT.parent.parent
 DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 SNIPPETS_DIR = PLUGIN_ROOT / "snippets"
+REFERENCES_DIR = SNIPPETS_DIR / "references"
+SHARED_DIR = SKILLS_DIR / "_shared"
+
+# M9 (12-design-final.md): the 13 files inverted to their measured minimum. Each earns a sibling
+# `snippets/references/<name>.md` carrying the explanation moved out of the per-invocation path.
+# Data-driven single list - both the [ref-target] existence check and (informationally) the
+# card-budget grandfather generator key off this same set.
+INVERTED_SNIPPETS = (
+    "snippets/dispatch-brief.md",
+    "snippets/module-coordination-ledger.md",
+    "snippets/git-delegation.md",
+    "snippets/resource-teardown-contract.md",
+    "snippets/agent-team-protocol.md",
+    "skills/_shared/concurrency-guard.md",
+    "snippets/worker-brief.md",
+    "snippets/spawner-completion-contract.md",
+    "snippets/continuation-contract.md",
+    "snippets/worklog-contract.md",
+    "snippets/test-first-contract.md",
+    "snippets/state-root-resolution.md",
+    "snippets/instance-handle-contract.md",
+)
 
 OSM_SNIPPET = "osm-first-contract"
 DESIGN_DOC = "odoo-frontend-fidelity"
@@ -605,6 +659,162 @@ def check_wait_mechanism(warn_only_findings: list[str]) -> None:
                 )
 
 
+# --- [card-budget] (rule 13, M9) --------------------------------------------------------------
+
+CARD_BUDGET_GRANDFATHER_FILE = REPO_ROOT / "tests" / "fixtures" / "card_budget_grandfather.json"
+CARD_BUDGET_DEFAULT_CAP = 4096
+CARD_BUDGET_MIN_CITERS = 3
+
+
+def _card_budget_candidates() -> list[Path]:
+    """Every `snippets/*.md` + `skills/_shared/*.md` file - the shared-contract corpus a hot cold
+    context might load repeatedly. `snippets/references/*.md` is excluded on purpose: per M9/
+    [ref-scope], no consumer-facing file may ever cite it, so it can never reach the >=3-citer
+    threshold and including it would only slow the scan."""
+    files = list(SNIPPETS_DIR.glob("*.md"))
+    if SHARED_DIR.exists():
+        files += list(SHARED_DIR.glob("*.md"))
+    return [f for f in files if f.parent != REFERENCES_DIR]
+
+
+def _consumer_bodies() -> dict[Path, str]:
+    """Every `skills/*/SKILL.md` + `agents/*.md` body, read once and reused for every candidate's
+    citer count (avoids an O(candidates x consumers) re-read of the same ~130 files)."""
+    files = list(SKILLS_DIR.rglob("SKILL.md"))
+    if AGENTS_DIR.exists():
+        files += list(AGENTS_DIR.glob("*.md"))
+    return {f: f.read_text(encoding="utf-8") for f in files}
+
+
+def _load_card_budget_grandfather() -> dict[str, int]:
+    if not CARD_BUDGET_GRANDFATHER_FILE.is_file():
+        return {}
+    data = json.loads(CARD_BUDGET_GRANDFATHER_FILE.read_text(encoding="utf-8"))
+    return dict(data.get("budgets", {}))
+
+
+def check_card_budget(findings: list[str]) -> None:
+    """13. [card-budget] - see module docstring. Data-driven: a candidate qualifies when >=3
+    distinct skills+agents cite its basename; its budget is the grandfather-file entry for its
+    relpath if one exists, else the default cap. Fires only on a size that exceeds that budget."""
+    bodies = _consumer_bodies()
+    grandfather = _load_card_budget_grandfather()
+    for cand in sorted(_card_budget_candidates()):
+        relpath = str(cand.relative_to(PLUGIN_ROOT))
+        name = cand.name
+        citers = sum(1 for text in bodies.values() if name in text)
+        if citers < CARD_BUDGET_MIN_CITERS:
+            continue
+        size = cand.stat().st_size
+        budget = grandfather.get(relpath, CARD_BUDGET_DEFAULT_CAP)
+        if size > budget:
+            findings.append(
+                f"[card-budget] '{relpath}' is {size}B, over its budget of {budget}B "
+                f"(cited by {citers} skills/agents, >= the {CARD_BUDGET_MIN_CITERS}-citer "
+                f"threshold) - grow it only with a deliberate grandfather-file bump, never silently"
+            )
+
+
+# --- [ref-scope] (rule 14, M9) ----------------------------------------------------------------
+
+# A real relative path (>=1 '/' before the final segment), optionally prefixed by the plugin-root
+# token - deliberately excludes a bare `SKILL.md`/`file.md` mention, which would collide every
+# skill's own same-named file with an unrelated oversize one.
+LARGE_FILE_CITE_RE = re.compile(
+    r"(?:\$\{CLAUDE_PLUGIN_ROOT\}/)?([A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)+\.md)"
+)
+LARGE_FILE_THRESHOLD = 20480
+SECTION_ANCHOR_CHARS = "§"
+REF_SCOPE_WINDOW = 150
+REFERENCES_PATH_SUBSTRING = "snippets/references/"
+
+
+def check_ref_scope_citation_anchor(warn_only_findings: list[str]) -> None:
+    """14a. [ref-scope] half (a) - WARN-ONLY FOR ONE RELEASE (see module docstring rationale below).
+    A SKILL.md/agents/*.md body citing another real file over the size threshold should carry a
+    '§ <anchor>' within REF_SCOPE_WINDOW chars of the citation - a whole-file citation for one
+    clause is exactly the X-64 pattern this half exists to catch.
+
+    Ships warn-first: the mechanism is new (this wave) and the measured real-tree backlog (81
+    findings across ~20 files, dominated by two non-wave-7 files - odoo-frontend-fidelity.md and
+    visual-evidence-lifecycle-contract.md, neither named by the design as requiring an immediate
+    sweep) is large enough that a hasty blanket anchor-add risks placing a MEANINGLESS anchor
+    (worse than none - it would look precise without being precise) at sites this wave did not
+    have time to individually verify. The three sites the design explicitly named (X-64:
+    agents/odoo-coder.md citing skills/odoo-instance/SKILL.md and skills/odoo-forward-port/SKILL.md;
+    skills/odoo-coding/SKILL.md citing docs/reference/workflow-harness.md) are already anchored.
+    Mirrors the exact precedent this file already sets for rules 9/10 (a new proximity-based rule
+    with a real pre-existing backlog ships loud-but-inert, then flips to strict once the tree is
+    swept clean - see check_wait_scope/check_wait_mechanism above)."""
+    consumer_files = list(SKILLS_DIR.rglob("SKILL.md"))
+    if AGENTS_DIR.exists():
+        consumer_files += list(AGENTS_DIR.glob("*.md"))
+
+    for f in consumer_files:
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(PLUGIN_ROOT)
+        for m in LARGE_FILE_CITE_RE.finditer(text):
+            cited_rel = m.group(1)
+            candidate = PLUGIN_ROOT / cited_rel
+            if not candidate.is_file():
+                continue
+            if candidate.resolve() == f.resolve():
+                continue  # self-citation (a file's own header pointing at itself) is not a load
+            size = candidate.stat().st_size
+            if size <= LARGE_FILE_THRESHOLD:
+                continue
+            window = text[max(0, m.start() - REF_SCOPE_WINDOW): m.start() + REF_SCOPE_WINDOW]
+            if SECTION_ANCHOR_CHARS not in window:
+                line_no = text.count("\n", 0, m.start()) + 1
+                warn_only_findings.append(
+                    f"[ref-scope] {rel}:{line_no} cites '{cited_rel}' ({size}B, over the "
+                    f"{LARGE_FILE_THRESHOLD}B threshold) with no '§ <anchor>' within "
+                    f"{REF_SCOPE_WINDOW} chars"
+                )
+
+
+def check_ref_scope_no_reference_pointer(findings: list[str]) -> None:
+    """14b. [ref-scope] half (b) - LIVE and enforcing (part of `findings`, gates --strict). No
+    skills/agents/snippets file may name the 'snippets/references/' path shape at all - the
+    read-both hazard closure at the heart of M9's safety design: an executing agent must never be
+    handed a pointer to the reference sibling it could follow instead of the (now-inverted)
+    decidable rule file. docs/ is exempt - the reference tree is discoverable from
+    docs/authoring-skills-and-agents.md and from this lint, by design."""
+    scope_files = list(SKILLS_DIR.rglob("*.md")) + list(SNIPPETS_DIR.rglob("*.md"))
+    if AGENTS_DIR.exists():
+        scope_files += list(AGENTS_DIR.glob("*.md"))
+    for f in scope_files:
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(PLUGIN_ROOT)
+        if REFERENCES_PATH_SUBSTRING in text:
+            findings.append(
+                f"[ref-scope] {rel} names the '{REFERENCES_PATH_SUBSTRING}' path - a "
+                f"consumer-facing file must never be handed a pointer to a reference sibling it "
+                f"could read-both instead of the decidable rule"
+            )
+
+
+# --- [no-provenance] (rule 15, M10, X-50) -------------------------------------------------------
+
+# Two-or-more digits so an Odoo version string (e.g. "v8") can never collide with a `(V-NN)` tag.
+NO_PROVENANCE_RE = re.compile(r"\(V-\d{2,}[^)]*\)|\(Problem \d+\)")
+
+
+def check_no_provenance(findings: list[str]) -> None:
+    """15. [no-provenance] - see module docstring. Agent-facing prose carries no changelog/
+    issue-tracking provenance (`(V-34)`, `(Problem 3)`, ...) - that history belongs in git, not in
+    the per-invocation path."""
+    scope_files = list(SKILLS_DIR.rglob("*.md")) + list(SNIPPETS_DIR.rglob("*.md"))
+    if AGENTS_DIR.exists():
+        scope_files += list(AGENTS_DIR.glob("*.md"))
+    for f in scope_files:
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(PLUGIN_ROOT)
+        for m in NO_PROVENANCE_RE.finditer(text):
+            line_no = text.count("\n", 0, m.start()) + 1
+            findings.append(f"[no-provenance] {rel}:{line_no}: {m.group()!r}")
+
+
 def main(argv: list[str]) -> int:
     strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
@@ -631,6 +841,19 @@ def main(argv: list[str]) -> int:
                 *coding_guidelines_refs):
         if not (PLUGIN_ROOT / rel).is_file():
             findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")
+
+    # 1d. [ref-target] learns the `snippets/references/` path shape (M9): every one of the 13 M9
+    # wave-inverted files must have moved its explanation to a sibling `snippets/references/<name>.md`
+    # - without this, a rename/typo leaves the sibling orphaned (created under the wrong name) with
+    # no mechanical check ever noticing, since [ref-scope] rule (b) forbids any CONSUMER file from
+    # naming this path (the read-both hazard), so nothing else on the tree points at it either.
+    for rel in INVERTED_SNIPPETS:
+        ref_path = REFERENCES_DIR / Path(rel).name
+        if not ref_path.is_file():
+            findings.append(
+                f"[ref-target] '{rel}' is an M9-inverted snippet but its reference sibling "
+                f"'{ref_path.relative_to(PLUGIN_ROOT)}' is missing on disk"
+            )
 
     for name in sorted(set(orch) & dirs):
         e = orch[name]
@@ -729,12 +952,23 @@ def main(argv: list[str]) -> int:
     # 11. [role-scope] - LIVE and enforcing (part of `findings`, gates --strict like rules 1-8).
     check_role_scope(findings)
 
+    # 13, 14b, 15. [card-budget] / [ref-scope] half (b) / [no-provenance] (M9/M10,
+    # 12-design-final.md) - LIVE and enforcing, part of `findings` like rules 1-8 and 11.
+    check_card_budget(findings)
+    check_ref_scope_no_reference_pointer(findings)
+    check_no_provenance(findings)
+
     # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
     # into their OWN list, never gating the strict exit below, no matter how many fire (see the
-    # module-level note above these functions for why and for the flip-to-strict plan).
+    # module-level note above check_wait_scope/check_wait_mechanism for why and the flip plan).
     warn_only_findings: list[str] = []
     check_wait_scope(warn_only_findings)
     check_wait_mechanism(warn_only_findings)
+
+    # 14a. [ref-scope] half (a) (M9) - WARN-FIRST for one release, SEPARATE list from 9/10 so the
+    # print label stays accurate (see check_ref_scope_citation_anchor's own docstring).
+    ref_scope_warn_only_findings: list[str] = []
+    check_ref_scope_citation_anchor(ref_scope_warn_only_findings)
 
     # 12. [brief-fields] - WARN-ONLY, PERMANENTLY (never scheduled to flip to strict - contrast
     # rules 9-10 above). Collected into its OWN list so the print message does not claim a
@@ -757,6 +991,13 @@ def main(argv: list[str]) -> int:
         for fnd in warn_only_findings:
             print(f"  - {fnd}")
 
+    if ref_scope_warn_only_findings:
+        print(f"check_orchestration: {len(ref_scope_warn_only_findings)} warn-only finding(s) "
+              f"([ref-scope] half (a), citation-anchor, ships warn-first for one release - "
+              f"NEVER gates --strict):")
+        for fnd in ref_scope_warn_only_findings:
+            print(f"  - {fnd}")
+
     if permanent_warn_only_findings:
         print(f"check_orchestration: {len(permanent_warn_only_findings)} warn-only finding(s) "
               f"([brief-fields], warn-only PERMANENTLY by design - NEVER gates --strict, no "
@@ -767,7 +1008,8 @@ def main(argv: list[str]) -> int:
     if findings and strict:
         return 1
 
-    if not findings and not warn_only_findings and not permanent_warn_only_findings:
+    if (not findings and not warn_only_findings and not ref_scope_warn_only_findings
+            and not permanent_warn_only_findings):
         print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 
