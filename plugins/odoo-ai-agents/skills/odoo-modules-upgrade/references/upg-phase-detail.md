@@ -262,9 +262,11 @@ Model: sonnet (opus for a cluster-wide comparison or when the module has >500 LO
 mode: upgrade
 TASK: Core-absorption comparison for module '<module>' upgrading <src> -> <tgt>.
 
-MODULE PATH: <path>
-SOURCE VERSION: <source_version>
-TARGET VERSION: <target_version>
+diff_scope: <path>
+source_version: <source_version>
+target_version: <target_version>
+slug: <src>-<tgt>-<cluster>
+repo_root: <absolute path to the repository root>
 CLASSIFICATION TABLE: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
 
 STEPS:
