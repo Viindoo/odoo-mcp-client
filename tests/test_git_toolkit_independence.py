@@ -259,6 +259,112 @@ def test_github_operator_fanout_recipe_names_no_odoo_ai_agents_artifact():
 
 
 # ---------------------------------------------------------------------------
+# git-nesting-protocol.md: M1b - the same subagent-wake physics as odoo-ai-agents' R0
+# (spawner-completion-contract.md), stated generically here so a git-toolkit agent never has to
+# reach into the consumer plugin for it.
+#
+# NOTE ON PLACEMENT: the design (12-design-final.md M1b guard) names this test
+# `tests/test_commit_convention_gate.py::test_nesting_protocol_states_subagent_wake_physics` -
+# that file belongs to a LATER wave (M3/PR2, git-toolkit commit gate) and does not exist yet on
+# this branch. This test is placed here instead, in the file that already owns
+# git-nesting-protocol.md's other guards (test_agent_team_reporting_snippet_exists is the sibling
+# "does the SSOT snippet still say what it must" pattern this follows) - the wave-2 implementer
+# can move it verbatim into test_commit_convention_gate.py once that file exists, with no
+# behavior change.
+# ---------------------------------------------------------------------------
+
+GIT_NESTING_PROTOCOL = TOOLKIT / "snippets" / "git-nesting-protocol.md"
+
+
+def test_nesting_protocol_states_subagent_dispatch_physics():
+    """M1b (corrected) - git-nesting-protocol.md must state the subagent DISPATCH PHYSICS
+    generically (no consumer, no domain, no odoo artifact), matching the corrected ground truth in
+    odoo-ai-agents' R0 (spawner-completion-contract.md): a subagent CAN launch a child and CAN
+    receive its result - via a blocking launch when the launch tool exposes a background/foreground
+    switch - and is PARKED (not killed) when it ends its turn to await an async launch. The real
+    hazards are the silent nesting cap (no launch capability at all) and the non-interactive
+    surface (never end a turn with uncommitted work).
+
+    A prior version of this test hard-asserted the literal strings "may never be woken" and "do not
+    launch a child you cannot block on" were PRESENT - those asserted the FALSE premise (a subagent
+    can never be resumed) this whole task exists to retire. That premise is wrong and the strings
+    are gone from the prose; this test now (a) asserts the RULE - the capability branch is
+    expressed: cap-absent handling, the blocking-launch branch, the async-launch-and-park branch,
+    and the uncommitted-work bound - and (b) guards that the retired false-premise strings do not
+    silently return.
+
+    Business rule this protects: before this paragraph landed, git-toolkit's own leaf/lead agents
+    had no LOCAL statement of the dispatch-physics invariant - the only place it lived was
+    odoo-ai-agents' R0, and reaching into a CONSUMER'S snippet from a domain-agnostic PROVIDER
+    inverts the dependency direction this whole file guards. The fix states the physics inline,
+    generically, so it holds even if git-toolkit is ever consumed by a plugin other than
+    odoo-ai-agents.
+    """
+    assert GIT_NESTING_PROTOCOL.is_file(), f"missing {GIT_NESTING_PROTOCOL}"
+    text = GIT_NESTING_PROTOCOL.read_text(encoding="utf-8")
+    low = " ".join(text.split()).lower()
+
+    # The retired false-premise strings must NEVER reappear - the exact regression this task
+    # exists to fix (a subagent supposedly cannot be resumed / cannot ever block on a child).
+    assert "may never be woken" not in low, (
+        "git-nesting-protocol.md must NOT state a dispatched agent may never be woken - that is "
+        "the FALSE premise this task retires (a parked agent IS resumed by the wake router)"
+    )
+    assert "do not launch a child you cannot block on" not in low, (
+        "git-nesting-protocol.md must NOT forbid launching a child you cannot block on - the "
+        "corrected physics is: launch async and park (end the turn) when no blocking lever exists"
+    )
+
+    # RULE, not a string: the capability branch must be expressed -
+    # (1) cap-absent handling: read your own toolset before launching, and never report a
+    #     dispatch that could not be made.
+    assert "read your own toolset" in low or "own toolset" in low, (
+        "git-nesting-protocol.md must instruct checking launch capability before dispatching"
+    )
+    assert "never report a dispatch" in low or (
+        "capability is absent" in low and ("blocked" in low or "do the work yourself" in low)
+    ), (
+        "git-nesting-protocol.md must state what to do when launch capability is absent (do the "
+        "work yourself / return BLOCKED) and never claim a dispatch that could not be made"
+    )
+    # (2) the blocking-launch branch: a background/foreground switch, used in blocking mode when
+    #     the caller needs the result inside its own turn. Naming the switch ALONE is not enough -
+    #     a mutation that keeps "background/foreground switch" but drops the blocking-mode outcome
+    #     (e.g. "pick whichever mode you like") must still be caught, so both must be present.
+    assert "background/foreground switch" in low, (
+        "git-nesting-protocol.md must name the background/foreground switch capability probe"
+    )
+    assert "blocking mode" in low and "returns inside your turn" in low, (
+        "git-nesting-protocol.md must state the blocking-launch branch's OUTCOME: use blocking "
+        "mode to get the result inside the caller's own turn - not merely name the switch"
+    )
+    # (3) the async-launch-and-park branch: no switch -> launch, end the turn, be resumed; never
+    #     poll, never re-launch.
+    assert "end your turn to be resumed" in low or "end its turn" in low, (
+        "git-nesting-protocol.md must state the async-launch branch parks the caller to be "
+        "resumed, not that it dies"
+    )
+    assert "never poll" in low and "never re-launch" in low, (
+        "git-nesting-protocol.md must forbid polling and re-launching while parked async"
+    )
+    # (4) the uncommitted-work bound: the non-interactive-surface mitigation.
+    assert "never end a turn with uncommitted work" in low, (
+        "git-nesting-protocol.md must bound the non-interactive-surface risk: never end a turn "
+        "with uncommitted work"
+    )
+
+    # Genericity: the paragraph must name no consumer, no domain, no odoo artifact - reuses the
+    # SAME independence matcher the whole-provider scan below runs, scoped to this one file, so
+    # this stays a true belt-and-suspenders companion (not a second, drifting detector).
+    pattern = _forbidden_re(_consumer_names())
+    violations = _scan(GIT_NESTING_PROTOCOL, pattern)
+    assert not violations, (
+        "git-nesting-protocol.md's dispatch-physics paragraph names an odoo-ai-agents artifact - "
+        "it must stay domain-agnostic:\n" + "\n".join(violations)
+    )
+
+
+# ---------------------------------------------------------------------------
 # The guard
 # ---------------------------------------------------------------------------
 
