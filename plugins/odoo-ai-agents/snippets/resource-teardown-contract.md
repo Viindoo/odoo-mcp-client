@@ -64,80 +64,56 @@ reservation) is still yours - release it so `drop_on_release` reclaims the DB.
 The run-level owner's end-of-run release is crash-safe only because a mechanical backstop
 exists below this contract: allocator GC, SessionEnd gc, and gc-on-acquire reap an owner that
 died before releasing - immediately when its pid is dead, or (only when liveness cannot be
-verified at all, e.g. a different host or no pid recorded) once the allocator's TTL (default
-3600s) lapses with no `heartbeat`. A same-host owner whose pid is verified alive is NEVER
-TTL-reaped, by design - a crashed session whose server process survives it is not
-auto-reclaimed by this backstop; only an explicit release or a human's triage clears it. The
-backstop is a safety net, not an alternative - you still release; the net catches crashes, not
-laziness.
+verified at all) once the allocator's TTL (default 3600s) lapses with no `heartbeat`. A same-host
+owner whose pid is verified alive is NEVER TTL-reaped, by design. The backstop is a safety net,
+not an alternative - you still release; the net catches crashes, not laziness.
 
 ## T2 - Browser: close what you opened
 
 - **Close pages, never the server.** The browser MCP servers (chrome-devtools, playwright,
-  pagecast; headed and headless variants) are deliberately long-lived shared processes - one
-  eager chrome-devtools server serves the whole session. Your teardown scope is INSIDE the
-  server: pages, tabs, contexts, recordings, traces. NEVER kill, restart, or "clean up" the
-  MCP server process itself (the npx process) - that is session infrastructure, not your
-  resource. Closing the current/last page is safe by design - a subsequent navigate
-  re-creates a page. (This has not yet been smoke-verified across every headed variant; if a
-  family ever wedges on last-page close, close all other pages and hand the last one to a
-  named catcher per T4.)
+  pagecast; headed and headless variants) are deliberately long-lived shared processes. Your
+  teardown scope is INSIDE the server: pages, tabs, contexts, recordings, traces. NEVER kill,
+  restart, or "clean up" the MCP server process itself. Closing the current/last page is safe by
+  design - a subsequent navigate re-creates a page.
 - **The close calls, by family:** chrome-devtools -> `close_page` (per page you opened; use
   `list_pages` to find strays you created); playwright -> `browser_close` (plus
   `browser_stop_video` / `browser_stop_tracing` if you started a video or trace); pagecast ->
   `stop_recording` (by its tool name, not just "stop the recorder" in prose).
-- **Clean up as you go, not just at the end.** Reuse ONE page across a sweep (navigate +
-  resize in place) instead of opening a page per screen/breakpoint/role. If a step needed an
-  extra page or context, close it when that step ends - do not accumulate open pages until a
-  final sweep. Before your terminal status, close every page `list_pages` reports that YOU
-  created - not just the one you think you reused. On playwright, `browser_close` closes
-  everything you drove; on pagecast, confirm no recording is live (`stop_recording`).
+- **Clean up as you go, not just at the end.** Reuse ONE page across a sweep instead of opening a
+  page per screen/breakpoint/role; close an extra page/context when that step ends. Before your
+  terminal status, close every page `list_pages` reports that YOU created.
 - **Single-flight (exclusivity) - PER FAMILY.** At most ONE browser-driving agent runs at a
   time **per MCP family** (chrome-devtools, playwright, pagecast; each headed/headless variant
   is its own family - 6 total). Two drivers on the SAME family share one Chromium process
   (shared DOM/session) and corrupt each other's evidence - that is the hard exclusivity, and
   orchestrators dispatch same-family browser agents as exclusive, serial steps, never a
   parallel fan-out. Across DISTINCT families, parallel drivers ARE allowed - each family is a
-  distinct stdio process with its own `--isolated` Chromium profile, so there is no shared-DOM
-  risk across families. The cross-family ceiling is the pool cap `W` defined in
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity (that file
-  is the SSOT for the exact figure - do not restate it here), subject to the operator's RAM
-  budget (see the guardrail note below); state-mutating (CRUD) drives stay at most 2
-  simultaneous regardless of family mix. Serial same-family dispatches share the server,
-  NOT your pages: closing your pages at dispatch end does not break the next dispatch (it
-  navigates afresh).
-  - **RAM guardrail.** No machinery enforces a browser RAM budget:
-    `${CLAUDE_PLUGIN_ROOT}/scripts/lib/resource_limits.sh` / `ODOO_AI_LIMIT_MEMORY_HARD` cap the
-    odoo-bin process's VIRTUAL memory only, and the allocator counts Postgres/ports, not
-    Chromium - neither caps aggregate browser RAM. The `W` pool cap above IS the guardrail;
-    raise it only after the operator has verified host RAM headroom for that many concurrent
-    Chromium processes.
-- **Headed exception (human-watch).** Headed variants: when the human explicitly asked to
-  WATCH, you may leave the watched page open at the human's request - state that you did, and
-  name the human as the owner who closes it. That is a T4 named-catcher handoff, not an
-  exemption. Default (nobody asked to watch): close, headed or not.
-- **Disambiguations.** "Pick one server family per run and stay on it" governs FAMILY choice
-  (do not mix chrome-devtools and playwright mid-run) - it does not mean keep pages open.
-  Saved `storageState-<role>.json` files live on disk and survive page close - reuse the
-  FILE to skip re-login, never an open page.
+  distinct stdio process with its own `--isolated` Chromium profile. The cross-family ceiling is
+  the pool cap `W` defined in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+  § Browser exclusivity (that file is the SSOT for the exact figure), subject to the operator's
+  RAM budget (no machinery enforces it - `resource_limits.sh` caps only odoo-bin's memory, the
+  allocator counts Postgres/ports, not Chromium; `W` IS the guardrail); state-mutating (CRUD)
+  drives stay at most 2 simultaneous regardless of family mix.
+- **Headed exception (human-watch).** When the human explicitly asked to WATCH, you may leave the
+  watched page open at the human's request - state that you did, and name the human as the owner
+  who closes it (a T4 named-catcher handoff). Default (nobody asked to watch): close, headed or
+  not.
+- **Disambiguations.** "Pick one server family per run and stay on it" governs FAMILY choice, not
+  keeping pages open. Saved `storageState-<role>.json` files survive page close - reuse the FILE
+  to skip re-login, never an open page.
 
 ## T3 - Instance: release what you provisioned
 
 - **Route the teardown; never hand-roll it.** Release through the same path you acquired:
   `Skill(odoo-instance)` / `allocator.py release <token> --run-id <id>`. Release is now
   teardown-complete for a listening instance: the allocator stops the server's process group
-  FIRST (SIGTERM, bounded wait, group SIGKILL - covering HTTP workers, cron, the
-  longpolling/gevent process, and any `--dev=reload` watchdog), THEN drops the DB for
-  `drop_on_release` leases. You never signal processes or run `dropdb` yourself, and you never
-  hardcode a series' flags - `odoo-instance-ops` resolves the per-version CLI at runtime via
-  OSM `cli_help` (a `db drop` CLI exists only on v16+; `--longpolling-port` and
-  `--xmlrpc-port` are removed at v19).
+  FIRST (SIGTERM, bounded wait, group SIGKILL), THEN drops the DB for `drop_on_release` leases.
+  You never signal processes or run `dropdb` yourself, and you never hardcode a series' flags -
+  `odoo-instance-ops` resolves the per-version CLI at runtime via OSM `cli_help`.
 - **Long-lived holders heartbeat.** Long-lived holders (path-incremental, an acceptance run
-  across phases): call `allocator.py heartbeat <token>` between phases. A same-host lease whose
-  owner pid is verified alive is never TTL-reaped regardless of heartbeat freshness - but keep
-  heartbeating anyway, since it is what protects you on the residual case the allocator cannot
-  verify liveness for at all (a different host, or no pid recorded), governed by the TTL backstop
-  (default 3600s; see `docs/reference/INSTANCE-ALLOCATION.md` §7).
+  across phases): call `allocator.py heartbeat <token>` between phases - it is what protects you
+  on the residual case the allocator cannot verify liveness for at all (a different host, or no
+  pid recorded), governed by the TTL backstop (default 3600s).
 - **Per-mode rule is T1's matrix.** Self-provisioned ephemeral/exclusive -> you release at
   your own task end. Forwarded handle -> hands off, never release. `shared-running` -> no
   consumer ever drops it. `path-incremental` -> the owning skill releases at path end via
@@ -147,17 +123,16 @@ laziness.
 
 - **BLOCKED / NEEDS_CONTEXT do not waive teardown.** Before emitting any terminal status -
   including after an error, a failed oracle, or a REJECTED verdict - close your pages and
-  release your self-provisioned instances. Your captured evidence (screenshots, console
-  dumps, logs, findings files) is on disk; the open page or running server is not evidence,
-  it is a leak.
+  release your self-provisioned instances. Your captured evidence is on disk; the open page or
+  running server is not evidence, it is a leak.
 - **The only exception is an EXPLICIT, NAMED handoff.** You may leave a self-provisioned
   instance leased ONLY when your continuation block forwards its handle to a named catcher:
   `status: NEEDS_NEXT` with `INSTANCE_HANDLE` (incl. `lease_token`, `run_id`) in
   `next.inputs`, naming the skill that needs the live state. An unnamed "forward the token
   for later release" is not a handoff - it is the leak this contract exists to close.
   Browser pages get no such exception, with one narrow carve-out: T2's headed human-watch
-  case, which is itself a NAMED handoff (to the human, not silence) - outside that one case,
-  close pages even when handing off.
+  case, which is itself a NAMED handoff - outside that one case, close pages even when handing
+  off.
 - **If teardown itself fails** (release errors, a process refuses to die), you are BLOCKED,
   not DONE: report the lease token / page id and the error as the blocker so the caller or
   allocator GC can reap it - never report success over a live leftover.
