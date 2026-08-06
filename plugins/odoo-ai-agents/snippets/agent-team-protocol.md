@@ -20,18 +20,13 @@ only a content-less `idle_notification`.
 When the runtime is in **Agent Team mode**, a subagent spawned with a `name` is a TEAMMATE running
 in the background, addressable via `SendMessage({to: "<name>"})`; the orchestrating context is the
 team LEAD, addressed by whichever context launched you (`main` ONLY when main is that launcher -
-see the Addressing section below). In that mode a teammate's plain-text output AND any file it writes
-are INVISIBLE to the lead - only an explicit `SendMessage` delivers content.
+see § Addressing). In that mode a teammate's plain-text output AND any file it writes are INVISIBLE
+to the lead - only an explicit `SendMessage` delivers content.
 
 This protocol fixes that with two contracts: **Ask 1** - the teammate pushes a completion report to
 the lead; **Ask 2** - the lead tracks teammates on a cheap task board. Agent Team mode is OPTIONAL:
-it is gated entirely by the CHP capability probe, and when off the whole protocol degrades silently
-to today's behavior (final message + Continuation Contract).
-
-This snippet is the worker->lead half. The lead->worker dispatch/resume half (Tier-A SendMessage
-resume, Tier-B fork, Tier-C fresh spawn, the capability probe itself, and the confidentiality guard)
-lives in `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` (CHP). The two are
-non-overlapping SSOTs - do not restate CHP here; point at it.
+gated entirely by the CHP capability probe; off, the whole protocol degrades silently to today's
+behavior (final message + Continuation Contract).
 
 ## Detection - reuse the CHP probe, do not reinvent it
 
@@ -59,14 +54,14 @@ team lead). Run the probe ONCE per run and cache it as CHP specifies - do NOT re
 NOTIFY peer-push is best-effort - it reaches only already-running dependents; a not-yet-spawned
 dependent receives the result via the lead's `REPLY_TO` report (the lead routes it), not a direct
 peer push. So `REPLY_TO` (the launcher named in the brief) is the authoritative delivery channel -
-`main` only when the main context is itself the lead; the peer push is an early-wakeup optimization.
-See `spawner-completion-contract.md` R3.
+`main` only when the main context is itself the lead; the peer push is an early-wakeup
+optimization. See `spawner-completion-contract.md` R3.
 
 The report `text` is the same 3-part completion-report shape owned by
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (a SHORT prose summary of what you did,
 the `produced:` artifact PATHS, then the fenced `continuation` block) - defined there once,
-per ODOO-AI-ETHOS #10, and always-on regardless of Agent Team mode; this Ask only supplies the
-`SendMessage` TRANSPORT for that shape, it does not re-define the shape itself.
+always-on regardless of Agent Team mode; this Ask only supplies the `SendMessage` TRANSPORT for
+that shape, it does not re-define the shape itself.
 
 Do NOT inline the full diff, file bodies, or artifact contents into the message - those STAY in the
 files you wrote. You STILL write your artifacts AND your worklog to files (in addition to, never
@@ -99,31 +94,24 @@ just stop and wait to be resumed if the lead has more for you (CHP async park-an
 > from a teammate's `.output` JSONL transcript.
 
 If `TaskCreate` is absent while `SendMessage` is present, skip the task board and rely on the
-SendMessage push alone - never error (silent degradation).
+SendMessage push alone - never error (silent degradation). `TaskList`/`TaskGet` return only the
+cheap status surface (a `local_agent`'s `.output` file is a symlink to the full JSONL conversation
+and overflows the lead's context window; `TaskOutput` is deprecated), so the lead can poll which
+teammates are done/blocked without loading any transcript, pairing that status with the pushed
+report content.
 
-Why never the transcript: a `local_agent`'s `.output` file is a symlink to the full JSONL
-conversation and overflows the lead's context window; `TaskOutput` is deprecated. `TaskList` /
-`TaskGet` return only the cheap status surface, so the lead can poll which teammates are
-done / blocked without loading any transcript, and pair that status with the pushed report content.
-
-**Two layers, do not conflate.** Ask 2 above is the *teammate-status* layer - tracking OTHER
-named, `SendMessage`-addressable subagents - and stays gated on the full CHP capability probe. An
-executor's OWN sequential progress through its plan (run-harness over RUN-DAG nodes,
-workflow-chaining over phases, or any spawner over its waves/modules/work-items) - whether or not
-any of those steps happen to be dispatched to a named teammate - is a SEPARATE, always-on layer:
-see `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`. That layer fires whenever a
-task-list tool is available, independent of this CHP gate; its content is not restated here.
+**Two layers, do not conflate.** Ask 2 above is the *teammate-status* layer - tracking OTHER named,
+`SendMessage`-addressable subagents - gated on the full CHP capability probe. An executor's OWN
+sequential progress through its plan (run-harness over RUN-DAG nodes, workflow-chaining over
+phases, or any spawner over its waves/modules/work-items) is a SEPARATE, always-on layer,
+independent of this CHP gate: see `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`.
 
 ## Real-time guarantee + the four-channel split
 
-The lead never blocks on a content-less `idle_notification`, because:
-
-- **status is live** - the task board reflects each teammate's `pending` / `in_progress` /
-  `completed` / `blocked` the moment it `TaskUpdate`s;
-- **content arrives the instant a teammate finishes** - Ask 1 forces the final action to be the
-  `SendMessage` report;
-- **the lead is never stranded** - Ask 1 forbids ending a turn on a bare tool call or plain text,
-  so an `idle_notification` never stands in for a missing report.
+The lead never blocks on a content-less `idle_notification`: status is live (the task board
+reflects each teammate's state the moment it `TaskUpdate`s), content arrives the instant a teammate
+finishes (Ask 1 forces the final action to be the `SendMessage` report), and the lead is never
+stranded (Ask 1 forbids ending a turn on a bare tool call or plain text).
 
 Four non-overlapping channels, each with ONE job:
 
@@ -149,12 +137,12 @@ when main is that lead, never a hardcoded default. Full rule (report-up-one-leve
 **Nested coordinator exception (`odoo-coder`).** A worker launched by the `odoo-coder` per-module
 coordinator (every module) pushes its completion report to that COORDINATOR (its `REPLY_TO`), not
 to `main` - the coordinator then rolls the module result up to `odoo-coding`. This direct
-launcher<->child report channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag (it
-is not a team-roster feature); when `SendMessage` is absent the worker returns its report as its
-final message and the coordinator reads it from the returned transcript. `odoo-coder` itself then
-pushes ITS OWN completion report to `odoo-coding` (its `REPLY_TO`), never to `main`, exactly as any
-other worker addresses its own launcher. See
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested spawner".
+launcher<->child report channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag; when
+`SendMessage` is absent the worker returns its report as its final message and the coordinator
+reads it from the returned transcript. `odoo-coder` itself then pushes ITS OWN completion report to
+`odoo-coding` (its `REPLY_TO`), never to `main`, exactly as any other worker addresses its own
+launcher. See `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested
+spawner".
 
 ## Fallback - team mode off
 
