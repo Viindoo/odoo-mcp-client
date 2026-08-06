@@ -91,7 +91,8 @@ GitHub ops use `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: the
 Any commit this skill's workers create follows
 `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`: detect the repo's convention, state the
 BUSINESS outcome in the subject (WHAT/WHY not HOW), keep 50/72 limits, sign off (`-s`) when DCO is
-required.
+required. A caller-supplied commit message is input to validate against the detected convention
+(C6), never output to pass through unchanged.
 
 ## Out of scope - route elsewhere
 

@@ -1,5 +1,6 @@
 <!-- SSOT snippet. The single home for commit-message formatting: the mandatory universal
-     business-subject rule, length limits, and the convention-detection protocol. Points at the
+     business-subject rule, length limits, the convention-detection protocol, the DCO sign-off
+     post-condition, and the inbound-validation gate on any caller-supplied message. Points at the
      two reference standards. Referenced via ${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md
      by every committing agent (git-operator, git-pipeline-lead, github-operator). Edit here only. -->
 
@@ -7,7 +8,7 @@
 
 Every commit this toolkit creates MUST follow a DETECTED convention, and MUST satisfy the universal
 rule below regardless of which convention applies. Consult this snippet BEFORE any `git commit`, PR
-title, or PR body.
+title, or PR body. A caller-supplied message is never exempt - see C6.
 
 ## C1 - Mandatory universal rule (applies to EVERY convention + any project override)
 
@@ -53,6 +54,10 @@ When the repo requires sign-off (a `DCO` check, a `Signed-off-by` trailer in rec
 CONTRIBUTING note), append it with `git commit -s` - it adds `Signed-off-by:` from
 `git config user.name`/`user.email`. For an existing range, `git rebase --signoff <base>`.
 
+Sign-off is a POST-condition, not an intention. After committing, confirm the `Signed-off-by:`
+trailer is present on the new commit (`git log -1 --format='%(trailers:key=Signed-off-by)'`). A
+commit created without it is not DONE - amend it before you report.
+
 ## C5 - Multi-line commit from a shell
 
 ```bash
@@ -66,3 +71,17 @@ Closes #N
 EOF
 )"
 ```
+
+## C6 - Inbound validation (a supplied message is INPUT, never output)
+
+A caller may hand you a `commit-msg`. It is a proposal, not an instruction. Before any `git commit`:
+
+1. Detect the repo's convention (C3).
+2. Match the supplied subject against that standard's grammar.
+3. Match -> use it. Mismatch -> REWRITE the subject into the detected standard from the caller's
+   stated files + business outcome, and say in your report that you rewrote it and why.
+4. Neither a conforming message NOR a business outcome to rewrite from -> STOP:
+   `NEEDS_CONTEXT(business-outcome)`.
+
+Never commit a string you did not validate. A caller-stated format preference is a hint; it never
+overrides the convention you detected.
