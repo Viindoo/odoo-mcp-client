@@ -18,7 +18,10 @@ Any statement that an Odoo model / field / method / module / edition / CLI flag 
 token *exists*, *has a given signature*, or *behaves a certain way* MUST be backed by an
 OSM call OR a direct source read - never asserted from memory:
 
-- `set_active_version` first (pin the target version), then
+- `set_active_version` first (pin the target version), then `set_active_profile` when a
+  tenant/profile scope is known (both are per-MCP-session pins; pass the concrete value on
+  every call under concurrency - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+  § OSM session-pin race), then
 - `model_inspect`, `entity_lookup`, `check_module_exists`, `lookup_core_api`,
   `module_inspect` - as appropriate to the claim.
 - **Existence is not currency.** Confirming a symbol is PRESENT (`model_inspect`/`entity_lookup`)

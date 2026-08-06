@@ -35,13 +35,25 @@ execute.
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
-| 11 | `CALLER_ID` (`REPLY_TO`) | ALWAYS | The launching context's own name/id - the literal `main` only when the main orchestrating context is the direct launcher, else the dispatching skill/agent's own name. This is a POINTER field: the detailed addressing rule (never guess, never skip a level, the malformed-input fallback when the key is absent) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3; the `SendMessage`/task-board transport that carries it (`TASK_ID`, `NOTIFY`) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`; the worker-side consumption contract is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. This row exists so a caller who only reads THIS file's skeleton still learns the obligation exists - do not restate the addressing rule here. |
+| 11 | `CALLER_ID` (`REPLY_TO`) | ALWAYS | An ADDRESS, never a name. Exactly one of: the literal `main`; the stable spawn `name` you launched this agent under; a raw `agentId`. A skill invoked from main runs IN main's context and has no address of its own, so its dispatches carry `main` - never a skill name, never a prose sentence. An agent that will itself dispatch or be messaged MUST have been launched with a stable `name`; its children cannot address it otherwise. Unaddressable, or a send that fails: RETURN INLINE, never wait (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). The `SendMessage`/task-board transport that carries it (`TASK_ID`, `NOTIFY`) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`; the worker-side consumption contract is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. |
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (resolve the Tier-2 SHARE dir per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s resolve-capture-substitute protocol
 and read `context.md` there first - never a bare `.odoo-ai/context.md` literal; ask the caller
 only when absent). This file references that snippet rather than re-specifying those two fields.
+
+## Two rules that decide whether the brief works
+
+**Every field carries a resolved VALUE.** A field whose value tells the worker to go read a
+document is a hidden sub-task it pays before starting. Resolve at dispatch and pass the value: the
+actual `SHARE_DIR`, the actual `ISOLATE_DIR`, the actual profile name, the actual addons path, the
+actual interpreter path. Cite a document as the RATIONALE for a value you already supplied, never
+in place of one. A worker handed resolved paths MUST NOT re-run the resolver from its own cwd.
+
+**One dispatch, one KIND of work.** Split by kind, not by size. A brief that bundles read prior
+art, edit a view, author a test, provision an instance, run a suite and commit is six kinds and
+will not complete. Length is not the constraint; kind-count is.
 
 ## Role-family deltas (additive on the skeleton)
 

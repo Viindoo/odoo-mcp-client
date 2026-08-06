@@ -8,16 +8,26 @@
 `INSTANCE_HANDLE` is the canonical, run-scoped descriptor of the ONE live Odoo instance a
 multi-agent run shares. It carries exactly:
 
-- `db_name` - the database the run operates against
+- `dbname` - the database the run operates against
 - `http_port` - the bound HTTP port (null for `--stop-after-init` runs)
+- `gevent_port` - the second (longpolling/gevent) port, when a prefork/`--workers>0` build
+  requested one via `--ports 2`; null when only one port was bound
 - `db_port` - the Postgres port the instance's cluster is bound to (empty when the catalog/lease
   omits it - never assume `5432`)
 - `addons_path` - the comma-separated addons path (Odoo's own `--addons-path`/`addons_path` format)
-- `venv` - the Python interpreter / venv for the target series
+- `venv_python` - the Python interpreter / venv for the target series
+- `demo` - whether demo data is loaded (`true`/`false`)
+- `languages_loaded` - the locales confirmed active in `res.lang` (always includes `en_US`)
+- `log_path` - the persistent build/test log path, captured verbatim from the script's `LOG_PATH=`
+  line
 - `lease_token` - the allocator lease that owns the instance lifecycle
 - `run_id` - the run/session id that owns the lease, forwarded back at release as `--run-id`
 - `server_pid` (optional) - the server's process-group id under setsid, when forwarded; null for
   `--stop-after-init` builds, which self-terminate
+
+Field names are the producer's SSOT: `agents/odoo-instance-ops.md`'s canonical `instance-ops`
+output block. `skills/odoo-instance/SKILL.md` relays that block verbatim - do not rename a field
+here without updating both.
 
 ## Provision once, forward everywhere
 
@@ -30,7 +40,7 @@ brief that touches code or tests (coder, test-author, verify, debug).
 ## Downstream agents consume, never self-provision
 
 An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
-(confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
+(confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `dbname`, port, or
 `addons_path`. Collision is NOT solved merely by going through `odoo-instance`: the shared/spinup
 path collides on the same declared/`8069` numbers even when every caller carries a handle -
 `persist: shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only
@@ -45,6 +55,9 @@ process must stay listening - which acquires its own isolated instance UNDER the
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation - rather than
 a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
 never re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.
+
+**Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session
+owns. Give it a distinct port, database, config and log, and let it run.
 
 ### Worktree-addons carve-out (the ONE sanctioned self-provision under a handle)
 
@@ -81,7 +94,7 @@ would prove nothing)`. Never run the operation "to see what happens": a suite th
 copy of the module is structurally biased toward green.
 
 This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
-a `db_name` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
+a `dbname` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
 and MUST NOT self-provision to change the series, add a module, or because a handle looks stale.
 
 **Structural backstop (belt-and-braces, not the sole protection for every case).**

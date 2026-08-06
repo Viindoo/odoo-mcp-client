@@ -8,10 +8,23 @@ carries the SAME guidance into the generated routing docs + IDE snippets +
 SKILL.md so clients that read those (not the live server) inherit it too.
 
 These tests guard that:
-  1. server-surface.json declares the `disambiguation` SSOT (with the 6 overlap
-     tools that match the server-side per-tool SKIP lines).
-  2. The rendered block carries the discriminator + the `read_record` marker.
-  3. Every generated artifact actually contains the current block - i.e. nobody
+  1. server-surface.json declares the `disambiguation` SSOT (identity/precedence/
+     not_for/overlap_tools all present and non-empty).
+  2. overlap_tools is DATA-DRIVEN off server-surface.json itself, not a second
+     hand-maintained copy of the tool-name list: every declared entry must
+     resolve to a real, still-live tool (catches a typo/rename/removed-tool
+     regression) and the list must be duplicate-free - AND it must still cover
+     the known "look-live-but-static" set the live MCP server's own INSTRUCTIONS
+     text names (model_inspect, module_inspect, entity_lookup, validate_domain,
+     validate_depends, validate_relation, describe_module, check_module_exists,
+     resolve_orm_chain) as a floor, not an exact-equality ceiling - so the SSOT
+     is free to grow this list without a matching test edit, while a regression
+     that silently drops a known member still fails for the right reason.
+     (Before this fix, this file's own EXPECTED_OVERLAP_TOOLS constant was a
+     SECOND hardcoded copy of server-surface.json's overlap_tools - the
+     redundant-hardcoding anti-pattern this test now replaces.)
+  3. The rendered block carries the discriminator + the `read_record` marker.
+  4. Every generated artifact actually contains the current block - i.e. nobody
      edited the SSOT and forgot to run `make gen` (silent drift).
 
 The block is carried as a dedicated field, NOT appended to a tool description,
@@ -34,15 +47,21 @@ from generator.gen_surface import gen_disambiguation_block  # noqa: E402
 
 SURFACE_FILE = SKILLS_PLUGIN / "generator" / "server-surface.json"
 
-# Must match the tools that received a per-tool live-SKIP line in the server
-# repo (odoo-semantic-server/src/mcp/server.py). Keep the two sides aligned.
-EXPECTED_OVERLAP_TOOLS = {
+# Floor, not a ceiling: verified (2026-08-06) against the live MCP server's own
+# INSTRUCTIONS text ("Tools whose names look live but are STATIC here") - every one of
+# these MUST remain in server-surface.json's overlap_tools, but the SSOT may grow the
+# list further without needing a matching edit here (see test_overlap_tools_are_data_
+# driven_against_the_live_surface, which derives its assertions from the JSON itself).
+MUST_INCLUDE_LOOK_LIVE_STATIC_TOOLS = {
     "model_inspect",
     "module_inspect",
     "entity_lookup",
     "validate_domain",
     "validate_depends",
     "validate_relation",
+    "describe_module",
+    "check_module_exists",
+    "resolve_orm_chain",
 }
 
 # Generated artifacts that must carry the block (paths relative to skills plugin).
@@ -57,6 +76,11 @@ def _surface() -> dict:
     return json.loads(SURFACE_FILE.read_text(encoding="utf-8"))
 
 
+def _live_tool_names(surface: dict) -> set[str]:
+    """Tool names still live (not version_removed) in server-surface.json."""
+    return {t["name"] for t in surface["tools"] if t.get("version_removed") is None}
+
+
 def test_surface_declares_disambiguation_ssot():
     dis = _surface().get("disambiguation")
     assert dis, "server-surface.json must declare a 'disambiguation' block"
@@ -65,9 +89,29 @@ def test_surface_declares_disambiguation_ssot():
     assert isinstance(dis.get("not_for"), list) and dis["not_for"], (
         "disambiguation.not_for must be a non-empty list of boundaries"
     )
-    assert set(dis.get("overlap_tools", [])) == EXPECTED_OVERLAP_TOOLS, (
-        "overlap_tools must match the look-live tool set"
-    )
+    assert dis.get("overlap_tools"), "disambiguation.overlap_tools must be a non-empty list"
+
+
+def test_overlap_tools_are_data_driven_against_the_live_surface():
+    """overlap_tools entries must be real, live, duplicate-free tool names.
+
+    Derived entirely from server-surface.json's own `tools` array (data-driven) -
+    no second hardcoded tool-name list to drift out of sync with the JSON.
+    """
+    surface = _surface()
+    overlap = surface["disambiguation"]["overlap_tools"]
+    live = _live_tool_names(surface)
+    unknown = [t for t in overlap if t not in live]
+    assert not unknown, f"overlap_tools names non-live/unknown tool(s): {unknown}"
+    assert len(overlap) == len(set(overlap)), "overlap_tools has duplicate entries"
+
+
+def test_overlap_tools_includes_the_known_look_live_static_floor():
+    """Regression guard: the 9 tools verified against the live server's own
+    INSTRUCTIONS text must never silently disappear from overlap_tools."""
+    overlap = set(_surface()["disambiguation"]["overlap_tools"])
+    missing = MUST_INCLUDE_LOOK_LIVE_STATIC_TOOLS - overlap
+    assert not missing, f"overlap_tools missing known look-live-but-static tool(s): {missing}"
 
 
 def test_rendered_block_carries_signature_precedence_and_live_boundary():

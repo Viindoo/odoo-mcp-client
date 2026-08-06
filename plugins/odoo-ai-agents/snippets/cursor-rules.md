@@ -256,12 +256,12 @@ _Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. R
 > Do NOT use Odoo Semantic for:
 > - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
 >
-> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 ## Key mappings (generated)
 - "inspect model" → `model_inspect ★` - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - "inspect module" → `module_inspect ★` - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
-- "lookup field" → `entity_lookup ★` - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- "lookup field" → `entity_lookup ★` - Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module.
 - "which repos make up profile" → `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 - "show me examples" → `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 - "what breaks if I change" → `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.

@@ -241,7 +241,7 @@ _Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. R
 > Do NOT use Odoo Semantic for:
 > - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
 >
-> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 Use these tools based on what the user is asking (v0.15.0 surface):
 
@@ -259,7 +259,7 @@ ARGS (optional): profile_name, start_index, limit, view_type, bound_model, era, 
 
 ### entity_lookup ★
 TRIGGER: lookup field
-PREFER: Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+PREFER: Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module.
 ARGS (required): kind, odoo_version
 ARGS (optional): profile_name, model, field, method_name, xmlid, name, from_module
 
@@ -273,7 +273,7 @@ ARGS (optional): name, repo, start_index, limit
 TRIGGER: show me examples
 PREFER: Semantic code search returning real indexed code snippets from the Odoo codebase.
 ARGS (required): query, odoo_version
-ARGS (optional): limit, context_module, profile_name
+ARGS (optional): limit, context_module, chunk_types, profile_name
 
 ### impact_analysis
 TRIGGER: what breaks if I change
@@ -331,7 +331,7 @@ ARGS (optional): to_version
 TRIGGER: what does module do
 PREFER: Module manifest + defined/extended model counts + view/JS inventory in one call.
 ARGS (required): name, odoo_version
-ARGS (optional): profile_name
+ARGS (optional): include_description, profile_name
 
 ### set_active_version ☆
 TRIGGER: set version

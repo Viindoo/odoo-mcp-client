@@ -581,3 +581,202 @@ def test_missing_continuation_contract_allowlist_is_shrink_only():
             "an entry that gains the reference must be removed, never "
             "silently kept)"
         )
+
+
+# ---------------------------------------------------------------------------
+# M4 - Resolved-value dispatch. dispatch-brief.md field 11 (CALLER_ID/
+# REPLY_TO) becomes an address grammar (an ADDRESS, never a name/pointer),
+# and a new "Two rules that decide whether the brief works" section is added.
+# Guards `12-design-final.md` § M4.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_brief_field_11_is_address_grammar():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    rows = [line for line in text.splitlines() if line.startswith("| 11 | `CALLER_ID`")]
+    assert rows, "dispatch-brief.md: field 11 `CALLER_ID` row not found"
+    row = rows[0]
+    for token in ("An ADDRESS, never a name", "the literal `main`", "`agentId`", "RETURN INLINE"):
+        assert token in row, (
+            f"dispatch-brief.md field 11 must state {token!r} - it must read as an "
+            "address grammar (a skill name or prose sentence is not a valid "
+            "CALLER_ID value), not a generic 'the launching context's name/id' "
+            "description"
+        )
+
+
+def test_dispatch_brief_has_two_rules_section():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    assert "## Two rules that decide whether the brief works" in text, (
+        "dispatch-brief.md must carry the '## Two rules that decide whether "
+        "the brief works' section (resolved-value fields + one-dispatch-one-"
+        "kind) - M4's mechanical companion to the field-11 address grammar"
+    )
+    two_rules = _section(
+        text,
+        "## Two rules that decide whether the brief works",
+        "## Role-family deltas",
+    )
+    assert "Every field carries a resolved VALUE" in two_rules, (
+        "dispatch-brief.md's two-rules section must state the resolved-value "
+        "rule verbatim"
+    )
+    assert "One dispatch, one KIND of work" in two_rules, (
+        "dispatch-brief.md's two-rules section must state the one-kind-per-"
+        "dispatch rule verbatim"
+    )
+    assert "MUST NOT re-run the resolver" in two_rules, (
+        "dispatch-brief.md's two-rules section must forbid a worker handed a "
+        "resolved value from re-running the resolver itself"
+    )
+
+
+# ---------------------------------------------------------------------------
+# M4 - odoo-instance/SKILL.md's brief block must carry only resolved values,
+# never a "go read this document / call this procedure" field. Before this
+# fix, `INSTANCE_RESOLUTION: follow instance-resolution.md` sent the
+# dispatched odoo-instance-ops agent to re-derive a procedure its own body
+# already fully implements (Steps A-D) - a hidden sub-task, and a duplicate
+# SSOT. Guards `12-design-final.md` § M4 mechanical guard `[brief-values]`.
+# ---------------------------------------------------------------------------
+
+ODOO_INSTANCE_SKILL = (
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-instance" / "SKILL.md"
+)
+
+_PROCEDURAL_FIELD_VALUE = re.compile(
+    r"^([A-Z][A-Z0-9_ ]*)\s*(?:\([^)]*\))?\s*:\s*(follow|call|resolve|per)\s",
+    re.IGNORECASE,
+)
+
+
+def _instance_brief_fence(text):
+    marker = "The brief must include:\n\n```\n"
+    start = text.index(marker) + len(marker)
+    end = text.index("\n```", start)
+    return text[start:end]
+
+
+def test_odoo_instance_brief_fence_is_discovered():
+    text = ODOO_INSTANCE_SKILL.read_text(encoding="utf-8")
+    fence = _instance_brief_fence(text)
+    assert "OPERATION:" in fence and "CALLER_ID" in fence, (
+        "odoo-instance/SKILL.md: could not locate the dispatch-brief fenced "
+        "field block (expected it to start at OPERATION: and include "
+        "CALLER_ID) - the extraction anchor drifted"
+    )
+
+
+def test_no_procedural_field_values_in_instance_brief():
+    text = ODOO_INSTANCE_SKILL.read_text(encoding="utf-8")
+    fence = _instance_brief_fence(text)
+    hits = [
+        line for line in fence.splitlines() if _PROCEDURAL_FIELD_VALUE.match(line)
+    ]
+    assert not hits, (
+        "odoo-instance/SKILL.md's dispatch-brief field block hands the "
+        "dispatched agent a field whose value begins 'follow '/'call '/"
+        "'resolve '/'per ' - a hidden sub-task the worker must resolve "
+        "itself instead of a resolved value the caller already supplied "
+        f"(M4 two-rules section, dispatch-brief.md): {hits}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# M4 - INSTANCE_HANDLE field names. instance-handle-contract.md is the SSOT
+# for the fields an INSTANCE_HANDLE carries; agents/odoo-instance-ops.md's
+# canonical `instance-ops` output block is the actual PRODUCER. Before this
+# fix the contract declared `db_name`/`venv` while the producer emitted
+# `dbname`/`venv_python` (and 4 producer fields - gevent_port, log_path,
+# demo, languages_loaded - were undocumented in the contract entirely).
+# Data-driven both directions, scoped to the fields that describe the ONE
+# live instance (never the per-operation-only fields: op, series,
+# modules_installed, failed, errors, warnings, skipped, findings_path,
+# status, notes - those are not part of the handle abstraction).
+# ---------------------------------------------------------------------------
+
+INSTANCE_HANDLE_CONTRACT = (
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "snippets" / "instance-handle-contract.md"
+)
+ODOO_INSTANCE_OPS_AGENT = ODOO_AGENTS_DIR / "odoo-instance-ops.md"
+
+_OPERATION_SCOPED_PRODUCER_FIELDS = {
+    "op",
+    "series",
+    "modules_installed",
+    "failed",
+    "errors",
+    "warnings",
+    "skipped",
+    "findings_path",
+    "status",
+    "notes",
+}
+
+
+def _contract_field_names(text):
+    section = text[text.index("carries exactly:"): text.index("## Provision once, forward everywhere")]
+    return set(re.findall(r"^-\s+`([a-z_]+)`", section, re.MULTILINE))
+
+
+def _producer_canonical_field_names(text):
+    match = re.search(r"```instance-ops\n(.*?)\n```", text, re.DOTALL)
+    assert match, "agents/odoo-instance-ops.md: canonical `instance-ops` output block not found"
+    return set(re.findall(r"^(\w+):", match.group(1), re.MULTILINE))
+
+
+def test_instance_handle_field_names_match_producers():
+    contract_fields = _contract_field_names(
+        INSTANCE_HANDLE_CONTRACT.read_text(encoding="utf-8")
+    )
+    producer_fields = _producer_canonical_field_names(
+        ODOO_INSTANCE_OPS_AGENT.read_text(encoding="utf-8")
+    )
+    handle_producer_fields = producer_fields - _OPERATION_SCOPED_PRODUCER_FIELDS
+
+    missing_from_producer = contract_fields - producer_fields
+    assert not missing_from_producer, (
+        "instance-handle-contract.md promises field(s) the producer "
+        f"(agents/odoo-instance-ops.md canonical output block) never emits: "
+        f"{sorted(missing_from_producer)}"
+    )
+
+    undocumented_in_contract = handle_producer_fields - contract_fields
+    assert not undocumented_in_contract, (
+        "agents/odoo-instance-ops.md's canonical output block emits "
+        "instance-describing field(s) instance-handle-contract.md never "
+        f"documents: {sorted(undocumented_in_contract)}"
+    )
+
+    assert "dbname" in contract_fields and "db_name" not in contract_fields, (
+        "instance-handle-contract.md must declare `dbname` (the producer's "
+        "actual field name), not the stale `db_name`"
+    )
+    assert "venv_python" in contract_fields and "venv" not in contract_fields, (
+        "instance-handle-contract.md must declare `venv_python` (the "
+        "producer's actual field name), not the stale `venv`"
+    )
+
+
+# ---------------------------------------------------------------------------
+# M4 - "Isolation, not exclusivity" (X-16, stated not mechanically provable):
+# instance-handle-contract.md must never instruct a worker to wait for a
+# resource another session owns.
+# ---------------------------------------------------------------------------
+
+
+def test_instance_handle_contract_states_isolation_not_exclusivity():
+    text = INSTANCE_HANDLE_CONTRACT.read_text(encoding="utf-8")
+    normalized = " ".join(text.split())
+    assert "Isolation, not exclusivity." in normalized, (
+        "instance-handle-contract.md must carry the 'Isolation, not "
+        "exclusivity' principle verbatim (M4, X-16)"
+    )
+    assert (
+        "Never instruct a worker to wait for a resource another session owns"
+        in normalized
+    ), (
+        "instance-handle-contract.md's 'Isolation, not exclusivity' principle "
+        "must forbid instructing a worker to wait for a resource another "
+        "session owns - give it a distinct port/database/config/log instead"
+    )

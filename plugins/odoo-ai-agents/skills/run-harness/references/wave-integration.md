@@ -22,7 +22,7 @@ Fill this once at the start of the coding waves and embed it verbatim in every p
 Repo Capability Card
   base          : <principal branch name>
   verify        : <command that must pass after every cherry-pick, e.g. "make test" or "make gen-check && make deps-check && make test">
-  commit        : <conventional commit style, e.g. "conventional: feat(scope): ..., fix(scope): ...">
+  commit        : <resolved by git-toolkit:git-ops at commit time - do not pre-declare a standard>
   confidential  : <public | restricted | internal>
   worktree_root : <parent path for wave worktrees, outside the repo tree>
 ```
@@ -178,7 +178,7 @@ Run-integration branch: run-integration-<slug>
 
   base          : <principal>
   verify        : <command>
-  commit        : <convention>
+  commit        : <resolved by git-toolkit:git-ops at commit time>
   confidential  : <level>
   worktree_root : <path>
 
@@ -345,7 +345,9 @@ op                 : squash-push
 worktree           : <path>/run-integration
 principal          : <principal-branch-name>
 backup-ref         : run-integration-backup-<slug>
-commit-msg         : <conventional commit message>
+commit-msg         : <none - business outcome only (the run's modules + what changed); let
+                     git-toolkit:git-ops compose the message from its own detected convention -
+                     do not pre-declare a standard or pass a literal message>
 integration-branch : run-integration-<slug>
 first-push         : yes - the run-integration branch was NEVER pushed before, so this is a fresh
                      FIRST push (initial upstream push), NOT a force-with-lease; no history is
@@ -412,7 +414,7 @@ ISOLATE_DIR      : <captured absolute path - resolved ONCE by run-harness agains
 design_index     : <absolute path under SHARE_DIR, e.g. <SHARE_DIR-literal>/designs/<slug>/index.yaml | none>
 ODOO VERSION     : <one resolved version for the run>
 REQUEST          : <precise description of what this module implements>
-Repo Capability Card: base=<principal> verify=<command> commit=<convention> confidential=<level>
+Repo Capability Card: base=<principal> verify=<command> commit=<resolved by git-ops> confidential=<level>
 WORKLOG          : <runSlug> - read it, then append significant decisions
 Return: the commit SHA(s) on the module's branch (REQUIRED - a DONE with no SHA is a failed contract;
         the odoo-coder coordinator obtains the SHA by committing its coders' files via
