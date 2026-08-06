@@ -19,7 +19,7 @@ checkout).
 | `worktree` | Absolute path to the dedicated integration worktree (S9: never the primary checkout) |
 | `principal` | Branch name tracked at `origin/<principal>` (e.g. `master`, `main`) |
 | `backup-ref` | Tag name for the S1 backup (e.g. `backup/squash-YYYYMMDDHHMMSS`) |
-| `commit-msg` | Full commit message for the squashed commit |
+| `commit-msg` | Caller-proposed commit message for the squashed commit - a proposal, validated (and rewritten on mismatch) against C6 in step 4 before it reaches `git commit`, never passed through unchecked |
 | `integration-branch` | Local and remote branch name to push (e.g. `integration/feature-batch`) |
 | `confirmed` | Verbatim human approval text. Required BEFORE step 2 (the `reset --soft` squash - a local history rewrite gated by N5) and re-checked before step 6 (the force-with-lease push - gated by the S2 item in the 8-item list). One `confirmed` value covers the whole recipe. |
 
@@ -74,13 +74,16 @@ git reset --soft origin/<principal>
 
 All commits above `origin/<principal>` collapse into the index. The working tree is unchanged.
 
-### 4 - Commit with provided message
+### 4 - Validate, then commit
+
+Run C6 (`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`) on `<commit-msg>` FIRST; commit
+the validated-or-rewritten string, never the raw input.
 
 ```bash
-git commit -m "<commit-msg>"
-# add -s for DCO sign-off when the repo requires it
-# (follow ${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md)
+git commit -s -m "<validated-commit-msg>"
 ```
+
+Then confirm the `Signed-off-by:` trailer landed (C4).
 
 ### 5 - S6 tree-identity gate
 

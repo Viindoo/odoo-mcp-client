@@ -126,6 +126,9 @@ gap is:
   `NEEDS_CONTEXT(<field>)` (the caller can re-brief) or `BLOCKED(<field>)` (the gap is
   irreversible or large). Never silently guess, never invent a convention, and never
   self-authorize a destructive op to fill the gap.
+- **A supplied commit message that does not match the convention you detected, with no business
+  outcome to rewrite it from** - STOP and return `NEEDS_CONTEXT(business-outcome)`. A supplied
+  message is never a license to skip C6.
 
 This is the git-toolkit equivalent of a caller-side dispatch-brief schema. There is intentionally
 no reference to `dispatch-brief.md` here - `git-toolkit` is a separate, dependency-free plugin
