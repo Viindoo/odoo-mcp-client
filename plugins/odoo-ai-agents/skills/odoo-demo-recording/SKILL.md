@@ -252,8 +252,8 @@ any file here regardless of suffix:
   clip and call it narrated.
 - **chrome-devtools is reachable (it always is - eager, bundled) but no frame-to-clip assembler is
   configured and playwright is not wired:** produce the PNG frame sequence (each frame
-  overlay-correct) and return `DONE_WITH_CONCERNS`, naming the missing assembler and the sequence
-  path, rather than promising an MP4/GIF the toolchain cannot produce.
+  overlay-correct) and return `status: DONE` with a `concerns:` entry naming the missing
+  assembler and the sequence path, rather than promising an MP4/GIF the toolchain cannot produce.
 - Recorder single-flight (never two drivers on the same MCP family) and close-before-DONE still
   apply unchanged - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser
   exclusivity + `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2; this mode adds

@@ -137,8 +137,8 @@ TARGET version + module list (it runs the TARGET-version survival pass); (c) `od
 (`Explore`, sonnet, read-only) - scans cluster source for every symbol referencing an external/core
 dep and grounds each at target, emitting `blockers[]` that gate P3/P4 (full brief: phase-detail § P1d).
 Output: `graph.md` (DAG + topo order), `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`.
-Assert DAG is acyclic: if a cycle is found, surface the cycle edges as
-`DONE_WITH_CONCERNS` and ask the user to break the cycle before P2 proceeds (do not
+Assert DAG is acyclic: if a cycle is found, surface the cycle edges as a `concerns:`
+entry and ask the user to break the cycle before P2 proceeds (do not
 hard-fail - cycles exist in real custom clusters and require human resolution).
 Assert all dependencies exist at the target.
 

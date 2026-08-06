@@ -133,15 +133,19 @@ def test_args_param_not_used_for_caption_text():
 
 
 # ---------------------------------------------------------------------------
-# 3. Recorder-family fallback vocabulary (BLOCKED / DONE_WITH_CONCERNS)
+# 3. Recorder-family fallback vocabulary (BLOCKED / status: DONE + concerns:)
 # ---------------------------------------------------------------------------
+# NOTE: DONE_WITH_CONCERNS is RESERVED plugin-wide (snippets/continuation-contract.md) - a
+# caveat on otherwise-complete work is `status: DONE` plus a `concerns:` entry, never a fifth
+# status value. This test's intent (degraded capability must use TERMINAL STATUS vocabulary,
+# never silently claim success) is unchanged; only the vocabulary spelling is.
 
 
 def test_unavailable_capability_uses_terminal_status_vocabulary():
     section = _section(SKILL_TEXT, "### When the capability is not available")
     assert section, "must document what happens when no overlay-capable family is reachable"
     assert "BLOCKED(" in section
-    assert "DONE_WITH_CONCERNS" in section
+    assert "status: DONE" in section and "concerns:" in section
     # Must not silently claim success over a degraded/missing capability.
     assert "never" in section.lower() or "rather than" in section.lower()
 

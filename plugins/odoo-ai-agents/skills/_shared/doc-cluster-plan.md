@@ -102,7 +102,7 @@ on top = most pure); ties break to the earliest instance in the schedule. Three 
   rationale (why same-family is serial, why distinct families may run concurrently):
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - reference it, do not restate
   it. When W=1, all paths serialize; the planner records that so the runner reports
-  `DONE_WITH_CONCERNS(W=1: serialized)`.
+  `status: DONE` with `concerns: [W=1: serialized]`.
 
 ### 7. Provision flags per install step
 

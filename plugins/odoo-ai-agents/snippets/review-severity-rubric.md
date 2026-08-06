@@ -39,7 +39,7 @@ same severity on every indexed series.
   `REQUEST_CHANGES`. MED/LOW findings inside the diff are advisory - recorded, but they do not by
   themselves flip the verdict.
 - An audit finding **outside the diff** (pre-existing / blast-radius) never changes the diff
-  verdict or score, at any severity. It surfaces as a `DONE_WITH_CONCERNS` sibling note carrying an
+  verdict or score, at any severity. It surfaces as a `concerns:` sibling note carrying an
   opt-in `next:` (e.g. `next: odoo-deprecation-audit` for a full pre-existing sweep) - never
   silently dropped, never silently blocking the diff.
 

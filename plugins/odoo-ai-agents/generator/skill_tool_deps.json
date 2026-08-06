@@ -1185,7 +1185,9 @@
     },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",
-      "spawns": [],
+      "spawns": [
+        "(fan-out only: <=3 concurrent anonymous leaf workers, each carrying the mandatory worker-brief preamble, per skills/_shared/concurrency-guard.md Mode A - see SKILL.md Hard rule 2/§ Fan-out/Fan-in; NOT a named-teammate spawn, so spawn_class stays orchestrator-nl)"
+      ],
       "stack": "none",
       "instance_touching": false,
       "output_mode": "writes-files",
@@ -1374,5 +1376,39 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     }
+  },
+  "vocabulary": {
+    "_doc": "SSOT for the plugin's cross-cutting status/gate-reply vocabulary. Machine-consumed by tests/test_status_vocabulary.py; rendered for human/agent readers by snippets/continuation-contract.md (continuation_status), snippets/planning-gate-contract.md (gate_reply_sets), and snippets/vocabulary.md (the cross-cutting index, plus phase/cluster/leaf which nothing here parses). DONE_WITH_CONCERNS is listed under reserved_tokens - it is NOT a continuation_status or node_status value in this plugin; ODOO-AI-ETHOS.md #10 Completion Status defines it as a separate, human-facing self-report field outside this plugin's ownership and is not touched by this block.",
+    "continuation_status": [
+      "DONE",
+      "NEEDS_NEXT",
+      "BLOCKED",
+      "NEEDS_CONTEXT"
+    ],
+    "node_status": [
+      "PENDING",
+      "READY",
+      "RUNNING",
+      "DONE",
+      "FAILED",
+      "SKIPPED",
+      "BLOCKED",
+      "NEEDS_CONTEXT"
+    ],
+    "gate_reply_sets": {
+      "plan": [
+        "approve",
+        "refine: <feedback>",
+        "cancel"
+      ],
+      "step": [
+        "approve",
+        "skip",
+        "cancel"
+      ]
+    },
+    "reserved_tokens": [
+      "DONE_WITH_CONCERNS"
+    ]
   }
 }

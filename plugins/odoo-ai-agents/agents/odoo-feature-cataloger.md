@@ -219,7 +219,7 @@ features: <total count>  types: model=N view=N menu=N action=N component=N
 grounding: osm=N hybrid=N local-source=N unknown=N
 catalog: <OUTPUT_DIR>/feature-catalog.jsonl
 report:  <OUTPUT_DIR>/feature-catalog.md
-status: DONE | DONE_WITH_CONCERNS | NEEDS_CONTEXT
+status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
 notes: <any unknown entries, OSM misses, or disk-only warnings>
 ```
 

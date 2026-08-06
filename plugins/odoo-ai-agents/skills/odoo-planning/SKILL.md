@@ -113,7 +113,7 @@ Artifacts:    <SHARE_DIR>/plans/<slug>-<date>.md (code 3-block plan) ·
               <SHARE_DIR>/plans/<slug>-doc-<date>.yaml (doc cluster plan)
               (no run-<id>.json - that is intake Phase P)
 OSM:          backed | standalone
-Proceed? (yes / refine: [feedback] / cancel)
+Proceed? (approve / refine: [feedback] / cancel)
 ```
 
 Wait for the reply before proceeding. This is a preview, not a write-block - on confirmation the

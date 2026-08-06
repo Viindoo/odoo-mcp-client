@@ -278,7 +278,7 @@ phases:
     # {module, locale, artifact_type, path, status: captured|degraded|placeholder}.
     # Emit a run summary to the user: modules packaged (doc:true), modules skipped as install-only
     # deps (doc:false + dedup_reason), instances allocated, locales covered, total artifacts,
-    # any DONE_WITH_CONCERNS items (capture downgrades, W=1 serialization, missing rasterizer,
+    # any `concerns:` items (capture downgrades, W=1 serialization, missing rasterizer,
     # locale fallbacks, manifest-audit blocking gaps). Note: final HTML/RST artifacts are written
     # directly to the module tree (e.g. <module>/static/description/index.html); the
     # .odoo-ai/packaging/<run>/ directory holds only the run index, audit reports, catalog,

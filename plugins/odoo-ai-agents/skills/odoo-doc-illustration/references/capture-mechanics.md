@@ -212,8 +212,8 @@ the bound that triggered it, so the caller sees exactly what was produced.
 
 - **Per-locale failure (never block the whole run for one locale):** if a locale fails to load or
   switch, reuse the English screenshots for that locale, mark each affected image with an
-  `[Image: <slug>]` note, and report `status: DONE_WITH_CONCERNS(locale <x>: English screenshots
-  used)`. Other locales proceed normally.
+  `[Image: <slug>]` note, and report `status: DONE` with `concerns: [locale <x>: English
+  screenshots used]`. Other locales proceed normally.
 - **No instance / no browser at all:** do not hard-BLOCK. The writer still assembles its artifact
   STRUCTURE + supplied text with `[Image: <slug>]` placeholders at every illustration point, then
   emits `NEEDS_NEXT -> odoo-instance` so a later pass fills the captures. `BLOCKED` only when even the

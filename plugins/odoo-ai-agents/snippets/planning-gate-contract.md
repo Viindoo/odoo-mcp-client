@@ -8,6 +8,19 @@
 
 # Planning Gate Contract
 
+## Gate reply keywords (two sets, no others)
+
+- PLAN gate (a whole plan or design is on the table and the user may iterate on it):
+  `approve / refine: [feedback] / cancel`
+- STEP gate (one node, phase or dispatch is on the table; the only choices are do-it or skip-it):
+  `approve / skip / cancel`
+
+Never invent a third set. `yes` is not a gate keyword. This is the ONE declaring file for both
+sets; every gate prompt elsewhere in the plugin (the mandatory-planning gate below, `run-harness`'s
+L1/L2 node gates, `odoo-planning`'s plan gate, workflow-chaining's soft-plan-gate, etc.) uses one of
+these two sets verbatim and points here rather than restating them - see
+`${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` for the cross-cutting index.
+
 Planning is MANDATORY for ALL work that writes code, and it is enforced ONCE at the ADMISSION point
 (the front door), never re-checked inside executors. There is NO trivial/size/module-count bypass
 that lets the front door admit code-writing work without a plan. A single-module change is not an

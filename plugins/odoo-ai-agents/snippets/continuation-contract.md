@@ -15,6 +15,10 @@ decide what runs next. It does NOT replace or alter anything above it - it is pu
 ````
 ```continuation
 status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
+concerns:                                   # OPTIONAL, DONE only: one line per caveat on an
+                                             # otherwise-complete run - each names the dimension
+                                             # and an evidence path (log/artifact/finding). [] or
+                                             # omit when there is nothing to flag. See Rules below.
 produced: [<real artifact path>, ...]      # files you actually wrote; [] for chat-only
 next:                                       # [] when nothing to add; REQUIRED (>=1 entry) on
                                              # NEEDS_NEXT; DONE MAY also carry a low-confidence
@@ -30,6 +34,18 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
 ````
 
+`status` has exactly four values: `DONE`, `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT`.
+
+`DONE_WITH_CONCERNS` is NOT one of them. To report a caveat on completed work, emit `status: DONE`
+plus a `concerns:` list - one line per caveat, each naming the dimension and an evidence path. A
+driver schedules `DONE` + `concerns` as DONE and surfaces the list. (ODOO-AI-ETHOS #10's
+`DONE_WITH_CONCERNS` is a different field - a human-facing self-report, not this DAG signal.)
+
+This is the ONE declaring file for `status` (`continuation_status`) and its `concerns:` qualifier;
+every other file in this plugin that mentions either POINTS here rather than restating the values -
+`${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` indexes it alongside the gate-reply sets and the
+other overloaded terms.
+
 Rules:
 - **You only EMIT this - you never dispatch the next step yourself, with one narrow category
   exception.** Advancing ANOTHER agent's `next` is always the driver's (run-harness's) job. The
@@ -42,14 +58,18 @@ Rules:
   DONE/BLOCKED; while a child runs you are not done. Full rule:
   `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2. Different guarantee from
   'you never dispatch the next step yourself'; both hold.
-- `status: DONE` when the run's goal is met; `NEEDS_NEXT` when more work should follow (fill
+- `status: DONE` when the run's goal is met (add `concerns:` when a caveat remains worth
+  flagging - never a fifth status value); `NEEDS_NEXT` when more work should follow (fill
   `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
 - **Teardown gate on every terminal status.** `DONE` (and `BLOCKED`/`NEEDS_CONTEXT`) is legal
   only after the resources this dispatch acquired are returned - browser pages/recordings you
   opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
   name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
-- **Completion report is three parts, always - not only in Agent Team mode.** Per
-  ODOO-AI-ETHOS #10 (Completion Status - cited, not restated here), your output, in order, is
+- **Completion report is three parts, always - not only in Agent Team mode.** ODOO-AI-ETHOS #10
+  (Completion Status) is cited here ONLY for the general evidence-over-assertion principle it
+  states for every domain - it is NOT the authority for the four-value `status` enum above, which
+  this file declares in its own right and which diverges from ETHOS #10's own value set (see the
+  `DONE_WITH_CONCERNS` note above). Your output, in order, is
   (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
   evidence, (c) this fenced `continuation` block. This holds identically whether your final
   message IS the report (no `SendMessage` in your toolset) or is pushed via `SendMessage` per

@@ -42,7 +42,7 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 engineering | sales | presales | marketing | strategy | qa | support | content | consultant
 ```
 
-Matches the 9 README persona buckets. Drives the `odoo-intake` / `odoo-concierge` tier-3 routing
+Matches the 9 README persona buckets. Drives the `odoo-intake` tier-3 routing
 row so this workflow appears in the right routing group without separate registration.
 
 ---

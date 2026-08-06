@@ -8,7 +8,7 @@ description: >
   Fan-out/Fan-in, Expert-Pool, Producer-Reviewer, Supervisor, or Hierarchical). Dispatches
   each phase to a specialist skill via the Skill tool (preferred) or NL description-match as a fallback. Writes
   phase artifacts to the `output_dir` declared in the YAML and checkpoints state for resume.
-  Invoked by the intake skill (or concierge) via NL-dispatch after a workflow is chosen at the
+  Invoked by the intake skill via NL-dispatch after a workflow is chosen at the
   soft-plan-gate - never called directly by the user
 model: inherit
 ---
@@ -19,7 +19,7 @@ model: inherit
 
 Neutral orchestration engine: reads the YAML, announces each phase, gates on user approval,
 dispatches specialists via the Skill tool (NL description-match as fallback), writes checkpoints. No domain knowledge - that lives in the
-`.workflow.yaml` and the specialist skills. Invoked by `odoo-intake` or `odoo-concierge` after
+`.workflow.yaml` and the specialist skills. Invoked by `odoo-intake` after
 a user approves a multi-step workflow plan at the soft-plan-gate.
 
 ## Hard rules
@@ -196,8 +196,9 @@ trigger `<next>` manually." Never silently drop. (To AUTO-chain, enter via intak
 
 ## Gate handling
 
-Present options from the YAML `gate` field. Standard responses:
-- `approve` / `yes` / `ok` → proceed.
+Present options from the YAML `gate` field - the PLAN gate set
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), no others:
+- `approve` → proceed.
 - `refine: [feedback]` → incorporate feedback and re-propose.
 - `cancel` → stop; report completed phases and artifact locations.
 
@@ -206,7 +207,7 @@ Present options from the YAML `gate` field. Standard responses:
 - Domain-specific logic → lives in the specialist skill or `.workflow.yaml`.
 - BRL chunk orchestration → `odoo-brl` has its own gating.
 - Creating or editing `.workflow.yaml` files (data files, not runtime artifacts).
-- Direct user invocation → use `odoo-intake` or `odoo-concierge`.
+- Direct user invocation → use `odoo-intake`.
 
 ## Standalone-first fallback
 
