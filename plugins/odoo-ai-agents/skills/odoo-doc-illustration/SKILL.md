@@ -51,7 +51,7 @@ a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft
 cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch, resolve
 `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to the run's target root (`doc_root` from the
-scoper for multi-module; the module's own containing repo root for the single-module legacy path),
+scoper for multi-module; the module's own containing repo root for the single-module path),
 and CAPTURE both absolute paths for the rest of the run:
 ```
 bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
@@ -81,9 +81,9 @@ presumed abandoned; a healthy doc run finishes well inside that window). Full ru
 rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 Enforcer: whoever executes `odoo-doc-illustration` next, unconditionally, every run.
 
-**Single module.** A single module dir/name keeps the legacy single-module path with no
+**Single module.** A single module dir/name takes the single-module path with no
 scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
-against that module - behavior unchanged.
+against that module.
 
 **Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
@@ -261,16 +261,15 @@ CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `mai
 buyer-facing, so this default also makes the copy/catalog pre-fetch in step 2.1 below FIRE by
 default, supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`/`FEATURE CATALOG` inputs -
 see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only the appstore
-`index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens` - both unchanged
-from before. A bare dispatch that omits every axis field now produces a marketing-toned App-Store
-landing page by default: pass `TONE: technical` explicitly to keep the plain-technical
-`index.html` (this leaves the pre-fetch un-fired and could BLOCK `odoo-marketing-writer` on its
-own REQUIRED inputs).
+`index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A bare dispatch
+that omits every axis field produces a marketing-toned App-Store landing page by default: pass
+`TONE: technical` explicitly to keep the plain-technical `index.html` (this leaves the pre-fetch
+un-fired and could BLOCK `odoo-marketing-writer` on its own REQUIRED inputs).
 
 **DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
 `install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this
 run-level DOC LAYER axis is the default applied only when a module's plan entry carries no
-`doc_layer`. The single-module legacy path (no scoper/planner hop) has no plan entry, so the
+`doc_layer`. The single-module path (no scoper/planner hop) has no plan entry, so the
 run-level axis is authoritative there.
 
 **DOC LAYER** - which output files are produced and which writer runs:
@@ -383,7 +382,7 @@ SCOPE is `full-guide`, the final set = `{en_US}` ∪ resolved-set. English is th
 suffix-less doc (`index.html`, `doc/index.rst`), force-included even if the registry omits it; every
 other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. Applied on top of the shared
 resolver - it does NOT change the resolver's no-default behavior above (there is no hard fallback
-locale) used by the legacy screenshot-doc/technical path.
+locale) used by the screenshot-doc/technical path.
 
 **Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture
 once, shared). A driven scenario MUTATES state so it cannot be re-rendered with `?lang=`; the writer

@@ -1,6 +1,6 @@
 <!-- SSOT snippet. The single home for the "what do I do when OSM is unreachable" answer.
-     Referenced (not copy-pasted) by every skill/agent whose Standalone-first fallback used
-     to say "ask the user to paste / provide ...". Edit here only; consumers point at
+     Referenced (not copy-pasted) by every skill/agent needing OSM-unreachable fallback guidance.
+     Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md. Pairs with osm-first-contract.md. -->
 
 # Disk-Fallback Protocol (three-tier grounding)

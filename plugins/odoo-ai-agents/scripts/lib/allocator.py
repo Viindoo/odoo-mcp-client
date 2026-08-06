@@ -243,7 +243,7 @@ def _read_registry():
 def _write_registry(reg):
     # Stamp the current schema version on every write. Readers stay lenient (a
     # missing schema_version is treated as v1), so this is explicitness for
-    # odoo-doctor / test anchoring, not a load-bearing gate.
+    # test anchoring, not a load-bearing gate.
     reg["schema_version"] = 2
     path = _registry_path()
     tmp = f"{path}.tmp.{os.getpid()}"

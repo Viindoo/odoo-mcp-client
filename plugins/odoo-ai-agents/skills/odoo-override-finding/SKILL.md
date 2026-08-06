@@ -102,7 +102,7 @@ Present a concrete code snippet template pre-filled with the correct class name,
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
 - **Tier 2 - Model name:** If the model name is absent, ask the caller once (it is a business decision, not a code artifact - no Tier-2 source encodes "which model the user meant").
-- **Tier 2 - Codebase scan:** `grep -rn "class .*<ModelClass>\|_inherit.*=.*'<model.name>'" --include="*.py" .` to find all override sites; then `Read` relevant Python files to extract existing method signatures and decorator usage. Replaces `find_override_point` / `entity_lookup`.
+- **Tier 2 - Codebase scan:** `grep -rn "class .*<ModelClass>\|_inherit.*=.*'<model.name>'" --include="*.py" .` to find all override sites; then `Read` relevant Python files to extract existing method signatures and decorator usage. This grep stands in for `find_override_point` / `entity_lookup` in this tier.
 - **Tier 2 - Version:** Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for `odoo_version`; derive from manifest if absent.
 - Still recommend an override point and apply a code template grounded on actual source.
 - Label `grounded: local-source (not OSM-indexed)`. Override chain conflict count is approximate (static grep only); confirm once OSM is online.

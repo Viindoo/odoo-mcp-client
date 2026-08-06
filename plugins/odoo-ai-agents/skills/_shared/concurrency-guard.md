@@ -13,7 +13,7 @@ each worker owning a DISJOINT file set and the cross-run coordination ledger
 from colliding. Otherwise use **Mode A**. Apply this rule first; the "Used by" lists under each
 mode below are EXAMPLES of skills that already resolve to one side of the rule, not the definition.
 
-## Mode A - subagent batching (legacy, default for un-migrated skills)
+## Mode A - subagent batching
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
 for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). None of Mode A's
@@ -30,7 +30,7 @@ current users fan out >1 worker writing a shared module/worktree.
 
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
-case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
+case (2 opus) sits within budget.
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.

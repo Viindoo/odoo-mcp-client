@@ -147,7 +147,7 @@ never falls back to a log tail (more robust than a log grep across series). Full
 
 ## Per-version CLI decision table
 
-ALWAYS reconfirm live via `cli_help` - this table (including the port-flag rows) is a FAST-PATH PRIOR only and MUST NOT be used as the source of truth for any final command. The authoritative flag NAME for the port rows is resolved at runtime via `cli_help(command='server', odoo_version='<series>')` (with the tie-break below when it lists more than one candidate) - this removes the duplicate, drift-prone version-arithmetic SSOT that used to live in `50-instance-spinup.sh`. Every flag in the final command must come from the current series' `cli_help` output, not from this table:
+ALWAYS reconfirm live via `cli_help` - this table (including the port-flag rows) is a FAST-PATH PRIOR only and MUST NOT be used as the source of truth for any final command. The authoritative flag NAME for the port rows is resolved at runtime via `cli_help(command='server', odoo_version='<series>')` (with the tie-break below when it lists more than one candidate). Every flag in the final command must come from the current series' `cli_help` output, not from this table:
 
 | Flag purpose | v8-v10 | v11-v18 | v19+ |
 |---|---|---|---|

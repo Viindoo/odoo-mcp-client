@@ -98,7 +98,7 @@ These are platform invariants, not suggestions - apply them whenever you design 
 
 Use Resources when you already know the entity ID - no tool call overhead.
 
-## Example: superset tools replace the old multi-call pattern
+## Example: one-call pattern with superset tools
 
 # Efficient (one call after set_active_version):
 #   set_active_version("17.0")          # once per session
