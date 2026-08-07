@@ -34,10 +34,17 @@ open a RUN-DAG.
    one `repos[]` entry per repository the plan's Block-2 `[repo: <repo>]` annotations name, each
    carrying that repo's Repo Capability Card (`id` + `base`/`verify`/`commit`/`confidential`/
    `worktree_root`, template in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
-   § Repo Capability Card Template); stamp each node's `repo` from its own `[repo: ...]` annotation,
-   or `null` when the node belongs to no repository (a chat-only synthesis / routing node - it is
-   then outside EVERY repo's `integrate` readiness scope and is never provisioned a worktree). A
-   `wave` or `integrate` node ALWAYS names a declared repo - `null` there is a serialization bug.
+   § Repo Capability Card Template - `id` is ORIGIN-DERIVED there, never invented from a directory
+   name, a worktree path, or a series, and two entries that resolve to the SAME id are ONE repo:
+   collapse them into one card, or STOP if their cards disagree). Stamp each node's `repo` from its
+   own `[repo: ...]` annotation. **`repo: null` is legal ONLY for a node that writes into no
+   repository tree and gates no repo's delivery** - the chat-only synthesis / routing / report node;
+   every `wave`, `integrate`, and terminal lifecycle node (review, i18n, acceptance, doc, lint,
+   monitor, merge) MUST name a declared repo, and a `null` on any of them is a serialization bug
+   that opens the PR without that stage having run. Rule owner (do not restate a competing version):
+   `${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md` §8.3 § `repo: null` legality -
+   `run-harness` re-derives the SAME predicate at dispatch and fails the run BLOCKED on an illegal
+   `null`, so a mis-stamped node is caught whether or not it reaches the auditor.
    Emit exactly ONE `integrate` node per `repos[]` entry: N repos = N integrate nodes = N PRs; a
    single-repo run is a one-entry list and one `integrate`. **PRESERVE the Block 2 `Wave N` grouping:** the
    coding modules within one `Wave N` are grouped into a SINGLE wave node (`approach_kind: wave`)

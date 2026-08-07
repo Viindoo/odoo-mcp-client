@@ -458,11 +458,13 @@ of the gate; it feeds into the Proposed Plan's Findings (Recon) field.
 The BRL engine has two gates (not one per chunk - that would break UX at 20 chunks):
 
 - **Gate 0** (after ingest): shows `{N items, M chunks, version/profile, estimated
-  MCP call budget, estimated cost band}`. Options: `approve / refine(chunk_size,
-  version, rate_region, risk_profile) / cancel`.
+  MCP call budget, estimated cost band}`. Options: approve / refine: [feedback] / cancel
+  `approve` starts the classification pipeline; `refine:` adjusts one of `chunk_size`,
+  `version`, `rate_region`, `risk_profile` and re-shows the plan; `cancel` aborts.
 - **Gate E** (before writing deliverables): shows `{classification mix %, total cost
-  range, critical-path days, cycles resolved}`. Options:
-  `approve → write deliverables / refine → re-run Phase D or E`.
+  range, critical-path days, cycles resolved}`. Options: approve / refine: [feedback] / cancel
+  `approve` writes the deliverables; `refine:` re-runs Phase D or Phase E; `cancel` discards the
+  deliverables and preserves the internal state for resume.
 
 Internal state files (`manifest.json`, `input.jsonl`, `checkpoint.json`) are written
 before Gate 0 (they are not deliverables). Final deliverables (`results.jsonl`,
@@ -624,18 +626,18 @@ phases:
     skill: odoo-coding
     nl_trigger: "write Odoo unit tests for the feature described"
     model_tier: sonnet
-    gate: "yes / edit / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   - id: review
     skill: odoo-code-review
     nl_trigger: "review the generated test suite for correctness and Odoo conventions"
     model_tier: sonnet
-    gate: "yes / iterate / cancel"
+    gate: "approve / refine: [feedback] / cancel"
 
   - id: synthesize
     inline: true                 # runner handles this phase directly (no separate skill)
     model_tier: sonnet
-    gate: "save / discard / cancel"
+    gate: "approve / skip / cancel"
 
 resume: true                     # writes .odoo-ai/qa/<slug>-state.json after each phase
 fallback: standalone             # each phase documents OSM-down degradation inline
@@ -846,9 +848,11 @@ principal branch (untouched throughout)
               |
         close wave -> AUTO-ADVANCE to next wave (loop back; next wave forks from run-integration)
         |  ----- after the FINAL wave: terminal `integrate` land-tail, ONCE -----
+        existence precheck (branch on fork? this repo's PR already open?)
+              |
         squash run-integration + tree-identity verify  (backup ref + git diff --quiet)
               |
-        fresh FIRST-push (non-force) + open ONE PR  (run-integration -> principal)
+        push + open ONE PR, or UPDATE this repo's already-open PR  (run-integration -> principal)
               |
         STOP at "PR opened"  (drive-to-done; run-harness never merges)
               |
@@ -892,7 +896,7 @@ context via `approach_kind: wave`, not a standalone skill and not a `team_patter
 | 2 - Per-module: INVOKE odoo-coding | Per MODULE, sequentially INVOKE `odoo-coding` via the Skill tool (owns count+model); the `odoo-coder` coordinator authors+COMMITS in the provided worktree via git-ops and returns SHA(s) | run-harness (Skill tool) -> odoo-coding |
 | 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto run-integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via run-harness |
 | 4 - Close the wave -> AUTO-ADVANCE | Inline integrated cross-cutting review over the INTEGRATED tree, then `odoo-code-review` inline from main context, then the cumulative regression close-gate (GREEN); on green AUTO-ADVANCE to the next wave (NO per-wave PR) - the next wave forks from run-integration | run-harness (orchestrating context) |
-| 5 - After the FINAL wave: land-tail (ONCE) | Squash run-integration to 1 commit, `git diff --quiet` vs backup, fresh FIRST-push (non-force), open ONE PR (run-integration -> principal); STOP at "PR opened" | git-toolkit:git-ops skill via run-harness (squash/verify + first-push + PR) |
+| 5 - After the FINAL wave: land-tail (ONCE) | Existence precheck (branch on fork? this repo's PR already open?), squash run-integration to 1 commit, `git diff --quiet` vs backup, push, then open ONE PR or UPDATE the already-open one (run-integration -> principal); STOP at "PR opened" | git-toolkit:git-ops skill via run-harness (precheck + squash/verify + push + PR) |
 | (merge) | Merge + post-merge cleanup at the merge approval gate | `odoo-pr-monitoring` (NOT run-harness) |
 
 ### 7.4 The spawner ban is leaf-only - run-harness legally invokes odoo-coding
@@ -1035,7 +1039,9 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 Single source of truth for one run, under `<ISOLATE_DIR>/run-<id>.json` (gitignored). **Only `run-harness`
 writes it** (hooks never write - avoids a write race). Resume mirrors the BRL checkpoint
 contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
-node in topo-order.
+node in topo-order. A node left at `RUNNING` is DISPATCHED-OUTCOME-UNKNOWN, never
+re-dispatched on sight: the driver reconciles it against observable reality first and re-stamps it
+`DONE` / `READY` / `BLOCKED` (rule owner: `run-harness` SKILL.md § Resume).
 
 **When Phase P engages (SSOT in `odoo-intake` § Phase P - restated here to avoid drift):** engage
 (write this file + run the driver) if ANY of - (1) `node_count >= 2`; (2) a single
@@ -1087,24 +1093,38 @@ references a driver-required workflow directly.
 **`repos[]` + the per-node `repo` field - PR topology is per REPOSITORY.** `repos[]` promotes the
 Repo Capability Card (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
 § Repo Capability Card Template) from one-per-run to one-per-repo: every card field is preserved
-verbatim and keyed by `id`. A single-repo run is simply a ONE-ENTRY list - no extra ceremony. Each
+verbatim and keyed by `id`, which is ORIGIN-DERIVED so one repository always resolves to one id
+(rule + collision behaviour: the same § Repo Capability Card Template). A single-repo run is simply
+a ONE-ENTRY list - no extra ceremony. Each
 entry gets its OWN `run-integration` branch+worktree, its own terminal `integrate` node, and its own
-PR: **N repos = N `integrate` nodes = N PRs.** Every node names the repo it belongs to via `repo`;
-`repo: null` (chat-only synthesis, routing, a report) means the node belongs to NO repository - it is
-never provisioned a worktree and sits outside EVERY repo's `integrate` readiness scope. A `wave` or
-`integrate` node must always name a declared repo (a null there is a serialization bug -
-`scripts/audit-run.py` fails it). Readers: the driver re-derives `integrate@R` readiness from
+PR: **N repos = N `integrate` nodes = N PRs.** Readers: the driver re-derives `integrate@R` readiness from
 `repo` (`run-harness` SKILL.md § Gate-tier resolution) and forks each module worktree from ITS
 repo's run-integration branch; intake Phase P writes both fields
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`); `scripts/audit-run.py`
 audits one-PR-per-repo against them. A run file written before this field existed is still audited:
 the auditor falls back to the legacy single-repo form and names the form it ran in.
 
+**`repo: null` legality (THIS section is the rule's ONE owner - cite it, do not restate it).** A
+node may carry `repo: null` ONLY when it writes into NO repository tree and gates NO repository's
+delivery: the chat-only synthesis / routing / report node (`approach_kind: inline`, `output_mode:
+chat-only`). Such a node is never provisioned a worktree and sits outside every repo's `integrate`
+readiness scope, which is safe precisely because nothing it produces can be missing from a PR.
+**Every node that writes into a repository or gates its delivery MUST name a declared `repos[].id`
+- `wave`, `integrate`, and EVERY terminal lifecycle node (review, i18n, acceptance, doc, lint,
+monitor, merge).** A `null` on any of those is a serialization bug, not a scoping choice: a
+lifecycle node stamped `repo: null` silently drops out of the `integrate` readiness precondition and
+the PR opens without it having run. The rule is applied TWICE, from the same predicate, so the two
+sides cannot disagree: intake Phase P stamps it when serializing
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`), and `run-harness`
+RE-DERIVES it before selecting any node, failing the run BLOCKED rather than skipping past an
+illegal `null` (`run-harness` SKILL.md § Inputs). `scripts/audit-run.py` checks it after the fact.
+
 **`approach_kind: integrate`** is the terminal *land* node (the tail of every `writes-files`
 plan), dispatched ONCE PER REPO after the final coding wave closes green. Its dispatch is not a
-skill/agent/workflow call: `run-harness` invokes `git-toolkit:git-ops` to squash that repo's
-run-integration branch, fresh FIRST-push it (non-force - no history rewrite, so no destructive-op
-gate fires), and open ONE PR against the principal branch, then materializes a dynamic `next` node ->
+skill/agent/workflow call: `run-harness` runs its existence precheck, then invokes
+`git-toolkit:git-ops` to squash that repo's run-integration branch, push it, and open ONE PR against
+the principal branch - or UPDATE that repo's PR when the precheck finds one already open (a resumed
+run must never open a second) - then materializes a dynamic `next` node ->
 `odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge gate). There is exactly ONE PR per
 REPO - never one per wave. Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate`
 node dispatch (the land tail)".
@@ -1172,10 +1192,12 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   - `chat-only` → emits to chat only → skip Plan Mode.
 - **`default_gate_tier`** is a per-SKILL registry value derived deterministically from
   `(instance_touching, output_mode, outward)`, checked in this order (`_derive_gate_tier`):
-  - **L2** if `outward` - an outward git MERGE to the principal branch (e.g. odoo-pr-monitoring's
-    merge-to-principal). **ALWAYS human gate; the autonomy dial can never lower L2.** (The terminal
-    `integrate` land-tail's fresh FIRST-push of run-integration + PR-open is NOT `outward` - it is a
-    non-destructive first push and runs as drive-to-done, not L2.)
+  - **L2** if `outward` - the skill's OWN procedure acts on the shared remote: a git MERGE to the
+    principal branch (odoo-pr-monitoring's merge-to-principal), or its own branch push + PR open
+    (odoo-forward-port, odoo-git-rebase, odoo-modules-upgrade). **ALWAYS human gate; the autonomy
+    dial can never lower L2.** (The terminal `integrate` land-tail's push of run-integration +
+    PR-open is NOT `outward` - it is a run-harness NODE tier rather than a skill field, it rewrites
+    no history, and it runs as drive-to-done, not L2.)
   - **L2** else if `instance_touching` - touches a shared live instance. **ALWAYS human gate.**
   - **L1** else if `output_mode == writes-files` - writes internal files. Auto-pass under
     `--auto` within budget; gated under `--step`.
