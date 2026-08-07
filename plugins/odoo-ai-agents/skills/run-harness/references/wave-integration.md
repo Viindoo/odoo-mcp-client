@@ -22,7 +22,8 @@ a one-entry list - same card, no extra ceremony.
 
 ```
 Repo Capability Card  (one per repo; serialized as a repos[] entry in run-<id>.json)
-  id            : <repo identity - the value every node's `repo` field names>
+  id            : <DERIVED from the repo's `origin` URL - see "id resolution" below; the value
+                   every node's `repo` field names>
   base          : <principal branch name>
   verify        : <command that must pass after every cherry-pick, e.g. "make test" or "make gen-check && make deps-check && make test">
   commit        : <resolved by git-toolkit:git-ops at commit time - do not pre-declare a standard>
@@ -31,9 +32,30 @@ Repo Capability Card  (one per repo; serialized as a repos[] entry in run-<id>.j
 ```
 
 Notes:
-- `id` is what ties nodes to a repo: a node's `repo` names one `id`, or is `null` when the node
-  belongs to no repository. Each `id` gets its OWN run-integration branch+worktree, its own
-  `integrate` node, and its own PR - N repos = N PRs.
+- `id` is what ties nodes to a repo: a node's `repo` names one `id`. Each `id` gets its OWN
+  run-integration branch+worktree, its own `integrate` node, and its own PR - N repos = N PRs.
+  When a node may carry `repo: null` instead: `${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md`
+  §8.3 § `repo: null` legality (that rule's ONE owner).
+
+- **`id` resolution (deterministic - the SAME repository must always resolve to the SAME id).**
+  Resolve it from the repository's `origin` remote URL, read through the `git-toolkit:git-ops`
+  skill (a bounded read) - never from the directory name, the worktree path, the checked-out
+  branch, or the Odoo series. Normalize that URL to `<host>/<owner>/<name>`: drop the scheme and
+  any credentials, drop a trailing `.git` and any trailing slash, lowercase the whole triple. The
+  id is `<name>`. Two entries whose normalized triples DIFFER but whose `<name>` is the same
+  (two different repos that happen to share a name) both extend to `<owner>-<name>` - still
+  origin-derived, still deterministic. A repository whose `origin` cannot be resolved gets NO
+  invented id: report `NEEDS_CONTEXT` naming the checkout, and let a human supply the remote.
+  Because the id is a property of the REMOTE, every checkout, worktree, branch, and series of one
+  repository lands on one id by construction - which is what makes "one PR per repo" checkable.
+
+- **Two entries that resolve to the SAME id ARE one repository.** Collapse them into ONE card
+  before the run forks anything: one `repos[]` entry, one run-integration branch+worktree, one
+  `integrate` node, one PR. If the colliding entries disagree on any card field (`base`, `verify`,
+  `commit`, `confidential`, `worktree_root`), do NOT guess a winner - STOP BLOCKED, name the two
+  entries and the field they disagree on, and route back to intake Phase P to re-serialize. Both
+  the serializer (Phase P) and the driver (run-harness at Run start) apply this same rule, so a
+  hand-edited or stale `repos[]` cannot smuggle a second PR into the run.
 - `base` is resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch
   resolution - never inherited from the invoking checkout's HEAD/current branch.
 - Discover `verify` from Makefile targets, CI config, or README. If multiple commands
@@ -346,7 +368,28 @@ Runs ONCE, at the terminal `integrate` land-tail after the FINAL wave closes gre
 All mutation steps are delegated to git-toolkit via the **`git-ops`** skill
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
-**git-ops request - squash + first-push operation:**
+**Existence precheck (ALWAYS FIRST - before any push, before any PR-open).** This tail must be safe
+to run twice: a resumed, retried, or re-entered run arrives here with work possibly already on the
+remote (`SKILL.md` § Resume). Through `git-ops`, read TWO facts about this repo and record both in
+the node's `produced` so the next reader sees what was OBSERVED, not what was assumed:
+
+1. Is `run-integration-<slug>` present on the fork?
+2. Is there an OPEN PR whose head is that branch, against this repo's `base`?
+
+Resolve the request from the answers - never from memory of what this run did earlier:
+
+| branch on fork | open PR | what the land tail does |
+|---|---|---|
+| no | no | the normal path: squash, `first-push: yes`, then open the ONE PR. |
+| yes | no | do NOT re-squash what is already pushed. Push only the commits the remote lacks (`first-push: no`), then open the ONE PR. |
+| yes | yes | **that PR IS this repo's ONE PR - UPDATE it, never open a second.** Push the missing commits to the SAME branch (an open PR updates itself from its head branch), then carry that PR's URL forward in `produced` as the node's result. |
+
+`first-push` is DERIVED from fact 1 on every invocation. If landing the current tree would REWRITE
+history already on the fork (a re-squash after a push), that is a history rewrite: hand it to
+`git-ops` as such and let git-toolkit's destructive-op human-confirm gate fire - never bypass it,
+and never delete and re-open the PR to dodge it.
+
+**git-ops request - squash + push operation:**
 
 ```
 op                 : squash-push
@@ -357,12 +400,14 @@ commit-msg         : <none - business outcome only (the run's modules + what cha
                      git-toolkit:git-ops compose the message from its own detected convention -
                      do not pre-declare a standard or pass a literal message>
 integration-branch : run-integration-<slug>
-first-push         : yes - the run-integration branch was NEVER pushed before, so this is a fresh
-                     FIRST push (initial upstream push), NOT a force-with-lease; no history is
-                     rewritten on any remote branch, so no git-toolkit destructive-op confirm gate fires
+first-push         : <DERIVED from the Existence precheck above, never asserted: `yes` when the
+                     branch is absent from the fork (an initial upstream push - no history is
+                     rewritten anywhere, so no git-toolkit destructive-op confirm gate fires);
+                     `no` when the branch is already there and this push only adds the commits the
+                     remote lacks>
 ```
 
-git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> FIRST push, non-force), owned by git-toolkit per its git-safety-contract S1/S6. Because this is a first push of a never-pushed branch, the S2 force-with-lease step is not exercised and no `confirmed:` field is required (branch-push is drive-to-done, not L2).
+git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> push), owned by git-toolkit per its git-safety-contract S1/S6. On `first-push: yes` the S2 force-with-lease step is not exercised and no `confirmed:` field is required (branch-push is drive-to-done, not L2). On `first-push: no` the push is still non-force as long as it only ADDS commits; only a rewrite of already-pushed history reaches S2, and that one is human-confirmed by git-toolkit.
 
 After git-ops returns, confirm its reported tree-identity exit code is 0. This is run-harness's
 terminal RUN-level land step - it STOPS at "PR opened" (drive-to-done) and does NOT merge; the merge
@@ -497,7 +542,8 @@ for mod in topological_order(modules):      # module-DAG / wave order; dependent
 # close the wave: integrated cross-cutting review -> cumulative regression close-gate (GREEN) ->
 # AUTO-ADVANCE to the next wave (NO per-wave PR). The next wave forks its worktrees from the SAME
 # run_integration branch (now carrying this wave's code). After the FINAL wave: the terminal
-# `integrate` land-tail squashes run_integration + fresh FIRST-push + opens ONE PR (drive-to-done).
+# `integrate` land-tail runs its existence precheck, squashes run_integration, pushes, and opens
+# ONE PR - or updates this repo's already-open PR (drive-to-done).
 #
 # apply_saga_rollback(): clean-abort (worktree abandon + re-fork at pre_wave_sha) OR resume from
 # last passing checkpoint; never a reset --hard against a live worktree (fires no destructive
@@ -812,8 +858,10 @@ replaces:
   acquire/release cycles overall, not a wash.
 
 **4 - Terminal land-tail PR.** Only after stages 1, 2, 2b, and 3 above clear does run-harness
-dispatch the `integrate` node (`SKILL.md` § `integrate` node dispatch): squash `run-integration`,
-fresh FIRST-push, open ONE PR - per REPO, never per wave. The driver RE-DERIVES the readiness rule
+dispatch the `integrate` node (`SKILL.md` § `integrate` node dispatch): run § Squash Tree-Identity
+Recipe's Existence precheck, then squash `run-integration`, push, and open ONE PR - per REPO, never
+per wave, and UPDATE the PR rather than open a second one if the precheck finds this repo's PR
+already open. The driver RE-DERIVES the readiness rule
 here (`SKILL.md` § Gate-tier resolution, `integrate` readiness precondition) rather than trusting
 `depends_on`, so an under-specified plan cannot open the PR ahead of a doc / review / acceptance
 node. Everything after this point (CI-failure triage and fix, review/approval polling, the merge,
@@ -834,8 +882,8 @@ was forked once at run start; fork 3 worktrees from it; INVOKE `odoo-coding` per
 (each odoo-coding dispatches one odoo-coder, which commits its module and returns the SHA); cherry-pick
 each SHA onto run-integration, verifying + checkpointing after each; run the integrated cross-cutting
 review + `odoo-code-review` inline + the cumulative close-gate. This being the FINAL (only) wave, the
-terminal `integrate` land-tail then squashes run-integration + fresh FIRST-push + opens ONE PR
-(tree-identity verified); STOP at "PR opened". No merge.
+terminal `integrate` land-tail then runs its existence precheck, squashes run-integration, pushes,
+and opens ONE PR (tree-identity verified); STOP at "PR opened". No merge.
 
 **Example 2 - Dependency edge consumed (linear):**
 The wave's module-DAG has module-B `depends_on` module-A.
