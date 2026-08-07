@@ -6,6 +6,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.23.0] - 2026-08-07
+
+A live review of the SHIPPED 4.22.0 - the build actually loaded in a running session, not a working
+tree - found that its fixes had landed but that everything which survived sat in a surface the sweep
+had excluded from scope: YAML frontmatter, `commands/`, `docs/personas/`, the reference doc's worked
+example, and a registry field the lint compared against itself. The previous release's lesson was
+that prose alone cannot hold a rule; this one's is that a correct rule still fails if the sweep that
+applies it misses where the rule is read. Each fix below therefore ships with a guard over the
+surface it just corrected.
+
+### Added
+
+- `odoo-ai-agents` - four guards over surfaces nothing checked. No tier or vendor model-tier token in
+  any frontmatter `description` - the existing tier guard scanned fenced template blocks and
+  structurally could not see frontmatter, proven by importing its own extractor and showing it
+  returns nothing for a description carrying all four tokens. Every gate-reply string in the whole
+  tree, not only in `workflows/`, drawn from the two sets declared in `snippets/vocabulary.md` and
+  parsed from that file rather than hardcoded. The terminal stage order stated in exactly one place,
+  with the canonical stage list parsed from the owner's own block so adding a stage does not require
+  editing the test. And a registry claim that a skill touches a live instance backed by evidence in
+  the skill itself. Each is proven able to FAIL against the shipped release, not merely observed to
+  pass.
+
+### Fixed
+
+- `odoo-ai-agents` - a resumed run could open a second pull request for the same repository. A node
+  is marked running before it is dispatched, the resume path skipped only completed nodes, and no
+  check for an already-open pull request existed anywhere - so the land step re-ran and asserted, as
+  a fixed string, that its branch had never been pushed. A running node now means dispatched with an
+  unknown outcome and is reconciled against observable state before anything is repeated, and the
+  land step derives whether this is a first push instead of claiming it, updating an open pull
+  request rather than opening another.
+- `odoo-ai-agents` - the Vietnamese persona document still taught one squashed pull request per wave.
+  Its English sibling had been corrected; no commit had ever touched `docs/personas/`, because the
+  original survey classified that directory as human-facing and excluded it. For a Vietnamese-reading
+  team it is the document actually consulted.
+- `odoo-ai-agents` - a repository's id in the run file was defined circularly while the field beside
+  it had a full resolution rule, so two ids naming one repository produced two pull requests and the
+  audit called it correct. The id now derives from the normalized remote URL, making it a property of
+  the repository rather than of a checkout, and two entries resolving to one id are one repository.
+- `odoo-ai-agents` - `repo: null` let a lifecycle node sit outside every repository's readiness scope,
+  so a pull request could open with acceptance and documentation never having run. It is now legal
+  only for work that writes into no repository and gates no delivery, re-derived by both the plan
+  serializer and the driver from one predicate.
+- `odoo-ai-agents` - two skill descriptions still named vendor model tiers and internal gate tiers.
+  A description is loaded into every session's skill listing, so these reached the model's context on
+  every single run, and neither the release's sweep nor its guard covered frontmatter.
+- `odoo-ai-agents` - twelve gate-reply strings outside `workflows/` still used retired keyword sets,
+  including in the intake front door and in the reference doc's only complete worked example. One was
+  a functional defect rather than a cosmetic one: a command asked for one reply set and branched on a
+  word from another, so a user typing exactly what they had been asked hit no branch. The two options
+  with no equivalent in the declared sets are now asked as their own questions instead of becoming
+  extra keywords.
+- `odoo-ai-agents` - the terminal stage order had one declared owner and nine restatements, several
+  dropping translation and acceptance entirely, one of them printed on every plan. That disagreement
+  is what defeated the two previous attempts at this rule, so the restatements now cite the owner.
+  The worked example emitted a documentation node per module against a rule stated two files away;
+  the dependencies settle it in the rule's favour.
+- `odoo-ai-agents` - a skill that neither provisions nor drives an instance declared that it did, and
+  therefore derived the top gate tier, stopping an otherwise automatic run to authorize writing a
+  document. The lint could not see it: it compared the stored tier against its own derivation rather
+  than against what the skill does. It can now contradict the registry, and ignores the generated
+  tool block that would otherwise have vouched for the claim. Three orchestrators that push branches
+  and open pull requests now declare that fact, so their top tier rests on the reason that justifies
+  it. Entries whose correction would ADD a human gate are reported rather than flipped.
+- `odoo-ai-agents` - the run auditor was walked through three times with constructed run files, each
+  exiting clean. It audited a declaration rather than the act, so a node opening pull requests while
+  declaring another kind was invisible; opening is now read from the pull-request URLs a node
+  actually recorded, excluding a node that was handed one and a node that only watches one, with a
+  disagreement between declaration and evidence reported in both directions. Its land-tail test
+  matched substrings, so a node named after a merge exempted itself; it now matches the node kind
+  exactly and never reads a free-text id. A run file it could not parse was certified clean;
+  unreadable is now its own third verdict.
+
 ## [4.22.0] - 2026-08-06
 
 Four user-reported defects, fixed by changing structure rather than restating rules. Two of them -
