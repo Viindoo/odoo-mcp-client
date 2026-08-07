@@ -32,10 +32,13 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-ai-agents:odoo
 
 1. **Phase gate mandatory.** GATE 0 blocks all classification work; GATE E blocks all deliverable
    writes. The command does NOT advance past either gate without explicit user confirmation.
-2. **Context check.** At startup, load `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>`/
-   `<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
-   captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
-   If missing, suggest `/odoo-ai-agents:odoo-onboarding` but allow manual continuation.
+2. **Project facts.** At startup, resolve the Odoo series and OSM profile by working the rungs of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order, stopping at the first that
+   answers; ask only for what every rung left unresolved. When no `[[instance]]` covers this repo,
+   offer `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition. Resolve
+   `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+   before any state-root read or write; substitute the captured absolute path - never write the
+   placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
 3. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
    Never write real company names, VND figures, or internal pricing into any committed file.
 4. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.

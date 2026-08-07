@@ -195,7 +195,8 @@ agent's Doc-writer family delta; never inline that file verbatim into a hard-lea
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
 - the writer resolves the absolute path under `WORKTREE_PATH` (never its own cwd - a dispatched
 agent does not inherit this skill's cwd, per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
-field 5) using `ADDONS_PATH`/`context.md` before falling back to a disk scan. Omitting an axis field
+field 5) using `ADDONS_PATH` (resolved per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) before falling back to a disk scan. Omitting an axis field
 preserves today's behavior (see Documentation axes). Shared
 browser-capture mechanics (2-tier write, headless/headed, on-theme check per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a screen with an empty or
@@ -288,9 +289,13 @@ RST and deep technical steps out of the HTML - do not duplicate content across t
 external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
 relative image paths). The skill pre-fetches the copy from `odoo-content-draft`; the writer resolves
 `[Image: <slug>]` markers after capture and sources the Key Features grid from the feature catalog.
-Brand palette/fonts come from `context.md` brand tokens (Tier-2 SHARE; resolve via the
-resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`,
-i.e. `<SHARE_DIR>/context.md`) or the brief - never hardcode a vendor brand. `technical` (opt-in via
+The brand PALETTE comes from `<SHARE_DIR>/brand-tokens.json` when that file exists (Tier-2 SHARE;
+resolve `<SHARE_DIR>` via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) or from the brief; absent both, use the
+Odoo default palette - never hardcode a vendor brand. That file maps a CSS custom-property NAME to a
+COLOUR, so an unfamiliar token NAME is never a miss - read the entry's value. It carries no
+typeface: fonts come from Bootstrap-5 classes plus safe inline `font-weight`/`font-size`
+(`references/app-store-template.md` § Sanitizer Rules). `technical` (opt-in via
 `TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
 OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
 of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard
@@ -348,34 +353,33 @@ Global: with no instance/browser, the writer still assembles the structure + sup
 no-display / CI host. Pass `headed` only when the user explicitly asks to watch, and only after
 confirming a display is plausibly available; warn rather than dispatch headed on a headless host.
 
-## Language resolution (5-tier + disk-UNION, no default)
+## Language resolution (4-tier + disk-UNION, no default)
 
-**SSOT.** This section is the single source of truth for the 5-tier language resolver (+
+**SSOT.** This section is the single source of truth for the 4-tier language resolver (+
 disk-UNION). Any other file that describes this resolution order (e.g. `app-store-template.md`,
 `doc-scoper.md`) or cites it (`user-doc-writer.md`, `marketing-writer.md`) MUST cross-reference this
 section rather than restate the tiers - do not fork a second copy of this order elsewhere.
 
 Resolve the documentation language list the skill passes as each writer's `LANGUAGES:` in this order
-- first tier that yields a value wins (extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier):
+- first tier that yields a value wins (the same four tiers as `skills/odoo-i18n/SKILL.md` P0):
 1. Explicit `LANGUAGES:` value already in the run / plan
-2. `context.md` field `doc_languages` - a comma-string (e.g. `en_US,vi_VN`); split on `,` and trim
-3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
-4. Module `i18n/*.po` locales already present
-5. `res.lang` active languages on the live instance
+2. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
+3. Module `i18n/*.po` locales already present
+4. `res.lang` active languages on the live instance
 
-**No tier 6 - no built-in default, same policy as `skills/odoo-i18n/SKILL.md` P0.** When ALL FIVE
+**No tier 5 - no built-in default, same policy as `skills/odoo-i18n/SKILL.md` P0.** When ALL FOUR
 tiers above resolve empty, do not guess or silently generate documentation in an unrequested
 locale: return `status: NEEDS_CONTEXT` naming the missing field (`documentation language`). This
-mirrors odoo-i18n's own no-default rule exactly - this resolver only ADDS one extra tier, it does
-not diverge on what happens when every tier comes up empty.
+mirrors odoo-i18n's own no-default rule exactly - the two do not diverge on what happens when every
+tier comes up empty.
 
 **UNION with existing on-disk doc locales (mandatory, after tier resolution).** Scan
 `static/description/` for `index.html` / `index_<locale>.html`; also scan `doc/` for `index.rst` /
 `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect as `disk_doc_locales`. Final
 list = `tier_resolved_list` ∪ `disk_doc_locales`. On-disk doc locales are ALWAYS included - never
 pass a `LANGUAGES:` field that omits a locale already documented on disk (prevents silently dropping
-translations). Tiers 3-5 here = odoo-i18n P0 tiers 2-4; tier 2 (`context.md doc_languages`) is added
-in this stack only.
+translations). Tiers 1-4 here map one-to-one onto odoo-i18n P0 tiers 1-4 - one resolution order for
+both stacks, no extra tier on either side.
 
 **English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC
 SCOPE is `full-guide`, the final set = `{en_US}` ∪ resolved-set. English is the canonical,

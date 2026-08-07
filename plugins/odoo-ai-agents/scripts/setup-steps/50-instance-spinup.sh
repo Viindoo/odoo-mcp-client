@@ -461,7 +461,7 @@ cmd_apply() {
         # and exited) cannot overwrite the live winner's pid. created_db is
         # always False on a shared lease, so gc never drops the declared DB.
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
-        local args=(acquire --series "${INST_VERSION:-}" --mode shared
+        local args=(acquire --series "${INST_SERIES:-}" --mode shared
                     --port "$port" --db-name "$db_name")
         [[ -n "${INST_PROFILE:-}" ]] && args+=(--profile "${INST_PROFILE}")
         # P5.5: owner-stamp the shared lease with the caller's run id (sourced
@@ -535,7 +535,7 @@ cmd_apply() {
     if _probe_ready "$port"; then
         if _identity_ok "$port" "$_id_expected" "${INST_ADDONS_PATH:-}"; then
             [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
-            echo "ok Instance ${INST_VERSION} already up at http://localhost:$port$_last_ready_path"
+            echo "ok Instance ${INST_SERIES} already up at http://localhost:$port$_last_ready_path"
             return 0
         fi
         echo "" >&2
@@ -602,7 +602,7 @@ cmd_apply() {
             fi
 
             local _ver_major
-            _ver_major="${INST_VERSION%%.*}"
+            _ver_major="${INST_SERIES%%.*}"
             local _port_key
             if [[ -n "$ARG_PORT_KEY" ]]; then
                 # Agent-resolved conf key from OSM cli_help (P5.6) - the
@@ -612,7 +612,7 @@ cmd_apply() {
             else
                 # FALLBACK for the shared/declared spin-up path only (no
                 # --port-key override): v8/9/10 use xmlrpc_port; v11+ renamed
-                # it to http_port. Derive from INST_VERSION (the full series
+                # it to http_port. Derive from INST_SERIES (the full series
                 # string, e.g. "17.0", "10.0") - the major version is the
                 # integer before the first dot. NOT the authoritative SSOT
                 # (that is OSM cli_help - agents/odoo-instance-ops.md); kept
@@ -665,7 +665,7 @@ cmd_apply() {
 
             # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
             # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
-            # the X's is not honored, and ${INST_VERSION} contains a dot. Create
+            # the X's is not honored, and ${INST_SERIES} contains a dot. Create
             # a bare temp file with a trailing-X template, then rename to add the
             # .conf suffix - works on both GNU and BSD/macOS.
             conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$conf" "$conf.conf" && conf="$conf.conf"
@@ -783,7 +783,7 @@ cmd_apply() {
         # The exclusive lease was already bound immediately after launch above;
         # the shared render target registers its lease only after readiness.
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared "$odoo_pid"
-        echo "ok Odoo ${INST_VERSION} is up: http://localhost:$port/web/login"
+        echo "ok Odoo ${INST_SERIES} is up: http://localhost:$port/web/login"
         return 0
     fi
 

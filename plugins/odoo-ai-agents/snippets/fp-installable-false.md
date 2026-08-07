@@ -27,9 +27,11 @@ branch BEFORE the forward-port merge is applied. Do NOT read the manifest
 post-merge; after merge the source-side `installable: True` is already present
 and masks the gap.
 
-- Read `<module>/__manifest__.py` at the target ref via the `git-toolkit:git-ops` skill (read-only) -
-  an absent `installable` key means installable, an absent FILE means the module is not on the
-  clean tip. (Same read mechanism the "Recognition" step below re-applies for category 2/3.)
+- Read `<module>/<tgt-descriptor>` at the target ref via the `git-toolkit:git-ops` skill (read-only) -
+  `<tgt-descriptor>` is the module descriptor filename resolved once for the TARGET series
+  (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0; SSOT: `skills/odoo-forward-port/SKILL.md`
+  Hard rule 11) - an absent `installable` key means installable, an absent FILE means the module is
+  not on the clean tip. (Same read mechanism the "Recognition" step below re-applies for category 2/3.)
 
 Decision:
 - Target clean-tip: module ABSENT or `installable: False` -> forward as
@@ -46,17 +48,24 @@ absent or `installable: False` at target.
 
 When a pre-existing dormant module (category 2) or first-enabled-at-source module (category 3)
 has `installable:False` at the TARGET CLEAN-TIP but the merge carries in `installable:True`
-(from a source-series upgrade commit), the agent MUST reset the manifest immediately after the
-merge - before any lint or content work:
+(from a source-series upgrade commit), the agent MUST reset the SAME `<tgt-descriptor>` file read
+above immediately after the merge - before any lint or content work:
 
-1. Re-set `'installable': False` in `__manifest__.py`.
+1. Re-set `'installable': False` in `<tgt-descriptor>`.
 2. Re-comment `'auto_install': True` if present - add
    `# TODO: Uncomment when upgrading module to production-ready status`.
 3. Re-comment `'application': True` if present - same TODO note.
 
+**NEVER create the other descriptor filename to perform this reset.** The module already carries
+`<tgt-descriptor>` at the target clean-tip - that is how category 2/3 is detected at all - so edit
+that same file in place. Writing the other name beside it becomes the descriptor Odoo loads and
+silently drops every model, view, and dependency the real one declared, while the file this reset
+was meant to touch is left stale at `installable:True`. A failed write to `<tgt-descriptor>` means
+the wrong filename was targeted: re-resolve it, never create the other one.
+
 These are the same actions as for a new-module landing (see "Manifest flags" below). The
-trigger is different: for a new module the manifest arrives absent; for category 2/3 the
-manifest already exists at target with `installable:False` but the merge overwrites it to True.
+trigger is different: for a new module the descriptor arrives absent; for category 2/3 the
+descriptor already exists at target with `installable:False` but the merge overwrites it to True.
 The result must be the same: `installable:False` with breadcrumb comments so
 `odoo-modules-upgrade` reads them at Y+1 upgrade time.
 
@@ -142,9 +151,9 @@ ESLint / Prettier / ruff rules:
 ## A2 - No manifest version bump (forward-port)
 
 Forward-port NEVER auto-bumps the manifest. The forward-port merge (`--no-ff`) carries the source manifest as-is; on a
-`__manifest__.py` `version` conflict keep the **TARGET** file's value. The single exception is the C2
-migration-threshold bump (when `S <= M`). Both rules: `[[fp-merge-absorption]]` (C1 + C2). There is no
-"bump when the diff touches `.js/.scss/.xml/migrations/`" rule - that gate is removed.
+module-descriptor `version` conflict (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0) keep the **TARGET** file's
+value. The single exception is the C2 migration-threshold bump (when `S <= M`). Both rules: `[[fp-merge-absorption]]`
+(C1 + C2). There is no "bump when the diff touches `.js/.scss/.xml/migrations/`" rule - that gate is removed.
 
 ---
 

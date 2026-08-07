@@ -29,8 +29,37 @@ CLI:
         further filters by profile within that series.
         Exit 1 (with an actionable message on stderr and nothing on stdout) if
         the file has no usable instance.
+        On no catalog file at that path at all: exit 1 with NOTHING on stdout
+        and NOTHING on stderr - a normal "nothing declared here" outcome, not
+        an error.
+        On a catalog file that IS present but could not be read as TOML
+        (malformed syntax, a directory at that path, a permissions error,
+        ...): exit 3, with exactly one diagnostic line on stderr naming the
+        file and nothing on stdout. DISTINCT from exit 1 - a caller who
+        declared an instance and typo'd the file must see a diagnostic
+        rather than a silent miss indistinguishable from "nothing declared".
         Emitted vars include INST_PROFILE and INST_KEY in addition to the
         existing INST_* fields.
+
+    python3 instances_io.py locate <instances.toml> <repo-path>
+        Repo -> instance direction: find the [[instance]] whose addons_path
+        CONTAINS <repo-path> (equal to, or a descendant of, one of its
+        addons_path entries - an addons_path entry nested BELOW <repo-path>
+        does NOT match). Longest matching addons_path entry wins; ties break
+        to the highest series.
+        On match: exit 0 and emit INST_SERIES / INST_PROFILE /
+        INST_ADDONS_PATH / INST_HTTP_PORT / INST_PYTHON / INST_DB_NAME /
+        INST_DB_HOST / INST_DB_USER / INST_DB_PORT.
+        On no match, or no catalog file at that path at all: exit 1 with
+        NOTHING on stdout and NOTHING on stderr - this is a normal, designed
+        outcome (the caller falls through to the next rung of its own
+        resolution ladder), never an error.
+        On a catalog file that IS present but could not be read as TOML
+        (malformed syntax, a directory at that path, a permissions error,
+        ...): exit 3, with exactly one diagnostic line on stderr naming the
+        file and nothing on stdout. DISTINCT from exit 1 - a caller who
+        declared an instance and typo'd the file must see a diagnostic
+        rather than a silent miss indistinguishable from "nothing declared".
 """
 
 import re
@@ -218,6 +247,59 @@ def select_instance(items, want=None, profile=None):
     return chosen, True
 
 
+def _addons_path_list(item):
+    """Normalize one item's addons_path to list[str], whichever shape it
+    parsed as: a native TOML array (the canonical form) or a bare/flattened
+    string (a hand-typed override, e.g. "/a,/b"). Reuses split_addons_path
+    for the string case instead of a second, hand-rolled splitter - the SSOT
+    the module docstring requires."""
+    value = item.get("addons_path", [])
+    if isinstance(value, list):
+        return [str(p) for p in value]
+    return split_addons_path(str(value))
+
+
+def _rstrip_slashes_locate(path):
+    """Strip ALL trailing '/' from path (mirrors resolve_instances.sh's
+    _odoo_ai_home_rstrip_slashes), so a declared addons_path with a stray
+    trailing slash still matches. An all-slashes input reduces to '/'."""
+    s = str(path)
+    while s.endswith("/") and s != "/":
+        s = s[:-1]
+    return s or "/"
+
+
+def find_covering_instance(items, repo_path):
+    """Return the [[instance]] item whose addons_path CONTAINS repo_path, or
+    None if none does.
+
+    "Contains" means repo_path is EQUAL TO, or a DESCENDANT of, one of the
+    item's addons_path entries. An addons_path entry that is itself nested
+    BELOW repo_path (repo_path is an ANCESTOR of the declared entry) does
+    NOT match - only descendant-or-equal counts, by design: the repo must be
+    covered BY the declared root, not merely contain it.
+
+    Longest matching addons_path entry wins (most specific declaration);
+    ties break to the highest valid series.
+    """
+    repo_norm = _rstrip_slashes_locate(repo_path)
+    best = None
+    best_len = -1
+    best_series_key = None
+    for item in items:
+        for raw in _addons_path_list(item):
+            root_norm = _rstrip_slashes_locate(raw)
+            if repo_norm != root_norm and not repo_norm.startswith(root_norm + "/"):
+                continue
+            length = len(root_norm)
+            series_key = _series_key(series_of(item))
+            if length > best_len or (length == best_len and series_key > best_series_key):
+                best = item
+                best_len = length
+                best_series_key = series_key
+    return best
+
+
 def _emit(name, value):
     if isinstance(value, list):
         value = join_addons_path(value)
@@ -233,8 +315,26 @@ def _cmd_read(argv):
     prof = argv[2] if len(argv) > 2 and argv[2] else None
     try:
         items = load_instances(path)
-    except Exception:
+    except FileNotFoundError:
+        # No catalog file at all is a normal "nothing declared here" miss,
+        # not an error - the caller (50-instance-spinup.sh) treats a
+        # non-zero exit plus empty stdout as "nothing to spin up" and reports
+        # its own guidance. No stderr noise here.
         return 1
+    except (OSError, ValueError) as exc:
+        # The catalog file IS present (a directory at that path, a
+        # permissions error, malformed TOML syntax, ...) but could not be
+        # read as an instance catalog. DISTINCT from a genuine miss: a
+        # caller who declared an instance and typo'd the file must see a
+        # diagnostic rather than a silent miss indistinguishable from
+        # "nothing declared". A bug inside load_instances that raises
+        # anything else (e.g. AttributeError, TypeError) is NOT caught here
+        # and propagates.
+        sys.stderr.write(
+            f"instances_io.py: {path} exists but could not be read as a TOML "
+            f"instance catalog: {exc}\n"
+        )
+        return 3
     tbl, defaulted = select_instance(items, want or None, profile=prof)
     if tbl is None:
         sys.stderr.write(
@@ -248,7 +348,7 @@ def _cmd_read(argv):
             f"Selected instance series {series_of(tbl)} (highest); "
             "use --version to override.\n"
         )
-    _emit("INST_VERSION", series_of(tbl))
+    _emit("INST_SERIES", series_of(tbl))
     _emit("INST_ADDONS_PATH", tbl.get("addons_path", []))
     _emit("INST_RUN_MODE", tbl.get("run_mode", "source"))
     _emit("INST_HTTP_PORT", tbl.get("http_port", DEFAULT_HTTP_PORT))
@@ -264,13 +364,60 @@ def _cmd_read(argv):
     return 0
 
 
+def _cmd_locate(argv):
+    if len(argv) < 2:
+        sys.stderr.write("Usage: instances_io.py locate <instances.toml> <repo-path>\n")
+        return 2
+    path, repo_path = argv[0], argv[1]
+    try:
+        items = load_instances(path)
+    except FileNotFoundError:
+        # No catalog file at all is, for this subcommand, indistinguishable
+        # from "no declared instance covers this repo" - a normal ladder
+        # miss, not an error. No stderr noise; the caller falls to its next
+        # rung.
+        return 1
+    except (OSError, ValueError) as exc:
+        # The catalog file IS present (a directory at that path, a
+        # permissions error, malformed TOML syntax, ...) but could not be
+        # read as an instance catalog. DISTINCT from a genuine miss: a
+        # caller who declared an instance and typo'd the file gets a
+        # diagnostic instead of silence indistinguishable from "nothing
+        # declared". A bug inside load_instances that raises anything else
+        # (e.g. AttributeError, TypeError) is NOT caught here and propagates.
+        sys.stderr.write(
+            f"instances_io.py: {path} exists but could not be read as a TOML "
+            f"instance catalog: {exc}\n"
+        )
+        return 3
+    tbl = find_covering_instance(items, repo_path)
+    if tbl is None:
+        # DESIGNED outcome, not an error: nothing on stdout, nothing on
+        # stderr. Do not raise, do not print a traceback, do not warn.
+        return 1
+    _emit("INST_SERIES", series_of(tbl))
+    _emit("INST_PROFILE", profile_of(tbl))
+    _emit("INST_ADDONS_PATH", tbl.get("addons_path", []))
+    _emit("INST_HTTP_PORT", tbl.get("http_port", DEFAULT_HTTP_PORT))
+    _emit("INST_PYTHON", tbl.get("python", ""))
+    _emit("INST_DB_NAME", tbl.get("db_name", "odoo"))
+    _emit("INST_DB_HOST", tbl.get("db_host", "localhost"))
+    _emit("INST_DB_USER", tbl.get("db_user", "odoo"))
+    # db_port is EMPTY when undeclared (never a fabricated 5432): an empty
+    # value tells consumers to omit the flag and let libpq/PGPORT resolve it.
+    _emit("INST_DB_PORT", tbl.get("db_port", ""))
+    return 0
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
         return 0
     if argv[0] == "read":
         return _cmd_read(argv[1:])
-    sys.stderr.write(f"Unknown subcommand: {argv[0]!r}. Use 'read'.\n")
+    if argv[0] == "locate":
+        return _cmd_locate(argv[1:])
+    sys.stderr.write(f"Unknown subcommand: {argv[0]!r}. Use 'read' or 'locate'.\n")
     return 2
 
 

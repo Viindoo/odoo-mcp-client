@@ -403,34 +403,6 @@ def test_no_dangling_verify_guidelines_script():
 
 
 # ---------------------------------------------------------------------------
-# onboarding persists the verify-env interpreter so later run/verify steps
-# (and context-bootstrap readers) inherit it instead of re-discovering it
-# ---------------------------------------------------------------------------
-
-
-def test_onboarding_schema_has_verify_environment():
-    """odoo-onboarding SKILL.md must declare the ## Verify environment section
-    and the verify_python field so run/verify steps know where to find the
-    cached interpreter path without re-discovering it."""
-    body = _read(SKILLS / "odoo-onboarding" / "SKILL.md")
-    assert "## Verify environment" in body, (
-        "odoo-onboarding/SKILL.md: missing '## Verify environment' section in schema"
-    )
-    assert "verify_python" in body, (
-        "odoo-onboarding/SKILL.md: missing 'verify_python' field in schema"
-    )
-
-
-def test_context_bootstrap_reads_verify_python():
-    """context-bootstrap.md must list verify_python so every skill that reads
-    the snippet inherits the cached interpreter path as a default."""
-    body = _read(SNIPPETS / "context-bootstrap.md")
-    assert "verify_python" in body, (
-        "snippets/context-bootstrap.md: missing 'verify_python' extraction bullet"
-    )
-
-
-# ---------------------------------------------------------------------------
 # the code-reviewer verdict surfaces the lint-gate outcome (an unrun gate must
 # not read as a clean pass); the code-review skill diffs the sibling worktree
 # ---------------------------------------------------------------------------

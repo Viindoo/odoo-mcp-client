@@ -38,7 +38,8 @@ Odoo symptom catalog by layer (Python/ORM, XML/Views, Security, Performance, Ins
 Before calling any MCP tool, probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. You have `Read`, `Grep`, and `Bash` - reading source is a legitimate grounding path:
 
 1. Note OSM is unreachable (so the caveat survives).
-2. **Tier 2 - disk first.** `find . -maxdepth 4 -name __manifest__.py`; `grep -rn "class .*models.Model" --include=*.py`; `Read models/*.py` for field definitions, method signatures, `@api.depends`, `_inherit`, and hook order. If the traceback names a file, `Read` it directly.
+2. **Tier 2 - disk first.** `find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)`
+   (both descriptor filenames - the v8.0-v9.0 descriptor is `__openerp__.py`); `grep -rn "class .*models.Model" --include=*.py`; `Read models/*.py` for field definitions, method signatures, `@api.depends`, `_inherit`, and hook order. If the traceback names a file, `Read` it directly.
 3. Use disk-read context in place of `model_inspect`/`entity_lookup`. Label `grounded: local-source (not OSM-indexed)`.
 4. Skip OSM validation calls - note this in the Output Contract's `Grounding` field.
 5. Only when the repo itself is inaccessible emit `OSM unavailable - ungrounded`, lower confidence, and return `NEEDS_CONTEXT` solely for inputs no source encodes - never ask a human to paste code, tracebacks, or manifests you could read.

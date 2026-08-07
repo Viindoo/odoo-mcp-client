@@ -59,7 +59,7 @@ data.
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
@@ -84,11 +84,14 @@ run-harness node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never un
 Invoked with no `WORKTREE_PATH` and no worktree already in scope -> provision one via
 `git-toolkit:git-ops` before Round 3, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
-### Round 0 - Load context
+### Round 0 - Resolve project facts + pin the OSM session
 
-Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version`, `modules`, and any migration history. If absent, ask for target version and module name in a single message.
-
-Call `set_active_version` and `set_active_profile` (parallel if both available).
+**Round 0 - resolve project facts + pin the OSM session.** Resolve series, profile, and module
+scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then `set_active_version` /
+`set_active_profile` with the resolved values (parallel if both are available). Migration history
+is a request or brief input. Resolve `<SHARE_DIR>` once here too, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, and substitute the captured absolute path
+into every later state-root Read/Write/Edit - never the placeholder or a bare `.odoo-ai/`.
 
 ### Round 1 - Confirm migration type and inspect models (parallel)
 
@@ -123,7 +126,7 @@ For relational fields, call `validate_relation` for each. For openupgradelib hel
 
 ### Round 3 - Write the script(s)
 
-Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in `__manifest__.py`.
+Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in the module descriptor - `__manifest__.py`, or `__openerp__.py` on v8-v9 (the Tier-2 glob below returns whichever the module has; read that path, never a re-guessed filename).
 
 Script rules and code templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/script-rules.md`
 
@@ -140,11 +143,12 @@ Append verification checklist to the chat response after writing the file(s). Se
 When OSM is unreachable, follow the three-tier grounding in
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - Disk:** Run `find . -maxdepth 4 -name "__manifest__.py"` to locate the
-  module. Read `models/*.py` with `grep -n "class \|_name\|_inherit\|= fields\." models/*.py`
+- **Tier 2 - Disk:** Locate the module by globbing BOTH descriptor filenames -
+  `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)`. Read
+  `models/*.py` with `grep -n "class \|_name\|_inherit\|= fields\." models/*.py`
   to discover real field names and types. Read any existing `migrations/` directory for
-  prior patterns. Derive the Odoo version from the manifest `version` field if
-  `<SHARE_DIR>/context.md` is absent.
+  prior patterns. The series comes from
+  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, never from a raw manifest read.
 - **Tier 2 - Column check fallback:** When OSM cannot confirm a column name, add a comment
   in the script: `# VERIFY: confirm column name against live schema with \`\d <table>\` before running`.
 - **Caveat:** Label output `grounded: local-source (not OSM-indexed)`. Confirm openupgradelib

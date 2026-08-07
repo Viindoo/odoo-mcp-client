@@ -26,7 +26,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the doc; disk-read (`find . -maxdepth 4 -name __manifest__.py`, `grep -rn "class .*models.Model\|_inherit"`, `Read models/*.py` + `__manifest__.py`) in place of `model_inspect`/`entity_lookup`/`impact_analysis`, labelled `grounded: local-source (not OSM-indexed)` (note override-conflict blast radius is approximate); only when the repo itself is inaccessible, design from memory labelled `OSM unavailable - ungrounded` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the doc; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the v8.0-v9.0 descriptor is `__openerp__.py`; `grep -rn "class .*models.Model\|_inherit"`; `Read models/*.py` + `__manifest__.py` (or `__openerp__.py` on v8.0-v9.0)) in place of `model_inspect`/`entity_lookup`/`impact_analysis`, labelled `grounded: local-source (not OSM-indexed)` (note override-conflict blast radius is approximate); only when the repo itself is inaccessible, design from memory labelled `OSM unavailable - ungrounded` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
 
 **Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`.
 
@@ -133,7 +133,7 @@ Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md`. Al
 
 ## Round 0 - Pin the version (once per session)
 
-Call `set_active_version(odoo_version='<version>')` (or the version from the user / `<SHARE_DIR>/context.md`). Every subsequent call passes the CONCRETE version. Resolve the version before designing - inheritance axis, override pattern, and field idioms are version-specific.
+Resolve the series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then call `set_active_version(odoo_version='<version>')`. Every subsequent call passes the CONCRETE version. Resolve the version before designing - inheritance axis, override pattern, and field idioms are version-specific.
 
 > **HARD RULE - OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): every claim that a model/field/method/module/edition exists or behaves a certain way MUST be backed by an OSM call, never asserted from memory; call `suggest_pattern` and `find_examples` before proposing any hand-written structure. If OSM is unreachable, state the grounding label at the top and lower confidence.
 

@@ -60,6 +60,8 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 |---|---|---|---|
 | Asset bundles | `assets` key in manifest | v15 | Pre-v15: `qweb` key + bundle XML in views |
 | Version string | Strict `adapt_version` regex enforcement | v17 | Pre-v17: lenient; malformed version strings are rejected at install from v17 |
+| Manifest version - code upgrade | Keep short form `x.y.z`; series-prefixed value CONVERTED, never bumped | CORE | `upg-conventions.md` Convention 1 |
+| Forward-port version conflict | Keep TARGET's value, never bump | CORE | `[[fp-merge-absorption]]` C1 |
 
 > `adapt_version` above refers to the install-gate version-string validation (v17+ regex enforcement). The same function also series-prefixes the manifest for migration-runner comparison (its second role) - see C2 in `[[fp-merge-absorption]]`.
 
@@ -144,10 +146,8 @@ raise UserError(_("Answer to %s is not valid, expected %s.", name, "int"))
 
 ## Viindoo-distribution conventions (profile-gated - see `upg-conventions.md`)
 
-These apply ONLY under the gating conditions in `snippets/upg-conventions.md`. NOT Odoo core or other distributions.
+Apply ONLY under `upg-conventions.md`'s gating. NOT Odoo core or other distributions.
 
 | Convention | Rule | Cross-ref |
 |---|---|---|
-| Manifest version on code-level upgrade | Keep short form `x.y.z` - do NOT bump or add series prefix | `snippets/new-module-manifest.md §3` |
-| Forward-port conflict on `version` | Keep TARGET's value - see `[[fp-merge-absorption]]` | C1 |
-| No-data module rename | `old_technical_name` key only - no migration script | `[[upg-conventions]]` |
+| No-data module rename | `old_technical_name` key only - no migration script | `upg-conventions.md` Convention 2 |

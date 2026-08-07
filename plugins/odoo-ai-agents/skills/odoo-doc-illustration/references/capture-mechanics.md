@@ -102,8 +102,14 @@ separate obligations); see `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-con
 
 When the brief carries `INSTANCE_HANDLE: <db>:<port>`, the dispatching skill already provisioned,
 started, and installed the module (as a cumulative delta) on that instance and owns the lease:
-- Use the DB name and port from `INSTANCE_HANDLE` directly for all browser navigation and any live
-  Odoo MCP calls. Skip any self-provisioning step and skip the standalone install gate.
+- **The handle OUTRANKS every other way of resolving the target instance, including section 5's
+  fallback.** Set `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` and use the
+  handle's DB name for all browser navigation, the `/web/login` step (section 5), and any live Odoo
+  MCP call. NEVER recompute the URL from the declared catalog while a handle is present: this
+  instance is held under an EXCLUSIVE lease, and a leased port is allocated from a pool that starts
+  ABOVE the catalog-declared `http_port` and reserves every declared port in the catalog, so a
+  catalog-derived URL reaches a DIFFERENT server than the one seeded with the target module - wrong
+  screenshots, no error. Skip any self-provisioning step and skip the standalone install gate.
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
   owns provisioning. Never drop or release the lease. (This ban is about the INSTANCE lease only -
@@ -118,14 +124,23 @@ if empty, stop `BLOCKED` and route to `odoo-instance` (`operation: install-modul
 
 ## 5. Auth
 
-Load `${screenshot_baseline_dir}/storageState-admin.json` if it exists (cached auth session -
+**Resolve the login URL before anything else, and let `INSTANCE_HANDLE` win.** Brief carries
+`INSTANCE_HANDLE` -> `instance_base_url = http://localhost:<port from INSTANCE_HANDLE>` (section 4),
+full stop; do NOT consult the declared catalog, whose port is guaranteed to differ. ONLY when the
+brief carries NO handle (standalone dispatch) resolve `instance_base_url` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
+
+Load `<SHARE_DIR>/visual/baselines/storageState-admin.json` if it exists (cached auth session -
 the file format is family-specific; reuse it only within the family that wrote it). Otherwise
-navigate to `<instance_base_url>/web/login` and fill credentials from `instance_login`:
+navigate to `<instance_base_url>/web/login` and fill credentials: the login IDENTIFIER is the
+brief's, else `admin`. The PASSWORD is stored neither in this repo nor in project state - use the
+value the brief supplies, and when the brief supplies none, ask for it ONCE. Never guess a password,
+and never reuse a database credential for the web login.
 - **chrome-devtools (default):** `fill_form` (one call for the username + password elements
   from the page snapshot).
 - **playwright (OPT-IN):** `browser_fill_form`.
-If no storageState AND `instance_login` has no password, stop `NEEDS_CONTEXT` and request
-credentials - never guess a default password. Always authenticate via `/web/login` before
+If no storageState AND no brief-supplied password, stop `NEEDS_CONTEXT` and request the password
+once. Always authenticate via `/web/login` before
 navigating any backend URL (see `docs/odoo-ui-knowledge.md`).
 
 ## 6. On-theme check (before every capture)
@@ -163,7 +178,7 @@ and move on; emit `NEEDS_CONTEXT` only if every screen fails. Reference:
 5. Capture via the Branch A or Branch B write (section 3).
 
 **Screenshot filenames** follow the DETECTED on-disk convention when one exists (tiebreaker: disk
-`ls` of `static/description/` wins, then `context.md doc_image_naming`, then the caller's default).
+`ls` of `static/description/` wins, then the caller's default).
 General rule: the English canonical carries NO locale suffix; every non-English locale appends
 `.<locale>` (see section 8). Marketing filename specs live in
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` Image

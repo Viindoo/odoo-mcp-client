@@ -156,7 +156,7 @@
     {
       "id": 20,
       "prompt": "First time setting up the visual stack - wire the browser MCP and configure my instance URL",
-      "expected_output": "Intake recommends /odoo-ai-agents:setup command (row 32: one-time environment bootstrap for the visual stack, vs odoo-onboarding which bootstraps project CODE context)",
+      "expected_output": "Intake recommends /odoo-ai-agents:setup command (row 32: one-time environment bootstrap for the visual stack - wires the browser MCP families and declares the instance whose http_port the instance URL is derived from)",
       "expected_routed_to": "/odoo-ai-agents:setup",
       "category": "should-fire-direct",
       "files": []
@@ -164,7 +164,7 @@
     {
       "id": 21,
       "prompt": "I'm not sure what I need but I have a big Odoo project starting next month",
-      "expected_output": "Intake fires (open-ended, no concrete verb). Enters brainstorm: reads <SHARE_DIR>/context.md, presents 3 clarifying options (engineering setup, sales/pre-sales, strategic planning). Proposes Proposed Plan with domain + approach + gate. Does NOT write any files this turn.",
+      "expected_output": "Intake fires (open-ended, no concrete verb). Enters brainstorm: reuses the project facts Phase 0 resolved, presents 3 clarifying options (engineering setup, sales/pre-sales, strategic planning). Proposes Proposed Plan with domain + approach + gate. Does NOT write any files this turn.",
       "expected_routed_to": "brainstorm",
       "category": "vague-brainstorm",
       "files": []
@@ -188,8 +188,8 @@
     {
       "id": 24,
       "prompt": "where do I begin with this Odoo project",
-      "expected_output": "Intake fires (explicit 'where do I begin' trigger phrase from description). Enters brainstorm or suggests odoo-onboarding if <SHARE_DIR>/context.md is absent. Presents Proposed Plan gate.",
-      "expected_routed_to": "brainstorm OR odoo-onboarding",
+      "expected_output": "Intake fires (explicit 'where do I begin' trigger phrase from description). Enters brainstorm; offers /odoo-ai-agents:odoo-setup when no declared instance covers the repo. Presents Proposed Plan gate.",
+      "expected_routed_to": "brainstorm OR /odoo-ai-agents:odoo-setup",
       "category": "vague-brainstorm",
       "files": []
     },

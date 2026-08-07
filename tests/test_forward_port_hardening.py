@@ -1701,8 +1701,9 @@ class TestP9WorktreeReroot:
 
     def test_fp_phase_detail_p9_reroots_before_any_odoo_bin_call(self):
         """RED on base commit: fp-phase-detail.md's P9 'Env-bootstrap' resolved addons_path only
-        from <SHARE_DIR>/context.md (the principal-checkout catalog default) and never re-rooted
-        it onto the fp-integration worktree - confirmed unchanged by this PR before this fix."""
+        from the declared instance catalog entry (the principal-checkout catalog default) and
+        never re-rooted it onto the fp-integration worktree - confirmed unchanged by this PR
+        before this fix."""
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.index("## P9 - Verify by behavior")
         end = text.index("## P10 - Gate merge", start)
@@ -1711,7 +1712,8 @@ class TestP9WorktreeReroot:
 
         assert "Worktree re-root" in block, (
             "fp-phase-detail.md's P9 section must carry a named re-root step - the CATALOG "
-            "baseline read from context.md is never the final addons_path used to verify"
+            "baseline read from the declared instance entry is never the final addons_path "
+            "used to verify"
         )
         assert "WORKTREE_PATH: <path>/fp-integration" in norm, (
             "the re-root step must name WORKTREE_PATH: <path>/fp-integration explicitly - the "

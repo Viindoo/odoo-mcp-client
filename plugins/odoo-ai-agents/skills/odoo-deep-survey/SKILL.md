@@ -44,8 +44,9 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 ## Inputs (passed by intake in the invocation)
 
 - **Intent / purpose / expected outcomes** - the closed Phase 0 gate (what / why / done-looks-like).
-- **Odoo version + profile** - from `<SHARE_DIR>/context.md` or the intake version gate. Pin this
-  concrete version on every OSM call (see § OSM grounding).
+- **Odoo series + profile** - from the intake version gate, else resolved per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. Pin this
+  concrete series on every OSM call (see § OSM grounding).
 - **The first Proposed Plan** - so synthesis can express its findings as a *delta* against it.
 - **Slug** - reuse the feature slug intake already uses for brainstorm artifacts; the survey dir
   is `<SHARE_DIR>/survey/<slug>-<date>/`.
@@ -139,9 +140,9 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 
 **Goal:** a fast, wide map of every candidate area. Cheap and parallel.
 
-- **Scope unit** = one top-level custom module (enumerate via `find . -name __manifest__.py`, or
-  the module list in `<SHARE_DIR>/context.md`). For a non-code intent, the unit is one persona-domain
-  area implied by the intent.
+- **Scope unit** = one top-level custom module (the module scope resolved per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, which globs BOTH descriptor
+  filenames). For a non-code intent, the unit is one persona-domain area implied by the intent.
 - **Fan-out:** one haiku worker per unit, filling the Mode B budget (rolling-window beyond it).
 - **Each worker** (haiku = read-only lookup/classify only, never multi-tool OSM synthesis):
   reads the module's manifest + skims its models/views, and confirms existence with read-only OSM
@@ -348,7 +349,8 @@ truth; `state.json` is the fast index).
 ## Standalone-first fallback
 
 The survey prefers OSM but does not require it. If OSM is unreachable (a `set_active_version` probe
-fails), workers fall back to **read-only disk** - reading each `__manifest__.py` `depends` and
+fails), workers fall back to **read-only disk** - reading each module's descriptor `depends`
+(`__manifest__.py`, or `__openerp__.py` on v8-v9) and
 skimming `models/` and `static/src` for the dependency and asset picture - and the synthesis
 records `OSM: standalone` so intake states plainly that the impact map is disk-derived, not
 graph-resolved. No OSM is forced on any later specialist in this path.

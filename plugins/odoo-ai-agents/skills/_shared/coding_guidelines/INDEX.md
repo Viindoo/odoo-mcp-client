@@ -6,11 +6,9 @@ Per-version, self-contained extraction of the official Odoo coding guidelines
 
 ## How agents use this directory (read-before-write)
 
-1. **Resolve the Odoo version first.** Determine the target Odoo series from `<SHARE_DIR>/context.md`
-   (`odoo_version`; resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
-   substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-   Read/Write/Edit), the discovered `__manifest__.py`, or what the user stated. This is a
-   precondition, not optional - if the version cannot be resolved, stop and resolve it first.
+1. **Resolve the Odoo version first.** Determine the target Odoo series per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. This is a
+   precondition, not optional - if the series cannot be resolved, stop and resolve it first.
 2. **Open the matching version index:** `<version>/INDEX.md` (e.g. `17.0/INDEX.md`).
 3. **Read the topic files relevant to the task BEFORE writing any code.** The version index has a
    "By task" map that points to the right files. Write code that conforms to those rules on the

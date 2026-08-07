@@ -78,7 +78,7 @@ Version matters: v12+ feature may not exist in v8/v9 (OpenERP era - different mo
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - WebFetch:** `WebFetch("https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py")` + key model files. EE: try `odoo/enterprise/<version>/...`. Local source tree: `find . -maxdepth 4 -name "__manifest__.py"` then `Read`.
+- **Tier 2 - WebFetch:** `WebFetch("https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py")` + key model files. EE: try `odoo/enterprise/<version>/...`. Local source tree: `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8-v9 series are silently missed - then `Read` the path the find returned, never a re-guessed filename.
 - **Tier 3 (last resort):** derive from training knowledge; label `OSM unavailable - ungrounded`.
 - `NEEDS_CONTEXT` only if both version AND feature name are unresolvable. Never ask for content WebFetch can supply.
 

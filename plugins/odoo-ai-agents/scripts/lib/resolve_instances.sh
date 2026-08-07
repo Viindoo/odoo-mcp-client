@@ -4,8 +4,8 @@
 # instances.toml declares the local Odoo instances on THIS host (series, ports,
 # db, addons_path, python). It is Tier-1 - flat under $ODOO_AI_HOME - the same
 # machine-global tier as the allocator runtime/ registry, logs/, and i18n.json.
-# Every OTHER former .odoo-ai/ artifact (context.md, survey/, worklog/, ...) is
-# now namespaced Tier-2 under $ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]
+# Every OTHER .odoo-ai/ artifact (survey/, designs/, worklog/, ...) is namespaced
+# Tier-2 under $ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]
 # (SSOT: snippets/state-root-resolution.md), NEVER a project-relative $PWD/.odoo-ai/.
 # Keeping instances.toml machine-global (not per-cwd) means an execute-agent in
 # repo X still sees an instance declared while in repo Y. This helper is the
@@ -20,9 +20,20 @@
 # entries land in the single machine-global SSOT - this keeps the writer (40)
 # and the readers (45/50) pointed at the same file.
 #
-# Source-only: defines functions, runs nothing. Portable to bash 3.2 (macOS):
-# no mapfile, no ${var,,}, no associative arrays; grep runs on a file, never
-# piped under `set -o pipefail`.
+# Usage:
+#   Source-only:  source resolve_instances.sh
+#                 _resolve_instances    # prints the READ catalog path
+#                 _write_instances_target  # prints the WRITE catalog path
+#   Runnable:     bash resolve_instances.sh --path
+#                 (prints the resolved READ catalog path on stdout; exit 0,
+#                 or non-zero + stderr diagnostic on failure - same algorithm
+#                 as _resolve_instances, just reachable without sourcing, for
+#                 a caller (e.g. the project-facts-resolution.md ladder) that
+#                 wants ONE documented invocation instead of a two-step
+#                 source-then-call.)
+#
+# Portable to bash 3.2 (macOS): no mapfile, no ${var,,}, no associative
+# arrays; grep runs on a file, never piped under `set -o pipefail`.
 
 # SSOT mirror of scripts/lib/instances_io.py's ADDONS_PATH_SEP/join_addons_path/
 # split_addons_path - keep the two in lockstep (T/test_addons_path_separator_parity.py
@@ -162,3 +173,17 @@ _migrate_local_instances_to_global() {
     cp "$proj" "$global"
     printf '  Migrated %s -> %s (machine-global; the project copy is now an inert override, safe to delete).\n' "$proj" "$global"
 }
+
+# ---------------------------------------------------------------------------
+# CLI (only when EXECUTED, never when sourced) - mirrors resolve_project_dir.sh
+# ---------------------------------------------------------------------------
+if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
+    set -euo pipefail
+    case "${1:-}" in
+        --path) _resolve_instances ;;
+        *)
+            printf 'Usage: resolve_instances.sh --path\n' >&2
+            exit 2
+            ;;
+    esac
+fi

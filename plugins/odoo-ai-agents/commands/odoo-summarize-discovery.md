@@ -49,7 +49,7 @@ Use when you already want discovery synthesis and want to skip natural-language 
 
 - Dispatch the target skill via the Skill tool. NL description-match is an acceptable fallback.
 - Do **not** proceed to gap analysis, proposal drafting, or other chained skills. If the user wants the full discovery → proposal chain, redirect to `/odoo-respond-bid`.
-- Check for `<SHARE_DIR>/context.md`. If it exists and has an `odoo_version` key, use that as the default Odoo version. If absent, do not assume a version - the skill uses its internal default.
+- Resolve the Odoo series by working the rungs of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order, stopping at the first that answers. When every rung misses, do not substitute a default series - an unresolved series stays unresolved and joins the ladder's single batched ask, exactly as `odoo-discovery-summary` Round 0 requires.
 - `<ISOLATE_DIR>/discovery/` is the canonical location. Create the directory if it does not exist.
 - Do **not** commit or push the file. File ownership: read-only for this command.
 

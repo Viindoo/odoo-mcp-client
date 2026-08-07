@@ -116,12 +116,39 @@ done
 The technical name (directory name) of each module must be unique across the entire install set.
 A duplicate causes the second module to shadow the first silently.
 
+Pass the ADDONS-PATH ENTRIES themselves (the dirs on `--addons-path`), never a repo root: a
+descriptor sits at `<addons_path>/<module>/`, so it is exactly **depth 2** below each start point.
+`-maxdepth 2` is both necessary and sufficient - a shallower scan matches nothing and reports
+"no duplicates" without examining a single module, while a deeper scan reaches nested packaging
+trees that Odoo never loads (it treats only an entry's IMMEDIATE children as modules) and invents
+duplicates that are not in the install set.
+
 ```bash
 # Check for duplicates across the combined addons path
-find <addons_path1> <addons_path2> ... -maxdepth 1 -name __manifest__.py \
-    | xargs -I{} dirname {} | xargs -I{} basename {} | sort | uniq -d
+find <addons_path1> <addons_path2> ... -maxdepth 2 \( -name __manifest__.py -o -name __openerp__.py \) \
+    | xargs -I{} dirname {} | sort -u | xargs -I{} basename {} | sort | uniq -d
+# `sort -u` collapses per DIRECTORY before the names are counted: a module carrying BOTH descriptor
+# names yields two find hits for one module, which uniq -d would otherwise report as a duplicate of
+# itself. That module is a defect in its own right - see the note below - but it is not THIS gate's.
+# Both descriptor names: this gate applies from v8, where the descriptor is __openerp__.py -
+# globbing __manifest__.py alone reports "no duplicates" on v8/v9 without checking anything
 # Any output = duplicate technical names = FAIL
+
+# Locate every reported name so the FAIL is actionable (uniq -d prints names, not paths)
+find <addons_path1> <addons_path2> ... -maxdepth 2 \( -name __manifest__.py -o -name __openerp__.py \) \
+    | grep -E "/(<name1>|<name2>)/[^/]+$"
 ```
+
+> **A module holding BOTH `__manifest__.py` and `__openerp__.py` is itself a FAIL.** Odoo loads
+> `__manifest__.py` and ignores `__openerp__.py` unconditionally, so on a v8.0/v9.0 module the stray
+> `__manifest__.py` becomes the descriptor and every model, view, and dependency the real
+> `__openerp__.py` declares is dropped - with no error. Delete the wrong-era descriptor
+> (`__openerp__.py` from v10.0+, `__manifest__.py` from v8.0-v9.0) before re-running this gate:
+>
+> ```bash
+> find <addons_path1> <addons_path2> ... -maxdepth 2 -name __manifest__.py \
+>     | xargs -I{} dirname {} | xargs -I{} sh -c 'test -f "$1/__openerp__.py" && echo "BOTH: $1"' _ {}
+> ```
 
 ---
 

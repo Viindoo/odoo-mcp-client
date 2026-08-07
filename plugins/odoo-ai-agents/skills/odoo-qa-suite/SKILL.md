@@ -68,13 +68,14 @@ only when no leaf skill covers it.
 
 ## Phase 0 - Scope confirmation
 
-`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
-below). Read `<SHARE_DIR>/context.md` first (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) to extract `odoo_version` and `modules`. Use those as defaults and skip asking for already-resolved fields.
+Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact -
+the ladder derives from the declared instance catalog and then from the checkout itself, so asking
+comes last, not second. Whatever it resolves is pre-filled; skip asking for it.
 
-Ask for all missing inputs in a **single message**:
-1. **Feature / module name** (skip if clear from context)
-2. **Odoo version** e.g. `17.0` (skip if pre-filled)
+Ask for all remaining missing inputs in a **single message**:
+1. **Feature / module name** (skip when the resolved module scope or the request already names it)
+2. **Odoo series** e.g. `17.0` (skip when the ladder resolved it; never substitute a default)
 3. **Open bugs to triage** (optional) - as a list, or a file path to `Read`; pass `none` to skip triage
 4. **Scope** - `unit` / `integration` / `both` (default: `both`)
 

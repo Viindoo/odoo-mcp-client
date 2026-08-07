@@ -4,7 +4,7 @@
 
 Prompt: "We upgraded from Odoo 16 to 17 - did any backend screens change visually?"
 
-- Round 0: context → `odoo_version: 17.0`; ask source = 16.0; base URLs for both; `screenshot_baseline_dir`.
+- Round 0: series resolves to `17.0`; ask source = 16.0; base URLs for both states; baselines in the SHARE baselines dir.
 - Round 1: `api_version_diff(symbol='web', from_version='16.0', to_version='17.0')` + `module_inspect(name=<module>, method='views', odoo_version='<version>')` → scope to affected screens.
 - Round 2: capture baseline on the v16 instance.
 - Round 3: capture current on the v17 instance; diff pairs.

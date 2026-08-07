@@ -510,9 +510,6 @@ STRUCTURALLY_EXCLUDED_DIRS = (
     "skills/_shared",  # shared reference material (coding_guidelines, frontend-fidelity pitfall
                         # catalogue) consumed by many skills - same category as snippets/, not a
                         # per-module execution body
-    "skills/odoo-onboarding",  # a different skill entirely: one-time repo setup (discovers the
-                               # REPO's OWN existing ruff/eslint config) - unrelated to per-wave
-                               # coding-run gating
     "skills/odoo-debug/SKILL.md",  # diagnostic routing-table entry (which debugger owns a
                                    # `test_lint` FAILURE symptom) - mirrors
                                    # agents/odoo-backend-debugger.md, not an execution site

@@ -60,22 +60,20 @@ generate awareness, drive demo requests, support regional or vertical expansion.
 
 ## Workflow
 
-### Round 0 - Context bootstrap + confirm campaign inputs
+### Round 0 - Resolve project facts + confirm campaign inputs
 
-Before asking anything, read what onboarding captured
-(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
+**Round 0 - resolve project facts.** Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact.
+The resolved series is the default for every feature-claim verification and version reference.
+Audience personas, messaging pillars, and channel restrictions (e.g. "no paid ads",
+"LinkedIn only") come from the caller's brief or the request; whatever they state overrides this
+skill's generic defaults and is applied without asking.
 
-1. **Read `<SHARE_DIR>/context.md`** if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); apply as authoritative overrides:
-   - `odoo_version` - default for all feature-claim verification and version references.
-   - Audience personas / messaging pillars there override this skill's generic defaults.
-   - Channel restrictions (e.g. "no paid ads", "LinkedIn only") are applied without asking.
-2. If the file is absent, use this skill's generic defaults.
-
-After bootstrap, confirm only what is still missing. If >1 input is unclear, ask ONE compound
+Then confirm only what is still missing. If >1 input is unclear, ask ONE compound
 question. If the request has enough context, infer reasonable defaults and proceed - offer to
 adjust afterward.
 
-**Required inputs (resolved by bootstrap or user):**
+**Required inputs (resolved by Round 0 or user):**
 1. **Target vertical or geo**: which industry (manufacturing, trading, services, F&B, retail)
    or geography (Hanoi, HCMC, Mekong Delta, export market) is this campaign for?
 2. **Campaign objective**: lead generation, brand awareness, product launch / release
@@ -88,8 +86,10 @@ adjust afterward.
    - **L (Large)**: full paid mix; LinkedIn Ads + Google Search + YouTube + landing page + email
 5. **Available channels**: which channels can the team actually publish to? (LinkedIn company
    page, personal LinkedIn, blog/website, YouTube, email list, Facebook/Zalo page, paid ads)
-6. **Odoo version / edition** (resolved from `<SHARE_DIR>/context.md` in bootstrap step above;
-   fallback to "Odoo 17 CE" if file absent and user does not specify)
+6. **Odoo series** (resolved in Round 0 - never name a series literal in campaign copy that Round 0
+   did not resolve; unresolved after every rung means asking for it in the ONE compound question).
+   Edition (Community vs Enterprise) is not a stored fact: when a claim actually depends on it,
+   settle that claim with OSM against the resolved series rather than assuming an edition.
 
 ### Round 1 - Frame the campaign angle
 
@@ -259,8 +259,8 @@ read them when you need a concrete plan shape to anchor against.
 
 ## Notes
 
-- **Project context file**: read automatically in Round 0 (see Round 0 / context-bootstrap snippet);
-  values there are authoritative overrides applied before any question.
+- **Project facts**: series and profile are resolved in Round 0 per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, before any question.
 - **Brand assets**: reference any brand style guide the caller provides only when the plan
   includes a landing-page or visual-design brief for a designer - do not assume a fixed in-repo
   path; this skill stays a planning document, not visual assets. Demo videos/screencasts in the

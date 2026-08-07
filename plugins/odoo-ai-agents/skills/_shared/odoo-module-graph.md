@@ -1,8 +1,11 @@
 # Odoo module dependency graph - the unit of work is the module (SSOT)
 
-An Odoo change is partitioned by **module**, not by arbitrary file sets. Modules form a DAG via
-each `__manifest__.py` `depends`; that DAG dictates what can run in parallel and what must run in
-order. `odoo-coding` (deciding which wave each module's coder runs in) and `run-harness`'s
+An Odoo change is partitioned by **module**, not by arbitrary file sets. A module is the directory
+holding its DESCRIPTOR - `__manifest__.py`, or `__openerp__.py` on v8-v9 (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6). Every glob, existence check, and
+descriptor read below covers BOTH names: matching one alone makes a whole era invisible and reports
+the module as non-existent. Modules form a DAG via each descriptor's `depends`; that DAG dictates
+what can run in parallel and what must run in order. `odoo-coding` (deciding which wave each module's coder runs in) and `run-harness`'s
 between-wave integration (ordering modules for cherry-pick) use the **same algorithm** - the OSM
 `module_inspect` dependency lookup plus a topological sort - over the **same kind of node set**: the
 MODULES in scope (`odoo-coding` over its target module set, `run-harness` over the wave's modules).
@@ -30,13 +33,12 @@ This two-tier split is what keeps the outer DAG conflict-free: because the outer
 and `odoo-coder` owns its single module end-to-end (one worktree, one integrated test, one
 coordination-ledger entry), a WI can never slice two coders across the same module, span two modules
 in different waves, or split a module's ledger entry between owners. The WI is `odoo-coder`'s PRIVATE
-unit and MUST NOT surface to planning / `run-harness`. **Invariant (the one this re-architecture changes):** the PLAN is now the
+unit and MUST NOT surface to planning / `run-harness`. **Invariant:** the PLAN is the
 shared computed result - `odoo-planning` is the canonical PRODUCER of the wave-batched module-DAG;
 `odoo-coding` (and `run-harness`'s between-wave integration) CONSUME that plan and call the algorithm here DIRECTLY only
-when running STANDALONE (no plan provided). The shared-algorithm-lives-here-once framing still
-governs that standalone path: standalone consumers each compute independently (no shared result or
-cache); a plan-fed consumer instead reuses planning's single computed result. Skipping it is the
-root of point-10
+when running STANDALONE (no plan provided), each computing independently (no shared result or
+cache). Skipping the module axis is the
+root of ordering
 conflicts: work-items that ignore module boundaries get dispatched before the module they build on
 exists.
 
@@ -53,28 +55,27 @@ For a target set of modules `M`:
 3. Topologically order it: modules that do not depend on each other within `M` are **independent**
    (run in the same wave, parallel); a module that depends on another in `M` runs in a **later
    wave** (after its in-set dependency).
-4. **Fallback (OSM unreachable or too thin):** this graph is computed by the
-   orchestrator (`odoo-planning` as the producer, or `odoo-coding` on the self-derive path below) - so the orchestrator dispatches a
-   read-only **haiku** subagent to read each `__manifest__.py` `depends` and scan
+4. **Fallback (OSM unreachable or too thin):** the orchestrator that owns this graph
+   (`odoo-planning` as the producer, or `odoo-coding` on the self-derive path below) dispatches a
+   read-only **haiku** subagent to read each descriptor's `depends` (glob BOTH names) and scan
    for `static/src`, and labels the result `graph from disk (OSM unavailable)`. A leaf WI worker
    must NEVER hit this fallback by spawning - it is computed before any worker exists; if
-   a leaf ever needs the graph it reads the manifests itself, it does not spawn.
+   a leaf ever needs the graph it reads the descriptors itself, it does not spawn.
 5. **New module (resolves to NEITHER OSM NOR disk) - the third case.** A target module `m` in `M`
-   whose `__manifest__.py` exists in neither the OSM index (step 1) nor on disk (step 4) is a **NEW
-   module**: it has not been written yet, so both grounding sources come up empty. Its `depends`
+   whose descriptor (BOTH names checked) exists in neither the OSM index (step 1) nor on disk
+   (step 4) is a **NEW module**: it has not been written yet, so both grounding sources come up
+   empty. A miss under only ONE descriptor name is NOT this case. Its `depends`
    MUST be sourced from the design's `dag_layers` / the approved plan (a human/architect declared the
    dependency before any code existed) and MUST NOT be left unresolved - never silently drop a new
-   module's edges, invent one, or treat it as a dependency-free leaf. This is the third grounding
-   case alongside "OSM available" (step 1) and "disk fallback" (step 4), and it is
-   version-independent. A NEW in-scope module is CLAIMED in the coordination ledger before it is
+   module's edges, invent one, or treat it as a dependency-free leaf. Version-independent. A NEW
+   in-scope module is CLAIMED in the coordination ledger before it is
    built (forward-ref: `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`).
 
 **When the self-derive path is reachable.** Running this algorithm DIRECTLY (self-deriving instead
 of consuming a plan's already-computed module-DAG) is a NORMAL path: `odoo-coding` runs it whenever
 it is invoked STANDALONE (no plan handed down). It is NOT an admission point - the mandatory-planning
 gate lives upstream at the front door (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` §
-Mandatory-planning rule), so this algorithm never self-blocks for "no plan". A plan-fed consumer
-instead reuses planning's single computed result (the plan IS the SSOT; the algorithm is not re-run).
+Mandatory-planning rule), so this algorithm never self-blocks for "no plan".
 This keeps the new-module third case above safe: when a design/plan IS in scope it supplies a NEW
 module's `depends` from its `dag_layers`; when NO design provides the edge AND the module resolves to
 neither OSM nor disk, that does not silently pass - it surfaces via the coder's dependency pre-flight

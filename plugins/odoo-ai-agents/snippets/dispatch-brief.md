@@ -36,9 +36,8 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 11 | `CALLER_ID` (`REPLY_TO`) | ALWAYS | An ADDRESS, never a name. Exactly one of: the literal `main`; the stable spawn `name` you launched this agent under; a raw `agentId`. A skill has no address of its own - it runs inline in whatever context invoked it, so its dispatches carry THAT context's address, `main` only when main is the invoker (full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "A skill has no address of its own") - never a skill name, never a prose sentence. An agent that will itself dispatch or be messaged MUST have been launched with a stable `name`; its children cannot address it otherwise. Unaddressable, or a send that fails: RETURN INLINE, never wait (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). The `SendMessage`/task-board transport that carries it (`TASK_ID`, `NOTIFY`) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`; the worker-side consumption contract is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. |
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (resolve the Tier-2 SHARE dir per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and read `context.md` there first; ask
-the caller only when absent).
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; ask the caller only for what no rung
+there answers.
 
 ## Two rules that decide whether the brief works
 

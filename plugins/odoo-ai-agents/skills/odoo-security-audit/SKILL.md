@@ -59,7 +59,7 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
@@ -73,9 +73,9 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 rounds.
 
-### Round 0 - Pin version + profile
+### Round 0 - Resolve project facts + pin the OSM session
 
-`set_active_version(odoo_version=<target>)` then `set_active_profile(profile_name=<profile>)`. Resolve version from `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); derive from manifest if absent.
+Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then `set_active_version(odoo_version=<resolved series>)` and `set_active_profile(profile_name=<resolved profile>)`.
 
 ### Round 1 - Parallel triage (fire together)
 
@@ -109,7 +109,7 @@ grep -rn "\.sudo()" --include="*.py" .
 grep -rn "\beval(\|pickle\.\|safe_eval(" --include="*.py" .
 grep -rn "password\s*=\s*['\"].\|api_key\s*=\s*['\"].\|secret\s*=\s*['\"]." --include="*.py" .
 grep -rn "auth='public'\|auth=\"public\"" --include="*.py" .
-find . -maxdepth 4 -name "__manifest__.py" | xargs grep -l "security" | \
+find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \) | xargs grep -l "security" | \
   xargs -I{} dirname {} | xargs -I{} sh -c 'ls {}/security/ir.model.access.csv 2>/dev/null || echo "MISSING: {}/security/ir.model.access.csv"'
 ```
 
@@ -126,7 +126,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 - **Tier 2 - Disk scan:** Run the grep commands from the Method section against the local source tree - surfaces SQL injection candidates, XSS candidates, sudo() calls, eval/pickle, public routes, and hardcoded secrets without MCP.
 - **Tier 2 - Access CSV check:** Run the `find` command to detect models missing `ir.model.access.csv`.
-- **Tier 2 - Version:** Read `<SHARE_DIR>/context.md` for `odoo_version`; derive from manifest if absent.
+- **Tier 2 - Project facts:** series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 - Label output `grounded: local-source (not OSM-indexed)`. OSM-enriched exploitability context (inheritance chain, exact API signature for `safe_eval`/`Markup`) unavailable - note findings as "requires OSM verification for full exploit path".
 - Escalate (`NEEDS_CONTEXT`) only if target version is genuinely unresolvable and severity grading would materially change between versions - never ask the caller to supply code or file lists that a disk scan can retrieve.
 

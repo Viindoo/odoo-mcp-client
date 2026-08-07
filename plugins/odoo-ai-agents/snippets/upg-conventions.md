@@ -1,49 +1,47 @@
 # Viindoo Upgrade Conventions
 
-> **CONVENTIONS 1-2 ARE VIINDOO-DISTRIBUTION-SPECIFIC - GATING REQUIRED**
+> **CONVENTION 2 IS VIINDOO-DISTRIBUTION-SPECIFIC - GATING REQUIRED**
 >
-> Conventions 1 and 2 below are Viindoo-distribution-specific. Apply Conventions 1-2 ONLY when
-> BOTH conditions hold:
+> Convention 2 below is Viindoo-distribution-specific. Apply Convention 2 ONLY when BOTH
+> conditions hold:
 >
 > 1. OSM (`odoo-semantic`) is reachable (probe with `list_available_profiles` or `set_active_version`).
 > 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
 >    semantically, profiles of the form `standard_viindoo_<series>` or
->    `viindoo_internal_<series>`. Determine the active profile via `<SHARE_DIR>/context.md`
->    (field `viindoo_profile`; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
->    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
->    path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit), or via OSM
->    `profile_inspect` / `list_available_profiles` /
->    the currently active profile.
+>    `viindoo_internal_<series>`. Determine the active profile at rung 2 of
+>    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (`INST_PROFILE`, the exact
+>    declared name), or via OSM `profile_inspect` / `list_available_profiles` / the currently
+>    active profile.
 >
 > If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal
 > distribution (e.g. Odoo CE/EE upstream or any other non-Viindoo distribution) -
-> DO NOT apply Conventions 1-2.
+> DO NOT apply Convention 2.
 
-> Conv-0, Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); the gate above does NOT
-> apply to them - apply all three on EVERY profile/distribution, OSM-reachable or not. Conv-3's
-> and Conv-4's rule text lives in dedicated CORE files reachable via
-> `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` § Snippets catalog
+> Conv-0, Conv-1, Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); the gate above
+> does NOT apply to them - apply all four on EVERY profile/distribution, OSM-reachable or not.
+> Conv-0 and Conv-1 have no standalone file; both are reached at the point of obedience: every
+> `odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail.md` § odoo-coding dispatch
+> brief) cites this file unconditionally (no profile check on the citation), firing
+> `odoo-backend-coder.md` / `odoo-frontend-coder.md`'s "Modules-upgrade adapt" disposition (also
+> unconditional on profile) and sending the coder to § Convention 0 and § Convention 1 below - on
+> ANY profile, Viindoo or not. Conv-3/Conv-4's rule text lives in dedicated CORE files reachable
+> via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` § Snippets catalog
 > (`xml-view-conventions.md`, `odoo-version-pivots.md` - both tagged CORE, all distributions).
-> Conv-0 has no such standalone file - it is reached directly, at the point of obedience, not
-> through this file's own gate: every `odoo-modules-upgrade` P4 adapt dispatch brief
-> (`upg-phase-detail.md` § odoo-coding dispatch brief) cites this file by path unconditionally
-> (no profile check on the citation itself), which fires `odoo-backend-coder.md` /
-> `odoo-frontend-coder.md`'s "Modules-upgrade adapt" disposition (also unconditional on profile)
-> and sends the coder to § Convention 0 below - on ANY profile, Viindoo or not.
 
 ---
 
 ## Convention 1 - No version bump on code-level upgrade
 
-When upgrading a Viindoo module to a new Odoo series with ONLY code-level changes (no data
-migration, no behavior contract change visible to end users), do **not** bump `version` in
-`__manifest__.py` and do **not** add the series prefix.
+CORE rule - applies to all distributions.
 
-- Keep the existing short form `x.y.z` (e.g. `0.1`, `1.2.0`) unchanged.
-- This is a Viindoo-specific convention. The SSOT for the version form is
-  `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md §3`. Do not restate the form here.
-- Version-specific guidance: see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
-  section "Viindoo-distribution conventions".
+When upgrading a module to a new Odoo series with ONLY code-level changes (no data migration, no
+behavior contract change visible to end users), do **not** bump `version` in `__manifest__.py`
+and do **not** add the series prefix.
+
+- Keep the existing short form `x.y.z` (e.g. `0.1`, `1.2.0`) unchanged. A value that currently
+  carries the series prefix (`<series>.x.y.z`) is CONVERTED to `x.y.z` by dropping the prefix -
+  a conversion is not a bump. Form SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md
+  §3`. Do not restate the form here.
 
 > **Forward-port note:** In forward-port the no-bump rule is STRONGER - on a `__manifest__.py`
 > conflict keep the TARGET's value; never merge-pick or invent. See `[[fp-merge-absorption]]`.

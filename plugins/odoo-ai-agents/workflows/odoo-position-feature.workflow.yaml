@@ -26,7 +26,7 @@ phases:
     skill: odoo-feature-check
     nl_trigger: >
       Check whether the Odoo feature or capability described by the user exists in the
-      current Odoo version (read from .odoo-ai/context.md if present). Report: feature
+      resolved Odoo series (per snippets/project-facts-resolution.md). Report: feature
       exists Y/N, supported editions (CE / EE / distribution), key modules that provide
       the feature, and key fields or API landmarks. If the feature does not exist in any
       edition, stop and inform the user.

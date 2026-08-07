@@ -2,16 +2,16 @@
 reference that names a tier/step/phase/clause/round/wave COUNT must agree with the actual count in
 the section it cites.
 
-Confirmed pre-fix defect (this round): `skills/odoo-onboarding/SKILL.md` pointed at a
-non-existent "i18n.json/tier-6" - stale residue of the C-2 fix that renumbered
-`skills/odoo-doc-illustration/SKILL.md`'s language resolver from 6 tiers (with a hardcoded-default
-6th tier) down to 5 (with an explicit "No tier 6" rule). The SAME renumbering left FIVE more sites
-still calling that resolver "6-tier" / "D6": `agents/odoo-doc-scoper.md` (4 sites: the agent's own
-role-intro parenthetical, the `LANGUAGES:` input-table row, and the Step 4 SSOT cross-reference
-appearing twice), `workflows/module-packaging.workflow.yaml` (the inline scope-phase comment), and
-`skills/odoo-doc-illustration/references/app-store-template.md` (its own SSOT cross-reference) -
-the last one found ONLY by this test's own registry-vs-citation sweep, not by the manual review
-that found the other five.
+Confirmed pre-fix defect (this round): `agents/odoo-doc-scoper.md` pointed at a
+non-existent "i18n.json/tier-6" in 4 sites (the agent's own role-intro parenthetical, the
+`LANGUAGES:` input-table row, and the Step 4 SSOT cross-reference appearing twice) - stale residue
+of the C-2 fix that renumbered `skills/odoo-doc-illustration/SKILL.md`'s language resolver from 6
+tiers (with a hardcoded-default 6th tier) down to 5 (with an explicit "No tier 6" rule). The SAME
+renumbering left ONE more site the manual review also found still calling that resolver "6-tier" /
+"D6": `workflows/module-packaging.workflow.yaml` (the inline scope-phase comment).
+`skills/odoo-doc-illustration/references/app-store-template.md` (its own SSOT cross-reference) was
+found ONLY by this test's own registry-vs-citation sweep, not by the manual review that found the
+other five.
 
 Why this needed a NEW mechanism, not just a bigger manual sweep: the round's `${CLAUDE_PLUGIN_ROOT}`
 path-pointer sweep found 1550+98 references and 0 dangling paths, and the lane that reviewed the

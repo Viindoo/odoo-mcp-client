@@ -53,7 +53,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
    **3a. Read existing context / resume.**
-   - Read `<SHARE_DIR>/context.md` if it exists (version, edition, module list, instance URL) - resolve `<SHARE_DIR>` (and `<ISOLATE_DIR>` where noted below) via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before the first Read/Write/Edit of any state-root path in this skill.
+   - **Resolve the project facts** - series, OSM profile, addons scope, and (live steps only) an instance target - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`: work its rungs in order, stop at the first that answers, thread the resolved literals into the Proposed Plan and every dispatch brief. Resolve `<SHARE_DIR>` (and `<ISOLATE_DIR>` where noted below) via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before the first Read/Write/Edit of any state-root path in this skill.
    - Check `<ISOLATE_DIR>/brainstorm/state.json` - if an in-progress brainstorm session exists, resume it (Tier 2).
    - **Check for an active run** - glob `<ISOLATE_DIR>/run-*.json` for any with `status: NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG. Surface it and ask: resume it (hand to `run-harness`), or start fresh? Only proceed to open a new run once the user chooses.
    - **Check for existing recon** - glob `<ISOLATE_DIR>/recon/*/findings.md` for this intent's slug.
@@ -63,23 +63,22 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
      the same contract). A mismatch -> STALE - fall through to Phase R, which re-dispatches and
      overwrites the file per clause 1.
 
-   **3b. Detect the working directory (4 branches).** Locate Odoo manifests with:
+   **3b. Detect the working directory (3 branches).** Locate Odoo manifests with:
    ```bash
-   find . -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
+   find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \) 2>/dev/null | head -20
    ```
-   Branch on the result:
-   - **(i) Odoo addon dir (≥1 manifest, no usable context file)** → ask for Odoo **version / edition (CE|EE|custom) / target module(s) / instance URL**. Note that `odoo-onboarding` can bootstrap a full `<SHARE_DIR>/context.md` (schema documented in `odoo-onboarding` § Context file schema - do not copy it here).
+   Both descriptor filenames are globbed because the v8-v9 descriptor is `__openerp__.py` - matching only one name reports 0 manifests on those series. Branch on the result:
+   - **(i) Odoo addon dir (≥1 manifest)** → the facts 3a resolved stand as-is; **skip** re-asking anything a rung answered. Ask ONLY for what remained unresolved after every rung, batched into ONE message (rung 5). Never ask for the module list - rung 3 globs it. Edition (CE|EE|custom) is stored nowhere: when an answer genuinely depends on it, settle it per question via OSM (`list_available_profiles` / `check_module_exists`) against the resolved series.
    - **(ii) Project root (manifests under nested dirs / mono-repo)** → infer common parent as project root; confirm version/edition once, then continue.
    - **(iii) Non-Odoo dir (0 manifests)** → discriminate by intent:
      - **(iii-a) general Odoo Q&A**, no local code needed → **proceed standalone**; record `Project: non-Odoo workspace (general Odoo Q&A)` + `OSM: standalone`.
      - **(iii-b) touches local code/instance** but 0 manifests found → addon is likely outside maxdepth-3: **ask for the addon path / instance URL and re-probe**; if still 0, proceed standalone with a caveat.
      - **(iii-c) purely non-Odoo** (HR/finance/legal/PR/general writing) → § Multi-plugin routing.
-   - **(iv) `<SHARE_DIR>/context.md` already present and usable** → use it as-is; **skip** re-asking version/edition/module.
 
-   **3c. OSM probe + version resolution.** Call `mcp__odoo-semantic__list_available_versions`, then branch:
-   - **OSM reachable AND `<SHARE_DIR>/context.md` carries an `odoo_version`** → mark `backed`. Do NOT re-ask the version.
-   - **OSM reachable BUT version unknown** → **default: escalate to `odoo-onboarding`** (it lists versions/profiles, lets the user pick, validates, and persists `<SHARE_DIR>/context.md`). **Inline fallback** (only when user declines onboarding): call `list_available_versions` → present version menu → `list_available_profiles` filtered to chosen version → pick profile using same logic as `odoo-onboarding` Step 3 → `profile_inspect(method='summary', …)` to confirm. Record version + profile in the Proposed Plan only, stating "used for this turn; run `odoo-onboarding` to persist it". Mark `backed`.
-   - **OSM absent/unreachable** → mark `standalone`. If the intent needs a version, ask the user for it and proceed on that.
+   **3c. OSM probe + version confirmation.** Call `mcp__odoo-semantic__list_available_versions`, then branch:
+   - **OSM reachable AND 3a resolved the series** → confirm the series is in the indexed list and mark `backed`. Do NOT re-ask the version.
+   - **OSM reachable BUT the series is still unresolved after every rung** → present the indexed version menu from `list_available_versions` → `list_available_profiles` filtered to the chosen version → `profile_inspect(method='summary', …)` to confirm the profile name resolves. Record both in the Proposed Plan as the values in force for this turn. Mark `backed`. When no `[[instance]]` in the catalog covers this repo, add ONE line offering `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; the run proceeds on the resolved values either way.
+   - **OSM absent/unreachable** → mark `standalone`. The series still comes from 3a's rungs; ask for it only when every rung missed.
    Record `OSM: backed | standalone` in the Proposed Plan.
 
    **3d. GATE - Intent / Purpose / Expected outcomes (MANDATORY).** All three MUST be clear before Phase R may run: **what** the user wants, **why**, and **what done looks like**. Resolve any gap with **pre-structured options** (e.g. "Is the goal (a) ship a code change, (b) scope a proposal, (c) produce marketing copy?"), never an open-ended "what do you want?". **If intent / purpose / expected outcomes are not all clear, you MUST NOT proceed to Phase R.**
@@ -238,7 +237,7 @@ A pro user types `approve` once. A novice replies `refine: brainstorm` to open t
 
 Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
-1. **Explore context (STATIC only)** - read `<SHARE_DIR>/context.md`, list existing artifacts under the `$ODOO_AI_HOME` state root (SHARE/ISOLATE dirs per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), infer domain and persona. STATIC = filesystem reads only (no agent launch, no OSM calls). Dynamic recon that dispatches agents + calls OSM is Phase R (not this step).
+1. **Explore context (STATIC only)** - reuse the facts 3a resolved, list existing artifacts under the `$ODOO_AI_HOME` state root (SHARE/ISOLATE dirs per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), infer domain and persona. STATIC = filesystem reads only (no agent launch, no OSM calls). Dynamic recon that dispatches agents + calls OSM is Phase R (not this step).
 2. **Clarifying options** - present 2-3 **pre-structured options** (not open-ended questions), e.g. "Is this (a) sales/proposal, (b) engineering upgrade, (c) strategy?". **Multi-turn boundary:** if intent/purpose/outcomes are already clear, continue in the same turn; if not, emit options and **END THE TURN** - next turn resumes via Tier-2. Do not run Phase R until the intent gate is closed (Hard rule 3d).
 3. **Propose 2-3 approaches** - each with: one-line outcome + key trade-off + recommendation. Informed by Phase R findings.
 4. **Present Proposed Plan** (soft-plan-gate - see § Soft plan gate). This IS the gate.
@@ -321,14 +320,14 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 11 | "respond to objection", "counter 'Odoo can't'", "write a response", "rep is on the call", "customer says Odoo can't do X" | `odoo-objection-handling` | Verbatim ACA response paragraph (vs `odoo-capability-proof` which is technical evidence) |
 | 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-coding` | The single coding front door - backend Python/XML AND frontend (see row 14). It works out per-module whether the change is backend-only / frontend-only / full-stack and dispatches the right agents (vs `odoo-override-finding` for finding a hook location, vs `odoo-code-review` which reviews existing code) |
 | 13 | "review code", "check my PR", "audit this", "smell test before merge" | `odoo-code-review` | Reviewing EXISTING code (vs `odoo-coding` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
-| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-coding` | Same unified coding skill (frontend leg) - legacy v8-14 or OWL v15+; auto-detects framework + which stacks a change needs via the Odoo version in `<SHARE_DIR>/context.md` or the user statement |
+| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-coding` | Same unified coding skill (frontend leg) - legacy v8-14 or OWL v15+; auto-detects framework + which stacks a change needs from the resolved Odoo series |
 | 15 | "follow up with customer", "deal stalled", "draft follow-up email", "customer hasn't replied" | `odoo-deal-followup` | Sales AE follow-up email writer (vs `odoo-objection-handling` for objection response, vs `odoo-discovery-summary` for raw meeting notes) |
 | 16 | "summarize the customer meeting", "synthesize discovery notes", "extract customer profile" | `odoo-discovery-summary` | Pre-proposal structured profile (vs `odoo-gap-analysis` for effort matrix, vs `odoo-deal-followup` for post-meeting follow-up email) |
 | 17 | "write a blog post on Odoo", "draft a LinkedIn post", "YouTube script for Odoo", "email sequence about", "landing page copy" | `odoo-content-draft` | Single-piece content draft (vs `odoo-campaign-plan` which orchestrates multi-piece campaign, vs `odoo-feature-highlights` which is slide-format) |
 | 18 | "plan a campaign", "plan campaign Q3", "multi-channel plan", "campaign brief" | `odoo-campaign-plan` | Multi-week orchestration (vs `odoo-content-draft` for single piece) |
 | 19 | "competitor brief", "competitive analysis", "landscape brief", "threat assessment" | `odoo-competitive-brief` | Structured CEO/board briefing on a competitor (vs `odoo-objection-handling` for sales counter-talking-points) |
 | 20 | "deploy checklist", "checklist before going live", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
-| 21 | "I just cloned the Odoo repo", "set up Odoo for this project", "first time setup" | `odoo-onboarding` | Project-context bootstrap (vs `/odoo-semantic-mcp:connect` slash command for server URL/key setup) |
+| 21 | "I just cloned the Odoo repo", "set up Odoo for this project", "first time setup" | `/odoo-ai-agents:odoo-setup` (command) | Declares the repo's `[[instance]]` (series, profile, addons path, port, db) in the machine-global catalog every skill then resolves its project facts from - the instance facet of the same command row 32 reaches for its browser facet (vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
 | 22 | "setup MCP server URL + API key" | `/odoo-semantic-mcp:connect` (command) | One-time infra setup, not work |
 | 23 | "full bid response" / "write a complete RFP response" / "full proposal for prospect" | `/odoo-respond-bid` (command) | Multi-step proposal chain (vs `odoo-discovery-summary` or `odoo-capability-proof` alone) |
 | 24 | "write follow-up email for customer" + explicit save-to-file ask | `/odoo-draft-followup` (command) | Wraps `odoo-deal-followup` with save step (skill alone for just draft text) |
@@ -339,7 +338,7 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 29 | "console error / OWL render lỗi / trang trắng / widget không hiện / JS runtime error" | `odoo-debug` | Front-door for ALL debugging: reproduces, root-causes, dispatches specialist debug agents (vs `odoo-ui-review` which rates a working screen) |
 | 30 | "visual regression / so ảnh trước-sau / UI có đổi sau khi sửa / baseline screenshot" | `odoo-visual-regression` | Diffs TWO states/builds for drift (vs `odoo-ui-review` which judges ONE screen once) |
 | 31 | "quay video tính năng / demo video / screencast / video marketing" | `odoo-demo-recording` | Produces a REAL video/GIF of a live instance (vs `odoo-capability-proof` which produces TEXT/code evidence, vs `odoo-content-draft` which writes the SCRIPT only) |
-| 32 | "setup môi trường / wire MCP / cấu hình instance URL cho visual / lần đầu setup visual" | `/odoo-ai-agents:odoo-setup` (command) | One-time environment bootstrap for the visual stack - wires browser MCP + writes instance URL/visual config to `<SHARE_DIR>/context.md` (vs `odoo-onboarding` which bootstraps project CODE context, vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
+| 32 | "setup môi trường / wire MCP / cấu hình instance URL cho visual / lần đầu setup visual" | `/odoo-ai-agents:odoo-setup` (command) | One-time environment bootstrap for the visual stack - wires the browser MCP families and declares + spins up the local Odoo instance the visual skills drive; the instance URL is derived from that entry's `http_port`, never stored separately (the browser facet of the same command row 21 reaches for its instance facet, vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
 | 33 | "BRL", "business requirement list", "hàng trăm/nghìn requirement", "classify + cost", "dependency graph", "scope toàn bộ RFP", "1200 requirements", "RTM", "costed plan from requirements", "turn RFP into effort plan" | `odoo-brl` | FLAGSHIP large-scale pipeline: hundreds-to-thousands of items + cost estimate + dependency DAG (vs `odoo-gap-analysis` = short ad-hoc list, no cost/DAG; vs `odoo-feature-check` = single feature). Discriminator: item count scale + explicit cost/RTM/DAG signals |
 | 34 | "QA suite", "release test plan", "test-plan doc for module", "deploy safety checklist", "generate tests and triage bugs", "static QA pipeline before release" | `qa-suite` (workflow) | STATIC release artifacts only - test-plan doc + deploy checklist + bug triage, NOTHING executed (vs `odoo-acceptance` which EXECUTES + adjudicates an oracle on a live instance/UI; vs `odoo-code-review` static source review; vs `odoo-deploy-checklist` the checklist phase alone) |
 | 35 | "triage ticket", "support ticket", "customer reports Odoo issue", "classify this bug", "draft resolution for support case", "root cause for customer complaint", "escalate this issue", "bug report from client" | `support-triage` (workflow) | Full ticket triage: classify → root-cause → draft resolution/escalation (vs `odoo-debug` which is a dev debug session, vs `odoo-deal-followup` which is sales follow-up) |
@@ -440,9 +439,9 @@ When ambiguous between command and skill:
 
 ## Standalone-first fallback
 
-Intake is routing + brainstorm + read-only Recon - no file writes, and no MCP calls beyond Phase 0 context reads and Phase R read-only OSM probes. OSM is optional:
-- **backed path**: `<SHARE_DIR>/context.md` has `odoo_version` AND `mcp__odoo-semantic__*` tools are reachable → intake records `OSM: backed` in the Proposed Plan.
-- **standalone path**: `<SHARE_DIR>/context.md` is absent, lacks `odoo_version`, or OSM tools are not reachable → intake operates on user-provided context alone; records `OSM: standalone` and notes that `odoo-onboarding` can bootstrap the context file.
+Intake is routing + brainstorm + read-only Recon - no file writes, and no MCP calls beyond Phase 0 fact resolution and Phase R read-only OSM probes. OSM is optional:
+- **backed path**: Phase 0 resolved the Odoo series (any rung of `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) AND `mcp__odoo-semantic__*` tools are reachable → intake records `OSM: backed` in the Proposed Plan.
+- **standalone path**: OSM tools are not reachable, or the series stayed unresolved through every rung → intake operates on the series the user states and records `OSM: standalone`. Offer `/odoo-ai-agents:odoo-setup` when no `[[instance]]` covers this repo, so the next run resolves at rung 2 instead of asking again.
 
 ## Output Format
 

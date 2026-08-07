@@ -19,8 +19,8 @@ description: >
 Module identity icon designer for Odoo: composes a version-correct, brand-aware SVG vector icon
 (era-matched style, FA-category glyph, solid background) then rasterizes it to a 256x256 PNG at
 `static/description/icon.png`. Works entirely from static source - no browser, no live instance.
-OSM is the primary source for module category and version grounding; the on-disk `__manifest__.py`
-is the fallback.
+OSM is the primary source for module category and version grounding; the on-disk descriptor
+(`__manifest__.py`, or `__openerp__.py` on v8-v9) is the fallback.
 
 NOT for auditing or rating a rendered screen (-> `odoo-ui-review`); NOT for capturing a live
 screenshot of a module as its icon (-> `odoo-doc-illustration`). Produces a designed vector asset,
@@ -91,7 +91,7 @@ not a live-rendered Odoo UI component - so the CSS design-token checks in
 `skills/_shared/odoo-frontend-fidelity.md` (the in-repo frontend fidelity contract, which governs
 RENDERED Odoo screens) do NOT apply to the icon asset itself. Palette is brand-agnostic and
 resolved to CONCRETE hex values via Step 1 of the `odoo-icon-designer` agent (dispatch `BRIEF:`
--> `<SHARE_DIR>/context.md` brand tokens (resolve `<SHARE_DIR>` once per
+-> `<SHARE_DIR>/brand-tokens.json` when that file exists (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) -> module-category hue ->
 Odoo default `#714B67`). Never
@@ -101,8 +101,9 @@ fills, not with design-system token references.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** agent reads `category`, `name`, and `summary` from `__manifest__.py` on
-  disk for glyph and palette selection; proceeds without OSM grounding; prefixes output with
+- **OSM unreachable:** agent reads `category`, `name`, and `summary` from the module descriptor on
+  disk - `__manifest__.py`, or `__openerp__.py` on v8-v9 - for glyph and palette selection;
+  proceeds without OSM grounding; prefixes output with
   `WARNING: OSM unreachable - glyph/palette inferred from manifest fields only`.
 - **Rasterizer absent (no rsvg-convert, inkscape, magick/convert, cairosvg, or Pillow):**
   agent writes `icon.svg` only, emits platform-specific install guidance, and sets

@@ -59,17 +59,17 @@ Repo Capability Card `base` field. A `base` resolved from the invoking checkout'
 reproduces the exact defect this section exists to close.
 
 **Input.** The run's already-resolved `odoo_version` (the Run-header field required on every
-`writes-files` plan - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` - resolved BEFORE
-this algorithm runs; never re-derived from a branch name here).
+`writes-files` plan - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - resolved
+BEFORE this algorithm runs; never re-derived from a branch name here).
 
 **Candidate enumeration.** Listing branches by name pattern is NOT on the bounded-read allowlist
 above (only `branch --show-current` is), so ask `git-toolkit:git-ops` to report the local and
 remote-tracking branches matching the candidates below, in the SAME request that also compares
 tips and fetches if needed (enumerate + compare + fetch-if-needed is one op request, detailed in
 the table below). A candidate branch name must EXACTLY equal `<odoo_version>` (e.g. `17.0`),
-`saas-<odoo_version>` (when `odoo_version` is itself a SaaS series), or a vendor-prefixed form
-ONLY IF that prefix is already recorded in `<SHARE_DIR>/context.md` (never invented at resolution
-time). **EXACT branch-name match only - never a substring/contains match.** A substring match
+`saas-<odoo_version>` (when `odoo_version` is itself a SaaS series), or a vendor-prefixed form ONLY
+IF the brief or the repo's branch history carries it (never invented at resolution time).
+**EXACT branch-name match only - never a substring/contains match.** A substring match
 (e.g. matching `17.0-feat-x` because it contains `17.0`) reintroduces the exact confusion this
 rule exists to prevent: a human's feature branch would qualify as a "candidate" purely for
 containing the series number.

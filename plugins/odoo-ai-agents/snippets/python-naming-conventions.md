@@ -23,11 +23,9 @@ regardless of distribution, profile, or Odoo version.
 > 1. OSM (`odoo-semantic`) is reachable.
 > 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
 >    profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`.
->    Check `<SHARE_DIR>/context.md` (`viindoo_profile`; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once
->    per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
->    absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit),
->    or via OSM `profile_inspect` /
->    `list_available_profiles`.
+>    Use the profile resolved at rung 2 of
+>    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (`INST_PROFILE`, the exact
+>    declared name), else OSM `profile_inspect` / `list_available_profiles`.
 >
 > Do NOT apply these rules for Odoo CE/EE upstream or any other non-Viindoo
 > distribution.

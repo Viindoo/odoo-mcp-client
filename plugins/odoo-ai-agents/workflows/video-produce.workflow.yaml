@@ -32,7 +32,8 @@ phases:
     #   - project_label  (default "Demo-Project")
     #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
     #   - output_format  (mp4 or gif; default mp4)
-    # Checks for .odoo-ai/context.md; extracts odoo_version, instance_base_url.
+    # Resolves the series per snippets/project-facts-resolution.md and the instance target
+    # per snippets/instance-resolution.md.
     # Produces a Markdown storyboard: scene index, workflow description, estimated
     # duration, key actions (menu → record → field → action), and output filename.
     # Hard rules enforced inline:

@@ -71,13 +71,13 @@ GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, financ
    - EN: avoid "leverage", "synergize", "holistic", "game-changer". Prefer "use", "combine", "end-to-end", "practical".
    - VI: prefer natural verbs ("phát huy", "tích hợp", "tự động hóa"); avoid transliterated jargon.
 6. **No invented testimonials or hard numbers**: abstract templates only ("A manufacturer with ~150 staff..."). If user provides real data, include it with attribution.
-7. **Target-market context**: take the target market and vertical from the brief/context (`<SHARE_DIR>/context.md` or the request itself); if genuinely unstated, ASK rather than assume a region. Avoid enterprise-scale assumptions unless the brief says otherwise.
+7. **Target-market context**: take the target market and vertical from the brief or the request itself; if genuinely unstated, ASK rather than assume a region. Avoid enterprise-scale assumptions unless the brief says otherwise.
 
 ## Workflow
 
-### Round 0 - Context bootstrap + clarify (1 question max)
+### Round 0 - Resolve project facts + clarify (1 question max)
 
-Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; see also `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`). Apply `odoo_version`, audience personas, messaging pillars, channel restrictions, and tone preferences as authoritative overrides.
+**Round 0 - resolve project facts.** Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact. Audience personas, messaging pillars, channel restrictions, and tone preferences come from the caller's brief or the request; whatever they state overrides this skill's defaults.
 
 Then confirm only what is still missing: channel, topic/product angle, audience, language, tone variant. If >1 unclear, ask ONE compound question. If intent is clear enough, draft immediately and offer to adjust.
 
@@ -138,8 +138,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 
 ## Notes
 
-- **Brand assets**: if copy must describe visual elements, check any brand style guide the caller provides (e.g. one referenced from `<SHARE_DIR>/context.md`); do not assume a fixed in-repo path. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
-- **Context file**: `<SHARE_DIR>/context.md` read in Round 0 - audience personas, messaging pillars, channel restrictions, tone preferences all override defaults.
+- **Brand assets**: if copy must describe visual elements, use `<SHARE_DIR>/brand-tokens.json` when that file exists (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read), else any brand style guide the caller provides; absent both, skip brand-specific description silently and never assume a fixed in-repo path. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
 - **Leaf skill.** Does NOT invoke other skills or spawn subagents.
 - **Localization**: Vietnamese final deliverable → full diacritics. Workflow notes/placeholders in this file may be ASCII-only.
 

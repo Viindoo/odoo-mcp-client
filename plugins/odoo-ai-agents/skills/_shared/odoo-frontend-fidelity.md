@@ -212,16 +212,15 @@ and assert against it. This mirrors how the backend lint gate (`/test_lint`) rea
 the deployment's own quality module - **single source of truth lives in the consumer environment,
 not vendored here.**
 
-**Declaration (consumer side).** A project opts in by setting `brand_tokens_source` in
-`<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) to a committed JSON map
-of token -> expected color, e.g.
-`{ "--primary": "#1E88E5", "--o-brand-secondary": "#8E24AA" }`. No map declared -> brand checks
-silently skip (pure-Odoo projects are unaffected). The map is the brand SSOT; never hardcode
-brand values into a skill, agent, or rule file.
+**Declaration (consumer side).** A project opts in by placing `<SHARE_DIR>/brand-tokens.json`
+(resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit) - a JSON map of token -> expected color, e.g.
+`{ "--primary": "#1E88E5", "--o-brand-secondary": "#8E24AA" }`. The file's EXISTENCE is the opt-in;
+absent -> brand checks silently skip (pure-Odoo projects are unaffected). The map is the brand
+SSOT; never hardcode brand values into a skill, agent, or rule file.
 
-**Two enforcement halves, one helper.** Both consume `brand_tokens_source` and share
+**Two enforcement halves, one helper.** Both read that map and share
 `scripts/lib/color_delta.py` (stdlib CIEDE2000 - so `rgb()` / shorthand / hex variants compare
 perceptually, not by string):
 - **Static (no browser) - `verify-frontend.sh` Tier 4:** scans changed SCSS for hardcoded hex
@@ -232,7 +231,7 @@ perceptually, not by string):
   rendered value is knowable (OSM indexes SCSS but cannot resolve the cascade winner). WARN.
 
 Keep brand checks WARN-tier: ΔE thresholds and `rgb()`-vs-hex rounding make false-blocks easy.
-A `mockup_dir` key (also consumer-declared) feeds the existing mockup-first check (Section D).
+A non-empty `<SHARE_DIR>/mockups/` (also consumer-declared) feeds the mockup-first check (Section D).
 
 ---
 

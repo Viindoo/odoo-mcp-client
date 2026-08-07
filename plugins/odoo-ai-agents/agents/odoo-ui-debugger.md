@@ -77,17 +77,23 @@ Read/Write/Edit) to inherit upstream decisions. APPEND your diagnosis at the end
 
 **MANDATORY HARD RULE: do NOT write a finding for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** Before diagnosing any frontend symptom, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table to read per-version JS/SCSS conventions (the JavaScript and SCSS rows of the By-task table). Then read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the cross-version JS quality and web-tooling (ESLint/Prettier, asset-bundle, lint rules) reference. This grounding is mandatory - it lets you correctly classify whether a root cause is a build/format/lint/JS-quality issue versus a pure runtime state bug, and it avoids false-positive or missed findings in those categories. When handing the fix off to `odoo-coding`, explicitly instruct the coder to apply the same rule and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block.
 
-Read `<SHARE_DIR>/context.md` if present (Markdown bullets, `- **key**: value` form). Extract:
+Resolve, per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `snippets/instance-resolution.md`:
 - `odoo_version` - determines OWL vs legacy era and which selectors/registries apply.
 - `instance_base_url` - the running instance root URL.
-- `instance_login` - login identifier and agreed credential source.
+- `instance_login` - the login identifier (credential rule in item 3 below).
 - `screenshot_baseline_dir` - default: `<SHARE_DIR>/visual/baselines/` (read ONLY to reuse a
   cached login session; never a destination for your own evidence).
 
 **Fallback resolution order** (do not ask the user for a value resolvable here):
-1. `odoo_version`: from request or `<SHARE_DIR>/context.md`; STOP if absent (note reason; this agent has no version-listing tool).
-2. `instance_base_url`: from `<SHARE_DIR>/context.md`, else `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`), then the request.
-3. `instance_login`/credentials: never stored in repo; surface a single clarifying request only if genuinely unretrievable.
+1. `odoo_version`: work EVERY rung of the ladder in `project-facts-resolution.md`, in rung order,
+   from its first rung through its terminating ask-once rung, and take the first rung that answers.
+   Never truncate the ladder to its first rungs and never substitute a default series - a wrong
+   series silently applies the wrong era's selectors and registries. The ladder terminates on its
+   own; STOP is not an outcome you choose here.
+2. `instance_base_url`: from `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`), then the request.
+3. `instance_login`: the brief's value, else `admin`. The password is not stored in this repo or in
+   project state: use the value the brief supplies, and when the brief supplies none, ask for it
+   ONCE. Never guess a password and never reuse a database credential for the web login.
 
 Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concrete>)`. All subsequent OSM calls pass `odoo_version='<version>'`.
 

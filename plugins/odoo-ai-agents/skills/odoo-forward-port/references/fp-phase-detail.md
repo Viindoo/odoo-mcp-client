@@ -154,10 +154,13 @@ bucket suggestion when the diff is large. Refine the commit's ADAPT tier now tha
 known (bucket a/d -> haiku, test-only).
 
 **Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, resolve its `installable` flag
-at the target clean-tip (BEFORE merge) by reading `<module>/__manifest__.py` at `target_ref` - written
+at the target clean-tip (BEFORE merge) by reading `<module>/<tgt-descriptor>` at `target_ref` - written
 by git-ops (read-only) to `manifest_path` in the pre-step below, which now runs for EVERY touched
-module, not only before a dispatch. An absent `installable` key means installable (Odoo convention);
-an absent FILE means the module is not on the clean tip.
+module, not only before a dispatch. `<tgt-descriptor>` and `<src-descriptor>` are the per-side
+descriptor filenames SKILL.md Hard rule 11 resolved once (`__manifest__.py`, or `__openerp__.py` on
+v8.0-v9.0); they can differ across a v9.0 -> v10.0 port. An absent `installable` key means installable
+(Odoo convention); an absent FILE means the module is not on the clean tip - a conclusion only the
+side's OWN descriptor filename can support.
 
 DISPATCH the read-only sonnet leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
 needed to disambiguate category 3 - the module's manifest was NOT touched by the cherry-pick range and
@@ -170,10 +173,10 @@ Pre-step (unconditional - runs for EVERY touched module, not only before a dispa
 cross-repo ports include `repo: <main-checkout-root>` (source commits live only in the main
 checkout after P0 bootstrap):
 
-- `manifest_path`: read `<module>/__manifest__.py` at `target_ref` and write to
+- `manifest_path`: read `<module>/<tgt-descriptor>` at `target_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
 - `history_dump_path`: run a log-with-patch of manifest modifications (--follow --diff-filter=M
-  on `<module>/__manifest__.py`) against `source_ref` and write to
+  on `<module>/<src-descriptor>` - the SOURCE side's name) against `source_ref` and write to
   `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`
 
 Assign the resulting absolute paths before launching the prober; the prober mandates both fields
@@ -591,14 +594,14 @@ module to production-ready status` breadcrumb - then lint-fix only. SSOT: `[[fp-
 
 **8c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
 for any module (new or pre-existing), confirm its target installable flag. Re-read
-`<module>/__manifest__.py` at `target_ref` (via git-ops, read-only) only if the manifest was touched
+`<module>/<tgt-descriptor>` at `target_ref` (via git-ops, read-only) only if the manifest was touched
 by the merge; otherwise reuse the value P2 already resolved from `manifest_path`. If
 `installable: False` at the target, brief
 the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix ONLY syntax/lint
 breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Pass
 `LINT-ONLY: yes` in the 8b brief and the pointer `[[fp-installable-false]]`. The single exception
 to "no logic change" is a syntax/lint error that itself blocks the file from parsing.
-When the merged `__manifest__.py` now shows `installable:True` (upgrade-commit carried in)
+When the merged `<tgt-descriptor>` now shows `installable:True` (upgrade-commit carried in)
 but the target clean-tip was `installable:False`, re-set to False + re-comment
 `auto_install`/`application` with the `# TODO: Uncomment when upgrading` breadcrumb before
 dispatching the coder. SSOT: `[[fp-installable-false]]`.
@@ -654,14 +657,16 @@ and skip the `WORKTREE_PATH` re-root below. Everything from here to the P10 gate
 that dispatch brief and the adjudication this orchestrator performs on the RETURNED `instance-ops`
 block, never a shell recipe run inline.
 
-**Env-bootstrap (informational, before the first dispatch).** Read `<SHARE_DIR>/context.md`
-`## Verify environment` for the CATALOG (principal-checkout) baseline `odoo-instance` resolves
-against internally - venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
+**Env-bootstrap (informational, before the first dispatch).** Resolve the CATALOG
+(principal-checkout) baseline from the declared `[[instance]]` entry covering this repo -
+`INST_ADDONS_PATH` and `INST_PYTHON` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2. That is a baseline only:
+venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
 own job (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`), never hand-built or hand-verified
 here. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY repo on disk - a missing
 repo makes a module invisible (silent ImportError / "module not found") to the dispatched instance.
-Confirm each stack repo listed in `context.md` exists on disk before dispatching; a missing repo is
-`BLOCKED` (NEEDS_CONTEXT), not a test red.
+Confirm every root in that entry's `addons_path` list exists on disk before dispatching; a missing
+repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
 
 **Worktree re-root (MANDATORY, after the CATALOG baseline above, before it is treated as final).**
 The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
@@ -673,7 +678,7 @@ uses - `odoo-instance`'s `WORKTREE_PATH` field (`${CLAUDE_PLUGIN_ROOT}/skills/od
 principal checkout and prepends the equivalent under `<path>/fp-integration` before `acquire`. Do NOT
 hand-build the override yourself and do NOT verify against the catalog `ADDONS_PATH` built above
 directly - that is exactly the un-adapted-code false-green this re-root exists to prevent. Before trusting any
-result below, assert the resolved addons list contains `<path>/fp-integration/<module>/__manifest__.py`
+result below, assert the resolved addons list contains `<path>/fp-integration/<module>/<tgt-descriptor>`
 for every module in this batch (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` §
 Addons coverage assertion) - on a miss, `BLOCKED`, never a silent run against the wrong tree.
 

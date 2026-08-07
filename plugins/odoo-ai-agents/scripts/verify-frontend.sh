@@ -525,11 +525,11 @@ fi
 # ===========================================================================
 # TIER 4 - BRAND FIDELITY (optional, brand-agnostic, static)
 # ===========================================================================
-# Runs ONLY when the consumer declares `brand_tokens_source` in the project's SHARE
-# context.md (Tier-2 SHARE - resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
-# ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md; substitute the captured
-# absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-# Read/Write/Edit) (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}).
+# Runs ONLY when the project's SHARE dir (Tier-2 SHARE - resolve `<SHARE_DIR>`/
+# `<ISOLATE_DIR>` once per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md;
+# substitute the captured absolute path - never write the placeholder or a bare
+# `.odoo-ai/` into a Read/Write/Edit) contains `brand-tokens.json` (a JSON map of
+# token -> color, e.g. {"--primary": "#1E88E5", ...}).
 # The plugin ships NO brand of its own - the map is discovered from the consumer
 # environment. No browser here: this is the STATIC half (hardcoded-hex vs brand
 # palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
@@ -542,17 +542,11 @@ echo "--- Tier 4: Brand fidelity (optional) ---"
 # to the legacy project-relative path.
 _SHARE_DIR="$(cd "$PWD" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" share 2>/dev/null || true)"
 [[ -n "$_SHARE_DIR" ]] || _SHARE_DIR="$PWD/.odoo-ai"
-_BRAND_SRC=""
-if [[ -f "$_SHARE_DIR/context.md" ]]; then
-    _BRAND_SRC="$(grep -iE '^[-*][[:space:]]*\**brand_tokens_source' "$_SHARE_DIR/context.md" 2>/dev/null \
-        | head -1 | sed -E 's/.*brand_tokens_source\**[[:space:]]*:?[[:space:]]*//' | tr -d '`' | xargs 2>/dev/null || true)"
-fi
+_BRAND_SRC="$_SHARE_DIR/brand-tokens.json"
 COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
 _BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
-if [[ -z "$_BRAND_SRC" ]]; then
-    _skip "no brand_tokens_source in $_SHARE_DIR/context.md - brand fidelity skipped (not a blocking condition)"
-elif [[ ! -f "$_BRAND_SRC" ]]; then
-    _warn "brand_tokens_source declared but file not found: $_BRAND_SRC"
+if [[ ! -f "$_BRAND_SRC" ]]; then
+    _skip "no brand-tokens.json in $_SHARE_DIR - brand fidelity skipped (not a blocking condition)"
 elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then
     _skip "python3 / color_delta.py unavailable - brand fidelity skipped"
 elif [[ ${#SCSS_FILES[@]} -eq 0 ]]; then

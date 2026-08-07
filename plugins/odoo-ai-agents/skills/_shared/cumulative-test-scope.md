@@ -52,7 +52,7 @@ Own-module suites for every module in the run-set:
 ## Standalone / OSM-down degrade
 
 If OSM is unreachable, still run `C_N` in full - its members and their `depends` come from the
-plan's injected `cumulative_modules` + each module's `__manifest__.py` on disk (SSOT:
+plan's injected `cumulative_modules` + each module's descriptor on disk (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` disk fallback). RECORD in the wave log
 that the `tests_covering` widening was SKIPPED (OSM unavailable). Never silently narrow below `C_N`.
 

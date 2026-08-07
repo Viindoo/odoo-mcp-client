@@ -19,9 +19,11 @@ part of the approved plan, not a runtime improvisation.
 > run yet):**
 > If the module's `installable` field is `False` at the TARGET clean tip -> this module is on the
 > **lint-only lane**. Resolve this yourself, right now, via the SAME disk-read Discriminator
-> `[[fp-installable-false]]` § Discriminator defines: read `<module>/__manifest__.py` at the target
-> ref through `git-toolkit:git-ops` (read-only) - an absent key means installable, an absent FILE
-> means the module is not on the clean tip. OSM does NOT carry this flag (`module_inspect` /
+> `[[fp-installable-false]]` § Discriminator defines: read `<module>/<tgt-descriptor>` at the target
+> ref through `git-toolkit:git-ops` (read-only) - `<tgt-descriptor>` is the descriptor filename
+> SKILL.md Hard rule 11 resolved once for the target side (`__manifest__.py`, or `__openerp__.py` on
+> v8.0-v9.0). An absent key means installable; an absent FILE means the module is not on the clean
+> tip - never conclude that from a read of the OTHER era's filename. OSM does NOT carry this flag (`module_inspect` /
 > `describe_module` / `check_module_exists` all omit it) - a disk read is the only path. Do NOT wait
 > for P2's `manifest_path` artifact (a later phase; it independently re-reads the SAME ref into its
 > own file, then records `installable_false` in `merge-log.md` for the module-keyed record - the
@@ -74,7 +76,7 @@ never silently proceed at opus, and never deadlock waiting on a human who is not
 
 > **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
 > If the module's `installable` field is `False` at the TARGET clean tip
-> (read `<module>/__manifest__.py` at the target ref - the value P2 resolved into `manifest_path`;
+> (read `<module>/<tgt-descriptor>` at the target ref - the value P2 resolved into `manifest_path`;
 > an absent key means installable) -> this module is on the **lint-only lane**.
 > Do NOT walk the tier rows below. Do NOT dispatch adapt logic or business-logic review.
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.

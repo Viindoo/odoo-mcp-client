@@ -529,6 +529,37 @@ def test_nongit_dir_with_manifest_marker_resolves_via_walkup(tmp_path):
 
 
 @requires_bash
+def test_nongit_dir_with_openerp_marker_resolves_via_walkup(tmp_path):
+    """v8.0-v9.0 addons carry `__openerp__.py`, not `__manifest__.py` (the
+    descriptor filename flips at 10.0 - both are valid project markers). A
+    checkout whose ONLY marker is `__openerp__.py`, outside any git repo,
+    must resolve identically in both resolvers - the parity fence for a
+    marker set widened in one resolver but not the other."""
+    home = tmp_path / "home"
+    proj = tmp_path / "standalone_module_v8"
+    deep = proj / "sub" / "deeper"
+    deep.mkdir(parents=True)
+    (proj / "__openerp__.py").write_text("{}", encoding="utf-8")
+    env = _env(home)
+
+    sh = _sh_resolve("share", deep, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve("share", deep, env)
+    assert py.returncode == 0, py.stderr
+    assert sh.stdout.strip() == py.stdout.strip(), (
+        f"shell={sh.stdout.strip()!r} python={py.stdout.strip()!r}"
+    )
+
+    # Resolving from a DIFFERENT subdirectory of the SAME marker root must
+    # yield the SAME key - proves it hashes the marker root, not raw cwd.
+    other_sub = proj / "other"
+    other_sub.mkdir()
+    py2 = _py_resolve("share", other_sub, env)
+    assert py2.returncode == 0, py2.stderr
+    assert py2.stdout.strip() == py.stdout.strip()
+
+
+@requires_bash
 def test_nongit_dir_with_sentinel_marker_resolves(tmp_path):
     home = tmp_path / "home"
     proj = tmp_path / "sentinel_project"

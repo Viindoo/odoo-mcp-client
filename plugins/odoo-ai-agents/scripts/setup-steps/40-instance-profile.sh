@@ -111,7 +111,10 @@ cmd_check() {
 }
 
 # ---------------------------------------------------------------------------
-# gitignore - idempotent append of `.odoo-ai/` (mirrors odoo-onboarding step 8)
+# gitignore - idempotent append of `.odoo-ai/` to the PROJECT-local .gitignore,
+# so this checkout's project-scoped .odoo-ai/ state dir is never committed.
+# (The machine-global $ODOO_AI_HOME/.gitignore is a separate file, written by
+# lib/resolve_instances.sh - not this function.)
 # ---------------------------------------------------------------------------
 _ensure_gitignore() {
     if [[ -f "$GITIGNORE" ]]; then

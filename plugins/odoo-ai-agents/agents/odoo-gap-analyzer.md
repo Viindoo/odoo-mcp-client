@@ -29,7 +29,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 | `REQUIREMENTS` | This cluster's requirement list (inlined as text, or an absolute path to a file you `Read`). Each item carries a stable `req_id` if the caller assigned one; otherwise mint `<CLUSTER_LABEL>-<n>` |
 | `CLUSTER_LABEL` | Short label for this cluster (drives the cluster report section name and minted req_ids) |
 | `ODOO_VERSION` | Concrete target version string (e.g. `17.0`) - NEVER `auto`; used on every OSM call |
-| `PROFILE` | Tenant profile name for `set_active_profile` (e.g. the `viindoo_profile` from the caller's `<SHARE_DIR>/context.md`, resolved once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); if absent, skip the profile pin |
+| `PROFILE` | Tenant profile name for `set_active_profile`, resolved by the caller per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2; if absent, skip the profile pin |
 | `OUTPUT_DIR` | Absolute directory under the `$ODOO_AI_HOME` state root (see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) to write findings into |
 
 If `REQUIREMENTS` is empty or absent, return immediately: `NEEDS_CONTEXT - no REQUIREMENTS provided for cluster <CLUSTER_LABEL>`.

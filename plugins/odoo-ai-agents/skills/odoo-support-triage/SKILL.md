@@ -49,13 +49,12 @@ If OSM unreachable: all phases complete via training knowledge; append caveat th
 
 ## Phase 0 - Collect ticket input
 
-`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
-below). Read `<SHARE_DIR>/context.md` if present (`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); extract `odoo_version` as default.
+Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact.
 
 Ask only for still-missing fields:
 
-**Required:** ticket description or customer message (accepted as structured text already in request, OR a file path - `Read` it; never ask to re-paste); Odoo version (default from context.md; "unknown" acceptable).
+**Required:** ticket description or customer message (accepted as structured text already in request, OR a file path - `Read` it; never ask to re-paste); Odoo series - resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, asked for only when every rung missed. An unresolved series is `NEEDS_CONTEXT`, never the literal `"unknown"`: version-relative triage (is this a bug or a known behavior of that series?) cannot be graded without it.
 
 **Optional:** module/menu path, customer label (abstract; real names not required), customer severity, prior steps taken.
 

@@ -188,7 +188,10 @@ CRITICAL defect.
 
 **2. Determine the target module set.** Derive the modules the change will touch from the design
 doc / the request (coding *creates* the change, so there is no git diff to read - unlike
-`odoo-code-review`). A "module" is the directory holding `__manifest__.py`.
+`odoo-code-review`). A "module" is the directory holding its DESCRIPTOR - `__manifest__.py`, or
+`__openerp__.py` on v8-v9. Any discovery glob or existence check covers BOTH names; matching one
+alone makes every module of a whole era read as non-existent (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`).
 
 **3. Tag each module's stack-need** - `backend`, `frontend`, or `fullstack`. Take it from the
 design doc when it already splits the work; otherwise infer: touching `models/` `views/`
@@ -196,14 +199,23 @@ design doc when it already splits the work; otherwise infer: touching `models/` 
 
 **4. Compute the dependency order (OSM is ground truth).** Follow
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` - the SSOT for the module DAG, shared
-with `run-harness`'s between-wave integration so both order work the same way. In short: call
+with `run-harness`'s between-wave integration so both order work the same way.
+
+**Resolve the Odoo series ONCE here, before the first OSM call that needs it** (steps 4 and 6 below
+both pass it, and both run BEFORE the gate): work the rungs of
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order and stop at the first that
+answers - NEVER a silent default. When a plan/design fed `odoo_version` in the Continuation-Contract
+`inputs`, consume it verbatim. Carry that one concrete value as `[resolved version]` / `<version>`
+through the rest of Phase 0 and into every dispatch brief (§ Dispatch loop).
+
+In short: call
 `module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` per target
 module (concrete version - the pin is per-session and racy under a shared session, see
 `skills/_shared/concurrency-guard.md` "OSM session-pin race"), build the sub-graph restricted to the
 target set, and topologically order it - independent modules share a **wave** (parallel), a
-dependent module runs in a **later wave**. The disk fallback (haiku reader of each
-`__manifest__.py` `depends` + `static/src` scan, labelled "graph from disk (OSM unavailable)")
-lives in that SSOT.
+dependent module runs in a **later wave**. The disk fallback (haiku reader of each module
+descriptor's `depends` - BOTH names - plus a `static/src` scan, labelled "graph from disk (OSM
+unavailable)") lives in that SSOT.
 
 **5. Assign a model tier per module (deterministic - no judgment call mid-flow).**
 Every dispatch in this skill passes an explicit `model`. Resolve the tier for each
@@ -298,8 +310,8 @@ return their summaries pre-mirrored:
 Proposed: <one-line summary of the change>.
 Plan:
   | module | stack     | wave | depth    | test        | files (intended) |
-  | <m1>   | backend   | 1    | quick    | test-writer | <m1>/models/*.py, __manifest__.py |
-  | <m2>   | fullstack | 1    | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
+  | <m1>   | backend   | 1    | quick    | test-writer | <m1>/models/*.py, <m1>/<descriptor> |
+  | <m2>   | fullstack | 1    | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, <m2>/<descriptor> |
   | <m3>   | frontend  | 2    | standard | test-writer | <m3>/static/src/*.js (depends on <m1>) |
 depth = how much reasoning each module gets, and what it costs: quick (cheapest, mechanical
      edits) < standard (the default) < deep (costlier - multi-domain, many dependents) <
@@ -365,10 +377,10 @@ the release is per-module and non-negotiable. Full rule:
 The Phase 0 plan carries, per module: name, path on disk, stack, model (and `frontendModel` when
 split), the in-set dependency edges (the "(depends on ...)" in the gate table), whether it is a new
 module, the coverage pre-flight (universal test-first via `odoo-test-writer`), and the per-module
-request (+ a frontendRequest for the UI leg). Resolve ONE concrete Odoo version for the whole run via
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (read `<SHARE_DIR>/context.md` -> manifest
-`version` -> ask the user) - NEVER a silent default; when a plan/design fed `odoo_version` in the
-Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, the runSlug
+request (+ a frontendRequest for the UI leg). The run's ONE concrete Odoo series is the value
+Phase 0 step 4 already resolved (via
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) - forward it verbatim; never
+re-resolve it here and never substitute a default. Carry the design-doc path, the runSlug
 (scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
 
 0. Context-handoff probe (run ONCE per run, before the first batch fires). Follow
@@ -515,7 +527,7 @@ DISPATCH MODEL: <tier>
 WORKER NAME: <name> - OPTIONAL, present only when the caller pre-assigns a stable CHP Tier-A identity for this module's coordinator across separate `odoo-coding` invocations (e.g. a forward-port run resuming the same module's coordinator across separate source commits touching it). Same field shape as the P8a `odoo-test-writer` name in `odoo-forward-port` - a NAME, never an agentId. When present, use THIS as the coordinator's stable Tier-A `name` in step 0/3 below INSTEAD of self-generating `coder-<module-slug>`: if a worker under this name is already addressable, resume it via `SendMessage`; otherwise spawn fresh under this name. Absent (every caller that does not opt in - today's default) -> proceed exactly as documented below: self-generate `coder-<module-slug>`.
 REQUEST: <the change for this module: target model + constraints (+ frontendRequest for a frontend WI)>
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
-MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
+MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its descriptor / static assets). Resolve the descriptor filename ONCE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one the module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
 WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
@@ -612,7 +624,8 @@ A later review / fix / resume step re-dispatches BLOCKED modules at the SAME rec
 ## Standalone-first fallback
 
 When OSM (the odoo-semantic-mcp server) is unreachable, the dependency graph and stack tags come
-from disk - read each `__manifest__.py` `depends` and scan `static/src` (or the haiku reader
+from disk - read each module descriptor's `depends` (`__manifest__.py`, or `__openerp__.py` on
+v8-v9 - glob BOTH) and scan `static/src` (or the haiku reader
 above) - and each agent falls back to its own disk-grounded mode per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`, still writing files to their correct
 locations. Label the plan "graph from disk (OSM unavailable)"; the wave topology is

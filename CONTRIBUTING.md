@@ -134,7 +134,7 @@ contributors, not for agents.
 | `plugins/odoo-ai-agents/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
 | `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |
 | `plugins/odoo-ai-agents/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
-| `plugins/odoo-ai-agents/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
+| `plugins/odoo-ai-agents/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, project-facts-resolution, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
 | `plugins/odoo-ai-agents/docs/` | Persona guides, client setup, orchestration map + reference docs |
 | `plugins/odoo-semantic-mcp/.claude-plugin/plugin.json` | MCP plugin manifest (userConfig for URL + API key) |
 | `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |

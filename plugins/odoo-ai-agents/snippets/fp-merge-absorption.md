@@ -39,10 +39,11 @@ working tree is the absorption zone. All work happens here - in this order:
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    see [[fp-intent-4outcome]]).
 2a. **Manifest version (C1) - never invent a bump.** `--no-ff` already carries whatever the source
-    commit did to `__manifest__.py`. Do NOT add, derive, or increment a `version` bump on the target
-    side. On a `__manifest__.py` `version` CONFLICT, keep the **TARGET** file's `version` field as-is -
-    never merge-pick the higher number, never bump "to be safe". (The only bump permitted anywhere in
-    forward-port is the C2 case below, and it is a migration-threshold bump, not a conflict decision.)
+    commit did to the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0). Do NOT
+    add, derive, or increment a `version` bump on the target side. On a module-descriptor `version`
+    CONFLICT, keep the **TARGET** file's `version` field as-is - never merge-pick the higher number,
+    never bump "to be safe". (The only bump permitted anywhere in forward-port is the C2 case below,
+    and it is a migration-threshold bump, not a conflict decision.)
 3. Forward tests - translate API to target, strip implementation-coupled assertions
    (see [[test-behavior-contract]]).
 4. Fix any lint/eslint/prettier errors introduced by the merge.

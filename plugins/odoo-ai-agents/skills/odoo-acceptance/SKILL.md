@@ -226,8 +226,8 @@ is still leased. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-co
 
 When Odoo Semantic is unreachable, structural grounding falls back to the local checkout
 (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §4): derive the closure from disk
-(`__manifest__.py depends` + grep for `_inherit`) and label the manifest "closure approximate from
-disk". When NO live instance + browser MCP is reachable, EXECUTION cannot run: still produce Phase 0
+(each module's descriptor `depends` - `__manifest__.py`, or `__openerp__.py` on v8-v9 - plus grep
+for `_inherit`) and label the manifest "closure approximate from disk". When NO live instance + browser MCP is reachable, EXECUTION cannot run: still produce Phase 0
 scope and the Phase 1 oracle, then emit `NEEDS_NEXT -> odoo-instance` to provision one
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`); fall back to `BLOCKED` only when
 provisioning is impossible. Never report ACCEPTED without live evidence. This skill is

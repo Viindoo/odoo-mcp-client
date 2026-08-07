@@ -11,7 +11,7 @@ SHARE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved agai
 ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
 
 Scope this review per your full I/O contract (${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md).
-Resolve the diff, detect modules (dirs with __manifest__.py), run test_coverage_audit per module,
+Resolve the diff, detect modules (dirs with __manifest__.py, or __openerp__.py on v8-v9), run test_coverage_audit per module,
 detect any design doc, determine fanout (single|multi), and write the compact scope file to
 <ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md using the SHARE_DIR/ISOLATE_DIR literals above
 DIRECTLY - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
@@ -99,11 +99,12 @@ USER LANGUAGE: <e.g. Vietnamese>
 ODOO_VERSION: <e.g. 17.0>
 SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
 ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, context.md, screenshot
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, baselines, screenshot
 staging) - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
 Review the RENDERED UI for module `<module>` on these screens: <affected_screens - view/action/menu
-xmlids from scoper>. Resolve instance_base_url from <SHARE_DIR>/context.md (the SHARE_DIR literal
-above; else $ODOO_AI_HOME/instances.toml); browser headless by default.
+xmlids from scoper>. Resolve instance_base_url per snippets/instance-resolution.md (live shared
+server first, else the declared [[instance]] in $ODOO_AI_HOME/instances.toml); browser headless by
+default.
 Rate the six lenses (aesthetics, functional correctness, runtime stability, accessibility, performance,
 design-system/theme fidelity) per your agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-reviewer.md).
 DESIGN_DOC: <path | absent> - when present (non-null): MANDATORY - verify the UI-observable acceptance

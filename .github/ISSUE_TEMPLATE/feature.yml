@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for suggesting a feature!
-        **Client-side only** — new skills, snippet formats, connect-command improvements, agent changes.
+        **Client-side only** - new skills, snippet formats, connect-command improvements, agent changes.
         Server-side feature requests go to [the Odoo Semantic service](https://odoo-semantic.viindoo.com/).
 
   - type: textarea

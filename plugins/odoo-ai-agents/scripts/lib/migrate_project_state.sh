@@ -83,7 +83,7 @@ _tier2_classify_top() {
             # do not migrate" outcome as tier1, kept as a distinct case only
             # for the comment above; behaves identically to tier1 below.
             printf 'tier1\n' ;;
-        context.md | coordination | designs | plans | gap-analysis | \
+        coordination | designs | plans | gap-analysis | \
         documentation | survey | brl | brand-tokens.json | mockups | \
         glossary.yml | cost-config.json)
             printf 'share\n' ;;
@@ -96,6 +96,8 @@ _tier2_classify_top() {
         visual)
             printf 'visual\n' ;;
         *)
+            # Not in either exhaustive table - left in place, never guessed
+            # into a tier (see the file header).
             printf 'unknown\n' ;;
     esac
 }

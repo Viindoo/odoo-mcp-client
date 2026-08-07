@@ -71,23 +71,29 @@ variant - default to headless; use headed only when the human asks to watch. Thi
 
 Work in rounds; fire independent calls in the same message within a round.
 
-### Round 0 - Load context
+### Round 0 - Resolve the run's inputs
 
-Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; Markdown bullets, `- **key**: value` format). Extract:
-- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, and (optional)
-  `instance_base_url_b` - see `docs/odoo-ui-knowledge.md` § "Context file keys consumed by the
-  visual skills" for the full definitions. `instance_base_url_b` is set ONLY for a genuine
-  two-instance comparison (two separate builds/hosts); when absent, state B is the SAME
+Resolve each input from its own SSOT - never from a stored snapshot, and never by guessing:
+
+- **Odoo series** - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
+- **`instance_base_url`** (state A) - per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
+  (live shared server first, then the declared `[[instance]]` in `$ODOO_AI_HOME/instances.toml`).
+- **`instance_base_url_b`** (state B) - a per-run BRIEF/request input, set ONLY for a genuine
+  two-instance comparison (two separate builds/hosts). Absent -> state B is the SAME
   `instance_base_url` re-navigated after the change under test (module install/uninstall, theme
-  toggle, in-place upgrade) is applied.
+  toggle, in-place upgrade) is applied. That same-instance before/after is the default.
+- **Login identifier** - the brief's, else `admin`. The PASSWORD is stored neither in this repo nor
+  in project state: use the value the brief supplies, and when the brief supplies none, ask for it
+  ONCE. Never guess a password and never reuse a database credential for the web login.
+- **Baseline dir** - always `<SHARE_DIR>/visual/baselines/`; there is no per-project override.
 
-If absent or key missing, fall back to `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`) for instance URL and OSM
-`list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
-single message only if none supply the needed values. Do not guess.
+Ask the user (plus the two states to compare) in a single message only for what no SSOT above
+supplies. Do not guess.
 
-Then resolve `<ISOLATE_DIR>` - needed before Round 3 writes any comparison screenshot, and before
-the orphan sweep below. Resolve once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
-(same protocol as `<SHARE_DIR>` above).
+Then resolve `<SHARE_DIR>` and `<ISOLATE_DIR>` - both needed before Round 3 writes any comparison
+screenshot, and before the orphan sweep below. Resolve each once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write a placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
 
 **Orphan sweep (crash backstop, do this every run, BEFORE minting your own slug below).** No hook
 tracks a filesystem directory the way the allocator ledger tracks an instance lease (T4's ledger-gc
@@ -146,7 +152,7 @@ place across every screen/breakpoint - instead of opening a new page per screen.
 For each in-scope screen at each agreed breakpoint:
 1. `navigate_page` to the screen (state A).
 2. `resize_page` to the breakpoint.
-3. `take_screenshot` → `<screenshot_baseline_dir>/baseline/<screen>-<breakpoint>.png` (pass this
+3. `take_screenshot` → `<SHARE_DIR>/visual/baselines/<screen>-<breakpoint>.png` (pass this
    absolute path as `filePath`, never `path` - the chrome-devtools schema accepts unknown keys
    silently and writes nothing).
 
@@ -200,7 +206,7 @@ reused. This step is unconditional: run it even when Round 2/3 stayed on one pag
 - <screen> drifted but was NOT in the predicted blast radius - investigate.
 
 ### Baseline location
-- Baselines (SHARE, reusable): <screenshot_baseline_dir>/baseline/
+- Baselines (SHARE, reusable): <SHARE_DIR>/visual/baselines/
 - This run's comparison set (ISOLATE, deleted after this verdict): <ISOLATE_DIR>/visual/current/<slug>/
 ```
 
@@ -210,7 +216,7 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 ## Notes / Integration
 
 - Determinism matters: same login, data, breakpoint, scroll position for both captures or the diff is noise.
-- Baselines are written under `screenshot_baseline_dir` from `<SHARE_DIR>/context.md`.
+- Baselines are written under `<SHARE_DIR>/visual/baselines/`, unconditionally.
 - This skill detects drift only; hand fixes to `odoo-coding`.
 - **Tier split (do not merge them).** Baselines are SHARE (reusable across runs); this run's
   comparison set is ISOLATE and per-slug. Classification SSOT:

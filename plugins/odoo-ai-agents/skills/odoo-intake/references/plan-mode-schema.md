@@ -11,10 +11,9 @@ blocks. None is optional for a `writes-files` Approach.
 
 **Run header (required on every `writes-files` plan, ABOVE Block 1).**
 `odoo_version: <concrete series, e.g. 18.0>`; optional `viindoo_profile: <name|none>`,
-`grounding: osm | local-source | standalone`. Resolve `odoo_version` via
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (`<SHARE_DIR>/context.md` -> manifest
-`version` -> ask the user; resolve `<SHARE_DIR>` via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - NEVER a silent default. This run header is a documented schema field
+`grounding: osm | local-source | standalone`. Resolve `odoo_version` by working the rungs of
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order and stopping at the first that
+answers - NEVER a silent default. This run header is a documented schema field
 so `run-harness` / `odoo-coding` read it as a field, not a header line they must guess. Read-only/chat
 Approaches never load this schema and carry no such field.
 

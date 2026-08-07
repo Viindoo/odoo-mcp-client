@@ -57,14 +57,13 @@ developer-oriented tools - this skill outputs business analysis, not code.
 
 This skill produces a full Discovery Profile without OSM. Follow rounds in sequence.
 
-### Round 0 - Session context bootstrap
+### Round 0 - Resolve project facts
 
-Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` before asking for any project fact:
-
-1. **Read `<SHARE_DIR>/context.md`** if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version` and `profile_name` as
-   authoritative defaults (used when `check_module_exists` is called in Rounds 3/3.5).
-2. If absent, derive version from manifest files; default to `odoo_version=<version>` if still unresolved.
-3. Ask the caller only for context genuinely missing after steps 1-2.
+**Round 0 - resolve project facts.** Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` before asking for any project fact.
+The resolved series and profile are the authoritative arguments for `check_module_exists` in
+Rounds 3/3.5. Never substitute a default series: an unresolved series stays unresolved and joins
+the ladder's single batched ask.
 
 ### Round 1 - Parse the raw input
 
@@ -176,7 +175,7 @@ self-contained - a colleague who was not on the call should understand the full 
 
 ## Notes
 
-- **`<SHARE_DIR>/context.md` integration:** Handled by Round 0 (see context-bootstrap snippet). `odoo_version` and `profile_name` are used as authoritative defaults for all OSM calls. Absent → derive from disk, ask human for details.
+- **Project facts:** Handled by Round 0 per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. The resolved series and profile are the authoritative arguments for all OSM calls.
 - **Cross-skill handoff:** Discovery Profile is the INPUT to `odoo-gap-analysis`. Pipeline: `odoo-discovery-summary` (qualify) → `odoo-gap-analysis` (scope) → `odoo-deal-followup` (follow up) → `odoo-respond-bid` (proposal).
 
 ## Continuation Contract

@@ -316,7 +316,7 @@ Detailed rules + severity live in `### Test coverage of the behavior` (under `##
 ## Hard constraints
 
 - Do NOT modify any source file under review - your ONLY permitted write is the review report under `<ISOLATE_DIR>/reviews/...` (`<ISOLATE_DIR>` per `## State dir resolution` above; gitignored).
-- If OSM is unreachable after one retry, continue with static analysis and note the fallback (for `MODE=synthesis`, derive the closure from disk `__manifest__.py depends` + grep, labeled "closure approximate from disk").
+- If OSM is unreachable after one retry, continue with static analysis and note the fallback (for `MODE=synthesis`, derive the closure from each module's on-disk descriptor `depends` + grep - open whichever filename that module actually has (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0), since the scope block you consume discovers both - labeled "closure approximate from disk").
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
 - You are a HARD LEAF: the Skill tool is permitted ONLY to invoke the three dedicated audit skills inline for your own audit escalation (`## Review workflow` Step 3.6; precedent: `odoo-test-writer` invoking `odoo-test-writing` inline) - you NEVER launch another Agent.
 

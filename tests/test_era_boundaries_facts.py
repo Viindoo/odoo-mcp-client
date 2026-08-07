@@ -9,15 +9,24 @@ while still passing the excision guard.
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 SNIPPET = PLUGIN / "snippets" / "odoo-era-boundaries.md"
+DETECTOR = PLUGIN / "scripts" / "lib" / "odoo_series.py"
 TEST_WRITING_SKILL = PLUGIN / "skills" / "odoo-test-writing" / "SKILL.md"
 
 _WS = re.compile(r"\s+")
+
+# A dotted numeric value quoted in the prose, e.g. `17.0.1.0.0` or `1.0.9`. Anything with a letter or
+# a placeholder bracket (`<major>.0.x.y`) is a shape sketch, not a value that can be executed.
+_QUOTED_VERSION_RE = re.compile(r"`([0-9][0-9.]*)`")
+# The divider the step-3 prose keeps between the values it calls candidates and the values it says
+# yield nothing. Which SIDE a value sits on is the claim; each test below executes that claim.
+_NOTHING_DIVIDER = "Every other value yields NOTHING:"
 
 _ALL_EIGHT_TEST_BASE_CLASSES = (
     "TransactionCase",
@@ -92,6 +101,132 @@ def test_row4_carries_the_v8_v9_era1_carveout():
     assert "era1" in row4, "row 4 must carry the v8/v9 era1 carve-out"
     assert "regex best-effort" in row4, "row 4 must quote the era1 caveat text"
     assert "FRAMEWORK" in row4, "row 4 must state the framework base menu stays authoritative"
+
+
+def test_row5_states_the_core_package_dir_boundary():
+    """Row 5 is the SSOT for the core package directory era: `openerp/` on v8-v9, `odoo/` on v10+.
+    A checkout-derivation step that probes only one of the two names finds NOTHING on the other era
+    and fails silently, so the boundary AND the probe-both instruction must both be stated."""
+    row5 = _row(5)
+    assert "openerp/" in row5 and "odoo/" in row5, "row 5 must name both package dirs"
+    assert "v8.0-v9.0" in row5, "row 5 must state the openerp/ window as v8.0-v9.0"
+    assert "v10.0+" in row5, "row 5 must state the odoo/ window as v10.0+"
+    assert "10.0" in row5, "row 5 must state the flip series"
+    assert "BOTH" in row5, "row 5 must instruct that BOTH package dirs are probed from a checkout"
+
+
+def test_row6_states_the_manifest_filename_boundary():
+    """Row 6 is the SSOT for the descriptor filename era: `__openerp__.py` on v8-v9,
+    `__manifest__.py` on v10+. Globbing one name alone is the confirmed silent-miss defect, so the
+    both-names glob rule and the both-present precedence must both be stated."""
+    row6 = _row(6)
+    assert "__openerp__.py" in row6, "row 6 must name `__openerp__.py`"
+    assert "__manifest__.py" in row6, "row 6 must name `__manifest__.py`"
+    assert "v8.0-v9.0" in row6, "row 6 must state the __openerp__.py window as v8.0-v9.0"
+    assert "v10.0+" in row6, "row 6 must state the __manifest__.py window as v10.0+"
+    assert "BOTH" in row6, "row 6 must require a module glob to cover BOTH descriptor filenames"
+    assert "silently ignores" in row6, (
+        "row 6 must state the both-present precedence: Odoo loads __manifest__.py and silently "
+        "ignores __openerp__.py"
+    )
+
+
+def _derivation_body() -> str:
+    text = SNIPPET.read_text(encoding="utf-8")
+    assert "## Series derivation from a checkout" in text, (
+        "the era snippet must own the `## Series derivation from a checkout` section that "
+        "project-facts-resolution.md rung 3 cites by anchor"
+    )
+    return text.split("## Series derivation from a checkout", 1)[1]
+
+
+def _step3_prose() -> str:
+    """The step-3 item of the ordered derivation, on its own."""
+    body = _derivation_body()
+    start = body.find("3. **The manifest")
+    assert start != -1, "the derivation section must carry a step 3 for the manifest `version` key"
+    end = body.find("\n4. **", start)
+    assert end != -1, "step 3 must be followed by step 4"
+    return body[start:end]
+
+
+def _load_detect():
+    spec = importlib.util.spec_from_file_location("odoo_series_for_doc_claims", DETECTOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.detect
+
+
+_detect = _load_detect()
+
+
+def _detect_version(tmp_path: Path, version: str) -> dict:
+    """Run the shipped detector against a throwaway one-addon tree carrying `version`."""
+    mod = tmp_path / ("t_" + version.replace(".", "_")) / "addons" / "mod_x"
+    mod.mkdir(parents=True, exist_ok=True)
+    (mod / "__manifest__.py").write_text(
+        "{{'name': 'mod_x', 'version': {0!r}}}\n".format(version), encoding="utf-8"
+    )
+    return _detect(mod.parent.parent)
+
+
+def test_series_derivation_section_is_terminating_and_never_defaults():
+    """The derivation section must terminate at NEEDS_CONTEXT rather than guessing a series, and
+    must state that a manifest `version` is never one - the two failure modes a guard exercising
+    only a `17.0.1.0.0` manifest would go green while missing."""
+    body = _derivation_body()
+    assert "odoo_series.py detect" in body, "the section must name the shipped detector to run"
+    assert "NEEDS_CONTEXT" in body, "the section must name the unresolved outcome"
+    assert "Never substitute a default series" in body, (
+        "the section must forbid defaulting to a series when derivation fails"
+    )
+    assert "a HINT, never a series" in _step3_prose(), (
+        "step 3 must state that a manifest `version` is a hint and never a resolved series"
+    )
+
+
+def test_each_value_step3_calls_a_candidate_really_classifies_as_one(tmp_path):
+    """A prose claim is EXECUTED here, not string-matched.
+
+    The predecessor of this test asserted that the section contained the literal `1.0.9` labelled
+    REJECTED - a claim the shipped detector contradicted, so CI actively pinned the wrong answer
+    into the doc. Running each value the prose names through the detector cannot pin a wrong answer:
+    doc and code must agree or one of them goes red."""
+    head, divider, _ = _step3_prose().partition(_NOTHING_DIVIDER)
+    assert divider, (
+        f"step 3 must keep the {_NOTHING_DIVIDER!r} divider - it is what separates the values the "
+        "prose calls candidates from the values it says yield nothing, and these tests execute both"
+    )
+    named = _QUOTED_VERSION_RE.findall(head)
+    assert named, "step 3 must name at least one qualifying series-prefixed value"
+    for version in named:
+        res = _detect_version(tmp_path, version)
+        assert res["step"] == "3", (
+            f"the prose names {version!r} as a series-prefixed candidate, but the detector did not "
+            "classify it"
+        )
+        assert res["series"] == "", "a manifest candidate must never arrive as a resolved series"
+        assert f"{version.split('.')[0]}.0" in res["hint"]
+
+
+def test_each_value_step3_calls_an_addons_own_really_yields_nothing(tmp_path):
+    """The other side of the same divider, likewise executed. The values named here are the ones the
+    original hole admitted, so the doc must keep naming them AND the detector must keep refusing
+    them - neither a doc edit nor a code edit can satisfy this test alone."""
+    _, divider, tail = _step3_prose().partition(_NOTHING_DIVIDER)
+    assert divider
+    named = _QUOTED_VERSION_RE.findall(tail)
+    for must_name in ("1.0", "1.3", "1.0.9", "1.0.0"):
+        assert must_name in named, (
+            f"step 3 must name {must_name!r} among the values that yield no series - it is a real "
+            "addon version, and the 3-segment ones are exactly the class the detector once admitted"
+        )
+    for version in named:
+        res = _detect_version(tmp_path, version)
+        assert res["status"] == "NEEDS_CONTEXT"
+        assert res["series"] == "", f"{version!r} must never be returned as a series"
+        assert res["step"] != "3", f"{version!r} must not even reach the candidate channel"
+        assert res["hint"] == ""
 
 
 def _count_normalized(phrase: str) -> dict:

@@ -1,7 +1,7 @@
 ---
 name: odoo-installable-prober
 description: |
-  Use this agent when the forward-port pipeline needs to resolve a category-3 ambiguity - the target clean-tip `__manifest__.py` shows `installable: True` for a module, but that manifest was not touched by any commit in the cherry-pick range, so the SOURCE-side manifest history must also be read to confirm whether the module was recently gated open. Typical triggers include the orchestrator dispatching a single-module ambiguity check before merge, and a module that appears newly enabled at source with an unclear target state
+  Use this agent when the forward-port pipeline needs to resolve a category-3 ambiguity - the target clean-tip module descriptor shows `installable: True` for a module, but that manifest was not touched by any commit in the cherry-pick range, so the SOURCE-side manifest history must also be read to confirm whether the module was recently gated open. Typical triggers include the orchestrator dispatching a single-module ambiguity check before merge, and a module that appears newly enabled at source with an unclear target state
 model: sonnet
 color: cyan
 ---
@@ -36,8 +36,8 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 | `source_ref` | Source git ref (branch or SHA) - reference only; the orchestrator uses it to generate `history_dump_path` via the git-toolkit:git-ops skill (read-only). |
 | `target_ref` | Target git ref (branch or SHA) - reference only; the orchestrator uses it to generate `manifest_path` via the git-toolkit:git-ops skill (read-only). |
 | `target_version` | Target Odoo version string (e.g. `18.0`) - used for OSM calls |
-| `manifest_path` | **REQUIRED.** Absolute local path to a file holding the content of `<module>/__manifest__.py` at the target series clean tip (written by the orchestrator via the git-toolkit:git-ops skill, read-only). This is the ONLY source for `installable`. Absent -> `status: BLOCKED`, never a verdict. |
-| `history_dump_path` | Absolute path to a file containing the patched manifest log for the source module (written by the orchestrator via the git-toolkit:git-ops skill (read-only) - it ran `log -p --follow --diff-filter=M` scoped to `<module>/__manifest__.py`). If absent or empty, record `transition_found: no` with note `history dump not provided`. |
+| `manifest_path` | **REQUIRED.** Absolute local path to a file holding the content of the module's descriptor - `__manifest__.py`, or `__openerp__.py` on v8.0-v9.0 - at the target series clean tip (written by the orchestrator via the git-toolkit:git-ops skill, read-only; the orchestrator resolved which filename that side uses, so read this path as given and never re-derive a filename). This is the ONLY source for `installable`. Absent -> `status: BLOCKED`, never a verdict. |
+| `history_dump_path` | Absolute path to a file containing the patched manifest log for the source module (written by the orchestrator via the git-toolkit:git-ops skill (read-only) - it ran `log -p --follow --diff-filter=M` scoped to the SOURCE side's descriptor filename). If absent or empty, record `transition_found: no` with note `history dump not provided`. |
 
 ---
 
@@ -71,7 +71,7 @@ resolution (categories 1-2, no prober dispatch) also writes. See `[[fp-installab
 an OSM call. OSM does not carry the manifest `installable` flag at all - it is a per-file fact this
 probe reads directly from disk. You are a `role: leaf` and the bounded-read allowlist
 (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`) covers only `git show --stat` (header + stat,
-never a full file's content at a ref) - reading `<module>/__manifest__.py` at `target_ref` is NOT a
+never a full file's content at a ref) - reading the module's descriptor at `target_ref` is NOT a
 bounded read this agent may run itself, so you cannot obtain this file yourself - that is why
 `manifest_path` is REQUIRED and its absence is a BLOCK rather than a degraded verdict.
 

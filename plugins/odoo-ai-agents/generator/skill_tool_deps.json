@@ -257,19 +257,6 @@
       "deprecated_tools_used": [],
       "notes": "module_inspect(summary) strengthens the ACA Counter table with module scope numbers."
     },
-    "odoo-onboarding": {
-      "mcp_tools": [
-        "check_module_exists",
-        "list_available_profiles",
-        "list_available_versions",
-        "set_active_profile",
-        "set_active_version",
-        "profile_inspect"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "After profile selection, profile_inspect(modules) records the real module inventory into <SHARE_DIR>/context.md so downstream skills need not re-derive it. min_server 0.13.1 for profile_inspect."
-    },
     "odoo-override-finding": {
       "mcp_tools": [
         "entity_lookup",
@@ -357,7 +344,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Mostly text routing and brainstorm, but NOT MCP-tool-free: Phase R explicitly allows read-only OSM calls (model_inspect/check_module_exists/find_override_point/impact_analysis) during optional recon, and the version/profile-unknown inline fallback (only when the user declines odoo-onboarding) directly calls list_available_versions -> list_available_profiles -> profile_inspect to resolve and confirm a profile for the current turn. Corrects a stale note that claimed zero MCP calls. min_server 0.13.1 for profile_inspect. No SKILL.md '## MCP tools' block is generated here - odoo-intake is in gen_surface.py SKIP_SKILL_DIRS by design."
+      "notes": "Mostly text routing and brainstorm, but NOT MCP-tool-free: Phase R explicitly allows read-only OSM calls (model_inspect/check_module_exists/find_override_point/impact_analysis) during optional recon, and the version/profile-unknown path (reached when no rung of the project-facts ladder resolves them) directly calls list_available_versions -> list_available_profiles -> profile_inspect to resolve and confirm a profile for the current turn. Corrects a stale note that claimed zero MCP calls. min_server 0.13.1 for profile_inspect. No SKILL.md '## MCP tools' block is generated here - odoo-intake is in gen_surface.py SKIP_SKILL_DIRS by design."
     },
     "odoo-ui-review": {
       "mcp_tools": [
@@ -404,7 +391,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs. resolve_stylesheet adds the @import-chain blast radius; set_active_version pins the target version. list_available_versions is the context-bootstrap fallback when <SHARE_DIR>/context.md is absent/missing the version key."
+      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs. resolve_stylesheet adds the @import-chain blast radius; set_active_version pins the target version. list_available_versions backs the OSM-side version menu when no rung of the project-facts ladder resolves the series."
     },
     "odoo-support-triage": {
       "mcp_tools": [],
@@ -1465,15 +1452,6 @@
       "instance_touching": false,
       "output_mode": "chat-only",
       "default_gate_tier": "L0",
-      "spawns_agents": []
-    },
-    "odoo-onboarding": {
-      "spawn_class": "leaf",
-      "spawns": [],
-      "stack": "none",
-      "instance_touching": false,
-      "output_mode": "writes-files",
-      "default_gate_tier": "L1",
       "spawns_agents": []
     },
     "odoo-override-finding": {

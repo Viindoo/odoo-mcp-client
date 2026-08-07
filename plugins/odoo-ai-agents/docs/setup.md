@@ -16,17 +16,16 @@ This guide is for **end users** who want to connect their AI tool to an MCP serv
 
 ## Claude Code
 
-### First-time setup flow - three steps, different scopes
+### First-time setup flow - two steps, different scopes
 
-These three steps are easy to confuse. Only the first is required:
+These two steps are easy to confuse. Only the first is required:
 
 | Step | Command / skill | Scope | When |
 |------|-----------------|-------|------|
 | 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** - registers server URL + API key so `mcp__odoo-semantic__*` tools load |
-| 2. Wire the visual stack | `/odoo-ai-agents:odoo-setup` | Once per machine | **Optional** - browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
-| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** - writes `<SHARE_DIR>/context.md` (repo version/modules/conventions; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); runs even without the server |
+| 2. Declare an instance | `/odoo-ai-agents:odoo-setup` | Once per repo/series | **Optional** - browser MCP + Playwright + a local Odoo instance declared in `$ODOO_AI_HOME/instances.toml`, only for the `Visual` skills or a live run |
 
-Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
+Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Without it, every `odoo-*` skill still resolves the Odoo series/profile/scope from the checkout the first time you invoke it in a new repo.
 
 > **Version gate - Claude Code >= 2.1.172.** The coding workflow uses NESTED subagent dispatch:
 > `odoo-coding` launches an `odoo-coder` coordinator per module (every module, not just full-stack),
@@ -38,7 +37,7 @@ Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual
 
 ### Plugin install (recommended)
 
-For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 53 skills, and the setup command in one install.
+For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 51 skills, and the setup command in one install.
 
 #### 1. Add the marketplace (one-time)
 
@@ -88,9 +87,9 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 53 skills activate automatically:
+After install, 51 skills activate automatically:
 
-> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-53) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 53 skills auto-activate on install.
+> Persona labels are the navigation buckets defined in the [README skill table](../README.md#skills-51) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 51 skills auto-activate on install.
 
 | Skill | Persona | What it does |
 |-------|---------|-------------|
@@ -115,7 +114,6 @@ After install, 53 skills activate automatically:
 | `odoo-feature-highlights` | Marketer | Generate business-language feature highlights for a version, ready for decks, blogs, or release notes |
 | `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
 | `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
-| `odoo-onboarding` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
 | `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
 | `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI) |
@@ -570,7 +568,7 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 1. list_available_versions()    # see which Odoo versions the server has data for
 2. set_active_version("<version>")   # pin the version for this session (24h TTL)
 3. list_available_profiles()    # see which tenant profiles exist (optional)
-4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from <SHARE_DIR>/context.md)
+4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - use the profile declared for your instance in $ODOO_AI_HOME/instances.toml, or the one you picked in step 3)
 5. <every later tool call still passes odoo_version='<version>' explicitly>   # the pin is a probe, not a default
 ```
 

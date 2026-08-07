@@ -74,7 +74,8 @@ the split is worth offering:
   different module entry points and sharing a non-trivial cross-module contract.
 
 Module enumeration priority (first available): deep-survey `synthesis.md` → brl `dag.json`
-→ modules-upgrade `graph.md` → fallback: scan `__manifest__.py` + topo-sort `depends`
+→ modules-upgrade `graph.md` → fallback: scan each module descriptor (`__manifest__.py`, or
+`__openerp__.py` on v8-v9) + topo-sort `depends`
 (pattern: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P1(a)).
 
 When it fires - and ONLY then - ask (never for a single-module or narrowly-scoped design):

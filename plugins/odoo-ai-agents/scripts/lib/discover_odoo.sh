@@ -166,10 +166,11 @@ while IFS= read -r odoobin; do
 done < <(find "$BASE_DIR" -maxdepth 3 -name "odoo-bin" 2>/dev/null)
 
 # ---------------------------------------------------------------------------
-# Phase 2: Discover addon repos via __manifest__.py
+# Phase 2: Discover addon repos via __manifest__.py (v10.0+) or __openerp__.py
+# (v8.0-v9.0)
 # ---------------------------------------------------------------------------
 while IFS= read -r manifest; do
-    # module dir is the parent of __manifest__.py
+    # module dir is the parent of __manifest__.py / __openerp__.py
     module_dir="$(dirname "$manifest")"
     # repo root is one level above the module dir
     repo_root="$(dirname "$module_dir")"
@@ -179,7 +180,7 @@ while IFS= read -r manifest; do
 
     role="$(_classify_role "$repo_root")"
 
-    # Try to infer version from __manifest__.py (best-effort, first module wins)
+    # Try to infer version from __manifest__.py / __openerp__.py (best-effort, first module wins)
     ver="$(python3 - "$manifest" <<'PY' 2>/dev/null || true
 import ast, sys
 try:
@@ -196,7 +197,7 @@ except Exception:
 PY
 )"
     _record "$repo_root" "$role" "${ver:-unknown}" "yes"
-done < <(find "$BASE_DIR" -maxdepth 4 -name "__manifest__.py" 2>/dev/null)
+done < <(find "$BASE_DIR" -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \) 2>/dev/null)
 
 # ---------------------------------------------------------------------------
 # Output: print comment header, then TSV rows (sorted by role priority)

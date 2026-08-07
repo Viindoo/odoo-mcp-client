@@ -58,14 +58,13 @@ Era-specific override patterns and scenario-to-pattern mapping:
 
 ## Instructions
 
-### Round 0 - Pin the version
+### Round 0 - Resolve project facts + pin the OSM session
 
-Resolve the target version in order, never a silent default: (1) `<SHARE_DIR>/context.md` (resolve
-`<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
-captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit);
-(2) the module manifest `version` field if `context.md` is absent or lacks it; (3) if both are
-absent, ASK the caller once - a wrong guess yields a wrong-era override pattern, so do not default
-silently. Then `set_active_version(odoo_version=…)` once.
+Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - never a silent default. A wrong
+series yields a wrong-era override pattern, so an unresolved series joins the ladder's single
+batched ask instead of being guessed. Then `set_active_version(odoo_version=…)` once with the
+resolved series.
 
 ### Round 1 - Enumerate methods (before drilling in)
 
@@ -103,7 +102,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 - **Tier 2 - Model name:** If the model name is absent, ask the caller once (it is a business decision, not a code artifact - no Tier-2 source encodes "which model the user meant").
 - **Tier 2 - Codebase scan:** `grep -rn "class .*<ModelClass>\|_inherit.*=.*'<model.name>'" --include="*.py" .` to find all override sites; then `Read` relevant Python files to extract existing method signatures and decorator usage. This grep stands in for `find_override_point` / `entity_lookup` in this tier.
-- **Tier 2 - Version:** Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for `odoo_version`; derive from manifest if absent.
+- **Tier 2 - Project facts:** series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 - Still recommend an override point and apply a code template grounded on actual source.
 - Label `grounded: local-source (not OSM-indexed)`. Override chain conflict count is approximate (static grep only); confirm once OSM is online.
 

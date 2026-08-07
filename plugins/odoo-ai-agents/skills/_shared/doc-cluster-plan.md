@@ -14,7 +14,7 @@ dedup, and an inter-instance parallelism schedule.
 
 **Reuse, do not re-derive.** The module-DAG primitive lives in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (OSM
-`module_inspect(name=..., method='dependencies', odoo_version=...)` primary, disk `__manifest__['depends']` fallback,
+`module_inspect(name=..., method='dependencies', odoo_version=...)` primary, disk descriptor `depends` fallback,
 topological sort). This file only adds what to DO with that graph for documentation - the
 scheduling semantics are INVERTED versus code-build: code batches the DAG into parallel waves;
 doc runs SEQUENTIAL within a dependency path (incremental install on one instance) and PARALLEL
@@ -28,7 +28,7 @@ Y; Y is the deeper leaf-dependency and is installed FIRST. Leaf-dependency-first
 ## Algorithm
 
 Input = the in-scope module set with per-module `depends_in_scope` (the subset of
-`__manifest__['depends']` that is also in scope) and `has_ondisk_doc`, either from the
+the descriptor `depends` that is also in scope) and `has_ondisk_doc`, either from the
 `odoo-doc-scoper` scope block (doc-only standalone path) or from an approved design DAG
 (full-lifecycle path). Output = `doc-plan.yaml`.
 

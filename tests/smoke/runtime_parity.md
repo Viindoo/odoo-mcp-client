@@ -1,17 +1,17 @@
 # Runtime Parity Smoke Test - odoo-mcp-client
 
-Manual checklist to certify that the 10 representative `odoo-*` skills produce
+Manual checklist to certify that the 9 representative `odoo-*` skills produce
 functionally equivalent output across all three supported runtimes: Claude Code,
 Codex CLI, and Gemini CLI. This document is the AC-D1 acceptance artifact for
-Phase D multi-runtime parity. A human tester walks through the 30 cells
-(10 skills x 3 runtimes), marks pass/fail, and records findings. The completed
+Phase D multi-runtime parity. A human tester walks through the 27 cells
+(9 skills x 3 runtimes), marks pass/fail, and records findings. The completed
 copy becomes a dated snapshot of parity status at a specific release.
 
 ---
 
 ## Scope
 
-### Skills under test (10)
+### Skills under test (9)
 
 Selected to cover the full persona spectrum and varying levels of MCP
 dependency:
@@ -19,15 +19,14 @@ dependency:
 | # | Skill | Phase introduced | Persona | MCP dependency |
 |---|-------|-----------------|---------|---------------|
 | 1 | `odoo-intake` | A | All - universal front door / brainstorm + route | None (pure text routing) |
-| 2 | `odoo-onboarding` | A | All - context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
-| 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
-| 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
-| 5 | `odoo-objection-handling` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
-| 6 | `odoo-deal-followup` | B | Sales AE | None (deal context is user-provided) |
-| 7 | `odoo-feature-highlights` | B | Marketer | `api_version_diff`, `find_examples` |
-| 8 | `odoo-content-draft` | B | Marketer | Optional: `find_examples` (standalone-first capable) |
-| 9 | `odoo-version-diff` | A | Engineer + Marketer | `api_version_diff`, `entity_lookup`, `lookup_core_api`, `model_inspect` |
-| 10 | `odoo-deprecation-audit` | A | Engineer | `api_version_diff`, `entity_lookup`, `find_deprecated_usage`, `lookup_core_api`, `module_inspect` |
+| 2 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
+| 3 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
+| 4 | `odoo-objection-handling` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
+| 5 | `odoo-deal-followup` | B | Sales AE | None (deal context is user-provided) |
+| 6 | `odoo-feature-highlights` | B | Marketer | `api_version_diff`, `find_examples` |
+| 7 | `odoo-content-draft` | B | Marketer | Optional: `find_examples` (standalone-first capable) |
+| 8 | `odoo-version-diff` | A | Engineer + Marketer | `api_version_diff`, `entity_lookup`, `lookup_core_api`, `model_inspect` |
+| 9 | `odoo-deprecation-audit` | A | Engineer | `api_version_diff`, `entity_lookup`, `find_deprecated_usage`, `lookup_core_api`, `module_inspect` |
 
 ### Runtimes under test (3)
 
@@ -40,7 +39,7 @@ dependency:
 
 ### Coverage
 
-**30 cells total** (10 skills x 3 runtimes). Each cell is independently
+**27 cells total** (9 skills x 3 runtimes). Each cell is independently
 pass/fail. Results are recorded in the matrix tables below.
 
 ### NOT tested in this smoke
@@ -70,13 +69,13 @@ Before beginning this checklist, confirm all of the following:
    - `mcp__odoo-semantic__list_available_versions` returns a non-empty list.
    - API key is valid (test with one quick `cli_help` call).
 
-3. **`<SHARE_DIR>/context.md` populated** (the Tier-2 SHARE path resolved per
-   `snippets/state-root-resolution.md` for the test working directory's repo; run
-   `odoo-onboarding` first, or manually create with target version and profile).
-   This is required for skills that read Round -1 context.
+3. **A declared `[[instance]]` for the target series** in `$ODOO_AI_HOME/instances.toml` (run
+   `/odoo-ai-agents:odoo-setup` first, or add the entry manually with the target series and
+   profile). This is required for skills that resolve project facts per
+   `snippets/project-facts-resolution.md` rung 2.
 
 4. **Test working directory** contains at least one `__manifest__.py` at depth
-   1-3 (needed for onboard skill Step 1 manifest discovery).
+   1-3 (needed for the checkout-derivation rung when no instance is declared for the test repo).
 
 5. **Tester has read access** to this file and write access to create a dated
    copy at the end (see Reporting section).
@@ -116,7 +115,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-## Skill checklist (10 x 3)
+## Skill checklist (9 x 3)
 
 ---
 
@@ -142,32 +141,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 2: `odoo-onboarding`
-
-> Phase A - project context bootstrap. Read-only MCP: `list_available_versions`,
-> `list_available_profiles`, `set_active_version`, `set_active_profile`.
-
-**Trigger prompt (VI)**: "I just cloned an Odoo repo, help me set up the context"
-
-**Trigger prompt (EN)**: "first time using Odoo for this project - initialize Odoo context"
-
-**Expected output**:
-- Pre-flight check result (context present or absent)
-- Available Odoo versions list from `list_available_versions`
-- Detected module list (at least one `__manifest__.py` found)
-- Conventions summary (module prefix, field naming, branch pattern)
-- Confirmation that `<SHARE_DIR>/context.md` was written and `.gitignore` updated
-- "Suggest next" line pointing to a follow-up skill
-
-| Runtime | Pass? | Notes |
-|---------|-------|-------|
-| Claude Code | [ ] | |
-| Codex CLI | [ ] | |
-| Gemini CLI | [ ] | |
-
----
-
-### Skill 3: `odoo-feature-check`
+### Skill 2: `odoo-feature-check`
 
 > Phase A - Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `suggest_pattern`.
@@ -191,7 +165,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 4: `odoo-gap-analysis`
+### Skill 3: `odoo-gap-analysis`
 
 > Phase A - Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `lookup_core_api`, `suggest_pattern`.
@@ -215,7 +189,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 5: `odoo-objection-handling`
+### Skill 4: `odoo-objection-handling`
 
 > Phase A - Sales AE. MCP: `check_module_exists`, `find_examples`,
 > `model_inspect`, `suggest_pattern`.
@@ -239,7 +213,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 6: `odoo-deal-followup`
+### Skill 5: `odoo-deal-followup`
 
 > Phase B - Sales AE. No MCP dependency (deal context is user-provided).
 
@@ -262,7 +236,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 7: `odoo-feature-highlights`
+### Skill 6: `odoo-feature-highlights`
 
 > Phase B - Marketer. MCP: `api_version_diff`, `find_examples`.
 
@@ -285,7 +259,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 8: `odoo-content-draft`
+### Skill 7: `odoo-content-draft`
 
 > Phase B - Marketer. Standalone-first: OSM optional (`find_examples`).
 
@@ -307,7 +281,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 9: `odoo-version-diff`
+### Skill 8: `odoo-version-diff`
 
 > Phase A - Developer + Marketer cross-cutting. MCP: `api_version_diff`,
 > `entity_lookup`, `lookup_core_api`, `model_inspect`.
@@ -331,7 +305,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 10: `odoo-deprecation-audit`
+### Skill 9: `odoo-deprecation-audit`
 
 > Phase A - Developer. MCP: `api_version_diff`, `entity_lookup`,
 > `find_deprecated_usage`, `lookup_core_api`, `module_inspect`.
@@ -385,7 +359,7 @@ spawn via its own API; Gemini CLI typically does not expose an equivalent.
 should mark agent-bundle cells as "N/A - Agent tool not available" rather than
 FAIL.
 
-**Mitigation**: agents are not included in this 10-skill smoke test. The gap is
+**Mitigation**: agents are not included in this 9-skill smoke test. The gap is
 noted here for completeness.
 
 ### Gap 3 - `/skill-creator` Mode 5 trigger optimization
@@ -410,20 +384,6 @@ equivalent check (`python test_skill_format.py`) or rely on CI.
 **Mitigation**: CI runs the same check on every push. The hook is advisory on
 developer machines; CI is authoritative.
 
-### Gap 5 - `<SHARE_DIR>/context.md` write step (onboard skill)
-
-`odoo-onboarding` writes `<SHARE_DIR>/context.md` (the Tier-2 SHARE path resolved
-per `snippets/state-root-resolution.md`) to the local filesystem. All
-three runtimes can execute this write via their respective file-write tool.
-However, the exact tool name differs (CC: `Write`; Codex: file-write API;
-Gemini: file-write API). If a runtime does not expose a file-write tool, the
-onboard skill falls back to displaying the context block in-chat for the user
-to save manually.
-
-**Impact**: onboard skill body is portable; the write mechanism may vary.
-Tester should accept in-chat display as PASS for criterion (b) if the runtime
-lacks file-write.
-
 ---
 
 ## Reporting
@@ -439,15 +399,15 @@ lacks file-write.
 2. Fill in all checkboxes (`[ ]` → `[x]`) and add Notes as you go.
 
 3. Tally results at the end:
-   - Count `[x]` cells across all 10 skill tables (3 cells per skill = 30 total).
-   - Record per-runtime subtotals (10 cells each for CC / Codex / Gemini).
+   - Count `[x]` cells across all 9 skill tables (3 cells per skill = 27 total).
+   - Record per-runtime subtotals (9 cells each for CC / Codex / Gemini).
 
 4. If any cell fails, open a GitHub issue with:
    - Title: `[Parity] <runtime>: <skill-name> fails smoke test <YYYY-MM-DD>`
    - Body: link to the dated copy of this file + paste the Notes from the
      failing cell.
 
-5. If ≥25/30 cells pass, close the Phase D AC-D1 tracker issue as PASS and
+5. If ≥23/27 cells pass, close the Phase D AC-D1 tracker issue as PASS and
    attach the dated copy.
 
 ### Scoring summary template
@@ -459,10 +419,10 @@ Add this block at the top of your dated copy after completing the walk-through:
 
 | Runtime | Cells passed | Cells failed | Cells skipped (N/A) |
 |---------|-------------|-------------|---------------------|
-| Claude Code | /10 | /10 | /10 |
-| Codex CLI | /10 | /10 | /10 |
-| Gemini CLI | /10 | /10 | /10 |
-| **Total** | **/30** | **/30** | **/30** |
+| Claude Code | /9 | /9 | /9 |
+| Codex CLI | /9 | /9 | /9 |
+| Gemini CLI | /9 | /9 | /9 |
+| **Total** | **/27** | **/27** | **/27** |
 
 **Verdict**: PASS / PARTIAL / FAIL (see AC-D1 verdict criteria below)
 
@@ -480,8 +440,8 @@ Add this block at the top of your dated copy after completing the walk-through:
 
 All three conditions must hold:
 
-1. **≥25 / 30 cells** marked pass (across all runtimes).
-2. **All 10 Claude Code cells** pass (CC is the primary runtime - any CC failure
+1. **≥23 / 27 cells** marked pass (across all runtimes).
+2. **All 9 Claude Code cells** pass (CC is the primary runtime - any CC failure
    is blocking regardless of total count).
 3. **No P0 failure** in any runtime: a P0 failure means a skill produces output
    that is factually incorrect AND would be surfaced to a customer without
@@ -494,7 +454,7 @@ Outcome: Phase D AC-D1 is closed PASS. Attach dated copy to the tracker issue.
 
 Conditions:
 
-- **20-24 / 30 cells** pass, OR
+- **18-22 / 27 cells** pass, OR
 - All CC cells pass but Codex or Gemini has ≥3 failures.
 
 Outcome: document specific failing cells + root cause. Open per-runtime fix
@@ -505,7 +465,7 @@ accepted as Known Gaps (with product owner sign-off).
 
 Any one of:
 
-- **<20 / 30 cells** pass, OR
+- **<18 / 27 cells** pass, OR
 - **Any Claude Code cell** fails, OR
 - **Any single skill fails on all 3 runtimes** (indicates a skill-level defect,
   not a runtime-parity issue).
