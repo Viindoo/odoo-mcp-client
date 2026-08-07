@@ -32,12 +32,16 @@ Six gated phases (Pipeline pattern):
 | Phase | Skill dispatched | Gate |
 |-------|-----------------|------|
 | 0 - Parse + context check | inline | implicit |
-| 1 - Discovery synthesis | `odoo-discovery-summary` | yes / edit / cancel |
-| 2 - Gap analysis | `odoo-gap-analysis` | yes / edit / cancel |
-| 3 - Capability proof | `odoo-capability-proof` | yes / iterate / cancel |
-| 4 - Objection pre-empt | `odoo-objection-handling` | yes / edit / cancel |
-| 5 - Assemble proposal | inline | yes - save / iterate / cancel |
+| 1 - Discovery synthesis | `odoo-discovery-summary` | approve / refine: [feedback] / cancel |
+| 2 - Gap analysis | `odoo-gap-analysis` | approve / refine: [feedback] / cancel |
+| 3 - Capability proof | `odoo-capability-proof` | approve / refine: [feedback] / cancel |
+| 4 - Objection pre-empt | `odoo-objection-handling` | approve / refine: [feedback] / cancel |
+| 5 - Assemble proposal | inline | approve / refine: [feedback] / cancel |
 | 6 - Output | inline (write file) | - |
+
+Gate replies are the two declared sets only (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`),
+matching `workflows/odoo-respond-bid.workflow.yaml` line for line. `yes` is not a gate keyword. At
+Phase 5, `approve` saves the proposal file and prints it for copy-paste.
 
 Output lands in `<ISOLATE_DIR>/bids/<customer_label>-<YYYY-MM-DD>.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured

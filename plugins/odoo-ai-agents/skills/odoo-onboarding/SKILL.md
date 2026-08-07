@@ -72,9 +72,10 @@ find . -maxdepth 3 -name "__manifest__.py" -exec dirname {} \; | head -50
 ```
 
 For each path: extract module name + grep `'summary':` from `__manifest__.py`. Build numbered list and show:
-> "Detected `<N>` modules. Include all? Or edit list? (yes / list to exclude)"
+> "Detected `<N>` modules. Include all of them? (approve / refine: [feedback] / cancel)"
 
-Wait for user; if excluding, prompt for line numbers or names.
+Wait for user. `approve` takes the whole list; `refine: [line numbers or module names to exclude]`
+drops those and re-shows the list; `cancel` ends onboarding without writing anything.
 
 ### Step 5 - Extract team conventions
 
@@ -114,7 +115,11 @@ find . "${ODOO_GIT_BASE:-$HOME/git}" -maxdepth 6 -path "*/addons/web/tooling" -t
 If `addons/web/tooling/` found → `"web/tooling"`; else → `"fallback"` (plugin's `scripts/odoo-prettierrc.json`: tabWidth 4, printWidth 100).
 
 Confirm all in one batch:
-> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Lint: ruff line-length=`120`, JS=`web/tooling`. Correct? (yes / edit)"
+> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Lint: ruff line-length=`120`, JS=`web/tooling`. Correct? (approve / refine: [feedback] / cancel)"
+
+`approve` records them as shown; `refine: [...]` applies the correction and re-shows the batch;
+`cancel` ends onboarding without writing anything. Both prompts use the PLAN reply set
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`) - `yes` is not a gate keyword.
 
 ### Step 6 - Set session pins
 

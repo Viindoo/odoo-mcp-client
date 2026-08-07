@@ -92,7 +92,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 
 > **No execution skill fires until the user has approved a Proposed Plan.**
 
-Two enforcement layers, both required: the **text gate** (Proposed Plan block; user types `approve / refine / cancel`) and, on top of it whenever the approved step **writes files**, **Plan Mode** (the harness-level guarantee). The text gate alone is insufficient when file writes are about to occur.
+Two enforcement layers, both required: the **text gate** (Proposed Plan block; user types `approve / refine: [feedback] / cancel`) and, on top of it whenever the approved step **writes files**, **Plan Mode** (the harness-level guarantee). The text gate alone is insufficient when file writes are about to occur.
 
 **Red Flags - phrases that trigger STOP + re-gate:**
 - "This is simple, I'll just start coding" → STOP. Still propose + gate.
@@ -140,7 +140,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 
 **Decision tree (run first)**: read the chosen Approach's `output_mode` from `skill_tool_deps.json`.
 - `output_mode = writes-files` → **Plan Mode REQUIRED** before dispatch. **Exceptions that SKIP Plan Mode:**
-  - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) - the opt-in keyword is the human gate.
+  - `odoo-deep-survey` (dispatched when the user replies `refine: deep-survey`) - that opt-in reply is the human gate.
   - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `approve` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop. Hard rule 6 (worktree isolation) still applies to any write these trigger - each owns it internally before touching a file (`git-delegation.md`); skipping intake's Plan Mode never means skipping worktree isolation.
   - `odoo-forward-port` (P4 gate), `odoo-git-rebase` (P6 gate), `odoo-modules-upgrade` (P3 gate) - each uses the shared Plan-Mode gate (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit) for its own approval (EnterPlanMode/ExitPlanMode called internally; plan presented before any branch/worktree/merge/adapt). Intake MUST NOT call EnterPlanMode for these; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged. Each already satisfies Hard rule 6 internally (own worktree/branch per `git-delegation.md`) - intake does not double-provision.
   - `odoo-brl` - a self-gating FRONT-DOOR plan-establisher (`planning-gate-contract.md` names it a FRONT DOOR alongside `odoo-intake` and the `odoo-implement-feature` workflow): it presents its OWN text gates (BRL GATE 0 before classification, BRL GATE E before writing deliverables - `skills/odoo-brl/SKILL.md`), never the harness Plan Mode. It is dispatched directly once intake's own Proposed-Plan is approved (Hard rule 2(a)) - NOT additionally gated behind a separate pre-BRL `odoo-planning` dispatch.
@@ -166,7 +166,7 @@ The self-gating skip-list skills (`odoo-forward-port`, `odoo-git-rebase`, `odoo-
 - "The user already said approve, I can skip dispatching `odoo-planning`'s Plan Mode gate" → NO. Text-gate approval and Plan Mode approval are two separate steps.
 - "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must come before any file touch.
 - "I'll enter Plan Mode before dispatching the planners, to be safe" → UNNECESSARY and out of order for `odoo-planning`: the planners write ONLY under the `$ODOO_AI_HOME` state root (no Plan Mode window needed for that), so `odoo-planning` enters Plan Mode AFTER both planners return and BEFORE presenting the plan - never before dispatching them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit, the amended WHEN clause).
-- "`odoo-deep-survey` writes files, so it needs Plan Mode" → NO. It is the one `writes-files` exception (analysis-only under `<SHARE_DIR>/survey/`, gated by the `deep-survey` opt-in keyword).
+- "`odoo-deep-survey` writes files, so it needs Plan Mode" → NO. It is the one `writes-files` exception (analysis-only under `<SHARE_DIR>/survey/`, gated by the user's `refine: deep-survey` opt-in reply).
 - "This is a trivial single-WI fix / an ambiguous case I couldn't fully classify, worktree isolation can wait" → NO. Hard rule 6 is a catch-all default: trivial and ambiguous work that touches git-tracked files is provisioned into a worktree exactly like any other, before dispatch.
 
 ### Plan Mode Content Schema
@@ -226,10 +226,11 @@ Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) **no 
 When Tier 1 or Tier 3 yields exactly ONE specialist AND the prompt contains a concrete action verb + object, skip brainstorm entirely and emit a **one-line soft plan gate**:
 
 ```
-Plan: run `<skill-name>` to <one-line outcome>. Proceed? (approve / brainstorm instead / cancel)
+Plan: run `<skill-name>` to <one-line outcome>. Proceed? (approve / refine: [feedback] / cancel)
+Not the job you meant? Reply `refine: brainstorm` and I will open it up first.
 ```
 
-A pro user types `approve` once. A novice can opt into brainstorm. This guarantees brainstorm-first never blocks an expert.
+A pro user types `approve` once. A novice replies `refine: brainstorm` to open the brainstorm branch. The reply set is the PLAN set verbatim (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`) - `brainstorm` is feedback carried inside `refine:`, never a fourth keyword. This guarantees brainstorm-first never blocks an expert.
 
 **Canonical behavior on a clear single-step match (removes the fire/no-fire ambiguity).** A clear match is NOT a reason to skip the gate - gate-before-execution (Hard rule 1) has no exception. So the outcome is always the one-line fast-path gate above (intake engages, states the target, and stops for `approve`); there is NO "silent passthrough that runs the specialist ungated". Two - and only two - outcomes are genuinely "intake never engages": (a) an explicit `/slash` command (the harness invokes it directly and intake never sees the turn), and (b) the user is already mid-workflow inside another skill. The description's `DO NOT trigger ... let it fire directly` clause is a *harness-triggering* hint (prefer surfacing the specific specialist over intake); it does NOT mean that, once consulted, intake executes without a gate. The read-only/chat-only fast-paths (`odoo-code-review`, `odoo-debug` - see § Plan Mode) still emit this one-line gate; they only skip the heavier Plan Mode.
 
@@ -279,10 +280,10 @@ OSM:            backed | standalone   (OSM = Odoo Semantic, the indexed Odoo sou
 Plan Mode:      required | not | skill-owned   (skill-owned when the routed skill drives its own Plan Mode - e.g. odoo-forward-port at P4, odoo-git-rebase at P6, odoo-modules-upgrade at P3)
 Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) - you will see the tool call
 
-Gate: approve / refine: [your feedback] / deep-survey / cancel
+Gate: approve / refine: [feedback] / cancel
 ```
 
-When the job is **large** (≥10 requirement items or a scale signal, OR a code job spanning ≥3 modules / a cross-cutting model change), add one offer line under the plan: "This plan is built on a light Phase R recon. Want me to run a **deep survey** (`deep-survey` - many subagents, real tokens) and re-propose a sharper plan?". Omit for small/atomic asks.
+When the job is **large** (≥10 requirement items or a scale signal, OR a code job spanning ≥3 modules / a cross-cutting model change), add one offer line under the plan - a SEPARATE question, never a fourth gate keyword: "This plan is built on a light Phase R recon. Want a **deep survey** first (many subagents, real tokens)? Reply `refine: deep-survey` and I will run it, then re-propose a sharper plan." Omit for small/atomic asks.
 
 Enforcement stack:
 1. Hard rule 1 → intake may write planning/design artifacts, but NOT the routed deliverable, before approval.
@@ -290,15 +291,15 @@ Enforcement stack:
 3. Plan Mode (EnterPlanMode / ExitPlanMode) → harness-level guarantee before any execute-skill that writes files (the stronger layer).
 4. On `approve` → if the next step writes files, main agent dispatches the mandatory `odoo-planning` (Skill tool, WITHOUT `plan_mode_active`) BEFORE invoking the specialist - `odoo-planning` dispatches its two planners first (they author the plan under the state root), then calls `EnterPlanMode` itself AFTER both return and BEFORE presenting the plan. If chat-only/read-only, intake ends its turn and the specialist fires via the **Skill tool** on the next turn.
 5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
-6. On `deep-survey` → run the opt-in deep survey, then re-propose (see § Deep survey).
+6. On `refine: deep-survey` → run the opt-in deep survey, then re-propose (see § Deep survey).
 7. Hard rule 6 (worktree isolation) → before any writes-files dispatch a dedicated worktree/branch MUST be provisioned (common case: Phase P → `run-harness`; rare non-Phase-P case: inline per § Plan Mode Procedure step 4); the principal checkout is never the target, on any path.
 
 ### Deep survey (opt-in)
 
-On `deep-survey`:
+On `refine: deep-survey`:
 1. Invoke **`odoo-deep-survey` via the Skill tool** (a `spawner-agent` skill - the Skill tool loads it in the main context so it fans out workers as subagents). Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature slug, and the first Proposed Plan.
-2. **No Plan Mode.** `deep-survey` writes only analysis artifacts under `<SHARE_DIR>/survey/` (never the routed deliverable), and the `deep-survey` keyword IS the human gate.
-3. When it returns a `synthesis.md` path, **re-propose** the Proposed Plan: fill the `Survey:` field with that path; update `Approach` / `Chain` / `Findings` / `Workitems` / `Est. effort` from the synthesis. Re-gate with `approve / refine / cancel` - **drop `deep-survey`** from the re-proposed gate (survey runs at most once).
+2. **No Plan Mode.** `odoo-deep-survey` writes only analysis artifacts under `<SHARE_DIR>/survey/` (never the routed deliverable), and the user's `refine: deep-survey` reply IS the human gate.
+3. When it returns a `synthesis.md` path, **re-propose** the Proposed Plan: fill the `Survey:` field with that path; update `Approach` / `Chain` / `Findings` / `Modules (preview)` / `Est. effort` from the synthesis. Re-gate with `approve / refine: [feedback] / cancel` and **drop the deep-survey offer line** (survey runs at most once).
 4. Downstream execute-skills read `synthesis.md` (carried in `Survey:` and, for a RUN-DAG, in the `run-<id>.json` node inputs).
 
 ## Routing Table

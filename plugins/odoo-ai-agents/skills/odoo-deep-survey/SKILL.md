@@ -2,18 +2,18 @@
 name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
-  Multi-phase opt-in deep survey of an Odoo codebase or scope for the EXECUTE-AGENT
-  consumer: a broad haiku sweep, then narrow sonnet dives, then an optional opus pass,
-  writing reusable findings to the project's shared survey cache that later phases cite. Invoked ONLY by
-  odoo-intake AFTER the user explicitly approves a deep survey via the `deep-survey`
-  gate keyword - it is NOT a front door and NEVER auto-triggers on a bare prompt. DO NOT
-  trigger when: the user has not opted into a deep survey; the intent is a single-file or
-  single-symbol lookup that Phase R recon already covers; it must be invoked via the Skill
-  tool from the main context (not from inside a subagent). It is read-only - discovering
-  scope, ranking hot-spots against the stated intent, mapping bidirectional impact, and
-  handing a synthesis back to odoo-intake to re-propose a sharper plan. Applies a zero-trust
-  code stance (descriptions are claims, source is truth) and, when a sub-question is external,
-  a bounded conditional web-research pass
+  Multi-phase opt-in deep survey of an Odoo codebase or scope for the next execute agent:
+  a broad quick sweep, then narrow standard-depth dives, then an optional deep pass,
+  spending depth and cost only where the scope earns it, writing reusable findings to the
+  project's shared survey cache. Invoked ONLY by odoo-intake AFTER the user explicitly asks
+  for a deep survey at the plan gate (`refine: deep-survey`) - it is NOT a front door and
+  NEVER auto-triggers on a bare prompt. DO NOT trigger when: the user has not opted into a
+  deep survey; the intent is a single-file or single-symbol lookup intake's light recon
+  already covers; it must be invoked via the Skill tool from the main context (not from
+  inside a subagent). Read-only: it discovers scope, ranks hot-spots against the stated
+  intent, maps impact both ways, and hands odoo-intake a synthesis to re-propose a sharper
+  plan. Applies a zero-trust code stance (descriptions are claims, source is truth), plus a
+  bounded web-research pass when a sub-question is external
 model: opus
 ---
 
@@ -35,7 +35,9 @@ never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); never
 ## When this runs (opt-in only)
 
 `odoo-intake` emits a Proposed Plan from a light Phase R recon, then offers a deep survey. The
-**user** types `deep-survey`. ONLY THEN does intake invoke this skill via the Skill tool. This is
+**user** replies `refine: deep-survey` at that plan gate - the PLAN reply set
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`); `deep-survey` is the feedback, not a
+gate keyword of its own. ONLY THEN does intake invoke this skill via the Skill tool. This is
 the human gate - this skill produces no routed deliverable, only analysis that re-informs the
 plan. It is heavy (many subagents, real tokens), which is why it is opt-in and never automatic.
 

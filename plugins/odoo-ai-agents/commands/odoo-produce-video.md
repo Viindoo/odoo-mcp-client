@@ -31,9 +31,13 @@ Three gated phases (Pipeline pattern):
 
 | Phase | Handler | Gate |
 |-------|---------|------|
-| 0 - Storyboard | inline | approve / edit / cancel |
-| 1 - Record scenes | `odoo-demo-recording` (per scene) | approve-all / retake: [N] / cancel |
-| 2 - Assemble | inline | save / discard / cancel |
+| 0 - Storyboard | inline | approve / refine: [feedback] / cancel |
+| 1 - Record scenes | `odoo-demo-recording` (per scene) | approve / refine: [feedback] / cancel |
+| 2 - Assemble | inline | approve / skip / cancel |
+
+Gate replies are the two declared sets only (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`),
+matching `workflows/video-produce.workflow.yaml` line for line. At Phase 1, `refine: [scene numbers]`
+re-takes just those scenes. At Phase 2, `approve` saves the assembled video and `skip` leaves it unsaved.
 
 Output lands in `<ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
