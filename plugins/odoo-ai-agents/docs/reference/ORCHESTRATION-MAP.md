@@ -45,7 +45,7 @@
 | `odoo-planning` | spawner-agent | fresh | none | - | odoo-planner, odoo-doc-planner, (dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh) |
 | `odoo-pr-monitoring` | spawner-agent | fresh | none | - | git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit), odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool), odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2) |
 | `odoo-pricing-proposal` | leaf | fresh | none | - | - |
-| `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | - |
+| `odoo-qa-suite` | orchestrator-nl | fresh | none | - | - |
 | `odoo-rfp-response` | leaf | fresh | none | - | - |
 | `odoo-risk-overview` | leaf | fresh | none | - | - |
 | `odoo-security-audit` | leaf | fresh | backend | - | - |

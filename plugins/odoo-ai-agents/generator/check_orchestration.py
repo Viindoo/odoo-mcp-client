@@ -131,9 +131,30 @@ is complete and that skills thread the shared contracts they are required to:
                     still in the wild. Guard 3 is offered ONLY to alternatives that can name such a
                     shape (`legacy`, `no longer exists`, `formerly`, ...), never to a pure
                     provenance tag like `(V-34)` or `see PR #12`.
+ 16. instance-truth - the `instance_touching` field checked against the SKILL.md body instead of
+                    against its own derivation. Two halves, DIFFERENT gate status.
+                    (a) LIVE and enforcing - `instance_touching: true` with NO instance evidence
+                    anywhere in the skill's own body is a finding. Every other lint rule reads this
+                    field as an input; `_derive_gate_tier` turns it straight into `L2`, an ALWAYS-
+                    human gate the autonomy dial can never lower. So a `true` nothing in the skill
+                    supports does not merely mislabel - it stops an otherwise-automatic run and
+                    asks a human to authorize an irreversible act the skill never performs.
+                    Evidence is read from the body with the GENERATED `## MCP tools` region cut
+                    out: that region is emitted from the tool surface and mentions `odoo-bin` in a
+                    `cli_help` blurb for skills that never touch an instance, which is exactly how
+                    a bare grep would certify a false declaration.
+                    (b) WARN-ONLY, and it says why below - `instance_touching: false` while the
+                    body shows STRONG evidence (an allocator lease call, or an active dispatch of
+                    the instance front door) is printed with that evidence but never gates. It
+                    cannot gate yet because `_derive_gate_tier` still maps ANY `true` to `L2`,
+                    while the runtime sheets deliberately hold two such skills at `L1` on the
+                    ground that their instances are EPHEMERAL and self-released - so correcting
+                    those rows today would ADD human gates the tree elsewhere says must not exist.
+                    Half (b) makes that contradiction visible on every run; it flips to strict in
+                    the change that stops tier policy keying `L2` off the bare fact.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, and 15 - flip that on
+(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, 15, and 16a - flip that on
 once all skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) and 14a (ref-scope's citation-
 anchor half) are additionally WARN-ONLY FOR ONE RELEASE BY DESIGN, independent of --strict/
 ORCH_STRICT: they are new and proximity/citation-based (not a full semantic read, and - for 14a -
@@ -1107,6 +1128,108 @@ def check_no_provenance(findings: list[str]) -> None:
             findings.append(f"[no-provenance] {rel}:{line_no}: {token!r}")
 
 
+# --- [instance-truth] (rule 16) ---------------------------------------------------------------
+#
+# `instance_touching` is the one registry field the lint used to validate ONLY against its own
+# derivation: `_derive_gate_tier` reads it, and rule 1d then asserts the stored tier equals what
+# that derivation produced. A wrong input therefore produced a self-consistent wrong output and a
+# green suite - a chat-only skill could declare `true`, derive `L2`, and stop every automatic run
+# to authorize an irreversible act it never performs. This rule reads the SKILL.md body instead,
+# so the registry can be CONTRADICTED.
+#
+# The generated `## MCP tools` region is cut out first. It is emitted from the tool surface, and
+# its `cli_help` blurb names `odoo-bin` for skills that never touch an instance - a naive scan
+# would read that as corroboration of exactly the false declarations this rule exists to catch.
+
+GENERATED_TOOLS_RE = re.compile(
+    r"<!-- BEGIN GENERATED TOOLS -->.*?<!-- END GENERATED TOOLS -->", re.S
+)
+# STRONG evidence: an ACT, not a mention. Either the allocator lease API (you cannot heartbeat or
+# release a lease you do not hold), or an active dispatch of the instance front door.
+INSTANCE_LEASE_CALL_RE = re.compile(
+    r"allocator\.py\s+`?(?:acquire|release|heartbeat|status)\b", re.I
+)
+INSTANCE_FRONT_DOOR_RE = re.compile(r"`?odoo-instance(?:-ops)?`?", re.I)
+# A dispatch verb (or the Skill-tool phrasing) near the front door. `Skill(` catches the
+# `Skill(odoo-instance)` call form the coding corpus uses.
+INSTANCE_DISPATCH_VERB_RE = re.compile(
+    r"\b(dispatch(?:es|ing)?|invok(?:e|es|ing)|launch(?:es|ing)?|tell|re-invoke)\b"
+    r"|Skill\(|via the Skill tool",
+    re.I,
+)
+# Hand-off vocabulary. A line that ROUTES the instance need elsewhere is the opposite of driving
+# one - it is the shape `odoo-qa-suite` uses (`NEEDS_NEXT -> odoo-instance`) and the shape every
+# Out-of-Scope row uses, so a front-door mention on such a line is never evidence.
+INSTANCE_ROUTE_AWAY_RE = re.compile(
+    r"NEEDS_NEXT|routes? to|route to|Route instead|install first via|delegated via", re.I
+)
+INSTANCE_DISPATCH_WINDOW = 90
+# WEAK evidence: corroboration only. Enough to CLEAR a `true` declaration (half a), never enough
+# to CONTRADICT a `false` one (half b) - these tokens appear in briefs the skill forwards and in
+# grounding prose, so they say a live instance is somewhere in the picture, not that this skill
+# drives it.
+INSTANCE_WEAK_TOKENS = (
+    "INSTANCE_HANDLE",
+    "instance-handle-contract.md",
+    "odoo-bin",
+    "--test-enable",
+)
+
+
+def _instance_evidence(body: str) -> tuple[list[str], list[str]]:
+    """(strong, weak) instance evidence in a SKILL.md body, generated region already removed."""
+    strong: list[str] = []
+    for m in INSTANCE_LEASE_CALL_RE.finditer(body):
+        if NEGATION_RE.search(body[max(0, m.start() - 60):m.start()]):
+            continue
+        strong.append(f"allocator lease call {m.group(0).strip()!r}")
+    for m in INSTANCE_FRONT_DOOR_RE.finditer(body):
+        lo = max(0, m.start() - INSTANCE_DISPATCH_WINDOW)
+        if not INSTANCE_DISPATCH_VERB_RE.search(body[lo: m.end() + INSTANCE_DISPATCH_WINDOW]):
+            continue
+        if NEGATION_RE.search(body[lo:m.start()]):
+            continue
+        line_start = body.rfind("\n", 0, m.start()) + 1
+        line_end = body.find("\n", m.end())
+        line = body[line_start: line_end if line_end > 0 else len(body)]
+        if INSTANCE_ROUTE_AWAY_RE.search(line):
+            continue  # hands the instance need to someone else - not a drive
+        strong.append(f"dispatches the instance front door: {' '.join(line.split())[:80]!r}")
+    weak = [tok for tok in INSTANCE_WEAK_TOKENS if tok in body]
+    return strong, weak
+
+
+def check_instance_truth(findings: list[str], warn_only_findings: list[str]) -> None:
+    """16. [instance-truth] - see the module docstring. Half (a) gates --strict; half (b) never
+    does, for the reason printed with it."""
+    orch = load_orch()
+    for name in sorted(orch):
+        body = skill_body(name)
+        if body is None:
+            continue  # coverage gap already reported by rule 1
+        body = GENERATED_TOOLS_RE.sub("", body)
+        strong, weak = _instance_evidence(body)
+        declared = bool(orch[name].get("instance_touching"))
+
+        if declared and not strong and not weak:
+            findings.append(
+                f"[instance-truth] '{name}' declares instance_touching=true but its SKILL.md shows "
+                f"NO instance evidence outside the generated tools block - no allocator lease call, "
+                f"no dispatch of odoo-instance/odoo-instance-ops, no odoo-bin, no INSTANCE_HANDLE. "
+                f"That declaration derives default_gate_tier=L2, an ALWAYS-human gate no autonomy "
+                f"dial can lower, for work the skill never performs. Set it to false (and re-derive "
+                f"the tier) or make the skill's instance step explicit in its body."
+            )
+        if not declared and strong:
+            warn_only_findings.append(
+                f"[instance-truth] '{name}' declares instance_touching=false but its SKILL.md "
+                f"shows it driving one: {'; '.join(strong[:3])}. The field is a FACT, not a tier "
+                f"lever - but flipping it today would derive L2 and ADD a human gate the runtime "
+                f"sheets deliberately hold at L1 (ephemeral, self-released instances), so this "
+                f"half reports and never gates."
+            )
+
+
 def main(argv: list[str]) -> int:
     strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
@@ -1250,6 +1373,11 @@ def main(argv: list[str]) -> int:
     check_ref_scope_no_reference_pointer(findings)
     check_no_provenance(findings)
 
+    # 16. [instance-truth] - half (a) joins `findings` (gates --strict); half (b) is collected into
+    # its OWN list below so its print message can state why it cannot gate yet.
+    instance_truth_warn_only_findings: list[str] = []
+    check_instance_truth(findings, instance_truth_warn_only_findings)
+
     # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
     # into their OWN list, never gating the strict exit below, no matter how many fire (see the
     # module-level note above check_wait_scope/check_wait_mechanism for why and the flip plan).
@@ -1297,11 +1425,19 @@ def main(argv: list[str]) -> int:
         for fnd in permanent_warn_only_findings:
             print(f"  - {fnd}")
 
+    if instance_truth_warn_only_findings:
+        print(f"check_orchestration: {len(instance_truth_warn_only_findings)} warn-only finding(s) "
+              f"([instance-truth] half (b), under-declaration - NEVER gates --strict while "
+              f"_derive_gate_tier still maps any instance_touching=true to L2; correcting these "
+              f"rows today would ADD human gates the runtime sheets hold at L1):")
+        for fnd in instance_truth_warn_only_findings:
+            print(f"  - {fnd}")
+
     if findings and strict:
         return 1
 
     if (not findings and not warn_only_findings and not ref_scope_warn_only_findings
-            and not permanent_warn_only_findings):
+            and not permanent_warn_only_findings and not instance_truth_warn_only_findings):
         print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 

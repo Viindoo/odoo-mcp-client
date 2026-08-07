@@ -1216,7 +1216,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no NAMED-teammate subagent spawn - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a named subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). run-harness's OWN between-wave integration advance is L1 (autonomous drive-to-done: instance touches are ephemeral test DBs; each wave auto-advances on a GREEN cumulative close-gate with NO per-wave PR, and the only irreversible landing is the downstream outward merge of the single run-level PR the terminal integrate land-tail opens once after the final wave - a fresh non-force first push, not a gate); a DYNAMIC unplanned node (including a wave) stays L2 via run-harness's all-dynamic-L2 rule - neither is a registry default_gate_tier value (a run-harness node tier, not a skill field). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch; no NAMED-teammate subagent spawn - a skill's own spawns cell may still list an anonymous review/resolver subagent) | spawner-agent (dispatches a named subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: a FACT about the skill, not a tier lever - true when the skill's OWN procedure drives a live instance (calls the allocator lease API, dispatches the odoo-instance skill / odoo-instance-ops agent, or emits odoo-bin), false when it only ROUTES an instance need away (a NEEDS_NEXT hand-off, an Out-of-Scope row). Declared true, it must ground CLI via OSM cli_help per target version. check_orchestration.py's [instance-truth] rule reads the skill's own SKILL.md body and contradicts this field when the evidence disagrees, so the value can no longer be whatever tier its author wanted. output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). run-harness's OWN between-wave integration advance is L1 (autonomous drive-to-done: instance touches are ephemeral test DBs; each wave auto-advances on a GREEN cumulative close-gate with NO per-wave PR, and the only irreversible landing is the downstream outward merge of the single run-level PR the terminal integrate land-tail opens once after the final wave - a fresh non-force first push, not a gate); a DYNAMIC unplanned node (including a wave) stays L2 via run-harness's all-dynamic-L2 rule - neither is a registry default_gate_tier value (a run-harness node tier, not a skill field). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -1449,6 +1449,7 @@
       ],
       "stack": "fullstack",
       "instance_touching": true,
+      "outward": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2",
       "spawns_agents": [
@@ -1531,9 +1532,9 @@
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
       "stack": "none",
-      "instance_touching": true,
+      "instance_touching": false,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2",
+      "default_gate_tier": "L1",
       "spawns_agents": []
     },
     "odoo-risk-overview": {
@@ -1723,6 +1724,7 @@
       ],
       "stack": "fullstack",
       "instance_touching": true,
+      "outward": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2",
       "spawns_agents": [
@@ -1774,6 +1776,7 @@
       ],
       "stack": "fullstack",
       "instance_touching": true,
+      "outward": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2",
       "spawns_agents": [
