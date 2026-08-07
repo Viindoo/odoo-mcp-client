@@ -1,0 +1,90 @@
+{
+  "run_id": "repo-null-lifecycle-20260807-z7a8",
+  "schema_version": "run/1.0",
+  "intent": "open the PR while acceptance and doc sit at `repo: null` and have never run",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 2},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "cluster-acceptance",
+      "approach": "odoo-acceptance",
+      "approach_kind": "skill",
+      "repo": null,
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L2",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "cluster-doc",
+      "approach": "odoo-doc-illustration",
+      "approach_kind": "skill",
+      "repo": null,
+      "inputs": {},
+      "depends_on": ["cluster-acceptance"],
+      "gate_tier": "L1",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "run-summary",
+      "approach": "inline synthesis of the run's outcome",
+      "approach_kind": "inline",
+      "repo": null,
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L0",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "integrate",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/31"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/31"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/fleet-addons/pull/31"],
+    "summary": "acceptance and doc gate this repo's delivery but were stamped `repo: null`, so the PR opened before either ran"
+  }
+}

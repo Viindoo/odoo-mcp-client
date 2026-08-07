@@ -1,0 +1,91 @@
+{
+  "run_id": "land-tail-substring-20260807-x5y6",
+  "schema_version": "run/1.0",
+  "intent": "open the PR while two ordinary pre-PR nodes whose ids merely CONTAIN a land-tail word are still unfinished",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 2},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "i18n-merge-catalogs",
+      "approach": "odoo-i18n",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "READY",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "integrated-review",
+      "approach": "odoo-code-review",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L0",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    {
+      "id": "integrate",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/21"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/21"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [
+    {
+      "id": "pr-monitor",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {"pr": "https://example.invalid/org/fleet-addons/pull/21"},
+      "depends_on": ["integrate"],
+      "gate_tier": "L2",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    }
+  ],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/fleet-addons/pull/21"],
+    "summary": "the PR opened before the i18n reconcile and the cross-cutting review ran; both node ids merely CONTAIN a land-tail word"
+  }
+}

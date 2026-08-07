@@ -1,0 +1,67 @@
+{
+  "run_id": "integrate-without-pr-20260807-v3w4",
+  "schema_version": "run/1.0",
+  "intent": "declare the land tail DONE without ever recording a pull request",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 3},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "cluster-i18n",
+      "approach": "odoo-i18n",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/i18n/vi_VN.po"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/i18n/vi_VN.po"], "next": []}
+    },
+    {
+      "id": "integrate",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["cluster-i18n"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["run-integration-fleet-addons squashed and pushed"],
+      "contract": {"status": "DONE", "produced": ["run-integration-fleet-addons squashed and pushed"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "cluster-i18n", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [],
+    "summary": "the land tail declares DONE but produced no pull-request URL - the declaration is unbacked by the act"
+  }
+}

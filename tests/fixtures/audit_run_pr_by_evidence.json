@@ -1,0 +1,109 @@
+{
+  "run_id": "pr-by-evidence-20260807-t1u2",
+  "schema_version": "run/1.0",
+  "intent": "land each coding wave on its own PR while declaring the nodes as ordinary skills",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 5},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "land-wave-1",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/11"],
+      "contract": {"status": "DONE", "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/11"], "next": []}
+    },
+    {
+      "id": "wave-2",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["land-wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing_account/models/account_move.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing_account/models/account_move.py"], "next": []}
+    },
+    {
+      "id": "land-wave-2",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-2"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/12"],
+      "contract": {"status": "DONE", "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/12"], "next": []}
+    },
+    {
+      "id": "integrate",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-2"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/13"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/13"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [
+    {
+      "id": "monitor-13",
+      "approach": "odoo-pr-monitoring",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {"pr": "https://example.invalid/org/fleet-addons/pull/13"},
+      "depends_on": ["integrate"],
+      "gate_tier": "L2",
+      "status": "DONE",
+      "produced": ["monitor/pr-13.md - CI green on https://example.invalid/org/fleet-addons/pull/13"],
+      "contract": {"status": "DONE", "produced": ["monitor/pr-13.md"], "next": []}
+    }
+  ],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "wave-2", "tier": "L1", "decision": "auto-pass"},
+    {"node": "monitor-13", "tier": "L2", "decision": "approve"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [
+      "https://example.invalid/org/fleet-addons/pull/11",
+      "https://example.invalid/org/fleet-addons/pull/12",
+      "https://example.invalid/org/fleet-addons/pull/13"
+    ],
+    "summary": "three PRs on ONE repo - two of them opened by nodes declaring approach_kind 'skill', which a declaration-only audit cannot see"
+  }
+}
