@@ -1,0 +1,66 @@
+{
+  "run_id": "unknown-approach-kind-20260807-d1e2",
+  "schema_version": "run/1.0",
+  "intent": "carry a node kind the documented schema does not define",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 3},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    {
+      "id": "land-step",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "land",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["run-integration-fleet-addons squashed and pushed"],
+      "contract": {"status": "DONE", "produced": ["run-integration-fleet-addons squashed and pushed"], "next": []}
+    },
+    {
+      "id": "integrate",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["land-step"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/51"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/51"], "next": []}
+    }
+  ],
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": ["https://example.invalid/org/fleet-addons/pull/51"],
+    "summary": "`approach_kind: land` is outside the documented enum - the auditor cannot tell whether it opened a PR of its own"
+  }
+}

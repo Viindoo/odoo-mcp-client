@@ -3,13 +3,19 @@
 Business contract being protected (the four properties users complained were violated in real
 run-harness runs; schema SSOT: `plugins/odoo-ai-agents/docs/reference/workflow-harness.md` 8.3):
 
-  1. ONE PR per REPOSITORY. Each entry in the run file's `repos[]` gets exactly one DONE
-     `approach_kind: integrate` node - never one per wave, and never one for a two-repo run. A run
-     file that predates `repos[]` is audited in the legacy single-repo form, reported as such.
-  2. Nothing substantive after the PR opens, SCOPED PER REPO. A PR-opening node that reached DONE
-     while a node OF ITS OWN REPO outside the land tail {integrate, monitor, merge} is still
-     unfinished must FAIL, naming that node - and must NOT name another repo's unfinished nodes or
-     a `repo: null` node, which belong to no repository's readiness scope.
+  1. ONE PR per REPOSITORY, detected by the ACT and cross-checked against the DECLARATION. A node
+     that recorded a pull-request URL in `produced` OPENED a PR whatever `approach_kind` it
+     declares; a DONE `approach_kind: integrate` node that recorded no PR URL never proved it
+     opened one. Each entry in `repos[]` gets exactly one landed PR-opening node - never one per
+     wave, and never one for a two-repo run. A run file that predates `repos[]` is audited in the
+     legacy single-repo form, reported as such.
+  2. Nothing substantive after the PR opens, SCOPED PER REPO. A landed PR-opening node while a node
+     OF ITS OWN REPO outside the land tail is still unfinished must FAIL, naming that node - and
+     must NOT name another repo's unfinished nodes. Land-tail membership is EXACT (the node's
+     `approach_kind`, or its `approach` resolving to `odoo-pr-monitoring`); a free-text id that
+     merely CONTAINS `merge`/`integrate` buys no exemption. A `repo: null` node is out of scope
+     only when it is genuinely repo-less work - a repo-less node running a delivery-gating stage is
+     IN scope and is a finding.
   3. No tier jargon emitted. An `L0`/`L1`/`L2` token recorded in any Continuation Contract must
      FAIL, naming the node - while the node's OWN `gate_tier` and the `gate_log[].tier` entries,
      which are the driver's internal control values, must NOT be flagged (every fixture here
@@ -17,14 +23,21 @@ run-harness runs; schema SSOT: `plugins/odoo-ai-agents/docs/reference/workflow-h
   4. Gate count is REPORTED, never asserted - the right count depends on the run, so a run with
      zero human gates and a run with three are both legal.
 
+  5. THREE verdicts, never two. A run file the auditor cannot fully read - missing, unparseable, or
+     shaped outside the documented schema - is `could-not-check` (exit 2), never `clean`. A shape
+     that hides nodes from the audit (a `nodes` mapping, an `approach_kind` outside the enum) is
+     the classic silent pass this state exists to stop.
+
 Tests are behavior-first (ETHOS #8): each asserts on the script's observable contract - its exit
-code and the node it names - not on its internals.
+code and the node it names - not on its internals. Every test states its fixture's premise before
+asserting the verdict, so none of them can pass vacuously.
 """
 
 from __future__ import annotations
 
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -66,6 +79,24 @@ def _fixture(name: str) -> dict:
 
 def _nodes(raw: dict) -> list[dict]:
     return list(raw.get("nodes") or []) + list(raw.get("dynamic_nodes") or [])
+
+
+PR_URL_RE = re.compile(r"https?://\S+/(?:pull|pulls|pull-requests|merge_requests)/\d+", re.I)
+
+
+def _pr_urls(value) -> set[str]:
+    """Every pull-request URL reachable in a nested JSON value - used to state fixture premises."""
+    if isinstance(value, str):
+        return set(PR_URL_RE.findall(value))
+    if isinstance(value, dict):
+        return set().union(*(_pr_urls(v) for v in value.values())) if value else set()
+    if isinstance(value, list):
+        return set().union(*(_pr_urls(v) for v in value)) if value else set()
+    return set()
+
+
+def _named(audit: dict, check_id: str) -> set[str]:
+    return {v["node"] for v in _check(audit, check_id)["violations"]}
 
 
 # ---------------------------------------------------------------------------
@@ -396,3 +427,333 @@ def test_json_mode_emits_a_parseable_report_with_every_check():
     assert {c["id"] for c in audit["checks"]} == {"one-pr", "pr-last", "no-tier"}
     assert audit["run_id"] == "two-prs-20260806-c3d4"
     assert set(audit["gates"]) == {"human_gate_count", "by_node", "total_gate_log_entries"}
+
+
+# ---------------------------------------------------------------------------
+# PR detection by the ACT, not the declaration
+#
+# The auditor used to read `approach_kind` alone, so a node that really opened a
+# PR while declaring some other kind was invisible. A run file recording THREE
+# PR URLs on ONE repository audited clean.
+# ---------------------------------------------------------------------------
+
+
+def test_a_node_that_opened_a_pr_counts_even_when_it_declares_another_kind():
+    """Three PRs on one repo, two of them opened by nodes declaring `approach_kind: skill`.
+
+    Premise first (so this cannot pass vacuously): the fixture must declare exactly ONE repo and
+    exactly ONE `integrate` node - a declaration-only audit therefore sees a textbook one-PR run -
+    while two further DONE nodes each recorded a distinct pull-request URL in `produced`. Three
+    distinct PR URLs land on that single repo. Only an audit that reads the ACT can see them.
+    """
+    raw = _fixture("audit_run_pr_by_evidence.json")
+    assert [r["id"] for r in raw["repos"]] == ["fleet-addons"], "fixture premise: one declared repo"
+    declared = [n for n in _nodes(raw) if n["approach_kind"] == "integrate"]
+    assert [n["id"] for n in declared] == ["integrate"], (
+        f"fixture premise: exactly ONE node declares the land-tail kind, got {declared}"
+    )
+    undeclared_openers = {
+        n["id"] for n in _nodes(raw)
+        if n["approach_kind"] != "integrate"
+        and _pr_urls(n["produced"]) - _pr_urls(n.get("inputs"))
+        and n["approach"] != "odoo-pr-monitoring"
+    }
+    assert undeclared_openers == {"land-wave-1", "land-wave-2"}, (
+        f"fixture premise: two non-integrate nodes must carry PR evidence, got {undeclared_openers}"
+    )
+    assert all(n["status"] == "DONE" for n in _nodes(raw) if n["id"] in undeclared_openers)
+    all_urls = set().union(*(_pr_urls(n["produced"]) for n in _nodes(raw)))
+    assert len(all_urls) == 3, f"fixture premise: three distinct PRs on one repo, got {all_urls}"
+
+    result = _run("audit_run_pr_by_evidence.json")
+    assert result.returncode == EXIT_VIOLATION, (
+        f"three PRs on one repo must exit {EXIT_VIOLATION} however the openers declare "
+        f"themselves:\n{result.stdout}"
+    )
+    named = _named(_audit_json("audit_run_pr_by_evidence.json"), "one-pr")
+    assert {"land-wave-1", "land-wave-2"} <= named, (
+        f"the nodes that actually opened the extra PRs must be named, got {named}"
+    )
+
+
+def test_a_monitoring_node_handed_a_pr_url_is_never_counted_as_opening_one():
+    """The discriminator for evidence-based detection: producing a URL you were GIVEN is not opening.
+
+    `monitor-13` echoes the PR URL it received into its own `produced`. If PR evidence were read
+    naively, this node would read as a fourth PR opener and the auditor would invent a violation
+    that no run can fix. The clean multi-repo fixture would go red for the same reason.
+    """
+    raw = _fixture("audit_run_pr_by_evidence.json")
+    monitor = next(n for n in _nodes(raw) if n["id"] == "monitor-13")
+    assert monitor["approach"] == "odoo-pr-monitoring"
+    assert _pr_urls(monitor["produced"]), (
+        "fixture premise: the monitoring node must echo a PR URL in `produced`, or this proves "
+        "nothing"
+    )
+    assert _pr_urls(monitor["produced"]) <= _pr_urls(monitor["inputs"]), (
+        "fixture premise: the URL it echoes must be one it was handed as input"
+    )
+
+    named = _named(_audit_json("audit_run_pr_by_evidence.json"), "one-pr")
+    assert "monitor-13" not in named, (
+        f"a node handed a PR URL must not be read as having opened it, got {named}"
+    )
+
+
+def test_a_done_land_node_that_recorded_no_pr_url_fails_and_is_named():
+    """The other half: a declaration with no act behind it.
+
+    A land tail that reports DONE while recording no pull-request URL anywhere never proved a PR
+    exists. The whole run file is otherwise impeccable - one repo, one `integrate` node, every
+    other node settled - which is exactly why a declaration-only audit called it clean.
+    """
+    raw = _fixture("audit_run_integrate_without_pr.json")
+    land = next(n for n in _nodes(raw) if n["approach_kind"] == "integrate")
+    assert land["status"] == "DONE", "fixture premise: the land tail must claim to have landed"
+    assert not _pr_urls(raw), (
+        "fixture premise: NO pull-request URL may appear anywhere in the run file, otherwise the "
+        "missing evidence is not what is being measured"
+    )
+    assert all(n["status"] in ("DONE", "SKIPPED") for n in _nodes(raw)), (
+        "fixture premise: every node settled, so `pr-last` cannot be what fails here"
+    )
+
+    result = _run("audit_run_integrate_without_pr.json")
+    assert result.returncode == EXIT_VIOLATION, (
+        f"a land node with no recorded PR must exit {EXIT_VIOLATION}:\n{result.stdout}"
+    )
+    check = _check(_audit_json("audit_run_integrate_without_pr.json"), "one-pr")
+    assert check["ok"] is False
+    assert [v["node"] for v in check["violations"]] == ["integrate"], check["violations"]
+
+
+# ---------------------------------------------------------------------------
+# Land-tail membership is EXACT, never a substring of a free-text node id
+#
+# `is_land_tail` used to match `integrate`/`monitor`/`merge` as substrings of the
+# node's own id, so plausible planner ids exempted themselves from the after-PR
+# rule and the PR could open over unfinished work.
+# ---------------------------------------------------------------------------
+
+
+def test_a_node_id_that_merely_contains_a_land_tail_word_is_not_exempt():
+    """`i18n-merge-catalogs` and `integrated-review` are ordinary pre-PR work, not the land tail.
+
+    Premise first: both ids CONTAIN a land-tail word, neither node declares a land-tail kind nor
+    runs the land-tail skill, both are unfinished, and the repo's real `integrate` node landed with
+    a recorded PR URL. Under substring matching both are exempt and the run audits clean.
+    """
+    raw = _fixture("audit_run_land_tail_substring.json")
+    by_id = {n["id"]: n for n in _nodes(raw)}
+    for node_id, word in (("i18n-merge-catalogs", "merge"), ("integrated-review", "integrate")):
+        node = by_id[node_id]
+        assert word in node_id, f"fixture premise: {node_id!r} must contain {word!r}"
+        assert node["approach_kind"] == "skill", (
+            f"fixture premise: {node_id} must not declare a land-tail kind"
+        )
+        assert node["approach"] != "odoo-pr-monitoring", (
+            f"fixture premise: {node_id} must not run the land-tail skill either"
+        )
+        assert node["status"] not in ("DONE", "SKIPPED"), (
+            f"fixture premise: {node_id} must be unfinished, or nothing is being measured"
+        )
+    assert by_id["integrate"]["status"] == "DONE" and _pr_urls(by_id["integrate"]["produced"]), (
+        "fixture premise: the PR must really be open, otherwise `pr-last` has nothing to judge"
+    )
+
+    result = _run("audit_run_land_tail_substring.json")
+    assert result.returncode == EXIT_VIOLATION, (
+        f"work left unfinished behind an opened PR must exit {EXIT_VIOLATION} whatever the node "
+        f"ids spell:\n{result.stdout}"
+    )
+    named = _named(_audit_json("audit_run_land_tail_substring.json"), "pr-last")
+    assert named == {"i18n-merge-catalogs", "integrated-review"}, (
+        f"both substring-exempted nodes must be named, got {named}"
+    )
+
+
+def test_the_real_land_tail_keeps_its_exemption_when_the_substring_hole_closes():
+    """Tightening the test must not delete the exemption it was guarding.
+
+    The same fixture carries a PENDING `odoo-pr-monitoring` node - the land tail doing its job
+    after the PR opens. A fix that simply dropped the exemption would name it too, and would
+    deadlock every real run's monitor stage.
+    """
+    raw = _fixture("audit_run_land_tail_substring.json")
+    monitor = next(n for n in _nodes(raw) if n["id"] == "pr-monitor")
+    assert monitor["approach"] == "odoo-pr-monitoring"
+    assert monitor["status"] not in ("DONE", "SKIPPED"), (
+        "fixture premise: the monitoring node must be unfinished, or its exemption is untested"
+    )
+
+    named = _named(_audit_json("audit_run_land_tail_substring.json"), "pr-last")
+    assert "pr-monitor" not in named, (
+        f"the real land tail must stay exempt from the after-PR rule, got {named}"
+    )
+
+
+def test_renaming_a_flagged_node_to_a_land_tail_lookalike_does_not_silence_the_finding(tmp_path):
+    """Mutation proof that the exemption is no longer reachable through the node id.
+
+    `audit_run_work_after_pr.json` fails on `i18n-reconcile`. Rename that node - and nothing else -
+    to `i18n-merge-catalogs` and the substring rule would exempt it, flipping the run to clean.
+    The finding must survive the rename, still naming the node under its new id.
+    """
+    raw = _fixture("audit_run_work_after_pr.json")
+    target = next(n for n in raw["nodes"] if n["id"] == "i18n-reconcile")
+    assert target["status"] not in ("DONE", "SKIPPED"), "fixture premise: still unfinished"
+    target["id"] = "i18n-merge-catalogs"
+    mutated = tmp_path / "run-renamed.json"
+    mutated.write_text(json.dumps(raw), encoding="utf-8")
+
+    result = _run_file(mutated)
+    assert result.returncode == EXIT_VIOLATION, (
+        f"renaming a node must not change the verdict:\n{result.stdout}"
+    )
+    audit = json.loads(_run_file(mutated, "--json").stdout)
+    assert {v["node"] for v in _check(audit, "pr-last")["violations"]} == {"i18n-merge-catalogs"}
+
+
+# ---------------------------------------------------------------------------
+# `repo: null` is a carve-out for repo-less work, not an escape hatch
+#
+# Every `repo: null` node used to sit outside every check, so a run whose
+# acceptance and doc stages were stamped `repo: null` opened its PR with neither
+# having run - and the auditor passed it while PRINTING that it was blind.
+# ---------------------------------------------------------------------------
+
+
+def test_a_delivery_gating_stage_stamped_repo_null_fails_and_is_named():
+    """Acceptance and doc gate this repo's PR; `repo: null` does not put them outside its scope.
+
+    Premise first: the run declares one repo whose `integrate` node landed with a real PR URL,
+    while the acceptance and doc stages carry `repo: null` and never ran. Every node that could
+    have failed the old checks is either settled or repo-less, which is why this audited clean.
+    """
+    raw = _fixture("audit_run_repo_null_lifecycle.json")
+    assert [r["id"] for r in raw["repos"]] == ["fleet-addons"]
+    by_id = {n["id"]: n for n in _nodes(raw)}
+    for gating in ("cluster-acceptance", "cluster-doc"):
+        assert by_id[gating]["repo"] is None, f"fixture premise: {gating} must be `repo: null`"
+        assert by_id[gating]["status"] not in ("DONE", "SKIPPED"), (
+            f"fixture premise: {gating} must never have run"
+        )
+    assert by_id["integrate"]["status"] == "DONE" and _pr_urls(by_id["integrate"]["produced"]), (
+        "fixture premise: the PR must really be open"
+    )
+    assert all(n["status"] in ("DONE", "SKIPPED") for n in _nodes(raw) if n["repo"]), (
+        "fixture premise: every repo-TAGGED node is settled, so only the repo-less ones can fail"
+    )
+
+    result = _run("audit_run_repo_null_lifecycle.json")
+    assert result.returncode == EXIT_VIOLATION, (
+        f"a PR opened over unfinished `repo: null` lifecycle stages must exit "
+        f"{EXIT_VIOLATION}:\n{result.stdout}"
+    )
+    audit = _audit_json("audit_run_repo_null_lifecycle.json")
+    assert {"cluster-acceptance", "cluster-doc"} <= _named(audit, "one-pr"), (
+        f"a delivery-gating stage must be told to name its repo, got {_named(audit, 'one-pr')}"
+    )
+    assert _named(audit, "pr-last") == {"cluster-acceptance", "cluster-doc"}, (
+        f"both unfinished gating stages must be named behind the opened PR, got "
+        f"{_named(audit, 'pr-last')}"
+    )
+
+
+def test_genuinely_repo_less_work_stays_out_of_every_repo_scope():
+    """The discriminator: the rule targets delivery-gating stages, not the `repo: null` field.
+
+    The same fixture carries an unfinished `repo: null` inline synthesis node. It gates nothing and
+    writes into no repository, so naming it would make every chat-only node a false positive and
+    would re-break the multi-repo scoping the earlier fix established.
+    """
+    raw = _fixture("audit_run_repo_null_lifecycle.json")
+    summary = next(n for n in _nodes(raw) if n["id"] == "run-summary")
+    assert summary["repo"] is None and summary["status"] not in ("DONE", "SKIPPED"), (
+        "fixture premise: an unfinished genuinely repo-less node must be present"
+    )
+
+    audit = _audit_json("audit_run_repo_null_lifecycle.json")
+    assert "run-summary" not in _named(audit, "one-pr") | _named(audit, "pr-last"), (
+        "a chat-only synthesis node belongs to no repository and must stay out of scope"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Verdict 3 - could-not-check. A run file the auditor cannot fully read is
+# never reported as clean.
+# ---------------------------------------------------------------------------
+
+
+def test_a_dag_serialized_as_a_mapping_is_could_not_check_not_clean():
+    """Every node vanishes when `nodes` is an object - and an empty DAG passes every assertion.
+
+    Premise first: the mapping really does hide a violating run - two DONE `integrate` nodes on one
+    repo, each with its own PR URL, plus an acceptance node that never ran. Reported as clean, this
+    file certifies the exact topology the auditor exists to catch.
+    """
+    raw = _fixture("audit_run_nodes_not_a_list.json")
+    assert isinstance(raw["nodes"], dict), "fixture premise: `nodes` must be a mapping"
+    hidden = list(raw["nodes"].values())
+    landed = [n for n in hidden if n["approach_kind"] == "integrate" and n["status"] == "DONE"]
+    assert len(landed) == 2 and len({u for n in landed for u in _pr_urls(n["produced"])}) == 2, (
+        f"fixture premise: two landed PRs on one repo must be hidden inside the mapping, got "
+        f"{landed}"
+    )
+    assert any(n["status"] not in ("DONE", "SKIPPED") for n in hidden), (
+        "fixture premise: unfinished work must be hidden in there too"
+    )
+
+    result = _run("audit_run_nodes_not_a_list.json")
+    assert result.returncode == EXIT_USAGE, (
+        f"an unreadable DAG must exit {EXIT_USAGE} (could-not-check), never 0:\n{result.stdout}"
+    )
+    audit = _audit_json("audit_run_nodes_not_a_list.json")
+    assert audit["verdict"] == "could-not-check"
+    assert audit["ok"] is False
+    assert any("nodes" in problem for problem in audit["schema_problems"]), audit["schema_problems"]
+    assert "COULD-NOT-CHECK" in result.stdout, result.stdout
+
+
+def test_an_approach_kind_outside_the_schema_enum_is_could_not_check():
+    """A kind the schema does not define may be a land step the auditor cannot classify.
+
+    Premise first: every other node conforms and the run looks like a textbook single-PR run, so
+    the unknown kind is the only thing that can change the verdict.
+    """
+    raw = _fixture("audit_run_unknown_approach_kind.json")
+    kinds = {n["approach_kind"] for n in _nodes(raw)}
+    assert "land" in kinds, "fixture premise: an out-of-enum kind must be present"
+    assert kinds - {"land"} <= {"skill", "agent", "workflow", "wave", "inline", "integrate"}, (
+        f"fixture premise: every OTHER kind must be in the documented enum, got {kinds}"
+    )
+
+    result = _run("audit_run_unknown_approach_kind.json")
+    assert result.returncode == EXIT_USAGE, (
+        f"an out-of-enum approach_kind must exit {EXIT_USAGE} (could-not-check):\n{result.stdout}"
+    )
+    audit = _audit_json("audit_run_unknown_approach_kind.json")
+    assert audit["verdict"] == "could-not-check"
+    assert any("land-step" in problem for problem in audit["schema_problems"]), (
+        f"the finding must name the node carrying the unknown kind, got {audit['schema_problems']}"
+    )
+
+
+def test_the_three_verdicts_are_distinct_and_map_to_distinct_exit_codes():
+    """clean / violation / could-not-check are three states, never two.
+
+    The failure this guards is a run file that cannot be read being folded into `clean` - the
+    difference between "the audit found nothing wrong" and "the audit could not look".
+    """
+    expected = {
+        "audit_run_clean.json": ("clean", EXIT_OK),
+        "audit_run_two_prs.json": ("violation", EXIT_VIOLATION),
+        "audit_run_nodes_not_a_list.json": ("could-not-check", EXIT_USAGE),
+    }
+    seen = {}
+    for fixture, (verdict, exit_code) in expected.items():
+        result = _run(fixture)
+        assert result.returncode == exit_code, f"{fixture}:\n{result.stdout}\n{result.stderr}"
+        seen[fixture] = _audit_json(fixture)["verdict"]
+        assert seen[fixture] == verdict, f"{fixture} reported {seen[fixture]!r}"
+    assert len(set(seen.values())) == 3, f"the three verdicts must be distinct, got {seen}"

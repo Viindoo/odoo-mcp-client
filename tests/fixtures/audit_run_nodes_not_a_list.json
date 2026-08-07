@@ -1,0 +1,81 @@
+{
+  "run_id": "nodes-not-a-list-20260807-b9c0",
+  "schema_version": "run/1.0",
+  "intent": "serialize the DAG as a mapping keyed by node id instead of the documented array",
+  "autonomy": "auto",
+  "status": "DONE",
+  "cursor": null,
+  "budget": {"max_nodes": 12, "nodes_run": 4},
+  "repos": [
+    {
+      "id": "fleet-addons",
+      "base": "18.0",
+      "verify": "make test",
+      "commit": "<resolved by git-toolkit:git-ops>",
+      "confidential": "public",
+      "worktree_root": "<worktree parent outside the repo tree>"
+    }
+  ],
+  "nodes": {
+    "wave-1": {
+      "id": "wave-1",
+      "approach": "odoo-coding",
+      "approach_kind": "wave",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": [],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+      "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
+    },
+    "cluster-acceptance": {
+      "id": "cluster-acceptance",
+      "approach": "odoo-acceptance",
+      "approach_kind": "skill",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L2",
+      "status": "PENDING",
+      "produced": [],
+      "contract": {}
+    },
+    "integrate-a": {
+      "id": "integrate-a",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["wave-1"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/41"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/41"], "next": []}
+    },
+    "integrate-b": {
+      "id": "integrate-b",
+      "approach": "git-toolkit:git-ops",
+      "approach_kind": "integrate",
+      "repo": "fleet-addons",
+      "inputs": {},
+      "depends_on": ["integrate-a"],
+      "gate_tier": "L1",
+      "status": "DONE",
+      "produced": ["https://example.invalid/org/fleet-addons/pull/42"],
+      "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/42"], "next": []}
+    }
+  },
+  "dynamic_nodes": [],
+  "gate_log": [
+    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+  ],
+  "completion": {
+    "status": "DONE",
+    "evidence": [
+      "https://example.invalid/org/fleet-addons/pull/41",
+      "https://example.invalid/org/fleet-addons/pull/42"
+    ],
+    "summary": "two PRs on one repo AND an unfinished acceptance node - every one of them invisible while `nodes` is a mapping"
+  }
+}

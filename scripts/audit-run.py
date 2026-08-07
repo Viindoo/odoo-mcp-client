@@ -6,22 +6,27 @@ Reads a `run-<id>.json` blackboard - the RUN-DAG artifact the `run-harness` driv
 procedure: `plugins/odoo-ai-agents/skills/run-harness/SKILL.md`) - and asserts the properties that
 users complained were violated in real runs:
 
-  1. [one-pr]      One PR per REPO. A PR-opening node is a node with
-                   `approach_kind == "integrate"` - the terminal land-tail that squashes a repo's
-                   run-integration branch, pushes it once, and opens THAT REPO's single PR (harness
-                   8.3: "There is exactly ONE PR per REPO - never one per wave"). The run file
-                   declares its repositories in `repos[]` and tags every node with `repo`, so the
-                   check is per-repo: exactly one PR-opening node must reach DONE for EACH entry in
-                   `repos[]`, and every `wave`/`integrate` node must name a declared repo. A run
-                   file written before `repos[]` existed is audited in the LEGACY SINGLE-REPO form
-                   (one PR for the whole run); the report names which form it ran in.
+  1. [one-pr]      One PR per REPO. A PR-opening node is detected by the ACT first and the
+                   DECLARATION second: a node that recorded a pull-request URL in `produced`
+                   OPENED a PR whatever its `approach_kind` says, and a node declaring
+                   `approach_kind: "integrate"` is the land tail that is SUPPOSED to open one
+                   (harness 8.3: "There is exactly ONE PR per REPO - never one per wave"). The two
+                   signals must agree: a node that produced a PR URL without declaring `integrate`
+                   is a finding (an undeclared land step), and a DONE `integrate` node that
+                   produced no PR URL is a finding too (the land step's evidence is missing). The
+                   run file declares its repositories in `repos[]` and tags every node with `repo`,
+                   so the count is per-repo: exactly one PR-opening node must land for EACH entry in
+                   `repos[]`, and every node that writes a repo's source or gates its delivery must
+                   name a declared repo. A run file written before `repos[]` existed is audited in
+                   the LEGACY SINGLE-REPO form (one PR for the whole run); the report names which
+                   form it ran in.
   2. [pr-last]     Nothing substantive after the PR opens - SCOPED PER REPO. If repo R's PR-opening
-                   node is DONE, every node whose `repo` is R and that is OUTSIDE the land-tail set
-                   {integrate, monitor, merge} must be DONE or SKIPPED. Repo A's PR is NOT held
-                   hostage by repo B's unfinished nodes, and nodes with `repo: null` (chat-only
-                   synthesis - belonging to no repository) are outside every repo's scope. A
-                   coding/review/test node still unfinished behind ITS OWN repo's opened PR means
-                   the run shipped a PR and then kept working - the topology complaint.
+                   node landed, every node whose `repo` is R and that is OUTSIDE the land tail must
+                   be DONE or SKIPPED. Repo A's PR is NOT held hostage by repo B's unfinished
+                   nodes. A node with `repo: null` is out of scope ONLY when it is genuinely
+                   repo-less work (a chat-only synthesis / routing node): a `repo: null` node that
+                   runs a delivery-gating lifecycle stage is IN scope and is a finding, because a
+                   stage that gates a repository's PR belongs to that repository.
   3. [no-tier]     No tier jargon emitted. No `L0`/`L1`/`L2` token appears in any Continuation
                    Contract recorded in the run file (`nodes[].contract`). The node's own
                    `gate_tier` and the `gate_log[].tier` entries are the driver's INTERNAL control
@@ -29,13 +34,24 @@ users complained were violated in real runs:
   4. [gates]       Gate count. Reports how many human gates the run hit, broken down by node, from
                    `gate_log[]`. Reported, never asserted: the right count depends on the run.
 
+Three verdicts, never two - a run file the auditor cannot fully understand is NEVER reported as
+clean:
+
+  clean            every assertion passed
+  violation        at least one assertion was violated, each finding naming its node
+  could-not-check  the run file is missing, unparseable, or shaped outside the documented schema
+                   (a `nodes` mapping instead of an array, an `approach_kind` outside the schema's
+                   enum, a node with no id, ...). The auditor reports what it could not read and
+                   refuses to issue a verdict on the parts it could.
+
 Usage:
     scripts/audit-run.py <path-to-run-<id>.json> [--json]
 
 Exit codes:
-    0  every assertion passed (check 4 is informational and never fails the run)
-    1  at least one assertion was violated
-    2  usage error, or the run file is missing / unreadable / not a JSON object
+    0  clean - every assertion passed (check 4 is informational and never fails the run)
+    1  violation - at least one assertion was violated
+    2  could-not-check - usage error, or the run file is missing / unreadable / not JSON / not
+       shaped like the documented run-state schema
 
 Stdlib only; no hardcoded paths; runs from any cwd.
 """
@@ -50,24 +66,62 @@ from pathlib import Path
 
 # --- Schema vocabulary (derived from workflow-harness.md 8.3, never invented) ------------------
 
-# The `approach_kind` of the terminal land node - the ONE node per repo that opens a PR.
-# `odoo-coding` never pushes or opens a PR; `odoo-pr-monitoring` MERGES an already-open PR.
+# The documented `approach_kind` enum. A kind outside it is not audited as if it were harmless:
+# the auditor cannot tell whether an unknown kind opens a PR, so it reports could-not-check.
+APPROACH_KINDS = ("skill", "agent", "workflow", "wave", "inline", "integrate")
+
+# The documented node `status` enum, same reasoning.
+NODE_STATUSES = (
+    "PENDING", "READY", "RUNNING", "DONE", "FAILED", "SKIPPED", "BLOCKED", "NEEDS_CONTEXT",
+)
+
+# The `approach_kind` of the terminal land node - the ONE node per repo that is SUPPOSED to open a
+# PR. This is the DECLARATION half of PR detection; `opened_pr_urls()` is the ACT half, and the two
+# are cross-checked against each other.
 PR_OPENING_APPROACH_KINDS = ("integrate",)
 
 # Node kinds that ALWAYS belong to a repository: a coding wave writes that repo's source tree, and
 # an `integrate` node opens that repo's PR. `repo: null` on either is a serialization bug - it puts
-# real work outside every repo's readiness scope. Every other kind may legitimately be repo-less.
+# real work outside every repo's readiness scope.
 REPO_BOUND_APPROACH_KINDS = ("wave", "integrate")
+
+# Stage skills that CANNOT be repo-less either: each one writes into a repository's tree or gates
+# that repository's delivery, so `repo: null` on one of them is a mis-stamped lifecycle node, not
+# repo-less work. Sourced from the Terminal stage order constant (its ONE owner is
+# `plugins/odoo-ai-agents/skills/run-harness/references/wave-integration.md`, section "Terminal
+# stage order") plus the code-changing front doors the coding waves dispatch.
+REPO_BOUND_APPROACHES = (
+    "odoo-coding",             # coding wave - writes a repo's source
+    "odoo-test-writing",       # writes a repo's tests
+    "odoo-code-review",        # the pre-PR review; it can force code changes
+    "odoo-i18n",               # (1) i18n reconcile - writes .po/.pot into a repo
+    "odoo-acceptance",         # (2) live blast-radius oracle - gates that repo's PR
+    "odoo-doc-illustration",   # (2b) user guide + App-Store landing - writes into a repo
+    "odoo-pr-monitoring",      # monitor + merge - watches ONE repo's PR
+    "git-toolkit:git-ops",     # (4) the land step itself
+)
+
+# Artefact suffixes that only a repository source tree carries. A node that produced one of these
+# wrote into some repository, so it must name which.
+REPO_SOURCE_SUFFIXES = (".py", ".xml", ".js", ".po", ".pot", ".scss")
 
 # Audit forms. The per-repo form is the real rule; the legacy form is the graceful fallback for a
 # run file serialized before `repos[]`/`repo` existed.
 FORM_PER_REPO = "per-repo"
 FORM_LEGACY = "legacy-single-repo"
 
-# The land tail: the nodes that legitimately run at or after the PR opens. `integrate` opens the
-# PR, the monitoring node watches CI, the merge node lands it. Matched as tokens against a node's
-# `approach_kind`, `approach`, and `id`, so `odoo-pr-monitoring` counts as `monitor`.
-LAND_TAIL_TOKENS = ("integrate", "monitor", "merge")
+# The land tail: the nodes that legitimately run at or after the PR opens. Membership is EXACT,
+# never a substring of a free-text node id - `i18n-merge-catalogs` and `integrated-review` contain
+# a land-tail word and are ordinary pre-PR work. A node is land tail when its `approach_kind` is
+# exactly `integrate` (the node that opens the PR) or its `approach` resolves exactly to
+# `odoo-pr-monitoring`, the ONE skill the Terminal stage order assigns to both `monitor` and
+# `merge`. The node's `id` is never consulted.
+LAND_TAIL_APPROACH_KINDS = ("integrate",)
+LAND_TAIL_APPROACHES = ("odoo-pr-monitoring",)
+
+# A node that OBSERVES an already-open PR is handed its URL; it never opens one. Same skill as the
+# land tail's monitor/merge stages.
+POST_PR_OBSERVER_APPROACHES = LAND_TAIL_APPROACHES
 
 # A node in one of these statuses is settled - it will not do any more work.
 SETTLED_NODE_STATUSES = ("DONE", "SKIPPED")
@@ -79,6 +133,22 @@ AUTO_GATE_DECISION_RE = re.compile(r"auto", re.I)
 
 # The tier jargon a Continuation Contract must never carry.
 TIER_TOKEN_RE = re.compile(r"\bL[012]\b")
+
+# A recorded pull-request URL - the observable evidence that a node ACTUALLY opened a PR, across
+# the forge flavours a run can land on (GitHub/Gitea `pull`/`pulls`, Bitbucket `pull-requests`,
+# GitLab `merge_requests`). Matched inside a longer string, so "PR opened: <url>" counts.
+PR_URL_RE = re.compile(
+    r"https?://[^\s\"'<>()\[\]]+/(?:pull|pulls|pull-requests|merge_requests|merge-requests)/\d+",
+    re.I,
+)
+
+VERDICT_CLEAN = "clean"
+VERDICT_VIOLATION = "violation"
+VERDICT_COULD_NOT_CHECK = "could-not-check"
+
+EXIT_CLEAN = 0
+EXIT_VIOLATION = 1
+EXIT_COULD_NOT_CHECK = 2
 
 
 # --- Run-file access --------------------------------------------------------------------------
@@ -100,7 +170,11 @@ def load_run(path: Path) -> dict:
 
 
 def all_nodes(run: dict) -> list[dict]:
-    """Every node the run knows about: the planned DAG plus the nodes materialized at runtime."""
+    """Every node the run knows about: the planned DAG plus the nodes materialized at runtime.
+
+    Only reachable after `schema_problems()` came back empty, so every element really is an object
+    and no node is silently dropped here.
+    """
     nodes: list[dict] = []
     for key in ("nodes", "dynamic_nodes"):
         value = run.get(key) or []
@@ -114,16 +188,21 @@ def node_label(node: dict) -> str:
     return str(node.get("id") or node.get("approach") or "<unnamed node>")
 
 
-def is_pr_opening(node: dict) -> bool:
-    return str(node.get("approach_kind") or "").strip().lower() in PR_OPENING_APPROACH_KINDS
+def approach_kind(node: dict) -> str:
+    return str(node.get("approach_kind") or "").strip().lower()
 
 
-def is_land_tail(node: dict) -> bool:
-    """True if the node belongs to the land tail (it may legitimately run at/after PR open)."""
-    haystack = " ".join(
-        str(node.get(field) or "") for field in ("approach_kind", "approach", "id")
-    ).lower()
-    return any(token in haystack for token in LAND_TAIL_TOKENS)
+def approach_is(node: dict, names: tuple[str, ...]) -> bool:
+    """EXACT identity test for a node's `approach`, tolerating a `<plugin>:<skill>` qualifier.
+
+    Exact by construction: `odoo-i18n` matches `odoo-i18n` and `odoo-ai-agents:odoo-i18n`, and
+    never `i18n-merge-catalogs`. Substring matching is what let a free-text id exempt itself from
+    the after-PR rule; nothing here looks at `id`.
+    """
+    approach = str(node.get("approach") or "").strip().lower()
+    if not approach:
+        return False
+    return any(approach == name or approach.endswith(":" + name) for name in names)
 
 
 def node_status(node: dict) -> str:
@@ -162,6 +241,213 @@ def audit_form(run: dict) -> str:
     return FORM_PER_REPO if declared_repos(run) else FORM_LEGACY
 
 
+# --- PR detection: the ACT (evidence) cross-checked against the DECLARATION --------------------
+
+
+def _iter_strings(value):
+    """Every string reachable inside a nested JSON value, keys included."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, sub in value.items():
+            yield str(key)
+            yield from _iter_strings(sub)
+    elif isinstance(value, list):
+        for sub in value:
+            yield from _iter_strings(sub)
+
+
+def _collect_pr_urls(value) -> set[str]:
+    return {m.group(0) for text in _iter_strings(value) for m in PR_URL_RE.finditer(text)}
+
+
+def produced_pr_urls(node: dict) -> set[str]:
+    """PR URLs the node recorded as ITS OWN output: `produced[]` and the contract's `produced[]`."""
+    urls = _collect_pr_urls(node.get("produced"))
+    contract = node.get("contract")
+    if isinstance(contract, dict):
+        urls |= _collect_pr_urls(contract.get("produced"))
+    return urls
+
+
+def opened_pr_urls(node: dict) -> set[str]:
+    """The PR URLs this node OPENED - the observable act, independent of what it declares.
+
+    Two subtractions keep an observer from being mistaken for an opener:
+      - a URL the node also carries in `inputs` was HANDED to it, not created by it;
+      - a `odoo-pr-monitoring` node watches a PR someone else opened, so its output never counts.
+    """
+    if approach_is(node, POST_PR_OBSERVER_APPROACHES):
+        return set()
+    return produced_pr_urls(node) - _collect_pr_urls(node.get("inputs"))
+
+
+def opened_pr(node: dict) -> bool:
+    return bool(opened_pr_urls(node))
+
+
+def declares_pr_open(node: dict) -> bool:
+    return approach_kind(node) in PR_OPENING_APPROACH_KINDS
+
+
+def is_pr_opening(node: dict) -> bool:
+    """A node that opens a PR - by the act it recorded, or by the role it declares."""
+    return opened_pr(node) or declares_pr_open(node)
+
+
+def is_landed_pr(node: dict) -> bool:
+    """A node whose PR is actually up: it recorded a PR URL, or it is the land tail and is DONE."""
+    return opened_pr(node) or (declares_pr_open(node) and node_status(node) == DONE)
+
+
+def is_land_tail(node: dict) -> bool:
+    """True if the node belongs to the land tail (it may legitimately run at/after PR open).
+
+    EXACT against the node's kind and its resolved skill identity - never a substring of the
+    free-text `id`, which is how `i18n-merge-catalogs` and `integrated-review` used to exempt
+    themselves from the after-PR rule.
+    """
+    return approach_kind(node) in LAND_TAIL_APPROACH_KINDS or approach_is(node, LAND_TAIL_APPROACHES)
+
+
+def produced_repo_source(node: dict) -> list[str]:
+    """Artefacts in `produced[]` that can only live inside a repository source tree."""
+    found = []
+    for text in _iter_strings(node.get("produced")):
+        candidate = text.strip()
+        if "://" in candidate:
+            continue
+        if candidate.lower().endswith(REPO_SOURCE_SUFFIXES):
+            found.append(candidate)
+    return found
+
+
+def repo_binding_reasons(node: dict) -> list[str]:
+    """Why this node MUST name a repository. Empty means it may legitimately be repo-less.
+
+    A node is repo-bound when it writes a repository's source or gates a repository's delivery.
+    Everything else - chat-only synthesis, routing, a report - may carry `repo: null`.
+    """
+    reasons: list[str] = []
+    kind = approach_kind(node)
+    if kind in REPO_BOUND_APPROACH_KINDS:
+        reasons.append(
+            f"approach_kind {kind!r} writes a repository's source or opens its PR"
+        )
+    if approach_is(node, REPO_BOUND_APPROACHES):
+        reasons.append(
+            f"approach {str(node.get('approach'))!r} is a lifecycle stage that writes into a "
+            f"repository or gates its delivery"
+        )
+    if opened_pr(node):
+        reasons.append(
+            f"recorded pull-request URL(s) {sorted(opened_pr_urls(node))} in `produced`"
+        )
+    sources = produced_repo_source(node)
+    if sources:
+        reasons.append(f"produced repository source {sources}")
+    return reasons
+
+
+# --- Schema readability: the could-not-check state ---------------------------------------------
+
+
+def _node_problems(node, where: str, index: int, per_repo: bool) -> list[str]:
+    at = f"{where}[{index}]"
+    if not isinstance(node, dict):
+        return [f"{at} must be a JSON object, got {type(node).__name__} - a node the auditor "
+                f"cannot read is a node it cannot audit"]
+    problems: list[str] = []
+    label = str(node.get("id") or "").strip()
+    if not label:
+        problems.append(f"{at} has no `id` - a finding could not name it")
+    at = f"{at} ({label or '<unnamed>'})"
+
+    kind = node.get("approach_kind")
+    if kind is None:
+        problems.append(f"{at} has no `approach_kind` - the auditor cannot tell whether it "
+                        f"opens a PR")
+    elif str(kind).strip().lower() not in APPROACH_KINDS:
+        problems.append(f"{at} has approach_kind {kind!r}, outside the documented enum "
+                        f"{list(APPROACH_KINDS)} - an unknown kind may be a land step the auditor "
+                        f"cannot classify")
+
+    status = node.get("status")
+    if status is None:
+        problems.append(f"{at} has no `status` - the auditor cannot tell whether it finished")
+    elif str(status).strip().upper() not in NODE_STATUSES:
+        problems.append(f"{at} has status {status!r}, outside the documented enum "
+                        f"{list(NODE_STATUSES)}")
+
+    if per_repo and "repo" not in node:
+        problems.append(f"{at} has no `repo` key while the run declares `repos[]` - an absent "
+                        f"field is not the same assertion as an explicit `repo: null`")
+    elif not (node.get("repo") is None or isinstance(node.get("repo"), str)):
+        problems.append(f"{at} has repo {node.get('repo')!r} - it must be a repos[].id string "
+                        f"or null")
+
+    for field, types, shape in (
+        ("produced", (list,), "array"),
+        ("depends_on", (list,), "array"),
+        ("inputs", (dict,), "object"),
+        ("contract", (dict,), "object"),
+    ):
+        value = node.get(field)
+        if field in node and value is not None and not isinstance(value, types):
+            problems.append(f"{at} has `{field}` of type {type(value).__name__}, expected a JSON "
+                            f"{shape}")
+    return problems
+
+
+def schema_problems(run: dict) -> list[str]:
+    """Everything about this run file the auditor cannot read as the documented schema.
+
+    Non-empty means could-not-check: the auditor refuses to certify a file whose shape hides nodes
+    from it. The classic silent pass is `nodes` serialized as a mapping - every node then vanishes
+    and every assertion passes over an empty DAG.
+    """
+    problems: list[str] = []
+
+    if "nodes" not in run:
+        problems.append("no `nodes` array - a run-state file always serializes its DAG; auditing "
+                        "an absent DAG would certify nothing as clean")
+    for key in ("nodes", "dynamic_nodes"):
+        value = run.get(key)
+        if key in run and value is not None and not isinstance(value, list):
+            problems.append(f"`{key}` must be a JSON array, got {type(value).__name__} - every "
+                            f"node inside it would be invisible to the audit")
+
+    repos_raw = run.get("repos")
+    if "repos" in run and repos_raw is not None and not isinstance(repos_raw, list):
+        problems.append(f"`repos` must be a JSON array, got {type(repos_raw).__name__} - the run "
+                        f"would silently fall back to the legacy single-repo form")
+    if isinstance(repos_raw, list):
+        for i, entry in enumerate(repos_raw):
+            if not isinstance(entry, dict):
+                problems.append(f"repos[{i}] must be a JSON object, got {type(entry).__name__}")
+            elif not str(entry.get("id") or "").strip():
+                problems.append(f"repos[{i}] has no `id` - nodes cannot be attributed to it")
+
+    gate_log = run.get("gate_log")
+    if "gate_log" in run and gate_log is not None and not isinstance(gate_log, list):
+        problems.append(f"`gate_log` must be a JSON array, got {type(gate_log).__name__}")
+    if isinstance(gate_log, list):
+        for i, entry in enumerate(gate_log):
+            if not isinstance(entry, dict):
+                problems.append(f"gate_log[{i}] must be a JSON object, got "
+                                f"{type(entry).__name__}")
+
+    per_repo = bool(declared_repos(run))
+    for key in ("nodes", "dynamic_nodes"):
+        value = run.get(key)
+        if not isinstance(value, list):
+            continue
+        for i, node in enumerate(value):
+            problems += _node_problems(node, key, i, per_repo)
+
+    return problems
+
+
 # --- Checks -----------------------------------------------------------------------------------
 
 
@@ -169,57 +455,92 @@ def _result(check_id: str, ok: bool, note: str, violations: list[dict]) -> dict:
     return {"id": check_id, "ok": ok, "note": note, "violations": violations}
 
 
-def check_one_pr_per_repo(run: dict) -> dict:
-    """1. Exactly one PR-opening node reached DONE per declared repository.
+def _declaration_evidence_violations(nodes: list[dict]) -> list[dict]:
+    """Findings where what a node DID and what it DECLARED disagree about opening a PR."""
+    violations: list[dict] = []
+    for node in nodes:
+        urls = sorted(opened_pr_urls(node))
+        if urls and not declares_pr_open(node):
+            violations.append({
+                "node": node_label(node),
+                "detail": f"recorded pull-request URL(s) {urls} in `produced` while declaring "
+                          f"approach_kind {approach_kind(node) or '<unset>'!r} - a PR is opened "
+                          f"ONLY by the terminal land node "
+                          f"(approach_kind {PR_OPENING_APPROACH_KINDS[0]!r}), once per repo",
+            })
+        if len(urls) > 1:
+            violations.append({
+                "node": node_label(node),
+                "detail": f"recorded {len(urls)} distinct pull-request URLs {urls} - one land step "
+                          f"opens exactly one PR",
+            })
+        if declares_pr_open(node) and node_status(node) == DONE and not urls:
+            violations.append({
+                "node": node_label(node),
+                "detail": f"declares approach_kind {approach_kind(node)!r} and reached {DONE} but "
+                          f"recorded no pull-request URL in `produced` - the land step's own "
+                          f"evidence is missing, so no PR can be confirmed",
+            })
+    return violations
 
-    Per-repo form (`repos[]` declared): every `wave`/`integrate` node must name a declared repo,
-    and each `repos[]` entry must have exactly one PR-opening node at DONE. A run that opened NO
-    PR at all lands nothing (chat-only / review-only) and is legal.
+
+def check_one_pr_per_repo(run: dict) -> dict:
+    """1. Exactly one PR-opening node landed per declared repository, act and declaration agreeing.
+
+    Per-repo form (`repos[]` declared): every node that writes a repo's source or gates its
+    delivery must name a declared repo, and each `repos[]` entry must have exactly one PR-opening
+    node landed. A run that opened NO PR at all lands nothing (chat-only / review-only) and is
+    legal.
 
     Legacy form (no `repos[]`): the whole run is one repository bucket - exactly one PR-opening
-    node at DONE, zero declared being legal. No `repo` is invented to pretend otherwise.
+    node landed, zero declared being legal. No `repo` is invented to pretend otherwise.
     """
     nodes = all_nodes(run)
     repos = declared_repos(run)
     declared = [n for n in nodes if is_pr_opening(n)]
-    landed = [n for n in declared if node_status(n) == DONE]
+    landed = [n for n in nodes if is_landed_pr(n)]
+    pr_urls = sorted({url for n in nodes for url in opened_pr_urls(n)})
+
+    disagreements = _declaration_evidence_violations(nodes)
 
     if not repos:
         note = (
-            f"{len(landed)} PR-opening node(s) reached DONE out of {len(declared)} declared "
-            f"(approach_kind in {list(PR_OPENING_APPROACH_KINDS)}); this run file declares no "
-            f"`repos[]`, so it was audited in the {FORM_LEGACY} form - one PR for the whole run"
+            f"{len(landed)} PR-opening node(s) landed out of {len(declared)} detected "
+            f"(declared approach_kind {list(PR_OPENING_APPROACH_KINDS)} or evidenced by a "
+            f"pull-request URL in `produced`); {len(pr_urls)} distinct PR URL(s) recorded; this "
+            f"run file declares no `repos[]`, so it was audited in the {FORM_LEGACY} form - one PR "
+            f"for the whole run"
         )
+        violations = list(disagreements)
         if len(landed) > 1:
-            return _result("one-pr", False, note, [
+            violations += [
                 {"node": node_label(n),
-                 "detail": f"PR-opening node reached {DONE} - a run opens exactly one PR per repo"}
+                 "detail": f"PR-opening node landed - a run opens exactly one PR per repo"}
                 for n in landed
-            ])
-        if declared and not landed:
-            return _result("one-pr", False, note, [
+            ]
+        elif declared and not landed:
+            violations += [
                 {"node": node_label(n),
                  "detail": f"PR-opening node declared but its status is "
                            f"{node_status(n) or '<unset>'}, not {DONE} - the run never landed"}
                 for n in declared
-            ])
-        return _result("one-pr", True, note, [])
+            ]
+        return _result("one-pr", not violations, note, violations)
 
-    violations: list[dict] = []
+    violations: list[dict] = list(disagreements)
 
-    # (a) Attribution. A coding wave or a land tail with no declared repo cannot be attributed to
-    #     any PR, which makes "one PR per repo" unprovable for the whole run.
+    # (a) Attribution. A node that writes a repo's source or gates its delivery and names no repo
+    #     cannot be attributed to any PR, which makes "one PR per repo" unprovable for the run.
     for node in nodes:
-        kind = str(node.get("approach_kind") or "").strip().lower()
-        if kind not in REPO_BOUND_APPROACH_KINDS:
-            continue
         repo = node_repo(node)
+        reasons = repo_binding_reasons(node)
         if repo is None:
-            violations.append({
-                "node": node_label(node),
-                "detail": f"approach_kind {kind!r} carries no `repo` - a node that writes a repo's "
-                          f"source or opens its PR must name one of {repos}",
-            })
+            if reasons:
+                violations.append({
+                    "node": node_label(node),
+                    "detail": f"carries `repo: null` but is repo-bound work ({'; '.join(reasons)})"
+                              f" - it must name one of {repos}",
+                })
         elif repo not in repos:
             violations.append({
                 "node": node_label(node),
@@ -231,10 +552,12 @@ def check_one_pr_per_repo(run: dict) -> dict:
         for repo in repos:
             landed_here = [n for n in landed if node_repo(n) == repo]
             declared_here = [n for n in declared if node_repo(n) == repo]
+            urls_here = sorted({url for n in landed_here for url in opened_pr_urls(n)})
             if len(landed_here) > 1:
                 violations += [
                     {"node": node_label(n),
-                     "detail": f"second PR-opening node at {DONE} for repo {repo!r} - each repo "
+                     "detail": f"PR-opening node landed for repo {repo!r} alongside "
+                               f"{len(landed_here) - 1} other(s) (PR URLs {urls_here}) - each repo "
                                f"opens exactly one PR"}
                     for n in landed_here
                 ]
@@ -255,23 +578,28 @@ def check_one_pr_per_repo(run: dict) -> dict:
 
     repoless = sum(1 for n in nodes if node_repo(n) is None)
     note = (
-        f"{FORM_PER_REPO} form over repos[] {repos}: {len(landed)} PR-opening node(s) at {DONE} "
-        f"out of {len(declared)} declared; {repoless} node(s) belong to no repository (`repo: null`)"
+        f"{FORM_PER_REPO} form over repos[] {repos}: {len(landed)} PR-opening node(s) landed out "
+        f"of {len(declared)} detected (declared approach_kind "
+        f"{list(PR_OPENING_APPROACH_KINDS)} or evidenced by a pull-request URL in `produced`); "
+        f"{len(pr_urls)} distinct PR URL(s) recorded; {repoless} node(s) carry `repo: null`"
     )
     return _result("one-pr", not violations, note, violations)
 
 
 def check_nothing_substantive_after_pr(run: dict) -> dict:
-    """2. No repo's PR-opening node is DONE while THAT repo's substantive work is unfinished.
+    """2. No repo's PR-opening node landed while THAT repo's substantive work is unfinished.
 
     Scoped per repo: repo A's opened PR is judged against repo A's nodes only, so a legitimately
-    unfinished repo B never shows up as a violation of A, and `repo: null` nodes (belonging to no
-    repository) are outside every repo's scope. Without `repos[]` this falls back to the legacy
-    whole-run scope.
+    unfinished repo B never shows up as a violation of A. A `repo: null` node is out of scope only
+    when it is genuinely repo-less work - a repo-less node running a delivery-gating lifecycle
+    stage is IN scope, because a stage that gates a repository's PR belongs to that repository.
+    Without `repos[]` this falls back to the legacy whole-run scope.
     """
     nodes = all_nodes(run)
     repos = declared_repos(run)
-    landed = [n for n in nodes if is_pr_opening(n) and node_status(n) == DONE]
+    landed = [n for n in nodes if is_landed_pr(n)]
+    tail = (f"approach_kind {list(LAND_TAIL_APPROACH_KINDS)} or approach "
+            f"{list(LAND_TAIL_APPROACHES)}, matched exactly")
 
     def _unfinished(bucket: list[dict]) -> list[dict]:
         return [
@@ -282,9 +610,9 @@ def check_nothing_substantive_after_pr(run: dict) -> dict:
     if not repos:
         unfinished = _unfinished(nodes)
         note = (
-            f"{FORM_LEGACY} form (no repos[] declared): {len(landed)} PR-opening node(s) DONE; "
-            f"{len(unfinished)} substantive node(s) outside the land tail "
-            f"{list(LAND_TAIL_TOKENS)} not in {list(SETTLED_NODE_STATUSES)}"
+            f"{FORM_LEGACY} form (no repos[] declared): {len(landed)} PR-opening node(s) landed; "
+            f"{len(unfinished)} substantive node(s) outside the land tail ({tail}) "
+            f"not in {list(SETTLED_NODE_STATUSES)}"
         )
         if not landed or not unfinished:
             return _result("pr-last", True, note, [])
@@ -292,7 +620,7 @@ def check_nothing_substantive_after_pr(run: dict) -> dict:
         return _result("pr-last", False, note, [
             {"node": node_label(n),
              "detail": f"status {node_status(n) or '<unset>'} while PR-opening node(s) "
-                       f"[{opened_by}] already reached {DONE}"}
+                       f"[{opened_by}] already landed"}
             for n in unfinished
         ])
 
@@ -307,15 +635,31 @@ def check_nothing_substantive_after_pr(run: dict) -> dict:
         violations += [
             {"node": node_label(n),
              "detail": f"status {node_status(n) or '<unset>'} in repo {repo!r} while THAT repo's "
-                       f"PR-opening node(s) [{opened_by}] already reached {DONE}"}
+                       f"PR-opening node(s) [{opened_by}] already landed"}
             for n in _unfinished([n for n in nodes if node_repo(n) == repo])
         ]
 
-    repoless_open = len(_unfinished([n for n in nodes if node_repo(n) is None]))
+    # `repo: null` is a carve-out for repo-less work, NOT a way for a delivery-gating stage to sit
+    # outside every repo's readiness scope. Once ANY repo has landed, an unfinished repo-bound
+    # node that named no repo is exactly the escape hatch this check exists to close.
+    repoless_open = _unfinished([n for n in nodes if node_repo(n) is None])
+    orphan_gating = [n for n in repoless_open if repo_binding_reasons(n)]
+    if landed_repos:
+        violations += [
+            {"node": node_label(n),
+             "detail": f"status {node_status(n) or '<unset>'} with `repo: null` while repo(s) "
+                       f"{landed_repos} already landed their PR - this node is repo-bound work "
+                       f"({'; '.join(repo_binding_reasons(n))}), so `repo: null` does not put it "
+                       f"outside the readiness scope it gates"}
+            for n in orphan_gating
+        ]
+
     note = (
         f"{FORM_PER_REPO} form: repo(s) {landed_repos or []} have an opened PR; scope is that "
-        f"repo's OWN nodes outside the land tail {list(LAND_TAIL_TOKENS)} - other repos' nodes and "
-        f"the {repoless_open} unfinished `repo: null` node(s) are deliberately out of scope"
+        f"repo's OWN nodes outside the land tail ({tail}), plus any unfinished repo-bound "
+        f"`repo: null` node - other repos' nodes and the "
+        f"{len(repoless_open) - len(orphan_gating)} unfinished genuinely repo-less node(s) are "
+        f"out of scope"
     )
     return _result("pr-last", not violations, note, violations)
 
@@ -389,16 +733,35 @@ CHECKS = (
 
 
 def audit(run: dict, run_file: Path) -> dict:
+    """Audit a run file whose shape is already known-readable (`schema_problems()` came back empty)."""
     results = [check(run) for _cid, _title, check in CHECKS]
+    ok = all(r["ok"] for r in results)
     return {
         "run_file": str(run_file),
         "run_id": run.get("run_id"),
         "run_status": run.get("status"),
         "form": audit_form(run),
         "repos": declared_repos(run),
-        "ok": all(r["ok"] for r in results),
+        "verdict": VERDICT_CLEAN if ok else VERDICT_VIOLATION,
+        "ok": ok,
+        "schema_problems": [],
         "checks": results,
         "gates": report_gates(run),
+    }
+
+
+def could_not_check(run: dict | None, run_file: Path, problems: list[str]) -> dict:
+    return {
+        "run_file": str(run_file),
+        "run_id": (run or {}).get("run_id"),
+        "run_status": (run or {}).get("status"),
+        "form": None,
+        "repos": [],
+        "verdict": VERDICT_COULD_NOT_CHECK,
+        "ok": False,
+        "schema_problems": problems,
+        "checks": [],
+        "gates": None,
     }
 
 
@@ -406,6 +769,16 @@ def print_text_report(audit_result: dict) -> None:
     titles = {cid: title for cid, title, _check in CHECKS}
     print(f"audit-run: {audit_result['run_file']}")
     print(f"  run_id: {audit_result.get('run_id')}   status: {audit_result.get('run_status')}")
+
+    if audit_result["verdict"] == VERDICT_COULD_NOT_CHECK:
+        print("  [COULD-NOT-CHECK] this run file is not shaped like the documented run-state "
+              "schema")
+        for problem in audit_result["schema_problems"]:
+            print(f"         -> {problem}")
+        print("         no verdict is issued: an unreadable run file is never reported as clean")
+        print(f"  RESULT: {VERDICT_COULD_NOT_CHECK.upper()}")
+        return
+
     repos = audit_result.get("repos") or []
     scope = ", ".join(repos) if repos else "none declared - run file predates `repos[]`"
     print(f"  form: {audit_result.get('form')}   repos[]: {scope}")
@@ -440,15 +813,31 @@ def main(argv: list[str]) -> int:
     try:
         run = load_run(run_file)
     except ValueError as exc:
-        print(f"audit-run: {exc}", file=sys.stderr)
-        return 2
+        result = could_not_check(None, run_file, [str(exc)])
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print_text_report(result)
+        print(f"audit-run: could-not-check: {exc}", file=sys.stderr)
+        return EXIT_COULD_NOT_CHECK
+
+    problems = schema_problems(run)
+    if problems:
+        result = could_not_check(run, run_file, problems)
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            print_text_report(result)
+        print(f"audit-run: could-not-check: {len(problems)} schema problem(s) in {run_file}",
+              file=sys.stderr)
+        return EXIT_COULD_NOT_CHECK
 
     audit_result = audit(run, run_file)
     if args.json:
         print(json.dumps(audit_result, indent=2, sort_keys=True))
     else:
         print_text_report(audit_result)
-    return 0 if audit_result["ok"] else 1
+    return EXIT_CLEAN if audit_result["ok"] else EXIT_VIOLATION
 
 
 if __name__ == "__main__":
