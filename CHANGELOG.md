@@ -6,6 +6,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.24.0] - 2026-08-07
+
+Project identity used to be cached to a `context.md` file that nothing on any machine had ever
+actually produced. It is now resolved per fact through an ordered, terminating ladder instead of
+being cached at all - the declared instance catalog already carried the series and profile, so the
+cache was shadowing a source of truth that already existed. This release removes a registered
+skill and a cited snippet, which would normally be MAJOR, but the removed artifact had zero real
+dependents, so nothing breaks in practice; it stays MINOR.
+
+### Added
+
+- `odoo-ai-agents` - `snippets/project-facts-resolution.md`: an ordered, terminating 5-rung
+  precedence ladder for the four facts every Odoo task needs (series, OSM profile, module/addons
+  scope, instance target) - the dispatch brief, then the declared instance catalog, then the
+  checkout on disk, then the caller's own words, then one batched ask. Resolution is PER FACT: an
+  unanswered fact keeps descending the ladder while a fact already answered by an earlier rung
+  stays authoritative and is never re-asked.
+- `odoo-ai-agents` - `scripts/lib/odoo_series.py detect`, a new derivation that reads the Odoo
+  major series from a checkout via core `release.py` or a series-named git branch, falling back to
+  an explicitly weak, unconfirmed manifest-version hint or an era range rather than ever guessing.
+  Rung 3 of the resolution ladder above.
+- `odoo-ai-agents` - `scripts/lib/instances_io.py locate`, a new subcommand that maps a repo path
+  to its declared `[[instance]]` (longest covering `addons_path` entry wins, ties break to the
+  highest series), plus `scripts/lib/resolve_instances.sh --path` so the ladder's rung 2 has one
+  documented, runnable invocation instead of a source-then-call two-step.
+- `odoo-ai-agents` - `tests/test_context_md_removed.py`, a whole-tree guard with two layers: the
+  removed artifact names under any spelling, and the underlying MECHANISM (an instruction to read
+  or persist project facts from a file under the state dir), so a re-introduction under a
+  different filename is caught too.
+
+### Changed
+
+- `odoo-ai-agents` - **`scripts/lib/instances_io.py read` now emits `INST_SERIES` where it
+  previously emitted `INST_VERSION`.** The catalog's own key has always been `series`; `read` and
+  the new `locate` subcommand simply disagreed on what to call it on output, and `locate` needed
+  the correct name from the start. This is a MINOR release, so semver alone will not warn anyone -
+  if you `eval` this script's output and read `INST_VERSION`, you will now silently get an empty
+  string; switch to `INST_SERIES`.
+- `odoo-ai-agents` - `scripts/lib/instances_io.py read` and the new `locate` now distinguish a
+  catalog that is present but unparseable TOML (new exit 3, with one stderr line naming the file)
+  from a genuine "nothing declared here" miss (exit 1, silent). Previously a typo'd catalog was
+  indistinguishable from no catalog at all.
+- `odoo-ai-agents` - `snippets/upg-conventions.md` Convention 1 (no version bump on a code-level
+  upgrade) is now a CORE rule applied on every distribution; it was gated to
+  Viindoo-profile-only while the rule that invoked it declared itself CORE, so on any other profile
+  it could never fire. Added the missing remedy: a manifest `version` that already carries a
+  series prefix is CONVERTED to the short form by dropping the prefix - a conversion is not a bump.
+
+### Fixed
+
+- `odoo-ai-agents` - the Odoo series derived from a checkout was wrong on every indexed series: a
+  short manifest `version` (`1.3`, `1.0.9`, `1.0.0`) was being read as the series, when it is
+  always the addon's own version number. A manifest `version` is no longer treated as series
+  evidence at all - `odoo_series.py detect` surfaces it only as an unconfirmed hint, because a
+  code-level upgrade leaves it unbumped, so it can name an earlier series than the checkout.
+- `odoo-ai-agents` - v8.0/v9.0 blindness across the plugin: the module descriptor is
+  `__openerp__.py` before Odoo 10.0 and `__manifest__.py` from 10.0 on, and the core package
+  directory (`openerp/` vs `odoo/`) flips at the same boundary. Discovery globs, descriptor reads,
+  and descriptor writes now handle both. The write axis mattered most: writing a fresh
+  `__manifest__.py` into a module that already has `__openerp__.py` creates a stub that silently
+  shadows the real descriptor, dropping every model, view, and dependency it declares with no
+  error.
+- `odoo-ai-agents` - `scripts/lib/discover_odoo.sh` found no addon repos on a v8/v9 host (it
+  globbed `__manifest__.py` only), so the instance catalog could never be populated from one.
+- `odoo-ai-agents` - the `odoo-modules-upgrade` duplicate-module gate scanned at the wrong
+  directory depth (`-maxdepth 1` against addons-path entries, where a descriptor actually sits at
+  depth 2) and so always reported "no duplicates" without examining a single module. Also widened
+  to glob both descriptor filenames, matching the v8/v9 fix above.
+
+### Removed
+
+- **`odoo-onboarding` skill and the `context.md` project-context artifact it produced, plus the
+  `snippets/context-bootstrap.md` snippet that bootstrapped it.** Project facts (series, profile,
+  module scope, instance target) are now resolved per fact through the ladder in
+  `snippets/project-facts-resolution.md` instead of being cached to a file - the instance catalog
+  already declared the series and profile, so the cache was shadowing an existing source of truth
+  and could go stale against it. Skill count 52 -> 51.
+
 ## [4.23.0] - 2026-08-07
 
 A live review of the SHIPPED 4.22.0 - the build actually loaded in a running session, not a working
