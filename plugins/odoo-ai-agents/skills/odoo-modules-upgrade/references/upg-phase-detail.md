@@ -42,14 +42,15 @@ TASK: Resolve the upgrade request into structured inputs.
 (1) Read the current branch name (`git branch --show-current`). Infer the Odoo SERIES
     from it: a branch named `17.0`, `17.0-feat-x`, or `viindoo-17.0` -> series `17.0`.
     If the branch name is ambiguous, mark as open_question.
-    Cross-check: read a sample of `__manifest__.py` files and find the MAX `version` series
+    Cross-check: read a sample of module descriptors (BOTH names, as in (3a)) and find the MAX `version` series
     present on disk. If the branch-inferred series and the manifest-max series disagree
     (e.g. branch says `17.0` but manifests say `16.0.x.y.z`), raise as open_question
     rather than silently trusting the branch name.
-    EXCEPTION - Viindoo Standard/Internal profile (manifests carry a SHORT `version` with NO
-    series prefix, per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md): there is no series
+    EXCEPTION - the manifests carry a SHORT `version` (2-3 numeric parts, no series prefix; the
+    normal form, see `references/upg-classification-table.md` § Manifest breaks): there is no series
     in the manifest to compare, so SKIP the branch-vs-manifest-series cross-check entirely and
     resolve the source series from branch + profile. Do NOT raise a false "disagree" open_question.
+    The exception is keyed on the VALUE's form, never on which distribution the module belongs to.
     This current-branch read is ONLY for inferring the SOURCE series being upgraded FROM; it is
     NEVER used to resolve `<work-base>` - see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
     § Base-branch resolution for that.
@@ -62,8 +63,8 @@ TASK: Resolve the upgrade request into structured inputs.
     Report the matched_profile and its repos.
 
 (3) Auto-detect CANDIDATE MODULES using a manifest-version-series scan:
-    a. Find all __manifest__.py files:
-       find . -name "__manifest__.py" 2>/dev/null
+    a. Find all module descriptors - glob BOTH names, or a v8-v9 source cluster is invisible:
+       find . \( -name "__manifest__.py" -o -name "__openerp__.py" \) 2>/dev/null
     b. For each manifest, extract the `version` field. A module is a CANDIDATE if its
        manifest `version` major series is LESS THAN the target series
        (e.g. version `16.0.1.2.3` when target is `17.0`).
@@ -74,10 +75,11 @@ TASK: Resolve the upgrade request into structured inputs.
        NOT use it as the primary detector. A module can be `installable: True` and still
        be a valid upgrade target; a `installable: False` module that is a helper/dev/demo
        module may NOT be an upgrade target.
-    e. SHORT-FORM blind spot: for Viindoo Standard/Internal manifests the `version` carries NO
-       series prefix (e.g. `1.0.0`), so the version-series scan in (b) yields NOTHING. When the
-       matched profile is Viindoo Standard/Internal, detect candidates by PROFILE MEMBERSHIP
-       (`profile_inspect` module set) intersected with branch series + repo path instead;
+    e. SHORT-FORM blind spot - a property of the VALUE, not of the distribution. Step (b) keys on a
+       series prefix, so ANY manifest carrying the short form (`1.0.0`) yields NOTHING from it, on
+       every profile. The short form is the normal form, so expect (b) to be silent and NEVER read
+       that silence as "no candidates". Whenever (b) returns nothing, detect candidates by PROFILE
+       MEMBERSHIP (`profile_inspect` module set) intersected with branch series + repo path instead;
        candidacy_reason = `profile-membership`.
     Emit the candidate list with paths and the reason for candidacy (version-series|depends-on-stale|profile-membership|installable-hint).
 
@@ -87,7 +89,7 @@ TASK: Resolve the upgrade request into structured inputs.
     - target_version: from the NL ask ("upgrade to v17" -> `17.0`; "next major" -> the
       major after source_version). If not determinable, mark as open_question.
 
-(5) Dependency hints: for each candidate module, read its `__manifest__.py` `depends`
+(5) Dependency hints: for each candidate module, read its descriptor's `depends`
     field and emit {module: [dep1, dep2, ...]} pairs.
 
 (6) If the user's MODULE SCOPE is not explicit in the NL ask, do NOT guess. Return
@@ -104,7 +106,7 @@ cluster_slug: "l10n_vn"   # scope slug; becomes <cluster> in every artifact path
 source_version: "16.0"
 target_version: "17.0"
 series_cross_check: "branch=17.0, manifest_max=16.0 -> DISAGREE -> open_question raised"
-  # for a Viindoo short-form profile: "skipped (short-form manifest, no series prefix)"
+  # when the manifests already carry the short form: "skipped (short-form manifest, no series prefix)"
 candidate_modules:
   - path: "l10n_vn_custom/"
     module: "l10n_vn_custom"
@@ -133,7 +135,7 @@ TASK: Emit the dependency graph for the confirmed cluster, including the FULL tr
 external/core dependency closure and any dependency identity changes at target.
 
 For each module in: <confirmed_cluster>
-  Read the module's __manifest__.py; extract the `depends` list.
+  Read the module's descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9); extract the `depends` list.
   Emit {module: str, path: str, depends: [str]}.
 
 FULL TRANSITIVE CLOSURE (incl. external/core deps):
@@ -484,10 +486,12 @@ skill does not define its own Plan-Mode mechanics.
 3. DELETE <m1> (depends on m2; will be removed after m2 adapted)
 
 ### Manifest version (Rule A - NOT bumped)
-# Do NOT bump the manifest `version` for any module in this cluster.
-# Code-level upgrade keeps the existing short form unchanged.
+# Do NOT bump the manifest `version` for any module in this cluster. Short form already -> leave it
+# byte-identical; series-prefixed -> convert to `x.y.z` (dropping a prefix is not a bump).
+# Remedy + form: references/upg-classification-table.md § Manifest breaks, the Rule A row.
 - <m2>: 1.0.0 (unchanged)
 - <m3>: 2.0.0 (unchanged)
+- <m4>: <series>.2.1.0 -> 2.1.0 (series prefix dropped, numbers untouched)
 
 ### Commit plan
 Each row in the classification table above becomes one commit, requested via
@@ -596,7 +600,7 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   '<module>' in their depends - the orchestrator resolves this BEFORE dispatching the
   brief so the coder does not need to re-discover them>
   For each module in dependers[], remove '<module>' from that module's
-  __manifest__.py `depends` list.
+  descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9) `depends` list.
 
 If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
   0. PREEMPTIVE FIX LIST (apply FIRST): for every blocker attributed to this module in
@@ -626,10 +630,13 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      - `demo/*.xml` - same as data/
      - `security/*.csv` (ir.model.access.csv) - update model names if model was renamed
      - `ir.rule` records - update domain expressions referencing renamed/removed fields
-  4. Do NOT bump the manifest `version` - keep the existing short form unchanged.
+  4. Do NOT bump the manifest `version`: already short -> leave it byte-identical; series-prefixed
+     -> CONVERT it to `x.y.z` by dropping the prefix (not a bump). Remedy + form:
+     upg-classification-table.md § Manifest breaks, the Rule A row. Leave any existing `migrations/`
+     dir from a lower series untouched (SERIES-UPGRADE scope) and write no new script.
   4b. Set `installable: True` (flip from False) AFTER all other P4 fixes are applied, BEFORE P5
      runs - per the upg-classification-table.md manifest-break row. P5 confirms it installs.
-  4c. Scan each `__manifest__.py` for `# TODO: Uncomment when upgrading` markers left by the
+  4c. Scan each module descriptor (BOTH names) for `# TODO: Uncomment when upgrading` markers left by the
      forward-port skill. Restore `auto_install`/`application` ONLY when the breadcrumb explicitly
      directs it - do NOT auto-detect from module name or depends structure. (This breadcrumb is a
      distinct, narrower convention from the general version-anchored deferred-work reconciliation
@@ -851,9 +858,12 @@ owner): checklist -> final dep-order review -> push -> open PR. Do not reorder i
 **Pre-PR checklist (extends P6 sign-off).** Run the Runbot parity gates
 (${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md) PLUS
 these three passes before opening the PR, each cross-referencing its owning snippet:
-- Convention-compliance: manifest version-form per profile, always-invisible view fields carry an
-  explanatory XML comment from v18, renames done via `old_technical_name` with no migration script
-  for no-data modules - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
+- Convention-compliance: manifest version-form is the short form with no series prefix and no bump
+  (references/upg-classification-table.md § Manifest breaks, the Rule A row), always-invisible view
+  fields carry an explanatory XML comment from v18, renames done via `old_technical_name` with no
+  NEW migration script for no-data modules - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
+  Scope marker: that no-new-script rule is about a MODULE RENAME; an existing lower-series
+  `migrations/` dir carried by this SERIES UPGRADE is simply left untouched, never retargeted here.
 - Perf-lens: no per-record `mapped()` aggregate over a high-volume model (`hr.attendance`,
   `stock.move`, `account.move.line`, `account.analytic.line`) in a stored compute - use a grouped
   `_read_group`.

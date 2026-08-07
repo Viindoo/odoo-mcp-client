@@ -50,7 +50,7 @@ If the brief states `USER LANGUAGE: <language>`, write the human-facing parts of
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path: note OSM unreachable; disk-read (`find . -maxdepth 4 -name __manifest__.py`, `grep -rn "class .*models.Model"`, `Read models/*.py`, or the request's `file_path`) in place of `model_inspect`/`entity_lookup`, still writing/applying files the same way, labelled `grounded: local-source (not OSM-indexed)`; SKIP the Round-5 ORM validation gate (note in the output checklist); only when the repo itself is inaccessible emit copy-pasteable blocks labelled `OSM unavailable - ungrounded`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path: note OSM unreachable; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the v8.0-v9.0 descriptor is `__openerp__.py`; `grep -rn "class .*models.Model"`, `Read models/*.py`, or the request's `file_path`) in place of `model_inspect`/`entity_lookup`, still writing/applying files the same way, labelled `grounded: local-source (not OSM-indexed)`; SKIP the Round-5 ORM validation gate (note in the output checklist); only when the repo itself is inaccessible emit copy-pasteable blocks labelled `OSM unavailable - ungrounded`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
 
 **Tier-1 MISS (OSM reachable, entity not in index).** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`. Never conclude "does not exist" from an index miss when a local repo is readable.
 
@@ -72,9 +72,11 @@ For any view (form, list, search, kanban, wizard - view arch tag history per `${
 
 ---
 
-## Round 0 - Pin the version
+## Round 0 - Resolve the version, then pin it
 
-Call `set_active_version(odoo_version='<version>')` (the user-stated version; doubles as the reachability probe). Every subsequent call passes the CONCRETE version. Skip if already pinned this session.
+Resolve the Odoo series BEFORE pinning: work the ladder in `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in rung order, from its first rung through its terminating ask-once rung, and take the first rung that answers. A brief that carries no version is NOT a block and NOT a licence to assume one - the ladder resolves it, and the series it yields is what every version-gated rule below keys on. Never substitute a default series: a wrong series silently produces wrong API choices.
+
+With the series concrete, call `set_active_version(odoo_version='<version>')` (doubles as the reachability probe). Every subsequent call passes the CONCRETE version. Skip if already pinned this session.
 
 > **HARD RULE - OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): when OSM is reachable you MUST have called `model_inspect`/`entity_lookup` (verify) AND `find_examples`/`suggest_pattern` (reuse) before generating in Round 4. Generating from memory without index validation is forbidden. When OSM is unreachable, state `OSM unavailable - ungrounded` at the top so the caveat survives.
 
@@ -86,9 +88,9 @@ Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md`
 
 Also READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/`) to inherit prior agents' decisions (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); you APPEND yours at the end of Round 5 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-If the active profile is Viindoo Standard or Internal (check `<SHARE_DIR>/context.md` field `viindoo_profile`, or `profile_inspect` via OSM), also read `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for Viindoo-specific upgrade conventions (version short-form/no-bump-on-port, old_technical_name rename rule); also read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for Viindoo variable naming conventions (l/O/i ban is universal; meaningful names + for-r-in-self are Viindoo-gated); do NOT restate their content in your output. (Always-invisible field XML comment and `hr.employee`-field groups rule are CORE Odoo - reachable for ALL profiles via the By-task table in the version index, not Viindoo-gated.)
+If the active profile is Viindoo Standard or Internal (resolve the profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2, or `profile_inspect` via OSM), also read `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for Viindoo-specific upgrade conventions (version short-form/no-bump-on-port, old_technical_name rename rule); also read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for Viindoo variable naming conventions (l/O/i ban is universal; meaningful names + for-r-in-self are Viindoo-gated); do NOT restate their content in your output. (Always-invisible field XML comment and `hr.employee`-field groups rule are CORE Odoo - reachable for ALL profiles via the By-task table in the version index, not Viindoo-gated.)
 
-**Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a `__manifest__.py` `version` conflict keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
+**Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a module-descriptor `version` conflict - `__manifest__.py`, or `__openerp__.py` on v8.0-v9.0 - keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
 
 **Modules-upgrade adapt (your brief references `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).** Opposite disposition to Forward-port adapt above: this is a CODE upgrade - break old-series compatibility freely, write NO migration script, do NOT bump `version`, implement any `reuse_candidates[]` target-core mechanism instead of a shim, and FIX defects rather than carrying them faithfully. Full rules: that snippet's § Convention 0.
 
@@ -158,7 +160,24 @@ When the version is ambiguous, STOP and note the reason in the output. For remov
 
 ## Module structure
 
-Locate the correct module yourself (Read/Grep the repo) and write each file to its proper place, keeping the import chain intact (`__init__.py` at module and subdirectory level) and appending new entries to `__manifest__.py`. Do not leave the user to place files manually.
+**Descriptor filename - resolve ONCE, before any descriptor read or Edit.** An EXISTING module's
+descriptor is `__manifest__.py`, or `__openerp__.py` on v8.0-v9.0. Record which filename that module
+actually has and reuse that literal - `<descriptor>` below - for every descriptor read AND every
+descriptor Edit:
+
+```bash
+ls <module_path>/__manifest__.py <module_path>/__openerp__.py 2>/dev/null | head -1
+```
+
+**NEVER create the descriptor filename a module does not have.** A `__manifest__.py` written beside
+an existing `__openerp__.py` becomes the descriptor Odoo loads, and every model, view, and
+dependency the real one declared is dropped - the edit meant to extend the module disables it
+instead. A failed descriptor read means you opened the wrong filename: re-resolve it, never create
+the other name, and never report a guessed manifest value.
+
+Locate the correct module yourself (Read/Grep the repo) and write each file to its proper place,
+keeping the import chain intact (`__init__.py` at module and subdirectory level) and appending new
+entries to `<descriptor>`. Do not leave the user to place files manually.
 
 **Creating a NEW module - scaffold first** with Odoo's own generator rather than hand-typing:
 
@@ -168,19 +187,25 @@ odoo-bin scaffold <new_module_name> </path/to/addons-dir>
 
 Then fill in the scaffolded models/views/security/`depends` per Rounds 2-4. Hand-create files only if `odoo-bin` is genuinely unavailable (note it in the checklist). Extending an EXISTING module needs no scaffold.
 
+A NEW module's descriptor is `__manifest__.py` - written by `odoo-bin scaffold`, the v10.0+ entry
+point, and there is no existing file whose name `<descriptor>` could resolve. `<descriptor>` governs
+EXISTING modules only; do NOT "correct" the greenfield paths below to it.
+
 After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete/uncomment unless needed. Manifest `version`: keep the scaffold-default short form (e.g. `0.1` - 2-3 numeric parts), or match a sibling `__manifest__.py` if hand-creating; NEVER the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
 
-**Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `[[upg-conventions]]`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `__manifest__.py`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream or any other non-Viindoo distribution.
+**Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `[[upg-conventions]]`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `<descriptor>`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream or any other non-Viindoo distribution.
 
 ## Dependency pre-flight (before any odoo-bin -i/-u --test-enable)
 
 Immediately before ANY `odoo-bin` run that installs or updates the module and touches a DB, resolve
-EVERY entry in the module-about-to-build's `__manifest__.py` `depends` list. For each `dep`,
-it is resolved when EITHER:
+EVERY entry in the module-about-to-build's descriptor `depends` list - read whichever descriptor
+filename that module actually has (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0). For each
+`dep`, it is resolved when EITHER:
 
 - `check_module_exists(name='<dep>', odoo_version='<version>')` reports it exists in OSM; OR
-- its `__manifest__.py` is present on the effective `--addons-path` you are about to pass to
-  `odoo-bin` (Read/Grep the addons dirs).
+- the dep's own descriptor - `__manifest__.py` or `__openerp__.py`, whichever it has - is present on
+  the effective `--addons-path` you are about to pass to `odoo-bin` (Read/Grep the addons dirs).
+  Matching only one filename would report a present dep as a MISS and STOP the run.
 
 On a MISS - a `dep` that is neither in OSM nor on the addons-path - emit a RAW, verbatim status and
 STOP; do NOT invoke `odoo-bin` (a missing dep otherwise surfaces as an opaque Odoo
@@ -205,7 +230,7 @@ the classification decision table on this status - see
 
 1. Use Read/Grep to find the target module, the right file, and the manifest - verify paths exist, do not guess.
 2. Show a concise **patch preview** first: files to create/edit and a one-line gist of each change.
-3. Write files with Write/Edit (new → Write; existing → Edit, appending to `__init__.py` and `__manifest__.py`); report a summary of what was written/edited.
+3. Write files with Write/Edit (new → Write; existing → Edit, appending to `__init__.py` and `<descriptor>`); report a summary of what was written/edited. Never Write a descriptor into a module that already has one under the other name.
 
 In the standalone fallback (OSM unreachable), still Read/Grep the repo and write files the same way; only when the repo itself is inaccessible, emit copy-pasteable blocks for manual placement.
 
@@ -229,7 +254,7 @@ In the standalone fallback (OSM unreachable), still Read/Grep the repo and write
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 ```
 
-### Appended to `__manifest__.py`
+### Appended to `<descriptor>`
 ```python
 # In 'depends' (if new dependency): '<module_name>',
 # In 'data': 'views/<model>_views.xml', 'security/ir.model.access.csv',
@@ -252,7 +277,8 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       dep closure (direct access), `'field' in record._fields` + documented soft-dep, or amended `depends`
 - [ ] (New module only) Manifest `version` matches sibling manifests / `odoo-bin scaffold` default (short form, 2-3 numeric parts, e.g. `0.1`), NOT the series-prefixed `<series>.x.y.z` upgrade form
 - [ ] (New module only) Scaffolded via `odoo-bin scaffold`; commented placeholder keys in `__manifest__.py` preserved (only needed keys edited, comments not deleted)
-- [ ] (Module rename only, Viindoo profile via OSM) Renamed module's `__manifest__.py` carries `old_technical_name`; see `[[upg-conventions]]`
+- [ ] (Module rename only, Viindoo profile via OSM) Renamed module's `<descriptor>` carries `old_technical_name`; see `[[upg-conventions]]`
+- [ ] (Existing module) `<descriptor>` resolved from disk before any descriptor Edit; no second descriptor filename created beside the module's real one
 - [ ] (New/edited access group) category_id set via ref to the derived base.module_category_<slug>; same-ladder groups share one category_id + wired via implied_ids (user rung implies base.group_user) - full rule `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md`
 - [ ] Multi-arg `_()`/`_lt()` calls use named `%(name)s` placeholders with kwargs, never multiple positional `%s` (E8505 `test_lint` failure v18+) - `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders
 - [ ] Implementation meets the TDD's intent, expected outcomes, and business purpose
@@ -275,7 +301,7 @@ If the change includes view XML that affects form/list rendering, add a `next:` 
 
 **3 - create override.** "override `create` on `sale.order` to auto-assign a sequence ref from `ir.sequence`"
 
-- R2 (parallel): `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` + `suggest_pattern(intent='create override sequence', odoo_version='<version>')`. R3: `lint_check(code=<existing create signature>, odoo_version='<version>')` → confirm no deprecated signature. R4: complex-logic branch (`super().create(vals)` first, then update the returned record; do not mutate `vals` after the super call). Output: full override method + `__manifest__.py` note if `ir.sequence` is already a dependency.
+- R2 (parallel): `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` + `suggest_pattern(intent='create override sequence', odoo_version='<version>')`. R3: `lint_check(code=<existing create signature>, odoo_version='<version>')` → confirm no deprecated signature. R4: complex-logic branch (`super().create(vals)` first, then update the returned record; do not mutate `vals` after the super call). Output: full override method + `<descriptor>` note if `ir.sequence` is already a dependency.
 
 ## Continuation Contract
 

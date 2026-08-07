@@ -75,7 +75,8 @@ Label the run `catalog: none` in the output header.
 
 ### Step 1 - version pin + reachability
 Pin version + call `describe_module` to confirm the module exists and collect its surface.
-If OSM is unreachable, fall back to reading `__manifest__.py` and model `.py` files on disk.
+If OSM is unreachable, fall back to reading the module descriptor (`__manifest__.py`, or
+`__openerp__.py` on v8.0-v9.0 - open whichever the module actually has) and model `.py` files on disk.
 
 ### Step 2 - feature enumeration
 From the catalog (preferred) or from `module_inspect`/`model_inspect`: list the PRIMARY

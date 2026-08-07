@@ -1,11 +1,22 @@
 # App Store Template Reference
 
 Runtime reference for assembling `static/description/index.html` and related assets for
-an Odoo App Store listing. Brand-agnostic - palette and fonts are placeholders resolved from
-`context.md` brand tokens or user input; default = Odoo palette `#714B67`. `context.md` is Tier-2
-SHARE; resolve it via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
-below - `<SHARE_DIR>/context.md`).
+an Odoo App Store listing. Brand-agnostic - the PALETTE placeholder resolves from
+`<SHARE_DIR>/brand-tokens.json` when that file exists, else from user input; absent both, the
+default is the Odoo palette `#714B67`. That file is a map of CSS custom-property NAME -> COLOUR
+(e.g. `{ "--primary": "#1E88E5" }`; schema SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity), so read it
+by VALUE: an unfamiliar token NAME is NEVER a miss - take the colour that entry maps to instead of
+declaring the tier unresolved and shipping off-brand output.
+
+**A TYPEFACE never comes from that map, and this template has no font placeholder.** The sanitizer
+strips `<link>` / CDN / web-font loading, and `font-family` is absent from its safe inline-style set,
+so typography is Bootstrap-5 classes plus safe inline `font-weight` / `font-size` only.
+
+`brand-tokens.json` is Tier-2 SHARE; resolve `<SHARE_DIR>`
+via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and substitute the captured absolute path
+into every Read - never the placeholder or a bare `.odoo-ai/`.
 
 ---
 
@@ -58,8 +69,9 @@ X to support Y" or expose Python class names / field technical names in headings
 
 ## 3. Bootstrap-5 Fragment Skeleton (brand-agnostic)
 
-Replace `{{PLACEHOLDER}}` values from `<SHARE_DIR>/context.md` brand tokens or user input.
-Default palette when no brand tokens: primary `#714B67`, accent `#714B67`, bg-light `#F8F4F8`.
+Replace `{{PLACEHOLDER}}` values: `{{PRIMARY_HEX}}` from `<SHARE_DIR>/brand-tokens.json` (by VALUE -
+see the header), every other placeholder from the supplied copy / feature catalog / brief.
+Default palette when that file is absent: primary `#714B67`, accent `#714B67`, bg-light `#F8F4F8`.
 
 ```html
 <!-- static/description/index.html - FRAGMENT ONLY, no html/head/body -->
@@ -423,7 +435,7 @@ even if the registry omits it.
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
 **Language resolver order.** SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (5-tier +
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (4-tier +
 disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
 is authoritative and this file cross-references it.
 

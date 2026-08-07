@@ -52,7 +52,9 @@ Without the field, report in English (SSOT:
 
 Probe reachability with `set_active_version`. If it errors, follow
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the plan header,
-read each module's `__manifest__['depends']` from disk to build the graph, and label
+read each module's `depends` from its on-disk descriptor to build the graph - open whichever
+filename that module actually has (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0), since the
+scope block you consume discovers both - and label
 `grounding: local-source`. The whole algorithm is disk-resolvable - it needs NO live instance and NO
 browser. Escalate (`NEEDS_CONTEXT`) only for a scheduling decision no input encodes.
 

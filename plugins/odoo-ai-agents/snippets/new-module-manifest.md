@@ -44,8 +44,8 @@ fill only what is needed, preserve what is not yet needed.
 
 ## 3. Version field - data-driven, short form
 
-The `version` key in `__manifest__.py` has two distinct forms. Choose by reading
-observable data - never infer from training memory.
+The `version` key in `__manifest__.py` uses the **short form** everywhere this snippet's scope
+reaches. Choose by reading observable data - never infer from training memory.
 
 ### Greenfield default (this snippet)
 
@@ -62,20 +62,13 @@ defining characteristic is that it is short and does NOT carry the Odoo series p
    Adopt the first sibling match.
 3. No sibling found - default to `0.1` (scaffold default).
 
-### Series-prefixed form (upgrade / non-Viindoo distributions only)
+### Existing module across a new series (out of this file's scope)
 
-The form `<series>.x.y.z` (e.g. `17.0.1.0.0`, `16.0.2.3.0`) is reserved for **bumping
-an EXISTING module across a new Odoo series** - used by the upgrade workflow for
-non-Viindoo distributions. See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/` for when
-and how to apply it.
-
-**Only apply the series-prefixed form when ALL of the following hold:**
-
-- The module already existed in a prior series AND
-- The task explicitly upgrades or ports it to a new series AND
-- Sibling manifests in the target addons directory already use the series-prefixed form AND
-- The distribution is NOT a Viindoo Standard or Viindoo Internal profile (those keep the short
-  form on code-level upgrades - see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md §1`).
+Bumping an EXISTING module across a new Odoo series is handled by
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/`, not this file. Its rule - CORE, applying to
+every distribution: keep the short form unchanged; a value that currently carries the series
+prefix (`<series>.x.y.z`, e.g. `17.0.1.0.0`) is CONVERTED to the short form, never bumped. Full
+rule: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` Convention 1.
 
 ---
 
@@ -85,8 +78,7 @@ and how to apply it.
 |---|---|---|
 | New module via `odoo-bin scaffold` | Scaffold default (short) | `0.1` |
 | New module hand-created | Match sibling manifest (short) | `1.0.0` |
-| Existing module - upgrade to new series (non-Viindoo / upstream) | Series-prefixed | `17.0.1.0.0` |
-| Existing module - upgrade to new series (Viindoo Standard/Internal profile, code-level only) | Short form - keep unchanged | `0.1` (unchanged) - see `upg-conventions.md §1` |
+| Existing module - upgrade to new series, code-level only (no data migration) | Short form - keep unchanged, or CONVERTED from long form | `0.1` (unchanged); `17.0.1.0.0` -> `1.0.0` (converted) - see `upg-conventions.md` Convention 1 |
 | Existing module - patch/feature in same series | Keep current value | unchanged |
 | Forward-port `__manifest__.py` conflict | Keep TARGET file's `version` (never invent a bump) | see `[[fp-merge-absorption]]` (C1) |
 
@@ -94,8 +86,9 @@ and how to apply it.
 
 ## Anti-patterns (never do)
 
-- Do NOT rewrite a greenfield `0.1` to `17.0.1.0.0` - that misapplies the upgrade convention.
-- Do NOT assume the series-prefixed form is "more correct" - it is context-specific.
+- Do NOT rewrite a greenfield `0.1` to a series-prefixed form (e.g. `17.0.1.0.0`) - a code-level
+  upgrade keeps the short form, or converts an existing long-form value to it; it never adds a
+  series prefix (see `upg-conventions.md` Convention 1).
 - Do NOT derive the version from the Odoo series alone; always read a sibling or the scaffold output.
 - Do NOT delete the commented placeholder keys that `odoo-bin scaffold` emits (`# 'category':`,
   `# 'depends':`, `# 'data':`, `# 'demo':`, etc.) - keep them until explicitly needed.

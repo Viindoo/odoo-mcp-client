@@ -23,11 +23,12 @@ Explicit overrides ($ODOO_AI_PROJECT_DIR for SHARE, $ODOO_AI_WORKTREE_DIR for
 ISOLATE) are honored verbatim (still created, never re-hashed).
 
 Non-git fallback (C-9): NEVER hash bare os.getcwd() (cwd-unstable). Walk UP
-from the cwd to the nearest project marker and hash ITS realpath. Two marker
+from the cwd to the nearest project marker and hash ITS realpath. Marker
 kinds, STRICT priority (C-2): `.odoo-ai-root` has GLOBAL priority - the walk
 scans the WHOLE chain up to the filesystem root for it first; only when no
-sentinel exists ANYWHERE does it fall back to the NEAREST `__manifest__.py`
-dir. Real Odoo addons layouts nest a manifest under every module dir, so
+sentinel exists ANYWHERE does it fall back to the NEAREST directory
+containing `__manifest__.py` (v10.0+) or `__openerp__.py` (v8.0-v9.0). Real
+Odoo addons layouts nest a module descriptor under every module dir, so
 "nearest marker of either kind" would mis-root from inside a module - the
 sentinel exists precisely to override that. Outside git there is no separate
 "worktree" concept, so the ISOLATE key degrades to the SAME marker key as the
@@ -103,19 +104,22 @@ def _git(args: list, cwd: str | None = None) -> str | None:
 
 
 def _marker_root(start_dir: str) -> str | None:
-    """Walk UP from start_dir. `.odoo-ai-root` has GLOBAL priority over
-    `__manifest__.py` (C-2, mirrors resolve_project_dir.sh's
+    """Walk UP from start_dir. `.odoo-ai-root` has GLOBAL priority over a
+    module descriptor (C-2, mirrors resolve_project_dir.sh's
     `_project_dir_marker_root`): scans the WHOLE chain for a sentinel first
     (returning the moment one is found); only if NO sentinel exists anywhere
-    does it fall back to the NEAREST `__manifest__.py` dir recorded along the
-    way. Returns None if the walk reaches the filesystem root with NEITHER
-    marker found anywhere."""
+    does it fall back to the NEAREST `__manifest__.py` (v10.0+) or
+    `__openerp__.py` (v8.0-v9.0) dir recorded along the way. Returns None if
+    the walk reaches the filesystem root with NEITHER marker found anywhere."""
     d = os.path.realpath(start_dir)
     nearest_manifest: str | None = None
     while True:
         if os.path.isfile(os.path.join(d, ".odoo-ai-root")):
             return d
-        if nearest_manifest is None and os.path.isfile(os.path.join(d, "__manifest__.py")):
+        if nearest_manifest is None and (
+            os.path.isfile(os.path.join(d, "__manifest__.py"))
+            or os.path.isfile(os.path.join(d, "__openerp__.py"))
+        ):
             nearest_manifest = d
         parent = os.path.dirname(d)
         if parent == d:
@@ -156,8 +160,8 @@ def _wt_key(cwd: str | None = None) -> str | None:
 
 def _no_marker_message(var: str) -> str:
     return (
-        "not inside a git repo and no project marker (__manifest__.py or "
-        f".odoo-ai-root) found walking up from {os.getcwd()}. "
+        "not inside a git repo and no project marker (__manifest__.py, "
+        f"__openerp__.py, or .odoo-ai-root) found walking up from {os.getcwd()}. "
         f"Set ${var} to an explicit absolute path."
     )
 

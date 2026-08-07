@@ -18,13 +18,10 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
 
 ## The contract
 
-1. **Resolve the Odoo version first** (from `<SHARE_DIR>/context.md` - resolve `<SHARE_DIR>`/
-   `<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute
-   the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-   Read/Write/Edit -, the discovered `__manifest__.py`,
-   or what the user stated). The guidelines are version-pinned and do NOT inherit across series; a
-   v17 rule may be wrong for v18. If the version cannot be resolved, resolve it before writing - a
-   precondition, not optional.
+1. **Resolve the Odoo version first** per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. The guidelines are version-pinned
+   and do NOT inherit across series; a v17 rule may be wrong for v18. If the version cannot be
+   resolved, resolve it before writing - a precondition, not optional.
 2. **Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first**
    (e.g. `17.0/INDEX.md` under that same root). It carries a
    "By task" table - **use it**: read ONLY the files it maps to the task categories you are

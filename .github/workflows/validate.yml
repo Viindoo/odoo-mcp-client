@@ -38,7 +38,7 @@ jobs:
     # Catch generated artifacts (orchestration map + digest, skill
     # ## MCP tools sections, IDE snippets, Codex/Gemini MCP manifests) drifting from
     # their SSOT (server-surface.json / skill_tool_deps.json / .mcp.json). Runs the
-    # generators then asserts a clean git tree — the proven idempotency mechanism
+    # generators then asserts a clean git tree - the proven idempotency mechanism
     # (the previous `gen_surface.py check` arg was a no-op and never caught drift).
     steps:
       - uses: actions/checkout@v6
@@ -52,7 +52,7 @@ jobs:
           # that emits a new file would slip past `git diff --exit-code`).
           dirty="$(git status --porcelain)"
           if [ -n "$dirty" ]; then
-            echo "ERROR: generated artifacts drifted from SSOT — run 'make gen' and commit the output." >&2
+            echo "ERROR: generated artifacts drifted from SSOT - run 'make gen' and commit the output." >&2
             echo "$dirty" >&2
             git diff >&2 || true
             exit 1
@@ -92,7 +92,7 @@ jobs:
   version-bump-suggestion:
     name: Suggested version bump (advisory)
     runs-on: ubuntu-latest
-    # Advisory only — NEVER blocks the PR. Prints the level `make bump` would pick
+    # Advisory only - NEVER blocks the PR. Prints the level `make bump` would pick
     # (patch/minor/major) from the commits since VERSION last changed, so reviewers
     # see whether the change is a fix (patch) or a feature/new skill (minor).
     continue-on-error: true

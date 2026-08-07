@@ -107,7 +107,7 @@ indicative and frozen at v18; new pivots live ONLY in
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `version` field at source series | any | **Do NOT bump** (Rule A - upgrade keeps the existing short form `x.y.z` unchanged; see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`) |
+| `version` field at source series | any | **Do NOT bump** (Rule A). The manifest `version` uses the SHORT form - 2-3 numeric parts, NO series prefix. Value already short -> leave it byte-identical. Value in LONG form (series-prefixed, `<series>.x.y.z`) -> **CONVERT it to `x.y.z`** by dropping the series prefix and leaving the remaining numbers untouched; a conversion is not a bump. Never add a prefix, never raise a number. Form SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` §3; upgrade context: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` |
 | `depends` listing a module removed at target | any | Remove or replace with the new core module; flag in plan.md |
 | `installable: False` carried from source | any | Set to `True` in the P4 manifest edit (after all other P4 fixes are applied), BEFORE P5 is run; P5 confirms the module installs - do NOT leave `installable: False` going into P5 |
 | `auto_install: True` with condition that no longer holds | any | Restore only if a `# TODO: Uncomment when upgrading` breadcrumb (left by forward-port) explicitly directs it; do NOT auto-detect |
@@ -127,8 +127,9 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] No `Field <field> is not valid for model <model>` (field reference to removed field)
 - [ ] No `External ID not found in the system: <xmlid>` in data XML
 - [ ] `installable: True` in every adapted module's manifest
-- [ ] Scanned each `__manifest__.py` for `# TODO: Uncomment when upgrading` breadcrumb and honored it (restored `auto_install`/`application` only when the breadcrumb directed)
-- [ ] Manifest `version` uses short form, no series prefix, and is NOT bumped from the source value (per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`)
+- [ ] Scanned each module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9) for the `# TODO: Uncomment when upgrading` breadcrumb and honored it (restored `auto_install`/`application` only when the breadcrumb directed)
+- [ ] Manifest `version` uses the short form, no series prefix, and is NOT bumped from the source value - a value that arrived series-prefixed was CONVERTED to `x.y.z`, not bumped (remedy: § Manifest breaks, the Rule A row)
+- [ ] Existing `migrations/` dirs belonging to lower series are untouched, and no NEW migration script was written (a data-at-risk case routes out to `odoo-data-migration`)
 
 ### Test verification
 

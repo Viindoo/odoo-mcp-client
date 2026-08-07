@@ -520,28 +520,83 @@ def test_p5_create_instance_dispatch_names_worktree_path_over_integration_worktr
 
 
 def test_convention_zero_gate_is_explicitly_scoped_off_convention_zero():
-    """The Viindoo-profile gating banner must be scoped to Conventions 1-2 ONLY, and the
-    CORE carve-out must say the gate does NOT apply to Convention 0/3/4 - not merely
-    assert they are core while the banner text still reads as a blanket gate over 'the
-    rules below' (the contradiction review finding F2/F7 identified).
+    """The Viindoo-profile gate must name exactly which Convention number(s) it covers, and
+    Convention 0 must never fall inside that gated scope - neither DIRECTLY (named by number
+    in the gate itself) nor TRANSITIVELY (Convention 0's own body delegates its rule text to
+    a convention that IS inside the gated scope, which makes the CORE rule unreachable on a
+    non-Viindoo profile even though Convention 0 itself was correctly carved out by name).
 
-    Base commit: the banner reads 'The rules below are Viindoo-distribution-specific...
-    DO NOT apply these rules' (unscoped - covers Convention 0 too). RED on that text.
+    Guards two distinct historical defects:
+      1. An UNSCOPED gate ('the rules below ... DO NOT apply these rules') that cannot be
+         checked for scope at all, and so silently covers Convention 0 by omission.
+      2. A gate that correctly excludes Convention 0 BY NAME, while Convention 0's own body
+         delegates its rule (via 'Convention N owns ...') to a convention number that IS
+         inside the gated scope - the actual defect this fix corrects: Convention 0(a) says
+         'Convention 1 owns the no-bump rule', and Convention 1 sat inside a Viindoo-only
+         gate, so a non-Viindoo profile was sent by CORE Convention 0 to Convention 1 for the
+         rule text, then told by Convention 1's own gate not to apply it there - unreachable
+         by construction.
+
+    Base commit: the gate read 'DO NOT apply Conventions 1-2' while Convention 0(a) still
+    delegated to Convention 1 - RED on that combination (case 2 above).
     """
     text = _upg_conventions_text()
-    norm = _norm(text)
-    assert "Conventions 1 and 2" in norm or "Conventions 1-2" in norm, (
-        "snippets/upg-conventions.md: the gating banner must explicitly scope itself to "
-        "Conventions 1-2, not restate an unscoped 'the rules below'."
+    banner_region = text[: text.index("## Convention 1")]
+    norm_banner = _norm(banner_region)
+
+    # 1. The DO-NOT-apply clause must name specific Convention number(s), not a blanket
+    #    "these rules"/"the rules below" - an unscoped clause can't be checked for scope and
+    #    would silently cover Convention 0 by omission.
+    do_not_match = re.search(
+        r"DO NOT apply Convention[s]?\s+([0-9]+(?:\s*(?:,|-|and)\s*[0-9]+)*)", norm_banner
     )
-    assert "DO NOT apply Conventions 1-2" in norm, (
-        "snippets/upg-conventions.md: the banner's DO-NOT-apply clause must name "
-        "Conventions 1-2 specifically, not a blanket 'these rules'."
+    assert do_not_match, (
+        "snippets/upg-conventions.md: the gating banner's DO-NOT-apply clause must name "
+        "specific Convention number(s) explicitly, not a blanket 'these rules'/'the rules "
+        "below' - an unscoped clause cannot be checked for whether it silently swallows "
+        "Convention 0."
     )
+    gated_numbers = {int(n) for n in re.findall(r"\d+", do_not_match.group(1))}
+
+    # 2. Convention 0 must never be one of the gated numbers.
+    assert 0 not in gated_numbers, (
+        "snippets/upg-conventions.md: the DO-NOT-apply clause names Convention 0 among the "
+        f"gated conventions ({sorted(gated_numbers)}) - Convention 0 is CORE and must never "
+        "sit inside the Viindoo-profile-gated scope."
+    )
+
+    # 3. The CORE carve-out must explicitly name Convention 0 as exempt from the gate.
     carve_out_paras = [p for p in _paragraphs(text) if "CORE Odoo rules" in p]
     assert carve_out_paras and "does NOT apply to them" in _norm(carve_out_paras[0]), (
         "snippets/upg-conventions.md: the CORE carve-out paragraph must explicitly state "
-        "the Viindoo gate does NOT apply to Conv-0/Conv-3/Conv-4."
+        "the Viindoo gate does NOT apply to Convention 0 (and the file's other CORE "
+        "conventions)."
+    )
+    assert re.search(r"Conv-0\b", carve_out_paras[0]), (
+        "snippets/upg-conventions.md: the CORE carve-out paragraph must name 'Conv-0' "
+        "explicitly among the conventions the gate does not apply to."
+    )
+
+    # 4. Transitive check: Convention 0's own body must not delegate its rule text (via
+    #    "Convention N owns ...") to a convention number that IS inside the gated scope -
+    #    otherwise a non-Viindoo profile is directed by CORE Convention 0 to a convention its
+    #    own gate forbids applying there. This is the check that catches the original defect.
+    convention_0_body_norm = _norm(text[text.index("## Convention 0"):])
+    delegate_targets = {
+        int(m.group(1)) for m in re.finditer(r"Convention (\d+) owns", convention_0_body_norm)
+    }
+    assert delegate_targets, (
+        "snippets/upg-conventions.md: Convention 0's body no longer names which convention "
+        "'owns' the no-bump rule referenced in clause (a) - this test can no longer verify "
+        "the delegation target stays outside the gated scope."
+    )
+    leaking_targets = delegate_targets & gated_numbers
+    assert not leaking_targets, (
+        "snippets/upg-conventions.md: Convention 0 delegates its rule text to Convention "
+        f"{sorted(leaking_targets)} ('Convention N owns ...'), but that convention is inside "
+        f"the Viindoo-gated scope {sorted(gated_numbers)} - a non-Viindoo profile would be "
+        "sent by CORE Convention 0 to a rule its own gate forbids applying there. The "
+        "delegation target must itself be CORE (outside the gated scope)."
     )
 
 

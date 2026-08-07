@@ -525,8 +525,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - `/odoo-semantic-mcp:connect` - connect the Odoo Semantic MCP *server*
   (different scope: that is the indexing backend; this command wires the
   *browser* MCP servers + local Odoo instances for the visual workflow).
-- `odoo-onboarding` skill - writes `<SHARE_DIR>/context.md` (project Odoo version /
-  modules / conventions; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
-  path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); complementary
-  to this command's `instances.toml`.
+- `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - the rung order every skill
+  works to acquire the Odoo series, OSM profile, addons scope and instance target. The
+  `[[instance]]` entries this command writes to `instances.toml` are that ladder's rung 2, so
+  declaring an instance here is what lets later skills resolve those facts without asking.

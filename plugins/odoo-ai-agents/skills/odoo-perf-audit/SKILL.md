@@ -55,7 +55,7 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
@@ -70,7 +70,7 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 rounds.
 
-**Round 0 - Pin version + profile:** `set_active_version` + `set_active_profile` simultaneously. Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) if present for module scope.
+**Round 0 - resolve project facts + pin the OSM session:** Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then `set_active_version` + `set_active_profile` with the resolved values (fire simultaneously).
 
 **Round 1 - Structural scan (parallel):** For each model in scope, fire simultaneously:
 - `model_inspect(model=<name>, method='fields', odoo_version='<version>')` - collect `store`, `index`, `compute`, `depends`, `related`, `comodel_name` for fields used in domain/order
@@ -105,7 +105,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-perf-audit/references/output-format.md` f
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - Module discovery:** `find . -maxdepth 4 -name "__manifest__.py"`
+- **Tier 2 - Module discovery:** `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8-v9 series are silently missed
 - **Tier 2 - Field index scan:** `grep -rn "index=True\|index = True" --include="*.py" <module_dirs>`; then grep domain strings and ORDER BY patterns to check overlap
 - **Tier 2 - N+1 detection:** `grep -n "\.browse\|\.search\|\.read\b\|\.mapped" --include="*.py" -A2 <module_dirs>`; inspect whether calls appear inside a `for` loop body
 - **Tier 2 - Depends breadth scan:** `grep -n "@api.depends" --include="*.py" -rn <module_dirs>`; flag any depends path ending at Many2many or One2many without drilling to a specific subfield

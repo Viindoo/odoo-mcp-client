@@ -35,7 +35,7 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 | `ParseError` on module load | field in view not on model; bad `eval`/domain; malformed arch | traceback names file+line; `model_inspect` to confirm the field exists |
 | External id not found | `ref()` to a record from an uninstalled/unordered module | `module_inspect` (data + depends); grep the xml id |
 | View inherit does nothing | wrong `inherit_id` xpath / position; expr no longer matches | `module_inspect` (views); diff the target arch |
-| Record rule/menu missing | data file not in `__manifest__.py` data list, or wrong order | `module_inspect` (manifest summary) |
+| Record rule/menu missing | data file not in the descriptor `data` list, or wrong order | `module_inspect` (manifest summary) |
 
 ## Layer: JS / OWL / QWeb / SCSS (frontend runtime) - BROWSER
 

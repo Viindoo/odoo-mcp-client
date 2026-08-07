@@ -298,7 +298,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-competitive-brief/references/examples.md`
 
 ## Notes
 
-- **Context integration**: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for platform roadmap signals and active competitor list. When `$ODOO_AI_VAULT_HOME` is set, the same optional vault lookup runs automatically in Round 1 Pre-Round (step 1) - it is skipped gracefully, never blocking, when the variable is unset or no matching note is found.
+- **Project facts**: resolve series and profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; platform roadmap signals and the active competitor list are request or brief inputs. When `$ODOO_AI_VAULT_HOME` is set, the same optional vault lookup runs automatically in Round 1 Pre-Round (step 1) - it is skipped gracefully, never blocking, when the variable is unset or no matching note is found.
 - **Confidentiality**: this skill structures information YOU provide. No external competitive databases; no invented pricing or GTM facts; no session retention. Treat output as internal-only. Remove/redact signals from customer conversations or partner disclosures before sharing externally.
 
 ## Continuation Contract

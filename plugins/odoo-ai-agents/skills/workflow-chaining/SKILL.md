@@ -45,8 +45,8 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    relative `.odoo-ai/<name>` literal that this skill resolves against the Tier-2 **ISOLATE**
    dir (`scripts/lib/resolve_project_dir.sh isolate`) at RUNTIME - the YAML literal itself and
    the generator's `output_dir` must-start-with-`.odoo-ai/` assertion are intentionally
-   UNCHANGED; only the runtime resolution moved off a bare project-relative path. Read
-   `context.md` under the resolved SHARE dir if it exists (Odoo version, profile defaults).
+   UNCHANGED; only the runtime resolution moved off a bare project-relative path. Resolve
+   series + profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 3. **Orphan sweep (do this every invocation, before the resume check below).** Nothing deletes a
    prior run's `<output_dir>/<slug>-*` artifacts today, so every one of the 13 workflow
    `output_dir` trees leaks one directory per run forever: `find <resolved ISOLATE

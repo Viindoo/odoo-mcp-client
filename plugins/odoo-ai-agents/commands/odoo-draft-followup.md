@@ -18,8 +18,8 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 
 ## Hard rules
 
-- **Read context first**: Check `<SHARE_DIR>/context.md` for CRM metadata and pipeline rules before drafting (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). This ensures the drafted email aligns with your deal context.
-- **Use what the caller already gave, then ask only for gaps**: deal details are usually already in the request (orchestrator structured data, or the sales user stating it) or in `<SHARE_DIR>/context.md`. Never make a human retype what is present. Optionally enrich from a live CRM/ERP/email integration if one exists - but never assume one; this command must work for an agent with only the request text and local files. Ask **only** for fields still unresolved:
+- **Deal context is a request input**: CRM metadata and pipeline rules arrive in the request itself (orchestrator structured data, or the sales user stating them). Nothing on disk stores them - do not go looking for a file. Resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before writing the draft; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit. When a fact about the customer's Odoo deployment matters, resolve the series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
+- **Use what the caller already gave, then ask only for gaps**: deal details are usually already in the request. Never make a human retype what is present. Optionally enrich from a live CRM/ERP/email integration if one exists - but never assume one; this command must work for an agent with only the request text and local files. Ask **only** for fields still unresolved:
   - Customer label or short name (e.g., "ABC Manufacturing")
   - Last touch date - only if not already provided
   - Current pipeline stage - only if not already provided
@@ -45,7 +45,7 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
    error - `find` on a non-existent path prints nothing and exits non-zero; ignore that exit code
    and continue to step 1.
 1. Parse `$ARGUMENTS` for an optional customer label.
-2. Read `<SHARE_DIR>/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
+2. Take CRM metadata, pipeline rules, and any standing objection handlers from the request as given - they are caller-supplied, not stored.
 3. Pull deal details already present in the invocation context (caller-provided data, prior conversation) and pre-fill everything available. Optionally enrich from a live CRM/email integration only if one exists - never assume it.
 4. If the customer label is still unknown, ask: "Customer name or label?" Ask for any remaining unresolved field (last touch, stage, blockers) in a single batched message - never for data already supplied.
 

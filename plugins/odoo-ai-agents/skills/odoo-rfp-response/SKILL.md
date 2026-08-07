@@ -49,7 +49,7 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -86,7 +86,7 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 
 Follow `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` for all claims.
 
-**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `standard_viindoo_17`). If `<SHARE_DIR>/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
+**Round 0 - resolve project facts + pin the OSM session:** Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with the resolved values - never hard-code a profile name. Resolve `<SHARE_DIR>` here too, once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, and substitute the captured absolute path into every later state-root Read - never the placeholder or a bare `.odoo-ai/`.
 
 The requirement list is already in the invocation context - proceed directly without asking the user to re-provide it.
 
@@ -117,7 +117,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 The requirement list is already in the invocation context - proceed immediately without asking the user to re-provide it.
 
-- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use `find . -maxdepth 4 -name "__manifest__.py"` then `Read` relevant manifests and model files. Alternatively, `WebFetch` raw manifests from `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`. Label artifacts `grounded: local-source (not OSM-indexed)`.
+- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` then `Read` relevant manifests and model files. Alternatively, `WebFetch` raw manifests from `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`. Label artifacts `grounded: local-source (not OSM-indexed)`.
 - **Tier 3 - training memory only:** Classify from training knowledge, prepend each verdict with `(OSM unavailable - unverified)`. Include caveat in executive summary: "Compliance verdicts are unverified against the code index; double-check once OSM is back online."
 
 ## Output format

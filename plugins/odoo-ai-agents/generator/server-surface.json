@@ -549,7 +549,7 @@
       ],
       "optional_params": [],
       "return_type": "object",
-      "example_call": "set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')",
+      "example_call": "set_active_profile(profile_name='<profile from the resolved instance entry>')",
       "deprecated_by": null,
       "routing_keywords": [
         "set profile",

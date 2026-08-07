@@ -37,7 +37,7 @@ Consultant / Project Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -108,13 +108,18 @@ check fails, a shard is missing or malformed - re-dispatch that cluster before w
 
 ## Instructions
 
-**Round 0 - Bootstrap + pin.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`.
-Read `<SHARE_DIR>/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code
-`standard_viindoo_17`); derive the version from on-disk manifests if the file is absent. The
-requirement list is already in context - do not ask for it. Call `set_active_version` once as the
+**Round 0 - resolve project facts + pin the OSM session.** Resolve series, profile, and module
+scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - never hard-code a profile
+name. The requirement list is already in context - do not ask for it. Call `set_active_version` once as the
 reachability probe (concrete version only - `'auto'` is unsafe under fan-out, per the
 concurrency-guard OSM session-pin race). Pick the slug (reuse any feature slug already in play);
 the artifact dir is `<SHARE_DIR>/gap-analysis/<slug>-<date>/`.
+
+**Resolve the run's SHARE dir ONCE here, and capture it (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § The resolve-capture-substitute protocol).** THIS skill is the dispatcher for every worker below, so it resolves once and threads the captured literal through each brief - no leaf re-resolves from its own inherited cwd:
+```
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share
+```
+Capture the printed absolute path as `SHARE_DIR` for the rest of this run and substitute that literal into every Read/Write/Edit below - never the `<SHARE_DIR>` placeholder, a `$VAR`, or a bare `.odoo-ai/` path. Pass it as an explicit `SHARE_DIR:` field into every dispatch brief.
 
 **Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each
 cluster a 2-digit `<NN>` and a short `<area>` label.
@@ -131,7 +136,7 @@ correct. Each worker brief carries:
 1. **Leaf restrictions** - `Do NOT invoke the Skill tool. Do NOT spawn a sub-agent. Use
    Read/Grep/Glob/Bash + OSM MCP only; the ONLY file you Write is your own shard.`
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.
-3. **Version + profile pin** - the concrete `odoo_version` and `viindoo_profile`; pass the
+3. **Version + profile pin** - the concrete series and profile name Round 0 resolved; pass the
    concrete version on EVERY OSM call, never `'auto'`.
 4. **Grounding rule** - OSM-first; on a Tier-1 MISS read the local checkout; an ungroundable
    requirement is `grounded: unknown` + `notes: "BLOCKED - needs OSM index or checkout"`. NEVER

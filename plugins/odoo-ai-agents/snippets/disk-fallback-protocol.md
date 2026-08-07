@@ -59,9 +59,9 @@ self-serve from real sources you already have access to:
 - **Official upstream** - `WebFetch` the raw source for the target version, e.g.
   `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`,
   release notes, or `WebSearch` for public changelog / competitor / pricing pages.
-- **Context + optional local vault** - resolve the Tier-2 SHARE dir per `state-root-resolution.md`'s
-  resolve-capture-substitute protocol and `Read` `context.md` there (never a bare
-  `.odoo-ai/context.md` literal) for version/profile/instance. If the caller has set
+- **Declared instance catalog + optional local vault** - match the working repo against this host's
+  `instances.toml` per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2 for
+  series, profile, addons path, and instance. If the caller has set
   `$ODOO_AI_VAULT_HOME` - an OPTIONAL pointer to their own private notes vault, unset by default,
   with NO assumed internal folder layout - `Bash: find "$ODOO_AI_VAULT_HOME" -iname "<name>*.md"`
   for a note matching the entity name and `Read` the first hit instead of asking for it. Skip this

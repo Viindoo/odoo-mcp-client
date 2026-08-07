@@ -81,8 +81,8 @@ into a Read/Write/Edit):
 ```
 MODULE: <module technical name>
 MODULE_PATH: <absolute path to the module dir on disk, if resolvable>
-ODOO_VERSION: <concrete version from context.md or manifest, e.g. 17.0>
-PROFILE: <viindoo_profile from <SHARE_DIR>/context.md, or omit if absent>
+ODOO_VERSION: <the resolved concrete series, e.g. 17.0>
+PROFILE: <the resolved profile name, or omit when no rung resolved one>
 OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 ```
 
@@ -90,13 +90,14 @@ OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 multi-module run never collides on a flat `feature-catalog.jsonl`. Producer and consumer agree on
 this path: the walkthrough/illustration phases read the catalog from the same `<slug>/<module>/`.
 
-`MODULE_PATH` is optional but speeds up disk fallback. Derive `ODOO_VERSION` from `<SHARE_DIR>/context.md`
--> `__manifest__.py` `version` field major prefix -> addons-dir regex -> ask if none found.
+`MODULE_PATH` is optional but speeds up disk fallback. Resolve `ODOO_VERSION` and `PROFILE` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - never from a manifest `version`
+prefix, which carries no series on a stock checkout.
 
 ## Standalone-first fallback
 
 Odoo Semantic MCP (OSM) is the PRIMARY source. If OSM is unreachable, the agent falls back to
-reading `__manifest__.py`, grepping `views/` and `models/` on disk, and reading
+reading the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9), grepping `views/` and `models/` on disk, and reading
 `security/ir.model.access.csv` directly. Prefix any disk-only output with:
 `WARNING: OSM unreachable - catalog grounded from disk only; verify completeness`.
 

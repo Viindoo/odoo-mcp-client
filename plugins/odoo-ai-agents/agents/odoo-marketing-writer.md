@@ -87,12 +87,14 @@ tagline) - it does NOT generate features or copy.
 
 ### Step 0 - Resolve version + module path + instance + required inputs
 
-Resolve `odoo_version` and the module absolute path as in the icon/user-doc flow: brief `VERSION:` ->
-`context.md` `odoo_version` -> `__manifest__.py` `version` (major >= 8) -> parent-dir regex
-`(?:addons|tvtmaaddons)(\d+)`; else `NEEDS_CONTEXT`. A bare `MODULE PATH` resolves under
+Resolve `odoo_version` and the module absolute path per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`: brief `VERSION:`, else the declared
+instance catalog, else checkout derivation; else `NEEDS_CONTEXT`. A bare `MODULE PATH` resolves under
 `WORKTREE_PATH` when the brief supplies it (join `ADDONS_PATH` entries with the module name), never
 your own cwd. `set_active_version(<version>)` as the reachability
-probe; pass the concrete version on every OSM call. Verify `__manifest__.py` exists. Confirm both
+probe; pass the concrete version on every OSM call. Verify the module descriptor exists and record
+which filename it is - `__manifest__.py`, or `__openerp__.py` on v8.0-v9.0 - then reuse that literal
+for every descriptor read and Edit below; a v8.0-v9.0 module has only `__openerp__.py`. Confirm both
 REQUIRED inputs are present (BLOCK per the section above if not). Handle `INSTANCE_HANDLE` per
 capture-mechanics.md section 4; when both `INSTANCE_HANDLE` and `ADDONS_PATH` are present, run the
 Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against
@@ -102,8 +104,8 @@ Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contr
 
 Resolve the locale set with the shared resolver (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution): brief
-`LANGUAGES:` -> `context.md doc_languages` -> `i18n.json default_languages` -> module `i18n/*.po` ->
-live `res.lang` (no built-in default beyond these tiers - all five empty returns `NEEDS_CONTEXT` per
+`LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
+live `res.lang` (no built-in default beyond these tiers - all four empty returns `NEEDS_CONTEXT` per
 the SSOT), THEN union with existing on-disk `static/description/index*.html`
 locales. **English
 is the mandatory canonical:** final set = `{en_US}` union the resolved set; `index.html` is always
@@ -141,8 +143,15 @@ are the SSOT):
   marker has no match, place the image ref immediately after the heading of the feature it illustrates.
 - **Key Features grid**: titles + one-line `value` come from `feature-catalog.jsonl` ONLY (never the OSM
   summary). Hero tagline = manifest `summary`, outcome-first.
-- **Brand**: pull palette/fonts from `<SHARE_DIR>/context.md` brand tokens or the brief; default to the
-  Odoo palette in the reference. NEVER hardcode a vendor brand (this repo is public).
+- **Brand**: pull the palette from `<SHARE_DIR>/brand-tokens.json` when it exists - a JSON map of CSS
+  custom-property NAME -> expected color, e.g. `{ "--primary": "#1E88E5" }` (schema SSOT:
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` § Brand-token fidelity) - resolving
+  `{{PRIMARY_HEX}}` from its `--primary` value, else the first token whose name contains `primary`,
+  else the map's first color-valued token; an unfamiliar token NAME is never a miss. That map holds
+  colors only, so a typeface never comes from it: the sanitizer bans `<link>`/CDN/Google-Fonts, so
+  take only Bootstrap-5 classes and the safe inline `font-weight`/`font-size` from the reference
+  template. Absent the map and a brief palette -> skip silently and default to the Odoo palette in the
+  reference. NEVER hardcode a vendor brand (this repo is public).
 - **On-disk convention wins**: if the module already uses legacy `oe_*` classes, stay consistent;
   otherwise default to the Bootstrap-5 sanitizer-safe template. Per-locale -> `index_<locale>.html`,
   each referencing its own locale images.
@@ -155,7 +164,7 @@ prose form without a hyperlink. Absent/empty -> add nothing.
 
 ### Step 4 - Wire manifest + audit store keys
 
-Read `<module>/__manifest__.py` (read-before-write). Merge `'images': ['<asset-dir>/<primary-shot>']`
+Read the module descriptor resolved in Step 0 (read-before-write). Merge `'images': ['<asset-dir>/<primary-shot>']`
 (the captured cover) with a targeted Edit; do NOT rewrite the manifest. Audit the store keys against
 app-store-template.md § Manifest Store Keys: merge values derivable from source (`name`, `summary`,
 `description`, `images`, `license`, `application`, `category`, `maintainer`, `website`, `version`). For
@@ -205,7 +214,7 @@ artifacts:
   app-store-template.md.
 - OSM grounds supplied facts only (module/edition/manifest summary); it does NOT generate features or
   copy.
-- Read `__manifest__.py` before editing; targeted Edit only, never a wholesale rewrite. Never fabricate
+- Read the module descriptor (Step 0) before editing; targeted Edit only, never a wholesale rewrite. Never fabricate
   commercial store keys.
 - Browser-exclusive PER FAMILY, serial; never run concurrently with another browser-driving agent
   on the SAME MCP family (a distinct family/instance may run in parallel).

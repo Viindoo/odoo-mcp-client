@@ -108,15 +108,16 @@ Goal: turn the free-text ask into structured inputs - infer series, map to the O
 auto-detect candidate modules, propose a cluster, CLARIFY scope. Dispatch 1x intake subagent
 (sonnet). Brief: (1) read the CURRENT BRANCH NAME and infer the Odoo series (`17.0-*` -> `17.0`);
 cross-check against the MAX manifest `version` series on disk and raise a disagreement as an
-`open_question` rather than trusting the branch name alone. EXCEPTION (Viindoo Standard/Internal
-profile, per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`: manifests carry a SHORT version
-with NO series prefix): skip the cross-check and resolve the source series from branch + profile -
+`open_question` rather than trusting the branch name alone. EXCEPTION (the manifests carry a SHORT
+version with NO series prefix - keyed on the VALUE's form, never on the distribution): skip the
+cross-check and resolve the source series from branch + profile -
 do NOT raise a false disagree; (2) map to the OSM profile via `set_active_version` +
 `list_available_profiles` + `profile_inspect`; report repos + module set; (3) auto-detect
-CANDIDATE MODULES by scanning `__manifest__.py` for a `version` major series LESS THAN target
-(e.g. `16.0.x` when target is `17.0`) AND for modules depending on such a stale module;
-`installable: False` is a weak hint only. For Viindoo short-form manifests (no series prefix) the
-version scan yields nothing - detect by profile membership + branch series instead; (4) determine
+CANDIDATE MODULES by scanning each module descriptor (`__manifest__.py`, or `__openerp__.py` on
+v8-v9 - glob BOTH names or a v8/v9 source cluster is invisible) for a `version` major series LESS
+THAN target AND for modules depending on such a stale module;
+`installable: False` is a weak hint only. Short-form manifests (no series prefix) yield nothing from
+that version scan on ANY profile - then detect by profile membership + branch series instead; (4) determine
 SOURCE version from the matched profile / manifest `version` and TARGET from the NL ask (or next
 major if implied); (5) if MODULE SCOPE is not explicit, do NOT guess - return the candidate list +
 a proposed cluster (seeded from the dependency closure of the confirmed targets, not naming/path
@@ -129,7 +130,7 @@ user to confirm/narrow scope, then resume P1.
 **P1 - Recon [graph + deprecation + diff + transitive-symbol, parallel].**
 Goal: build the dependency DAG; get per-module deprecated-symbol fix list + platform API
 delta + a transitive symbol-survival survey grounded at target. Four parallel dispatches:
-(a) 1x `Explore` (sonnet) reads each `__manifest__.py` `depends` -> emits {module, depends[]}
+(a) 1x `Explore` (sonnet) reads each descriptor's `depends` (BOTH names, § P0) -> emits {module, depends[]}
 for every module in the confirmed cluster -> orchestrator topo-sorts to leaves-first order
 (cheap, deterministic); (b) `odoo-deprecation-audit` (via Skill tool, sonnet) for source +
 TARGET version + module list (it runs the TARGET-version survival pass); (c) `odoo-version-diff`
@@ -264,8 +265,10 @@ the per-module deprecation fix list from P1, and this module's DUE version-ancho
 deferred-work items from P2's `absorption/<module>.md` `deferred_work` block (executed NOW as
 REAL work-items in the SAME implement -> P4b review -> P5 test path, not a side note; DEFERRED
 and UNANCHORED items stay untouched in source); flip `installable: False -> True`; do NOT bump the
-manifest `version` (keep the existing short form); set `auto_install`/`application` only when a
-manifest-comment breadcrumb directs (NO auto-detect of "bridge").
+manifest `version` (keep the short form; a series-prefixed value is CONVERTED to it, never bumped -
+`references/upg-classification-table.md` § Manifest breaks, the Rule A row); set
+`auto_install`/`application` only when a manifest-comment breadcrumb directs (NO auto-detect of
+"bridge").
 The commit inside each child worktree is produced by `odoo-coding` via the `git-toolkit:git-ops`
 skill (its coders write files, never run git); message per § Git / PR conventions.
 Converge each child worktree back to integration (serialized); remove child worktree.
@@ -370,8 +373,11 @@ Stage order inside this phase is the **Terminal stage order** constant
 owner): every code-changing check clears, THEN the PR opens. Do not reorder it locally.
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
-add a convention-compliance pass (manifest version-form + always-invisible XML comment + rename
-via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
+add a convention-compliance pass (manifest version-form - short, no series prefix, not bumped, per
+`references/upg-classification-table.md` § Manifest breaks - plus always-invisible XML comment and
+rename via `old_technical_name`, whose no-new-script clause is about a MODULE RENAME, not about the
+lower-series `migrations/` dirs this SERIES UPGRADE leaves untouched; see
+`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).
 Then delegate the final dep-order code review of the integration worktree - via the plugin's review
@@ -402,6 +408,10 @@ human merge.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
 5. **Code-level only; migration scripts NEVER inline; BLOCKED on data-at-risk.** The workflow is
    CODE-LEVEL only. This skill NEVER writes migration scripts - inline, as a P4 step, or otherwise.
+   Existing `migrations/` dirs belonging to lower series are left EXACTLY as they are: this is a
+   SERIES UPGRADE, so nothing here retargets or rewrites them (the retarget of a forwarded
+   `migrations/` dir belongs to a MODULE RENAME during forward-port - a different scenario, never
+   read into this scope).
    If a module genuinely needs a data migration script, the pipeline reports BLOCKED and routes
    the case to `odoo-data-migration`; the upgrade itself does not emit the script.
    Data-at-risk detection: if a candidate module is currently `installable: True`
@@ -520,7 +530,7 @@ Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 When OSM is unreachable, the pipeline degrades but does not stop. P0 intake derives
 series from the branch name + reads manifest files directly (no OSM needed). P1 recon
-reads `__manifest__.py` `depends` from disk for the DAG; `odoo-deprecation-audit` and
+reads each descriptor's `depends` from disk (BOTH names) for the DAG; `odoo-deprecation-audit` and
 `odoo-version-diff` each have their own standalone fallback (disk-fallback-protocol).
 P2 comparator falls back to disk reads of the source module + the target checkout per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Label all artifacts

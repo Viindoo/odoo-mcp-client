@@ -23,14 +23,15 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 - Parse arguments + context check (inline: runner handles)
+  # Phase 0 - Parse arguments + resolve project facts (inline: runner handles)
   # ------------------------------------------------------------------
   - id: parse-and-context
     inline: true
     model_tier: inherit
     # Runner collects: customer_label (default "Customer-A"), prospect_input,
     # close_date, deal_size (S/M/L), contact_role.
-    # Checks for .odoo-ai/context.md; warns + offers /odoo-onboarding if absent.
+    # Resolves series + profile per snippets/project-facts-resolution.md; a series left
+    # unresolved after every rung is asked for once here, never defaulted.
     # Hard rules enforced inline:
     #   - Abstract labels only (no real company/contact names in saved files)
     #   - No external writes before the assemble-proposal gate
@@ -85,8 +86,8 @@ phases:
       capability evidence: module name, relevant model/field, and concrete demo steps (max 3
       per item). Batch all Standard/Config items in one consolidated proof list. For
       Extension rows, note that code evidence is available on request. Custom rows: list them
-      with the note "to be quoted separately in commercial proposal". Odoo version: use
-      .odoo-ai/context.md if available, else ask.
+      with the note "to be quoted separately in commercial proposal". Odoo series: the one
+      Phase 0 resolved per snippets/project-facts-resolution.md; ask only if every rung missed.
     model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 

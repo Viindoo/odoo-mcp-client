@@ -75,9 +75,11 @@ Domain purposes (for autofill logic):
 
 ## Workflow
 
-### Round 0 - Load context
+### Round 0 - Resolve project facts
 
-Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version`, `modules`, and any previous audit output references to pre-fill Domain 1. If absent, proceed to Round 1.
+**Round 0 - resolve project facts.** Resolve series, profile, and module scope per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and pre-fill Domain 1 with them.
+Previous audit output is a request or brief input. Then proceed to Round 1 for whatever is left.
 
 ### Round 1 - Confirm scope (single message)
 
@@ -130,7 +132,7 @@ The checklist remains fully usable - 7 of 8 domains require no OSM access.
 
 ## Notes
 
-- **`<SHARE_DIR>/context.md` integration:** Pre-fills `odoo_version`, `modules`, and previous audit links. Without it, all Round 1 questions are mandatory.
+- **Project facts:** Round 0 pre-fills the series and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. Whatever no rung resolves stays a mandatory Round 1 question.
 - **Pre-flight code audit:** Run `odoo-deprecation-audit` first - its output directly fills Domain 1.
 - **Full upgrade orchestration:** `/odoo-plan-upgrade` chains `odoo-deprecation-audit` → `odoo-version-diff` → `odoo-deploy-checklist`. Use when a complete plan is needed, not just a deploy gate.
 - **Risk overview for stakeholders:** Route to `odoo-risk-overview` when the audience is a manager or client.

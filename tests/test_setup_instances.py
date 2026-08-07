@@ -300,8 +300,8 @@ def test_read_cli_exact_match_picks_requested_series(tmp_path):
         text=True, capture_output=True,
     )
     assert proc.returncode == 0, proc.stderr
-    assert "INST_VERSION=16.0" in proc.stdout
-    assert "INST_VERSION=18.0" not in proc.stdout
+    assert "INST_SERIES=16.0" in proc.stdout
+    assert "INST_SERIES=18.0" not in proc.stdout
 
 
 # --- CONTRACT-3: py<3.11 text-scan parses BOTH schemas -----------------------
@@ -496,7 +496,7 @@ def test_resolve_finds_global_from_arbitrary_cwd(tmp_path):
         text=True, capture_output=True,
     )
     assert read.returncode == 0, read.stderr
-    assert "INST_VERSION=17.0" in read.stdout
+    assert "INST_SERIES=17.0" in read.stdout
 
 
 @pytest.mark.skipif(which("bash") is None, reason="bash not available")

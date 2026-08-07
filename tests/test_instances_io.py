@@ -6,6 +6,11 @@ Business rules protected:
     share a series but differ in profile.
   - _cmd_read emits INST_PROFILE and INST_KEY for both profiled and plain instances.
   - The read CLI accepts an optional third positional arg [profile] and uses it.
+  - `read` distinguishes a genuine "no catalog file at all" miss (exit 1,
+    silent) from a catalog that IS present but could not be read as TOML
+    (exit 3, one diagnostic line naming the file) - the same split `locate`
+    applies, so a malformed catalog and a permissions error are never
+    reported identically to "nothing declared".
 
 CPU-only: no PostgreSQL, no Odoo, no network. Uses the real library modules.
 """
@@ -297,3 +302,57 @@ def test_cmd_read_profile_arg_selects_correct_item_among_two(tmp_path):
     )
     assert out_full["INST_PROFILE"] == "full_17"
     assert out_full["INST_KEY"] == "17.0:full_17"
+
+
+# ---------------------------------------------------------------------------
+# _cmd_read: catalog-unreadable vs catalog-absent must be DISTINGUISHABLE
+# (same split _cmd_locate applies - see instances_io.py's `locate` docstring)
+# ---------------------------------------------------------------------------
+
+def _run_read_raw(toml_path, *extra_args) -> subprocess.CompletedProcess:
+    """Like _run_read but returns the raw CompletedProcess (no returncode==0
+    assertion) so a failure path can be inspected."""
+    return subprocess.run(
+        [sys.executable, str(INSTANCES_IO), "read", str(toml_path), *extra_args],
+        capture_output=True, text=True,
+    )
+
+
+def test_read_cli_malformed_toml_exits_3_with_diagnostic_naming_the_file(tmp_path):
+    """A catalog that IS present but fails to parse (missing closing bracket)
+    must be DISTINGUISHABLE from a genuine "no catalog file" miss: a distinct
+    exit code, plus exactly one clear stderr line naming the broken file -
+    never the silent exit 1 a code bug and a typo'd file would otherwise
+    share."""
+    toml = _make_toml(tmp_path, "[[instance]\nseries = \"17.0\"\n")
+    result = _run_read_raw(toml)
+    assert result.returncode == 3
+    assert result.stdout == "", "no facts must be emitted for an unparseable catalog"
+    assert result.stderr != "", "a broken catalog must produce a diagnostic, not silence"
+    assert str(toml) in result.stderr, "the diagnostic must name the broken file"
+
+
+def test_read_cli_catalog_path_is_a_directory_exits_3_with_diagnostic(tmp_path):
+    """The catalog path pointing at a directory instead of a file is another
+    'present but unparseable' case - same distinct exit code and diagnostic
+    as malformed TOML, never a silent genuine-miss."""
+    catalog_dir = tmp_path / "instances.toml"
+    catalog_dir.mkdir()
+    result = _run_read_raw(catalog_dir)
+    assert result.returncode == 3
+    assert result.stdout == ""
+    assert result.stderr != ""
+    assert str(catalog_dir) in result.stderr
+
+
+def test_read_cli_catalog_path_does_not_exist_stays_a_silent_genuine_miss(tmp_path):
+    """A catalog path with NO file at all is a NORMAL 'nothing declared yet'
+    miss - it must stay on the exit-1, silent-stderr contract, NOT the
+    exit-3 diagnostic path reserved for a catalog that is present but
+    broken. 50-instance-spinup.sh only branches on non-zero-exit-or-empty-
+    stdout, never on the specific code, so this split cannot break it."""
+    missing = tmp_path / "does_not_exist" / "instances.toml"
+    result = _run_read_raw(missing)
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == "", "an absent catalog is a normal miss, not a diagnostic-worthy error"

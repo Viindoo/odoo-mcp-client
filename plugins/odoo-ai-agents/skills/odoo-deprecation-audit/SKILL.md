@@ -32,7 +32,7 @@ Developer / Tech Lead
 
 When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill diff-scoped, it supplies:
 - `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files. Restrict authoritative BREAKING/WARN/STYLE findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing deprecated usage) in a separate "Pre-existing / blast-radius" section - never silently dropped.
-- `odoo_version` (the source version) and, optionally, `TARGET_SERIES` (the upgrade target) - version-relative values the brief supplies; use them exactly as Round 0 / Round 1b already do. When absent, fall back to `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) / manifest resolution as today. This skill never hardcodes a version number in its own prose - every version is a variable resolved from context or the brief.
+- `odoo_version` (the source version) and, optionally, `TARGET_SERIES` (the upgrade target) - version-relative values the brief supplies; use them exactly as Round 0 / Round 1b already do. When absent, resolve the series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. This skill never hardcodes a version number in its own prose - every version is a variable the ladder or the brief resolves.
 
 Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md`: this audit's own BREAKING/WARN/STYLE tiers map onto that scale's CRITICAL/HIGH/MED/LOW - one severity scale governs the whole review-plus-audit pipeline.
 
@@ -50,7 +50,7 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -76,7 +76,7 @@ Era-specific deprecation patterns and data priority guidance:
 
 Use parallel MCP calls - full audit completes in 3 rounds.
 
-**Round 0 - Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from <SHARE_DIR>/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope.
+**Round 0 - resolve project facts + pin the OSM session:** Resolve series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, then `set_active_version(odoo_version=<source_version>)` and `set_active_profile(profile_name=<resolved profile>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope.
 
 **Round 1 - Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These
 are completely independent: one scans the codebase, the other fetches the version spec. No
@@ -157,9 +157,9 @@ Capture file, line, symbol name, and deprecation message from Round 1; merge wit
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - Module discovery:** `find . -maxdepth 4 -name "__manifest__.py"`
+- **Tier 2 - Module discovery:** `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8-v9 series are silently missed
 - **Tier 2 - Deprecated pattern scan:** `grep -rn "@api.multi\|@api.one\|_columns\|osv\.osv\|orm\.TransientModel\|web\.Widget\|fields\.function\|ir\.values" --include="*.py" <module_dirs>` and `grep -rn "odoo\.define\|AbstractField\|FieldWidget" --include="*.js" <module_dirs>`
-- **Tier 2 - Version resolution:** Read `<SHARE_DIR>/context.md` for `odoo_version`. If absent, derive source version from manifest `version` fields.
+- **Tier 2 - Project facts:** source series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 - Label output `grounded: local-source (not OSM-indexed)`. Confirm exact removal vs. deprecation status once OSM is online.
 - Escalate (`NEEDS_CONTEXT`) only if the target upgrade version is genuinely unresolvable from context.
 

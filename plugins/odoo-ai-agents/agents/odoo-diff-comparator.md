@@ -80,7 +80,7 @@ Read the custom module source:
 find <repo_root>/<module> -name "*.py" -o -name "*.xml" -o -name "*.js" | head -40
 ```
 
-Then `Read` the key files: `__manifest__.py`, models (`models/*.py`), views (`views/*.xml`), controllers, wizards. Build a feature inventory: each distinct business behavior the module provides (not each file or method - group by business concept).
+Then `Read` the key files: the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0 - open whichever it has, since the lower-series side of an upgrade may be either), models (`models/*.py`), views (`views/*.xml`), controllers, wizards. Build a feature inventory: each distinct business behavior the module provides (not each file or method - group by business concept).
 
 **Version-anchored deferred-work reconciliation (upgrade mode only, same read - no separate
 scan/dispatch).** While you already have this module's source open, also scan every in-scope

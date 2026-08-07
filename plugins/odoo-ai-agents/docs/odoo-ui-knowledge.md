@@ -2,11 +2,12 @@
 
 Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
 `odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
-agents. Contains no instance-specific or confidential values - concrete URLs, logins, and
-baseline directories live in each project's `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>`/
-`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute
-the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
-Read/Write/Edit).
+agents. Contains no instance-specific or confidential values - concrete URLs and login identifiers
+are resolved per-run from the declared instance catalog (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`);
+the web-login password is never stored here (see Session / multi-role storage below); baseline images live under each
+project's `<SHARE_DIR>/visual/baselines/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 ## URLs and entry points
 
@@ -187,38 +188,46 @@ For repeatable, deterministic captures and for exercising role-specific UI:
 3. Keep one storage-state file per role (admin, internal user, portal user) so role-specific UI can
    be reviewed without re-authenticating mid-session.
 
-Credential values themselves come from the agreed credential source referenced in
-`<SHARE_DIR>/context.md` (`instance_login`) - never hard-code them here.
+Login identifier: the brief's value, else `admin`. The password is not stored in this repo or in
+project state: use the value the brief supplies, and when the brief supplies none, ask for it
+ONCE. Never guess a password and never reuse a database credential for the web login.
 
-## Context file keys consumed by the visual skills
+## Inputs the visual skills resolve
 
-All four skills read `<SHARE_DIR>/context.md` (Markdown bullets `- **key**: value`, not YAML):
+All four skills resolve the same inputs, none of them from a stored project file:
 
-- `odoo_version` - selects `/odoo` vs `/web` and the framework era above.
-- `instance_base_url` - root of the running instance to navigate. For a two-state visual-regression
-  comparison this is state A (the baseline); a same-instance before/after (module install/uninstall,
-  theme toggle, in-place upgrade) also reuses it for state B - re-navigate the same URL after
-  applying the change.
-- `instance_base_url_b` - (optional) root of a SECOND, genuinely distinct running instance, consumed
-  only by `odoo-visual-regression` for a true two-instance comparison (e.g. two separate builds/hosts
-  - staging vs prod, or two independently-provisioned version instances). Omit for a same-instance
-  before/after diff; when absent, `odoo-visual-regression` treats state B as `instance_base_url`
-  re-navigated post-change.
-- `instance_login` - login identifier + agreed credential source.
-- `screenshot_baseline_dir` - the SHARE-tier root holding `baselines/` and the cached login
-  `storageState`. A visual-regression run's own comparison set is NOT here: it is per-run ISOLATE at
-  `<ISOLATE_DIR>/visual/current/<slug>/`, deleted after the Round-4 verdict is recorded, as are
-  per-run acceptance/debug/review evidence and videos - see `state-root-resolution.md` § Where a
-  captured artifact goes; videos default to `<ISOLATE_DIR>/visual/videos/`.
-- `brand_tokens_source` - (optional) path to a consumer-declared JSON map `token -> expected color`
-  (e.g. `{"--primary": "#1E88E5"}`). When present, `odoo-ui-review` Step 4b ΔE-diffs the resolved
-  `getComputedStyle(:root)` brand tokens against it (runtime brand fidelity, `odoo-frontend-fidelity.md`
-  Section G). Brand-agnostic - no brand is vendored in the plugin; omit for pure-Odoo projects.
-- `mockup_dir` - (optional) directory of reference mockups/design specs for the mockup-first check.
+- **Odoo series** - `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; selects `/odoo`
+  vs `/web` and the framework era above.
+- **`instance_base_url`** - `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (computed from
+  the matched declared instance's `http_port`, or a live shared server when one is registered for
+  the series). For a two-state visual-regression comparison this is state A (the baseline); a
+  same-instance before/after (module install/uninstall, theme toggle, in-place upgrade) also reuses
+  it for state B - re-navigate the same URL after applying the change.
+- **`instance_base_url_b`** - a brief/request input, consumed only by `odoo-visual-regression` for
+  a genuine two-instance comparison (e.g. two separate builds/hosts - staging vs prod, or two
+  independently-provisioned version instances). Absent -> state B is `instance_base_url`
+  re-navigated post-change (same-instance before/after).
+- **`instance_login`** - login identifier: the brief's, else `admin` for a locally-declared
+  instance; password: the brief's value, asked for ONCE when absent - never stored, never a
+  database credential.
+- **`screenshot_baseline_dir`** - unconditionally `<SHARE_DIR>/visual/baselines/`, holding
+  the baseline images and the cached login `storageState`. A visual-regression run's own comparison set is
+  NOT here: it is per-run ISOLATE at `<ISOLATE_DIR>/visual/current/<slug>/`, deleted after the
+  Round-4 verdict is recorded, as are per-run acceptance/debug/review evidence and videos - see
+  `state-root-resolution.md` § Where a captured artifact goes; videos default to
+  `<ISOLATE_DIR>/visual/videos/`.
+- **Brand fidelity** - opt-in, activated by the EXISTENCE of `<SHARE_DIR>/brand-tokens.json` (a
+  consumer-declared JSON map `token -> expected color`, e.g. `{"--primary": "#1E88E5"}`). When
+  present, `odoo-ui-review` Step 4b ΔE-diffs the resolved `getComputedStyle(:root)` brand tokens
+  against it (runtime brand fidelity, `odoo-frontend-fidelity.md` Section G). Brand-agnostic - no
+  brand is vendored in the plugin; absent, the check skips silently.
+- **Mockup-first check** - opt-in, activated when `<SHARE_DIR>/mockups/` is non-empty (reference
+  mockups/design specs).
 
-If a *required* key (`odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`)
-is missing, the skill asks the user rather than guessing; the optional `instance_base_url_b` /
-brand / mockup keys simply disable their (or fall back on their) behavior when absent.
+The Odoo series is the one input that STOPS and asks rather than guessing when no rung resolves it
+(`snippets/project-facts-resolution.md` rung 5); the instance target and login identifier degrade
+to a single clarifying request only when genuinely unretrievable after every rung; brand fidelity
+and the mockup-first check simply skip silently when their input is absent.
 
 ## Documentation screenshots (static/description)
 
@@ -245,6 +254,7 @@ SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relat
 
 ### UC2 - cluster / docs-repo output
 
-When `doc_output_dir` is set in `<SHARE_DIR>/context.md` (MODE cluster), images go to that
-directory instead of `static/description/`. RST references use `.. image:: <filename>.png`
-(no path prefix when the image is in the same docs dir as the `.rst` file).
+When the request/brief names a cluster documentation output directory (MODE cluster), images go
+to that directory instead of `static/description/`; absent, cluster output defaults to
+`<SHARE_DIR>/visual/doc/`. RST references use `.. image:: <filename>.png` (no path prefix when the
+image is in the same docs dir as the `.rst` file).

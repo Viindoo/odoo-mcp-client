@@ -77,10 +77,10 @@ USER LANGUAGE: <language for human-facing prose; identifiers stay English>
 technical name) so a multi-module run never collides on a flat `walkthrough.jsonl`/`feature-catalog.jsonl`,
 and the scenarist reads the catalog from the exact path the feature-map phase wrote it (producer == consumer).
 
-If `MODULE_PATH` is unknown, the scenarist resolves it from `<SHARE_DIR>/context.md` or disk.
-If `ODOO_VERSION` is not stated, the scenarist infers it from the module manifest `version`
-field major digit or from the addons directory name pattern; if still unresolved it returns
-`NEEDS_CONTEXT(odoo_version)` before proceeding.
+If `MODULE_PATH` or `ODOO_VERSION` is unknown, the scenarist resolves it per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; if the series is still unresolved
+after every rung it returns `NEEDS_CONTEXT(odoo_version)` before proceeding rather than guessing
+one from a manifest `version` string.
 
 Collect `walkthrough.md` (and optional `walkthrough.jsonl`) from the agent output path, then
 emit a Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`.
@@ -88,8 +88,8 @@ emit a Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-co
 ## Standalone-first fallback
 
 When Odoo Semantic (the odoo-semantic-mcp server) is unreachable:
-- Fall back to reading `__manifest__.py`, model `.py` files, and view XML on disk to enumerate
-  menus, models, and key fields.
+- Fall back to reading the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9),
+  model `.py` files, and view XML on disk to enumerate menus, models, and key fields.
 - Label the grounding in the output: `grounding: local-source`.
 - Emit `WARNING: OSM unreachable - scenario steps inferred from disk source; verify labels
   against a live instance before publishing`.

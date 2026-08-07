@@ -101,7 +101,7 @@ def _run_migration(repo: Path, home: Path) -> subprocess.CompletedProcess:
 # --------------------------------------------------------------------------- #
 
 def test_share_and_isolate_subpaths_land_under_their_resolved_dirs(tmp_path):
-    """A SHARE-classified legacy subpath (context.md) lands under the resolved
+    """A SHARE-classified legacy subpath (glossary.yml) lands under the resolved
     SHARE dir; an ISOLATE-classified one (worklog/<run>/) lands under the
     resolved ISOLATE dir - never the other way around, never left in place."""
     repo = _init_repo(tmp_path)
@@ -109,7 +109,7 @@ def test_share_and_isolate_subpaths_land_under_their_resolved_dirs(tmp_path):
     home.mkdir()
 
     (repo / ".odoo-ai" / "coordination" / "modules").mkdir(parents=True)
-    (repo / ".odoo-ai" / "context.md").write_text("id: my-project\n", encoding="utf-8")
+    (repo / ".odoo-ai" / "glossary.yml").write_text("term: my-project\n", encoding="utf-8")
     (repo / ".odoo-ai" / "worklog" / "run-abc").mkdir(parents=True)
     (repo / ".odoo-ai" / "worklog" / "run-abc" / "log.txt").write_text("step 1\n", encoding="utf-8")
 
@@ -118,12 +118,12 @@ def test_share_and_isolate_subpaths_land_under_their_resolved_dirs(tmp_path):
 
     share_dir, isolate_dir = _expected_dirs(repo, home)
 
-    share_target = share_dir / "context.md"
+    share_target = share_dir / "glossary.yml"
     assert share_target.is_file(), (
-        f"SHARE subpath context.md must land under the resolved SHARE dir "
+        f"SHARE subpath glossary.yml must land under the resolved SHARE dir "
         f"{share_dir}; not found at {share_target}.\nstdout: {proc.stdout}"
     )
-    assert share_target.read_text(encoding="utf-8") == "id: my-project\n"
+    assert share_target.read_text(encoding="utf-8") == "term: my-project\n"
 
     isolate_target = isolate_dir / "worklog" / "run-abc" / "log.txt"
     assert isolate_target.is_file(), (
@@ -135,7 +135,7 @@ def test_share_and_isolate_subpaths_land_under_their_resolved_dirs(tmp_path):
 
     # And never cross-classified (SHARE content must not appear under
     # ISOLATE, ISOLATE content must not appear under the bare SHARE dir).
-    assert not (isolate_dir / "context.md").exists()
+    assert not (isolate_dir / "glossary.yml").exists()
     assert not (share_dir / "worklog").exists()
 
 
@@ -148,16 +148,16 @@ def test_copy_not_clobber_preserves_preexisting_target(tmp_path):
     home.mkdir()
 
     (repo / ".odoo-ai").mkdir()
-    (repo / ".odoo-ai" / "context.md").write_text("legacy content\n", encoding="utf-8")
+    (repo / ".odoo-ai" / "glossary.yml").write_text("legacy content\n", encoding="utf-8")
 
     share_dir, _isolate_dir = _expected_dirs(repo, home)
     share_dir.mkdir(parents=True)
-    (share_dir / "context.md").write_text("pre-existing Tier-2 content\n", encoding="utf-8")
+    (share_dir / "glossary.yml").write_text("pre-existing Tier-2 content\n", encoding="utf-8")
 
     proc = _run_migration(repo, home)
     assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
 
-    assert (share_dir / "context.md").read_text(encoding="utf-8") == "pre-existing Tier-2 content\n", (
+    assert (share_dir / "glossary.yml").read_text(encoding="utf-8") == "pre-existing Tier-2 content\n", (
         "a pre-existing Tier-2 target must never be clobbered by the legacy source"
     )
     # Log output must say so (skip, not migrate).
@@ -175,20 +175,20 @@ def test_second_run_is_idempotent_noop(tmp_path):
     home.mkdir()
 
     (repo / ".odoo-ai").mkdir()
-    (repo / ".odoo-ai" / "context.md").write_text("version 1\n", encoding="utf-8")
+    (repo / ".odoo-ai" / "glossary.yml").write_text("version 1\n", encoding="utf-8")
 
     proc1 = _run_migration(repo, home)
     assert proc1.returncode == 0, f"first run failed.\nstdout: {proc1.stdout}\nstderr: {proc1.stderr}"
 
     share_dir, _isolate_dir = _expected_dirs(repo, home)
-    assert (share_dir / "context.md").read_text(encoding="utf-8") == "version 1\n"
+    assert (share_dir / "glossary.yml").read_text(encoding="utf-8") == "version 1\n"
 
     # Mutate the legacy source - a true no-op second run must NOT pick this up.
-    (repo / ".odoo-ai" / "context.md").write_text("version 2 (should NOT be picked up)\n", encoding="utf-8")
+    (repo / ".odoo-ai" / "glossary.yml").write_text("version 2 (should NOT be picked up)\n", encoding="utf-8")
 
     proc2 = _run_migration(repo, home)
     assert proc2.returncode == 0, f"second run failed.\nstdout: {proc2.stdout}\nstderr: {proc2.stderr}"
-    assert (share_dir / "context.md").read_text(encoding="utf-8") == "version 1\n", (
+    assert (share_dir / "glossary.yml").read_text(encoding="utf-8") == "version 1\n", (
         "second run must be a no-op - it must NOT re-copy the (now-changed) legacy source"
     )
 
@@ -211,7 +211,7 @@ def test_tier1_subpaths_are_not_remigrated(tmp_path):
     (legacy / "logs" / "foo.log").write_text("log line\n", encoding="utf-8")
     # A genuine Tier-2 subpath too, so we can tell "nothing was migrated at
     # all" (a bug) apart from "Tier-1 correctly excluded" (the real assertion).
-    (legacy / "context.md").write_text("id: proj\n", encoding="utf-8")
+    (legacy / "glossary.yml").write_text("term: proj\n", encoding="utf-8")
 
     proc = _run_migration(repo, home)
     assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
@@ -219,8 +219,8 @@ def test_tier1_subpaths_are_not_remigrated(tmp_path):
     share_dir, isolate_dir = _expected_dirs(repo, home)
 
     # The genuine Tier-2 subpath DID migrate (sanity: the helper actually ran).
-    assert (share_dir / "context.md").is_file(), (
-        f"sanity check failed: context.md should have migrated.\nstdout: {proc.stdout}"
+    assert (share_dir / "glossary.yml").is_file(), (
+        f"sanity check failed: glossary.yml should have migrated.\nstdout: {proc.stdout}"
     )
 
     # None of the Tier-1 names may appear anywhere under SHARE or ISOLATE.
@@ -247,15 +247,15 @@ def test_log_line_emitted_for_each_migrated_subpath(tmp_path):
     home.mkdir()
 
     (repo / ".odoo-ai").mkdir()
-    (repo / ".odoo-ai" / "context.md").write_text("id: proj\n", encoding="utf-8")
+    (repo / ".odoo-ai" / "glossary.yml").write_text("term: proj\n", encoding="utf-8")
     (repo / ".odoo-ai" / "wave" / "impl").mkdir(parents=True)
     (repo / ".odoo-ai" / "wave" / "impl" / "log.txt").write_text("wave 1\n", encoding="utf-8")
 
     proc = _run_migration(repo, home)
     assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
 
-    assert "Migrated .odoo-ai/context.md" in proc.stdout and "(SHARE)" in proc.stdout, (
-        f"expected a SHARE migration log line for context.md.\nstdout: {proc.stdout}"
+    assert "Migrated .odoo-ai/glossary.yml" in proc.stdout and "(SHARE)" in proc.stdout, (
+        f"expected a SHARE migration log line for glossary.yml.\nstdout: {proc.stdout}"
     )
     assert "Migrated .odoo-ai/wave" in proc.stdout and "(ISOLATE)" in proc.stdout, (
         f"expected an ISOLATE migration log line for wave/.\nstdout: {proc.stdout}"
@@ -278,16 +278,16 @@ def test_interrupted_copy_leftover_is_retried_not_treated_as_migrated(tmp_path):
     home.mkdir()
 
     (repo / ".odoo-ai").mkdir()
-    (repo / ".odoo-ai" / "context.md").write_text(
+    (repo / ".odoo-ai" / "glossary.yml").write_text(
         "full legacy content that must survive the retry\n", encoding="utf-8"
     )
 
     share_dir, _isolate_dir = _expected_dirs(repo, home)
     share_dir.mkdir(parents=True)
-    stale_tmp = share_dir / "context.md.migrating.999999"
+    stale_tmp = share_dir / "glossary.yml.migrating.999999"
     stale_tmp.write_text("TRUNCATED partial cop", encoding="utf-8")
 
-    final_dest = share_dir / "context.md"
+    final_dest = share_dir / "glossary.yml"
     assert not final_dest.exists(), (
         "sanity: an interrupted attempt must never have produced a final dest "
         "directly - only the staging leftover"
@@ -362,6 +362,59 @@ def test_no_legacy_dir_is_a_fast_noop(tmp_path):
     assert not (home / ".odoo-ai" / "projects").exists(), (
         "no legacy .odoo-ai/ means nothing to migrate - no Tier-2 project dir "
         "should be created at all"
+    )
+
+
+def test_unrecognized_top_level_entry_is_left_in_place_not_migrated(tmp_path):
+    """A top-level legacy entry that is in NEITHER the SHARE nor the ISOLATE
+    table (here a stale `context.md`, a name neither table claims)
+    must be left exactly where it is - never copied into either resolved
+    Tier-2 dir, never deleted, never guessed into a tier "to be safe"
+    (state-root-resolution.md "The rule"). This is the live `unknown` outcome
+    `_tier2_classify_top()` falls through to for any unrecognized name."""
+    repo = _init_repo(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    legacy = repo / ".odoo-ai"
+    legacy.mkdir()
+    (legacy / "context.md").write_text("id: stale-legacy-artifact\n", encoding="utf-8")
+    # A genuine SHARE subpath alongside it, so we can tell "the helper ran but
+    # correctly excluded the unknown entry" apart from "nothing ran at all".
+    (legacy / "glossary.yml").write_text("term: proj\n", encoding="utf-8")
+
+    proc = _run_migration(repo, home)
+    assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+
+    share_dir, isolate_dir = _expected_dirs(repo, home)
+
+    # Sanity: the helper did run and DID migrate the recognized SHARE sibling.
+    assert (share_dir / "glossary.yml").is_file(), (
+        f"sanity check failed: glossary.yml should have migrated.\nstdout: {proc.stdout}"
+    )
+
+    # The unrecognized entry must never appear under either resolved Tier-2 dir.
+    assert not (share_dir / "context.md").exists(), (
+        f"unrecognized top-level entry context.md must NOT be migrated into SHARE "
+        f"{share_dir}.\nstdout: {proc.stdout}"
+    )
+    assert not (isolate_dir / "context.md").exists(), (
+        f"unrecognized top-level entry context.md must NOT be migrated into ISOLATE "
+        f"{isolate_dir}.\nstdout: {proc.stdout}"
+    )
+
+    # The legacy file itself must be untouched - left in place, not deleted.
+    assert (legacy / "context.md").is_file(), (
+        "an unrecognized top-level entry must be left in place at its legacy path"
+    )
+    assert (legacy / "context.md").read_text(encoding="utf-8") == "id: stale-legacy-artifact\n", (
+        "an unrecognized top-level entry must be left byte-for-byte untouched"
+    )
+
+    combined = (proc.stdout + proc.stderr).lower()
+    assert "unrecognized" in combined or "unknown" in combined, (
+        f"expected a diagnostic naming the unrecognized entry.\n"
+        f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
     )
 
 

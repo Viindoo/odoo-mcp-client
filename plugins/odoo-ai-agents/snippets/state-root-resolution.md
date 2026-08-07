@@ -2,8 +2,8 @@
      the two-axis Tier model, the exact subpath classification tables, and the
      MANDATORY resolve-capture-substitute prose protocol every skill/agent follows before it
      touches ANY project-scoped .odoo-ai/ path. Referenced (not copy-pasted) by
-     context-bootstrap.md (Round 0) and every skill/agent/workflow that reads or writes a Tier-2
-     subpath. Edit here only; consumers point at
+     project-facts-resolution.md (Round 0) and every skill/agent/workflow that reads or writes a
+     Tier-2 subpath. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md. -->
 
 # State-Root Resolution (`~/.odoo-ai/` two-axis convention)
@@ -73,7 +73,6 @@ lint finding.
 
 | Subpath | Why |
 |---|---|
-| `context.md` | project identity - identical across a repo's worktrees |
 | `coordination/` (`coordination/modules/`) | the module-coordination ledger's whole purpose is cross-worktree visibility |
 | `designs/`, `plans/`, `gap-analysis/` | reusable design/plan cache across worktrees |
 | `documentation/<slug>/<module>/`, `documentation/<slug>-<date>/` | doc-planner dedup wants repo-wide visibility |
@@ -251,8 +250,8 @@ Every skill/agent touching a Tier-2 subpath follows this THREE-STEP protocol:
 ### Worked example
 
 `bash resolve_project_dir.sh share` prints `/home/user/.odoo-ai/projects/ab12cd34ef56`; substitute
-that literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/context.md`) -
-never `Read $ODOO_AI_PROJECT_DIR/context.md` (does not expand) or `Read .odoo-ai/context.md`
+that literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/glossary.yml`) -
+never `Read $ODOO_AI_PROJECT_DIR/glossary.yml` (does not expand) or `Read .odoo-ai/glossary.yml`
 (cwd-relative, wrong root). If you need BOTH the SHARE and ISOLATE dirs in the same step, resolve
 both up front in one Bash call and capture both printed lines.
 

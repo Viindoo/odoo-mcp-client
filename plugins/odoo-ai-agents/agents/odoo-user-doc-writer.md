@@ -77,13 +77,14 @@ If neither a module name nor an absolute path resolves, stop with `status: NEEDS
 
 ### Step 0 - Resolve version + module path + instance
 
-Read `<SHARE_DIR>/context.md` (bullets `- **key**: value`) and the brief. `<SHARE_DIR>`/`<ISOLATE_DIR>`: when your dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields (the `odoo-doc-illustration` skill resolves them once against `doc_root` and passes them to every writer - `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch), use those literals directly; only when absent (standalone dispatch), resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` yourself per that snippet's protocol - substitute the captured absolute path, never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit. Resolve `odoo_version` from the
-first tier yielding a valid Odoo series >= 8: brief `VERSION:` -> `context.md` `odoo_version` ->
-`<module>/__manifest__.py` `version` first two dotted components (major >= 8 only) -> parent-dir regex
-`(?:addons|tvtmaaddons)(\d+)`; else `NEEDS_CONTEXT`. Once concrete, `set_active_version(<version>)` as
+Read the brief. `<SHARE_DIR>`/`<ISOLATE_DIR>`: when your dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields (the `odoo-doc-illustration` skill resolves them once against `doc_root` and passes them to every writer - `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch), use those literals directly; only when absent (standalone dispatch), resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` yourself per that snippet's protocol - substitute the captured absolute path, never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit. Resolve `odoo_version` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`: brief `VERSION:`, else the declared
+instance catalog, else checkout derivation; else `NEEDS_CONTEXT`. Once concrete, `set_active_version(<version>)` as
 the reachability probe and pass the concrete version on every OSM call - never `'auto'`. Resolve a
 bare `MODULE PATH` under `WORKTREE_PATH` when the brief supplies it (join `ADDONS_PATH` entries with
-the module name), never your own cwd, and verify `__manifest__.py` exists. Handle `INSTANCE_HANDLE`
+the module name), never your own cwd, and verify the module descriptor exists - `__manifest__.py`, or
+`__openerp__.py` on v8.0-v9.0 - recording which filename it is and reusing that literal for every
+descriptor read below. Handle `INSTANCE_HANDLE`
 per capture-mechanics.md section 4; when both `INSTANCE_HANDLE` and `ADDONS_PATH` are present, run
 the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against
 `WORKTREE_PATH` before capturing anything.
@@ -92,8 +93,8 @@ the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-c
 
 Resolve the locale set with the shared resolver (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution): brief
-`LANGUAGES:` -> `context.md doc_languages` -> `i18n.json default_languages` -> module `i18n/*.po` ->
-live `res.lang` (no built-in default beyond these tiers - all five empty returns `NEEDS_CONTEXT` per
+`LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
+live `res.lang` (no built-in default beyond these tiers - all four empty returns `NEEDS_CONTEXT` per
 the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
 resolved set; `doc/index.rst` is always English (no suffix); every other locale ->
@@ -266,7 +267,7 @@ artifacts:
 - OSM-first: OSM is PRIMARY for module structure and labels; Read/Grep the source only as FALLBACK.
 - Browser-exclusive PER FAMILY, serial; never run concurrently with another browser-driving agent
   on the SAME MCP family (a distinct family/instance may run in parallel).
-- Read `__manifest__.py` before referencing manifest data; you write only `doc/*.rst` and the screenshot
+- Read the module descriptor (Step 0's resolved filename) before referencing manifest data; you write only `doc/*.rst` and the screenshot
   files - never module source or the manifest.
 - Git/GitHub mutations are the skill's job via git-toolkit `git-ops`; never run git mutations, `gh`, or
   the github MCP directly. Bounded reads (`git status`, `git diff --stat`) may stay inline.

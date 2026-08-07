@@ -46,6 +46,18 @@ the `OUTPUT_DIR` the brief supplies. Do NOT touch module source files.
 
 If `MODULE` is absent, return immediately: `NEEDS_CONTEXT - MODULE not provided`.
 
+**Module descriptor filename (derive once, before any descriptor read).** A module's manifest
+descriptor is `__manifest__.py` or, on v8.0-v9.0, `__openerp__.py`. Resolve which one this module
+has and reuse that literal for EVERY descriptor read below:
+
+```bash
+ls <MODULE_PATH>/__manifest__.py <MODULE_PATH>/__openerp__.py 2>/dev/null | head -1
+```
+
+Call the result `<descriptor>`. A failed descriptor read means you opened the wrong filename - it is
+never a reason to skip the module or to report a guessed `installable` / `depends` / manifest value.
+Neither filename present -> `NEEDS_CONTEXT - no module descriptor at <MODULE_PATH>`.
+
 ---
 
 ## Grounding - OSM first, disk fallback, training BANNED
@@ -83,7 +95,7 @@ Call in order, passing `ODOO_VERSION` on each:
 1. `check_module_exists(name=MODULE, odoo_version=ODOO_VERSION)` - confirm the module is indexed
    and note edition (CE/EE). If not found in OSM, note and continue with disk fallback for all
    subsequent steps. The `installable` flag is NOT an OSM fact: read it from the module's
-   `__manifest__.py` on disk (an absent key means installable).
+   `<descriptor>` on disk (an absent key means installable).
 
 2. `describe_module(name=MODULE, odoo_version=ODOO_VERSION)` - yields manifest summary, defined
    model list, menu count, action count, and view/JS inventory. This is the anchor call; record
@@ -127,7 +139,7 @@ Aggregate: for each catalog entry, set `roles` to the list of group xmlids that 
 
 If a model or view was NOT returned by OSM calls:
 
-1. Read `MODULE_PATH/__manifest__.py` - extract `name`, `category`, `summary`, `depends`.
+1. Read `MODULE_PATH/<descriptor>` - extract `name`, `category`, `summary`, `depends`.
 2. Grep `MODULE_PATH/models/` for `class .*Model.*:` and `_name =` patterns to enumerate models.
 3. Grep `MODULE_PATH/views/` for `<record model="ir.ui.menu"`, `<record model="ir.actions.act_window"`,
    and `<template id=` to enumerate menus and actions.

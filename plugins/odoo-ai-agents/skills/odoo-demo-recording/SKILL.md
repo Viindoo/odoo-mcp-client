@@ -81,19 +81,23 @@ brief) - call the `-headed` tool directly when needed:
 
 Work in rounds; fire independent calls in the same message within a round.
 
-### Round 0 - Load context
+### Round 0 - Resolve the run's inputs
 
-`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
-below), then read `<SHARE_DIR>/context.md` (Markdown bullets, `- **key**: value` format). Extract
-`odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent = video
-output dir).
+Resolve each input from its own SSOT - never from a stored snapshot, and never by guessing:
 
-If a key is missing, fall back to the machine-global `$ODOO_AI_HOME/instances.toml` (see
-`snippets/instance-resolution.md`) for the instance URL. Ask the user only for what none of these resolve (plus the workflow to record,
-format MP4/GIF, and length) in a single message. Do not guess.
+- **Odoo series** - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
+- **`instance_base_url`** - per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (live shared
+  server first, then the declared `[[instance]]` in `$ODOO_AI_HOME/instances.toml`).
+- **Login identifier** - the brief's, else `admin`. The PASSWORD is stored neither in this repo nor
+  in project state: use the value the brief supplies, and when the brief supplies none, ask for it
+  ONCE. Never guess a password and never reuse a database credential for the web login.
+- **Video output dir** - always `<ISOLATE_DIR>/visual/videos/` (resolved below); there is no
+  per-project override.
 
-Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
+Ask the user only for what no SSOT above supplies (plus the workflow to record, format MP4/GIF, and
+length) in a single message. Do not guess.
+
+Once the series is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
 pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy when
 actors share a session (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM
 session-pin race); without explicit passing the click path may target the wrong version's view
@@ -262,12 +266,12 @@ any file here regardless of suffix:
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
-- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `<SHARE_DIR>/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, emit `status: NEEDS_NEXT` with:
+- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-run the instance resolution per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the allocator query, then the declared `[[instance]]` entry - never a stored file); if still unreachable after trying the resolved URL, emit `status: NEEDS_NEXT` with:
   ```
   next:
     - skill: odoo-instance
       reason: provision the Odoo instance needed to record the demo
-      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules required for workflow>"]}
+      inputs: {operation: ensure-up, series: "<the resolved series>", modules: ["<modules required for workflow>"]}
       confidence: 0.9
   ```
   so the run-harness provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.

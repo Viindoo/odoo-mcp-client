@@ -108,7 +108,6 @@ committed to the repo.
 
 | Component | Sub-path | Tier | Written by |
 |-----------|----------|------|------------|
-| Context snapshot | `.odoo-ai/context.md` | SHARE | `odoo-onboarding` skill |
 | Brainstorm state | `.odoo-ai/brainstorm/state.json` | ISOLATE | `odoo-intake` skill |
 | Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | ISOLATE (same run-scoped `brainstorm/` family as `state.json`; not yet an explicit row in `state-root-resolution.md` - flagged there per "The rule" default) | `odoo-intake` (approval turn) |
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | SHARE | `odoo-brl` skill |
@@ -939,8 +938,10 @@ per MODULE sequentially from its single orchestrating context and never sets a c
 
 ### 7.6 Artifact location
 
-The wave integration log and state files land under `<ISOLATE_DIR>/wave/<slug>/` (gitignored by
-`odoo-onboarding`). The `<slug>` is a short kebab-case descriptor chosen when the coding waves begin.
+The wave integration log and state files land under `<ISOLATE_DIR>/wave/<slug>/` (a transitional
+project-local `.odoo-ai/` is gitignored by setup step `40-instance-profile.sh`; the machine-global
+`$ODOO_AI_HOME` root itself needs no repo `.gitignore` entry, since it sits outside every git
+working tree). The `<slug>` is a short kebab-case descriptor chosen when the coding waves begin.
 The directory is cleaned up after a successful human-confirm merge.
 
 ---

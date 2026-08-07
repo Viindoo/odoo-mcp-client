@@ -53,7 +53,7 @@ When invoked, gather the following from the caller's request:
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
 | `persist` | `ephemeral` / `exclusive-running` / `shared-running` (default `ephemeral`) - the instance lifetime + isolation `create` needs: `ephemeral` = throwaway mutation build (`--stop-after-init`, unique db, no listening port); `exclusive-running` = a live, listening instance that is MINE (unique db + an allocator-issued pooled port + my `run_id` recorded as lease owner - use for mutating work that must stay up; never converges on `8069`); `shared-running` = attach to / register the SHARED read-only render target for this series (still owner-stamped with `run_id` so it cannot be foreign-bare-dropped). The judgment call: will the caller MUTATE and need the process to stay listening (`exclusive-running`) vs a read-only view of the shared target (`shared-running`) vs a throwaway build with no listener (`ephemeral`) |
 | `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
-| `PROFILE` | Viindoo tenant profile name, e.g. `viindoo_17`; this skill reads `viindoo_profile` from `context.md` (Tier-2 SHARE - resolve via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, captured path shown as `<SHARE_DIR>` below - `<SHARE_DIR>/context.md`) and threads it through - the caller never sets this manually; omit from the brief when `<SHARE_DIR>/context.md` has no `viindoo_profile` field. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
+| `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
@@ -129,10 +129,12 @@ into its own activation set too (recipe KT3) because it issues `--load-language`
 directly against `odoo-bin` OUTSIDE this skill's dispatch - a second, independent enforcement point,
 not a duplicate.
 
-**Agent-side unions this skill does not compute itself.** This skill resolves `PROFILE` (from
-`viindoo_profile` in `<SHARE_DIR>/context.md`, omitted when absent) and threads it into the brief. The
+**Agent-side unions this skill does not compute itself.** This skill resolves `PROFILE` (per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; an empty resolved value is treated as
+unanswered and the field is omitted, never sent empty) and threads it into the brief. The
 dispatched `odoo-instance-ops` agent then PINS that profile (`set_active_profile` + explicit
-`profile_name=` on every probe - never profile-less) and performs two further DATA-DRIVEN unions
+`profile_name=` on every probe - never profile-less, and never with an empty `profile_name`: an
+absent `PROFILE` field is what triggers the agent's own vanilla-profile resolution) and performs two further DATA-DRIVEN unions
 before building the `odoo-bin` command, on top of the `en_US` union above:
 - **Viindoo `to_base` on `--load`.** Callers pass nothing extra for this one - it is unconditional
   for every `create`/`init`/`update`/`run-tests` build, by design (R7's scope is lint-class gates
@@ -179,9 +181,9 @@ family delta; never inline that file verbatim into a hard-leaf brief. The brief 
 ```
 OPERATION: <operation>
 SERIES: <series or 'unspecified'>
-PROFILE: <the resolved viindoo_profile value this skill already read from SHARE_DIR/context.md
-  before composing this brief, e.g. "viindoo_17"; omit the field entirely when absent - never
-  forward the pointer for the agent to go re-read>
+PROFILE: <the NON-EMPTY profile name this skill already resolved before composing this brief, e.g.
+  "viindoo_17"; omit the field entirely when the resolved value is empty or no rung named one -
+  never emit PROFILE: '' and never forward a pointer for the agent to go re-resolve>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
@@ -371,7 +373,7 @@ MCP) is skipped and flagged `grounded: log-signal (not live-verified)` in the ou
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**

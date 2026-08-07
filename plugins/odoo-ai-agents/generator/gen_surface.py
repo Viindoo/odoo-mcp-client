@@ -43,7 +43,7 @@ END_MARKER = "<!-- END GENERATED TOOLS -->"
 MCP_HEADING_RE = re.compile(r"^## MCP tools", re.IGNORECASE)
 
 # Skill dirs to skip for MCP-tools section generation.
-# These are pure-text skills with no MCP invocations (router, onboard), skills whose
+# These are pure-text skills with no MCP invocations (router), skills whose
 # marker block is managed manually (new B.2 standalone-first skills), and slim SKILL.md
 # files that are part of an agent+skill bundle (tools live in the agent, not the skill).
 SKIP_SKILL_DIRS = {
@@ -55,7 +55,6 @@ SKIP_SKILL_DIRS = {
     "odoo-deploy-checklist",
     "odoo-discovery-summary",
     "odoo-doc-illustration",
-    "odoo-onboarding",
     "odoo-intake",
     "odoo-ui-review",
     # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill - no SKILL.md, no tool deps.

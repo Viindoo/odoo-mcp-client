@@ -5,7 +5,7 @@
 It is **Tier-1 - flat under `$ODOO_AI_HOME`**, not project-scoped: an execute-agent has no
 guaranteed working directory, so the instance profile must be findable from any cwd, and
 namespacing it per project/worktree would fragment one host's instance catalog into copies.
-Every OTHER `.odoo-ai/`-rooted artifact - `context.md`, `survey/`, `worklog/`, ... - is
+Every OTHER `.odoo-ai/`-rooted artifact - `survey/`, `worklog/`, `designs/`, ... - is
 project- or worktree-scoped under the two-axis `$ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]`
 convention, **never** a project-relative `./.odoo-ai/`. Full Tier-1/SHARE/ISOLATE
 classification tables + the resolve-capture-substitute protocol every consumer follows:
@@ -14,11 +14,7 @@ here).
 
 ## Resolution order (stop at the first that yields a usable instance)
 
-1. **`instance_base_url` in `<SHARE_DIR>/context.md`** - a project may pin a
-   specific running instance for its own work; this project override wins when present.
-   (Resolve `<SHARE_DIR>` per the resolve-capture-substitute protocol in
-   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before reading it.)
-2. **A live SHARED server in the allocator registry** - before deriving a URL from the
+1. **A live SHARED server in the allocator registry** - before deriving a URL from the
    static catalog, ask whether a render server is already running for the series. Its
    ACTUAL bound port may differ from the declared `http_port`, and it is visible across
    sessions:
@@ -27,7 +23,7 @@ here).
    # emits ALLOC_PORTS (the actual bound port) + ALLOC_DB_NAME when a live shared server exists; rc=1 when none
    ```
    When present, use `instance_base_url = http://localhost:<ALLOC_PORTS>`.
-3. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
+2. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
    already applies the machine-global SSOT with its internal override/fallback order
    (`$ODOO_AI_INSTANCES` explicit override -> machine-global `$ODOO_AI_HOME/instances.toml`
    written by `/odoo-ai-agents:odoo-setup` -> a transitional project-local copy only when no
@@ -47,11 +43,15 @@ python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> [seri
 ```
 
 The first `[[instance]]` whose `series` matches (and, when supplied, whose `profile`
-also matches) is the active instance; its `http_port` gives
-`instance_base_url = http://localhost:<http_port>`. Omit `profile` to get the
-highest-priority match for the series. If none of the sources above yields an
-instance, surface a single clarifying request for the instance URL rather than
-guessing.
+also matches) is the active instance. Omit `profile` to get the highest-priority
+match for the series. To select by WORKING REPO instead of by series - the
+direction a Round 0 needs - use `instances_io.py locate` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2.
+
+`instance_base_url = http://localhost:<http_port>` from the matched entry is the
+ONLY derivation of that URL - never invent a host or assume a port.
+If none of the sources above yields an instance, surface a single clarifying
+request for the instance URL rather than guessing.
 
 ## Allocate, don't just resolve (concurrent mutation)
 

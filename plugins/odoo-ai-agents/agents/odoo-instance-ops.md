@@ -28,7 +28,7 @@ Probe OSM reachability with one cheap call (`set_active_version`). If it errors,
 
 Every operation MUST execute these four steps in order before doing operation-specific work:
 
-**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `INST_VERSION` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read $ODOO_AI_HOME/instances.toml`.
+**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `INST_SERIES` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read $ODOO_AI_HOME/instances.toml`.
 
 **Step B - Pin version and learn CLI flags (HARD RULE).** Every OSM call MUST pass the concrete `odoo_version=`. Call `set_active_version(odoo_version='<series>')` once as the reachability probe. Then ground the per-version CLI flags before passing them through scripts - flags differ per series and must NEVER be assumed from memory or from another version:
 
@@ -211,9 +211,7 @@ stack is Viindoo. Pin the series (`set_active_version(odoo_version='<series>')`,
 then resolve and PIN the profile BEFORE any probe - never call `check_module_exists` profile-less:
 
 1. **Resolve.** Take the brief's `PROFILE:` field (the dispatching `odoo-instance` skill already
-   read it from `<SHARE_DIR>/context.md`'s `viindoo_profile`, resolved once per
-   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path
-   - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). If `PROFILE:` is absent from the
+   resolved it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2). If `PROFILE:` is absent from the
    brief, resolve the target series' VANILLA profile instead: call `list_available_profiles()`,
    filter to profiles reporting `<series>`, and use `profile_inspect(method='summary',
    name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root
@@ -555,7 +553,7 @@ Check whether an instance is running; start it if not.
 
 **Inputs:** series, db name (optional).
 
-**Mechanism:** Run Step A (resolve series from `INST_VERSION` via `instances_io.py read`). Then check:
+**Mechanism:** Run Step A (resolve series from `INST_SERIES` via `instances_io.py read`). Then check:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh check --version <series>

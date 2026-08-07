@@ -99,10 +99,13 @@ Merge the two diff commands (or PR diff output) into one deduplicated list `chan
 
 For each path in `changed_files`:
 1. Walk up the directory tree from the file toward the repo root.
-2. The first directory that contains `__manifest__.py` is the owning module root.
+2. The first directory that contains `__manifest__.py` or `__openerp__.py` (the v8.0-v9.0
+   descriptor filename) is the owning module root.
 3. Record `{name: <dir-basename>, path: <module-root-relative-to-review_root>}`.
 
-Deduplicate the resulting list by `name`. Paths that reach the repo root without hitting `__manifest__.py` (e.g. root config files, CI scripts) are skipped - they are not part of any module.
+Deduplicate the resulting list by `name`. Paths that reach the repo root without hitting either
+`__manifest__.py` or `__openerp__.py` (e.g. root config files, CI scripts) are skipped - they are
+not part of any module.
 
 The result is `modules`: a list of `{name, path}` distinct module objects.
 
@@ -241,7 +244,7 @@ Also state explicitly: `_scope.md written to: <abs-path-to-scope-file>`.
 - **You are a HARD LEAF - you never launch another agent**, and you do NOT invoke any Skill.
 - The ONLY file write permitted is `_scope.md` under `<ISOLATE_DIR>/reviews/<slug>-<date>/` (`<ISOLATE_DIR>` per `## State dir resolution` above).
 - If `changed_files` is empty after Step 1, return immediately: `BLOCKED - no changed files found between <BASE> and HEAD; confirm the BASE ref and that commits exist on this branch.`
-- If the module map produces zero modules (all changed files are outside any `__manifest__.py` subtree), state: `NEEDS_CONTEXT - no Odoo modules found in the changed files; changed paths: <list>`.
+- If the module map produces zero modules (all changed files are outside any `__manifest__.py` or `__openerp__.py` subtree), state: `NEEDS_CONTEXT - no Odoo modules found in the changed files; changed paths: <list>`.
 
 ## Continuation Contract
 

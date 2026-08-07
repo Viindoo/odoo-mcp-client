@@ -11,8 +11,9 @@
 All BRL artifacts live under `<SHARE_DIR>/brl/<job-id>/` (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write a bare `.odoo-ai/` literal into a Read/Write/Edit). The machine-global `$ODOO_AI_HOME`
-state root is gitignored by the `odoo-onboarding` skill so no artifact is ever committed to the
-project repo.
+state root carries its own `.gitignore` (written by `scripts/lib/resolve_instances.sh` when the root
+is created), and `/odoo-ai-agents:odoo-setup` step `40-instance-profile.sh` excludes a stray
+project-local `.odoo-ai/` in the working repo - so no artifact is ever committed to the project repo.
 
 `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>`
 Example: `Customer-A-20260531-9f3a`

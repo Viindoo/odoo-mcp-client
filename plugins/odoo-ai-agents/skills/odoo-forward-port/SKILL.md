@@ -143,6 +143,17 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
     (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`). The forward-port is not DONE without an
     i18n result or a recorded escape for every module whose row says `i18n_due: yes`.
 
+11. **Descriptor filename resolves ONCE, per side** - a module's descriptor is `__manifest__.py`,
+    or `__openerp__.py` on v8.0-v9.0 (SSOT:
+    `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6). At P0, resolve it once from each
+    side's series and record it in the run's working state: `<tgt-descriptor>` for `target_ref`,
+    `<src-descriptor>` for `source_ref` - they DIFFER on a v9.0 -> v10.0 port. Reuse those literals
+    for every descriptor read, path, and assertion below: `installable`, `depends`, `version`,
+    `manifest_path`, `history_dump_path`, and the P9 addons-coverage assertion. An absent
+    `__manifest__.py` on a v8.0-v9.0 side means the WRONG FILENAME was opened - it is never
+    evidence that the module is missing from that ref, and a failed descriptor read is never a
+    reason to drop the module or to report a guessed `installable` / `depends` / `demo` value.
+
 ## Git topology - two tiers of worktree
 
 Forward-port never touches B directly and parallelizes through worktree isolation.
@@ -333,9 +344,11 @@ proceeds to P3 design before P4 (the upgrade-scale gate decides WHETHER to proce
 HOW to design it).
 
 In the same phase, resolve each touched module's `installable` status from the TARGET CLEAN-TIP
-`__manifest__.py` - the state of the target branch BEFORE the merge, never post-merge. Invoke the
+`<tgt-descriptor>` (Hard rule 11) - the state of the target branch BEFORE the merge, never
+post-merge. Invoke the
 `git-toolkit:git-ops` skill (read-only) to write that file, then read it: an absent key means
-installable (Odoo convention), an absent FILE means the module is not on the clean tip. **Produce
+installable (Odoo convention), an absent FILE - `<tgt-descriptor>` being the name that side actually
+uses - means the module is not on the clean tip. **Produce
 `manifest_path` for EVERY touched module, unconditionally** - it is the prober's required input, and
 the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only sonnet leaf
 `odoo-installable-prober` only when the SOURCE HISTORY must ALSO be read to disambiguate category 3 -
@@ -345,7 +358,7 @@ adds only the history pass.
 
 Pre-step (now unconditional, for EVERY touched module - not only before a prober dispatch):
 invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the
-clean-tip manifest (`<module>/__manifest__.py`
+clean-tip manifest (`<module>/<tgt-descriptor>`
 at `target_ref`) to `manifest_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`,
 and the patched manifest history (log-with-patch of manifest modifications against `source_ref`) to
 `history_dump_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`. Include
@@ -768,7 +781,7 @@ human to merge.
 ## Model triage - two tier tables
 
 **installable:False short-circuit.** Before assigning ANY tier, resolve each touched module's
-`installable` flag at the target clean tip by reading `<module>/__manifest__.py` at `target_ref` (the
+`installable` flag at the target clean tip by reading `<module>/<tgt-descriptor>` at `target_ref` (the
 file P2 already wrote to `manifest_path`; an absent key means installable). A module that is
 `installable:False` at the target - a brand-new module not yet landed, OR a pre-existing dormant
 one - is NOT forward-ported for behavior: route it to the **lint-only lane** (flake8 / pylint /
@@ -858,7 +871,7 @@ Three more cross-cutting checks apply per batch:
   the merge-base or merging; a forward-port across repos that skips this silently merges against a
   stale local ref. Detail: `references/fp-phase-detail.md`.
 - **Manifest version & migration dir.** Forward-port carries the source manifest AS-IS and NEVER
-  auto-bumps `version`: on a `__manifest__.py` conflict keep the TARGET file's value (C1). A forwarded
+  auto-bumps `version`: on a `<tgt-descriptor>` conflict keep the TARGET file's value (C1). A forwarded
   `migrations/` dir is RETARGETED to the target series (C2) - a dir rename with a threshold-driven
   version, NOT a "diff-touched-a-file" bump. C1 and C2 are distinct; apply both. SSOT:
   `[[fp-merge-absorption]]`.
@@ -903,7 +916,7 @@ does not stop. P1 intent extractors fall back to local-source reads
 (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`), labelling each record
 `grounded: local-source (not OSM-indexed)`. P2 classify and P6 symbol-survival
 fall back to disk reads of the target checkout per
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` (read each `__manifest__.py`
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` (read each `<tgt-descriptor>`
 `depends` and the model/field source) - the symbol-survival guarantee still holds via grep on
 the target source, only the grounding citation changes. `odoo-version-diff` standalone mode
 supplies the version delta from GitHub release notes when the index is down. Never ask a human

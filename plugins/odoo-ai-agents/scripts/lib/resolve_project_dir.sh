@@ -30,12 +30,13 @@
 # STRICT priority order (C-2): an explicit `.odoo-ai-root` sentinel file has
 # GLOBAL priority - the walk scans the ENTIRE chain up to `/` for it FIRST;
 # only when no sentinel exists ANYWHERE in the chain does it fall back to the
-# NEAREST directory containing `__manifest__.py`. This priority matters
-# because real Odoo addons layouts nest a `__manifest__.py` under EVERY module
-# dir, so "nearest marker, either kind, wins" would mis-root: two modules of
-# the same project would resolve to two DIFFERENT module-level dirs instead of
-# the shared project root, and a `.odoo-ai-root` placed at the project root to
-# fix that would be defeated by the nearer module manifest. A repo has no
+# NEAREST directory containing `__manifest__.py` (v10.0+) or `__openerp__.py`
+# (v8.0-v9.0). This priority matters because real Odoo addons layouts nest a
+# module descriptor under EVERY module dir, so "nearest marker, either kind,
+# wins" would mis-root: two modules of the same project would resolve to two
+# DIFFERENT module-level dirs instead of the shared project root, and a
+# `.odoo-ai-root` placed at the project root to fix that would be defeated by
+# the nearer module descriptor. A repo has no
 # separate "worktree" concept outside git, so the ISOLATE key degrades to the
 # SAME marker key as the SHARE key in this case (one project == one worktree).
 # If no marker of EITHER kind is found by the time the walk reaches `/`,
@@ -143,15 +144,16 @@ _project_dir_hash12() {
 }
 
 # Walk UP from directory $1 looking for a project marker. `.odoo-ai-root` has
-# GLOBAL priority over `__manifest__.py` (C-2): the walk scans the WHOLE chain
-# up to `/` for a sentinel first (returning immediately the moment one is
-# found, since sentinels are rare and the nearest one - walking bottom-up - is
-# the intended root); only if NO sentinel exists anywhere in the chain does it
-# fall back to the NEAREST `__manifest__.py` dir recorded along the way. This
-# single pass does both: a sentinel check every level (immediate win) plus an
-# opportunistic "nearest manifest seen so far" capture used only if the walk
-# reaches `/` with no sentinel. Echoes the winning dir's realpath, or returns
-# 1 if the walk reaches `/` with NEITHER marker found anywhere.
+# GLOBAL priority over a module descriptor (C-2): the walk scans the WHOLE
+# chain up to `/` for a sentinel first (returning immediately the moment one
+# is found, since sentinels are rare and the nearest one - walking bottom-up -
+# is the intended root); only if NO sentinel exists anywhere in the chain does
+# it fall back to the NEAREST `__manifest__.py` (v10.0+) or `__openerp__.py`
+# (v8.0-v9.0) dir recorded along the way. This single pass does both: a
+# sentinel check every level (immediate win) plus an opportunistic "nearest
+# descriptor seen so far" capture used only if the walk reaches `/` with no
+# sentinel. Echoes the winning dir's realpath, or returns 1 if the walk
+# reaches `/` with NEITHER marker found anywhere.
 _project_dir_marker_root() {
     local dir nearest_manifest=""
     dir="$(_project_dir_realpath_dir "$1")" || return 1
@@ -161,7 +163,7 @@ _project_dir_marker_root() {
             printf '%s\n' "$dir"
             return 0
         fi
-        if [ -z "$nearest_manifest" ] && [ -f "$dir/__manifest__.py" ]; then
+        if [ -z "$nearest_manifest" ] && { [ -f "$dir/__manifest__.py" ] || [ -f "$dir/__openerp__.py" ]; }; then
             nearest_manifest="$dir"
         fi
         if [ "$dir" = "/" ]; then
@@ -239,7 +241,7 @@ resolve_project_dir_share() {
     local home key dir
     home="$(_project_dir_home)" || return 1
     key="$(_project_dir_repo_key)" || {
-        printf 'resolve_project_dir: not inside a git repo and no project marker (__manifest__.py or .odoo-ai-root) found walking up from %s. Set $ODOO_AI_PROJECT_DIR to an explicit absolute path.\n' "$PWD" >&2
+        printf 'resolve_project_dir: not inside a git repo and no project marker (__manifest__.py, __openerp__.py, or .odoo-ai-root) found walking up from %s. Set $ODOO_AI_PROJECT_DIR to an explicit absolute path.\n' "$PWD" >&2
         return 1
     }
     dir="${home%/}/projects/${key}"
@@ -264,7 +266,7 @@ resolve_project_dir_isolate() {
     local share key dir
     share="$(resolve_project_dir_share)" || return 1
     key="$(_project_dir_wt_key)" || {
-        printf 'resolve_project_dir: not inside a git repo and no project marker (__manifest__.py or .odoo-ai-root) found walking up from %s. Set $ODOO_AI_WORKTREE_DIR to an explicit absolute path.\n' "$PWD" >&2
+        printf 'resolve_project_dir: not inside a git repo and no project marker (__manifest__.py, __openerp__.py, or .odoo-ai-root) found walking up from %s. Set $ODOO_AI_WORKTREE_DIR to an explicit absolute path.\n' "$PWD" >&2
         return 1
     }
     dir="${share%/}/worktrees/${key}"

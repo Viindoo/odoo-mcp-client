@@ -38,7 +38,7 @@ CEO / CTO / Project Sponsor
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -88,7 +88,7 @@ Focus `impact_analysis` on fields with high `used_by` counts. Count BREAKING vs 
 
 When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 (disk):** `find . -maxdepth 3 -name "__manifest__.py"` to discover modules, `Read` each manifest for classification clues, and `grep` for deprecated patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source. Build the risk overview without asking the user.
+- **Tier 2 (disk):** `find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` to discover modules (glob BOTH descriptor names or the v8-v9 series are silently missed), `Read` each manifest for classification clues, and `grep` for deprecated patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source. Build the risk overview without asking the user.
 - **Tier 3 (training):** If no readable source available, produce a heuristic estimate and label `OSM unavailable - ungrounded` with caveat "deprecated API + blast radius not yet scanned - verify with detailed audit when OSM is online".
 
 ## Output format

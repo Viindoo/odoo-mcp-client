@@ -53,7 +53,7 @@ phases:
     # I/O contract is the SSOT for doc_layer (appstore | userguide | both) detection, version
     # inference, the has_demo flag, AND the two dependency-planning fields below. Resolve
     # per-module LANGUAGES via the single language-resolution SSOT:
-    # skills/odoo-doc-illustration/SKILL.md § Language resolution (5-tier + disk-UNION,
+    # skills/odoo-doc-illustration/SKILL.md § Language resolution (4-tier + disk-UNION,
     # English-mandatory) - odoo-doc-scoper cross-refs the same SSOT rather than owning it. Do NOT
     # reimplement either resolver here; this inline phase only adapts their output location to the
     # packaging run dir.
@@ -181,8 +181,9 @@ phases:
       (brew install librsvg), and Python (pip install cairosvg); set status:
       NEEDS_CONTEXT(no SVG rasterizer; icon.svg written, icon.png pending). Write to
       <module>/static/description/icon.png; on v19 also write icon.svg and merge the manifest
-      'icon' key (read-before-edit). Brand-agnostic: pull palette from .odoo-ai/context.md
-      brand tokens or use Odoo default (#714B67). Fan out one worker per doc:true module (Mode B).
+      'icon' key (read-before-edit). Brand-agnostic: resolve the palette per the odoo-icon-design
+      brand-token rule (the SHARE brand-token map when it exists, then module-category hue), else
+      the Odoo default (#714B67). Fan out one worker per doc:true module (Mode B).
       Per its Verify-then-commit step, the odoo-icon-design skill commits icon.png/icon.svg/the
       manifest 'icon' key via git-toolkit:git-ops - the icon assets are never left uncommitted.
     model_tier: sonnet

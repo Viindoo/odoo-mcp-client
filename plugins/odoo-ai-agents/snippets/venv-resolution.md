@@ -88,16 +88,3 @@ The recommended Python per Odoo series lives in
 The backend code-quality gate (`/test_lint` + `/test_pylint` on v16+ Viindoo) runs INSIDE an
 Odoo instance (`odoo-bin --test-enable --test-tags /test_lint,...`). Use the same interpreter
 resolved above for the instance run - you do not need a separate toolchain for linting.
-
-## Precedence over the `verify_python` context cache
-
-`<SHARE_DIR>/context.md`'s `verify_python` field (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; see also
-`snippets/context-bootstrap.md`) is a
-non-authoritative HINT for READ-ONLY flows only - it can go stale once the venv it names moves,
-breaks, or is rebuilt after the field was cached. For ANY odoo-bin run, test, migration, or
-DB-mutating operation, re-resolve the interpreter per the resolution order above and confirm it
-with the `--version` probe before use; never trust the `verify_python` cache alone for a mutation.
-This file is the authority for interpreter selection; `verify_python` is only ever a shortcut hint
-for a read-only flow, never a substitute for the resolution order above.

@@ -126,7 +126,8 @@ top ring. The systematic transitive grounding the bidirectional-impact upstream 
 1. **Wave 0 - nearest.** The module that directly owns the hot-spot symbol. `module_inspect`
    (dependencies view) + `describe_module`.
 2. **Wave 1..n - expand toward base.** Walk the closure one layer at a time: `module_inspect`
-   dependencies recursively, or read each `__manifest__.py` `depends` when OSM is thin. Stop a
+   dependencies recursively, or read each descriptor's `depends` (`__manifest__.py`, or
+   `__openerp__.py` on v8-v9) when OSM is thin. Stop a
    branch at `base` or when it leaves the intent's blast radius.
 3. **Per-symbol grounding** for the hot-spot's external symbols: REUSE
    `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md` § 2 (per-symbol grounding) + § 2.5

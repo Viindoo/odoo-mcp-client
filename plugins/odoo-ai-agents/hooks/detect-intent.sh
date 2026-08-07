@@ -118,7 +118,7 @@ if [ -z "${_domain}" ]; then
      || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])first[[:space:]]+time' \
      || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])getting[[:space:]]+start' \
      || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])new[[:space:]]+user'; then
-    _domain="onboarding"
+    _domain="setup"
   fi
 fi
 if [ -z "${_domain}" ]; then
@@ -155,7 +155,7 @@ fi
 # needs deal-stage context this hook does not have), so it is not a target bucket here.
 case "${_domain}" in
   upgrade|visual-UI) _domain_enum="engineering" ;;
-  onboarding|QA-support) _domain_enum="support" ;;
+  setup|QA-support) _domain_enum="support" ;;
   general) _domain_enum="consultant" ;;
   *) _domain_enum="${_domain}" ;;
 esac
@@ -246,6 +246,16 @@ case "${_domain}" in
     if [ "${_odoo_anchor}" = "true" ]; then
       _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
       _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
+    fi
+    ;;
+  setup)
+    # V-11: gated on the Odoo anchor - "install the package / configure the linter" is a real
+    # non-Odoo setup prompt and must not be handed an Odoo-specific target. With an anchor, this
+    # bucket names the two commands that actually persist environment state, so the signal reaches
+    # an action instead of stopping at a domain label.
+    if [ "${_odoo_anchor}" = "true" ]; then
+      _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) → /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Registering the Odoo Semantic MCP server URL + API key → /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
+      _osm_context="${_osm_context:+${_osm_context}\n}${_setup_hint}"
     fi
     ;;
   engineering)

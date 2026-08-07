@@ -156,7 +156,7 @@ Your turn's terminal action is the completion-report push to your launcher (`REP
 
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries the
-Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
+Coder family's required fields (module/file-set boundary, `ODOO VERSION`, `INSTANCE_HANDLE` or `none provisioned`,
 `SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
 (the key itself must be present - not even the literal `none` may be omitted, same rule as
 `dispatch-brief.md` skeleton field 4 `INPUTS` - forward it unchanged when you re-brief your
@@ -167,6 +167,13 @@ for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` is PRODU
 launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking for
 it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
+- Missing `ODOO VERSION`: neither of the two bullets around this one applies - there is NO safe
+  default series to assume (a wrong series silently produces wrong API choices in every teammate's
+  output), and it is NOT a gap to bounce back to your caller either. RESOLVE it: work the ladder in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in rung order, from its first rung
+  through its terminating ask-once rung, taking the first rung that answers. State the resolved
+  series and PROCEED, and forward that literal as `ODOO VERSION` to every teammate you brief so no
+  worker re-resolves it or invents its own.
 - Missing `WORKTREE_PATH`, `SURVEY` (the key entirely absent, not even
   the literal `none`), or another load-bearing field with no safe default: surface the gap to your
   own caller before dispatching any leaf - do not silently guess or degrade, and do not dispatch a

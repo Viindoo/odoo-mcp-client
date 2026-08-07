@@ -38,7 +38,7 @@ CEO / CTO / Project Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`, `describe_module`, `check_module_exists`, `resolve_orm_chain`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -55,7 +55,7 @@ CEO / CTO / Project Manager
 
 Executives need the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output in business language, not technical jargon.
 
-Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). In v8/v9, `__openerp__.py` was used instead of `__manifest__.py` - note OpenERP-era origin if present.
+Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). On v8/v9 the module descriptor is `__openerp__.py` rather than `__manifest__.py` - note the OpenERP-era origin when a module carries it.
 
 **Data priority:** MCP tool results are ground truth for module classification over training knowledge.
 
@@ -83,7 +83,7 @@ Flag upgrade risk grounded in `find_deprecated_usage(odoo_version='<version>', p
 
 When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 (disk):** `find . -maxdepth 3 -name "__manifest__.py"` (also `__openerp__.py` for legacy), then `Read` each manifest for `name`, `summary`, `depends`, `version`. Build the inventory directly. Only ask the user if the working directory is not an Odoo repo and no manifests are found within 3 levels.
+- **Tier 2 (disk):** `find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8/v9 series are silently missed - then `Read` each descriptor path the find returned (never a re-guessed filename) for `name`, `summary`, `depends`, `version`. Build the inventory directly. Only ask the user if the working directory is not an Odoo repo and no descriptors are found within 3 levels.
 - **Tier 3 (training):** If no readable manifests exist, classify from training knowledge with caveat `OSM unavailable - ungrounded` and "detailed code & inheritance not yet scanned - verify when OSM is back online".
 
 ## Output format

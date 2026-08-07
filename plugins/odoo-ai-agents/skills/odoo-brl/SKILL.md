@@ -42,7 +42,7 @@ traceability from requirement to evidence to budget line.
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<profile from the resolved instance entry>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -84,17 +84,22 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
    Use abstract label for CUSTOMER_LABEL. Never use real company name.
 
-3. **MCP bootstrap** (once per session):
-   - `list_available_versions` -> present options to user
-   - `set_active_version(odoo_version=<chosen>)` -> pin for session
-   - `set_active_profile(profile_name='odoo_<version>')` -> base profile. Resolve the concrete name
-     from `list_available_profiles` / `<SHARE_DIR>/context.md` - never hard-code a hyphenated or
-     unversioned name (the server registers `odoo_8..odoo_19`, `standard_viindoo_17/18`, etc.).
-   - `profile_inspect(method='summary', name='standard_viindoo_<version>', odoo_version='<version>')`
-     -> confirm the Viindoo profile's composition before GATE 0.
+3. **Resolve the project facts** (before any prompt to the user): work the rungs of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` in order and stop at the first that
+   answers the series and the profile. Rung 2 returns the exact declared profile name; rung 3 derives
+   the series from the checkout. Present a `list_available_versions` menu only when every rung left
+   the series unresolved.
 
-4. **Load context:** Check `<SHARE_DIR>/context.md`. If found, use its version/profile settings as defaults.
-   If absent, suggest `/odoo-onboarding` but allow manual continuation.
+4. **MCP bootstrap** (once per session, on the values step 3 resolved):
+   - `set_active_version(odoo_version=<resolved series>)` -> pin for session
+   - `set_active_profile(profile_name=<resolved profile>)` -> base profile. Use the resolved name
+     verbatim, or confirm one against `list_available_profiles` when no rung supplied it - never
+     hard-code a hyphenated or unversioned name (the server registers `odoo_8..odoo_19`,
+     `standard_viindoo_17/18`, etc.).
+   - `profile_inspect(method='summary', name=<resolved profile>, odoo_version=<resolved series>)`
+     -> confirm the profile's composition before GATE 0. When no `[[instance]]` covers this repo,
+     offer `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; BRL proceeds
+     on the resolved values regardless.
 
 5. **GATE 0:** Present plan before any classification work:
 
@@ -473,7 +478,7 @@ On `approve`, write ALL deliverables atomically:
    If missing: stop and report "cost-config.json not found - cannot compute deterministic cost."
 5. **OEEL-1 no-retry:** When check_module_exists returns a license notice, classify as
    Available-in-Viindoo and stop. Do NOT retry, do NOT call model_inspect on OEEL-1 modules.
-6. **Context check:** Load `<SHARE_DIR>/context.md` if present. Absent -> suggest `/odoo-onboarding`.
+6. **Project facts:** Series and profile come from `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, worked in rung order. Ask only for what every rung left unresolved.
 7. **Principal-branch-lock:** Read-only on the project repo. Only write within the machine-global
    `$ODOO_AI_HOME` state root (two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - never a source file in the project repo.
 8. **Sequential outer:** Never fan-out chunks to parallel subagents. Inner <=3 MCP parallel per chunk

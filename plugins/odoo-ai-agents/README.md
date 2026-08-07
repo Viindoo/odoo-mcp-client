@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **52 skills + 26 agents + 8 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **51 skills + 26 agents + 8 commands**, grouped into **9 persona
 > buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -47,7 +47,7 @@ test forwarding, and verify-by-behavior per batch - at most one agent instance p
 the whole run. It runs alongside coding, code review, and upgrade planning as a core engineering
 capability.
 
-> **Counts at a glance:** this plugin ships **52 skills + 26 agents + 8 commands**, grouped into
+> **Counts at a glance:** this plugin ships **51 skills + 26 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -63,7 +63,7 @@ row above.
 
 | Persona | Domain | Key skills |
 |---------|--------|-----------|
-| Onboarding / Concierge | consultant | `odoo-intake` - `odoo-onboarding` |
+| Onboarding / Concierge | consultant | `odoo-intake` |
 | Engineer | engineering | override-finding - deprecation-audit - forward-port / version-diff - git-rebase - modules-upgrade |
 | Coder | engineering | odoo-coding - odoo-debug - solution-design |
 | Code-Reviewer | engineering | odoo-code-review |
@@ -81,7 +81,7 @@ row above.
 - **Sales AE** - Get ACA-structured responses to objections, risk-scored follow-up emails for stalled deals, a synthesized prospect profile from discovery notes, or triage an inbound support ticket into a customer-ready resolution draft.
 - **Marketer** - Create content around Odoo features - blog posts, slide decks, social copy, multi-channel campaign plans - in marketing-ready language, and package a complete module for the Apps Store (icon, feature catalog, usage walkthroughs, illustrated landing) via `module-packaging`; individual skills: `odoo-doc-illustration`, `odoo-icon-design`, `odoo-doc-feature-map`, `odoo-doc-walkthrough`.
 - **Strategist / CEO** - Get an executive risk overview of customizations, a structured customization inventory, or a competitor capability snapshot ready for a board or sales response.
-- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-onboarding` bootstraps project context on a new engagement; `odoo-intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
+- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, resolves the Odoo series/profile/scope from your declared instance or checkout, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
 
 ### How it works
 
@@ -103,10 +103,11 @@ Tier C fresh spawn + worklog) whose SSOT is `snippets/context-handoff-protocol.m
 are platform-managed.
 
 `odoo-intake` is the front door for any plain-language intent. It (1) closes an intent gate (what /
-why / what-done), (2) resolves the Odoo version - escalating to `odoo-onboarding` to pick
-version/profile when it is unknown and OSM is reachable (inline-menu fallback), or asking you for
-the version + repo path when OSM is down - (3) runs a quick read-only **recon** to make the plan
-context-aware, then (4) emits a **Proposed Plan** and waits for your approval. From there:
+why / what-done), (2) resolves the Odoo series/profile/module scope from the instance you declared
+with `/odoo-setup`, else derives them from the checkout (inline version/profile menu when OSM is
+reachable but neither resolves), or asks you for the series + repo path when OSM is down - (3) runs
+a quick read-only **recon** to make the plan context-aware, then (4) emits a **Proposed Plan** and
+waits for your approval. From there:
 
 - **Review / PR-review or debug intent** -> **fast-paths** straight to `odoo-code-review` /
   `odoo-debug`, skipping the planning ceremony (no Proposed-Plan block, no Plan Mode).
@@ -136,9 +137,11 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
   (including across workflows via `on_complete`), so the run keeps moving without re-prompting.
 
 Each step carries a **gate tier** that decides what stops for you (see
-[Drive to done](#drive-to-done-how-to-use-it)). On a new Odoo project, `odoo-onboarding`
-bootstraps `<SHARE_DIR>/context.md` so later skills skip setup. Every skill grounds its answers
-through the OSM MCP server; output is a direct answer or a file under the `$ODOO_AI_HOME` state root.
+[Drive to done](#drive-to-done-how-to-use-it)). Skills resolve the Odoo series, profile, and
+addons path from the instance you declared with `/odoo-setup`, and derive them from the checkout
+when none is declared, so a later skill never re-asks what an earlier one already resolved. Every
+skill grounds its answers through the OSM MCP server; output is a direct answer or a file under
+the `$ODOO_AI_HOME` state root.
 
 ```mermaid
 flowchart TD
@@ -344,7 +347,7 @@ programmatically before the visual workflow resumes.
 flowchart TD
     SETUP["/odoo-setup (one-time, interactive)"]
     SETUP --> MCPW["1 eager chrome-devtools (bundled)<br/>+ 5 opt-in families on demand<br/>(chrome-devtools-headed, playwright[-headed], pagecast[-headed])"]
-    SETUP --> CTX["context.md + instances.toml"]
+    SETUP --> CTX["instances.toml"]
 
     INST["odoo-instance skill<br/>(programmatic path)"]
     INST -->|"launch"| IOPS["odoo-instance-ops agent<br/>create / init / ensure-up<br/>odoo_db.py + 55-instance-ops.sh"]
@@ -733,9 +736,9 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 53?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 51?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
-**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `<SHARE_DIR>/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
+**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and your declared instance catalog directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
 **What about confidentiality?** Plugin code is public (MIT). Skills contain no customer-specific data or pricing. A pre-commit hook and CI scan block several categories of sensitive content. Examples use abstract labels (Customer A through Customer F).
 
@@ -819,6 +822,7 @@ There are two distinct loading mechanisms for shared context:
 
 | Contract | What it enforces |
 |----------|------------------|
+| `snippets/project-facts-resolution.md` | The ordered, terminating 5-rung precedence ladder (brief -> declared instance catalog -> checkout -> the request itself -> ask once) every task works to resolve the four project facts - Odoo series, OSM profile, module/addons scope, and instance target - PER FACT, never substituting a default series |
 | `snippets/odoo-platform-design-principles.md` | Multi-company (+ branch v17+), generic-before-localization (lift shared behavior out of `l10n_*`), and the standard app-menu shape (root + Reports + Configuration) |
 | `snippets/bidirectional-impact.md` | Survey upstream (the `depends` closure) AND downstream (`impact_analysis` dependents), direct + indirect, before touching a module - at design, code, review, and debug time |
 | `snippets/demo-data-dynamic.md` | Demo data is time-relative (`relativedelta`) and lives in `demo/`, kept distinct from test fixtures |
@@ -841,7 +845,7 @@ flowchart TD
     HOME["$ODOO_AI_HOME<br/>(default ~/.odoo-ai)"]
     HOME --> T1["Tier-1 - flat, machine-global<br/>instances.toml, runtime/leases.json,<br/>logs/, i18n.json - NEVER namespaced"]
     HOME --> PROJ["projects/&lt;repo-key&gt;/"]
-    PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>context.md, designs/, plans/,<br/>coordination/, survey/, brl/<br/>converges across a repo's worktrees"]
+    PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>designs/, plans/,<br/>coordination/, survey/, brl/<br/>converges across a repo's worktrees"]
     PROJ --> WT["worktrees/&lt;wt-key&gt;/"]
     WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, wave/,<br/>workflow output_dir/<br/>distinct per worktree"]
 
@@ -849,7 +853,7 @@ flowchart TD
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
 ```
 
-### Skills (52)
+### Skills (51)
 
 Quick-start guides for a curated subset of the personas above live in
 [`docs/personas/`](docs/personas/) - see [`docs/setup.md`](docs/setup.md) for exactly which ones
@@ -894,8 +898,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-feature-highlights` | Marketer | Marketing-friendly feature highlights for a version |
 | `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
-| `odoo-onboarding` | Onboarding / Concierge | Bootstrap project context into `<SHARE_DIR>/context.md` for new engagements |
-| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, resolves the Odoo version (escalates to `odoo-onboarding` when unknown and OSM is reachable, asks for version + repo path otherwise), offers an opt-in deep survey on large jobs (the user asks for it with `refine: deep-survey`), and fast-paths review / PR-review and debug intents straight to the specialist (skipping Plan Mode); for multi-step work plans once then hands a `run-<id>.json` to `run-harness` to drive to done; always gates with a Proposed Plan before execution |
+| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, resolves the Odoo series/profile/scope from the declared instance or the checkout (inline version/profile menu when OSM is reachable but neither resolves, asks for the series + repo path otherwise), offers an opt-in deep survey on large jobs (the user asks for it with `refine: deep-survey`), and fast-paths review / PR-review and debug intents straight to the specialist (skipping Plan Mode); for multi-step work plans once then hands a `run-<id>.json` to `run-harness` to drive to done; always gates with a Proposed Plan before execution |
 | `odoo-deep-survey` | Onboarding / Concierge (opt-in) | Multi-phase opt-in deep survey - invoked by `odoo-intake` after the user replies `refine: deep-survey` at the plan gate; fans out a broad quick sweep -> narrow standard-depth dives -> an optional deep pass, then writes a synthesis under `<SHARE_DIR>/survey/` that re-informs the plan (read-only; spawner-agent, requires orchestrating context) |
 | `odoo-ui-review` | Coder / Visual | Six-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance, design-system + theme fidelity); slim, paired with agent bundle |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI). On a CRITICAL/HIGH root cause it drives the fix autonomously - hands the proven cause to `odoo-coding`, which loops back through `odoo-code-review` to verify (bounded to 3 iterations, then escalates) |
