@@ -42,14 +42,17 @@ when changing intake's structure, the routing table, or the harness wiring.
   pricing-proposal, rfp-response, test-writing, instance). `odoo-deep-survey` stays out of the table
   by design (opt-in only); `run-harness`/`workflow-chaining` are internal machinery, not routing targets.
   Update both the table AND `references/collision-zones.md` when adding entries.
-- **Deep survey gate (opt-in)**: after the Proposed Plan, the gate offers `deep-survey` on
-  *large* jobs - the heavy alternative to light Phase R recon. `odoo-deep-survey` (a `spawner-agent`,
+- **Deep survey gate (opt-in)**: after the Proposed Plan, a SEPARATE offer line under the plan asks
+  whether to run a deep survey on *large* jobs - the heavy alternative to light Phase R recon. The
+  offer is a question, never a gate keyword: the user opts in with `refine: deep-survey` on the PLAN
+  reply set (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md`), where `deep-survey` is the
+  feedback text. `odoo-deep-survey` (a `spawner-agent`,
   invoked via the Skill tool from the main context) fans out broad-haiku → narrow-sonnet →
   optional-opus workers and returns a `synthesis.md` that intake folds into the `Survey:` field and
   a re-proposed plan. It is the ONE `writes-files` skill intake dispatches WITHOUT Plan Mode: it
   writes only `<SHARE_DIR>/survey/` analysis (resolve `<SHARE_DIR>` via the resolve-capture-substitute
   protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) (not the routed deliverable),
-  and the `deep-survey` keyword is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
-  Deliberately NOT a routing-table row - never intent-routed, only opt-in. The re-proposed gate
-  drops `deep-survey` so the survey runs at most once.
+  and that opt-in reply is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
+  Deliberately NOT a routing-table row - never intent-routed, only opt-in. The re-proposed plan
+  drops the offer line so the survey runs at most once.
 - This skill carries the standard `odoo-` prefix as `odoo-intake`. The unprefixed `intake` namespace is reserved for a future domain-agnostic front door (general ERP, strategy, etc.) that may route to `odoo-intake` on detecting Odoo intent - keeping Odoo-specific and domain-agnostic responsibilities separate.

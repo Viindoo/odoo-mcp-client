@@ -41,9 +41,9 @@ Use when you already want discovery synthesis and want to skip natural-language 
      a Read/Write/Edit).
 
 4. **Phase 3: Write file (optional)**
-   - If the user answers `yes`, write the profile to the file using the `Write` tool.
+   - If the user answers `approve`, write the profile to the file using the `Write` tool.
    - Confirm: "`✓ Profile saved to <ISOLATE_DIR>/discovery/<filename>.md`"
-   - If the user answers `no`, stop. Do not write.
+   - If the user answers `skip` or `cancel`, stop. Do not write.
 
 ## Hard rules
 
@@ -90,7 +90,7 @@ Agent: ✓ Profile saved to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.m
 
 ## Standalone fallback
 
-If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthesize the profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back. Mark each synthesized field `[source: LLM-unverified]` (not blank `<TBD>`); the profile stays useful and can be cross-checked when OSM returns. Continue per the `yes/iterate/cancel` gate. Ask the user only for facts the notes genuinely do not contain.
+If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthesize the profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back. Mark each synthesized field `[source: LLM-unverified]` (not blank `<TBD>`); the profile stays useful and can be cross-checked when OSM returns. Continue per the `approve / skip / cancel` gate above. Ask the user only for facts the notes genuinely do not contain.
 
 ## What this command does NOT do
 
