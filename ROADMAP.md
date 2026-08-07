@@ -21,8 +21,9 @@ Items are directional, not commitments, and reflect publicly announced milestone
 - **4-tier orchestration: planning split from execution** (v4.0.0) - a dedicated
   `odoo-planning` skill (with the `odoo-planner` agent) now authors the full-lifecycle
   EXECUTION plan after solution-design: a wave-batched module-DAG, the integration cadence,
-  each module/stage wired to a skill, and the lifecycle code -> review -> doc -> PR -> monitor ->
-  merge. `run-harness` (the sequencer, renamed from `run-driver`) walks it and lands each coding
+  each module/stage wired to a skill, and the full lifecycle from code to merge in the Terminal
+  stage order constant `run-harness` owns. `run-harness` (the sequencer, renamed from `run-driver`)
+  walks it and lands each coding
   wave-layer directly as its Between-wave integration step; and the new
   `odoo-pr-monitoring` skill watches the opened PR to merge (CI/review poller, CI failures route to
   `odoo-debug`, the L2-merge-gate).

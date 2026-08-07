@@ -54,8 +54,9 @@ full product journey - code-build AND doc. Dispatches TWO leaf planners in seque
    user-guide (`doc/index.rst`) AND marketing landing (`static/description/index.html`).
    Runs with `plan_source: design-dag` - reuses the approved design DAG; does NOT re-derive it.
 
-Execution order: the code plan executes first (code -> review -> test/QA via run-harness);
-the doc plan executes after code lands (screenshots need the built module on a live instance).
+Execution order: the code plan executes first - `run-harness` walks it in the Terminal stage order
+constant it owns, never an order chosen here; the doc plan's stage sits inside that same constant,
+after acceptance (screenshots need the built module on a live instance).
 Both plans are authored UPFRONT in one gate and executed sequentially code then doc.
 Pairs with `odoo-solution-design` (consumes its design DAG, passed to both planners) and
 `run-harness` (walks the code waves; the doc stage follows as a subsequent lifecycle stage).
@@ -257,7 +258,7 @@ Plan ready:
   Doc plan:   <SHARE_DIR>/plans/<slug>-doc-<YYYY-MM-DD>.yaml
 Build order: <wave-1 modules> -> <wave-2 modules> -> ...   (integration cadence: <one line>)
 Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
-Lifecycle:   <Terminal stage order constant, rendered in full>
+Lifecycle:   <the Terminal stage order constant run-harness owns, rendered in full>
              (doc executes AFTER code/review/QA; both plans gate here in ONE approval)
 Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY / du kien - the runtime skill
              decides the actual count + model; the plan binds only WHICH skill)

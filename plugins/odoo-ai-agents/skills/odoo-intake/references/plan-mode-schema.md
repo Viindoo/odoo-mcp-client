@@ -23,8 +23,10 @@ decomposition axis is module-only (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/o
 § Two-tier decomposition axis - the work-item is `odoo-coder`'s INTERNAL intra-module unit and never
 appears in the plan). Borrow the requirement shape in `odoo-brl/reference/schema.md` (~lines
 116-197). Each module entry carries: `id` (the module name), a one-line description, and
-`files-in-scope` (each module owns a directory, so module file-sets are naturally **disjoint**; a
-terminal lifecycle node - i18n / acceptance / doc / integrate, in that order - is its own entry). For a multi-module
+`files-in-scope` (each module owns a directory, so module file-sets are naturally **disjoint**; each
+terminal lifecycle node is its own entry - WHICH stages exist and in WHAT order is the Terminal
+stage order constant in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Pre-PR tail, never a per-plan choice and never restated here). For a multi-module
 delivery also note worktree + branch + verify command per module, and ONE Repo Capability Card per
 REPO (serialized as the run file's `repos[]`; a single-repo delivery has a one-entry list).
 
@@ -81,10 +83,12 @@ Module dependency graph
         depends-on: viin_fleet_billing, viin_fleet_billing_account
     [cluster acceptance] [repo: fleet-addons] [skill: odoo-acceptance]
         depends-on: cluster i18n
-    [viin_fleet_billing docs] (existing) [repo: fleet-addons] [skill: odoo-doc-illustration]
+    [cluster docs] [repo: fleet-addons] [skill: odoo-doc-illustration]
         depends-on: cluster acceptance
+        ONE doc node for the WHOLE run, over the aggregate module set - never per module, never
+        per wave (both example modules are documented by THIS node).
     [integrate] [repo: fleet-addons] [skill: git-toolkit:git-ops]
-        depends-on: viin_fleet_billing docs
+        depends-on: cluster docs
         opens THE ONE PR for [repo: fleet-addons]. READY only when EVERY node in this repo that
         is NOT in the land-tail set (integrate, monitor, merge) is DONE or SKIPPED - run-harness
         RE-DERIVES this, never trusting depends-on alone.
@@ -96,16 +100,17 @@ Module dependency graph
   step, not a plan node, so it gets no box here.
 
   Second repo (absent from this example): a run touching repo-2 adds a SIBLING terminal chain -
-  i18n / acceptance / docs / integrate / monitor, every node tagged [repo: <repo-2>] - and THAT
-  chain's own [integrate] opens repo-2's ONE PR. Two repos = two integrate nodes = two PRs.
+  the same terminal lifecycle nodes, in the same constant's order, every node tagged
+  [repo: <repo-2>] - and THAT chain's own [integrate] opens repo-2's ONE PR.
+  Two repos = two integrate nodes = two PRs.
 
   Edges (depends direction; flat list for grep/diff stability):
     viin_fleet_billing         --> viin_fleet_billing_account
     viin_fleet_billing         --> cluster i18n
     viin_fleet_billing_account --> cluster i18n
     cluster i18n               --> cluster acceptance
-    cluster acceptance         --> viin_fleet_billing docs
-    viin_fleet_billing docs    --> integrate
+    cluster acceptance         --> cluster docs
+    cluster docs               --> integrate
     integrate                  --> monitor
 ```
 ````
@@ -133,10 +138,10 @@ grouped into integration waves - OR, for the few-module topology path, from the 
 `topological_order` - PLUS the Block 3 `module/stage -> SKILL` assignment for each `[skill: ...]`
 tag. NEW vs existing comes from the module-graph resolution
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`: a module resolving to NEITHER OSM NOR
-disk is `(NEW)`; otherwise `(existing)`). Terminal lifecycle nodes (i18n, acceptance, doc,
-PR/monitor/merge) appear as their own nodes wired to their execute-SKILL, in ONE terminal wave
-AFTER every coding wave - never interleaved into a coding wave. Their ORDER is not a per-plan
-choice: read it from the Terminal stage order constant
+disk is `(NEW)`; otherwise `(existing)`). Every terminal lifecycle node appears as its own node
+wired to its execute-SKILL, in ONE terminal wave AFTER every coding wave - never interleaved into a
+coding wave. Neither WHICH stages exist nor their ORDER is a per-plan
+choice: read both from the Terminal stage order constant
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail), which is
 its ONE owner. A stage the run does not have is skipped in place; the rest keep their order.
 
