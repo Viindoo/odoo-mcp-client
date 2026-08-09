@@ -85,11 +85,13 @@ on this skill's behalf (its own contract refuses with `NEEDS_CONTEXT` if it ever
 missing - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY
 for the designated pre-PR lint gate (HARD RULE)").
 
-**Log verbosity default.** `create` / `init` / `update` builds run at `--log-level=warn` by DEFAULT
-(quieter than Odoo's stock `info`); `run-tests` keeps `--log-level=test`. A caller may ESCALATE to
-`info` / `debug` - for `run-tests` via the `log_mode` field, for `create` / `init` / `update` via an
-extra flag threaded into the brief (overrides the `warn` default). The agent grounds `--log-level`
-via `cli_help` like any other flag.
+**Log verbosity default.** `create` / `init` / `update` builds run at `--log-level=info` by DEFAULT
+(Odoo's stock level - the build narrates what it loaded, so a failure is diagnosable from the log
+that already exists instead of needing a re-run at a louder level); `run-tests` keeps
+`--log-level=test`. A caller may ESCALATE to `debug`, or QUIETEN to `warn` - for `run-tests` via the
+`log_mode` field, for `create` / `init` / `update` via an extra flag threaded into the brief
+(overrides the `info` default in either direction). The agent grounds `--log-level` via `cli_help`
+like any other flag.
 
 **Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
 longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
@@ -105,9 +107,12 @@ while the completion marker is still required for SUCCESS - never idle-stalling 
 terminal marker; on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
 
-**Readiness/completion signal is DETERMINISTIC, never a log tail.** Under the `--log-level=warn`
-baseline every completion line above is INFO-level and gets suppressed - a clean, successful run
-produces an EMPTY log, so waiting to SEE a line in it can stall to the timeout even on success. Two
+**Readiness/completion signal is DETERMINISTIC, never a log tail.** A log tail is not a completion
+signal at ANY verbosity: the `info` baseline makes the completion lines visible, but a caller may
+QUIETEN a build to `warn` via an extra flag (§ Log verbosity default above), and every completion
+line above is INFO-level - under `warn` a clean, successful run produces an EMPTY log, so waiting to
+SEE a line in it stalls to the timeout even on success. Never make correctness depend on a verbosity
+a caller can change. Two
 different, deterministic signals apply instead, one per job shape: an install/update job's DONE
 signal is the launched process EXITING (`--stop-after-init` guarantees this), confirmed by exit 0
 AND a forced completion marker (`Modules loaded.`, guaranteed present via

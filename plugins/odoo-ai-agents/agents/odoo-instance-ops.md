@@ -104,17 +104,18 @@ A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh
 3. **Exit code is necessary but never sufficient.** A non-zero exit is ALWAYS `STATUS=error` - never let an in-log marker override a non-zero exit (marker wording can drift across series, so a drifting marker must never promote a non-zero exit to success). But exit 0 ALONE is NOT proof of a successful build: for init/update, `STATUS=ok` additionally requires the `"Modules loaded."` completion marker present AND no failure marker (see "Exit code 0 alone is NOT proof of install" below for the exact rule) - treat exit 0 with a missing completion marker, or with any failure marker present, the SAME as a non-zero exit: `STATUS=error`.
 4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
 
-**Deterministic completion contract (root-cause fix - never a log-tail wait).** Under the
-`--log-level=warn` build baseline, EVERY line above (`Modules loaded.`, `Registry loaded`, etc.) is
-INFO-level and gets SUPPRESSED - a clean, SUCCESSFUL run produces an EMPTY log. Waiting to SEE a
-line in that log therefore stalls to the bound even on success; `55-instance-ops.sh init`/`update`
-close this gap two ways:
-- **Forced completion line.** The invocation ALWAYS adds `--log-handler=<ns>.modules.loading:INFO`
-  (in addition to the `--log-level=warn` baseline), so `"Modules loaded."` survives regardless - a
-  per-logger `setLevel` wins over the inherited `warn` level; a plain `--log-handler=:INFO` on the
-  root logger does NOT work. `<ns>` is version-resolved: `openerp` for series < 10 (v8-v9), `odoo`
-  for v10+ (the namespace renamed at the v9->v10 boundary) - resolve it from the series already
-  pinned in Step A/B and pass `--version <series>` to the script.
+**Deterministic completion contract (root-cause fix - never a log-tail wait).** EVERY line above
+(`Modules loaded.`, `Registry loaded`, etc.) is INFO-level. The `--log-level=info` build baseline
+prints them, but the baseline is CALLER-OVERRIDABLE (a `--log-level=warn` in `--extra` quietens the
+run, and then a clean, SUCCESSFUL run produces an EMPTY log) - so a log tail is never a sound
+completion signal at any verbosity, and waiting to SEE a line can stall to the bound even on
+success. `55-instance-ops.sh init`/`update` close this gap two ways:
+- **Pinned completion line.** The invocation ALWAYS adds `--log-handler=<ns>.modules.loading:INFO`
+  (in addition to the `--log-level=info` baseline), so `"Modules loaded."` survives regardless of
+  the level in force - a per-logger `setLevel` wins over the inherited level; a plain
+  `--log-handler=:INFO` on the root logger does NOT work. `<ns>` is version-resolved: `openerp` for
+  series < 10 (v8-v9), `odoo` for v10+ (the namespace renamed at the v9->v10 boundary) - resolve it
+  from the series already pinned in Step A/B and pass `--version <series>` to the script.
 - **Process exit is the completion signal, never a log read.** `--stop-after-init` guarantees the
   process EXITS; that exit (captured synchronously by the `init`/`update` invocation itself) is
   when the job is DONE - the script never blocks on reading a log line to decide completion.
@@ -405,7 +406,7 @@ are the exclusive-running and shared-running branches of this one decision):
 **Active wait (HARD RULE):** every branch above launches a build - launch it in the background and
 poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never block past the
 tool timeout or return before a terminal marker.
-**Log verbosity:** the script applies `--log-level=warn` by DEFAULT for a build op (quieter than Odoo's `info`); to ESCALATE for deep debugging pass a louder level (`--log-level=info`/`--log-level=debug`) via `--extra` - it overrides the default since the script places `warn` before `--extra`. Confirm `--log-level` for the series via `cli_help` like any other flag.
+**Log verbosity:** the script applies `--log-level=info` by DEFAULT for a build op (Odoo's stock level - the build narrates what it loaded, so a failure is diagnosable from the log you already have); to ESCALATE for deep debugging pass `--log-level=debug`, or to QUIETEN pass `--log-level=warn`, via `--extra` - either overrides the default since the script places `info` before `--extra`. Confirm `--log-level` for the series via `cli_help` like any other flag.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 2. drop-instance
@@ -473,7 +474,7 @@ Install one or more modules into an existing Odoo database.
 
 The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-handler=<ns>.modules.loading:INFO --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above; memory cap - HARD RULE above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
 **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never idle-stall past the tool timeout.
-**Log verbosity:** the script defaults a build op to `--log-level=warn`; ESCALATE to `--log-level=info`/`--log-level=debug` for deep debugging via `--extra` (it overrides the `warn` default), confirming the flag via `cli_help`.
+**Log verbosity:** the script defaults a build op to `--log-level=info`; ESCALATE to `--log-level=debug` for deep debugging, or QUIETEN to `--log-level=warn`, via `--extra` (either overrides the `info` default), confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 4. update-modules
@@ -497,7 +498,7 @@ Update one or more already-installed modules (-u).
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
 
-Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above. **Log verbosity:** defaults to `--log-level=warn`; ESCALATE via `--extra` (`--log-level=info`/`debug`) when debugging an update.
+Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above. **Log verbosity:** defaults to `--log-level=info`; ESCALATE via `--extra` (`--log-level=debug`) when debugging an update, or QUIETEN with `--log-level=warn`.
 
 ### 5. run-tests
 
@@ -841,7 +842,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
 - [ ] db_port and run_id populated from $ALLOC_DB_PORT / $ALLOC_RUN_ID (empty when unresolved/unowned) and forwarded in the output block on every operation
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
-- [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
+- [ ] build ops ran at the default `--log-level=info` unless the caller OVERRODE it via --extra (--log-level=debug to escalate, --log-level=warn to quieten); the `test` verb kept `--log-level=test`
 - [ ] confirmed the odoo-bin launch carried the memory cap (ulimit -Sv + --limit-memory-hard, from resource_limits.sh) or an explicit uncap
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)

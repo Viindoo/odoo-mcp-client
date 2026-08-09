@@ -108,11 +108,17 @@ def test_skill_relays_active_wait_contract():
     assert "Modules loaded." in text, "skill relay must name a success marker"
 
 
-def test_skill_documents_log_level_warn_default():
-    """The skill must document the warn default + escalation for build ops."""
+def test_skill_documents_log_level_info_default():
+    """The skill must document the info default + caller override for build ops."""
     text = _norm(SKILL_MD)
-    assert "--log-level=warn" in text, "skill must state the warn default for builds"
-    assert "ESCALATE" in text, "skill must document escalation to info/debug"
+    assert "--log-level=info` by DEFAULT" in text, (
+        "skill must state the info default for builds"
+    )
+    assert "ESCALATE" in text, "skill must document escalation to debug"
+    assert "QUIETEN" in text, (
+        "skill must document that a caller can still quieten a build to warn - the "
+        "override is bidirectional now that the default is no longer the quiet end"
+    )
 
 
 def test_agent_self_review_covers_active_wait_and_log_level():
@@ -121,8 +127,8 @@ def test_agent_self_review_covers_active_wait_and_log_level():
     assert "actively waited to a TERMINAL marker" in text, (
         "self-review must include the active-wait item"
     )
-    assert "--log-level=warn" in text and "test` verb kept `--log-level=test`" in text, (
-        "self-review must assert the warn default and that the test verb keeps --log-level=test"
+    assert "--log-level=info" in text and "test` verb kept `--log-level=test`" in text, (
+        "self-review must assert the info default and that the test verb keeps --log-level=test"
     )
 
 
@@ -509,19 +515,20 @@ def test_agent_exclusive_running_never_falls_back_to_8069():
 
 
 # ---------------------------------------------------------------------------
-# Instance readiness/completion detection fix - the historical hang under
-# --log-level=warn (empty log -> a marker-only wait never terminates). The
-# fix replaces log-tailing with deterministic signals: install/update job ->
-# process exit + a forced completion marker + failure-marker scan; listening
-# instance -> bounded HTTP port poll. SSOT: docs/reference/
-# INSTANCE-LIFECYCLE.md item 14.
+# Instance readiness/completion detection fix - the historical hang at
+# --log-level=warn (empty log -> a marker-only wait never terminates). Builds
+# now default to info, but a caller can still quieten one to warn via --extra,
+# so the fix stays load-bearing: log-tailing is replaced with deterministic
+# signals at ANY verbosity - install/update job -> process exit + a pinned
+# completion marker + failure-marker scan; listening instance -> bounded HTTP
+# port poll. SSOT: docs/reference/INSTANCE-LIFECYCLE.md item 14.
 # ---------------------------------------------------------------------------
 
 def test_agent_documents_log_handler_namespace_forcing():
-    """odoo-instance-ops.md must document forcing --log-handler=<ns>.modules.
-    loading:INFO onto init/update so 'Modules loaded.' survives the
-    --log-level=warn baseline, and the openerp/odoo namespace split by
-    version (v8-v9 vs v10+)."""
+    """odoo-instance-ops.md must document pinning --log-handler=<ns>.modules.
+    loading:INFO onto init/update so 'Modules loaded.' survives regardless of
+    the --log-level in force (including a caller-quietened warn run), and the
+    openerp/odoo namespace split by version (v8-v9 vs v10+)."""
     text = _norm(AGENT_MD)
     assert "--log-handler=<ns>.modules.loading:INFO" in text, (
         "agent must document the --log-handler=<ns>.modules.loading:INFO forcing"

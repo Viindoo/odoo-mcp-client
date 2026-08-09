@@ -16,7 +16,7 @@
 #   init    --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
-#                  --stop-after-init --log-level=warn
+#                  --stop-after-init --log-level=info
 #                  --log-handler=<ns>.modules.loading:INFO <extra>
 #             Persistent log + LOG_PATH= + STATUS= lines.
 #
@@ -27,10 +27,12 @@
 #             resolves <ns> = 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+;
 #             also the default when --version is omitted) - the namespace Odoo's
 #             module-loading logger lives under changed at the v9->v10 rename. The
-#             --log-handler flag forces the "Modules loaded." completion line back
-#             onto the log even under the --log-level=warn baseline (a per-logger
-#             setLevel is applied AFTER the warn preset and overrides the inherited
-#             level; plain `--log-handler=:INFO` on the root logger does NOT work).
+#             --log-handler flag pins the "Modules loaded." completion line onto the
+#             log INDEPENDENTLY of the --log-level baseline (a per-logger setLevel is
+#             applied AFTER the level preset and overrides the inherited level; plain
+#             `--log-handler=:INFO` on the root logger does NOT work). The info
+#             baseline emits that line anyway - the handler keeps the marker alive
+#             even when a caller QUIETENS the run via --extra.
 #             SUCCESS = exit code 0 AND the "Modules loaded." marker is present AND
 #             NONE of these failure markers appear: CRITICAL, Traceback (most
 #             recent call last), invalid module names, ignored, Some modules are
@@ -255,8 +257,8 @@ _INSTALL_SUCCESS_MARKER='Modules loaded.'
 # ---------------------------------------------------------------------------
 # _install_confirmed - single-pass positive-install check for a completed
 #   (--stop-after-init) install/update job. Returns 0 (confirmed) iff the
-#   "Modules loaded." completion marker is present - forced onto the log even
-#   under --log-level=warn by --log-handler=<ns>.modules.loading:INFO - AND
+#   "Modules loaded." completion marker is present - pinned onto the log
+#   independently of --log-level by --log-handler=<ns>.modules.loading:INFO - AND
 #   NONE of the SILENT-skip failure markers appear. Exit code 0 from odoo-bin
 #   is NOT proof of install on its own: a misspelled/nonexistent module name,
 #   an unresolved dependency, or a demo-data failure can all leave the process
@@ -677,9 +679,13 @@ cmd_init() {
     _build_db_conn_args
 
     # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE.md
-    # item 14): --log-handler=<ns>.modules.loading:INFO forces the "Modules
-    # loaded." completion line back onto the log even under the --log-level=warn
-    # baseline below (a per-logger setLevel wins over the inherited warn level).
+    # item 14): --log-handler=<ns>.modules.loading:INFO pins the "Modules
+    # loaded." completion line onto the log INDEPENDENTLY of the --log-level
+    # baseline below (a per-logger setLevel wins over the inherited level). The
+    # baseline is --log-level=info, which already emits that line on its own -
+    # the handler is deliberate belt-and-braces so the marker survives even when
+    # a caller QUIETENS the run via --extra (e.g. --log-level=warn), which would
+    # otherwise suppress it and break completion detection.
     # <ns> is version-resolved via _resolve_log_ns (openerp v8-v9, odoo v10+).
     # Both flags are placed BEFORE ${arg_extra} so a caller-supplied
     # --log-level/--log-handler in --extra still overrides them (Odoo's arg
@@ -727,7 +733,7 @@ cmd_init() {
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             --stop-after-init \
-            --log-level=warn \
+            --log-level=info \
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
@@ -776,9 +782,10 @@ cmd_update() {
 
     # Deterministic completion contract - identical to cmd_init (see its
     # comments above and docs/reference/INSTANCE-LIFECYCLE.md item 14):
-    # --log-handler=<ns>.modules.loading:INFO forces "Modules loaded." back onto
-    # the log under --log-level=warn; both flags precede ${arg_extra} so a
-    # caller override still wins. `warn` is stable v8-v19.
+    # --log-handler=<ns>.modules.loading:INFO pins "Modules loaded." onto the log
+    # independently of the --log-level baseline, so the marker survives even a
+    # caller-quietened run; both flags precede ${arg_extra} so a caller override
+    # still wins. `info` is stable v8-v19.
     local log_ns
     log_ns="$(_resolve_log_ns "${arg_version:-}")"
 
@@ -807,7 +814,7 @@ cmd_update() {
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             --stop-after-init \
-            --log-level=warn \
+            --log-level=info \
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}

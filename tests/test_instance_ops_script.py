@@ -155,9 +155,9 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
 
     Verifies the LOG_PATH= line is emitted and the log file exists on disk.
     """
-    # extra_output emits the "Modules loaded." completion marker - forced onto
-    # the log by --log-handler=<ns>.modules.loading:INFO even under the
-    # --log-level=warn baseline - so a genuinely successful run is confirmed
+    # extra_output emits the "Modules loaded." completion marker - pinned onto
+    # the log by --log-handler=<ns>.modules.loading:INFO regardless of the
+    # --log-level in force - so a genuinely successful run is confirmed
     # (exit 0 alone is not proof of install; see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
@@ -994,16 +994,18 @@ def test_init_forwards_extra_flags(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Contract 5: build ops (init / update) default to --log-level=warn, overridable
-# via --extra. Business rule: a build op is quiet (warn) by default - quieter than
-# Odoo's stock `info` - but a caller escalates for deep debugging by passing a
-# louder --log-level in --extra, which must WIN (Odoo takes the last occurrence,
-# so warn must sit BEFORE --extra in the argv).
+# Contract 5: build ops (init / update) default to --log-level=info, overridable
+# via --extra. Business rule: a build op NARRATES what it loaded by default, so a
+# failure is diagnosable from the log that already exists instead of needing a
+# re-run at a louder level. A caller may still override in EITHER direction
+# (debug to escalate, warn to quieten) by passing --log-level in --extra, which
+# must WIN (Odoo takes the last occurrence, so the info default must sit BEFORE
+# --extra in the argv).
 # ---------------------------------------------------------------------------
 
 @requires_bash
-def test_init_defaults_to_log_level_warn(tmp_path):
-    """init must inject --log-level=warn by default (quieter than Odoo's info)."""
+def test_init_defaults_to_log_level_info(tmp_path):
+    """init must inject --log-level=info by default (Odoo's stock level)."""
     # "Modules loaded." confirms the run per the deterministic completion
     # contract (exit 0 alone is not proof - see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
@@ -1015,20 +1017,20 @@ def test_init_defaults_to_log_level_warn(tmp_path):
     env["ODOO_BIN"] = str(fake_bin)
 
     res = _run(
-        "init", "--db", "warndb", "--python", str(fake_py),
+        "init", "--db", "infodb", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content, (
-        f"Expected default --log-level=warn on init: {call_content}"
+    assert "--log-level=info" in call_content, (
+        f"Expected default --log-level=info on init: {call_content}"
     )
 
 
 @requires_bash
-def test_update_defaults_to_log_level_warn(tmp_path):
-    """update must inject --log-level=warn by default."""
+def test_update_defaults_to_log_level_info(tmp_path):
+    """update must inject --log-level=info by default."""
     # "Modules loaded." confirms the run per the deterministic completion
     # contract (exit 0 alone is not proof - see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
@@ -1040,22 +1042,25 @@ def test_update_defaults_to_log_level_warn(tmp_path):
     env["ODOO_BIN"] = str(fake_bin)
 
     res = _run(
-        "update", "--db", "warndb2", "--python", str(fake_py),
+        "update", "--db", "infodb2", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content, (
-        f"Expected default --log-level=warn on update: {call_content}"
+    assert "--log-level=info" in call_content, (
+        f"Expected default --log-level=info on update: {call_content}"
     )
 
 
 @requires_bash
-def test_init_extra_log_level_overrides_warn_default(tmp_path):
-    """A caller-supplied --log-level=info in --extra must OVERRIDE the warn default.
+def test_init_extra_log_level_overrides_info_default(tmp_path):
+    """A caller-supplied --log-level in --extra must OVERRIDE the info default.
 
-    Odoo takes the last occurrence of a repeated flag, so the default warn must
+    Uses `debug` as the override precisely BECAUSE it differs from the `info`
+    default - an override asserted with the default's own value could not fail.
+
+    Odoo takes the last occurrence of a repeated flag, so the default info must
     appear BEFORE the --extra value in the argv - assert both the presence and
     the order.
     """
@@ -1072,17 +1077,17 @@ def test_init_extra_log_level_overrides_warn_default(tmp_path):
     res = _run(
         "init", "--db", "escdb", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
-        "--extra", "--log-level=info",
+        "--extra", "--log-level=debug",
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content and "--log-level=info" in call_content, (
-        f"Expected both warn default and info override present: {call_content}"
+    assert "--log-level=info" in call_content and "--log-level=debug" in call_content, (
+        f"Expected both info default and debug override present: {call_content}"
     )
-    # Order: warn (default) must precede info (--extra override) so info wins.
-    assert call_content.index("--log-level=warn") < call_content.index("--log-level=info"), (
-        f"warn default must precede the --extra --log-level=info override: {call_content}"
+    # Order: info (default) must precede debug (--extra override) so debug wins.
+    assert call_content.index("--log-level=info") < call_content.index("--log-level=debug"), (
+        f"info default must precede the --extra --log-level=debug override: {call_content}"
     )
 
 
@@ -1151,15 +1156,17 @@ def test_init_failure_marker_run_preserves_log(tmp_path):
 # ---------------------------------------------------------------------------
 # Contract 7 (RED-first / root-cause fix): the historical hang.
 #
-# Root cause: under --log-level=warn, EVERY completion line ("Modules
-# loaded.", etc.) is INFO-level and gets suppressed - a clean run produces an
-# EMPTY log. A completion check that requires seeing a line in that log would
+# Root cause: EVERY completion line ("Modules loaded.", etc.) is INFO-level, so
+# at --log-level=warn they all get suppressed and a clean run produces an EMPTY
+# log. A completion check that requires seeing a line in that log would
 # therefore wait forever (or, bounded, always time out) even on a genuinely
-# successful run. The fix has two parts, both asserted below:
-#   (a) init/update now force --log-handler=<ns>.modules.loading:INFO onto the
-#       odoo-bin invocation so "Modules loaded." survives the warn baseline -
-#       completion is decided by PROCESS EXIT (this call already blocks on
-#       it), never by tailing/waiting on a log line.
+# successful run. Builds default to info today, but warn stays reachable through
+# --extra, so the fix must hold at ANY verbosity. It has two parts, both
+# asserted below:
+#   (a) init/update pin --log-handler=<ns>.modules.loading:INFO onto the
+#       odoo-bin invocation so "Modules loaded." survives whatever level is in
+#       force - completion is decided by PROCESS EXIT (this call already blocks
+#       on it), never by tailing/waiting on a log line.
 #   (b) exit 0 alone is NOT sufficient - a run that exits 0 but never confirms
 #       (empty log, or a silent-skip failure marker present) must report
 #       STATUS=error, not STATUS=ok.
