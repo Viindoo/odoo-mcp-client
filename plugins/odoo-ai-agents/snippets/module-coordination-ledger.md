@@ -72,16 +72,35 @@ fabricate a ledger location.
   freshly-minted ledger id, so a ledger entry is traceable back to the run that owns it.
 - Timestamps are UTC and portable: `date -u +%Y-%m-%dT%H:%M:%SZ`.
 
+## What gets claimed - every module a coordinator will WRITE
+
+An `odoo-coder` coordinator's `MODULE SCOPE` is 1..N modules and it writes across all of them
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis), so
+`odoo-coding` CLAIMS **every module in a scope before dispatching it** - not only NEW ones. NEW
+modules still drive the § Decision table (a `BLOCKED: manifest dependency <D> unresolved` is only
+classifiable against build state); an EXISTING module's claim has no decision-table role and exists
+solely to make "exactly ONE coordinator writes a module at a time" enforced rather than hoped, now
+that a coordinator is not implicitly limited to one module. Without it two scopes in different runs
+could both list the same existing module and silently collide.
+
+**Scope EXPANSION.** A coordinator needing a module its scope omits returns
+`NEEDS_CONTEXT(module <m> required but not in MODULE SCOPE)`; it never claims or writes `<m>`.
+`odoo-coding` attempts the claim: on a WIN it re-dispatches that coordinator with `<m>` added (and
+drops `<m>` from any not-yet-dispatched scope, preserving disjointness); on a LOSS it classifies
+`<m>` via the § Decision table like any contested module. Record the expansion in plan.md - a later
+fix/resume step re-dispatches from that scope map, so an unrecorded expansion makes it lie.
+
 ## Ownership - `odoo-coding` is the sole writer
 
-ONLY `odoo-coding` writes the ledger: it owns the NEW-module build boundary and the DONE barrier, so
+ONLY `odoo-coding` writes the ledger: it owns the module build boundary and the DONE barrier, so
 it is the only actor that knows when a module transitions state.
 
 - **WRITE - `odoo-coding` alone.** No other actor ever writes an entry or a status.
 - **READ for coordination decisions - `odoo-coding` alone.** It reads its own ledger to run the
   § Decision table and to drive the bounded N-barrier WAIT INTERNALLY (§ N-barrier WAIT ownership).
 - **The hard-leaf `odoo-backend-coder`/`odoo-frontend-coder` workers stay LEDGER-UNAWARE** (as does
-  the `odoo-coder` coordinator) - they never read or write `$LEDGER_ROOT`; only `odoo-backend-coder`
+  the `odoo-coder` coordinator, INCLUDING for a scope expansion - it reports the needed module up
+  and `odoo-coding` does the claiming) - they never read or write `$LEDGER_ROOT`; only `odoo-backend-coder`
   runs the § Dependency pre-flight and emits a RAW `BLOCKED: manifest dependency <D> unresolved on
   addons-path` (the coordinator relays it up unchanged).
 - **`run-harness`'s between-wave integration neither writes the ledger nor drives any ledger
@@ -102,7 +121,7 @@ and never re-implements a barrier wait of its own.
 
 ## Claim = atomic `mkdir` (no flock, no lock file)
 
-To claim a NEW module before dispatching its coder:
+To claim a module before dispatching the coordinator whose scope contains it (every module in the scope, not only NEW ones - see § What gets claimed):
 
 ```bash
 # BOOTSTRAP - run ONCE per run, before ANY per-module claim. Pre-create the shared parent tree.

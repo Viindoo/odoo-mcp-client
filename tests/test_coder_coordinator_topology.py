@@ -305,14 +305,37 @@ _ONE_CODER_PER_MODULE_RE = re.compile(r"(?i)\bone\b.{0,30}?odoo-coder.{0,30}?per
 # "odoo-coding may dispatch MORE THAN one odoo-coder per module" (asserts multiple coders per
 # module - the opposite rule) - "one" and "per module" both still appear as substrings. Explicitly
 # reject the cardinality-inverting qualifier.
+#
+# NEGATION-AWARE: the doc legitimately states the rule in negated form ("never more than one
+# odoo-coder per module"), which is the SAME rule, not its inversion. A negator immediately before
+# the quantifier therefore does NOT count as an inversion - without this carve-out the guard fires
+# on correct prose and pushes an author toward vaguer wording to appease it.
 _MULTI_CODER_PER_MODULE_INVERSION_RE = re.compile(
-    r"(?i)(more\s+than\s+one|multiple|two\s+or\s+more)\b.{0,40}?odoo-coder.{0,40}?per\s+module"
+    r"(?i)(?<!never )(?<!not )(?<!no )(more\s+than\s+one|multiple|two\s+or\s+more)\b"
+    r".{0,40}?odoo-coder.{0,40}?per\s+module"
 )
+
+# A scope may span several MODULES (one coordinator owning 1..N modules). This is the cross-module
+# capability itself - distinct from, and not in conflict with, the one-coder-per-MODULE rule above.
+#
+# The quantifier MUST bind to "modules", not to WIs or file sets: the pre-change doc already said
+# "splits the changes into 1..N WIs by DISJOINT file sets", so a looser regex (bare "1..n modules",
+# "several modules", "atomic", "disjoint") is satisfied by the OLD per-module text and proves
+# nothing. Anchor on scope-to-module cardinality specifically.
+_SCOPE_SPANS_MODULES_RE = re.compile(r"(?i)\bscope\s+is\s+1\.\.n\s+modules\b")
+# One coordinator per SCOPE (not per module) - the dispatch-unit change.
+_ONE_CODER_PER_SCOPE_RE = re.compile(r"(?i)\bone\b.{0,40}?odoo-coder.{0,40}?per\s+(module\s+)?scope")
+# Scopes - not file sets - are the disjoint thing that preserves exclusive ownership.
+_SCOPES_DISJOINT_RE = re.compile(r"(?i)scopes\s+are\s+disjoint")
 
 
 def test_coding_dispatches_one_coder_per_module_for_every_module():
     """odoo-coding launches ONE odoo-coder COORDINATOR per module - for EVERY module, with no
-    single-stack direct-to-worker bypass."""
+    single-stack direct-to-worker bypass.
+
+    The EXCLUSIVE-OWNERSHIP rule (at most one odoo-coder per module) is the invariant; the module
+    COUNT per coordinator is NOT. A coordinator's scope may span 1..N modules, asserted separately
+    in test_coding_supports_multi_module_scope."""
     body = _text(CODING)
     low = body.lower()
     assert "odoo-coder" in body, "odoo-coding must launch the odoo-coder coordinator"
@@ -322,7 +345,7 @@ def test_coding_dispatches_one_coder_per_module_for_every_module():
     )
     assert not _MULTI_CODER_PER_MODULE_INVERSION_RE.search(low), (
         "odoo-coding text asserts MORE THAN ONE odoo-coder per module, which INVERTS the "
-        "one-coordinator-per-module rule"
+        "exclusive-ownership rule (a NEGATED statement of the rule is fine and does not trip this)"
     )
     assert "every module" in low, (
         "odoo-coding must launch the coordinator for EVERY module (not just full-stack)"
@@ -336,6 +359,85 @@ def test_coding_dispatches_one_coder_per_module_for_every_module():
     assert "does not split" in low or "does NOT split".lower() in low or "not split a module into wis" in low, (
         "odoo-coding must state it does NOT split a module into WIs - the coordinator owns that."
     )
+
+
+def test_coding_supports_multi_module_scope():
+    """odoo-coding must be able to hand ONE odoo-coder a scope spanning SEVERAL modules.
+
+    Business rule: some changes cannot be completed - or verified - one module at a time (a symbol
+    introduced in one module and consumed in another, a field moved between modules, a §10
+    cross-module contract). Forcing those through separate per-module dispatches yields modules that
+    cannot go green alone. odoo-coding must therefore (a) define the scope as 1..N modules, (b) say
+    WHEN to group, and (c) keep scopes DISJOINT so exclusive ownership survives."""
+    low = _text(CODING).lower()
+    assert _SCOPE_SPANS_MODULES_RE.search(low), (
+        "odoo-coding must state the dispatch SCOPE is 1..N MODULES - without that cardinality "
+        "bound to modules (not to WIs or file sets) the per-module restriction is still in force"
+    )
+    assert _ONE_CODER_PER_SCOPE_RE.search(low), (
+        "odoo-coding must dispatch one odoo-coder per SCOPE - the dispatch unit that lets a "
+        "single coordinator own several modules"
+    )
+    assert "group modules into dispatch scopes" in low, (
+        "odoo-coding must carry the grouping step that decides which modules share a coordinator - "
+        "without it a multi-module scope is never actually formed"
+    )
+    assert "atomic across them" in low, (
+        "odoo-coding must name ATOMICITY as the grouping criterion - grouping modules for any "
+        "other reason (same wave/app/request) needlessly serialises independent work"
+    )
+    assert _SCOPES_DISJOINT_RE.search(low), (
+        "odoo-coding must state SCOPES are disjoint - the property that keeps exactly one "
+        "odoo-coder per module once a coordinator may own several (the pre-existing 'disjoint "
+        "FILE SETS' phrase is about WIs and does not carry this guarantee)"
+    )
+
+
+def test_coder_may_write_across_scope_but_not_beyond_it():
+    """odoo-coder may write across every module in its MODULE SCOPE, and must NOT write outside it.
+
+    The relaxation is real (cross-module writes allowed) but bounded: the write boundary moved from
+    'one module' to 'the claimed scope'. A coordinator that needs a module outside its scope reports
+    it up - it never self-grants, because only odoo-coding (the ledger's sole writer) can tell an
+    expansion apart from a collision with a scope it is about to dispatch."""
+    coder = _norm(LEAD)
+    low = coder.lower()
+    assert "1..n" in low and "module scope" in low, (
+        "odoo-coder must declare its MODULE SCOPE as 1..N modules"
+    )
+    assert "not restricted to one module" in low or "may span modules" in low, (
+        "odoo-coder must state it is not restricted to a single module"
+    )
+    # The bounded half: needing a module outside scope is REPORTED, never self-granted.
+    assert "needs_context(module" in low, (
+        "odoo-coder must return NEEDS_CONTEXT naming a module required but absent from MODULE "
+        "SCOPE - a coordinator that silently writes into an unclaimed module breaks exclusive "
+        "ownership for every concurrent run"
+    )
+    assert "sole writer" in low or "never claims or writes" in low or "ledger-unaware" in low or (
+        "odoo-coding" in low and "claims every module" in low
+    ), (
+        "odoo-coder must defer ledger claiming to odoo-coding rather than claiming for itself"
+    )
+    # One commit for the whole scope - a per-module commit could leave a non-building intermediate.
+    assert "one commit" in low, (
+        "odoo-coder must commit its whole scope as ONE commit - splitting an atomic cross-module "
+        "change into per-module commits produces a history where an intermediate commit does not build"
+    )
+
+
+def test_leaf_workers_accept_a_multi_module_scope():
+    """The three hard leaves must accept a MODULE SCOPE listing several modules and still refuse to
+    write outside the listed set - the relaxation has to reach the actors that hold the pen."""
+    for label, path in (("backend", BACKEND), ("frontend", FRONTEND), ("test-writer", TEST_WRITER)):
+        low = _norm(path).lower()
+        assert "one or more" in low or "several modules" in low, (
+            f"{label}: must accept a MODULE SCOPE listing more than one module - otherwise the "
+            f"cross-module scope stops at the coordinator and never reaches the writer"
+        )
+        assert "only within" in low, (
+            f"{label}: must still forbid writing outside the modules MODULE SCOPE lists"
+        )
 
 
 def test_orchestration_ssot_reflects_module_primary_topology():

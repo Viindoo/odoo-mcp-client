@@ -16,31 +16,45 @@ instead of restating it.
 
 The decomposition has exactly TWO tiers, and the work-item (WI) lives on ONLY the inner one:
 
-- **OUTER tier = the MODULE.** The unit of planning, of a wave, and of a RUN is the module.
-  `odoo-planning` batches the module-DAG into waves; `run-harness` groups a wave's modules into one
-  `wave` RUN-DAG node and iterates the wave's MODULES via its between-wave integration; `odoo-coding`
-  dispatches ONE `odoo-coder` per module. NO layer at or above `odoo-coding` (planning, `odoo-planner`,
-  plan-mode-schema, Phase P, `run-harness`) knows the term "work-item" - the outer unit
-  is always the module.
-- **INNER tier = the WORK-ITEM (WI), owned by `odoo-coder`, INTERNAL to one module.** For its ONE
-  module, `odoo-coder` splits the changes into 1..N WIs by DISJOINT file sets, schedules INDEPENDENT
+- **OUTER tier = the MODULE SCOPE - 1..N modules owned by ONE `odoo-coder`.** The unit of planning
+  and of a wave is still the MODULE (`odoo-planning` batches the module-DAG into waves; `run-harness`
+  iterates a wave's MODULES). What is NOT capped at one is how many modules a single `odoo-coder`
+  dispatch covers: `odoo-coding` dispatches ONE `odoo-coder` per MODULE SCOPE, and a scope is 1..N
+  modules - one module being the common case, behaving exactly as a per-module dispatch always did.
+  NO layer at or above `odoo-coding` (planning, `odoo-planner`,
+  plan-mode-schema, Phase P, `run-harness`) knows the term "work-item" - the outer unit is always
+  expressed in MODULES.
+- **INNER tier = the WORK-ITEM (WI), owned by `odoo-coder`, INTERNAL to its scope.** For its scope,
+  `odoo-coder` splits the changes into 1..N WIs by DISJOINT file sets, schedules INDEPENDENT
   WIs in PARALLEL and DEPENDENT WIs SEQUENTIALLY (a frontend WI that binds a backend WI runs after
-  it - the backend-before-frontend intra-module order), and assigns each WI to the right worker
-  (backend files -> `odoo-backend-coder`, frontend files -> `odoo-frontend-coder`). One module ->
-  1..N WIs.
+  it - the backend-before-frontend order), and assigns each WI to the right worker
+  (backend files -> `odoo-backend-coder`, frontend files -> `odoo-frontend-coder`). A WI MAY span
+  several modules of the scope when the change is atomic across them - splitting such a change per
+  module only manufactures a red intermediate state. One scope -> 1..N WIs.
 
-This two-tier split is what keeps the outer DAG conflict-free: because the outer unit is the module
-and `odoo-coder` owns its single module end-to-end (one worktree, one integrated test, one
-coordination-ledger entry), a WI can never slice two coders across the same module, span two modules
-in different waves, or split a module's ledger entry between owners. The WI is `odoo-coder`'s PRIVATE
-unit and MUST NOT surface to planning / `run-harness`. **Invariant:** the PLAN is the
+**Why a scope may span modules.** Some changes CANNOT be completed by editing one module - a symbol
+introduced in one and consumed in another, a field moved between them, a §10 cross-module contract:
+the behavior exists only once both sides land, so split across dispatches neither module goes green
+alone and no coordinator holds an honest verdict. One scope puts change and verification in ONE owner.
+
+**Ownership invariant (the load-bearing rule - not the module count).** A module is WRITTEN by
+exactly ONE `odoo-coder` at a time; two coordinators on one module would corrupt the ledger, collide
+two worktrees on a file, and make a cherry-pick drop or duplicate work. Enforced at RUNTIME by the
+ledger CLAIM over every module in a scope, not only NEW ones
+(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`), never by a static
+one-module-per-coordinator cap. `odoo-coding` is the ledger's sole writer: a coordinator needing a
+module outside its scope REPORTS it and is re-dispatched with an expanded scope, never self-granting.
+
+So `odoo-coder` owns its scope end-to-end (one worktree, one integrated test, one commit) and a WI
+can never slice two coders across one module. The WI is `odoo-coder`'s PRIVATE unit and
+MUST NOT surface to planning / `run-harness`. **Invariant:** the PLAN is the
 shared computed result - `odoo-planning` is the canonical PRODUCER of the wave-batched module-DAG;
 `odoo-coding` (and `run-harness`'s between-wave integration) CONSUME that plan and call the algorithm here DIRECTLY only
 when running STANDALONE (no plan provided), each computing independently (no shared result or
-cache). Skipping the module axis is the
-root of ordering
-conflicts: work-items that ignore module boundaries get dispatched before the module they build on
-exists.
+cache). Skipping the module axis entirely is still the root of ordering conflicts: work that ignores
+module boundaries ALTOGETHER gets dispatched before the module it builds on exists. Spanning module
+boundaries INSIDE one owned scope is the sanctioned case - it is exactly what keeps the atomic change
+in a single owner's hands.
 
 ## Compute the graph (OSM is ground truth)
 

@@ -1270,11 +1270,11 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-coder (per-module COORDINATOR - launched for EVERY module; the sanctioned nested spawner that owns the module's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the integrated module via odoo-instance INLINE, and returns files for odoo-coding to commit - a nested spawner-coordinator one level below odoo-coding)",
+        "odoo-coder (SCOPE COORDINATOR - launched once per module scope, so exactly ONE odoo-coder per module while a scope itself may span 1..N modules that must change together; the sanctioned nested spawner that owns its scope's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the integrated scope via odoo-instance INLINE, and commits the whole scope as ONE commit via git-toolkit:git-ops, returning the SHA + the modules it covers to odoo-coding - a nested spawner-coordinator one level below odoo-coding)",
         "odoo-test-writer (hard leaf - launched FIRST by the odoo-coder coordinator per WI to author the RED test, before the coder makes it green; authors by invoking the odoo-test-writing skill inline)",
         "odoo-backend-coder (hard leaf - launched by the odoo-coder coordinator for a backend work-item)",
         "odoo-frontend-coder (hard leaf - launched by the odoo-coder coordinator for a frontend work-item)",
-        "(dispatch: ONE odoo-coder per module; model-weighted subagent batches, explicit model per module per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
+        "(dispatch: ONE odoo-coder per module scope - never more than one odoo-coder per module; model-weighted subagent batches, explicit model per scope per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "fullstack",
       "instance_touching": false,

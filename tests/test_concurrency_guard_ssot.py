@@ -106,8 +106,14 @@ def test_odoo_coding_gate_table_shows_depth_not_the_model_tier_name():
     tier-resolution table is still asserted intact, and one NEW assertion is added on top: no raw
     tier name may appear inside the block that gets emitted to the user."""
     text = _skill_text("odoo-coding")
-    assert re.search(r"\|\s*module\s*\|\s*stack\s*\|\s*wave\s*\|\s*depth\s*\|", text), (
-        "odoo-coding gate table must still carry the per-module cost/depth column - dropping it "
+    # The protected signal is the DEPTH column sitting beside the work unit, stack and wave - not
+    # the first column's label. That first column names the dispatch unit, which is now the module
+    # SCOPE (1..N modules) rather than a single module, so accept either heading; pinning the literal
+    # word "module" would fail a pure rename while a silently dropped depth column still slipped by.
+    assert re.search(
+        r"\|\s*(module|scope \(modules\))\s*\|\s*stack\s*\|\s*wave\s*\|\s*depth\s*\|", text
+    ), (
+        "odoo-coding gate table must still carry the per-scope cost/depth column - dropping it "
         "hides a real cost decision from the human at the gate"
     )
     gate = _gate_block(text)

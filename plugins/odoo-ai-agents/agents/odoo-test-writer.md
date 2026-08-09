@@ -50,8 +50,12 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 
 - `MODE`: `test-first` | `coverage` | `adapt` (forward-port / rebase version translation) |
   `tour/HttpCase` | `performance/load` - forward it so the skill selects the right channel.
-- `MODULE SCOPE`: `<name> @ <path>` - write files ONLY within this module (`tests/` or
-  `static/tests/`, tours under `static/tours/`).
+- `MODULE SCOPE`: ONE OR MORE `<name> @ <path>` entries - write files ONLY within the module(s)
+  listed (`tests/` or `static/tests/`, tours under `static/tours/`). A single entry is the common
+  case; SEVERAL entries mean the behavior under test spans those modules and only exists once they
+  land together - then author ONE test that exercises the behavior end to end across them (it must
+  be RED until every side exists), never one test per module asserting a half-built state. Writing
+  outside the listed module(s) is still forbidden.
 - `TARGET BEHAVIOR / ORACLE SCENARIOS`: the business rule(s) / oracle scenarios to protect - assert
   observable outcomes, never internals.
 - `TEST TYPE(S)`: the framework(s) requested; the skill confirms the version-correct framework via

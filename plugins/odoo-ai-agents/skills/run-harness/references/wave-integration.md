@@ -8,7 +8,9 @@ invocation.
 > user-invocable skill. run-harness is consume-only: it CONSUMES the plan's MODULE list +
 > wave-batched module-DAG + topology + **Block 2W** worktree lineage and INVOKES `odoo-coding` per
 > module; it never self-derives a plan and never chooses agent/model. The outer unit is the MODULE;
-> the work-item is `odoo-coder`'s INTERNAL intra-module unit and never appears here. run-harness
+> the work-item is `odoo-coder`'s INTERNAL unit and never appears here. `odoo-coding` MAY group
+> modules that must change together into one `odoo-coder` scope - that grouping is internal to
+> `odoo-coding` and does not change the MODULE nodes run-harness reasons about. run-harness
 > owns the between-wave integration directly (there is no separate git-executor skill).
 
 ---
@@ -69,7 +71,7 @@ Notes:
 
 Choose from the plan's Block-2 module-DAG (independent / linear / mixed / diamond / single). run-harness does
 NOT re-derive the topology - `odoo-planning` produces it; this is the reference for reading it. The
-nodes are MODULES (the outer unit); the intra-module work-item split is `odoo-coder`'s PRIVATE
+nodes are MODULES (the outer unit); the work-item split is `odoo-coder`'s PRIVATE
 concern and never a topology node here.
 
 ### Independent (most common)
@@ -483,8 +485,11 @@ Return: the commit SHA(s) on the module's branch (REQUIRED - a DONE with no SHA 
 Pseudocode for the between-wave integration loop. Referenced from SKILL.md § Between-wave
 integration. Key property: run-harness does NOT dispatch anonymous workers and owns no weighted
 budget - it INVOKES the `odoo-coding` SKILL per MODULE (which owns its own coder count + Mode-B
-budget), and the `odoo-coder` coordinator COMMITS its module via `git-toolkit:git-ops` and returns
-the SHA, which run-harness cherry-picks. Because a Skill invocation loads in the single orchestrating
+budget), and the `odoo-coder` coordinator COMMITS its scope via `git-toolkit:git-ops` and returns
+the SHA plus the modules that SHA covers, which run-harness cherry-picks. When a returned SHA covers
+SEVERAL modules (`odoo-coding` grouped them because the change is atomic across them), cherry-pick
+that SHA ONCE and treat every module it covers as integrated - never dispatch `odoo-coding` a
+SECOND time for a module an integrated SHA already covers, and never split such a commit per module. Because a Skill invocation loads in the single orchestrating
 context, MODULES are processed SEQUENTIALLY in module-DAG order; the parallel fan-out (and the
 intra-module work-item split) lives INSIDE each `odoo-coding` invocation.
 

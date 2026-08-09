@@ -3,10 +3,10 @@ name: odoo-coding
 argument-hint: "[what to build or change]"
 description: >
   Use when someone wants to build or change Odoo behavior and needs the code written - the
-  single front door for ALL Odoo coding and the ONLY dispatcher of the per-module odoo-coder
-  coordinator, scoping modules and ordering by dependency. Fire on ANY request to add or change
+  single front door for ALL Odoo coding and the ONLY dispatcher of the odoo-coder scope
+  coordinator, ordering modules by dependency and grouping ones that must change together. Fire on ANY request to add or change
   something in an Odoo module, even with no technical words (e.g. "discount can never exceed 20%
-  of unit price", "ticking urgent sets the deadline to tomorrow"): new model/field,
+  of unit price"): new model/field,
   computed/related field, constraint, onchange/auto-fill, create/write/unlink override, access
   rights, migration script, OWL/JS/QWeb/SCSS widget or form/list/kanban UI. Also Vietnamese:
   "thêm trường / model", "override create/write", "ràng buộc", "onchange tự điền", "phân quyền
@@ -19,25 +19,31 @@ description: >
 ## Role
 
 Developer - full-stack Odoo coder (all versions, v8 onward). Orchestrates by MODULE: it scopes the
-touched modules, orders them by the module-DAG, assigns a model tier per module, and dispatches
-**ONE `odoo-coder` COORDINATOR per module** (every module - backend-only, frontend-only, or
-full-stack). The `odoo-coder` coordinator owns the module's INTERNAL work-item (WI) breakdown: for
-its ONE module it splits the changes into 1..N WIs by DISJOINT file sets, schedules INDEPENDENT WIs
+touched modules, orders them by the module-DAG, groups them into DISPATCH SCOPES, assigns a model
+tier per scope, and dispatches **ONE `odoo-coder` COORDINATOR per scope** - so exactly ONE
+`odoo-coder` per module, never two, while a single coordinator MAY own several modules at once. A
+scope is 1..N modules: one module is the common case, several when the change is ATOMIC across them
+and cannot go green module-by-module (§ Group modules into dispatch scopes). Every module is covered
+- backend-only, frontend-only, or full-stack. The `odoo-coder` coordinator owns its scope's INTERNAL
+work-item (WI) breakdown: it splits the changes into 1..N WIs by DISJOINT file sets (a WI MAY span
+modules of its scope when the change is atomic across them), schedules INDEPENDENT WIs
 in PARALLEL and DEPENDENT WIs SEQUENTIALLY (a frontend WI that binds a backend WI runs after it - the
 backend-before-frontend order), assigns each WI to the right worker (backend files ->
-`odoo-backend-coder`, frontend files -> `odoo-frontend-coder`), and owns the integrated whole-module
-test. This skill does NOT split a module into WIs and does NOT sequence backend/frontend - that is
+`odoo-backend-coder`, frontend files -> `odoo-frontend-coder`), and owns the integrated whole-scope
+test plus ONE commit for the scope. This skill does NOT split a scope into WIs and does NOT sequence
+backend/frontend - that is
 `odoo-coder`'s job (SSOT for the two-tier axis:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis - the
-OUTER unit here is the module, the WI is `odoo-coder`'s INTERNAL unit).
+OUTER unit here is the module scope, the WI is `odoo-coder`'s INTERNAL unit).
 
 Pair-works with `odoo-code-review` for review.
 
 **Sole dispatcher (single source of truth for coding fan-out).** This skill is the ONLY component
-that computes the module dependency order + the model tier and launches the `odoo-coder`
-coordinator (one per module). Any other skill that needs Odoo code written routes its coding work
+that computes the module dependency order + the scope grouping + the model tier and launches the
+`odoo-coder` coordinator (one per scope, so never more than one `odoo-coder` per module). Any other
+skill that needs Odoo code written routes its coding work
 HERE via the Skill tool (passing its context in the brief) instead of launching the coder agents
-itself. The intra-module WI split + the backend-before-frontend order are owned by the `odoo-coder`
+itself. The WI split + the backend-before-frontend order are owned by the `odoo-coder`
 coordinator, not here.
 
 ## Out of Scope
@@ -217,7 +223,33 @@ dependent module runs in a **later wave**. The disk fallback (haiku reader of ea
 descriptor's `depends` - BOTH names - plus a `static/src` scan, labelled "graph from disk (OSM
 unavailable)") lives in that SSOT.
 
-**5. Assign a model tier per module (deterministic - no judgment call mid-flow).**
+**4b. Group modules into DISPATCH SCOPES (default: one module per scope).** A scope is the module
+set ONE `odoo-coder` will own end to end. Walk the target modules and put two (or more) in the SAME
+scope when the change CANNOT be completed - or verified - by editing them separately:
+
+- a symbol (field, method, model, XML ID, asset) is INTRODUCED in one module and CONSUMED by another
+  in the same change, so neither side is green until both land;
+- a field/model/behavior MOVES between modules (the source loses it in the same change the target
+  gains it);
+- the master TDD's §10 cross-module contracts bind them (shared-symbol ownership, a dep-direction
+  change, an integration-module rule) such that honoring the contract requires editing both;
+- a new module and the existing module that must depend on / register it ship together.
+
+Otherwise keep them in SEPARATE scopes - that is the DEFAULT and it preserves parallelism. Do not
+merge modules into one scope merely because they are in the same wave, the same app, or the same
+request: an unnecessary merge serialises work that could have run in parallel and enlarges one
+coordinator's blast radius for no gain.
+
+**Two hard rules on grouping.** (1) Scopes are DISJOINT: every target module belongs to exactly ONE
+scope, so exactly one `odoo-coder` ever owns a module - never more than one `odoo-coder` per module.
+(2) A scope must be DAG-CONSISTENT: if it contains a module, it must not sit "across" a module it
+depends on that is in a DIFFERENT scope scheduled LATER. Merge the dependency in, or order the
+scopes so the dependency's scope runs first. Record each scope's module list in plan.md - a later
+review / fix / resume step re-dispatches from it.
+
+**5. Assign a model tier per scope (deterministic - no judgment call mid-flow).**
+Read "module" below as "the scope" - a multi-module scope takes the HIGHEST tier any of its modules
+resolves to (the coordinator reasons across all of them at once, so the hardest module sets the bar).
 Every dispatch in this skill passes an explicit `model`. Resolve the tier for each
 module by walking this table TOP-DOWN and stopping at the FIRST match.
 When a design doc is present, its effort tier takes precedence over the heuristics. The bar for
@@ -309,10 +341,13 @@ return their summaries pre-mirrored:
 ```
 Proposed: <one-line summary of the change>.
 Plan:
-  | module | stack     | wave | depth    | test        | files (intended) |
-  | <m1>   | backend   | 1    | quick    | test-writer | <m1>/models/*.py, <m1>/<descriptor> |
-  | <m2>   | fullstack | 1    | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, <m2>/<descriptor> |
-  | <m3>   | frontend  | 2    | standard | test-writer | <m3>/static/src/*.js (depends on <m1>) |
+  | scope (modules) | stack     | wave | depth    | test        | files (intended) |
+  | <m1>            | backend   | 1    | quick    | test-writer | <m1>/models/*.py, <m1>/<descriptor> |
+  | <m2>            | fullstack | 1    | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, <m2>/<descriptor> |
+  | <m4> + <m5>     | fullstack | 1    | standard | test-writer | <m4>/models/*.py, <m5>/static/src/*.js - one scope: <m5> binds a field <m4> adds, so neither is green alone |
+  | <m3>            | frontend  | 2    | standard | test-writer | <m3>/static/src/*.js (depends on <m1>) |
+Each row is ONE coder working end to end; a row with several modules changes them together in one
+commit because the change is not complete until all of them land.
 depth = how much reasoning each module gets, and what it costs: quick (cheapest, mechanical
      edits) < standard (the default) < deep (costlier - multi-domain, many dependents) <
      deepest (rare, ~2x deep, and always asked separately). Reply `refine:` to change one.
@@ -330,21 +365,30 @@ during execution.
 
 On `approve`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
-## Execution - dispatch ONE odoo-coder per module (model-weighted batches)
+## Execution - dispatch ONE odoo-coder per scope (model-weighted batches)
 
 The coder agents run as autonomous agents - never inline codegen in main, never via the Skill tool.
-Launch **ONE `odoo-coder` COORDINATOR PER MODULE** (every module, whatever its stack tag; launch the
+Launch **ONE `odoo-coder` COORDINATOR PER SCOPE** - which is exactly ONE `odoo-coder` per module,
+since scopes are disjoint and cover every module, whatever its stack tag (launch the
 agent by name; if a short name fails to resolve, retry with the plugin-qualified form
 `odoo-ai-agents:odoo-coder`):
 
-- **any module (backend-only, frontend-only, or fullstack)** -> launch ONE `odoo-coder` per-module
-  COORDINATOR. It coordinates the module end to end: it splits the module into 1..N INTERNAL WIs by
-  disjoint file sets, schedules independent WIs in parallel and dependent ones sequentially (backend
+- **any scope (backend-only, frontend-only, or fullstack; one module or several)** -> launch ONE
+  `odoo-coder` COORDINATOR. It coordinates the scope end to end: it splits it into 1..N INTERNAL WIs by
+  disjoint file sets (a WI MAY span the scope's modules when the change is atomic across them),
+  schedules independent WIs in parallel and dependent ones sequentially (backend
   before a frontend that binds it), launches `odoo-backend-coder` for each backend WI and
-  `odoo-frontend-coder` for each frontend WI, owns the integrated whole-module test + the bounded fix
-  loop, and RETURNS the aggregated file list to this skill. You do NOT launch the worker agents
+  `odoo-frontend-coder` for each frontend WI, owns the integrated whole-scope test + the bounded fix
+  loop, commits the scope as ONE commit, and RETURNS the aggregated file list + the SHA + **the list
+  of modules that SHA covers** to this skill. You do NOT launch the worker agents
   yourself and you do NOT decide the WI split - the coordinator does. The stack tag is passed to the
-  coordinator as a hint; a single-stack module simply yields one-or-more same-stack WIs.
+  coordinator as a hint; a single-stack scope simply yields one-or-more same-stack WIs.
+- **A coordinator may EXPAND its scope** by claiming an additional module in the coordination ledger
+  when the change turns out to need one (§ Dependency-BLOCKED handling + the module-coordination
+  ledger). Read the returned module list, not your dispatch brief, as the truth of what moved:
+  reconcile it against your plan.md scope map, and if an expansion overlaps a scope you have not
+  dispatched yet, drop that module from the later scope rather than dispatching a second coordinator
+  over it.
 
 Do NOT build a Claude Code Workflow (JS) script for this - all fan-out is real agent launches;
 narrating a dispatch in prose instead of launching the agent is not allowed.
@@ -416,14 +460,15 @@ resume whenever the coordinator to reach was dispatched by a DIFFERENT, already-
 invocation that this run holds no record of - the caller's brief, not this run's own plan.md, is
 what carries that identity across the invocation boundary.
 
-1. Order modules so every module appears after its in-set dependencies (the wave column already
-   encodes this).
-2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = the
-   dependency module's `odoo-coder` coordinator reported all its WIs green + the integrated
-   whole-module test passed) and whose summed WEIGHT stays <= 8. A
+1. Order SCOPES so every scope appears after the scopes carrying its in-set dependencies (the wave
+   column already encodes this; § Group modules into dispatch scopes rule 2 guarantees no scope
+   straddles a later-scheduled dependency).
+2. Greedily pack the next batch: take scopes in order whose dependencies are all done (done = the
+   dependency scope's `odoo-coder` coordinator reported all its WIs green + the integrated
+   whole-scope test passed) and whose summed WEIGHT stays <= 8. A
    fable item always forms a batch of ONE.
 3. Fire the whole batch as parallel agent launches in a SINGLE message, ONE `odoo-coder` coordinator
-   per module (the coordinator internally splits the module into WIs, sequences backend-before-frontend,
+   per scope (the coordinator internally splits its scope into WIs, sequences backend-before-frontend,
    and runs the integrated test - you do not fire the worker agents or decide the WI split yourself).
    When Tier A is in effect, give each launch its stable `name` and record the returned `agentId` in
    plan.md as you go. A module whose brief carries `WORKER NAME` uses that value as its stable
@@ -479,13 +524,25 @@ batch map, the DONE barrier, and (now) the coordination ledger. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (`LEDGER_ROOT` = `<SHARE_DIR>/coordination/modules`,
 `SHARE_DIR` via `resolve_project_dir.sh share` - shared across every linked worktree and concurrent
 run; do NOT restate the resolution recipe here).
-For each NEW in-scope module (a module resolving to neither OSM nor disk per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`), before dispatching its coder:
+Claim **every module of a scope before dispatching that scope's coordinator** - not only NEW ones
+(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` § What gets claimed). This is what
+makes exactly-one-coordinator-per-module an enforced fact now that a coordinator may own several
+modules. A NEW in-scope module (one resolving to neither OSM nor disk per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`) additionally drives the decision table
+below; an EXISTING module's claim is ownership-only. For each, before dispatching its coordinator:
 
 - CLAIM it with the atomic `mkdir "$LEDGER_ROOT/$MODULE"` (winner writes `entry.json` status
-  `claimed`; a loser reads the existing entry and classifies via the decision table below);
-- flip `claimed` -> `building` when its coder is dispatched, -> `done` on the module's DONE, ->
+  `claimed`; a loser reads the existing entry and classifies via the decision table below). A scope
+  whose claim is LOST on ANY of its modules is not dispatchable as planned: never dispatch a
+  coordinator over a partially-claimed scope - resolve the contested module first (drop it and
+  re-plan the scope, or classify + BLOCK), then dispatch;
+- flip `claimed` -> `building` when its coordinator is dispatched, -> `done` when the scope's DONE
+  lands (every module the returned SHA covers flips together - the commit is atomic), ->
   `failed` on a terminal BLOCK;
+- on a coordinator's `NEEDS_CONTEXT(module <m> required but not in MODULE SCOPE)`, attempt the claim
+  for `<m>` and re-dispatch the SAME coordinator with `<m>` added to its `MODULE SCOPE` on a win;
+  on a loss, classify `<m>` via the decision table like any other contested module. Record the
+  expansion in plan.md and remove `<m>` from any not-yet-dispatched scope;
 - refresh `heartbeat_at` on EVERY dispatch-loop tick for each module this run is currently building.
 
 The hard-leaf `odoo-backend-coder`/`odoo-frontend-coder` workers stay ledger-unaware; only the
@@ -526,8 +583,9 @@ Coder brief (target = the `odoo-coder` coordinator for the module):
 DISPATCH MODEL: <tier>
 WORKER NAME: <name> - OPTIONAL, present only when the caller pre-assigns a stable CHP Tier-A identity for this module's coordinator across separate `odoo-coding` invocations (e.g. a forward-port run resuming the same module's coordinator across separate source commits touching it). Same field shape as the P8a `odoo-test-writer` name in `odoo-forward-port` - a NAME, never an agentId. When present, use THIS as the coordinator's stable Tier-A `name` in step 0/3 below INSTEAD of self-generating `coder-<module-slug>`: if a worker under this name is already addressable, resume it via `SendMessage`; otherwise spawn fresh under this name. Absent (every caller that does not opt in - today's default) -> proceed exactly as documented below: self-generate `coder-<module-slug>`.
 REQUEST: <the change for this module: target model + constraints (+ frontendRequest for a frontend WI)>
-STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
-MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its descriptor / static assets). Resolve the descriptor filename ONCE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one the module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
+STACK: <backend | frontend | fullstack - the union across the scope's modules; a hint for the coordinator's WI split, it decides the actual 1..N WIs>
+SCOPE RATIONALE: <why these modules share one coordinator - the atomic dependency that makes them inseparable; OMIT for a single-module scope>
+MODULE SCOPE: ONE OR MORE `<name> @ <path>` entries (comma- or newline-separated) - the modules this coordinator OWNS and may write across (+ their descriptors / static assets). A single entry is the common case; several mean the change is atomic across them and must land together. Write ONLY within the modules listed - needing another one is legitimate, but claim it in the coordination ledger first and report the expansion, never write into it unclaimed. Resolve the descriptor filename ONCE PER MODULE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one that module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
 WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
@@ -614,7 +672,8 @@ doc referenced. The agents write source directly; `plan.md` records what was bui
 review / fix / resume step can pick up without recomputing the graph. `<slug>` derives from the
 change (branch, feature name, or the module set).
 
-plan.md MUST record, per module: stack, wave, the model tier chosen
+plan.md MUST record, per SCOPE: the scope's module list (and any module a coordinator later
+claimed to EXPAND its scope, so the map stays the truth of who owns what), stack, wave, the model tier chosen
 (and frontendModel when split), the dispatch path (subagent launch), the per-module
 result status, and the `agentId` (when CHP Tier A is in effect - plan.md is the agentId
 registry per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`; omit when Tier C).
