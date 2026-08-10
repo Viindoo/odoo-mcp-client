@@ -6,6 +6,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.24.2] - 2026-08-10
+
+4.24.1's two fixes were verified by actually driving the plugin against a live Odoo 17 instance.
+The verification passed - and exposed five further defects, all one story: a throwaway instance was
+not actually isolated, and nothing reliably noticed when a run finished or a resource was left
+behind. Every fix here came out of that run, not out of a code read.
+
+### Fixed
+
+- `odoo-ai-agents` - **`--mode ephemeral` silently handed back the declared, long-lived database.**
+  The CREATEDB probe shelled out to `psql`; on any host where Postgres runs only in a container
+  there is no libpq client on PATH, so the probe always failed and the allocator quietly reassigned
+  the request to `exclusive` mode on the shared database - the exact opposite of the isolation
+  ephemeral exists to provide. The role genuinely had CREATEDB the whole time. The capability is now
+  answered by a query over the connection Odoo itself resolves, so no client binary is involved, and
+  an `ephemeral` request has exactly two outcomes: it succeeds as ephemeral, or it writes no lease
+  and refuses with exit `6` (the role lacks CREATEDB) or `7` (the capability is undeterminable).
+  Closes #212.
+- `odoo-ai-agents` - **the replacement probe could hang forever.** It ran with no time bound, and
+  Odoo's own connection layer sets no libpq timeout on any series, so a paused or firewalled cluster
+  made `acquire` return nothing at all - no lease, no verdict, no exit code. Worse than the wrong
+  answer it replaced. Every Postgres-touching probe is now wall-clock bounded under one policy, and
+  "could not answer in time" is reported as undeterminable, never as a factual no.
+- `odoo-ai-agents` - **a docker daemon error was recorded as a durable fact.** Detection discarded
+  the exit status, so "I could not ask" and "no container publishes that port" were indistinguishable
+  and both were written to the catalog as `tcp-only`. Running setup before starting the cluster
+  poisoned the catalog until someone re-ran registration by hand. Ambiguity now refuses and writes
+  nothing; a stopped-but-publishing container is named instead of silently misfiled.
+- `odoo-ai-agents` - **the function whose only job was bounding a probe could spin forever.** A
+  zero-padded timeout hit bash's octal parsing, the comparison never became true, and the loop ran
+  unbounded with the child alive. The bound is now wall-clock based and a non-numeric bound refuses.
+- `odoo-ai-agents` - **a failed raw database drop deleted the lease while the database survived**,
+  creating an orphan that `reap-orphans` can never find, because it excludes any database a lease
+  references. A lease whose environment predates this release is now re-resolved from the current
+  catalog at release time, with `release --force-forget` as a documented, loud escape.
+- `odoo-ai-agents` - **a value containing `"` or `\` made the host's instance catalog unparseable**,
+  silently and with a success exit. Every consumer - allocator, all five setup steps, the teardown
+  hook - then failed until a human repaired the file by hand. Values are escaped and the catalog is
+  published atomically.
+- `odoo-ai-agents` - **the instance agent stopped waiting and reported nothing.** A real blocking
+  helper existed but the prose called it "preferred", never overrode the harness's own do-not-poll
+  default, and the skill file dropped its name entirely - so the agent ended its turn on prose while
+  the build had already finished, and a human had to read the log and feed the result back. The
+  blocking foreground call is now mandatory and spelled out, and both files state it identically.
+- `odoo-ai-agents` - **the wait could report success before the tests ran.** `Modules loaded.` is
+  logged before post-install tests start, and the waiter scanned no test marker at all. Logs now
+  identify the verb that wrote them and the waiter resolves the matching terminal signal.
+- `odoo-ai-agents` - **the teardown gate only fired on a literal `status: DONE`.** An agent that
+  ended its turn with no status at all sailed through and leaked a lease, which then blocked every
+  concurrent acquire on that database until a one-hour TTL expired. The gate now blocks any turn end
+  that neither reports a stopped run nor forwards a named handoff.
+- `odoo-ai-agents` - **a per-module test verdict was decided by other modules' tests.** Odoo's
+  auto-install fan-out pulled dozens of unrelated modules into a single-module verification. The run
+  is deliberately NOT narrowed - suppressing tests manufactures a false green - but the scope is now
+  reported: modules actually installed and tests actually run come back as facts, and a verdict
+  decided outside the module under verification says so.
+- `odoo-ai-agents` - a setting documented with a default that no code anywhere read has been removed.
+
+### Changed
+
+Three behaviour changes a patch label does not advertise on its own:
+
+- `--mode ephemeral` acquires that succeeded before can now refuse. Exit `7` fires for an instance
+  whose catalog entry predates this release on a source checkout, and for a container-run Odoo that
+  declares no interpreter. The remedy is named in the message: `45-venv.sh record-env --series <X.Y>`.
+  `--no-create` remains a probe-free escape.
+- The teardown gate widened from `DONE` to every turn end except a `BLOCKED`/`NEEDS_CONTEXT` report
+  or a forwarded `INSTANCE_HANDLE`. A subagent that used to end on a bare `NEEDS_NEXT`, or on no
+  status, is now blocked while it still holds a live lease.
+- `instances.toml` gains `db_run_mode`, `db_container` and `odoo_root`, written automatically at
+  registration; `release` and `gc` can now legitimately fail and keep a lease where they previously
+  always reported success.
+
 ## [4.24.1] - 2026-08-10
 
 Two defects with one root cause: the plugin instructed executing agents to do things the platform
