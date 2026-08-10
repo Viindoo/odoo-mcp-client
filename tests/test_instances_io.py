@@ -356,3 +356,83 @@ def test_read_cli_catalog_path_does_not_exist_stays_a_silent_genuine_miss(tmp_pa
     assert result.returncode == 1
     assert result.stdout == ""
     assert result.stderr == "", "an absent catalog is a normal miss, not a diagnostic-worthy error"
+
+
+# --------------------------------------------------------------------------- #
+# Environment facts recorded by 45-venv.sh: odoo_root, db_run_mode, db_container
+#
+# All three follow the db_port precedent EXACTLY: ABSENT is a real value, emitted
+# as the empty string. A fabricated default would be worse than nothing here -
+# a guessed `db_run_mode` sends a client binary at a cluster nobody named, and a
+# guessed `odoo_root` puts the wrong checkout on sys.path.
+# --------------------------------------------------------------------------- #
+_NEW_ENV_EMITS = ("INST_ODOO_ROOT", "INST_DB_RUN_MODE", "INST_DB_CONTAINER")
+
+
+def test_cmd_read_emits_the_environment_facts_when_declared(tmp_path):
+    """A catalog that declares them must surface all three to shell consumers."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        db_port = 5544
+        run_mode = "source"
+        addons_path = ["/fake/addons"]
+        python = "/fake/venv/bin/python"
+        odoo_root = "/fake/core"
+        db_run_mode = "docker"
+        db_container = "declared-by-the-user"
+    """))
+    out = _run_read(toml, "17.0")
+    assert out["INST_ODOO_ROOT"] == "/fake/core"
+    assert out["INST_DB_RUN_MODE"] == "docker"
+    assert out["INST_DB_CONTAINER"] == "declared-by-the-user"
+
+
+@pytest.mark.parametrize("key", _NEW_ENV_EMITS)
+def test_cmd_read_emits_empty_not_a_guess_when_the_fact_is_absent(tmp_path, key):
+    """A catalog written before these keys existed is VALID. Each key must still be
+    emitted (so `eval`-ing consumers never hit an unset variable) and must be
+    EMPTY - never a plausible-looking default."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        run_mode = "source"
+        addons_path = ["/fake/addons"]
+    """))
+    out = _run_read(toml, "17.0")
+    assert key in out, f"{key} must ALWAYS be emitted, even when undeclared"
+    assert out[key] == "", (
+        f"{key} must be empty when undeclared; got {out[key]!r}. An absent "
+        "environment fact is a real value - guessing one sends an operation at a "
+        "resource nobody declared."
+    )
+
+
+def test_absent_db_run_mode_is_never_emitted_as_a_vocabulary_value(tmp_path):
+    """Specifically: absent must NOT be normalized to `tcp-only` (or any other
+    member of the vocabulary) at read time. The distinction is load-bearing -
+    `tcp-only` is a positive declaration that there is no client surface, while
+    absent means nothing has been recorded yet, and only the latter permits the
+    narrowly-scoped legacy shim in the drop path."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        run_mode = "source"
+        addons_path = ["/fake/addons"]
+    """))
+    out = _run_read(toml, "17.0")
+    assert out["INST_DB_RUN_MODE"] not in ("tcp-only", "native", "docker"), (
+        "an undeclared client surface must stay undeclared at read time"
+    )

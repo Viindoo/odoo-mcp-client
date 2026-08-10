@@ -57,6 +57,47 @@ _ARTIFACT_POINTER_TOKENS = re.compile(
     re.IGNORECASE,
 )
 
+# A sentence that DENIES the pointer is a key of this family, rather than requiring
+# it. Without this distinction a bare substring search is satisfied by the very
+# sentence that says the token is NOT part of the brief - the guard then passes on
+# text asserting the opposite of what it checks for.
+_ARTIFACT_POINTER_DENIAL = re.compile(
+    r"not\s+(?:a\s+)?keys?\b|never\s+(?:be\s+)?required|are\s+never\s+required|"
+    r"never\s+a\s+STOP|emitting\s+none|no\s+artifact[- ]path",
+    re.IGNORECASE,
+)
+# What makes a denial a DECISION rather than an oversight: it states what happens
+# when the field is absent.
+_ARTIFACT_POINTER_DISPOSITION = re.compile(
+    r"never\s+a\s+STOP|never\s+required|carry\s+that\s+substance|exhaustive\s+key\s+list",
+    re.IGNORECASE,
+)
+
+
+def _self_check_sentences(normalized: str):
+    """Whitespace-normalized sentences of a self-check section."""
+    return [s for s in re.split(r"(?<=[.;!?])\s+", normalized) if s]
+
+
+def _artifact_pointer_status(normalized: str):
+    """(requires, denies) for one self-check section.
+
+    `requires` - a prior-artifact pointer is named in a REQUIRING sentence.
+    `denies`   - a sentence names the pointer only to state it is NOT a key of
+                 this family's brief.
+    Judged per sentence, so an explicit carve-out can never be counted as the
+    requirement it removes.
+    """
+    requires = denies = False
+    for sentence in _self_check_sentences(normalized):
+        if not _ARTIFACT_POINTER_TOKENS.search(sentence):
+            continue
+        if _ARTIFACT_POINTER_DENIAL.search(sentence):
+            denies = True
+        else:
+            requires = True
+    return requires, denies
+
 _ETHOS_4 = "ODOO-AI-ETHOS #4"
 _ETHOS_10 = "ODOO-AI-ETHOS #10"
 
@@ -206,14 +247,71 @@ def test_agent_self_check_cites_ethos_4(agent):
 
 @pytest.mark.parametrize("agent", ODOO_AGENT_FILES, ids=lambda p: p.stem)
 def test_agent_self_check_confirms_prior_artifact_pointer(agent):
+    """Either the self-check REQUIRES a prior-artifact pointer, or it states -
+    explicitly, with a disposition - that this family has none.
+
+    A bare substring search for the token cannot tell those apart: a family whose
+    brief legitimately carries no artifact path (one that operates live
+    infrastructure) satisfies it with the single sentence declaring the token is
+    NOT a key, i.e. the guard goes green on text asserting the opposite of what it
+    checks for. Both arms are therefore judged per sentence, and a denial must say
+    what the absence means so a reader can tell a deliberate carve-out from a
+    forgotten check.
+    """
     section = _self_check_section(agent)
     normalized = " ".join(section.split())
-    assert _ARTIFACT_POINTER_TOKENS.search(normalized), (
+    requires, denies = _artifact_pointer_status(normalized)
+    assert requires or denies, (
         f"{agent.relative_to(REPO_ROOT)}: '## Brief self-check' never checks for a prior-"
         "artifact pointer (INPUTS/DESIGN_DOC/ORACLE_PATH/GAP_MATRIX/CATALOG_PATH/"
         "SCENARIOS_PATH/diff_path/feature catalog/grounding source) - a caller that forgets to "
         "hand over the design/plan/recon paths would go completely unnoticed by this agent's "
         "own self-check"
+    )
+    if denies and not requires:
+        assert _ARTIFACT_POINTER_DISPOSITION.search(normalized), (
+            f"{agent.relative_to(REPO_ROOT)}: '## Brief self-check' declares a prior-artifact "
+            "pointer is not a key of this family but never states what its absence MEANS. An "
+            "exemption has to say the missing field is never a STOP (and where the exhaustive "
+            "key list lives), or the sentence is indistinguishable from a check that was simply "
+            "dropped"
+        )
+
+
+def test_the_artifact_pointer_check_distinguishes_a_requirement_from_a_carve_out():
+    """Efficacy floor, driven on synthetic sections.
+
+    Both arms above pass today, so nothing in the parametrized sweep proves the
+    predicate can still tell them apart. These cases fail the moment it degrades
+    back to a substring search.
+    """
+    requiring = "Confirm the brief carries INPUTS naming the prior artifact before starting."
+    assert _artifact_pointer_status(requiring) == (True, False)
+
+    carve_out = (
+        "Confirm the brief carries this family's required fields (INSTANCE_HANDLE, series). "
+        "`INPUTS` and any artifact-path field are NOT keys of this family's brief and are "
+        "NEVER required here; their absence is NEVER a STOP."
+    )
+    requires, denies = _artifact_pointer_status(carve_out)
+    assert (requires, denies) == (False, True), (
+        "a sentence that DENIES the pointer is a key must not be counted as requiring it"
+    )
+    assert _ARTIFACT_POINTER_DISPOSITION.search(" ".join(carve_out.split())), (
+        "a legitimate carve-out states the disposition of the absent field"
+    )
+
+    silent = "Confirm the brief carries INSTANCE_HANDLE and the target series."
+    assert _artifact_pointer_status(silent) == (False, False), (
+        "a self-check that never mentions a prior-artifact pointer at all must be a finding"
+    )
+
+    bare_denial = "`INPUTS` is not a key of this family."
+    requires, denies = _artifact_pointer_status(bare_denial)
+    assert (requires, denies) == (False, True)
+    assert not _ARTIFACT_POINTER_DISPOSITION.search(bare_denial), (
+        "a denial with no stated disposition must NOT satisfy the exemption arm - that is "
+        "how a dropped check would slip through as a carve-out"
     )
 
 

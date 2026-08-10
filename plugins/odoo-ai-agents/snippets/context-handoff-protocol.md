@@ -23,9 +23,8 @@ true. Decide it locally, per child, per turn - there is no run-wide probe and no
 
 Send the new instructions to that id. Record the id per work-item in the skill's plan artifact
 (plan.md / plan.json) as you capture it, so the plan is the id registry. The resumed child keeps its
-full prior context - it is the mind that wrote the code, not a cold reader. The send returns
-immediately and the child runs in the background: END your turn and consume its result when it
-completes; never write call-and-await-a-return-value logic around it.
+full prior context - it is the mind that wrote the code, not a cold reader. Send semantics:
+§ Async park-and-be-resumed semantics below.
 
 Either condition false, or the id no longer resolves (the runtime reports the target is not
 addressable, or a session `/resume` dropped it): cold-spawn (Tier C). Always correct, loses nothing -
@@ -53,7 +52,8 @@ correct and always available; Tier A and Tier B only ever replace it as a speed 
 
 A resume send is fire-and-forget: it returns immediately and the child runs in the background. After
 sending, END your turn and wait to be resumed when the child completes. NEVER write
-call-and-await-a-return-value logic around it - there is no synchronous return to read. Structure
+call-and-await-a-return-value logic around it - there is no synchronous return to read. Scoped to a
+resume SEND: a blocking tool call that RETURNS a verdict inside the one call is not a park. Structure
 every Tier-A exchange as park-and-be-resumed: send, stop, resume on completion. This is legal for a
 subagent exactly as for main - see R0 in
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: a parked agent is resumed when the

@@ -61,6 +61,64 @@ def _norm(path: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Stale-claim scan universe
+#
+# The whole-tree scans below used to walk `plugins/**/*.md` only. `hooks/*.json` (the machine-
+# readable registration a debugging agent reads FIRST, and therefore trusts most), `hooks/*.sh`
+# (the headers that justify each hook) and the repo's own `tests/*.py` (whose section banners are
+# read as the contract) were all unscanned - and that blind spot is exactly where superseded
+# claims survived a rule change. Every negative/stale-claim scan takes this corpus.
+# ---------------------------------------------------------------------------
+_HOOKS_DIR = PLUGIN / "hooks"
+
+
+def _rel(path: Path) -> str:
+    """Repo-relative label for an offender, falling back to the absolute path. The fallback keeps
+    these scans callable over a synthetic corpus (how their red-before-green proof drives them)
+    instead of raising ValueError before the finding is ever reported."""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _stale_claim_corpus(include_tests: bool = True) -> list[Path]:
+    """Every agent-facing or maintainer-facing file a stale claim can hide in.
+
+    `include_tests=False` is for a rule whose own prohibition guards live under `tests/` and must
+    quote the banned shape to ban it - scanning those sources yields structural false positives,
+    not findings."""
+    self_path = Path(__file__).resolve()
+    files = set((REPO_ROOT / "plugins").rglob("*.md"))
+    files |= set(_HOOKS_DIR.glob("*.json")) | set(_HOOKS_DIR.glob("*.sh"))
+    if include_tests:
+        files |= set((REPO_ROOT / "tests").glob("*.py"))
+    return sorted(p for p in files if p.resolve() != self_path)
+
+
+def test_stale_claim_corpus_covers_the_historical_blind_spots():
+    """Discovery floor for the scans below: silently dropping hooks/ or tests/ would make every
+    stale-claim guard in this file vacuous - which is how the blind spot went unnoticed."""
+    corpus = _stale_claim_corpus()
+    assert _HOOKS_DIR / "hooks.json" in corpus, "hooks/hooks.json must be scanned"
+    assert _HOOKS_DIR / "enforce-teardown.sh" in corpus, "hooks/*.sh must be scanned"
+    assert any(p.suffix == ".py" and p.parent.name == "tests" for p in corpus), (
+        "the repo's own tests/*.py must be scanned"
+    )
+    assert AGENT_MD in corpus and SKILL_MD in corpus, "plugin markdown must still be scanned"
+    assert Path(__file__).resolve() not in corpus, (
+        "the scanning file itself must be excluded - it has to be able to NAME the claims it bans"
+    )
+    no_tests = _stale_claim_corpus(include_tests=False)
+    assert not any(p.suffix == ".py" for p in no_tests), (
+        "include_tests=False must drop the tests corpus"
+    )
+    assert _HOOKS_DIR / "hooks.json" in no_tests and AGENT_MD in no_tests, (
+        "include_tests=False must drop the tests corpus and NOTHING else"
+    )
+
+
+# ---------------------------------------------------------------------------
 # ITEM 4 - active-wait contract
 # ---------------------------------------------------------------------------
 
@@ -638,7 +696,9 @@ def test_no_agent_or_doc_claims_a_quiet_or_empty_build_log():
     changing in its definition site while restatements elsewhere survive and
     then contradict it. Every phrase below described the old quiet baseline and
     is false under the current one - an agent that believes it would skip
-    reading a log that now has real content."""
+    reading a log that now has real content. The corpus includes `hooks/*.json`,
+    `hooks/*.sh` and `tests/*.py` - the three artifact classes this scan used to
+    skip entirely."""
     stale_claims = (
         "produces an EMPTY log",
         "produces an empty log",
@@ -650,15 +710,11 @@ def test_no_agent_or_doc_claims_a_quiet_or_empty_build_log():
         "survives the `warn` baseline",
     )
     offenders = []
-    for sub in ("agents", "skills", "docs", "snippets", "commands", "workflows"):
-        root = PLUGIN / sub
-        if not root.exists():
-            continue
-        for path in sorted(root.rglob("*.md")):
-            text = _norm(path)
-            for claim in stale_claims:
-                if claim in text:
-                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {claim!r}")
+    for path in _stale_claim_corpus():
+        text = _norm(path)
+        for claim in stale_claims:
+            if claim in text:
+                offenders.append(f"{_rel(path)}: {claim!r}")
     assert not offenders, (
         "agent-facing prose still describes the superseded quiet-log baseline:\n  "
         + "\n  ".join(offenders)
@@ -865,4 +921,596 @@ def test_spinup_conf_sources_resource_limits_lib_and_references_snippet():
     text = step50.read_text(encoding="utf-8")
     assert 'source "$SCRIPT_DIR/../lib/resource_limits.sh"' in text, (
         "50-instance-spinup.sh must source scripts/lib/resource_limits.sh"
+    )
+
+
+# ---------------------------------------------------------------------------
+# LIVE-RUN DEFECT 1 - the agent idle-stalled instead of driving the blocking
+# mechanism that already existed.
+#
+# Observed twice in one run: odoo-instance-ops launched a build with
+# `run_in_background: true`, then ENDED ITS TURN on a text-only "waiting for
+# the background test run to complete" reply while odoo-bin had already exited
+# and the log already held its terminal marker. A third case lost the launching
+# shell (reaped before it printed its own STATUS=/TEST_RESULT= line) while the
+# orphaned odoo-bin ran to completion.
+#
+# The mechanism was never missing: `55-instance-ops.sh wait-log` genuinely
+# BLOCKS in one foreground Bash call and returns BUILD_RESULT=success|failure|
+# timeout. What was missing was the INSTRUCTION SHAPE around it:
+#   (a) it was named as "prefer the deterministic helper" - advisory, so an
+#       agent could legally not use it;
+#   (b) it was never told apart from the `run_in_background: true` pattern one
+#       line above, so backgrounding the WAIT (which returns instantly with no
+#       BUILD_RESULT) read as compliant;
+#   (c) the harness's own generic Bash guidance ("if waiting for a background
+#       task you will be notified - do not poll") was never overridden, and an
+#       agent following that generic default correctly ends its turn - and
+#       stalls, because no notification resumes a dispatched agent's ended turn;
+#   (d) skills/odoo-instance/SKILL.md's relay dropped the mechanism NAME
+#       entirely, so the two statements of one contract disagreed.
+#
+# The pre-fix guards above assert only that phrases EXIST. These assert the
+# instruction SHAPE, over whitespace-normalized text, so a reworded regression
+# still fails: a concrete invocation (not a bare mention), a mandate rather
+# than a preference, a foreground requirement, an explicit override of the
+# harness default, a ban on the text-only turn end, and agreement between the
+# two files.
+# ---------------------------------------------------------------------------
+
+# A real INVOCATION of the blocking helper - `wait-log` followed by its
+# required --log argument (a bare "the wait-log helper" mention does not
+# satisfy this, which is exactly how the skill relay passed pre-fix).
+_WAIT_CALL_RE = re.compile(r"wait-log\s+(?:\\\s*)?--log", re.IGNORECASE)
+
+# Any wording that turns a required next action into an option. Matched near
+# the call only, so ordinary uses elsewhere in the file are not swept in.
+_HEDGE_RE = re.compile(
+    r"\b(prefer|prefers|preferably|preferred|ideally|optional|optionally|"
+    r"recommended|if possible|may want|consider using)\b",
+    re.IGNORECASE,
+)
+_NEGATED_HEDGE_RE = re.compile(r"\b(never|not|no longer|instead of)\b\s*$", re.IGNORECASE)
+
+# The mandate family: any of these makes the next action non-negotiable.
+_MANDATE_RE = re.compile(
+    r"\b(MANDATORY|MUST|VERY NEXT|never optional|non-negotiable|required)\b",
+    re.IGNORECASE,
+)
+
+# A prohibition on backgrounding THIS call. The prohibition must attach to the
+# tool parameter or to the wait itself ("WITHOUT run_in_background", "never
+# backgrounding that call") - a nearby sentence that merely happens to negate
+# some other "background" noun ("not a poll of a background task") must NOT
+# satisfy it, or removing the real ban would go unnoticed.
+_BACKGROUND_BAN_RE = re.compile(
+    r"\b(never|not|without|no|do NOT)\b[^.]{0,60}?"
+    r"(run_in_background|background(?:ing)?\s+(?:this|that|it|the\s+wait|the\s+call))",
+    re.IGNORECASE,
+)
+
+# The harness's own generic default, and an explicit override of it.
+_HARNESS_DEFAULT_RE = re.compile(
+    r"(do not poll|don't poll|never poll|will be notified|you will be notified|notification)",
+    re.IGNORECASE,
+)
+_OVERRIDE_RE = re.compile(
+    r"(overrid|override|does not apply|do not apply|supersede|takes precedence)",
+    re.IGNORECASE,
+)
+
+# The forbidden OUTPUT SHAPE - the thing the agent actually did. "never
+# idle-stall" (pre-fix) is an abstraction an agent can believe it is obeying
+# while emitting exactly this; the contract must name the shape.
+_TURN_END_SHAPE_RE = re.compile(
+    r"(text-only|tool-call-free|no tool call|end(?:ing|s)? (?:your|its|the) turn|"
+    r"turn end|\"waiting\"|waiting for the (?:background|build))",
+    re.IGNORECASE,
+)
+_PROHIBITION_RE = re.compile(
+    r"\b(never|not|must not|forbid|forbids|forbidden|is the idle-stall|disallow)\b",
+    re.IGNORECASE,
+)
+
+_ACTIVE_WAIT_FILES = (
+    ("agents/odoo-instance-ops.md", AGENT_MD),
+    ("skills/odoo-instance/SKILL.md", SKILL_MD),
+)
+
+
+def _windows(text: str, pattern: re.Pattern, before: int, after: int) -> list[str]:
+    """Every window of `text` around a match of `pattern`, for proximity checks."""
+    return [
+        text[max(0, m.start() - before): m.end() + after]
+        for m in pattern.finditer(text)
+    ]
+
+
+def _active_wait_contract(path: Path) -> str:
+    """The active-wait contract SECTION of a file, whitespace-normalized.
+
+    Scoped to the section rather than to a byte window around the call: the
+    call and the sentence that governs it drift apart whenever the paragraph is
+    reflowed, while an unrelated `(optional)` in a nearby Inputs list must never
+    be mistaken for hedging. Both files label the contract identically, which
+    the agreement test below also relies on."""
+    raw = path.read_text(encoding="utf-8")
+    start = raw.find("Active-wait on long builds")
+    assert start != -1, f"{path.name}: the active-wait contract label is missing"
+    nxt = raw.find("\n## ", start + 1)
+    end = min(nxt if nxt != -1 else len(raw), start + 6000)
+    return " ".join(raw[start:end].split())
+
+
+def _unnegated_hedges(window: str) -> list[str]:
+    """Hedge words in `window` that are NOT themselves negated ("not a
+    preference" / "never optional" are mandates, not hedges)."""
+    out = []
+    for m in _HEDGE_RE.finditer(window):
+        lead = window[max(0, m.start() - 24): m.start()]
+        if not _NEGATED_HEDGE_RE.search(lead):
+            out.append(m.group())
+    return out
+
+
+def test_active_wait_names_a_concrete_blocking_call_not_a_bare_mention():
+    """Both statements of the contract must name the blocking call as a CALL -
+    `wait-log --log <path>` - so an executing agent has something to run.
+
+    Pre-fix RED: the skill relay mentioned `wait-log` only while describing
+    which marker set it shares with the script, never as an invocation, so an
+    agent reading the relay had no named mechanism for the wait at all."""
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        assert _WAIT_CALL_RE.search(text), (
+            f"{rel}: must name the blocking helper as an invocation with its --log "
+            "argument (a bare 'the wait-log helper' mention is not an instruction)"
+        )
+
+
+def test_active_wait_is_mandatory_and_never_hedged_into_an_option():
+    """The blocking call must be stated as required, and no un-negated hedge
+    may govern it.
+
+    Two halves on purpose: the presence half fails if the mandate is deleted,
+    the absence half fails if hedging vocabulary comes back in ANY of its
+    forms. Pre-fix RED on both: the call was introduced with "prefer the
+    deterministic helper" and carried no mandate token in its vicinity."""
+    for rel, path in _ACTIVE_WAIT_FILES:
+        assert _windows(_norm(path), _WAIT_CALL_RE, 400, 400), (
+            f"{rel}: no blocking call found to check (see previous test)"
+        )
+        contract = _active_wait_contract(path)
+        assert _MANDATE_RE.search(contract), (
+            f"{rel}: the foreground wait must be stated as MANDATORY/MUST/your VERY "
+            "NEXT call - an advisory mechanism is what let the agent skip it"
+        )
+        hedged = _unnegated_hedges(contract)
+        assert not hedged, (
+            f"{rel}: hedging vocabulary governs the blocking call again ({hedged}) - "
+            "it must read as a required next action, not a preference"
+        )
+
+
+def test_active_wait_requires_the_foreground_and_bans_backgrounding_the_wait():
+    """The wait must be told apart from the background LAUNCH one step above
+    it: stated as foreground, and with backgrounding it explicitly forbidden.
+
+    Pre-fix RED: the only `run_in_background` instruction was the positive one
+    for the launch, and nothing said the wait itself must not be backgrounded -
+    so carrying the launch pattern forward into the wait (which returns
+    instantly with no BUILD_RESULT) read as compliant."""
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        near = _windows(text, _WAIT_CALL_RE, 500, 700)
+        assert any("foreground" in w.lower() for w in near), (
+            f"{rel}: the wait must be stated as a FOREGROUND call"
+        )
+        assert any(_BACKGROUND_BAN_RE.search(w) for w in near), (
+            f"{rel}: backgrounding the wait itself must be explicitly forbidden "
+            "(a backgrounded wait returns instantly with no BUILD_RESULT)"
+        )
+
+
+def test_active_wait_explicitly_overrides_the_harness_do_not_poll_default():
+    """Both files must name the harness's own generic Bash guidance ("you will
+    be notified - do not poll") AND override it for this call.
+
+    This is the collision that produced the observed transcript: given a
+    prominent generic default and a merely advisory plugin rule, the agent
+    picked the generic one and ended its turn. Pre-fix RED: neither file
+    referenced that default at all, so there was nothing to override."""
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        near = _windows(text, _WAIT_CALL_RE, 900, 1400)
+        assert any(_HARNESS_DEFAULT_RE.search(w) for w in near), (
+            f"{rel}: must name the harness's generic do-not-poll / you-will-be-notified "
+            "default at the point of the wait"
+        )
+        assert any(
+            _HARNESS_DEFAULT_RE.search(w) and _OVERRIDE_RE.search(w) for w in near
+        ), (
+            f"{rel}: must state that the harness default is OVERRIDDEN / does not apply "
+            "for this call - naming it without overriding it leaves the collision intact"
+        )
+
+
+def test_a_text_only_turn_end_before_a_terminal_verdict_is_forbidden():
+    """The contract must forbid the OUTPUT SHAPE the agent actually produced -
+    a tool-call-free "waiting for the build" reply that ends the turn - not
+    only the abstraction "never idle-stall".
+
+    Pre-fix RED: both files forbade "idle-stalling" and "returning before a
+    terminal marker" without ever naming a text-only turn end, which is what
+    the agent emitted while believing it was compliant."""
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        shapes = _windows(text, _TURN_END_SHAPE_RE, 220, 220)
+        assert shapes, (
+            f"{rel}: must name the forbidden response shape (a text-only / tool-call-free "
+            "reply that ends the turn while the build verdict is unknown)"
+        )
+        assert any(_PROHIBITION_RE.search(w) for w in shapes), (
+            f"{rel}: the text-only turn end must be FORBIDDEN, not merely described"
+        )
+
+
+def test_the_two_statements_of_the_wait_contract_agree():
+    """The agent file and the skill relay must state the SAME mechanism.
+
+    The original divergence was exactly this: the agent named `wait-log`, the
+    relay did not, so a reader of the front door learned there was a poll to
+    perform but never what to call. Any future edit that upgrades one file and
+    forgets the other fails here, naming both sides."""
+    carried = {}
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        near = _windows(text, _WAIT_CALL_RE, 900, 1400)
+        carried[rel] = {
+            "invocation": bool(near),
+            "foreground": any("foreground" in w.lower() for w in near),
+            "mandate": any(_MANDATE_RE.search(w) for w in near),
+            "override": any(
+                _HARNESS_DEFAULT_RE.search(w) and _OVERRIDE_RE.search(w) for w in near
+            ),
+        }
+    for aspect in ("invocation", "foreground", "mandate", "override"):
+        holders = [rel for rel, got in carried.items() if got[aspect]]
+        assert len(holders) == len(carried), (
+            f"the two statements of the active-wait contract disagree on {aspect!r}: "
+            f"carried by {holders}, missing from "
+            f"{[r for r in carried if r not in holders]} - one file stating the "
+            "mechanism while the other omits it is the original divergence"
+        )
+
+
+def test_a_reaped_launcher_is_never_read_as_a_pass():
+    """The third observed case: the backgrounded launching shell was reaped
+    before printing its own STATUS=/TEST_RESULT= line while odoo-bin ran to
+    completion. The agent must never synthesize the missing verdict line.
+
+    Pre-fix RED: no file mentioned the possibility, so the only guidance
+    ("never stop at BUILD_RESULT=success without confirming the script's own
+    STATUS= line") was unsatisfiable and left the outcome to improvisation."""
+    text = _norm(AGENT_MD)
+    assert re.search(r"reap(?:ed|s)?\b", text, re.IGNORECASE), (
+        "the agent must handle the launcher shell being reaped before it printed "
+        "STATUS=/TEST_RESULT="
+    )
+    window = _windows(text, re.compile(r"reap(?:ed|s)?\b", re.IGNORECASE), 320, 520)
+    assert any(
+        re.search(r"\b(never|not|must not)\b[^.]{0,120}?(synthes|invent|assume|pass)",
+                  w, re.IGNORECASE)
+        for w in window
+    ), (
+        "a reaped launcher must be stated as NEVER a pass and the missing verdict "
+        "line must never be synthesized"
+    )
+    assert any(
+        ("inconclusive" in w.lower() or "BLOCKED" in w) and "LOG_PATH" in w
+        for w in window
+    ), (
+        "the reaped-launcher branch must name the terminal status to report and "
+        "require LOG_PATH be forwarded"
+    )
+
+
+def test_build_timeout_is_re_invoked_not_turned_into_a_turn_end():
+    """`BUILD_RESULT=timeout` must drive another foreground wait, with a stated,
+    evidence-based stop condition - not a turn end and not an unbounded loop.
+
+    Pre-fix RED: the contract's only timeout branch was "report BLOCKED", so
+    every build longer than one wait window BLOCKED instead of completing, and
+    nothing told the agent it could wait again."""
+    text = _norm(AGENT_MD)
+    windows = _windows(text, re.compile(r"BUILD_RESULT=timeout|timeout", re.IGNORECASE), 260, 560)
+    assert any(
+        re.search(r"re-?invoke|re-?run|again|repeat", w, re.IGNORECASE)
+        and "BUILD_MARKER" in w
+        for w in windows
+    ), (
+        "a timeout verdict must instruct re-invoking the same foreground wait, with "
+        "BUILD_MARKER progress as the evidence for whether to continue"
+    )
+    assert any(
+        re.search(r"BLOCKED", w) and re.search(r"unchanged|stopped progress|no longer",
+                                               w, re.IGNORECASE)
+        for w in windows
+    ), (
+        "the stop condition must be evidence-based (BUILD_MARKER unchanged across a "
+        "whole window), not a bare clock, and must resolve to BLOCKED"
+    )
+
+
+# ---------------------------------------------------------------------------
+# LIVE-RUN DEFECT 2 - a per-module verdict silently covered other modules.
+#
+# Observed: a run-tests dispatch with GATE_ROLE: per-module-verify for one
+# module ran UNSCOPED. Odoo's auto_install fan-out pulled in 63 modules and
+# 1626 tests from the declared profile, including PRE-EXISTING failures in
+# unrelated addon repos, and those failures decided the verdict of a run that
+# was nominally verifying ONE module (whose real depends closure is two
+# modules).
+#
+# The fix deliberately does NOT change scoping: auto-adding --test-tags or a
+# skip-auto-install flag would suppress tests, manufacturing a false green -
+# the exact defect class this release cycle removed. Instead the SCOPE becomes
+# part of the verdict: the figures actually observed, plus an explicit
+# statement when the verdict was decided outside the module under
+# verification. These guards protect that contract, and protect against the
+# suppression "fix" being introduced later.
+# ---------------------------------------------------------------------------
+
+# The grounded markers the figures come from - the script's own ran-marker SSOT
+# (era-split at v14) and the version-stable module-loading progress line.
+_MODULES_LOADED_MARKER_RE = re.compile(r"loading\s*<?N?\d*>?\s*modules", re.IGNORECASE)
+_TESTS_RAN_MARKER_RE = re.compile(
+    r"Ran\s*<?[TN]?\d*>?\s*tests?\s*in|of\s*<?[TN]?\d*>?\s*tests", re.IGNORECASE
+)
+_OUT_OF_SCOPE_RE = re.compile(r"out of scope|out-of-scope|outside the module|outside", re.IGNORECASE)
+_SUPPRESSION_FLAG_RE = re.compile(r"--test-tags|test_tags|skip-auto-install|skip_auto_install")
+
+
+def _run_tests_section(text: str) -> str:
+    """The run-tests operation only, so a figure named elsewhere in the file
+    (the active-wait marker list) cannot satisfy these assertions."""
+    start = text.find("### 5. run-tests")
+    assert start != -1, "run-tests section not found in the agent file"
+    end = text.find("### 6. ", start + 1)
+    return text[start: end if end != -1 else len(text)]
+
+
+def test_run_tests_verdict_reports_the_scope_it_was_decided_on():
+    """The run-tests contract must require the two figures actually observed -
+    modules loaded and tests run - each read from THIS run's log via its
+    grounded marker, so a caller can see the fan-out that decided the verdict.
+
+    Pre-fix RED: the run-tests section reported TEST_RESULT= plus four counters
+    and nothing about how many modules were installed or how many tests ran, so
+    63 modules / 1626 tests looked identical to the one module requested."""
+    section = _run_tests_section(_norm(AGENT_MD))
+    assert _MODULES_LOADED_MARKER_RE.search(section), (
+        "the run-tests verdict must require the count of modules ACTUALLY loaded, read "
+        "from the log's own module-loading marker"
+    )
+    assert _TESTS_RAN_MARKER_RE.search(section), (
+        "the run-tests verdict must require the count of tests ACTUALLY run, read from "
+        "the era-correct ran-marker the script's own parser uses"
+    )
+    assert re.search(r"\bnotes\b", section, re.IGNORECASE), (
+        "both figures must be wired into the existing output contract (the notes field), "
+        "not left as a side remark"
+    )
+    assert re.search(r"unknown", section, re.IGNORECASE), (
+        "a figure the log does not carry must be reported unknown - never estimated, "
+        "never omitted"
+    )
+
+
+def test_run_tests_verdict_names_a_verdict_decided_outside_the_module():
+    """When failures lie outside the module under verification, the report must
+    say so explicitly, and the verdict must NOT soften.
+
+    Pre-fix RED: nothing in the section distinguished an in-scope regression
+    from a pre-existing failure in an unrelated addon, so a per-module gate
+    reported another repo's failures as its own module's verdict."""
+    section = _run_tests_section(_norm(AGENT_MD))
+    assert _OUT_OF_SCOPE_RE.search(section), (
+        "the verdict contract must name the out-of-scope case (a failing test whose "
+        "module is not in this dispatch's --modules list)"
+    )
+    assert re.search(r"findings_path", section), (
+        "the out-of-scope decision must be adjudicated from findings_path (the failing "
+        "test names), not guessed"
+    )
+    assert re.search(
+        r"(still\s+`?tests-failed`?|still BLOCKING|never softens|verdict itself never)",
+        section, re.IGNORECASE,
+    ), (
+        "an out-of-scope failure must stay tests-failed and stay blocking - reporting it "
+        "as out-of-scope must never become a downgrade"
+    )
+
+
+def test_run_tests_never_narrows_the_run_to_hide_the_fan_out():
+    """The scope must be made VISIBLE, never suppressed: the contract must
+    forbid auto-adding a tag filter or a skip-auto-install flag the caller did
+    not ask for.
+
+    This guards the tempting wrong fix. Suppressing tests to make a per-module
+    gate quiet manufactures a false green, which is worse than a noisy one -
+    paired with the presence assertions above so neither half can be dropped
+    alone."""
+    section = _run_tests_section(_norm(AGENT_MD))
+    hits = [
+        section[max(0, m.start() - 200): m.end() + 120]
+        for m in _SUPPRESSION_FLAG_RE.finditer(section)
+    ]
+    assert hits, "the run-tests section must reference the scoping flags it must not auto-add"
+    assert re.search(
+        r"\b(never|not|do NOT|must not)\b[^.]{0,200}?"
+        r"(--test-tags|test_tags|skip-auto-install|skip_auto_install)",
+        section, re.IGNORECASE,
+    ), (
+        "the contract must FORBID auto-adding --test-tags / skip-auto-install the caller "
+        "did not request - suppressing tests manufactures a false green"
+    )
+    assert re.search(r"false green|false-green", section, re.IGNORECASE), (
+        "the reason the run is not narrowed must stay stated, so a later edit does not "
+        "'optimize' the noise away"
+    )
+
+
+def test_canonical_output_block_notes_field_carries_the_scope_figures():
+    """The reporting channel must be wired, not just described: the canonical
+    output block's own notes field must say it always carries the scope figures
+    on a run-tests dispatch.
+
+    Pre-fix RED: notes was 'one-line summary of any non-obvious decision or
+    error', which no agent would read as an obligation to report scope."""
+    raw = AGENT_MD.read_text(encoding="utf-8")
+    notes_lines = [ln for ln in raw.splitlines() if ln.startswith("notes:")]
+    assert notes_lines, "canonical output block notes: field not found"
+    assert any(
+        re.search(r"scope", ln, re.IGNORECASE) for ln in notes_lines
+    ), (
+        "the canonical output block's notes field must state that a run-tests report "
+        "always carries the scope figures"
+    )
+
+
+def test_skill_relays_the_scope_transparency_requirement():
+    """The front door must relay the figures and the out-of-scope statement
+    verbatim, must not narrow the run itself, and must point at the agent as
+    the rule's SSOT rather than restating the decidable rule.
+
+    Pre-fix RED: the skill had no scope concept at all, so a relayed verdict
+    lost the fan-out even when the agent had measured it."""
+    text = _norm(SKILL_MD)
+    assert re.search(r"scope transparency", text, re.IGNORECASE), (
+        "the skill must carry the scope-transparency relay"
+    )
+    assert re.search(r"auto_install", text), (
+        "the relay must name the auto_install fan-out as the cause"
+    )
+    assert _OUT_OF_SCOPE_RE.search(text), (
+        "the relay must require the out-of-scope statement to be passed through"
+    )
+    assert re.search(
+        r"\b(never|not|do NOT|must not)\b[^.]{0,200}?"
+        r"(test_tags|--test-tags|skip_auto_install|skip-auto-install)",
+        text, re.IGNORECASE,
+    ), (
+        "the skill must forbid narrowing the run to hide the fan-out"
+    )
+    assert "odoo-instance-ops.md" in SKILL_MD.read_text(encoding="utf-8"), (
+        "the decidable rule stays single-sourced in the agent - the skill points at it"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Allocator acquire: the two new exit codes, and the retired silent degradation.
+#
+# `allocator.py acquire` gained exit 6 (the database role positively LACKS
+# CREATEDB) and exit 7 (the CREATEDB capability is UNDETERMINABLE), and
+# `--mode ephemeral` can no longer silently degrade to `exclusive` - it either
+# succeeds as ephemeral or fails writing no lease. An exit code an agent cannot
+# ACT on is a stall waiting to happen, so each code must carry its remedy.
+# ---------------------------------------------------------------------------
+
+
+def _exit_code_window(text: str, code: str, before: int = 120, after: int = 700) -> list[str]:
+    pattern = re.compile(r"(?:exit|code)\s*`?" + re.escape(code) + r"`?\b", re.IGNORECASE)
+    return _windows(text, pattern, before, after)
+
+
+def test_acquire_exit_6_carries_actions_not_just_a_meaning():
+    """Exit 6 (role positively lacks CREATEDB) must name what to DO: get
+    CREATEDB granted, or re-acquire exclusive while STATING that isolation was
+    not provided, or pass --no-create.
+
+    Pre-fix RED: the code did not exist in the prose, and the mode list instead
+    promised a silent auto-degrade the allocator no longer performs."""
+    text = _norm(AGENT_MD)
+    windows = _exit_code_window(text, "6")
+    assert windows, "the agent must document acquire exit 6"
+    assert any("CREATEDB" in w for w in windows), (
+        "exit 6 must be identified as the role positively lacking CREATEDB"
+    )
+    assert any(
+        sum(
+            bool(re.search(p, w, re.IGNORECASE))
+            for p in (r"grant", r"--mode exclusive|exclusive", r"--no-create")
+        ) >= 2
+        for w in windows
+    ), "exit 6 must name at least two of its three remedies (grant / exclusive / --no-create)"
+    assert any(re.search(r"isolation", w, re.IGNORECASE) for w in windows), (
+        "falling back to exclusive must require STATING that isolation was not provided - "
+        "a silent fallback is how an unisolated run passes for an isolated one"
+    )
+
+
+def test_acquire_exit_7_carries_actions_and_names_its_three_causes():
+    """Exit 7 (capability UNDETERMINABLE) must name its three causes - no
+    declared python, the venv cannot import odoo, the cluster is unreachable -
+    and resolve to a retry or NEEDS_CONTEXT, never a guess."""
+    text = _norm(AGENT_MD)
+    windows = _exit_code_window(text, "7")
+    assert windows, "the agent must document acquire exit 7"
+    assert any(
+        re.search(r"undetermin", w, re.IGNORECASE) for w in windows
+    ), "exit 7 must be identified as the capability being undeterminable"
+    for cause in (r"python", r"import odoo", r"cluster"):
+        assert any(re.search(cause, w, re.IGNORECASE) for w in windows), (
+            f"exit 7 must name its cause {cause!r} so the agent knows what to resolve"
+        )
+    assert any(
+        re.search(r"NEEDS_CONTEXT", w) and re.search(r"re-?acquire", w, re.IGNORECASE)
+        for w in windows
+    ), "exit 7 must resolve to a bounded retry then NEEDS_CONTEXT, never a guessed mode"
+
+
+def test_no_prose_claims_ephemeral_silently_degrades_to_exclusive():
+    """The retired behavior must be DELETED, and the replacement rule stated.
+
+    An agent that believes `ephemeral` auto-degrades will read a shared
+    declared DB as its own throwaway. Both halves asserted: the stale claim
+    must be absent in any wording, AND the current rule (ephemeral never
+    degrades; it succeeds or fails writing no lease) must be present, so
+    deleting the rule cannot pass as 'no stale claim found'.
+
+    Scope: the whole `plugins/**` tree PLUS `hooks/*.json` and `hooks/*.sh`,
+    which this scan used to skip (it read exactly two hand-listed files).
+    `tests/*.py` is deliberately NOT scanned for THIS claim: the repo's own
+    prohibition guards for it live there and must quote the banned shape to ban
+    it, so a tests scan reports its own guards. Consequence to close
+    separately: `tests/test_allocator.py` still carries a stale
+    'the allocator degrades to exclusive mode' note that no guard covers."""
+    degrade = re.compile(
+        r"(auto-?degrad\w*|degrad\w*|falls? back|fall back|downgrad\w*)", re.IGNORECASE
+    )
+    offenders = []
+    for path in _stale_claim_corpus(include_tests=False):
+        rel = _rel(path)
+        text = _norm(path)
+        for m in degrade.finditer(text):
+            lead = text[max(0, m.start() - 30): m.start()]
+            if re.search(r"\b(never|not|no longer|cannot|can no longer)\b", lead, re.IGNORECASE):
+                continue  # a prohibition, not a claim
+            tail = text[m.end(): m.end() + 90]
+            if re.search(r"exclusive", tail, re.IGNORECASE):
+                offenders.append(f"{rel}: {text[max(0, m.start() - 60): m.end() + 90]!r}")
+    assert not offenders, (
+        "prose still describes the retired silent ephemeral -> exclusive degradation:\n  "
+        + "\n  ".join(offenders)
+    )
+    agent = _norm(AGENT_MD)
+    assert re.search(
+        r"ephemeral[^.]{0,40}$|NEVER degrades|never degrades", agent
+    ) or re.search(r"never degrades to another mode", agent, re.IGNORECASE), (
+        "the agent must state the current rule: ephemeral NEVER degrades to another mode"
+    )
+    assert re.search(r"fails? writing no lease|no lease is written", agent, re.IGNORECASE), (
+        "the agent must state the failure shape: it either succeeds as ephemeral or fails "
+        "writing no lease"
     )

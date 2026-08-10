@@ -9,8 +9,11 @@
 #   - Odoo INSTANCES are detached OS processes (an `odoo-bin` master + workers +
 #     its Postgres backend) that OUTLIVE the Claude session and leak RAM until a
 #     human notices. Their existence is provable from the allocator LEDGER (ground
-#     truth, not the fuzzy transcript). So a live owned lease at a `status: DONE`
-#     claim is a HARD BLOCK (SubagentStop only) with a deterministic release cmd.
+#     truth, not the fuzzy transcript). So a live owned lease at a subagent's turn
+#     END - a completion claim, `NEEDS_NEXT` with no handle forwarded, an out-of-enum
+#     status, or NO `continuation` status at all - is a HARD BLOCK (SubagentStop only)
+#     with a deterministic release cmd. Only a stopped-run report (BLOCKED /
+#     NEEDS_CONTEXT) or a T4 named handoff passes.
 #   - BROWSER pages die WITH the session's MCP server process - a bounded, self-
 #     healing leak. Their count is only inferable from the transcript (open/close
 #     calls), which is fuzzy. So browser findings are ADVISORY ONLY (systemMessage,
@@ -129,6 +132,11 @@ CONT_BLOCK="$(printf '%s\n' "$NORM" | awk '
 STATUS="$(printf '%s\n' "$CONT_BLOCK" | awk '
   /status:/ { line=$0; sub(/.*status:[ \t]*/,"",line); sub(/[ \t].*/,"",line); last=line }
   END { print last }' 2>/dev/null || true)"
+# Normalize to a comparable KEY before any classification: uppercase, then keep only the leading
+# [A-Z_] token. The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic
+# spelling (`status: `BLOCKED``, `status: blocked`, a trailing comma) must never be what turns a
+# declared non-completion status into a hard block. Empty KEY = no machine-readable status.
+STATUS_KEY="$(printf '%s' "$STATUS" | tr 'a-z' 'A-Z' | sed -E 's/^[^A-Z_]*//; s/[^A-Z_].*$//' 2>/dev/null || true)"
 FWD_HANDLE=0
 printf '%s' "$CONT_BLOCK" | grep -q 'INSTANCE_HANDLE' 2>/dev/null && FWD_HANDLE=1
 
@@ -161,15 +169,33 @@ if [[ "$BROWSER_ANY" -eq 0 && -z "$RUN_IDS" ]]; then
   _pass
 fi
 
-# --- Instance check: BLOCKING, SubagentStop only, DONE only ----------------------------------
-# Fires only on a real `status: DONE` claim from a subagent. Ground truth is the LEDGER (via the
-# allocator's own `list` read command), never the transcript. Emits the ONE hard block in the
-# system; everything above is advisory.
+# --- Instance check: BLOCKING, SubagentStop only, stop-report + named handoff excepted --------
+# Fires on a subagent turn that neither reported a stopped run nor forwarded its handle by name.
+# Ground truth is the LEDGER (via the allocator's own `list` read command), never the transcript.
+# Emits the ONE hard block in the system; everything above is advisory.
 _instance_block_reason() {
   # Requires: SubagentStop event, python3 + allocator.py, a correlated run_id, no forwarded
   # handle. Prints the block reason on success; prints nothing (rc!=0) to fall through to advisory.
   [[ "$EVENT" == "SubagentStop" ]] || return 1
-  [[ "$STATUS" == "DONE" ]] || return 1
+  # Gate on the COMPLEMENT of a STOPPED-RUN REPORT - NEVER on the literal `DONE`. `status` is a
+  # CLOSED four-value enum (SSOT: generator/skill_tool_deps.json `vocabulary.continuation_status`,
+  # rendered in snippets/continuation-contract.md) and only these two report a run that STOPPED:
+  # resource-teardown-contract.md T4 makes BLOCKED the sanctioned outcome when teardown ITSELF
+  # failed ("report the lease token ... so the caller or allocator GC can reap it"), so blocking
+  # them would trap the one path the contract gives that failure. Everything else is a dispatch
+  # that ENDED while the ledger still holds this run's lease and falls through to the T4 handoff
+  # test below: `DONE`, `NEEDS_NEXT` (T4 permits a live lease under it ONLY with the handle
+  # forwarded - a bare one is the "unnamed forward the token for later release" T4 names as the
+  # leak), a value outside the enum, or NO machine-readable `continuation` status at all (that one
+  # leaks worst - no status means no fence, so no forwarded handle and no named catcher either,
+  # and a SubagentStop IS the end of the dispatch, so nothing runs later to release it). Same
+  # case-with-catch-all shape as report-terminal-status.sh's S1 strand signature, which already
+  # COUNTS the no-status turn - this gate is what stops the leak it counts.
+  case "$STATUS_KEY" in
+    BLOCKED|NEEDS_CONTEXT) return 1 ;;
+  esac
+  # T4's ONE exception, read from the SAME fence-scoped extraction as the status (never from free
+  # prose - a handle promised in prose forwards nothing a consumer can act on).
   [[ "$FWD_HANDLE" == "1" ]] && return 1   # INSTANCE_HANDLE forwarded in next.inputs -> handoff -> pass
   [[ -n "$RUN_IDS" ]] || return 1
   command -v python3 >/dev/null 2>&1 || return 1
@@ -247,8 +273,17 @@ _instance_block_reason() {
 
   [[ "$n" -gt 0 ]] || return 1   # nothing live to block on (dead-pid rows and expired-unprovable rows skipped)
 
-  printf 'Resource-teardown gate: this subagent claimed `status: DONE`, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Release EACH before claiming DONE:%s\n(Release now stops the whole server process group, then drops the DB.) If a lease is a deliberate handoff, forward INSTANCE_HANDLE in your continuation `next.inputs` instead of releasing it.' \
-    "$n" "$lines"
+  # Name what this turn actually did, so the fix is unambiguous for every shape: a declared status
+  # needs the release or the handoff; a turn with no status needs the release AND the missing block.
+  local claim
+  if [[ -n "$STATUS_KEY" ]]; then
+    claim="ended its dispatch on \`status: $STATUS_KEY\` with no \`INSTANCE_HANDLE\` forwarded"
+  else
+    claim='ended its dispatch with NO `status` in a closed `continuation` block (a SubagentStop IS the end of your dispatch - not a pause, and nothing runs later on your behalf)'
+  fi
+
+  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Release EACH before your terminal status:%s\n(Release now stops the whole server process group, then drops the DB.) If a lease is a deliberate handoff, forward INSTANCE_HANDLE in your continuation `next.inputs` instead of releasing it. Then report a `continuation` block whose `status` is one of the contract values.' \
+    "$claim" "$n" "$lines"
   return 0
 }
 

@@ -38,8 +38,8 @@ BLOCKED / NEEDS_CONTEXT / handoff).
 **The two tiers behind this gate are NOT enforced the same way** (full rationale: "Why browsers
 and instances are enforced differently" below):
 - **(b) Instance teardown is HARD-blocked.** The `SubagentStop` `enforce-teardown.sh` hook reads
-  the allocator ledger and BLOCKS a `status: DONE` claim while a live, self-provisioned,
-  non-shared lease is still open - a provable ledger fact, mechanically gated.
+  the allocator ledger and BLOCKS any turn end except `BLOCKED`/`NEEDS_CONTEXT` or a T4 named
+  handoff, while a live, self-provisioned, non-shared lease remains open.
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
   on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
   when it infers an apparently-open page from the transcript. You remain contract-bound to close
