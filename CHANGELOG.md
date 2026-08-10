@@ -6,6 +6,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.24.1] - 2026-08-10
+
+Two defects with one root cause: the plugin instructed executing agents to do things the platform
+underneath them does not support, and then built contracts, prose, and guard tests on top of the
+pretence. The instance harness ran Odoo at `--log-level=warn`, where a PASSING test run emits
+nothing at all - so it could not tell "the suite passed" from "the suite never ran". Separately,
+every dispatch brief carried a `CALLER_ID`/`REPLY_TO` reply address that no agent could ever obtain,
+because the launch call has no `name` parameter and the agent roster never contains your launcher.
+Both are fixed by deleting the impossible machinery rather than documenting around it, which is why
+this release removes far more prose than it adds. It stays PATCH: the removed brief field never had
+an obtainable value, so nothing that worked before stops working.
+
+### Fixed
+
+- `odoo-ai-agents` - **a passing Odoo test run is no longer invisible.** The build/test default is
+  now `--log-level=info` (Odoo's own default on every series 8.0-19.0). The summary line
+  `F failed, E error(s) of N tests` is emitted at INFO when a run passes with more than zero tests
+  on every series through 19.0, so at `warn` a green run was silent and indistinguishable from a
+  suite that never executed. `runbot` is not an alternative: it is a hard CLI failure on 8.0-13.0
+  and still suppresses the passing line where it exists. `test` is not an alternative either - it
+  has no `PSEUDOCONFIG_MAPPER` entry on any series and is provably a no-op synonym for `info`.
+- `odoo-ai-agents` - **a test run that only had failures was reported GREEN on six of twelve
+  supported series.** The result parser matched `failed`/`error` but never `failures`, so the
+  8.0-13.0 wording `Module m: 2 failures, 0 errors` scored `passed`. Failure detection is now
+  version-general, and a pass additionally REQUIRES a positive era-correct "tests ran" marker
+  instead of being the fallthrough - a run that proves nothing now reports `inconclusive`.
+- `odoo-ai-agents` - **the honest verdict was being discarded one layer up.** The `run-tests`
+  contract derived its status from four counters and never read `TEST_RESULT=`, so a suite that
+  never ran (all counters zero) resolved to `tests-passed` for every gate role. The ladder now
+  reads `TEST_RESULT=` first and lets it outrank the counters.
+- `odoo-ai-agents` - `--log-mode warn` is refused at the flag (exit 2). It suppresses the same INFO
+  summary, so every green run under it parsed as `inconclusive`.
+- `odoo-ai-agents` - install failure during a test run classifies as `failed`, not `inconclusive`,
+  and is no longer masked by an otherwise-green ran marker.
+- `odoo-ai-agents` - the log retention sweep is scoped by the existing lease registry, so it can
+  never delete the log of a live instance; an unreadable registry sweeps nothing.
+- `odoo-ai-agents` - a zero-padded series (`08.0`, `09.0`) no longer selects the wrong era. The
+  all-digit check passed it through to bash arithmetic, which rejects `08` as invalid octal and
+  silently fell through to the modern branch - wrong log namespace and wrong result marker for v8
+  and v9.
+- `odoo-ai-agents` - `Registry loaded` is gone as a progress marker. It does not exist before Odoo
+  15.0; the replacement marker is present on all twelve series.
+
+### Changed
+
+- `odoo-ai-agents` - **an agent's final message is now the ONE return path to its launcher**, declared
+  once in `snippets/spawner-completion-contract.md` R3. A child never messages its launcher; the only
+  address anyone holds is a CHILD'S, captured from that child's own launch return; literal `main` is
+  reserved for a background agent `main` itself launched, mid-run only. Every other file cross-
+  references R3 instead of restating it.
+- `odoo-ai-agents` - the universal dispatch-brief skeleton goes from 11 fields to 10: the reply-address
+  field is retired, not renamed. Briefs that still carry one are malformed and the field is ignored.
+- `git-toolkit` - `SendMessage` and `TaskUpdate` are no longer granted to the three leaf agents. A
+  listed-but-ungranted tool made the model call it and error rather than cleanly fall back.
+
+### Removed
+
+- `odoo-ai-agents` - `snippets/agent-team-protocol.md` and its `references/` copy. Once the
+  unobtainable addressing, the capability probe that could not succeed, and the duplicated rules were
+  taken out, nothing implementable remained.
+- `odoo-ai-agents` - the "Agent Team mode is active" self-check in all 26 agents. It inferred a mode
+  purely from a messaging tool being present in the toolset, which is true on every ordinary run, so
+  it fired as a false positive every time.
+
 ## [4.24.0] - 2026-08-07
 
 Project identity used to be cached to a `context.md` file that nothing on any machine had ever
