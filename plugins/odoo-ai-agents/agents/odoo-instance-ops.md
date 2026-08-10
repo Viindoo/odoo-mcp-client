@@ -61,11 +61,10 @@ needs no per-operation change. Build the value per `odoo-instance/SKILL.md` § W
 substitution; never edit `instances.toml`, and never pass the flag on a setup-path spin-up (the
 instance IDENTITY token hashes the addons path - `docs/reference/INSTANCE-ALLOCATION.md:208-211`).
 
-Pass `--run-id <run-id>` whenever the dispatch brief or the run worklog slug identifies the calling
-run - it registers lease ownership and echoes back as `$ALLOC_RUN_ID`; forward that value into every
-later release/drop call so the rightful owner is never blocked from releasing its own lease. Omit it
-for a genuinely standalone one-off - the lease is then unowned and release degrades to today's
-token-possession behavior. `$ALLOC_DB_PORT` echoes the instance's declared port (empty when none is
+Pass `--run-id <run-id>` on EVERY acquire - never omit it, an unowned live lease is what lets
+another session drop yours. It registers lease ownership and echoes back as `$ALLOC_RUN_ID`;
+forward that value into every later release/drop call so the rightful owner is never blocked from
+releasing its own lease. `$ALLOC_DB_PORT` echoes the instance's declared port (empty when none is
 declared) - forward it into every create/init/update/test/drop call below so drop never targets a
 different Postgres cluster than create used.
 
@@ -97,24 +96,20 @@ A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh
 
 1. **Launch in the background.** Run the `55-instance-ops.sh` verb via Bash with `run_in_background: true`. Capture the `LOG_PATH=` line it emits (the persistent log under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/`) as soon as it appears.
 2. **Poll to a TERMINAL marker.** Wait in a bounded loop on `LOG_PATH` - prefer the deterministic helper `55-instance-ops.sh wait-log --log <LOG_PATH> [--timeout <secs>] [--interval <secs>]`, which scans for the markers below and emits `BUILD_RESULT=success|failure|timeout` + `BUILD_MARKER=<line>`. Between polls, emit a heartbeat so the run is never mistaken for dead: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py heartbeat <ALLOC_TOKEN>`.
-   - **Progress/heartbeat signals (NOT independently sufficient for success):** `Registry loaded`, process exit 0, or `Initiating shutdown` after a `--stop-after-init` run - these confirm forward progress but do not by themselves confirm a completed install/update.
+   - **Progress/heartbeat signals (NOT independently sufficient for success):** `loading <N> modules...` (INFO, version-stable v8-v19), process exit 0, or `Initiating shutdown` after a `--stop-after-init` run - these confirm forward progress but do not by themselves confirm a completed install/update.
    - **SUCCESS marker (init/update - matches the deterministic completion contract below):** `Modules loaded.` present AND none of the failure markers below. `wait-log`'s `_scan_build_markers` and the script's own `_install_confirmed` verdict share this EXACT marker set (SSOT) - `BUILD_RESULT=success` and `STATUS=ok` can never disagree.
    - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`, plus the SILENT-skip markers from the deterministic completion contract below (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`) - any of these wins over a success marker, even `Modules loaded.` itself.
-   - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING`/`TEST_SKIPPED` counts) as the terminal signal; `_parse_test_result` already emits them. A skip-only run (`TEST_SKIPPED>0` with no failure) is `TEST_RESULT=inconclusive` - a terminal marker like any other, not a stall.
+   - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING`/`TEST_SKIPPED` counts) as the terminal signal; `_parse_test_result` already emits them. `TEST_RESULT=inconclusive` is a terminal marker like any other, not a stall.
 3. **Exit code is necessary but never sufficient.** A non-zero exit is ALWAYS `STATUS=error` - never let an in-log marker override a non-zero exit (marker wording can drift across series, so a drifting marker must never promote a non-zero exit to success). But exit 0 ALONE is NOT proof of a successful build: for init/update, `STATUS=ok` additionally requires the `"Modules loaded."` completion marker present AND no failure marker (see "Exit code 0 alone is NOT proof of install" below for the exact rule) - treat exit 0 with a missing completion marker, or with any failure marker present, the SAME as a non-zero exit: `STATUS=error`.
 4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
 
-**Deterministic completion contract (root-cause fix - never a log-tail wait).** Under the
-`--log-level=warn` build baseline, EVERY line above (`Modules loaded.`, `Registry loaded`, etc.) is
-INFO-level and gets SUPPRESSED - a clean, SUCCESSFUL run produces an EMPTY log. Waiting to SEE a
-line in that log therefore stalls to the bound even on success; `55-instance-ops.sh init`/`update`
-close this gap two ways:
-- **Forced completion line.** The invocation ALWAYS adds `--log-handler=<ns>.modules.loading:INFO`
-  (in addition to the `--log-level=warn` baseline), so `"Modules loaded."` survives regardless - a
-  per-logger `setLevel` wins over the inherited `warn` level; a plain `--log-handler=:INFO` on the
-  root logger does NOT work. `<ns>` is version-resolved: `openerp` for series < 10 (v8-v9), `odoo`
-  for v10+ (the namespace renamed at the v9->v10 boundary) - resolve it from the series already
-  pinned in Step A/B and pass `--version <series>` to the script.
+**Deterministic completion contract (never a log-tail wait).** `55-instance-ops.sh init`/`update`
+guarantee completion two ways:
+- **Forced completion line (a FLOOR, not a workaround).** The invocation ALWAYS adds
+  `--log-handler=<ns>.modules.loading:INFO`, so `"Modules loaded."` survives ANY level a caller
+  passes in `--extra`, including a quieter one. `<ns>` is version-resolved: `openerp` for series
+  < 10 (v8-v9), `odoo` for v10+ (the namespace renamed at the v9->v10 boundary) - resolve it from
+  the series already pinned in Step A/B and pass `--version <series>` to the script.
 - **Process exit is the completion signal, never a log read.** `--stop-after-init` guarantees the
   process EXITS; that exit (captured synchronously by the `init`/`update` invocation itself) is
   when the job is DONE - the script never blocks on reading a log line to decide completion.
@@ -405,7 +400,7 @@ are the exclusive-running and shared-running branches of this one decision):
 **Active wait (HARD RULE):** every branch above launches a build - launch it in the background and
 poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never block past the
 tool timeout or return before a terminal marker.
-**Log verbosity:** the script applies `--log-level=warn` by DEFAULT for a build op (quieter than Odoo's `info`); to ESCALATE for deep debugging pass a louder level (`--log-level=info`/`--log-level=debug`) via `--extra` - it overrides the default since the script places `warn` before `--extra`. Confirm `--log-level` for the series via `cli_help` like any other flag.
+**Log verbosity:** builds run at `--log-level=info` (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § Log verbosity default); pass a different `--log-level` via `--extra` to override it - the default is placed first, so `--extra` wins. Confirm the flag via `cli_help` like any other.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 2. drop-instance
@@ -471,9 +466,9 @@ Install one or more modules into an existing Odoo database.
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-handler=<ns>.modules.loading:INFO --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above; memory cap - HARD RULE above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
+The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-level=info --log-handler=<ns>.modules.loading:INFO --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above; memory cap - HARD RULE above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
 **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never idle-stall past the tool timeout.
-**Log verbosity:** the script defaults a build op to `--log-level=warn`; ESCALATE to `--log-level=info`/`--log-level=debug` for deep debugging via `--extra` (it overrides the `warn` default), confirming the flag via `cli_help`.
+**Log verbosity:** `--log-level=info` by default (SSOT: SKILL.md § Log verbosity default); override via `--extra`, confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 4. update-modules
@@ -497,13 +492,13 @@ Update one or more already-installed modules (-u).
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
 
-Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above. **Log verbosity:** defaults to `--log-level=warn`; ESCALATE via `--extra` (`--log-level=info`/`debug`) when debugging an update.
+Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above. **Log verbosity:** as init (SSOT: SKILL.md § Log verbosity default); override via `--extra` when debugging an update.
 
 ### 5. run-tests
 
 Run the Odoo test suite for one or more modules - either against a fresh ephemeral database (init+test in one pass) or by re-running on an existing database that already has the modules installed.
 
-**Inputs:** series, modules, test tags (optional), `mode` (`fresh` | `reuse`, default `fresh`), `log_mode` (`warn` | `info` | `debug` | `sql`, optional), addons_path override (optional).
+**Inputs:** series, modules, test tags (optional), `mode` (`fresh` | `reuse`, default `fresh`), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
 
 **Pick the mode (auto rule).** If the brief carries an `INSTANCE_HANDLE` whose DB already has the scope modules installed, re-running tests there MUST use `reuse`. If you acquired a fresh ephemeral DB for this run (the DB is created by the `-i` pass), use `fresh`. Behaviour rule: re-running tests on a DB where the modules are already installed must use `-u`; `-i` on an already-installed module is a no-op, so it does NOT re-exercise the install path. `fresh` -> `-i`, `reuse` -> `-u`; the script maps `--mode` to the right flag - confirm the `-i`/`-u` semantics for the series via `cli_help(command='server', odoo_version='<series>')`.
 
@@ -519,33 +514,34 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
   [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
   --mode <fresh|reuse> \
+  --version "<series>" \
   [--test-tags "<tags>"] \
-  [--log-mode <warn|info|debug|sql>] \
+  [--log-mode <info|debug|sql>] \
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
+(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps the shared `info` default. Always pass `--version <series>`: the result parser needs it to pick the era-correct "the suite ran" marker. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
 
 **Active wait (HARD RULE):** a `--test-enable` build is long - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above, reusing the `test` verb's own result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the count lines, `TEST_SKIPPED=`) as the completion signal; never idle-stall past the tool timeout or return before the run terminates.
 
 The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed|inconclusive`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` / `TEST_SKIPPED=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads, the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately), and any skipped-test names; forward the POINTER, not the file body. Release the lease when done. On any failure, warning, OR skip, preserve `log_path` and `findings_path` and forward them in the output block.
 
-**Verdict contract.** Derive `status` from the counts, in this precedence order:
-- `failed + errors > 0` -> `status: tests-failed` (equivalently `TEST_RESULT=failed`): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
-- else `skipped > 0` -> `status: tests-inconclusive` (equivalently `TEST_RESULT=inconclusive`; a `concerns:` entry at minimum, a HOLD not a green light): skips are NOT fatal (legitimately produced by `@tagged` filters or a missing optional external dependency) but they are also NOT proof the suite ran clean - `TEST_SKIPPED>0` NEVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` (which lists the skipped test names) first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` to the caller rather than swallow it.
-- else `warnings > 0` -> `status: tests-passed-with-warnings` (a `concerns:` entry, not a bare pass): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
-- clean (`failed + errors = 0`, `skipped = 0`, and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address - **unless the checker-load coverage check below downgrades it.**
+**Verdict contract.** `TEST_RESULT=` is the script's own adjudication and OUTRANKS the four counters - read it on EVERY `run-tests` dispatch, for EVERY `GATE_ROLE`. Counters only refine which concern to report; they never overturn the verdict:
+- `TEST_RESULT=failed` -> `status: tests-failed` (a test failure, or an install failure that left no test able to run): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
+- `TEST_RESULT=inconclusive` -> `status: tests-inconclusive` (a `concerns:` entry at minimum, a HOLD not a green light): NOT proof the suite ran clean. TWO causes, both non-pass - `skipped > 0` with no failure (legitimate via `@tagged` filters or a missing optional dependency), and all counters zero with NO era-correct "the suite ran" marker (the module ships no tests, or the tag filter matched nothing: odoo-bin exits 0 having run nothing). Neither EVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` rather than swallow it.
+- `TEST_RESULT=passed` and `warnings > 0` -> `status: tests-passed-with-warnings` (a `concerns:` entry, not a bare pass): warnings ARE findings that must be fixed, so you MUST surface `findings_path` rather than swallow it.
+- `TEST_RESULT=passed` and `warnings = 0` -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address. It REQUIRES `TEST_RESULT=passed` - `failed + errors + skipped + warnings = 0` is also exactly what a suite that never ran reports, so never infer a pass from it - **unless the checker-load coverage check below downgrades it.**
 
-**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** The four-branch ladder above adjudicates entirely on `failed`/`errors`/`skipped`/`warnings` - counters that a lint-class module's own test method increments as it runs. A custom checker (or an entire checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of those four signals: it is not a failure (the checker never ran, so nothing could fail), not a skip (it is not a test - `@tagged` filters do not apply to it), and not a warning (nothing objected - there was simply nothing there to object). All four counters can legitimately read `0/0/0/0` while the run silently checked fewer things than the caller asked for, and the ladder above - unmodified - would resolve that straight to `tests-passed`, the ONE verdict its own text calls "the only verdict that lets the caller proceed with nothing to address." That is exactly the false-green shape this axis exists to close.
+**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** The ladder above adjudicates on `TEST_RESULT=` plus `failed`/`errors`/`skipped`/`warnings` - signals a lint-class module's own test method produces as it runs. A custom checker (or an entire checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of them: it is not a failure (the checker never ran, so nothing could fail), not a skip (it is not a test - `@tagged` filters do not apply to it), and not a warning (nothing objected - there was simply nothing there to object). The wrapper test still runs, so the run earns a genuine `TEST_RESULT=passed` at `0/0/0/0` while it silently checked fewer things than the caller asked for, and the ladder above - unmodified - would resolve that straight to `tests-passed`, the ONE verdict its own text calls "the only verdict that lets the caller proceed with nothing to address."
 
-This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these lint-class modules at all, per the "Lint modules - installed ONLY for the designated pre-PR lint gate" HARD RULE above. A `GATE_ROLE: per-module-verify` dispatch never installs these modules, so there is nothing to check coverage on there - this composes with, and does not duplicate or contradict, the existing `GATE_ROLE` mechanism.
+This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these lint-class modules at all, per the "Lint modules - installed ONLY for the designated pre-PR lint gate" HARD RULE above. A `GATE_ROLE: per-module-verify` dispatch never installs these modules, so there is nothing to check coverage on there.
 
 For every lint-class module this build unioned into the install+tag set (the SAME probe result the Lint modules HARD RULE above used - never a second, independent probe), read that module's own portion of the log for POSITIVE evidence that its full checker/rule set actually loaded and ran. The exact wording is a live-log fact of THIS run, not a fixed phrase to assume from memory or carry over from a prior series or a prior report - these modules' own reporting is Odoo/Viindoo framework-internal and is NOT indexed by OSM (confirmed: `docs/reference/ODOO-TESTING.md` and `docs/reference/odoo-code-quality.md` both document that OSM's `lint_check` does NOT reproduce "the full Odoo AST checker set" - it is a hint tool, not a log-format oracle, and neither doc names any literal partial-count phrasing as a confirmed Odoo output format). Do not invent or assume one - read what this run's own log actually printed for the module in question, then decide between the two outcomes below:
 
 - The log states, for a lint-class module, that fewer checkers/checks loaded or ran than that module itself registered or requested (any wording naming a checker/plugin import failure, a "not loaded"/"skipped loading" statement tied to a specific checker name, or an explicit smaller-than-expected count) -> a CONFIRMED coverage shortfall.
 - The log contains NO explicit statement at all of how many checks/checkers this module ran, for a module that WAS installed and tagged this run -> coverage is UNCONFIRMED. Silence is never treated as proof of a clean run - the same discipline the `"Modules loaded."` completion marker already applies to init/update above (a positive marker is REQUIRED for success; its absence is itself a failure signal, never a fallthrough to success) extends here: the absence of a positive coverage statement is itself the finding, not evidence there was nothing to find.
 
-Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of what failed/errors/skipped/warnings otherwise read, even a genuine `0/0/0/0`. This widens `tests-inconclusive`'s existing definition ("not proof the suite ran clean") to explicitly also cover "ran, but checked less than it should have" - it does not need a new fifth status: the caller-facing contract two bullets up ("MUST NOT treat this as a verified pass...without a human reviewing `findings_path` first") already says exactly the right thing for this case too. Note in the output block's `notes` field which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so `findings_path`/`notes` carries enough for a human, or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR lint-class gate), to act on it rather than a bare status flip with no evidence attached.
+Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of what failed/errors/skipped/warnings otherwise read, even a genuine `0/0/0/0`. This widens `tests-inconclusive`'s existing definition ("not proof the suite ran clean") to explicitly also cover "ran, but checked less than it should have"; it needs no new fifth status. Note in the output block's `notes` field which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so `findings_path`/`notes` carries enough for a human, or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR lint-class gate), to act on it rather than a bare status flip with no evidence attached.
 
 ### 6. ensure-up / status
 
@@ -818,11 +814,11 @@ notes: <one-line summary of any non-obvious decision or error>
 ```
 ````
 
-The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db_name>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
+The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. Forward it as a POINTER; when you must inspect it, grep it BOUNDED (`grep -nE '<marker>' <log> | head -n 40`) - never Read the file whole. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db_name>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
 
 The `db_port` and `run_id` fields: populate them from Step D's acquire result - `db_port` from
-`$ALLOC_DB_PORT` (empty when the lease carries none) and `run_id` from `$ALLOC_RUN_ID` (empty for
-an unowned standalone lease). These are the multi-turn ownership + port carrier the orchestrator
+`$ALLOC_DB_PORT` (empty when the lease carries none) and `run_id` from `$ALLOC_RUN_ID` (empty only
+when the acquire could not resolve one). These are the multi-turn ownership + port carrier the orchestrator
 reads back into `INSTANCE_HANDLE` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`)
 so it can drop or release the right instance on the right Postgres port under the right owner on a
 later turn - forward them on EVERY operation, not only create-instance.
@@ -838,14 +834,14 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] venv resolved or built; $ALLOC_PYTHON used (not system python3)
 - [ ] allocator lease acquired; token in output block
 - [ ] DB created/dropped THROUGH Odoo (odoo_db.py / Odoo create-on-init), never raw createdb/dropdb
-- [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
+- [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block; any inspection of it was a BOUNDED grep, never a whole-file read
 - [ ] db_port and run_id populated from $ALLOC_DB_PORT / $ALLOC_RUN_ID (empty when unresolved/unowned) and forwarded in the output block on every operation
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
-- [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
+- [ ] build ops ran at the default `--log-level=info` unless the caller overrode it via --extra / --log-mode
 - [ ] confirmed the odoo-bin launch carried the memory cap (ulimit -Sv + --limit-memory-hard, from resource_limits.sh) or an explicit uncap
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
-- [ ] skipped>0 with no fail/error reported as tests-inconclusive, NEVER a bare tests-passed (findings_path surfaced with the skipped test names, not swallowed; no exit code forced by skips alone)
+- [ ] `TEST_RESULT=` read on EVERY dispatch and honored over the counters; tests-passed claimed ONLY on `TEST_RESULT=passed`, never inferred from all-zero counters; every `TEST_RESULT=inconclusive` reported as tests-inconclusive (findings_path surfaced, not swallowed; no exit code forced by skips alone)
 - [ ] `GATE_ROLE: pre-pr-lint-gate` run-tests dispatches: checker-load coverage confirmed per-module from THIS run's own log (never a hardcoded phrase) before trusting any all-zero counter set as tests-passed; a confirmed shortfall or an unconfirmable log both reported as tests-inconclusive, NEVER swallowed into tests-passed (see "Checker-load coverage confirmation" above)
 - [ ] you release it UNLESS you forward the handle to a NAMED catcher in `next.inputs`
       (`INSTANCE_HANDLE`) - an unforwarded live lease at DONE is a leak (SSOT:
@@ -868,7 +864,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 
 When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`. When a caller asked for code authoring alongside instance ops (`## OUT OF SCOPE` above), add a `next:` entry naming the code skill (e.g. `odoo-coding`), low confidence (advisory - not a blocker on your own `status: DONE`) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form. Which caller holds release responsibility for the instance you just operated on (self-provisioned vs a forwarded `INSTANCE_HANDLE` vs a named T4 handoff) is governed by `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3/T4 - this agent executes the release/drop call it is asked for; it does not decide on its own whether one is owed.
 
-## Agent Team mode
+## You launch nothing
 
 You never launch an agent, so the spawner contracts do not bind you. Your obligations are
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
@@ -899,10 +895,5 @@ never guessed either way); the provision-once/forward-everywhere rule per
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
-  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
-  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

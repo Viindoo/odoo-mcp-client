@@ -17,7 +17,7 @@
 
 ```
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-init --log-level=test \
+odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-init --log-level=info \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
@@ -70,17 +70,14 @@ context.
 
 | `log_mode` | Odoo flag(s) | Use when |
 |---|---|---|
-| (omitted) | `--log-level=test` | default - test-progress + the `N failed, N error` summary |
-| `warn` | `--log-level=warn` | WARNING+ only (quietest; still shows FAIL/ERROR) |
-| `info` | `--log-level=info` | per-test progress + module-load lines |
+| (omitted) | `--log-level=info` | default - per-test progress plus the summary line that says a PASSING run actually ran |
+| `warn` | (none) | REFUSED, exit 2 - a PASSING run emits NO summary on any series v8-v19, so every green run would parse as `TEST_RESULT=inconclusive` |
 | `debug` | `--log-level=debug` | full framework debug trace |
 | `sql` | `--log-handler=odoo.sql_db:DEBUG` | dump executed SQL (query-count / N+1 probing) |
 
-When `log_mode` is omitted the runner keeps `--log-level=test` (it does NOT default to `warn`); pass
-a row above only to override. `sql` raises only the SQL logger, not the whole framework. **Confirm the exact log-level values and
-the sql-debug handler for the target version via `cli_help`** (`--log-level` / `--log-handler`) -
-the handler name above is illustrative. A run's WARNINGs are findings to fix (not noise) - the
-warnings-are-findings contract lives in `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
+When `log_mode` is omitted the runner keeps the build default (`--log-level=info`); pass a row
+above only to override. `sql` raises only the SQL logger, not the whole framework. **Confirm the
+exact log-level values and the sql-debug handler for the target version via `cli_help`** (`--log-level` / `--log-handler`) - the handler name above is illustrative. A run's WARNINGs are findings to fix (not noise) - the warnings-are-findings contract lives in `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Quality gate / lint tests - always include (the part that slips to CI)
 
@@ -111,12 +108,12 @@ v13" as the table implies) - never assume the table over a live probe.
 
 # v14-v15: test_lint only
 odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test \
+  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=info \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 
 # v16+ Viindoo: also add /test_pylint (tvtmaaddons)
 odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=test \
+  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=info \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 

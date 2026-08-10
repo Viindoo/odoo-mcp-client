@@ -793,10 +793,10 @@ guess, exactly like an omitted `WORKTREE_PATH` above must never be inferred from
 
 **A `tests-inconclusive` verdict from THIS dispatch is treated as a non-pass too, not only
 `tests-failed` (mandatory).** `agents/odoo-instance-ops.md` § Verdict contract resolves this
-`GATE_ROLE: pre-pr-lint-gate` dispatch to `tests-inconclusive` in two cases: the pre-existing
-skip-only case, and the "Checker-load coverage confirmation" case (a custom checker - e.g. an
-SQL-injection rule - that failed to load, or a log with no checker-coverage statement to confirm
-at all). Neither case is a `tests-passed` in disguise, and this is the ONE dispatch in the whole
+`GATE_ROLE: pre-pr-lint-gate` dispatch to `tests-inconclusive` on ANY `TEST_RESULT=inconclusive`
+(skips, or no proof the suite ran), and on the "Checker-load coverage confirmation" case (a custom
+checker - e.g. an SQL-injection rule - that failed to load, or a log with no checker-coverage
+statement to confirm at all). No case is a `tests-passed` in disguise, and this is the ONE dispatch in the whole
 run authorized to trigger the lint-class union at all - there is no LATER gate to catch a miss
 here. An unattended `--auto` drive-to-done run has nothing else guaranteed to perform the "human
 reviewing `findings_path`" step that dispatch's own contract text demands for `tests-inconclusive`
@@ -807,7 +807,7 @@ loop below as `tests-failed` - never a silent pass-through to the terminal PR.
 "catch it while the wave's context is warm" for "catch it once, cheaply, over the full diff" - this
 trade is intentional (the owner's instruction), but it must not become a worse failure than what it
 replaces:
-- **On a FAILURE OR a `tests-inconclusive` verdict (skip-only or coverage-shortfall/unconfirmed -
+- **On a FAILURE OR a `tests-inconclusive` verdict (any `TEST_RESULT=inconclusive` reason, or coverage-shortfall/unconfirmed -
   see the paragraph above), do not flat-BLOCK the run.** For a FAILURE, the lint tool's own output
   names the exact file/line; for a coverage gap, `findings_path`/`notes` names which lint-class
   module's checker coverage could not be confirmed and why (per the coverage rule cited above) -

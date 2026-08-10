@@ -59,7 +59,7 @@ When invoked, gather the following from the caller's request:
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
 | `GATE_ROLE` | `pre-pr-lint-gate` / `per-module-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions `test_lint`/`test_pylint` into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a per-module/per-wave integrated verification, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `per-module-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
-| `log_mode` | `warn` / `info` / `debug` / `sql` (optional; `run-tests` only) - sets the odoo log verbosity; omitted keeps `--log-level=test` |
+| `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
 | `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` - this skill ALWAYS unions `en_US` into the activation set before dispatch (see "en_US is mandatory on every build" below), so the caller never needs to add it; omit / pass `none` to activate `en_US` alone |
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - adds `--skip-auto-install` so `auto_install` modules do not install alongside the target |
@@ -85,32 +85,30 @@ on this skill's behalf (its own contract refuses with `NEEDS_CONTEXT` if it ever
 missing - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY
 for the designated pre-PR lint gate (HARD RULE)").
 
-**Log verbosity default.** `create` / `init` / `update` builds run at `--log-level=warn` by DEFAULT
-(quieter than Odoo's stock `info`); `run-tests` keeps `--log-level=test`. A caller may ESCALATE to
-`info` / `debug` - for `run-tests` via the `log_mode` field, for `create` / `init` / `update` via an
-extra flag threaded into the brief (overrides the `warn` default). The agent grounds `--log-level`
-via `cli_help` like any other flag.
+**Log verbosity default.** Every build (`create` / `init` / `update` / `run-tests`) runs at
+`--log-level=info` - Odoo's stock default, and the lowest level at which a PASSING run still emits
+its own summary. Override per dispatch: `run-tests` via `log_mode`; the rest via a `--log-level` in
+the brief's extra flags, which is placed after the default and therefore wins. The agent grounds
+`--log-level` via `cli_help` like any other flag.
 
 **Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
 longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
 build in the background and poll `LOG_PATH` to a TERMINAL marker - for init/update, the ONLY success
 marker is `Modules loaded.` present AND no failure marker (matching the script's own
 `_install_confirmed` verdict, SSOT-shared with the `wait-log` helper's `_scan_build_markers`;
-`Registry loaded` / exit 0 / `Initiating shutdown` are progress signals only, never independently
-sufficient for success); failure: `Traceback` / ` CRITICAL ` / ` ERROR ` / `Failed to load registry` /
+`loading <N> modules...` / exit 0 / `Initiating shutdown` are progress signals only, never
+independently sufficient for success); failure: `Traceback` / ` CRITICAL ` / ` ERROR ` / `Failed to load registry` /
 the silent-skip markers (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet
-dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=` (a skip-only run - `TEST_SKIPPED>0` with no failure - is `TEST_RESULT=inconclusive`, a terminal marker like any other, never a stall). Emit a heartbeat between
+dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=` (`inconclusive` is a terminal marker like any other, never a stall). Emit a heartbeat between
 polls; the exit code stays authoritative for FAILURE (never let a marker override a non-zero exit)
 while the completion marker is still required for SUCCESS - never idle-stalling or returning before a
 terminal marker; on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
 
-**Readiness/completion signal is DETERMINISTIC, never a log tail.** Under the `--log-level=warn`
-baseline every completion line above is INFO-level and gets suppressed - a clean, successful run
-produces an EMPTY log, so waiting to SEE a line in it can stall to the timeout even on success. Two
-different, deterministic signals apply instead, one per job shape: an install/update job's DONE
-signal is the launched process EXITING (`--stop-after-init` guarantees this), confirmed by exit 0
-AND a forced completion marker (`Modules loaded.`, guaranteed present via
+**Readiness/completion signal is DETERMINISTIC, never a log tail.** Two different, deterministic
+signals apply, one per job shape: an install/update job's DONE signal is the launched process
+EXITING (`--stop-after-init` guarantees this), confirmed by exit 0 AND a forced completion marker
+(`Modules loaded.`, kept on the log at any caller-chosen level via
 `--log-handler=<ns>.modules.loading:INFO`, `<ns>` = `openerp` v8-v9 / `odoo` v10+) AND the absence
 of any failure marker - exit 0 ALONE is NOT proof of install (a bad module name, an unresolved
 dependency, or a failed demo load can all exit 0 while silently skipping the install). A LISTENING
@@ -189,7 +187,7 @@ DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
 GATE_ROLE: <pre-pr-lint-gate|per-module-verify>   # REQUIRED for run-tests / test-enable init/update; resolved above - never omitted, never left for the agent to guess
 MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
-LOG_MODE: <warn|info|debug|sql or 'default'>   # run-tests only; 'default' keeps --log-level=test
+LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
 FRESH_VENV: <true|false>
 PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - see the dispatch table above
 RUN_ID: <the caller's session/run id>                   # ALWAYS set - the lease-ownership identity; never omit
@@ -199,9 +197,6 @@ SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent's own acquire gains --addons-path-override per § WORKTREE_PATH substitution
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
-  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
 
 `INSTANCE_RESOLUTION`, `ALLOCATOR`, and `OSM_GROUNDING` are deliberately NOT brief fields: the

@@ -74,12 +74,23 @@ def test_agent_carries_active_wait_section():
 
 
 def test_agent_active_wait_names_terminal_markers():
-    """The contract must name both success and failure terminal markers."""
+    """The contract must name success/progress and failure markers, and every
+    marker it names must be one EVERY supported series can actually emit.
+
+    `Registry loaded` is banned here on a source fact, not a style preference:
+    that line was introduced at 15.0, so nine of the twelve supported series
+    can never produce it - naming it as a progress signal tells the agent to
+    wait for something that will never appear. The version-stable progress
+    line is `loading <N> modules...` (INFO, byte-identical v8.0-v19.0)."""
     text = _norm(AGENT_MD)
-    for success in ("Modules loaded.", "Registry loaded", "Initiating shutdown"):
-        assert success in text, f"agent must name success marker {success!r}"
+    for success in ("Modules loaded.", "loading <N> modules...", "Initiating shutdown"):
+        assert success in text, f"agent must name marker {success!r}"
     for failure in ("Traceback (most recent call last):", "Failed to load registry"):
         assert failure in text, f"agent must name failure marker {failure!r}"
+    assert "Registry loaded" not in text, (
+        "agent must NOT name `Registry loaded` as a marker - it does not exist "
+        "before Odoo 15.0, so it can never appear on nine supported series"
+    )
 
 
 def test_agent_active_wait_exit_code_authoritative():
@@ -108,11 +119,27 @@ def test_skill_relays_active_wait_contract():
     assert "Modules loaded." in text, "skill relay must name a success marker"
 
 
-def test_skill_documents_log_level_warn_default():
-    """The skill must document the warn default + escalation for build ops."""
+def test_skill_documents_the_single_build_log_level_default():
+    """The skill must state ONE build log-level default plus how to override it,
+    and must not still claim the old quiet `warn` baseline anywhere.
+
+    Scanned over the whole normalized file rather than one line: a stale claim
+    that survives elsewhere in the document is exactly as misleading to a
+    dispatching agent as the original."""
     text = _norm(SKILL_MD)
-    assert "--log-level=warn" in text, "skill must state the warn default for builds"
-    assert "ESCALATE" in text, "skill must document escalation to info/debug"
+    assert "--log-level=info" in text, "skill must state the build default level"
+    assert "log_mode" in text and "extra flags" in text, (
+        "skill must name both override paths (log_mode for run-tests, extra flags otherwise)"
+    )
+    for stale in (
+        "--log-level=warn` by DEFAULT",
+        "runs at `--log-level=warn`",
+        "quieter than Odoo's stock",
+        "keeps `--log-level=test`",
+    ):
+        assert stale not in text, (
+            f"skill still carries the superseded default claim {stale!r}"
+        )
 
 
 def test_agent_self_review_covers_active_wait_and_log_level():
@@ -121,8 +148,11 @@ def test_agent_self_review_covers_active_wait_and_log_level():
     assert "actively waited to a TERMINAL marker" in text, (
         "self-review must include the active-wait item"
     )
-    assert "--log-level=warn" in text and "test` verb kept `--log-level=test`" in text, (
-        "self-review must assert the warn default and that the test verb keeps --log-level=test"
+    assert "--log-level=info" in text, (
+        "self-review must assert the single build log-level default"
+    )
+    assert "--log-level=test" not in text, (
+        "self-review must not assert a separate `test`-verb default - there is one default now"
     )
 
 
@@ -509,18 +539,18 @@ def test_agent_exclusive_running_never_falls_back_to_8069():
 
 
 # ---------------------------------------------------------------------------
-# Instance readiness/completion detection fix - the historical hang under
-# --log-level=warn (empty log -> a marker-only wait never terminates). The
-# fix replaces log-tailing with deterministic signals: install/update job ->
-# process exit + a forced completion marker + failure-marker scan; listening
-# instance -> bounded HTTP port poll. SSOT: docs/reference/
-# INSTANCE-LIFECYCLE.md item 14.
+# Instance readiness/completion detection. Completion is decided by
+# deterministic signals, never by tailing a log: install/update job -> process
+# exit + a REQUIRED completion marker + failure-marker scan; listening instance
+# -> bounded HTTP port poll. The --log-handler=<ns>.modules.loading:INFO flag is
+# the FLOOR that keeps the completion marker present at any level a caller may
+# pass in --extra. SSOT: docs/reference/INSTANCE-LIFECYCLE.md item 14.
 # ---------------------------------------------------------------------------
 
 def test_agent_documents_log_handler_namespace_forcing():
-    """odoo-instance-ops.md must document forcing --log-handler=<ns>.modules.
-    loading:INFO onto init/update so 'Modules loaded.' survives the
-    --log-level=warn baseline, and the openerp/odoo namespace split by
+    """odoo-instance-ops.md must document the --log-handler=<ns>.modules.
+    loading:INFO floor on init/update that keeps 'Modules loaded.' on the log
+    at any caller-chosen level, and the openerp/odoo namespace split by
     version (v8-v9 vs v10+)."""
     text = _norm(AGENT_MD)
     assert "--log-handler=<ns>.modules.loading:INFO" in text, (
@@ -574,10 +604,13 @@ def test_agent_documents_bounded_port_poll_for_listening_readiness():
     )
 
 
-def test_init_and_update_delegation_recipes_pass_version_flag():
-    """The init-modules and update-modules delegation recipes must pass
-    --version so the script can resolve the --log-handler namespace - the
-    contract is inert without it being threaded through."""
+def test_delegation_recipes_pass_version_flag():
+    """Every delegation recipe whose script-side behavior is series-gated must
+    pass --version - the gate is INERT if the recipe never threads it through.
+
+    init/update need it to resolve the --log-handler namespace (openerp v8-v9
+    vs odoo v10+); run-tests needs it so _parse_test_result picks the
+    era-correct "the suite ran" marker instead of accepting either wording."""
     text = _norm(AGENT_MD)
 
     def _section(header_start: str, header_end: str) -> str:
@@ -588,10 +621,48 @@ def test_init_and_update_delegation_recipes_pass_version_flag():
 
     init = _section("### 3. init-modules", "### 4. update-modules")
     update = _section("### 4. update-modules", "### 5. run-tests")
-    for name, sec in (("init-modules", init), ("update-modules", update)):
+    run_tests = _section("### 5. run-tests", "### 6. ")
+    for name, sec in (("init-modules", init), ("update-modules", update),
+                      ("run-tests", run_tests)):
         assert '--version "<series>"' in sec, (
             f"{name} must pass --version \"<series>\" to 55-instance-ops.sh"
         )
+
+
+def test_no_agent_or_doc_claims_a_quiet_or_empty_build_log():
+    """No agent-facing file may still claim a successful build produces an
+    EMPTY/near-empty log, or that completion lines get SUPPRESSED.
+
+    Whole-tree, whitespace-normalized scan matched on the CLAIM shape rather
+    than on one file or one sentence: the recurring failure mode here is a rule
+    changing in its definition site while restatements elsewhere survive and
+    then contradict it. Every phrase below described the old quiet baseline and
+    is false under the current one - an agent that believes it would skip
+    reading a log that now has real content."""
+    stale_claims = (
+        "produces an EMPTY log",
+        "produces an empty log",
+        "gets SUPPRESSED",
+        "gets suppressed",
+        "quieter than Odoo",
+        "log-level=warn` build baseline",
+        "log-level=warn baseline",
+        "survives the `warn` baseline",
+    )
+    offenders = []
+    for sub in ("agents", "skills", "docs", "snippets", "commands", "workflows"):
+        root = PLUGIN / sub
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.md")):
+            text = _norm(path)
+            for claim in stale_claims:
+                if claim in text:
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}: {claim!r}")
+    assert not offenders, (
+        "agent-facing prose still describes the superseded quiet-log baseline:\n  "
+        + "\n  ".join(offenders)
+    )
 
 
 def test_lifecycle_doc_item14_documents_ready_detect_contract():

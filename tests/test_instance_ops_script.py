@@ -16,6 +16,7 @@ calls go to stub scripts on a synthetic PATH / --python.
 
 import json
 import os
+import re
 import socket
 import subprocess
 import textwrap
@@ -155,9 +156,9 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
 
     Verifies the LOG_PATH= line is emitted and the log file exists on disk.
     """
-    # extra_output emits the "Modules loaded." completion marker - forced onto
-    # the log by --log-handler=<ns>.modules.loading:INFO even under the
-    # --log-level=warn baseline - so a genuinely successful run is confirmed
+    # extra_output emits the "Modules loaded." completion marker - kept on the
+    # log at any caller-chosen level by the --log-handler=<ns>.modules.
+    # loading:INFO FLOOR - so a genuinely successful run is confirmed
     # (exit 0 alone is not proof of install; see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
@@ -225,10 +226,15 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
 
 @requires_bash
 def test_test_verb_emits_passed_on_clean_run(tmp_path):
-    """test with exit 0 + no failure markers -> TEST_RESULT=passed."""
-    # odoo-bin stub: exits 0 and prints a passing summary.
+    """test with exit 0 + a real passing summary -> TEST_RESULT=passed.
+
+    The summary is the VERBATIM v14+ wording (odoo/service/server.py logs
+    OdooTestResult.__str__ as "<F> failed, <E> error(s) of <T> tests when
+    loading database <db>"), not a paraphrase - the parser keys on it.
+    """
     passing_summary = (
-        "  Ran 5 test(s) in 1.23s: 0 failed, 0 error(s) (at_install)"
+        "2026-01-01 00:00:00,000 1 INFO testdb odoo.service.server: "
+        "0 failed, 0 error(s) of 5 tests when loading database 'testdb'"
     )
     fake_bin = _make_fake_odoo_bin(
         tmp_path, exit_code=0,
@@ -258,8 +264,17 @@ def test_test_verb_emits_passed_on_clean_run(tmp_path):
 
 
 @requires_bash
-def test_test_verb_emits_passed_on_exit0_no_markers(tmp_path):
-    """test with exit 0 and no failure markers -> TEST_RESULT=passed (even without pass line)."""
+def test_green_run_with_no_ran_marker_is_inconclusive_never_passed(tmp_path):
+    """exit 0 with NO failure marker and NO "the suite ran" marker must report
+    TEST_RESULT=inconclusive, never a bare passed.
+
+    Business rule: `passed` is a POSITIVE finding - it requires evidence the
+    suite actually ran. A --test-tags filter that matches zero tests exits 0
+    and produces no marker at all; certifying that as green is the same class
+    of false green as the skip-only run in Contract 2c. This test previously
+    asserted the opposite (it pinned the fallthrough-to-passed defect in
+    place), so it is inverted here rather than added alongside.
+    """
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "All done"')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
@@ -278,7 +293,13 @@ def test_test_verb_emits_passed_on_exit0_no_markers(tmp_path):
     )
 
     assert res.returncode == 0
-    assert "TEST_RESULT=passed" in res.stdout
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=inconclusive" in stdout_lines, (
+        f"a run with no ran-marker must be inconclusive.\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=passed" not in stdout_lines, (
+        f"a run with no ran-marker must NEVER be certified passed.\nstdout:\n{res.stdout}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -512,7 +533,10 @@ def test_test_verb_zero_skip_clean_run_still_emits_passed(tmp_path):
     """Regression guard: a genuinely clean run (0 failed, 0 error, 0 skipped)
     must still emit an exact TEST_RESULT=passed line and TEST_SKIPPED=0 - the
     skip fix must not regress the plain-pass path."""
-    passing_summary = "  Ran 5 test(s) in 1.23s: 0 failed, 0 error(s) (at_install)"
+    passing_summary = (
+        "2026-01-01 00:00:00,000 1 INFO cleanrundb odoo.service.server: "
+        "0 failed, 0 error(s) of 5 tests when loading database 'cleanrundb'"
+    )
     fake_bin = _make_fake_odoo_bin(
         tmp_path, exit_code=0, extra_output=f'echo "{passing_summary}"'
     )
@@ -566,7 +590,9 @@ def test_test_verb_benign_skip_lookalikes_do_not_trip_skip_detection(tmp_path):
         'skipping approval because state != draft"\n'
         'echo "INFO 1 test odoo.addons.website_testimonial.models.testimonial: '
         'skipping duplicate testimonial entry"\n'
-        'echo "  Ran 5 test(s) in 1.23s: 0 failed, 0 error(s) (at_install)"'
+        'echo "2026-01-01 00:00:00,000 1 INFO skiplookalikedb '
+        'odoo.service.server: 0 failed, 0 error(s) of 5 tests when loading '
+        'database \'skiplookalikedb\'"'
     )
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
@@ -994,16 +1020,21 @@ def test_init_forwards_extra_flags(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Contract 5: build ops (init / update) default to --log-level=warn, overridable
-# via --extra. Business rule: a build op is quiet (warn) by default - quieter than
-# Odoo's stock `info` - but a caller escalates for deep debugging by passing a
-# louder --log-level in --extra, which must WIN (Odoo takes the last occurrence,
-# so warn must sit BEFORE --extra in the argv).
+# Contract 5: ONE log-level default, shared by every verb, overridable per run.
+# Business rule: init / update / test all resolve the SAME default level - the
+# level at which a passing run still emits its own summary - and a caller
+# overrides it per run with a --log-level in --extra (Odoo takes the last
+# occurrence, so the default must sit BEFORE --extra in the argv). The tests
+# below assert the RESOLVED default is one shared value and that no verb keeps
+# a second, different one; they never snapshot a particular token beyond the
+# one behavioural fact that makes it the right default.
 # ---------------------------------------------------------------------------
 
 @requires_bash
-def test_init_defaults_to_log_level_warn(tmp_path):
-    """init must inject --log-level=warn by default (quieter than Odoo's info)."""
+def test_init_defaults_to_log_level_info(tmp_path):
+    """init must inject --log-level=info by default (Odoo's own stock level -
+    the lowest at which a PASSING run still emits its summary line) and must
+    NOT inject the old quiet `warn` default."""
     # "Modules loaded." confirms the run per the deterministic completion
     # contract (exit 0 alone is not proof - see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
@@ -1021,14 +1052,18 @@ def test_init_defaults_to_log_level_warn(tmp_path):
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content, (
-        f"Expected default --log-level=warn on init: {call_content}"
+    assert "--log-level=info" in call_content, (
+        f"Expected default --log-level=info on init: {call_content}"
+    )
+    assert "--log-level=warn" not in call_content, (
+        f"init must NOT emit the old quiet warn default: {call_content}"
     )
 
 
 @requires_bash
-def test_update_defaults_to_log_level_warn(tmp_path):
-    """update must inject --log-level=warn by default."""
+def test_update_defaults_to_log_level_info(tmp_path):
+    """update must inject the same --log-level=info default as init, and must
+    NOT inject the old quiet `warn` default."""
     # "Modules loaded." confirms the run per the deterministic completion
     # contract (exit 0 alone is not proof - see _install_confirmed).
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
@@ -1046,18 +1081,22 @@ def test_update_defaults_to_log_level_warn(tmp_path):
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content, (
-        f"Expected default --log-level=warn on update: {call_content}"
+    assert "--log-level=info" in call_content, (
+        f"Expected default --log-level=info on update: {call_content}"
+    )
+    assert "--log-level=warn" not in call_content, (
+        f"update must NOT emit the old quiet warn default: {call_content}"
     )
 
 
 @requires_bash
-def test_init_extra_log_level_overrides_warn_default(tmp_path):
-    """A caller-supplied --log-level=info in --extra must OVERRIDE the warn default.
+def test_extra_log_level_overrides_the_default(tmp_path):
+    """A caller-supplied --log-level in --extra must OVERRIDE the script default.
 
-    Odoo takes the last occurrence of a repeated flag, so the default warn must
+    Odoo takes the last occurrence of a repeated flag, so the default must
     appear BEFORE the --extra value in the argv - assert both the presence and
-    the order.
+    the order. Asserted on a token the script's own default is NOT, so the test
+    cannot silently pass by matching the default against itself.
     """
     # "Modules loaded." confirms the run per the deterministic completion
     # contract (exit 0 alone is not proof - see _install_confirmed).
@@ -1072,17 +1111,17 @@ def test_init_extra_log_level_overrides_warn_default(tmp_path):
     res = _run(
         "init", "--db", "escdb", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
-        "--extra", "--log-level=info",
+        "--extra", "--log-level=debug",
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
-    assert "--log-level=warn" in call_content and "--log-level=info" in call_content, (
-        f"Expected both warn default and info override present: {call_content}"
+    assert "--log-level=info" in call_content and "--log-level=debug" in call_content, (
+        f"Expected both the default and the --extra override present: {call_content}"
     )
-    # Order: warn (default) must precede info (--extra override) so info wins.
-    assert call_content.index("--log-level=warn") < call_content.index("--log-level=info"), (
-        f"warn default must precede the --extra --log-level=info override: {call_content}"
+    # Order: the default must precede the --extra override so the override wins.
+    assert call_content.index("--log-level=info") < call_content.index("--log-level=debug"), (
+        f"the default must precede the --extra --log-level=debug override: {call_content}"
     )
 
 
@@ -1149,28 +1188,26 @@ def test_init_failure_marker_run_preserves_log(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Contract 7 (RED-first / root-cause fix): the historical hang.
+# Contract 7: the completion invariant - "Modules loaded." or STATUS=error.
 #
-# Root cause: under --log-level=warn, EVERY completion line ("Modules
-# loaded.", etc.) is INFO-level and gets suppressed - a clean run produces an
-# EMPTY log. A completion check that requires seeing a line in that log would
-# therefore wait forever (or, bounded, always time out) even on a genuinely
-# successful run. The fix has two parts, both asserted below:
-#   (a) init/update now force --log-handler=<ns>.modules.loading:INFO onto the
-#       odoo-bin invocation so "Modules loaded." survives the warn baseline -
-#       completion is decided by PROCESS EXIT (this call already blocks on
-#       it), never by tailing/waiting on a log line.
+# The whole init/update verdict rests on ONE line being present in the log.
+# The two parts asserted below make that unconditional:
+#   (a) init/update ALWAYS emit --log-handler=<ns>.modules.loading:INFO - a
+#       FLOOR, not a workaround: it keeps "Modules loaded." on the log at ANY
+#       level a caller may pass in --extra, including a quieter one, so the
+#       completion contract never depends on the caller's verbosity choice.
+#       Completion itself is decided by PROCESS EXIT (this call already blocks
+#       on it), never by tailing/waiting on a log line.
 #   (b) exit 0 alone is NOT sufficient - a run that exits 0 but never confirms
-#       (empty log, or a silent-skip failure marker present) must report
-#       STATUS=error, not STATUS=ok.
+#       (no completion marker, or a silent-skip failure marker present) must
+#       report STATUS=error, not STATUS=ok.
 # ---------------------------------------------------------------------------
 
 @requires_bash
 def test_init_exit0_with_no_confirmation_marker_is_status_error(tmp_path):
-    """RED-first: exit 0 with an OTHERWISE-EMPTY log (no warning/error line at
-    all - simulating the old warn-level hang where the completion line was
-    suppressed) must NOT be treated as done. This is the exact root-cause bug:
-    before the fix, cmd_init trusted exit 0 alone and reported STATUS=ok here."""
+    """exit 0 with a log carrying no completion marker at all must NOT be
+    treated as done - the marker is REQUIRED for success, never inferred from
+    the exit code. Before the fix, cmd_init trusted exit 0 alone here."""
     fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)  # no extra_output -> empty log
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
@@ -1711,3 +1748,713 @@ def test_addons_csv_passed_to_odoo_bin_is_never_double_converted(tmp_path):
         f"byte-identical to the input (no injected spaces / double-conversion); "
         f"got: {content!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Contract 8: the log-level token the script emits must be valid on EVERY
+# supported series, and the test-result parser must read the era-correct
+# markers instead of guessing.
+#
+# Business rules protected here:
+#   (a) One default level, resolved the same way for every verb, and only ever
+#       a token in the INTERSECTION of the 12 series' `--log-level` choice
+#       lists - a token valid on some series is a hard optparse startup
+#       failure on the others.
+#   (b) A failing suite is reported FAILED on every series, including the six
+#       (v8.0-v13.0) whose per-module failure wording differs from v14+.
+#   (c) `passed` is a POSITIVE finding: it requires an era-correct "the suite
+#       ran" marker, and never falls through from "nothing went wrong".
+#
+# Every marker string below is the VERBATIM Odoo wording read from the source
+# of the series it represents, never a paraphrase.
+# ---------------------------------------------------------------------------
+
+# The intersection of the `levels` list in {openerp,odoo}/tools/config.py across
+# v8.0-v19.0. `runbot` (added at 14.0) and `warning` (never a member on any
+# series) are both OUTSIDE it and must never be emitted by this script.
+LOG_LEVEL_TOKENS_VALID_ON_EVERY_SERIES = {
+    "info", "debug_rpc", "warn", "test", "critical",
+    "debug_sql", "error", "debug", "debug_rpc_answer", "notset",
+}
+
+# Real per-era markers. Sources:
+#   v8.0-v13.0 failure : {openerp,odoo}/modules/module.py  "Module %s: %d failures, %d errors"
+#   all series failure : {openerp,odoo}/modules/loading.py "At least one test failed ..."
+#   v14.0+     failure : odoo/modules/loading.py "Module %s: %d failures, %d errors of %d tests"
+#   v8.0-v13.0 ran     : stdlib TextTestResult / odoo.modules.module "Ran %d test%s in %.3fs"
+#   v14.0+     ran     : odoo/service/server.py "%s when loading database %r" with
+#                        OdooTestResult.__str__ = "<F> failed, <E> error(s) of <T> tests"
+FAIL_LINE_V8_V13 = (
+    "2026-01-01 00:00:00,000 1 ERROR erad odoo.modules.module: "
+    "Module sale: 2 failures, 0 errors"
+)
+FAIL_LINE_ALL_SERIES = (
+    "2026-01-01 00:00:00,000 1 ERROR erad odoo.modules.loading: "
+    "At least one test failed when loading the modules."
+)
+FAIL_LINE_V14_PLUS = (
+    "2026-01-01 00:00:00,000 1 ERROR erad odoo.service.server: "
+    "3 failed, 0 error(s) of 40 tests when loading database 'erad'"
+)
+RAN_LINE_V8_V13 = (
+    "2026-01-01 00:00:00,000 1 INFO erad odoo.modules.module: Ran 5 tests in 1.234s"
+)
+RAN_LINE_V14_PLUS = (
+    "2026-01-01 00:00:00,000 1 INFO erad odoo.service.server: "
+    "0 failed, 0 error(s) of 40 tests when loading database 'erad'"
+)
+
+
+def _run_test_verb(tmp_path: Path, db: str, log_lines, *, version: str | None = None,
+                   exit_code: int = 0, extra_args=()) -> subprocess.CompletedProcess:
+    """Run the `test` verb against a stub odoo-bin that prints log_lines."""
+    extra_output = "\n".join(f'echo "{line}"' for line in log_lines)
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=exit_code, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir(exist_ok=True)
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    args = ["--db", db, "--python", str(fake_py), "--addons", str(addons_dir),
+            "--modules", "sale", *extra_args]
+    if version is not None:
+        args += ["--version", version]
+    return _run("test", *args, env=env)
+
+
+def _verdict(res: subprocess.CompletedProcess) -> str:
+    lines = [l for l in res.stdout.splitlines() if l.startswith("TEST_RESULT=")]
+    assert len(lines) == 1, f"expected exactly one TEST_RESULT= line, got {lines}\n{res.stdout}"
+    return lines[0].split("=", 1)[1]
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update"])
+@pytest.mark.parametrize(
+    "series",
+    ["8.0", "9.0", "10.0", "11.0", "12.0", "13.0",
+     "14.0", "15.0", "16.0", "17.0", "18.0", "19.0"],
+)
+def test_default_log_level_token_is_valid_on_every_supported_series(tmp_path, verb, series):
+    """Whatever --log-level token the script resolves for a series, it must be a
+    member of the intersection of all 12 series' accepted values.
+
+    This is the version-general form of "never emit runbot" (14.0+ only) and
+    "never emit warning" (not a member on ANY series) - both fail this rule
+    without being named, and so would any future token that is valid on only
+    part of the supported span. odoo-bin rejects an out-of-list value with an
+    optparse choice error and never starts."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        verb, "--db", f"lvl{verb}{series.replace('.', '')}", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale", "--version", series,
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    emitted = re.findall(r"--log-level=([A-Za-z_]+)", call_content)
+    assert emitted, f"{verb} emitted no --log-level at all: {call_content}"
+    for token in emitted:
+        assert token in LOG_LEVEL_TOKENS_VALID_ON_EVERY_SERIES, (
+            f"{verb} on series {series} emitted --log-level={token}, which is not "
+            f"valid on every supported series (v8.0-v19.0). Valid intersection: "
+            f"{sorted(LOG_LEVEL_TOKENS_VALID_ON_EVERY_SERIES)}"
+        )
+
+
+@requires_bash
+def test_test_verb_default_matches_the_build_default(tmp_path):
+    """The `test` verb with no --log-mode must emit the SAME --log-level token
+    init does by default - one default in this script, not two.
+
+    Before the SSOT constant there were three independent literals; this test
+    is what keeps them from drifting apart again."""
+    init_dir = tmp_path / "initrun"
+    init_dir.mkdir()
+    fake_bin_i = _make_fake_odoo_bin(init_dir, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py_i = _make_fake_python(init_dir, odoo_bin_path=fake_bin_i)
+    addons_i = init_dir / "addons"
+    addons_i.mkdir()
+    env_i = _base_env(init_dir)
+    env_i["ODOO_BIN"] = str(fake_bin_i)
+    res_i = _run("init", "--db", "defcmp1", "--python", str(fake_py_i),
+                 "--addons", str(addons_i), "--modules", "sale", env=env_i)
+    assert res_i.returncode == 0, f"stdout={res_i.stdout}\nstderr={res_i.stderr}"
+    init_levels = re.findall(
+        r"--log-level=([A-Za-z_]+)",
+        (init_dir / "odoo-bin-calls.log").read_text(encoding="utf-8"),
+    )
+
+    test_dir = tmp_path / "testrun"
+    test_dir.mkdir()
+    res_t = _run_test_verb(test_dir, "defcmp2", [RAN_LINE_V14_PLUS], version="17.0")
+    assert res_t.returncode == 0, f"stdout={res_t.stdout}\nstderr={res_t.stderr}"
+    test_call = (test_dir / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    test_levels = re.findall(r"--log-level=([A-Za-z_]+)", test_call)
+
+    assert init_levels == test_levels, (
+        f"the test verb's default log level ({test_levels}) must equal init's "
+        f"({init_levels}) - one default, not two"
+    )
+    assert "--log-level=test" not in test_call, (
+        f"the test verb must not keep a separate `test` log level: {test_call}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("token", ["runbot", "warning", "test"])
+def test_log_mode_rejects_a_token_not_valid_on_every_series(tmp_path, token):
+    """--log-mode is a CLOSED allowlist: a value outside info|debug|sql exits 2
+    with the allowlist printed, on every series and with no version gate. This is
+    what keeps `runbot` (a hard startup failure on v8.0-v13.0) from ever reaching
+    odoo-bin through this parameter."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test", "--db", f"lm{token}", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--log-mode", token,
+        env=env,
+    )
+    assert res.returncode == 2, (
+        f"--log-mode {token} must be refused with exit 2.\n"
+        f"rc={res.returncode} stdout={res.stdout} stderr={res.stderr}"
+    )
+    assert "info|debug|sql" in res.stderr, (
+        f"the refusal must print the allowlist.\nstderr={res.stderr}"
+    )
+
+
+def test_no_committed_file_emits_a_series_gated_log_level_token():
+    """No committed file anywhere in the plugin tree may hand odoo-bin a
+    --log-level token that is invalid on part of the supported span.
+
+    Whole-tree scan on whitespace-normalized text (prose here is line-wrapped,
+    so an adjacency-bound check would miss most of it) rather than a check
+    pinned to the one file that happens to carry the setter today."""
+    offenders = []
+    skip_dirs = {"node_modules", "__pycache__"}
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix not in {".sh", ".md", ".py", ".json", ".yaml"}:
+            continue
+        rel = path.relative_to(ROOT)
+        # Committed tree only: skip dot-dirs (.git/.venv/.claude) and vendored
+        # trees, plus this file (which necessarily names the invalid tokens).
+        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
+            continue
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        text = " ".join(path.read_text(encoding="utf-8", errors="ignore").split())
+        # Only the ASSIGNED form is a real emission; `--log-level` written as a
+        # bare noun in prose ("pass a --log-level in --extra") is not, and a
+        # shell/placeholder expansion (=$VAR, =<v>) resolves elsewhere.
+        for token in re.findall(r"--log-level=([A-Za-z_]+)", text):
+            if token not in LOG_LEVEL_TOKENS_VALID_ON_EVERY_SERIES:
+                offenders.append(f"{rel}: --log-level={token}")
+    assert not offenders, (
+        "committed files name a --log-level token that is not valid on every "
+        "supported series (v8.0-v19.0):\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_no_script_grep_keys_on_the_bare_INFO_level_token():
+    """55-instance-ops.sh must never grep a delimited ` INFO ` LEVEL token.
+
+    Odoo's level-25 aggregate line prints as `INFO` on v8.0-v16.0 and v19.0 but
+    as `RUNBOT` on v17.0-v18.0, so any scan keyed on the level column silently
+    changes meaning across the span. Every marker scan in this script keys on
+    MESSAGE TEXT instead, which is what keeps that drift inert - this guard
+    goes RED if someone 'improves' a scan by keying on the level column."""
+    text = STEP55.read_text(encoding="utf-8")
+    offenders = [
+        line.strip()
+        for line in text.splitlines()
+        if "grep" in line and re.search(r"\[\[:space:\]\]INFO\[\[:space:\]\]|[\"' ]INFO[\"' ]", line)
+        and not line.strip().startswith("#")
+    ]
+    assert not offenders, (
+        "a grep in 55-instance-ops.sh keys on the bare INFO level token, which "
+        "is displayed as RUNBOT on v17.0-v18.0:\n  " + "\n  ".join(offenders)
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series,fail_line", [
+    ("12.0", FAIL_LINE_V8_V13),
+    ("12.0", FAIL_LINE_ALL_SERIES),
+    ("17.0", FAIL_LINE_V14_PLUS),
+    ("17.0", FAIL_LINE_ALL_SERIES),
+])
+def test_test_summary_failure_is_parsed_in_every_era(tmp_path, series, fail_line):
+    """A failing suite must read as TEST_RESULT=failed on EVERY series.
+
+    RED before the fix on the v8.0-v13.0 per-module wording ("Module sale: 2
+    failures, 0 errors"): the old `[1-9][0-9]* (failed|error)` pattern is the
+    v14+ phrasing and never matched it, so a failures-only run on six of the
+    twelve supported series was certified GREEN."""
+    res = _run_test_verb(tmp_path, "eras", [fail_line], version=series)
+    assert _verdict(res) == "failed", (
+        f"series {series}: {fail_line!r} must read as failed.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series,ran_line", [
+    ("8.0", RAN_LINE_V8_V13),
+    ("12.0", RAN_LINE_V8_V13),
+    ("13.0", RAN_LINE_V8_V13),
+    ("14.0", RAN_LINE_V14_PLUS),
+    ("17.0", RAN_LINE_V14_PLUS),
+    ("19.0", RAN_LINE_V14_PLUS),
+])
+def test_green_run_needs_an_era_correct_ran_marker(tmp_path, series, ran_line):
+    """A clean run carrying its era's real "the suite ran" marker is passed."""
+    res = _run_test_verb(tmp_path, "green", [ran_line], version=series)
+    assert _verdict(res) == "passed", (
+        f"series {series}: {ran_line!r} must certify a pass.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series,wrong_era_line", [
+    ("12.0", RAN_LINE_V14_PLUS),
+    ("17.0", RAN_LINE_V8_V13),
+])
+def test_ran_marker_from_the_wrong_era_does_not_certify_a_pass(tmp_path, series, wrong_era_line):
+    """The era gate is a real SPLIT, not a permissive union: a series-13-and-below
+    run may not be certified by the v14+ wording, and vice versa. Without this,
+    'era-gated' would be indistinguishable from 'accept anything'."""
+    res = _run_test_verb(tmp_path, "wrongera", [wrong_era_line], version=series)
+    assert _verdict(res) == "inconclusive", (
+        f"series {series} must not be certified by the other era's marker "
+        f"{wrong_era_line!r}.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("ran_line", [RAN_LINE_V8_V13, RAN_LINE_V14_PLUS])
+def test_missing_version_accepts_either_era_marker(tmp_path, ran_line):
+    """With --version omitted the gate degrades PERMISSIVELY - either era's
+    marker certifies a pass. A missing series must never manufacture a false
+    HOLD for a caller that simply did not thread the version through."""
+    res = _run_test_verb(tmp_path, "noversion", [ran_line], version=None)
+    assert _verdict(res) == "passed", (
+        f"omitting --version must accept {ran_line!r}.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_zero_tests_summary_is_inconclusive_never_passed(tmp_path):
+    """The v14+ summary for a filter that matched nothing ("0 failed, 0
+    error(s) of 0 tests") must NOT certify a pass - the ran-marker requires a
+    non-zero test count, which is the whole point of requiring it."""
+    zero_line = (
+        "2026-01-01 00:00:00,000 1 WARNING erad odoo.service.server: "
+        "0 failed, 0 error(s) of 0 tests when loading database 'erad'"
+    )
+    res = _run_test_verb(tmp_path, "zerotests", [zero_line], version="17.0")
+    assert _verdict(res) == "inconclusive", (
+        f"a zero-test summary must never be a pass.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_wait_log_reports_a_version_stable_progress_marker(tmp_path):
+    """An in-flight build (no terminal marker yet) must still report the last
+    real progress line, and that line must be one every supported series can
+    emit: `loading <N> modules...` is INFO and byte-identical v8.0-v19.0,
+    whereas `Registry loaded` does not exist before 15.0 - nine of the twelve
+    supported series could never produce it."""
+    logf = _write_log(
+        tmp_path, "inflight.log",
+        "2026-01-01 00:00:00,000 1 INFO erad odoo.modules.loading: loading 42 modules...\n",
+    )
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=timeout" in res.stdout
+    marker_lines = [l for l in res.stdout.splitlines() if l.startswith("BUILD_MARKER=")]
+    assert marker_lines == ["BUILD_MARKER=2026-01-01 00:00:00,000 1 INFO erad "
+                            "odoo.modules.loading: loading 42 modules..."], (
+        f"an in-flight poll must surface the progress line as evidence, not an "
+        f"empty marker.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_open_log_prunes_stale_run_artifacts_and_never_the_current_one(tmp_path):
+    """A run prunes log/findings artifacts older than the retention window and
+    leaves the current run's log byte-complete.
+
+    The completion verdict reads the WHOLE log for its markers, so the sweep
+    must delete stale FILES only - a size cap or a truncation could drop the
+    "Modules loaded." line and turn a green build into STATUS=error, which is
+    why retention is time-based and never touches a live file."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    logs_dir = Path(env["ODOO_AI_HOME"]) / "logs"
+    logs_dir.mkdir(parents=True)
+    stale_log = logs_dir / "olddb-20200101T000000Z.log"
+    stale_findings = logs_dir / "olddb-20200101T000000Z.findings.md"
+    fresh_other = logs_dir / "otherdb-recent.log"
+    for f in (stale_log, stale_findings, fresh_other):
+        f.write_text("x\n", encoding="utf-8")
+    old = time.time() - 60 * 60 * 24 * 90
+    for f in (stale_log, stale_findings):
+        os.utime(f, (old, old))
+
+    res = _run(
+        "init", "--db", "retaindb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+
+    assert not stale_log.exists(), "a log past the retention window must be pruned"
+    assert not stale_findings.exists(), (
+        "the .findings.md sibling must be pruned with its log so the pair never desynchronises"
+    )
+    assert fresh_other.exists(), "a recent log from another run must survive the sweep"
+
+    log_line = [l for l in res.stdout.splitlines() if l.startswith("LOG_PATH=")]
+    assert len(log_line) == 1
+    current = Path(log_line[0].split("=", 1)[1])
+    assert current.exists(), "the current run's log must survive its own sweep"
+    assert "Modules loaded." in current.read_text(encoding="utf-8"), (
+        "the current run's log must stay byte-complete - a truncation or size "
+        "cap that dropped the completion marker would fail this"
+    )
+
+
+@requires_bash
+def test_completion_marker_floor_survives_a_quieter_caller_level(tmp_path):
+    """The --log-handler=<ns>.modules.loading:INFO flag is a FLOOR, not a
+    redundant leftover: with the base level already at info it looks like a
+    no-op, but --extra is unrestricted passthrough, so a caller threading a
+    quieter --log-level must still get STATUS=ok on a successful build.
+
+    Deleting the flag as 'redundant' would silently turn every such build into
+    a false STATUS=error. The stub below REACTS to the flag - it reproduces
+    Odoo's own suppression, emitting the completion line only when the effective
+    level reaches INFO or the per-logger floor raises that one logger back to it
+    - so removing the floor from the script makes this test go red on
+    STATUS=error, not merely on a missing argv token."""
+    calls = tmp_path / "odoo-bin-calls.log"
+    fake_bin = tmp_path / "odoo-bin"
+    _write_stub(fake_bin, textwrap.dedent(f"""\
+        echo "odoo-bin $*" >> "{calls}"
+        # Odoo logs "Modules loaded." at INFO on <ns>.modules.loading; a quieter
+        # --log-level hides it unless a --log-handler floor raises that logger.
+        _lvl=info; _floor=0
+        for _a in "$@"; do
+          case "$_a" in
+            --log-level=*) _lvl="${{_a#--log-level=}}" ;;
+            --log-handler=*.modules.loading:INFO) _floor=1 ;;
+          esac
+        done
+        if [[ "$_lvl" == "info" || "$_lvl" == "debug" || "$_floor" == "1" ]]; then
+          echo "Modules loaded."
+        fi
+        exit 0
+    """))
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "floordb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--version", "17.0",
+        "--extra", "--log-level=warn",
+        env=env,
+    )
+    assert res.returncode == 0, (
+        f"a quieter caller level must not break the completion contract.\n"
+        f"stdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "STATUS=ok" in res.stdout, f"stdout={res.stdout}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-handler=odoo.modules.loading:INFO" in call_content, (
+        f"the completion-marker floor must still be emitted: {call_content}"
+    )
+    assert call_content.index("--log-handler=odoo.modules.loading:INFO") < call_content.index(
+        "--log-level=warn"
+    ), (
+        f"the floor must precede the caller's --extra level: {call_content}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 9: the era gate must resolve a ZERO-PADDED major to the same era its
+# unpadded form resolves to.
+#
+# Bash reads a 0-prefixed integer literal as OCTAL, so `08`/`09` are invalid
+# octal: `(( major < 10 ))` errors on them and the failed comparison reads
+# FALSE, silently routing a v8/v9 target down the v10+/v14+ branch - wrong
+# logger namespace for the forced completion marker, wrong "the suite ran"
+# marker for the test verdict.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+@pytest.mark.parametrize("series", ["08.0", "09.0"])
+def test_zero_padded_legacy_series_still_resolves_the_openerp_namespace(tmp_path, series):
+    """A zero-padded v8/v9 must force `--log-handler=openerp.modules.loading:INFO`.
+
+    On the `odoo` namespace the completion-marker floor never applies to the real
+    v8/v9 logger, so a green build can lose "Modules loaded." and report
+    STATUS=error."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", f"padns{series.replace('.', '')}", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--version", series,
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-handler=openerp.modules.loading:INFO" in call_content, (
+        f"series={series}: a zero-padded legacy major must resolve to the openerp "
+        f"namespace, not odoo: {call_content}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series", ["08.0", "09.0"])
+def test_zero_padded_legacy_series_still_picks_the_legacy_ran_marker(tmp_path, series):
+    """A zero-padded v8/v9 must accept the LEGACY ran-marker and reject the v14+ one.
+
+    Landing on the modern branch would reverse both verdicts: a genuinely green
+    v8/v9 run reads `inconclusive`, and a v14+-worded line falsely certifies a
+    pass on a series that cannot emit it."""
+    legacy_dir = tmp_path / "legacy"
+    legacy_dir.mkdir()
+    res_ok = _run_test_verb(legacy_dir, "padok", [RAN_LINE_V8_V13], version=series)
+    assert _verdict(res_ok) == "passed", (
+        f"series {series}: the legacy ran-marker must certify a pass.\nstdout:\n{res_ok.stdout}"
+    )
+
+    modern_dir = tmp_path / "modern"
+    modern_dir.mkdir()
+    res_wrong = _run_test_verb(modern_dir, "padwrong", [RAN_LINE_V14_PLUS], version=series)
+    assert _verdict(res_wrong) == "inconclusive", (
+        f"series {series}: the v14+ marker must NOT certify a pass on a legacy "
+        f"series.\nstdout:\n{res_wrong.stdout}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 10: `--log-mode warn` is REFUSED for the test verb.
+#
+# `warn` suppresses the INFO summary that is the only positive proof a suite
+# ran, so every GREEN run under it parses as TEST_RESULT=inconclusive. The
+# parameter is a closed allowlist; the hazard is removed at the flag, not
+# documented downstream.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_log_mode_warn_is_refused_because_it_hides_the_pass_summary(tmp_path):
+    """`--log-mode warn` must exit 2 and never reach odoo-bin."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test", "--db", "warnmode", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--log-mode", "warn",
+        env=env,
+    )
+    assert res.returncode == 2, (
+        f"--log-mode warn must be refused with exit 2.\n"
+        f"rc={res.returncode} stdout={res.stdout} stderr={res.stderr}"
+    )
+    assert not (tmp_path / "odoo-bin-calls.log").exists(), (
+        "a refused --log-mode must never launch odoo-bin"
+    )
+    assert "inconclusive" in res.stderr, (
+        f"the refusal must name the consequence it prevents.\nstderr={res.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 11: an INSTALL failure inside a --test-enable build is `failed`,
+# never `inconclusive`.
+#
+# A misspelled module or an unmet dependency makes Odoo silently skip the
+# install at exit 0: no test ever runs, so the log carries no fail-marker, no
+# skip-marker and no ran-marker. Classifying that as `inconclusive` ("we could
+# not tell") understates it - the run is a hard failure and the caller must
+# halt, not merely hold.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+@pytest.mark.parametrize("failure_line", [
+    "2026-01-01 00:00:00,000 1 WARNING erad odoo.modules.loading: "
+    "invalid module names, ignored: my_moduel",
+    "2026-01-01 00:00:00,000 1 WARNING erad odoo.modules.loading: "
+    "Some modules are not loaded, some dependencies or manifest may be missing: ['my_module']",
+    "2026-01-01 00:00:00,000 1 WARNING erad odoo.modules.graph: "
+    "module my_module: Unmet dependencies: account",
+    "2026-01-01 00:00:00,000 1 CRITICAL erad odoo.modules.loading: "
+    "Module my_module cannot be installed",
+])
+def test_install_failure_inside_a_test_run_is_failed_not_inconclusive(tmp_path, failure_line):
+    """A silent-skip install marker in a test build must yield TEST_RESULT=failed."""
+    res = _run_test_verb(tmp_path, "instfail", [failure_line], version="17.0")
+    assert _verdict(res) == "failed", (
+        f"an install failure inside a test build is a FAILED run, not an "
+        f"inconclusive one: {failure_line!r}\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_install_failure_outranks_an_otherwise_green_ran_marker(tmp_path):
+    """Modules that DID install can run green while a named module was silently
+    skipped - the ran-marker must not certify that partial run as a pass."""
+    lines = [
+        "2026-01-01 00:00:00,000 1 WARNING erad odoo.modules.loading: "
+        "invalid module names, ignored: my_moduel",
+        RAN_LINE_V14_PLUS,
+    ]
+    res = _run_test_verb(tmp_path, "partialinst", lines, version="17.0")
+    assert _verdict(res) == "failed", (
+        f"a green ran-marker must not mask a skipped install.\nstdout:\n{res.stdout}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 12: the retention sweep must never unlink a LIVE instance's log.
+#
+# 50-instance-spinup.sh writes long-lived listening-instance logs into the SAME
+# shared logs dir under the same <db>-<ts>.log convention, and a lease with a
+# verified-alive owner pid is never TTL-reclaimed. An instance that stays quiet
+# past the retention window would otherwise have its open log unlinked out from
+# under the server's fd: the server keeps writing to the detached inode while
+# every path-based read reports "no such file".
+# ---------------------------------------------------------------------------
+
+def _age_out(*paths: Path) -> None:
+    """Backdate paths well past any plausible retention window."""
+    old = time.time() - 60 * 60 * 24 * 90
+    for p in paths:
+        os.utime(p, (old, old))
+
+
+@requires_bash
+def test_retention_sweep_spares_a_leased_instances_log(tmp_path):
+    """A log whose database is referenced by the allocator lease registry
+    survives the sweep; an unreferenced log of the same age does not."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    _seed_lease_registry(env, [_fresh_foreign_lease("liveinstance", "run-other")])
+
+    logs_dir = Path(env["ODOO_AI_HOME"]) / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    live_log = logs_dir / "liveinstance-20200101T000000Z.log"
+    live_findings = logs_dir / "liveinstance-20200101T000000Z.findings.md"
+    orphan_log = logs_dir / "goneinstance-20200101T000000Z.log"
+    for f in (live_log, live_findings, orphan_log):
+        f.write_text("x\n", encoding="utf-8")
+    _age_out(live_log, live_findings, orphan_log)
+
+    res = _run(
+        "init", "--db", "sweepdb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+
+    assert live_log.exists(), (
+        "the sweep unlinked the log of an instance the lease registry still "
+        "references - a live server's open fd would keep writing to a detached inode"
+    )
+    assert live_findings.exists(), (
+        "the .findings.md sibling of a referenced instance must be spared with its log"
+    )
+    assert not orphan_log.exists(), (
+        "a stale log referenced by no lease must still be pruned - sparing "
+        "everything would disable retention instead of scoping it"
+    )
+
+
+@requires_bash
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0,
+    reason="root bypasses file permissions, so an unreadable registry cannot be simulated",
+)
+def test_retention_sweep_is_skipped_when_the_lease_registry_is_unreadable(tmp_path):
+    """Registry present but unreadable -> sweep NOTHING (fail closed).
+
+    Sweeping blind is the one outcome that can destroy a live instance's log, so
+    an unreadable registry must stop the sweep rather than degrade to deleting
+    everything old."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    _seed_lease_registry(env, [])
+    registry = Path(env["ODOO_AI_HOME"]) / "runtime" / "leases.json"
+    registry.chmod(0o000)
+
+    logs_dir = Path(env["ODOO_AI_HOME"]) / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    stale_log = logs_dir / "unknowndb-20200101T000000Z.log"
+    stale_log.write_text("x\n", encoding="utf-8")
+    _age_out(stale_log)
+
+    try:
+        res = _run(
+            "init", "--db", "blinddb", "--python", str(fake_py),
+            "--addons", str(addons_dir), "--modules", "sale",
+            env=env,
+        )
+        assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+        assert stale_log.exists(), (
+            "with the lease registry unreadable the sweep must delete nothing - "
+            "it cannot prove any log does not belong to a live instance"
+        )
+    finally:
+        registry.chmod(0o644)
