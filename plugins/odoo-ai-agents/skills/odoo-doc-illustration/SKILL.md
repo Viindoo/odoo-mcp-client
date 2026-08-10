@@ -230,9 +230,6 @@ DOC SCOPE: screenshot-doc | full-guide
 CAPTURE MODE: screens | scenarios
 extends_in_scope: [<base_module>, ...]
 BROWSER MODE: headless | headed
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
-  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
 
 **`odoo-marketing-writer`** (DOC LAYER `appstore`, or the appstore half of `both`):
@@ -250,9 +247,6 @@ LANGUAGES: <resolved locale list, English-first>
 CAPTURE MODE: screens | scenarios
 extends_in_scope: [<base_module>, ...]
 BROWSER MODE: headless | headed
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
-  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 ```
 
 ## Documentation axes

@@ -156,13 +156,6 @@ Per module in dep order (topo order from graph.md): dispatch 1x `odoo-diff-compa
 parallel. Modules at the SAME DAG depth (same wave) may be dispatched in parallel; a module
 is NOT dispatched until its in-cluster dependencies have finished P2. Dispatch concurrency
 follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode B.
-When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
-work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the
-main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a
-non-lead agent) + NOTIFY: <dependent names> into each teammate brief,
-poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
-from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
-off, dispatch + collect as today.
 Comparator brief: "compare the module's nghiệp vụ / ý đồ / expected outcomes /
 acceptance criteria against target-version CORE (`<target>`). Classify each feature per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`;

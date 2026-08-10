@@ -246,7 +246,7 @@ of the doc pipeline is requested, `next: odoo-doc-walkthrough` (author usage sce
 this catalog) - you only EMIT this, you never dispatch. Use `status: NEEDS_CONTEXT` per the
 early-return rules above when `MODULE` is missing or the version cannot be resolved.
 
-## Agent Team mode
+## You launch nothing
 
 You never launch an agent, so the spawner contracts do not bind you. Your obligations are
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
@@ -274,10 +274,5 @@ ask-vs-self-decide:
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
-  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
-  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

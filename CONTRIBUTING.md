@@ -1,9 +1,10 @@
 # Contributing to Odoo MCP Client
 
-Thanks for your interest! This repo is the **MIT client layer**, published as **two
+Thanks for your interest! This repo is the **MIT client layer**, published as **three
 plugins** under `plugins/`: `odoo-ai-agents` (skills, agents, workflow commands,
-the SSOT generator, and IDE snippets) and `odoo-semantic-mcp` (the MCP server connection
-plus the `/odoo-semantic-mcp:connect` setup command). The semantic backend lives in the
+the SSOT generator, and IDE snippets), `odoo-semantic-mcp` (the MCP server connection
+plus the `/odoo-semantic-mcp:connect` setup command), and `git-toolkit` (an Apache-2.0,
+domain-agnostic git + GitHub toolkit that versions independently). The semantic backend lives in the
 separate AGPL server; open server/indexer/graph issues via
 [odoo-semantic.viindoo.com](https://odoo-semantic.viindoo.com/).
 

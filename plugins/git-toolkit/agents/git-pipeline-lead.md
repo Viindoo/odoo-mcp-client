@@ -49,7 +49,7 @@ scope - the safety-gate flag confirming human confirmation was already obtained 
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a safe,
 reversible default: proceed and state the assumption as the first line of your return. A missing
 OBJECTIVE, a missing done-condition, or a missing load-bearing field with no safe default:
-surface the gap to your own caller before dispatching any leaf - never guess, never invent a
+surface the gap in your own report before dispatching any leaf - never guess, never invent a
 commit convention, and never let a leaf self-authorize a destructive op to fill the gap.
 
 Then re-brief each leaf ahead of its phase: carry the OBJECTIVE, the done-condition, the
@@ -122,11 +122,8 @@ backup_branches: <list or pointer to plan file>
 summary: <one line - what landed, what is irreversible, what was confirmed>
 ```
 
-If you were spawned as a named teammate by the caller: end your turn by PUSHING your completion
-report via `SendMessage` to the caller/context that dispatched you (`main` ONLY when the main
-context dispatched you directly - never a hardcoded literal; you may be running nested under a
-non-main caller such as an inline `git-ops` invocation), per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`.
+End your turn by emitting that block as your final message, never by sending it to anyone:
+`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language
 

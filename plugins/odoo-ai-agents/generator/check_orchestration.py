@@ -44,17 +44,17 @@ is complete and that skills thread the shared contracts they are required to:
                     branch: (a) an instruction to POLL or SLEEP while waiting for a child - a
                     blocking launch (`run_in_background: false`) already blocks the call itself,
                     and an async launch parks via end-of-turn, so nothing ever legitimately polls
-                    or sleeps FOR a child's completion (Ask 2's periodic TaskList/TaskGet board
-                    check is a DIFFERENT, sanctioned pattern - tracking status, not busy-waiting -
-                    and is excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
+                    or sleeps FOR a child's completion (a periodic task-list status check is a
+                    DIFFERENT, sanctioned pattern - tracking status, not busy-waiting - and is
+                    excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
                     the Agent tool) with no nearby capability-handling language (own toolset /
                     Agent tool absent / nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires
                     checking your own toolset FIRST, so a dispatch claim with no cap-check nearby
                     reads as though the Agent tool is always assumed present.
  11. role-scope   - LIVE and enforcing. Data-driven from `agents.<name>.role` (never a hardcoded
                     name list). Two halves: (a) a `role: leaf` agent body may not cite any member
-                    of the spawner-tier set (`agent-team-protocol.md`, `spawner-completion-
-                    contract.md`, `concurrency-guard.md`) - a leaf launches nothing, so those
+                    of the spawner-tier set (`spawner-completion-contract.md`,
+                    `concurrency-guard.md`) - a leaf launches nothing, so those
                     contracts do not bind it (see `snippets/spawner-completion-contract.md`'s own
                     "vacuously compliant" sentence); (b) a `role: spawner|coordinator` agent body
                     MUST cite `spawner-completion-contract.md`. Half (b)'s subject set (agents with
@@ -261,7 +261,6 @@ INVERTED_SNIPPETS = (
     "snippets/module-coordination-ledger.md",
     "snippets/git-delegation.md",
     "snippets/resource-teardown-contract.md",
-    "snippets/agent-team-protocol.md",
     "skills/_shared/concurrency-guard.md",
     "snippets/worker-brief.md",
     "snippets/spawner-completion-contract.md",
@@ -302,9 +301,10 @@ VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator"}
 # so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.
 VALID_OUTPUT_MODE = {"chat-only", "writes-files"}
 VALID_GATE_TIER = {"L0", "L1", "L2"}
-# Context-Handoff Protocol (CHP) tier declared per skill. send-message = Tier-A (lead resumes
-# a named worker via SendMessage); fork = Tier-B (subagent_type=fork fan-out); fresh = Tier-C
-# default (cold-spawn every turn - always correct baseline). Absence == fresh.
+# Context-Handoff Protocol (CHP) tier declared per skill. send-message = Tier-A (a launcher
+# resumes a child it launched, by the id its own launch returned); fork = Tier-B
+# (subagent_type=fork fan-out); fresh = Tier-C default (cold-spawn every turn - always correct
+# baseline). Absence == fresh.
 VALID_HANDOFF = {"send-message", "fork", "fresh"}
 
 
@@ -499,7 +499,6 @@ def check_agent_roles(findings: list[str]) -> None:
 # Matched as a BARE FILENAME (not a full path) so it catches a citation regardless of which
 # relative prefix (snippets/, skills/_shared/) precedes it in a given body.
 SPAWNER_TIER_FILES = (
-    "agent-team-protocol.md",
     "spawner-completion-contract.md",
     "concurrency-guard.md",
 )
@@ -626,8 +625,8 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
 # branch:
 #   (a) an instruction to POLL or SLEEP while waiting for a child - a blocking launch already
 #       blocks the call itself, and an async launch parks via end-of-turn; nothing legitimately
-#       polls or sleeps FOR a child's completion. Ask 2's periodic TaskList/TaskGet board check is
-#       a DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
+#       polls or sleeps FOR a child's completion. A periodic task-list status check is a
+#       DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
 #   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
 #       capability-handling language (own toolset / Agent tool absent / nesting cap / R0 /
 #       NEEDS_NEXT) - R0 move 1 requires checking your own toolset FIRST, so an unattended dispatch
@@ -663,10 +662,10 @@ WRITE_CONTEXT_RE = re.compile(r"\bwrit(?:e|es|ing|ten)\b|\bauthor(?:s|ed|ing)?\b
 COMMIT_SAFEGUARD_RE = re.compile(r"\bcommit(?:ted|s|ting)?\b|\bcheckpoint\b|uncommitted work", re.I)
 
 # [wait-mechanism] (a): poll/sleep paired with wait-for-a-child vocabulary, excluding the
-# sanctioned Ask-2 task-board check (TaskList/TaskGet/TaskCreate polling is status tracking, not a
+# sanctioned task-list status check (task-list polling is status tracking, not a
 # busy-wait loop standing in for the mechanical barrier).
 POLL_SLEEP_RE = re.compile(r"\bpoll(?:s|ing|ed)?\b|\bsleep\b", re.I)
-TASK_BOARD_RE = re.compile(r"tasklist|taskget|taskcreate|task board|task list", re.I)
+TASK_LIST_RE = re.compile(r"task list|task-list|checklist", re.I)
 # [wait-mechanism] (b): a dispatch claim with no nearby capability-handling language.
 DISPATCH_CLAIM_RE = re.compile(
     r"(invoke the Agent tool|call the Agent tool"
@@ -740,7 +739,7 @@ def check_wait_scope(warn_only_findings: list[str]) -> None:
 
 def check_wait_mechanism(warn_only_findings: list[str]) -> None:
     """[wait-mechanism] (rule 10) - see module-level note above. Two detectors: (a) poll/sleep
-    paired with wait-for-a-child vocabulary (excluding the sanctioned Ask-2 task-board check), and
+    paired with wait-for-a-child vocabulary (excluding a sanctioned own-task-list check), and
     (b) a dispatch claim with no nearby capability-handling language."""
     for f in _wait_scope_scan_files():
         text = f.read_text(encoding="utf-8")
@@ -754,8 +753,8 @@ def check_wait_mechanism(warn_only_findings: list[str]) -> None:
                 if NEGATION_RE.search(preceding):
                     continue  # "do not poll" / "never sleep" - a prohibition, not an instruction
                 window = "\n".join(lines[max(0, i - 3): i + 4])
-                if TASK_BOARD_RE.search(window):
-                    continue  # Ask 2's sanctioned task-board status check, not a busy-wait loop
+                if TASK_LIST_RE.search(window):
+                    continue  # sanctioned task-list status check, not a busy-wait loop
                 if WAIT_SCOPE_CONTEXT_RE.search(window):
                     warn_only_findings.append(
                         f"[wait-mechanism] {rel}:{i + 1}: {m.group()!r} instructs polling/"

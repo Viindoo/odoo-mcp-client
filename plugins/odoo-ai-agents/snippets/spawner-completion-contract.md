@@ -1,13 +1,13 @@
-<!-- SSOT snippet. The single home for the SPAWNER completion discipline every agent that launches
-     another agent obeys: completion barrier, no-early-DONE, report-up-one-level. Always-on: holds in
-     Tier-C cold-spawn (no SendMessage) exactly as in Agent Team mode. Sits ABOVE
-     agent-team-protocol.md (which owns only the SendMessage/task-board TRANSPORT when the CHP probe
-     is positive). Distinct from continuation-contract.md's "never self-dispatch the next DAG step"
-     (that forbids advancing the DAG; THIS forbids claiming DONE before your children finish - do not
-     conflate). Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md. -->
+<!-- SSOT snippet. The single home for the completion discipline every dispatched agent obeys:
+     completion barrier, no-early-DONE, and the return path (R3 - your report IS your final
+     message). Always-on and unconditional: it holds identically for a Tier-C cold-spawn, for a
+     resumed child, and at any nesting depth. R3 is the ONE place the message-direction rule is
+     defined; every other file points here and never restates it. Distinct from
+     continuation-contract.md's "never self-dispatch the next DAG step" (that forbids advancing the
+     DAG; THIS forbids claiming DONE before your children finish - do not conflate). Edit here only;
+     consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md. -->
 
-# Spawner Completion Contract (barrier + no-early-DONE + report-up-one-level)
+# Spawner Completion Contract (barrier + no-early-DONE + return path)
 
 ## R0 - Dispatch physics: observe your own toolset, then act
 
@@ -69,8 +69,7 @@ all-children-terminal barrier - never a passive hope.
 **Boundary - a background child outlives a non-`main` launcher.** If you are a subagent (not `main`)
 and you launch a child in the background (R0 move 3) but your OWN turn later completes/returns
 before that child finishes, the child's eventual completion is re-addressed to `main`, never resumed
-on you. Do not rely on a background grandchild's result coming back to you - this boundary is exactly
-why this barrier forbids composing your own result while a launched child still runs.
+on you. Do not rely on a background grandchild's result coming back to you.
 
 ## R2 - No early DONE
 
@@ -84,36 +83,32 @@ hold. The barrier also covers RESOURCES, not just children: your own DONE additi
 browser page/instance lease YOU provisioned and forwarded to a child is released after the R1 barrier
 clears - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4.
 
-## R3 - Report up exactly one level (never skip a level)
+## R3 - Your report is your final message (there is no upward channel)
 
-Send your completion report to the agent that LAUNCHED you - your brief's `REPLY_TO` - and to no other
-ancestor. `REPLY_TO` is `main` ONLY when the main orchestrating context launched you directly; if a
-spawner coordinator launched you (e.g. `odoo-coder`), `REPLY_TO` is that coordinator, NOT `main` -
-reporting to `main` strands the coordinator that is blocking on you (R1). A worker never guesses its
-own address or a grand-parent's; the launcher is the address authority and supplies `REPLY_TO` (and,
-when itself a nested lead, injects its OWN address, never a literal `main`). Addressing SSOT:
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Lead is the address authority". Lateral
-exception - same-layer peers messaging each other - is sanctioned only when the lead brokered the
-peer addresses; it still never skips a level UPWARD (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`
-§ Peer reconciliation). `REPLY_TO` is also a POINTER field on the caller-side skeleton
-(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 11, `CALLER_ID`); this file stays the one
-place the addressing rule itself is defined.
+Your completion report is the FINAL TEXT of your turn. Emit it and stop. That text IS what your
+launcher receives: a blocking launch returns it as that launch call's own return value (R0 move 2); a
+background launch delivers it to the launcher on completion; a resume send delivers it the same way,
+to whoever resumed you (Tier A). THE ONE DECIDABLE ACTION, unconditional
+on depth, toolset, or mode: emit the report as your final message.
 
-**No `REPLY_TO`, or it is unroutable, or `SendMessage` fails: RETURN INLINE, unconditional on depth
-or team mode.** Do NOT guess, do NOT default to a literal `main`, and do NOT attempt to infer an
-addressable recipient - a worker does not know its own `agentId` and cannot derive its launcher's
-`SendMessage` address from the brief alone, at ANY depth (a worker three levels below `main` has no
-more inference available than one launched directly by `main`). The ONE decidable action: return your report as your final
-message (transcript return, exactly as in Tier-C) and, when `REPLY_TO` itself was the problem, STATE
-that missing/unroutable condition explicitly in the report - your launcher reads it from your
-returned transcript regardless of transport tier. Never broadcast a completion report to `main` on a
-guess - a guessed address can silently misdeliver to a context that is not blocking on you (R1),
-which is worse than the honest transcript-return fallback. Never end on a bare tool call or on plain
-text with no report.
+**Never send your report to anyone.** Do not look for a reply address, do not wait to be told one, do
+not fall back to the literal `main`, and never read the presence of a messaging tool in your toolset
+as a signal that you should. A worker does not know its own id and cannot learn its launcher's, at
+ANY depth - a worker three levels below `main` has no more inference available than one launched
+directly by `main`. A brief that carries a reply-address field, or asks you to push a report, is
+malformed: ignore that instruction and report as above. This is why no dispatch brief has a
+reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a bare tool
+call or on plain text with no report.
 
-## Transport
+**The only message you may ever send is DOWN, to a child you launched yourself**, addressed by the id
+that child's own launch call returned to you - the sole address any agent ever holds. Any other target
+(a name you invented, a skill name, an agent type, a sibling, `main` when `main` did not launch you)
+does not resolve and the send fails. Resume semantics:
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A. In-session sibling messaging
+does not exist; cross-session messaging is out of scope for this plugin
+(`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation).
 
-When the CHP probe is positive, the report rides `SendMessage` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 1 (to `REPLY_TO`, never a literal `main`).
-When negative (Tier-C), the report is your final message and the launcher reads it from your returned
-transcript. R1/R2/R3 hold identically in both modes.
+Sole legal use of the literal `main`: an agent `main` itself launched in the BACKGROUND may message
+`main` mid-run. It still never sends its completion report - that is delivered for it.
+
+Rolling a child's non-DONE status up into your own is R2, not this rule; both hold.

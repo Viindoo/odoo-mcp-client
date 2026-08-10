@@ -32,8 +32,7 @@ Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual
 > which itself launches its teammates - `odoo-test-writer` (RED test first), then `odoo-backend-coder`
 > and/or `odoo-frontend-coder` (one agent level deeper). Nested dispatch requires
 > Claude Code 2.1.172+ (the platform depth cap is 5). The `/odoo-ai-agents:odoo-setup` prereq check
-> (`05-prereq-check.sh`) probes `claude --version` and prints this gate. Coordinator<->worker
-> messaging (`SendMessage`) works WITHOUT any experimental agent-teams flag - do NOT set one.
+> (`05-prereq-check.sh`) probes `claude --version` and prints this gate.
 
 ### Plugin install (recommended)
 

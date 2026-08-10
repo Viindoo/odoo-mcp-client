@@ -29,8 +29,8 @@ RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blo
   invoking `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and
   returns the SHA to `odoo-coding` (which collects it, no longer re-committing). It also reacts to a
   WI worker's own pre-integration BLOCKED within its bounded loop (excluding the
-  manifest-dependency case, which still relays up unchanged) and, as the module LEAD, monitors its
-  WI workers on a live task list per `agent-team-protocol.md` Ask 2 / `execution-tasklist-contract.md`.
+  manifest-dependency case, which still relays up unchanged) and monitors its
+  WI workers on a live task list per `execution-tasklist-contract.md`.
 - `odoo-test-writer`, `odoo-backend-coder`, and `odoo-frontend-coder` are HARD LEAVES - they launch
   nothing.
 - The WI is `odoo-coder`'s PRIVATE unit: it MUST NOT appear as an outer-layer unit in
@@ -241,16 +241,29 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
     no teammates. That was the false-premise topology; the coordinator DOES launch three teammates
     and therefore IS a module lead that tracks them.
 
-    RESTORED assertion: as the module's LEAD teammate, the coordinator applies Ask 2 of
-    agent-team-protocol.md - tracking its own dispatched WI workers on a live task list - not
-    merely waiting on the Ask-1 SendMessage push as its only progress signal."""
+    RESTORED assertion: the coordinator tracks its own dispatched WI workers on a live task
+    list, and reads each result from its own launch call's return value - it has no other channel
+    to them and they have none to it."""
     body = _norm(LEAD)
-    assert "agent-team-protocol.md" in body, "the coordinator must cite agent-team-protocol.md"
-    assert "Ask 2" in body, "the coordinator must apply Ask 2 (team-lead tracking), not only Ask 1"
+    assert "spawner-completion-contract.md" in body, (
+        "the coordinator launches agents, so R1/R2/R3 bind it - it must cite the SSOT"
+    )
     assert "execution-tasklist-contract.md" in body, (
         "the coordinator must reference the live-task-list SSOT contract"
     )
     assert "task list" in body.lower(), "the coordinator must monitor WI workers on a live task list"
+    low = body.lower()
+    assert re.search(
+        r"read (?:each|its|the|every)[\w' ]*result from (?:your|its) own launch call's return "
+        r"value", low
+    ), (
+        "the coordinator must state the ONE channel it has to a teammate: its own launch call's "
+        "return value"
+    )
+    assert re.search(r"no teammate (?:messages|can message|ever messages) you", low), (
+        "the coordinator must state that no teammate can message it - otherwise it waits for a "
+        "push that never arrives"
+    )
 
 
 def test_coordinator_commits_module_via_skill_git_ops_and_returns_sha():

@@ -2,7 +2,7 @@
 12-design-final.md).
 
 A `role: leaf` agent launches nothing, so the spawner-tier contracts
-(agent-team-protocol.md, spawner-completion-contract.md, concurrency-guard.md) do not bind it -
+(spawner-completion-contract.md, concurrency-guard.md) do not bind it -
 the file itself says so (spawner-completion-contract.md's own "vacuously compliant" sentence).
 Between them the 25 leaf agents used to cite ~1MB of spawner-tier contract they could never
 execute; M6 deletes those citations and replaces them with a one-line pointer to
@@ -109,14 +109,15 @@ def test_exactly_odoo_coder_cites_spawner_completion_contract():
     assert citers == ["odoo-coder"], f"expected exactly ['odoo-coder'], found {citers}"
 
 
-def test_agent_team_protocol_cited_by_at_most_odoo_coder():
-    """agent-team-protocol.md is NOT required by half (b) (only spawner-completion-contract.md
-    is), so the strongest honest claim is 'at most odoo-coder' - never a leaf, per half (a)."""
+def test_retired_transport_snippet_is_cited_by_no_agent_body():
+    """The retired upward-transport snippet is gone: the return path is the launch call's own
+    return value, so there is no transport left to describe. A surviving citation points at a
+    file that no longer exists."""
     citers = sorted(
         p.stem for p in AGENTS_DIR.glob("*.md")
         if "agent-team-protocol.md" in p.read_text(encoding="utf-8")
     )
-    assert set(citers) <= {"odoo-coder"}, f"expected citers subset of {{'odoo-coder'}}, found {citers}"
+    assert citers == [], f"expected no agent body to cite the retired snippet, found {citers}"
 
 
 def test_concurrency_guard_cited_by_no_agent_body():

@@ -769,27 +769,19 @@ per-commit extractors), it should apply the CHP to cut cold-start cost. The 3 ti
 
 | Tier | Mechanism | When |
 |------|-----------|------|
-| A | `SendMessage`-resume - spawn once, resume the same worker per iteration | Capability probe positive: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + `SendMessage` present + addressable worker + team lead |
+| A | Resume a child you launched, by the id its own launch returned - launch once, resume the same worker per iteration | You hold that id AND a messaging tool is in your current toolset |
 | B | `subagent_type: "fork"` - inherits parent context + prompt cache | Read-heavy fan-outs where workers do not mutate shared state |
 | C | Fresh spawn + worklog | Always correct; automatic fallback when Tier A/B is unavailable |
 
 Tier C is the SSOT baseline. Tier A/B are optimizations; any path degrades silently to Tier C
-without error. SSOT for all probe conditions, fallback rules, and async semantics:
+without error. SSOT for the tier conditions, fallback rules, and async semantics:
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
 
 The `handoff` field in `generator/skill_tool_deps.json` records the preferred tier per skill
 (`send-message | fork | fresh`) and is surfaced as a column in `docs/reference/ORCHESTRATION-MAP.md`.
-
-**Agent Team mode (send-message tier).** When the capability probe is positive (Tier A available),
-the `send-message` tier now carries two extra obligations on top of resume-to-cut-cold-start: a
-teammate-side completion-report obligation (each teammate PUSHES its result/Continuation Contract
-to its launcher via `SendMessage` to `<REPLY_TO>` - `main` only when main is that launcher, never a
-hardcoded literal - rather than the lead scraping it from the `.output` transcript) and a lead-side
-task board (the lead TaskCreates one task per dispatched work-item, injects `TASK_ID` +
-`REPLY_TO: <this lead's own address>` (`main` ONLY when main is the lead) +
-`NOTIFY: <dependent names>` into each teammate brief, and
-polls `TaskList`/`TaskGet` for live status). The board carries low-context status; the push carries
-result content. SSOT for both halves: `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`.
+The channel is one-way DOWN: a dispatched agent returns its report as its final message and never
+sends one up, so no brief carries a reply address
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 
 ### Model-tier assignment
 
@@ -1140,16 +1132,12 @@ this" so a later phase builds on intent instead of re-deriving it. It is **one f
 under `<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
 race-free; the single blackboard only the driver touches). When a run is active the driver records
 the worklog dir so all nodes resolve the same path; standalone, a skill derives it from its own
-slug. (3) The **native task board** (`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) carries two
-distinct live-status layers. The **teammate-status** layer - the lead opens one task per
-dispatched work-item and polls it for low-context progress on OTHER named, SendMessage-addressable
-subagents instead of reading each teammate's `.output` transcript - is present only in Agent Team
-mode (CHP Tier A), SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. The
-**self-progress checklist** layer - an executor (run-harness over RUN-DAG nodes, workflow-chaining
-over phases, or any plan executor over its own waves/modules/work-items) keeping a live task list
-of ITS OWN sequential work - is always on: it fires whenever a task-list tool is available,
-INDEPENDENT of Agent Team mode, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`.
-The three surfaces never duplicate: **task board (either layer) = live status, worklog = why,
+slug. (3) The **live task list** is the executor's own progress checklist - an executor
+(run-harness over RUN-DAG nodes, workflow-chaining over phases, or any plan executor over its own
+waves/modules/work-items) keeping a live list of ITS OWN sequential work. It is always on: it fires
+whenever a task-list tool is available, gated on nothing else, SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`.
+The three surfaces never duplicate: **task list = live status, worklog = why,
 blackboard = DAG.**
 
 **Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch

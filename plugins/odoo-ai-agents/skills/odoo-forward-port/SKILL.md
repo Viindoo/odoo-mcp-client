@@ -280,10 +280,10 @@ mandates this field, or the single-SHA `commit_dump_path` only for the narrow re
 documented on the agent itself, and never runs git itself). A second `odoo-intent-extractor`
 instance for a module ALREADY dispatched this run, WHILE the first is still live or has already
 completed successfully, is a pipeline defect, never a valid retry - the correct retry for a failed
-or incomplete module pass under CHP Tier-A is a `SendMessage` resume of the SAME instance, never a
-fresh dispatch.
-**Tier-C retry (no `SendMessage` - the CHP capability probe,
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Capability probe, is negative):** a
+or incomplete module pass under CHP Tier-A is a resume of the SAME instance by the id its own launch
+returned, never a fresh dispatch.
+**Tier-C retry (no recorded id, or it no longer resolves -
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A):** a
 Tier-A resume is impossible, so the legal retry is a SUPERSEDING dispatch, never a second
 CONCURRENT one. Confirm the failed/incomplete instance's turn has fully ended (never dispatch a
 replacement while it might still be running), then launch exactly ONE replacement
@@ -497,77 +497,62 @@ runs, THAT commit's own P5 has already reopened `MERGE_HEAD`, per the per-commit
 below). Adapt all modules SERIALLY, DIRECTLY in the integration worktree, always. SSOT for the
 in-window adapt protocol: `[[fp-merge-absorption]]` §Absorption-window.
 
-Run the CHP capability probe once (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
-- Capability probe) before the first P8 adapt dispatch, and cache the result for every P8 dispatch
-in this run - this tells the orchestrator up front whether Tier-A is available at all.
-When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
-work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the
-main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a
-non-lead agent) + NOTIFY: <dependent names> into each teammate brief,
-poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
-from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
-off, dispatch + collect as today.
+**Per-module agent-id registry (this run's plan.md).** You run inline in ONE context for the whole
+run, so the id each of your own launches returns is yours to keep. Record it in `plan.md` keyed by
+module - one id per module for the WHOLE run, never one per commit. That registry is what R2b (at
+most one agent per module across the run) rests on; it is never a name anyone invented, and the
+resumed agent holds no address for you (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
+Tier A).
 
-CHP Tier-A (SendMessage-resume) applies to the P8a test-forward worker (`odoo-test-writer`, which
+CHP Tier-A applies to the P8a test-forward worker (`odoo-test-writer`, which
 authors by invoking the `odoo-test-writing` skill inline) both WITHIN one commit's P9 verify cycle
 AND ACROSS commits for the SAME module (R2b for the 8a leg): after 8a+8b and the merge back to
 integration, P9 may reveal a failing test - instead of spawning a cold fresh one for the re-adapt,
-resume the SAME `odoo-test-writer` worker via `SendMessage` (see
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier A), sending it the P9 failure
+resume the SAME `odoo-test-writer` worker by its recorded id, sending it the P9 failure
 output. **Cross-commit reuse (R2b - at most one `odoo-test-writer` instance per module across the
-WHOLE run):** name the worker `fp-adapt-<slug>-<module>` (module- and run-scoped, not per-commit)
-on its FIRST dispatch for that module; when a LATER source commit in this run also touches the
-module, RESUME that SAME instance via `SendMessage` (never a fresh dispatch) - the brief for the
+WHOLE run):** record the id its FIRST launch for that module returned; when a LATER source commit in
+this run also touches the module, RESUME that SAME id (never a fresh dispatch) - the brief for the
 resume carries the NEW commit's own intent record and bucket; the Worktree path field (below) never
 changes across a resume (§ Git topology above). The worker keeps
 its full prior context (earlier commits' intent records, bucket history) - far
 cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
 its own whole picture across commits, not just within one commit's retry loop.
 Structure the exchange as async park-and-be-resumed: send
-the P9 failure output (or the next commit's brief), end your turn, and wait to be resumed when the worker's reply arrives. On
+the P9 failure output (or the next commit's brief), end your turn, and consume the worker's result when it completes. On
 resume the worker MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
-a git worktree - cd on resume"). Record the returned `agentId` in `plan.md` keyed by
-module (one `agentId` per module for the whole run, not one per commit).
+a git worktree - cd on resume").
 
-**8b CODE adapt - closing R2b's remaining gap: name the coder once, resume it across commits.**
+**8b CODE adapt - closing R2b's remaining gap: launch the coder once, resume it across commits.**
 `agents/odoo-coder.md` § Cross-round resume confirms the coordinator is ROUND-scoped, not
-single-shot-forever: nothing in its own contract stops a caller from resuming the SAME named
+single-shot-forever: nothing in its own contract stops a caller from resuming the SAME
 coordinator for a LATER round (a subsequent source commit touching the same module) instead of
 cold-spawning a fresh one - the identical mechanism already proven above for the 8a
-`odoo-test-writer` leg. **Same field shape as 8a - a NAME, never an agentId:** on the module's
-FIRST commit in this run, when invoking the `odoo-coding` skill (via the Skill tool), carry
-`WORKER NAME: fp-adapt-<slug>-<module>-coder` (module- and run-scoped, distinct from the 8a
-test-writer's `fp-adapt-<slug>-<module>` name) in the FP-ENRICHED brief, exactly the same field
-label 8a's `odoo-test-writer` brief already uses above - never a second, differently-shaped field
-for the same purpose. Carry the SAME `WORKER NAME:` value on every LATER commit touching this
-module too (the field never changes once minted, just like 8a's). Resume addresses a worker BY
-NAME - a name keeps resolving after a worker completes and is later resumed from its transcript;
-a raw agentId is only the fallback for an unnamed worker or one whose name a newer agent has since
-taken. Since this worker is explicitly named and the name is unique per module for the whole run,
-name-based resume is the primary (and only) mechanism here - an agentId would be a second,
-redundant shape carrying no information the name does not already carry, and two differently-shaped
-fields for the same purpose is the exact class of drift this repo's PR history has already paid for
-once (two similarly-named addons-path variables with different separators, undetected for three fix
-attempts) - do not reintroduce that shape here.
+`odoo-test-writer` leg. **Same field shape as 8a - an ID your own launch returned, never a name:**
+on the module's FIRST commit in this run, invoke the `odoo-coding` skill (via the Skill tool)
+without the field; it runs INLINE in your context, so the coordinator id that launch returns is
+yours to keep - record it for that module in `plan.md`; on every LATER commit touching this module, carry that recorded value as
+`WORKER_AGENT_ID: <id>` in the FP-ENRICHED brief. One registry, one field label, one shape for both
+legs - two differently-shaped fields for the same purpose is the exact class of drift this repo's
+PR history has already paid for once (two similarly-named addons-path variables with different
+separators, undetected for three fix attempts) - do not reintroduce it here.
 
 **R2b is CLOSED at the 8b leg: `odoo-coding`'s brief-consumption contract (`skills/odoo-coding/SKILL.md`
-§ Dispatch loop step 0/3) now recognizes `WORKER NAME` and, when a worker is already addressable
-under that name, resumes it via `SendMessage` instead of cold-spawning a fresh one under a
-self-generated name.** R2b (at most one agent per module) now holds at 8b exactly as it already
-does at 8a and at P1: the module's `odoo-coder` coordinator is named once
-(`fp-adapt-<slug>-<module>-coder`) on the module's first commit and resumed under that SAME name
-on every later commit touching that module - never cold-spawned a second time under a fresh name.
+§ Dispatch loop step 0/3) recognizes `WORKER_AGENT_ID` and resumes that id instead of cold-spawning
+a fresh coordinator.** R2b (at most one agent per module) holds at 8b exactly as it already
+does at 8a and at P1: the module's `odoo-coder` coordinator is launched once on the module's first
+commit, its returned id recorded, and it is resumed by that SAME id
+on every later commit touching that module - never cold-spawned a second time.
 Hard rule 2 is NOT in conflict with this design: one resumed
 coordinator making N sequential commits' worth of adapt work still produces N separate target merge
 commits, one per source SHA - resuming the AGENT never
 resumes or batches the git mutation, which stays exactly as strict and per-commit as before.
-Fallback (Tier C): if the capability probe is negative (env unset, `SendMessage` absent, or probe
-signals the orchestrator is not the team lead), re-invoke the `odoo-coding` skill (code re-adapt)
+Fallback (Tier C): when no id is recorded for the module (its first commit), the recorded id no
+longer resolves, or no messaging tool is present, re-invoke the `odoo-coding` skill (code re-adapt)
 and/or spawn a fresh `odoo-test-writer` agent (test re-adapt) with an explicit brief containing
 the P9 failure output - in Tier C, EVERY dispatch is a fresh spawn (no resume available), so the
-R2b module cap above applies only under Tier A. Tier C is always correct; the worklog is always
-written regardless of tier.
+R2b module cap above rests on the id registry, not on the fallback. Tier C is always correct; the
+worklog is always written regardless of tier.
 
 - **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes the `odoo-test-writing` skill inline). Adapt the MERGED SOURCE
   TEST to run on the target - translate API to the target idiom (base class, imports, helper
@@ -575,13 +560,12 @@ written regardless of tier.
   author a brand-new test from scratch: the forwarded source test IS the oracle; 8a adapts it
   to run. Only when the source commit shipped NO test does the agent write one - anchored to
   the source intent record, not improvised.
-  Build an FP-ENRICHED brief carrying `WORKER NAME: fp-adapt-<slug>-<module>` (set once, unchanged
-  on every resume - see § P8 above) + a named **Worktree path: `<path>/fp-integration`** field
+  Build an FP-ENRICHED brief carrying a named **Worktree path: `<path>/fp-integration`** field
   (the SAME JOB-tier integration worktree for the WHOLE run - P8 never uses a per-module child
   worktree, § Git topology above - so this value never changes across a resume), plus:
-  (0) **cd-on-resume (HARD RULE - Tier-A):** On resume via `SendMessage`, immediately `cd` to the
+  (0) **cd-on-resume (HARD RULE - Tier-A):** On resume, immediately `cd` to the
   Worktree path listed in this brief before running any Bash command. Shell cwd is NOT
-  guaranteed to be restored across a SendMessage-resume; the explicit `cd` makes Tier-A re-adapt
+  guaranteed to be restored across a resume; the explicit `cd` makes Tier-A re-adapt
   safe regardless of runtime behavior. Apply this on every resume, not only the first;
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
   confirm the correct base class, applying the ADAPT RULE in
@@ -594,9 +578,6 @@ written regardless of tier.
   for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
   every test assertion referencing a symbol removed at target;
-  (iv) **`CALLER_ID (REPLY_TO)`** - this skill's current orchestrating context (universal skeleton
-  field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`) - literal `main` only when the
-  main-context driver invoked this skill, else the dispatching skill/agent's own name.
 - **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
   `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-module
   coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
@@ -604,14 +585,12 @@ written regardless of tier.
   with an FP-ENRICHED brief = the named **Worktree path: `<path>/fp-integration`** field (same
   JOB-tier integration worktree as 8a - never a per-module child worktree, § Git topology above)
   + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
-  test + the installable:False checklist + `WORKER NAME: fp-adapt-<slug>-<module>-coder`
-  (per the R2b rule above - the SAME value on every commit this run, first or later) +
+  test + the installable:False checklist + `WORKER_AGENT_ID: <id recorded for this module on its
+  first dispatch this run>` (per the R2b rule above - omit on the module's first commit) +
   `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out
   result, so 8b never adapts blind - `none` when P3 never routed this commit to design; same
   sentinel shape `odoo-coding`'s own brief-resolution already uses, `skills/odoo-coding/SKILL.md`
   "DESIGN_DOC: <child TDD path | none>") +
-  `CALLER_ID (REPLY_TO): <this skill's current orchestrating context - main | dispatching
-  skill/agent name>` (universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`) +
   `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
   version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs
   faithfully, do not inline-fix) - [[fp-merge-absorption]]`. Bucket (a)/(d): no adapt code.

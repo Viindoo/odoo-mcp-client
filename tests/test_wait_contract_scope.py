@@ -15,7 +15,7 @@ MAIN" - that premise is wrong and has been retired. The real hazards the correct
                   turn boundary - R0's own non-interactive-surface bound).
   [wait-mechanism] - (a) an instruction to poll/sleep while waiting for a child (never correct
                   under any R0 branch - a blocking launch already blocks, an async launch parks),
-                  excluding the sanctioned Ask-2 TaskList/TaskGet board check; (b) a dispatch claim
+                  excluding a sanctioned check of the agent's OWN task list; (b) a dispatch claim
                   (launch/dispatch/invoke the Agent tool) with no nearby capability-handling
                   language (R0 move 1 requires checking your own toolset FIRST).
 
@@ -260,19 +260,20 @@ def test_wait_mechanism_clears_poll_when_negated():
     )
 
 
-def test_wait_mechanism_clears_the_sanctioned_ask2_task_board_poll():
-    """GREEN: periodically checking TaskList/TaskGet (Ask 2's team-lead status board) is a
-    DIFFERENT, sanctioned pattern - status tracking, not a busy-wait loop standing in for the
-    mechanical barrier - and must not be flagged."""
+def test_wait_mechanism_clears_the_sanctioned_task_list_status_check():
+    """GREEN: periodically checking your own live task list is a DIFFERENT, sanctioned pattern -
+    status tracking, not a busy-wait loop standing in for the mechanical barrier - and must not be
+    flagged. The check is tool-agnostic by design, so the exemption keys on the task-list CONCEPT,
+    never on a specific tool name."""
     text = (
-        "## Ask 2 - team-lead tracking\n\n"
-        "As the lead, poll TaskList/TaskGet to track each dispatched worker agent's status on "
-        "the task board.\n"
+        "## Progress tracking\n\n"
+        "Poll your own live task list to track each dispatched worker agent's status on the "
+        "task list you keep.\n"
     )
     findings: list[str] = []
     _drive_over_text(check_wait_mechanism, text, findings)
     assert not any("instructs polling" in f for f in findings), (
-        "check_wait_mechanism must not flag the sanctioned Ask-2 TaskList/TaskGet board check"
+        "check_wait_mechanism must not flag a sanctioned check of the agent's own task list"
     )
 
 

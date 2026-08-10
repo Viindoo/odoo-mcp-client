@@ -1,14 +1,13 @@
 """Guard the round-2 delegation-handoff hardening on top of `snippets/dispatch-brief.md`,
-`worker-brief.md`, `continuation-contract.md`, `spawner-completion-contract.md`, and
-`agent-team-protocol.md`.
+`worker-brief.md`, `continuation-contract.md`, and `spawner-completion-contract.md`.
 
 Protects four behaviors, each previously a caller-side field/rule with no callee-side
 enforcement (or, for the ETHOS citations, an existing plugin-shipped principle never bound
 at the dispatch site it governs):
 
-1. The caller-side dispatch-brief skeleton names the CALLER's own identity/return address
-   (`REPLY_TO`, skeleton field 11) so a caller composing a brief from that file alone still
-   learns the obligation exists - not only from a worker-side or transport-side file.
+1. The caller-side dispatch-brief skeleton carries NO reply-address field, and says so, so a
+   caller composing a brief from that file alone cannot invent one. A dispatched agent's report
+   is its final message; the launch call's own return value delivers it.
 2. Every `odoo-ai-agents` agent's `## Brief self-check` section confirms a prior-artifact
    pointer was supplied (`INPUTS` or a family-named equivalent such as `DESIGN_DOC`) before
    starting work - a caller-side field with a matching callee-side check, not caller-side
@@ -18,9 +17,9 @@ at the dispatch site it governs):
    field definitions and every agent's self-check - not left to float unbound while the
    plugin ships the rule.
 4. `continuation-contract.md` binds ODOO-AI-ETHOS #10 (Completion Status - "a DONE claim
-   must be accompanied by observable evidence") at the always-on baseline (not only inside
-   Agent Team mode's `SendMessage` push), and explicitly bans an unqualified "waiting"
-   statement as a terminal state - a genuinely missing rule before this change.
+   must be accompanied by observable evidence") at the always-on baseline, and explicitly bans
+   an unqualified "waiting" statement as a terminal state - a genuinely missing rule before
+   this change.
 
 Mirrors the grep-the-prose idiom of `tests/test_dispatch_brief.py`: plain-text assertions,
 whitespace-normalized before matching, no allowlist, whole-tree glob (never a hardcoded file
@@ -43,7 +42,6 @@ DISPATCH_BRIEF = SNIPPETS / "dispatch-brief.md"
 WORKER_BRIEF = SNIPPETS / "worker-brief.md"
 CONTINUATION_CONTRACT = SNIPPETS / "continuation-contract.md"
 SPAWNER_COMPLETION_CONTRACT = SNIPPETS / "spawner-completion-contract.md"
-AGENT_TEAM_PROTOCOL = SNIPPETS / "agent-team-protocol.md"
 
 ODOO_AGENTS_DIR = PLUGIN / "agents"
 ODOO_AGENT_FILES = sorted(ODOO_AGENTS_DIR.glob("*.md"))
@@ -120,29 +118,35 @@ def test_odoo_skill_files_discovered():
 
 
 # ---------------------------------------------------------------------------
-# 1. Caller-side identity field (REPLY_TO) lives on the caller-facing SSOT
-#    itself, not only on a worker-side or transport-side file.
+# 1. The caller-side SSOT carries NO reply-address field and says so, so a
+#    caller reading only that file cannot invent one.
 # ---------------------------------------------------------------------------
 
 
-def test_dispatch_brief_skeleton_names_caller_identity_field():
+def test_dispatch_brief_skeleton_declares_no_reply_address_field():
     text = _read(DISPATCH_BRIEF)
-    assert "REPLY_TO" in text, (
-        "dispatch-brief.md - the file branded as the CALLER-side SSOT that any spawner reads "
-        "BY PATH while composing a dispatch prompt - must name REPLY_TO (or an explicit pointer "
-        "to it) in its own universal skeleton table, not only in worker-brief.md/"
-        "agent-team-protocol.md; a caller following the prescribed authoring workflow (read "
-        "this file, fill the skeleton) must be able to learn the obligation exists from here"
+    assert "REPLY_TO" not in text and "CALLER_ID" not in text, (
+        "dispatch-brief.md - the file any spawner reads BY PATH while composing a dispatch "
+        "prompt - must carry no reply-address field: a launch call cannot name the agent it "
+        "starts and an agent's roster contains neither itself nor its launcher, so any such "
+        "field can only ever be filled with a guess"
+    )
+    norm = _norm(DISPATCH_BRIEF).lower()
+    assert "no reply-address field exists" in norm, (
+        "dispatch-brief.md must state POSITIVELY that no reply-address field exists - a silent "
+        "omission lets the next author re-add the row under a new name"
+    )
+    assert "spawner-completion-contract.md" in norm, (
+        "the no-reply-address statement must point at the R3 SSOT for the return path"
     )
 
 
-def test_dispatch_brief_skeleton_is_eleven_fields_with_caller_id_row():
+def test_dispatch_brief_skeleton_is_ten_fields_with_no_caller_id_row():
     norm = _norm(DISPATCH_BRIEF)
-    assert "Universal skeleton (11 fields)" in norm, (
-        "the skeleton heading must reflect the added CALLER_ID/REPLY_TO row - still 10 means "
-        "the row was not actually added to the table"
+    assert "Universal skeleton (10 fields)" in norm, (
+        "the skeleton heading must reflect the removed reply-address row - still 11 means the "
+        "row is back in the table"
     )
-    assert "CALLER_ID" in norm, "the new field must be named CALLER_ID (REPLY_TO) in the table"
 
 
 # ---------------------------------------------------------------------------
@@ -214,38 +218,28 @@ def test_agent_self_check_confirms_prior_artifact_pointer(agent):
 
 
 # ---------------------------------------------------------------------------
-# 4. Every agent's self-check is aware of the REPLY_TO malformed-input
-#    fallback (never an indefinite wait for want of a reply address).
+# 4. No agent's self-check names a reply address or a messaging tool. The
+#    branch it used to guard consulted a value that cannot exist, and keyed
+#    behavior on a tool merely being present.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("agent", ODOO_AGENT_FILES, ids=lambda p: p.stem)
-def test_agent_self_check_handles_missing_reply_to(agent):
+def test_agent_self_check_names_no_reply_address(agent):
     section = _self_check_section(agent)
     normalized = " ".join(section.split())
-    assert "REPLY_TO" in normalized, (
-        f"{agent.relative_to(REPO_ROOT)}: '## Brief self-check' never mentions REPLY_TO - a "
-        "caller that omits it under Agent Team mode would leave this agent with no rule "
-        "telling it not to wait indefinitely for a reply address"
-    )
-    # M6 (12-design-final.md): a role=leaf agent body may not cite spawner-completion-contract.md
-    # at all (spawner-tier contract) - R3's leaf-facing REPLY_TO fallback moved to
-    # worker-brief.md under M1 (#204 AC4), so leaves point there instead. A role=spawner/
-    # coordinator is exempt from that ban (it MUST still cite spawner-completion-contract.md
-    # elsewhere in its body - see test_role_scoped_citation.py) and may keep pointing at it
-    # directly here too. Either way the pointer must be non-restated, never bare-copied prose.
-    role = _AGENT_ROLES.get(agent.stem)
-    expected_pointer = "spawner-completion-contract.md" if role in ("spawner", "coordinator") else "worker-brief.md"
-    assert expected_pointer in normalized, (
-        f"{agent.relative_to(REPO_ROOT)}: the REPLY_TO check must point at "
-        f"{expected_pointer}'s malformed-input fallback (role={role!r}) rather than restating it."
-    )
+    for banned in ("REPLY_TO", "CALLER_ID", "SendMessage"):
+        assert banned not in normalized, (
+            f"{agent.relative_to(REPO_ROOT)}: '## Brief self-check' names {banned!r}. The "
+            "self-check runs before any work and must consult only fields a caller can actually "
+            "supply; a reply address is not one, and a messaging tool being in the toolset is "
+            "not evidence of anything (spawner-completion-contract.md R3)."
+        )
 
 
 # ---------------------------------------------------------------------------
 # 5. continuation-contract.md binds ODOO-AI-ETHOS #10 at the always-on
-#    baseline (not only inside Agent Team mode) and drops the old
-#    mis-numbered citation.
+#    baseline, at every dispatch tier, and drops the old mis-numbered citation.
 # ---------------------------------------------------------------------------
 
 
@@ -254,7 +248,7 @@ def test_continuation_contract_cites_ethos_10():
     assert _ETHOS_10 in text, (
         "continuation-contract.md must cite ODOO-AI-ETHOS #10 (Completion Status - 'a DONE "
         "claim must be accompanied by observable evidence') at the always-on baseline, not "
-        "only inside agent-team-protocol.md's Agent-Team-mode-gated Ask 1"
+        "only inside a tier-gated transport rule"
     )
 
 
@@ -274,24 +268,8 @@ def test_continuation_contract_states_three_part_report_always_on():
         "continuation-contract.md must state the completion report is three parts (prose "
         "summary + produced paths + the continuation block)"
     )
-    assert "not only in agent team mode" in low or "always" in low, (
-        "the three-part shape must be stated as ALWAYS-on, not scoped to Agent Team mode"
-    )
-
-
-def test_agent_team_protocol_points_at_continuation_contract_for_report_shape():
-    """Ask 1 must no longer independently enumerate the 3-part shape (that would duplicate the
-    SSOT continuation-contract.md now owns) - it must point at continuation-contract.md
-    instead."""
-    text = _read(AGENT_TEAM_PROTOCOL)
-    assert "1. your **Continuation Contract** block" not in text, (
-        "agent-team-protocol.md Ask 1 must not independently re-enumerate the 3-part "
-        "completion-report shape (duplicate SSOT) - it must point at "
-        "continuation-contract.md, which now owns that shape"
-    )
-    norm = _norm(AGENT_TEAM_PROTOCOL)
-    assert "continuation-contract.md" in norm and "3-part" in norm, (
-        "Ask 1 must explicitly point at continuation-contract.md for the report shape"
+    assert "always" in low, (
+        "the three-part shape must be stated as ALWAYS-on, never scoped to one dispatch tier"
     )
 
 
@@ -329,63 +307,32 @@ def test_continuation_status_enum_never_includes_waiting():
 
 
 # ---------------------------------------------------------------------------
-# 7. Every CHP-aware dispatching skill wires REPLY_TO - a tighter, causally
-#    precise measure than "every skill mentions REPLY_TO somewhere": this
-#    denominator is COMPUTED dynamically (never a hardcoded file list), so a
-#    new CHP-aware skill added later is caught automatically.
+# 7. No dispatching skill wires a reply address into any brief it composes.
+#    Denominator is COMPUTED (never a hardcoded file list), so a new
+#    dispatching skill added later is caught automatically.
 # ---------------------------------------------------------------------------
 
 
-def _is_chp_aware_dispatcher(skill_path: Path) -> bool:
-    """A skill needs to wire REPLY_TO only when it can actually reach Agent-Team-mode/Tier-A
-    addressed dispatch - a bare `context-handoff-protocol.md` reference is NOT enough by
-    itself, since that file also documents Tier B (fork) and Tier C (fresh spawn), neither of
-    which is `SendMessage`-addressed and neither of which needs REPLY_TO. Tightened (structural
-    marker, not a file list) after the first version of this predicate produced two false
-    positives - `skills/odoo-brl/SKILL.md` and `skills/odoo-gap-analysis/SKILL.md` reference
-    `context-handoff-protocol.md` for Tier B (`subagent_type: "fork"`) ONLY, with zero mentions
-    of `SendMessage`/`TaskCreate`/`agent-team-protocol.md`/Tier A anywhere in either file - they
-    genuinely have no REPLY_TO obligation to wire.
-    """
-    text = _read(skill_path)
-    references_dispatch_brief = "dispatch-brief.md" in text
-    reaches_team_mode_addressing = (
-        "agent-team-protocol.md" in text
-        or "SendMessage" in text
-        or "TaskCreate" in text
-        or "Tier A" in text
-        or "Tier-A" in text
-    )
-    return references_dispatch_brief and reaches_team_mode_addressing
+DISPATCHING_SKILLS = [f for f in ODOO_SKILL_MD_FILES if "dispatch-brief.md" in _read(f)]
 
 
-CHP_AWARE_SKILLS = [f for f in ODOO_SKILL_MD_FILES if _is_chp_aware_dispatcher(f)]
-
-# NOTE on one expected-red case: `skills/odoo-deep-survey/**` is, at the time this test was
-# written, owned and being edited by a different, concurrently-running work-group on this
-# same tree (serialization: one writer per file). No allowlist/exclusion here either, for the
-# same reason stated above - a full, unfiltered sweep that names the offender is the point.
-
-
-def test_chp_aware_skills_discovered():
-    assert len(CHP_AWARE_SKILLS) >= 1, (
-        "expected at least 1 skill referencing both dispatch-brief.md and "
-        "(context-handoff-protocol.md or agent-team-protocol.md) - the detector predicate is "
+def test_dispatching_skills_discovered():
+    assert len(DISPATCHING_SKILLS) >= 1, (
+        "expected at least 1 skill referencing dispatch-brief.md - the detector predicate is "
         "wrong if this is empty, since skills/odoo-forward-port/SKILL.md alone should match"
     )
 
 
-@pytest.mark.parametrize("skill", CHP_AWARE_SKILLS, ids=lambda p: p.parent.name)
-def test_chp_aware_skill_wires_reply_to(skill):
+@pytest.mark.parametrize("skill", DISPATCHING_SKILLS, ids=lambda p: p.parent.name)
+def test_dispatching_skill_wires_no_reply_address(skill):
     text = _read(skill)
-    assert "REPLY_TO" in text, (
-        f"{skill.relative_to(REPO_ROOT)}: dispatches via a CHP-aware fan-out (references "
-        "dispatch-brief.md and context-handoff-protocol.md/agent-team-protocol.md) but never "
-        "mentions REPLY_TO - if Agent Team mode is ever active for this skill's run, its "
-        "dispatched workers get no REPLY_TO and fall onto the malformed-input degraded path "
-        "every time, never the intended addressed path. See skills/odoo-forward-port/SKILL.md "
-        "for the reference implementation of the CHP-conditional REPLY_TO injection pattern."
-    )
+    for banned in ("REPLY_TO", "CALLER_ID"):
+        assert banned not in text, (
+            f"{skill.relative_to(REPO_ROOT)}: composes dispatch briefs (references "
+            f"dispatch-brief.md) and still names {banned!r}. No brief carries a reply address: "
+            "the dispatched agent's report is its final message and this skill reads it from "
+            "its own launch call's return value (spawner-completion-contract.md R3)."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +351,6 @@ _TOUCHED_SNIPPETS = [
     WORKER_BRIEF,
     CONTINUATION_CONTRACT,
     SPAWNER_COMPLETION_CONTRACT,
-    AGENT_TEAM_PROTOCOL,
 ]
 
 

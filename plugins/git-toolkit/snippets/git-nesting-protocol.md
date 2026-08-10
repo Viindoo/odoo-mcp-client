@@ -22,7 +22,7 @@ not resumed on every surface, never end a turn with uncommitted work.
 Every dispatch is a stateless COLD spawn by launching an agent: self-contained brief in, compact
 summary + findings-file path out. The worker reconstructs its model from the brief plus the findings
 files on disk - no warm team-resume. This is the DEFAULT and always-correct baseline: robust at ANY
-caller depth and needing no team lead, so it works whether the caller is the main agent or itself a
+caller depth and needing no roster, so it works whether the caller is the main agent or itself a
 subagent.
 
 - A brief carries: the exact intent, the safety contract pointer
@@ -31,22 +31,10 @@ subagent.
   and the chosen model.
 - A return carries: a 5-line summary + the absolute findings-file path. Nothing else.
 
-A caller MAY instead spawn the agent as a NAMED TEAMMATE (Agent Team mode), where the agent persists
-in the background and the lead waits on a message from it. That does NOT replace cold-spawn - it adds
-one obligation on top: the agent additionally pushes a completion report to the lead as its terminal
-action, per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`. The cold-spawn guarantee
-stands; team mode only changes how the worker's turn ENDS.
-
-`git-pipeline-lead` ALWAYS cold-spawns its leaves and never spawns one as a named teammate, because
-it is itself a subagent - a separate context, not the `main`-context lead - so a leaf's `to: "main"`
-completion report would misdeliver to the top-level main context, past the pipeline lead, leaving it
-stranded.
-
-This is the same report-up-one-level principle stated universally elsewhere: a worker reports to its
-direct launcher, never a grand-parent. The pipeline lead enforces it CONSERVATIVELY by refusing
-named-teammate mode when nested, so a leaf's return is structurally addressed to its launcher
-(cold-spawn has no address field to mis-set). The categorical rule here and the per-field `REPLY_TO`
-rule used elsewhere are two implementations of one principle, not two policies.
+Every dispatched agent ends the same way: it emits its completion report as its FINAL MESSAGE and
+stops - `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`. There is no upward channel and no
+mode that adds one, so a leaf's result is structurally delivered to the launcher that is waiting on
+it and can never be misdelivered past `git-pipeline-lead` to the top-level context.
 
 ## N2 - Depth guard (anti-runaway)
 

@@ -92,7 +92,7 @@ git diff --quiet <backup-ref>
 ```
 
 Exit 0 (no diff) -> tree-identity confirmed; proceed.
-Non-zero -> content diverged. ABORT: restore from `<backup-ref>`, report the diff to the caller,
+Non-zero -> content diverged. ABORT: restore from `<backup-ref>`, name the diverged paths in your report,
 do NOT push. See S6 in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`.
 
 ### 6 - S2 force-with-lease push (re-checks confirmed)
