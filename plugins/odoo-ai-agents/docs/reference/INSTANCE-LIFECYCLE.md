@@ -104,19 +104,15 @@
     `agents/odoo-instance-ops.md` (operation 1, create-instance). Full contract:
     `INSTANCE-ALLOCATION.md` §5 + §6.3. Whichever mode you declare here also decides who tears it
     down and when - see the Teardown section below, not a restatement of it.
-14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Under the
-    `--log-level=warn` build baseline, EVERY completion line Odoo would otherwise log
-    (`Modules loaded.`, `HTTP service (werkzeug) running on ...`, `Registry loaded ...`) is
-    INFO-level and gets SUPPRESSED - a clean, successful run produces an EMPTY log. A completion
-    check that waits to SEE a line in that log therefore stalls to its timeout even on success;
-    this was the historical hang. Two DIFFERENT signals replace it, one per job shape:
+14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
+    signals apply, one per job shape:
     - **Install/update job** (`-i`/`-u` with `--stop-after-init` - the ephemeral build AND the
       build leg of `persist: exclusive-running`): the job ALWAYS exits (that is what
       `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log read. The build
-      additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation so the
-      `"Modules loaded."` completion line survives the `warn` baseline regardless (a per-logger
-      `setLevel` wins over the inherited level) - `<ns>` is version-resolved: `openerp` for series
-      < 10 (v8-v9), `odoo` for v10+ (the namespace renamed at the v9->v10 boundary). **Exit code 0
+      additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation as a
+      FLOOR, so the `"Modules loaded."` completion line survives ANY caller-supplied level - `<ns>`
+      is version-resolved: `openerp` for series < 10 (v8-v9), `odoo` for v10+ (the namespace
+      renamed at the v9->v10 boundary). **Exit code 0
       alone is NOT proof of install** - three source-confirmed silent-skip paths stay exit 0: a
       misspelled/nonexistent module name (logged, ignored), an unresolved dependency, and a
       demo-data failure downgraded to a warning. SUCCESS therefore requires exit 0 AND the

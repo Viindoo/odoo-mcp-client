@@ -50,8 +50,7 @@ _node_major() {
 
 # Minimum Claude Code version for nested subagent dispatch (the odoo-coder per-module coordinator,
 # launched for EVERY module, launches odoo-backend-coder and/or odoo-frontend-coder one agent level
-# below odoo-coding; the platform enforces a depth cap of 5). This is NOT the experimental
-# agent-teams flag - SendMessage coordinator<->worker works without it.
+# below odoo-coding; the platform enforces a depth cap of 5).
 CC_MIN_VERSION="2.1.172"
 
 # Claude Code version (e.g. "2.1.172"), or empty if the CLI is absent.

@@ -16,7 +16,7 @@
 #   init    --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
-#                  --stop-after-init --log-level=warn
+#                  --stop-after-init --log-level=info
 #                  --log-handler=<ns>.modules.loading:INFO <extra>
 #             Persistent log + LOG_PATH= + STATUS= lines.
 #
@@ -27,10 +27,9 @@
 #             resolves <ns> = 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+;
 #             also the default when --version is omitted) - the namespace Odoo's
 #             module-loading logger lives under changed at the v9->v10 rename. The
-#             --log-handler flag forces the "Modules loaded." completion line back
-#             onto the log even under the --log-level=warn baseline (a per-logger
-#             setLevel is applied AFTER the warn preset and overrides the inherited
-#             level; plain `--log-handler=:INFO` on the root logger does NOT work).
+#             --log-handler flag is a FLOOR, not a workaround: it keeps the
+#             "Modules loaded." completion line on the log at ANY level a
+#             caller may pass in <extra>, including a quieter one.
 #             SUCCESS = exit code 0 AND the "Modules loaded." marker is present AND
 #             NONE of these failure markers appear: CRITICAL, Traceback (most
 #             recent call last), invalid module names, ignored, Some modules are
@@ -48,25 +47,31 @@
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Same as init but with -u instead of -i; identical completion contract.
 #   test    --db <db> --python <venv_py> --addons <path> --modules <a,b>
-#             [--test-tags <tags>] [--mode fresh|reuse] [--log-mode warn|info|debug|sql]
-#             [--extra "<resolved flags>"]
+#             [--test-tags <tags>] [--mode fresh|reuse] [--log-mode info|debug|sql]
+#             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run with <-i|-u> <modules> --test-enable [--test-tags <tags>]
 #             --stop-after-init. --mode fresh (default) -> -i (new DB / modules not yet
 #             installed; init+test in one pass); --mode reuse -> -u (DB already has the
 #             modules; re-running tests, where -i would be a no-op). --log-mode maps to
-#             the odoo log flag (warn/info/debug -> --log-level=<v>, sql ->
-#             --log-handler=odoo.sql_db:DEBUG); omitted keeps --log-level=test. The log
-#             flag is placed before --extra so --extra can still override it.
+#             the odoo log flag (debug -> --log-level=debug, sql -> --log-handler=
+#             odoo.sql_db:DEBUG); omitted keeps the shared $_DEFAULT_LOG_LEVEL default.
+#             `warn` is REFUSED (exit 2): it suppresses the pass summary, so every
+#             green run under it would parse as inconclusive.
 #             Parses result and emits TEST_RESULT=passed|failed|inconclusive plus the
 #             TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and FINDINGS_PATH
 #             (a file holding the failing-test names + traceback heads, the warning
-#             lines, and any skipped-test names). TEST_RESULT=inconclusive fires when
-#             TEST_SKIPPED>0 and no failure occurred: "0 failed, 0 error(s) of 1 tests"
-#             can mean the sole test was SKIPPED (never ran), not proven green - a bare
-#             TEST_RESULT=passed would falsely certify that. Skips are NOT fatal
+#             lines, and any skipped-test names). TEST_RESULT=failed also covers an
+#             INSTALL failure inside the build (no test could run). inconclusive fires
+#             when TEST_SKIPPED>0 and no failure occurred, AND whenever the log carries
+#             no era-correct "the suite ran" marker at all: "0 failed, 0 error(s) of 1
+#             tests" can mean the sole test was SKIPPED (never ran), and an exit-0 run
+#             whose tag filter matched nothing produces no marker at all - a bare
+#             TEST_RESULT=passed would falsely certify both. Skips are NOT fatal
 #             (legitimate via @tagged filters or missing external deps): they are
 #             reported, never swallowed into an unqualified pass, and never force a
-#             non-zero exit on their own.
+#             non-zero exit on their own. --version picks the era-correct marker
+#             (v8-v13 "Ran <N> tests in <X>s" vs v14+ "<F> failed, <E> error(s) of <T>
+#             tests"); omitted, EITHER wording is accepted.
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U] [--db-port P]
 #             [--run-id ID] [--force]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
@@ -113,8 +118,10 @@
 #
 # STATUS line:  STATUS=ok|error        (parseable; always emitted)
 # TEST_RESULT:  TEST_RESULT=passed|failed|inconclusive  (parseable; only for `test` verb;
-#               inconclusive means TEST_SKIPPED>0 with no failure - tests were SKIPPED,
-#               never proven to have actually run; NEVER reported as a bare `passed`)
+#               failed means a non-zero exit, a test-failure marker, or an install
+#               failure; inconclusive means TEST_SKIPPED>0 with no failure, or no
+#               era-correct "the suite ran" marker at all - tests were never proven to
+#               have run; NEVER reported as a bare `passed`)
 # TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n> TEST_SKIPPED=<n>
 #               (parseable; `test` verb only; best-effort from the log)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
@@ -224,6 +231,23 @@ _build_db_conn_args() {
 }
 
 # ---------------------------------------------------------------------------
+# _series_major - the integer major of a series string ("17.0" -> 17), or
+#   EMPTY when --version was omitted or is unparsable. The ONE series gate in
+#   this script: _resolve_log_ns and _test_ran_re both read it, so a series
+#   boundary is never re-derived a second way.
+# ---------------------------------------------------------------------------
+_series_major() {
+    local major="${1%%.*}"
+    [[ "$major" =~ ^[0-9]+$ ]] || return 0
+    # 10# forces base 10. Bash reads a 0-prefixed integer literal as OCTAL, so a
+    # zero-padded "08"/"09" is invalid octal: every `(( major < N ))` era gate
+    # against it errors out and the failed comparison reads FALSE, landing a
+    # v8/v9 target on the modern branch (wrong log namespace, wrong era marker).
+    printf '%s\n' "$(( 10#$major ))"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # _resolve_log_ns - series -> the logger namespace Odoo's module-loading
 #   logger lives under: 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+ -
 #   the openerp->odoo rename landed at the v9->v10 boundary). Empty/unparsable
@@ -231,9 +255,9 @@ _build_db_conn_args() {
 #   a caller that cares about v8-v9 must pass --version explicitly.
 # ---------------------------------------------------------------------------
 _resolve_log_ns() {
-    local series="${1:-}" major
-    major="${series%%.*}"
-    if [[ "$major" =~ ^[0-9]+$ ]] && (( major < 10 )); then
+    local major
+    major="$(_series_major "${1:-}")"
+    if [[ -n "$major" ]] && (( major < 10 )); then
         echo "openerp"
     else
         echo "odoo"
@@ -245,18 +269,66 @@ _resolve_log_ns() {
 #   update verdict) AND _scan_build_markers (background wait-log verdict) so
 #   the two paths can NEVER diverge again. _INSTALL_FAIL_RE is the exact
 #   silent-skip + hard-failure marker set; _INSTALL_SUCCESS_MARKER is the
-#   completion line forced onto the log by --log-handler=<ns>.modules.
-#   loading:INFO. A future marker added to the install/update contract is
-#   added HERE ONLY - both call sites pick it up automatically.
+#   completion line kept on the log by --log-handler=<ns>.modules.loading:INFO,
+#   a floor that survives any caller-supplied level. A future marker added to
+#   the install/update contract is added HERE ONLY - both call sites pick it up
+#   automatically.
 # ---------------------------------------------------------------------------
 _INSTALL_FAIL_RE='CRITICAL|Traceback \(most recent call last\)|invalid module names, ignored|Some modules are not loaded|Unmet dependenc|cannot be installed'
 _INSTALL_SUCCESS_MARKER='Modules loaded.'
 
 # ---------------------------------------------------------------------------
+# Log-level SSOT - the ONE default every verb passes to odoo-bin. `info` is
+# Odoo's own default and a valid --log-level token on every series v8-v19,
+# and it is the LOWEST level at which a PASSING test run still emits its own
+# summary line: below it a green run is byte-identical to "no tests ran".
+# Every setter below reads THIS constant - never a second literal. A caller
+# overrides per run with their own --log-level in --extra, which is placed
+# AFTER this default (Odoo's parser takes the last occurrence).
+# ---------------------------------------------------------------------------
+_DEFAULT_LOG_LEVEL='info'
+
+# ---------------------------------------------------------------------------
+# Test-outcome marker SSOT (read from Odoo source, all 12 series v8.0-v19.0).
+#   _TEST_FAIL_RE - version-GENERAL. `FAIL:`/`ERROR:` message bodies exist on
+#     every series; the per-module ERROR line's prefix is byte-identical
+#     across the eras ("Module <m>: <F> failures, <E> errors" v8-v13, the same
+#     plus " of <T> tests" v14+); loading.py's blanket ERROR line is on all 12.
+#     Odoo emits the per-module line ONLY when the run was not successful, so
+#     it can never carry "0 failures, 0 errors" - no non-zero guard needed.
+#   _TEST_RAN_*_RE - the POSITIVE "tests actually RAN" marker, and the ONLY
+#     era-SPLIT one: v8-v13 emit `Ran <N> test(s) in <X>s` (stdlib runner
+#     trailer, INFO), v14+ emit `<F> failed, <E> error(s) of <T> tests`
+#     (service/server.py's per-database summary). Both REQUIRE a non-zero
+#     count, so a tag filter that matched nothing can never certify a pass.
+# ---------------------------------------------------------------------------
+_TEST_FAIL_RE='(^|[[:space:]])(FAIL|ERROR):|Module [A-Za-z0-9_.]+: [0-9]+ failures?, [0-9]+ errors?|At least one test failed when loading the modules|[1-9][0-9]* (failed|error)'
+_TEST_RAN_LEGACY_RE='Ran [1-9][0-9]* tests? in '
+_TEST_RAN_MODERN_RE='[0-9]+ failed, [0-9]+ error\(s\) of [1-9][0-9]* tests'
+
+# ---------------------------------------------------------------------------
+# _test_ran_re - the era-correct POSITIVE "the suite ran" marker for a series.
+#   v8-v13 -> the runner trailer; v14+ -> service/server.py's summary line.
+#   Series unknown (--version omitted) -> accept EITHER, so a missing series
+#   degrades to permissive, never to a false `inconclusive`.
+# ---------------------------------------------------------------------------
+_test_ran_re() {
+    local major
+    major="$(_series_major "${1:-}")"
+    if [[ -z "$major" ]]; then
+        printf '%s|%s\n' "$_TEST_RAN_LEGACY_RE" "$_TEST_RAN_MODERN_RE"
+    elif (( major < 14 )); then
+        printf '%s\n' "$_TEST_RAN_LEGACY_RE"
+    else
+        printf '%s\n' "$_TEST_RAN_MODERN_RE"
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # _install_confirmed - single-pass positive-install check for a completed
 #   (--stop-after-init) install/update job. Returns 0 (confirmed) iff the
-#   "Modules loaded." completion marker is present - forced onto the log even
-#   under --log-level=warn by --log-handler=<ns>.modules.loading:INFO - AND
+#   "Modules loaded." completion marker is present - kept on the log at any
+#   caller-chosen level by --log-handler=<ns>.modules.loading:INFO - AND
 #   NONE of the SILENT-skip failure markers appear. Exit code 0 from odoo-bin
 #   is NOT proof of install on its own: a misspelled/nonexistent module name,
 #   an unresolved dependency, or a demo-data failure can all leave the process
@@ -276,13 +348,88 @@ _install_confirmed() {
 }
 
 # ---------------------------------------------------------------------------
-# _open_log - set $logf, mkdir, emit LOG_PATH=
+# Log-retention SSOT - how many days a run's log (and its .findings.md
+# sibling) survives in the logs dir. A script constant on purpose: there is
+# nothing machine-dependent to resolve, so this is NOT a public knob and no
+# agent-facing doc mentions it. Raise it here if a longer forensic window is
+# wanted.
+# ---------------------------------------------------------------------------
+_LOG_RETENTION_DAYS=14
+
+# ---------------------------------------------------------------------------
+# _leased_db_names - every db_name the allocator lease registry references
+#   (${ODOO_AI_HOME}/runtime/leases.json - scripts/lib/allocator.py's SSOT for
+#   which instances exist, live rows AND stale ones). Prints one name per line.
+#   Exit 0 + no output when no registry exists yet (nothing was ever leased on
+#   this host). Exit 1 means a registry IS there but could not be read - the
+#   caller must then prune NOTHING.
+#   Live-or-stale on purpose: liveness (owner pid + fingerprint + host) is
+#   allocator.py's judgment, and re-deriving it here would only be a second,
+#   drifting copy. The superset is strictly safe - it can only DELAY a prune,
+#   never unlink a running instance's log - and `allocator.py gc` drops each
+#   stale row, after which its logs become sweepable again.
+# ---------------------------------------------------------------------------
+_leased_db_names() {
+    local reg="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/runtime/leases.json"
+    [[ -e "$reg" ]] || return 0
+    [[ -r "$reg" ]] || return 1
+    { grep -oE '"db_name"[[:space:]]*:[[:space:]]*"[^"]*"' "$reg" 2>/dev/null || true; } \
+        | sed -E 's/^"db_name"[[:space:]]*:[[:space:]]*"//; s/"$//'
+}
+
+# ---------------------------------------------------------------------------
+# _prune_stale_logs - delete run artifacts older than _LOG_RETENTION_DAYS from
+#   $1, EXCEPT any whose database the lease registry still references.
+#
+#   50-instance-spinup.sh writes long-lived LISTENING-instance logs
+#   (persist: exclusive-running / shared-running) into this SAME shared dir
+#   under the same <db>-<UTC-ts>.log convention, and a lease with a
+#   verified-alive owner pid is never TTL-reclaimed - so a listening instance
+#   that simply goes quiet past the window would have its OPEN log unlinked out
+#   from under the server's fd: the server keeps appending to the detached
+#   inode while every path-based read reports "no such file".
+#
+#   Best-effort, never fatal, never touches a live file: a size cap or a
+#   truncation is deliberately NOT used, because losing the tail of a log can
+#   lose the "Modules loaded." marker _install_confirmed requires and turn a
+#   green build into STATUS=error. `-mtime +N` can never match a file written
+#   by this run. The .findings.md sibling is swept with its log so the pair
+#   never desynchronises. Candidates are enumerated (`-print0`) and removed one
+#   by one instead of `find -delete` so the exclusion can be applied by EXACT
+#   db-name match; `-maxdepth 1` plus `-type f` (find does not follow symlinks
+#   without -L) keeps every removal inside the dir. Flags used are portable
+#   across GNU and BSD find.
+# ---------------------------------------------------------------------------
+_prune_stale_logs() {
+    local logs_dir="$1"
+    [[ -d "$logs_dir" ]] || return 0
+    local leased
+    # Fail closed: an unreadable registry means no log can be PROVEN unleased.
+    leased="$(_leased_db_names)" || return 0
+    local f base db
+    while IFS= read -r -d '' f; do
+        base="${f##*/}"
+        # <db>-<UTC-ts>.log and <db>-<UTC-ts>.findings.md - the timestamp is the
+        # last hyphen-delimited field, so the db name is everything before it.
+        db="${base%-*}"
+        if [[ -n "$leased" ]] && printf '%s\n' "$leased" | grep -Fxq -- "$db"; then
+            continue
+        fi
+        rm -f -- "$f" 2>/dev/null || true
+    done < <(find "$logs_dir" -maxdepth 1 -type f \
+                  \( -name '*.log' -o -name '*.findings.md' \) \
+                  -mtime "+${_LOG_RETENTION_DAYS}" -print0 2>/dev/null || true)
+}
+
+# ---------------------------------------------------------------------------
+# _open_log - set $logf, mkdir, prune stale runs, emit LOG_PATH=
 # ---------------------------------------------------------------------------
 _open_log() {
     local db_slug="$1"
     local logs_dir
     logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
     mkdir -p "$logs_dir"
+    _prune_stale_logs "$logs_dir"
     local ts
     ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
     logf="$logs_dir/${db_slug}-${ts}.log"
@@ -293,9 +440,11 @@ _open_log() {
 # _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
 #   TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and a FINDINGS_PATH
 #   file. TEST_RESULT is inconclusive (never a bare passed) whenever
-#   TEST_SKIPPED>0 and no failure occurred.
-#   Reads $logf and (best-effort) $arg_modules from the caller's scope (bash
-#   dynamic scope) to mark in-scope warnings.
+#   TEST_SKIPPED>0 and no failure occurred, and whenever no era-correct
+#   "the suite ran" marker is present - `passed` is a POSITIVE finding here,
+#   never a fallthrough.
+#   Reads $logf and (best-effort) $arg_modules / $arg_version from the caller's
+#   scope (bash dynamic scope) to mark in-scope warnings and pick the era gate.
 # ---------------------------------------------------------------------------
 _parse_test_result() {
     local exit_code="$1"
@@ -427,38 +576,42 @@ _parse_test_result() {
         echo "TEST_RESULT=failed"
         return
     fi
-    # Odoo prints summary lines like:
-    #   Ran N test(s) in Xs: 0 failed, 0 error(s) (at_install)
-    #   FAIL: ...
-    #   ERROR: ...
-    if grep -qE 'FAIL:|ERROR:' "$logf" 2>/dev/null; then
+    # FAILURE first - the three-era test-marker set (SSOT: _TEST_FAIL_RE above)
+    # UNIONED with the install/silent-skip marker set (SSOT: _INSTALL_FAIL_RE).
+    # The v8-v13 per-module wording ("Module <m>: N failures, M errors") is a
+    # DIFFERENT string from the v14+ one and was previously unmatched, so a
+    # failures-only run on those six series was reported GREEN. An INSTALL
+    # failure inside a --test-enable build (misspelled module, unmet dependency)
+    # writes no fail-, skip- OR ran-marker at all, so it used to fall through to
+    # `inconclusive`; it is a FAILED run - the suite could not run - and the
+    # union also stops a module that DID install from certifying the build green
+    # while a named module was silently skipped. Same verdict _scan_build_markers
+    # already reaches on this same log, so the two can never disagree.
+    if grep -aqE "$_TEST_FAIL_RE|$_INSTALL_FAIL_RE" "$logf" 2>/dev/null; then
         echo "TEST_RESULT=failed"
         return
     fi
-    # Check for failure summary: "N failed" or "N error" (non-zero counts)
-    if grep -qE '[1-9][0-9]* (failed|error)' "$logf" 2>/dev/null; then
-        echo "TEST_RESULT=failed"
-        return
-    fi
-    # Skip verdict - MUST be checked before the "0 failed, 0
-    # error" explicit-pass marker below, since a skip-only run (e.g. "0 failed,
-    # 0 error(s) of 1 tests" where the 1 test was skipped) matches that marker
-    # too. Skips are not fatal (never force a non-zero exit; exit_code above
-    # already governs failed/error) but must never be silently certified as a
-    # bare "passed" - report the distinct, non-silent `inconclusive` verdict
-    # instead (mirrors _install_confirmed: absence of a positive "ran clean"
-    # signal escalates to a non-default verdict, not a fallthrough to success).
+    # Skip verdict - MUST precede the positive-pass check below: a skip-only
+    # run still emits a ran-marker with a non-zero count. Skips are not fatal
+    # (never force a non-zero exit; exit_code above already governs
+    # failed/error - they are legitimately produced by @tagged filters or a
+    # missing optional external dependency) but are never silently certified
+    # as a bare `passed`.
     if [[ "$n_skip" -gt 0 ]]; then
         echo "TEST_RESULT=inconclusive"
         return
     fi
-    # Explicit pass marker: "0 failed, 0 error"
-    if grep -qE '0 failed, 0 error' "$logf" 2>/dev/null; then
+    # POSITIVE pass marker, era-resolved. Mirrors _install_confirmed exactly:
+    # the ABSENCE of a positive "the suite ran" line is itself the finding,
+    # never a fallthrough to success - exit 0 with no ran-marker means the tag
+    # filter matched nothing, not that the suite passed. arg_version comes from
+    # the caller's scope (bash dynamic scope); when it is absent the era gate
+    # degrades to accepting EITHER wording.
+    if grep -qE "$(_test_ran_re "${arg_version:-}")" "$logf" 2>/dev/null; then
         echo "TEST_RESULT=passed"
         return
     fi
-    # Exit 0 with no failure markers and no skips -> passed
-    echo "TEST_RESULT=passed"
+    echo "TEST_RESULT=inconclusive"
 }
 
 # ---------------------------------------------------------------------------
@@ -472,15 +625,16 @@ _parse_test_result() {
 #     1 -> a FAILURE marker present (wins over success: a silent-skip marker
 #          such as "invalid module names, ignored" appearing alongside
 #          "Modules loaded." is STILL a failed build, exactly as
-#          _install_confirmed rules it - and a Traceback after "Registry
-#          loaded" is still a failed build)
-#     2 -> no terminal marker yet (build still in flight)
+#          _install_confirmed rules it - and a Traceback after a progress
+#          line is still a failed build)
+#     2 -> no terminal marker yet (build still in flight; the last
+#          "loading <N> modules..." progress line is echoed as evidence)
 #   The failure set is a SUPERSET of _INSTALL_FAIL_RE (adds psycopg2./
 #   ParseError/"Failed to load registry"/a bare ERROR line - broader build
 #   failures outside _install_confirmed's narrower install-only scope, e.g. a
 #   DB-connectivity error or an XML ParseError during a run-tests build).
-#   "Registry loaded"/"Initiating shutdown"/a bare process exit 0 remain named
-#   as progress/heartbeat signals in agents/odoo-instance-ops.md's
+#   "loading <N> modules..."/"Initiating shutdown"/a bare process exit 0 remain
+#   named as progress/heartbeat signals in agents/odoo-instance-ops.md's
 #   "Active-wait on long builds" section, but are NOT independently
 #   sufficient for BUILD_RESULT=success here - only "Modules loaded." is,
 #   matching _install_confirmed exactly. Markers are version-stable v8-v19;
@@ -504,7 +658,7 @@ _scan_build_markers() {
     fi
 
     # SUCCESS - the SAME completion marker _install_confirmed requires (SSOT:
-    # _INSTALL_SUCCESS_MARKER). Never treat "Registry loaded" or "Initiating
+    # _INSTALL_SUCCESS_MARKER). Never treat a progress line or "Initiating
     # shutdown" alone as success - see docstring above.
     local ok_line
     ok_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
@@ -513,6 +667,12 @@ _scan_build_markers() {
         return 0
     fi
 
+    # PROGRESS (never terminal, never success) - `loading <N> modules...` is
+    # INFO and byte-identical v8-v19, so an in-flight poll reports real forward
+    # progress instead of an empty marker on every series.
+    local prog_line
+    prog_line="$(grep -aE 'loading [0-9]+ modules\.\.\.' "$logf" 2>/dev/null | tail -n 1 || true)"
+    [[ -n "$prog_line" ]] && echo "BUILD_MARKER=$prog_line"
     return 2
 }
 
@@ -562,7 +722,7 @@ cmd_wait_log() {
     case "$rc" in
         0) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=success" ;;
         1) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=failure" ;;
-        *) echo "BUILD_MARKER="; echo "BUILD_RESULT=timeout"
+        *) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=timeout"
            echo "x wait-log timed out after ${timeout}s with no terminal marker; see $logf" >&2 ;;
     esac
     return "$rc"
@@ -573,8 +733,10 @@ cmd_wait_log() {
 #   optional --test-tags/--mode/--log-mode/--version flags.
 # Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra, arg_test_tags,
 #       arg_mode (default 'fresh'), arg_log_mode (default ''), arg_version
-#       (default '' - init/update only; resolves the --log-handler namespace
-#       via _resolve_log_ns; empty defaults to the v10+ 'odoo' namespace).
+#       (default ''; on init/update it resolves the --log-handler namespace via
+#       _resolve_log_ns - empty defaults to the v10+ 'odoo' namespace; on test
+#       it picks the era-correct ran-marker via _test_ran_re - empty accepts
+#       either era's wording).
 #   --mode/--log-mode/--version are optional (NOT added to the required-args
 #   check).
 # ---------------------------------------------------------------------------
@@ -635,8 +797,12 @@ _parse_common_args() {
             --log-mode)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --log-mode requires a value" >&2; exit 2; }
                 case "$2" in
-                    warn|info|debug|sql) arg_log_mode="$2" ;;
-                    *) echo "$(basename "$0"): --log-mode must be one of warn|info|debug|sql (got '$2')" >&2; exit 2 ;;
+                    info|debug|sql) arg_log_mode="$2" ;;
+                    # `warn` is REFUSED, not merely discouraged: it suppresses the
+                    # INFO summary that is the only positive proof a suite ran, so
+                    # every GREEN run under it parses as TEST_RESULT=inconclusive.
+                    warn) echo "$(basename "$0"): --log-mode warn is refused: it suppresses the pass summary, so every green run parses as TEST_RESULT=inconclusive. Use one of info|debug|sql." >&2; exit 2 ;;
+                    *) echo "$(basename "$0"): --log-mode must be one of info|debug|sql (got '$2')" >&2; exit 2 ;;
                 esac
                 shift 2 ;;
             *)
@@ -677,11 +843,14 @@ cmd_init() {
     _build_db_conn_args
 
     # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE.md
-    # item 14): --log-handler=<ns>.modules.loading:INFO forces the "Modules
-    # loaded." completion line back onto the log even under the --log-level=warn
-    # baseline below (a per-logger setLevel wins over the inherited warn level).
-    # <ns> is version-resolved via _resolve_log_ns (openerp v8-v9, odoo v10+).
-    # Both flags are placed BEFORE ${arg_extra} so a caller-supplied
+    # item 14): --log-handler=<ns>.modules.loading:INFO is a FLOOR, not a
+    # workaround - it keeps the "Modules loaded." completion line on the log at
+    # ANY level a caller may pass in --extra, including a quieter one, so the
+    # contract never depends on the caller's verbosity choice. It also caps that
+    # ONE logger at INFO when --extra asks for debug; a caller wanting
+    # module-loading DEBUG passes --log-handler=<ns>.modules.loading:DEBUG in
+    # --extra. <ns> is version-resolved via _resolve_log_ns (openerp v8-v9,
+    # odoo v10+). Both flags are placed BEFORE ${arg_extra} so a caller-supplied
     # --log-level/--log-handler in --extra still overrides them (Odoo's arg
     # parser takes the last occurrence) - mirrors the `test` verb.
     local log_ns
@@ -727,7 +896,7 @@ cmd_init() {
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             --stop-after-init \
-            --log-level=warn \
+            --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
@@ -776,9 +945,9 @@ cmd_update() {
 
     # Deterministic completion contract - identical to cmd_init (see its
     # comments above and docs/reference/INSTANCE-LIFECYCLE.md item 14):
-    # --log-handler=<ns>.modules.loading:INFO forces "Modules loaded." back onto
-    # the log under --log-level=warn; both flags precede ${arg_extra} so a
-    # caller override still wins. `warn` is stable v8-v19.
+    # --log-handler=<ns>.modules.loading:INFO is the FLOOR that keeps "Modules
+    # loaded." on the log at any caller-chosen level; both flags precede
+    # ${arg_extra} so a caller override still wins.
     local log_ns
     log_ns="$(_resolve_log_ns "${arg_version:-}")"
 
@@ -807,7 +976,7 @@ cmd_update() {
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             --stop-after-init \
-            --log-level=warn \
+            --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
@@ -832,7 +1001,10 @@ cmd_update() {
 # cmd_test - run tests (-i + --test-enable [--test-tags ...] --stop-after-init)
 # ---------------------------------------------------------------------------
 cmd_test() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode
+    # arg_version is declared local HERE too (not only in init/update): without
+    # it _parse_common_args' assignment would leak a GLOBAL out of every test
+    # run, and _parse_test_result reads it by dynamic scope for the era gate.
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
@@ -862,15 +1034,16 @@ cmd_test() {
     local mode_flag="-i"
     [[ "${arg_mode:-fresh}" == "reuse" ]] && mode_flag="-u"
 
-    # Resolve the log verbosity flag. Omitted -> --log-level=test (default). Placed
-    # before ${arg_extra} so a --log-level/--log-handler in --extra still overrides.
+    # Resolve the log verbosity flag. Omitted -> $_DEFAULT_LOG_LEVEL (SSOT
+    # above) - the SAME default init/update use, so there is exactly one default
+    # in this script. `info` needs no arm of its own: it falls through to the
+    # default and would emit the identical flag. Placed before ${arg_extra} so a
+    # --log-level/--log-handler in --extra still overrides.
     local log_flag_args=()
     case "${arg_log_mode:-}" in
-        warn)  log_flag_args=("--log-level=warn") ;;
-        info)  log_flag_args=("--log-level=info") ;;
         debug) log_flag_args=("--log-level=debug") ;;
         sql)   log_flag_args=("--log-handler=odoo.sql_db:DEBUG") ;;
-        *)     log_flag_args=("--log-level=test") ;;
+        *)     log_flag_args=("--log-level=$_DEFAULT_LOG_LEVEL") ;;
     esac
 
     local DB_CONN_ARGS

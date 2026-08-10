@@ -147,8 +147,8 @@ loop:
     # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
 
     contract = read_continuation_contract(node)              # SPAWNER node (skill invoked in `main`): read its in-context
-                                                             # AGGREGATE result inline. LEAF teammate: read the contract from its
-                                                             # SendMessage push, NOT the `.output` transcript. See prose below.
+                                                             # AGGREGATE result inline. LEAF agent: read the contract from your
+                                                             # own launch call's returned result, NOT the `.output` transcript.
     node.contract = contract
     node.produced = contract.produced
     node.status   = map(contract.status)                     # DONE | NEEDS_NEXT→DONE (next[] already
@@ -175,25 +175,15 @@ emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per 
 Per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`, run-harness creates and keeps
 current a live task list of the RUN-DAG nodes it dispatches (one item per node, title = node id) -
 mirroring `RUN.nodes[].status` for human visibility, never redefining it; update both together on
-every status change. This fires whenever a task-list tool is available in run-harness's own toolset,
-INDEPENDENT of Agent Team mode / the CHP capability probe / `SendMessage`; use whatever task-list
-primitive the runtime exposes, not the experimental `TaskCreate`/`TaskList`/`TaskGet` surface
-specifically.
+every status change. This fires whenever a task-list tool is available in run-harness's own toolset;
+use whatever task-list primitive the runtime exposes.
 
-Separately, when the CHP capability probe is positive (Agent Team mode on), run-harness ALSO
-tracks OTHER named teammate agents via `TaskCreate`/`TaskList`/`TaskGet` per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 2 - this teammate-status layer is
-distinct from the always-on node checklist above and stays CHP-gated. run-harness itself does NOT
-spawn named teammate agents - it dispatches each node via Skill-tool inline, a spawner skill (Skill
-tool), or workflow-chaining. A spawner-skill node (e.g. odoo-coding) runs in the same `main` context
-and is team lead for its OWN teammates (injects their briefs TASK_ID + REPLY_TO: <that spawner
-skill's current orchestrating context> (`main` when the main-context driver invoked run-harness; do
-NOT hardcode a literal `main` if run-harness itself is running nested inside a non-lead agent) +
-NOTIFY, consumes their pushes); run-harness reads the spawner's in-context aggregate result and does NOT
-track the spawner's teammate tasks (single main context - no double-tracking). For a LEAF teammate
-dispatched directly, inject its brief and read the result from its SendMessage push (NEVER the
-`.output` transcript). When the CHP probe is off, teammate tracking is skipped; the always-on node
-checklist above still applies.
+run-harness dispatches each node via Skill-tool inline, a spawner skill (Skill tool), or
+workflow-chaining. A spawner-skill node (e.g. odoo-coding) runs in the same `main` context and owns
+its own workers; run-harness reads that spawner's in-context aggregate result and does not track its
+workers. For a LEAF agent dispatched directly, read the result from your own launch call's returned
+result, NEVER the `.output` transcript
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 
 Every gate this loop emits (`emit_human_gate`, the dynamic-node preview, the close-the-wave
 confirmation, the terminal report) is chat-facing: write it in the USER'S language (translate the

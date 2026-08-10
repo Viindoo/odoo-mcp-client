@@ -78,7 +78,7 @@ When dispatching `odoo-instance` run-tests, the caller picks:
 - `mode`: `fresh` (new DB - init + run the suite in one pass) or `reuse` (the DB already has the
   module - re-init data + re-run). Re-runs need `reuse`; on an already-installed module a `fresh`
   invocation is a no-op, so the suite silently does not re-run.
-- `log_mode` (optional): `warn` | `info` | `debug` | `sql`.
+- `log_mode` (optional): `info` | `debug` | `sql`.
 
 A run's `warnings > 0` MUST be surfaced as findings alongside failures and errors - never swallowed.
 WARNINGs are defects to fix, not noise. Flag-level detail for both params (the `-i`/`-u` mapping and
