@@ -15,6 +15,14 @@ field value (never a dotted/quoted table header):
     db_user = "odoo"
     db_port = 5433       # optional; ABSENT allowed -> INST_DB_PORT='' (libpq/PGPORT resolves it)
     python = ""          # optional path to a venv python
+    odoo_root = ""       # optional; the checkout root that makes `import odoo` resolve
+    db_run_mode = ""     # optional; native | docker | tcp-only - HOW POSTGRES IS REACHED
+                         # (run_mode above describes ODOO). Vocabulary SSOT:
+                         # scripts/lib/pg_mode.sh
+    db_container = ""    # optional; docker mode only - the `docker exec` handle
+
+Every optional field follows the same rule as db_port: ABSENT is a REAL value and
+is emitted as the empty string, never fabricated into a plausible-looking default.
 
 Parsing uses tomllib (py3.11+) and falls back to a minimal text scan on older
 Python so spin-up still works without a 3.11 interpreter. A legacy dict-of-tables
@@ -359,6 +367,15 @@ def _cmd_read(argv):
     # tells consumers to omit the flag and let libpq/PGPORT resolve the port.
     _emit("INST_DB_PORT", tbl.get("db_port", ""))
     _emit("INST_PYTHON", tbl.get("python", ""))
+    # Environment facts recorded by 45-venv.sh, all three empty when undeclared
+    # (a catalog written before they existed is valid and MUST NOT be guessed at):
+    # odoo_root makes `import odoo` resolve for a source checkout; db_run_mode +
+    # db_container say how a libpq CLIENT BINARY reaches this cluster, and are
+    # consulted ONLY by client-binary consumers - never by the CREATEDB capability
+    # check, which asks the cluster itself.
+    _emit("INST_ODOO_ROOT", tbl.get("odoo_root", ""))
+    _emit("INST_DB_RUN_MODE", tbl.get("db_run_mode", ""))
+    _emit("INST_DB_CONTAINER", tbl.get("db_container", ""))
     _emit("INST_PROFILE", profile_of(tbl))
     _emit("INST_KEY", instance_key_of(tbl))
     return 0

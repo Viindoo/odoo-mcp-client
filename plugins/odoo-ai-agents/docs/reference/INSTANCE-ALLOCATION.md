@@ -89,8 +89,10 @@ Per `[[instance]]`, add OPTIONAL fields (absent = derive a default; old files st
 | `http_port_base` | `http_port` | low end of this instance's port pool |
 | `port_pool_size` | `10` | how many ports the allocator may hand out from `http_port_base` (version-agnostic numbers; the consumer maps each to a CLI flag via `cli_help`) |
 | `db_name_prefix` | `db_name` | prefix for ephemeral DBs: `<prefix>_t_<uuid8>` |
-| `ephemeral_ok` | auto-probe | whether `db_user` may `CREATEDB` (probed once, cached) |
 | `db_port` | absent | optional Postgres port when the cluster is not on the libpq/`PGPORT` default; ABSENT is valid and MUST NOT be fabricated as `5432` - an emitted default would silently override `PGPORT` |
+| `odoo_root` | absent | the core checkout root that makes `import odoo` resolve for a SOURCE instance (a venv alone does not: `odoo-bin` works only because it puts the repo root on `sys.path[0]`). Recorded by `45-venv.sh` from the repo whose `odoo-bin --version` passed |
+| `db_run_mode` | absent | how POSTGRES is reached: `native` \| `docker` \| `tcp-only`. Vocabulary SSOT: `scripts/lib/pg_mode.sh` header. Distinct from `run_mode`, which describes ODOO. Consulted by every client-binary consumer (the raw-drop fallback, the spin-up preflight) AND, as the SECOND route only, by the CREATEDB check when the instance declares no `python` of its own (§6.6) - the answer is then a POSITIVE query put to the cluster, never an inference from which binaries happen to be installed |
+| `db_container` | absent | `docker` mode only: the `docker exec` handle, derived ONCE at registration from `db_port` (`docker ps --filter publish=<db_port>`), never guessed - an ambiguous match, a `docker ps` that could not be asked, or a matching container that exists but is not RUNNING all refuse and record nothing |
 
 `instances_io.py` must tolerate unknown/old keys (it already defaults missing fields).
 
@@ -246,13 +248,13 @@ existing reader, so shell consumers stay simple.
 
 | Command | Behavior |
 |---------|----------|
-| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--run-id <id>] (alias --session)` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER/ALLOC_DB_PORT/ALLOC_RUN_ID`. `--run-id` is the canonical ownership key (the intake Phase P run id); `--session` is kept only as a back-compat alias for the same slot. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
+| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--run-id <id>] (alias --session)` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); for `ephemeral`, verify CREATEDB by asking the CLUSTER - through the instance's own `python` (`odoo_db.py can-createdb`), falling back to the declared `db_run_mode` client surface when the instance declares no `python` (a compose-run instance never does); a LIVE privilege query, never inferred from installed binaries, BOUNDED by `$ODOO_AI_PG_PROBE_TIMEOUT`, REFUSING with exit 6 (role lacks it) or 7 (no route could answer) - never degrade (§6.6); print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER/ALLOC_DB_PORT/ALLOC_RUN_ID`. `--run-id` is the canonical ownership key (the intake Phase P run id); `--session` is kept only as a back-compat alias for the same slot. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
 | `bind <token> --pid <server_pid>` | under flock: verify the token, then UPSERT the live server pid onto that lease's `owner.pid` (the same slot the `shared` acquire path writes). Refuses an unknown token or a missing `--pid`. Used by the `exclusive-running` spin-up: the caller acquires the lease first (reserving db + ports), then binds the launched server pid so `release`/`gc` can stop the whole process GROUP before the drop. Also upgrades gc for exclusive leases from ttl-only to fast-path pid-dead reclaim, for free |
-| `release <token> [--run-id <id>] [--force]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries a live `owner.pid` on THIS host, STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe |
+| `release <token> [--run-id <id>] [--force] [--force-forget]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries a live `owner.pid` on THIS host, STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe. A drop that FAILS keeps the lease and returns non-zero; the drop surface is re-resolved from the CURRENT catalog on every attempt, and `--force-forget` is the loud, DB-naming escape of last resort (§6.7) |
 | `heartbeat <token>` | bump `heartbeat_at` - matters ONLY for a lease whose liveness `_is_stale` cannot prove (a different host, or no `--pid` ever recorded); a same-host lease with a verified-alive pid is protected regardless of heartbeat freshness |
 | `gc` | under flock: reclaim leases per `_is_stale` (§7): a same-host owner pid that is DEAD (`os.kill(pid,0)`) is reclaimed immediately, TTL-independent; a same-host owner pid that is VERIFIED ALIVE (its `pid_started` fingerprint still matches) is NEVER reclaimed, TTL-independent; every other case (different host, no pid recorded, or an unverifiable fingerprint) falls back to `now - heartbeat_at > ttl_s`. When reclaiming a lease whose `owner.pid` IS recorded and alive on this host but was condemned via the fingerprint-mismatch (recycled-pid) or TTL-fallback path, STOP its process group first (`_stop_group`) before reclaim + drop. For each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
-| `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via raw `dropdb` (no lease means no stored venv path to go through Odoo) |
+| `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for a class `gc` cannot reach: an ephemeral-shaped DB (`<prefix>_t_<hex8>`) that carries NO lease reference at all, live or stale (a lease-write that never happened - registry quarantine after corruption, a pre-B2 allocator, or a crash in the single narrow window between reserving a db_name and the lease write reaching disk). Ownership predicate, ALL THREE required before a DB is even listed: (1) name matches the ephemeral shape for a KNOWN catalog prefix - a named/declared instance's DB can never match, full stop; (2) NO lease references the db_name, live or stale - a leased DB, even stale, is `gc`'s/`release`'s job exclusively, never this command's; (3) age is POSITIVELY PROVEN (via `pg_stat_file`'s mtime on `PG_VERSION` - Postgres records no creation time) and `>= --min-age-s` (default 24h) - an unmeasurable age is treated as NOT proven old enough, fail-closed. A cluster this process cannot reach is skipped, never assumed empty. Default is list-only (emits `REAP_CANDIDATE`/`REAP_SKIPPED`); `--yes` is required to actually drop (emits `REAP_DROPPED`), via the declared `db_run_mode` client surface - which refuses loudly, dropping nothing, when the surface is `tcp-only`. Enumeration, age and size all run through the CATALOG item's declared `python` (no client binary needed), so a containerised cluster with no libpq client installed is fully served |
 | `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - unowned does not mean "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `list` | print current leases (debug); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
@@ -278,10 +280,11 @@ when the venv is unavailable (exit 10 from `odoo_db.py`). The `python`/`db_host`
 fields stored in the lease allow drop-time to reconstruct the right invocation - against the right
 Postgres cluster, when `db_port` is set - even after the caller process exits.
 
-**Degrade path (unchanged):** if `db_user` lacks `CREATEDB` (probed at acquire time), `ephemeral`
-automatically falls back to `exclusive` on the declared `db_name` (serialise instead of isolate)
-and the allocator logs the downgrade. The CREATEDB requirement is identical under B2: Odoo
-create-on-init also needs that privilege, so the degrade logic is the same invariant.
+**`ephemeral` NEVER degrades.** An `ephemeral` acquire either exits 0 with `ALLOC_MODE=ephemeral`
+and a fresh `<prefix>_t_<hex8>` DB, or exits non-zero writing NO lease: **6** = the role positively
+lacks `CREATEDB`, **7** = the capability is UNDETERMINABLE. Trading isolation for serialisation is
+the CALLER's decision, stated by re-dispatching `--mode exclusive` and reported as isolation not
+provided. `--no-create` skips the check entirely.
 
 **Consumer contract under B2:** a caller that acquires an ephemeral lease then runs
 `odoo-bin -d $ALLOC_DB_NAME` WITHOUT `-i` (bare launch or a `-u` update) fails - the DB does not
@@ -398,6 +401,57 @@ deliberate, human-run `allocator.py reap-orphans --yes` against the persisted ca
 never automatic. Before this wiring, `reap-orphans` had no caller anywhere in the plugin at all;
 its mechanics (ownership predicate, fail-closed age proof) were correct and tested in isolation,
 but unreachable in practice.
+
+### 6.6 Acquire exit codes - 6 and 7 are REFUSALS, never a degrade
+
+An `ephemeral` acquire either returns an ISOLATED throwaway DB or fails. It never hands back an
+`exclusive` lease on the declared, long-lived database: the caller - not the allocator - owns any
+trade of isolation for serialisation, and must state it by re-dispatching with an explicit
+`--mode exclusive` (and saying so in its report).
+
+| Exit | Meaning | Remedy |
+|------|---------|--------|
+| `6` | the role positively LACKS CREATEDB | grant that role CREATEDB, then retry |
+| `7` | CREATEDB capability UNDETERMINABLE - no route could answer | see the two routes below |
+
+The capability is asked of the CLUSTER, over two routes tried in order; the first that ANSWERS
+wins, and `7` means every route failed:
+
+1. the instance's own declared `python` (`odoo_db.py can-createdb` - the same interpreter and the
+   same connection resolution the drop path uses);
+2. the declared `db_run_mode` client surface (`psql` natively or inside `db_container`). This is
+   the route a `run_mode = "docker"` instance takes: compose launches it, so it declares no
+   `python` at all, and without this route its `ephemeral` acquire could only ever exit 7.
+
+Exit 7 therefore resolves by declaring what is missing - `45-venv.sh record-env --series <X.Y>`
+records `python` + `odoo_root` (a source checkout is never pip-installed, so `import odoo` resolves
+only through `odoo_root`; a catalog written before that key existed reports "cannot import odoo",
+which is NOT a broken venv) and `db_run_mode`/`db_container` - or by starting a cluster that is
+simply not running.
+
+Every Postgres call the allocator makes is BOUNDED by `$ODOO_AI_PG_PROBE_TIMEOUT` (default 10s;
+mutating calls get a longer bound derived from the same knob - ONE policy, shared with
+`pg_mode.sh`'s `PG_MODE_PROBE_TIMEOUT`). psycopg2 connects with no libpq connect timeout, so an
+unreachable cluster never replies at all: unbounded, `acquire` would return no lease, no refusal
+and no verdict - strictly worse than a wrong answer, because the caller learns nothing. A bound
+that elapses is UNDETERMINED (exit 7), never a factual "no".
+
+### 6.7 A lease whose database cannot be dropped
+
+`release` keeps the lease whenever the drop FAILED - the database is still there, and removing the
+lease would mint an orphan nothing can find (`reap-orphans` excludes any DB a lease references).
+Two mechanisms keep that from becoming permanent:
+
+- **The drop surface is re-resolved from the CURRENT catalog on every attempt.** A lease written
+  before `odoo_root`/`db_run_mode` existed carries neither, and nothing back-fills a written lease;
+  on a host with no libpq client that lease would otherwise be un-droppable forever. Only the GAPS
+  are filled, and only with values that VALIDATE (an interpreter that exists, a root that exists),
+  so re-resolution can never redirect a drop at a cluster the lease never used - which makes
+  `45-venv.sh record-env` repair EXISTING leases, not just future ones.
+- **`release <token> --force-forget`** is the documented escape when nothing on this host can ever
+  drop the DB (no `python`, `db_run_mode = tcp-only`). It removes the lease and NAMES the abandoned
+  database on stderr plus `ALLOC_ABANDONED_DB=<db>`, so the leak is auditable and manual cleanup is
+  possible. It never reports a teardown that did not happen.
 
 ## 7. Crash / stale handling
 

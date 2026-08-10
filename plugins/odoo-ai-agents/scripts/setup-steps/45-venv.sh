@@ -19,12 +19,29 @@
 #   create-venv --series X.Y [--python VER] [--tool uv|pip]
 #               [--path DIR] [--requirements FILE]
 #                                    create a venv and record it on the instance
+#   record-env --series X.Y [--profile P]
+#                                    re-derive and re-record the environment facts
+#                                    of an ALREADY-DECLARED instance WITHOUT
+#                                    touching the venv: python, odoo_root (the
+#                                    checkout root that makes `import odoo`
+#                                    resolve), db_run_mode + db_container (the
+#                                    Postgres client surface - see lib/pg_mode.sh).
+#                                    Each fact is recorded only when its own gate
+#                                    passes; a failed gate prints why and makes the
+#                                    exit non-zero, and NEVER records a guess.
+#                                    Run it once on a catalog written before these
+#                                    keys existed, and after any change to your
+#                                    Postgres container or venv.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
+ODOO_DB_PY="$SCRIPT_DIR/../lib/odoo_db.py"
 MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
+# Postgres client-surface detector + db_run_mode vocabulary SSOT.
+# shellcheck source=../lib/pg_mode.sh
+source "$SCRIPT_DIR/../lib/pg_mode.sh"
 # instances.toml is machine-global; resolve it (global-wins) via the shared helper.
 # shellcheck source=../lib/resolve_instances.sh
 source "$SCRIPT_DIR/../lib/resolve_instances.sh"
@@ -129,6 +146,285 @@ _core_odoo_bin_from_addons_path() {
         [[ -x "$up/odoo-bin" ]] && { echo "$up/odoo-bin"; return 0; }
     done
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# _upsert_instance_keys <series> <profile> KEY=VALUE [KEY=VALUE ...]
+#
+# INSERT-OR-REPLACE every KEY on the ONE [[instance]] block matching
+# (series, profile), in place. Replaces an existing `KEY = ...` line; when the
+# line is ABSENT it is INSERTED after the block's last assignment - a catalog
+# written before a key existed therefore GAINS it, instead of silently keeping
+# nothing. Refuses (non-zero, file untouched) when the series has only profiled
+# blocks and no --profile was given, and when no block matches at all.
+# ---------------------------------------------------------------------------
+_upsert_instance_keys() {
+    local series="$1" profile="$2"; shift 2
+    [[ -f "$INSTANCES_TOML" ]] || {
+        echo "x no instance catalog at $INSTANCES_TOML - declare the instance first (step 40)." >&2
+        return 1
+    }
+    python3 - "$INSTANCES_TOML" "$series" "$profile" "$@" <<'PY'
+import os
+import sys
+
+path, series, profile = sys.argv[1], sys.argv[2], sys.argv[3]
+
+
+def toml_escape(value):
+    """Encode `value` for a TOML BASIC string (the `key = "..."` form below).
+
+    Unescaped, a single `"` closes the string early and the whole catalog stops
+    parsing - not one field: every instances_io.load_instances consumer (the
+    allocator, every setup step, the teardown hook) then fails until a human
+    repairs the file by hand. A backslash is the quieter variant: `\\t` decodes to
+    a TAB, so the recorded value is silently WRONG instead of loudly broken.
+    Backslash FIRST, or the escapes introduced for `"` get escaped again.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+pairs = []
+for raw in sys.argv[4:]:
+    if "=" not in raw:
+        print("x internal: expected KEY=VALUE, got %r" % raw, file=sys.stderr)
+        sys.exit(2)
+    key, _, value = raw.partition("=")
+    pairs.append((key, value))
+if not pairs:
+    sys.exit(0)
+
+try:
+    lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
+except OSError as exc:
+    print("x cannot read %s: %s" % (path, exc), file=sys.stderr)
+    sys.exit(1)
+
+
+def scan_blocks(src_lines):
+    """[(start, end, series, profile, last_assignment_index)] per [[instance]]."""
+    blocks, cur = [], None
+    for idx, raw in enumerate(src_lines):
+        s = raw.strip()
+        if s == "[[instance]]":
+            if cur:
+                blocks.append(cur)
+            cur = {"start": idx, "end": idx, "series": "", "profile": "", "last_kv": idx}
+            continue
+        if s.startswith("["):
+            if cur:
+                blocks.append(cur)
+                cur = None
+            continue
+        if cur is None:
+            continue
+        cur["end"] = idx
+        if "=" in s and not s.startswith("#"):
+            key = s.split("=", 1)[0].strip()
+            val = s.split("=", 1)[1].strip().strip('"').strip("'")
+            cur["last_kv"] = idx
+            if key == "series":
+                cur["series"] = val
+            elif key == "profile":
+                cur["profile"] = val
+    if cur:
+        blocks.append(cur)
+    return blocks
+
+
+blocks = scan_blocks(lines)
+same_series = [b for b in blocks if b["series"] == series]
+if profile == "":
+    matches = [b for b in same_series if not b["profile"]]
+    if same_series and not matches:
+        print(
+            "x series %r has only profile-specific [[instance]] blocks but no --profile "
+            "was given. Pass --profile <name> to select the correct block. Nothing was "
+            "recorded." % series,
+            file=sys.stderr,
+        )
+        sys.exit(1)
+else:
+    matches = [b for b in same_series if b["profile"] == profile]
+if not matches:
+    label = "%s:%s" % (series, profile) if profile else series
+    print(
+        "x no [[instance]] block matches %s in %s - declare it first (step 40). "
+        "Nothing was recorded." % (label, path),
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+block = matches[0]
+indent = ""
+probe = lines[block["last_kv"]]
+indent = probe[: len(probe) - len(probe.lstrip())]
+
+out = list(lines)
+inserted = []
+for key, value in pairs:
+    replaced = False
+    for idx in range(block["start"], block["end"] + 1):
+        s = out[idx].strip()
+        if s.startswith("#") or "=" not in s:
+            continue
+        if s.split("=", 1)[0].strip() != key:
+            continue
+        out[idx] = '%s%s = "%s"\n' % (indent, key, toml_escape(value))
+        replaced = True
+        break
+    if not replaced:
+        inserted.append('%s%s = "%s"\n' % (indent, key, toml_escape(value)))
+
+if inserted:
+    at = block["last_kv"] + 1
+    out[at:at] = inserted
+
+# ATOMIC publish: write a sibling temp file, then os.replace it over the target.
+# An in-place truncate leaves a window in which the host's only instance catalog
+# is empty or partial, and a crash there loses every declared instance. Same
+# discipline as allocator.py's `_write_registry` - one pattern, not two.
+tmp = "%s.tmp.%d" % (path, os.getpid())
+try:
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write("".join(out))
+    os.replace(tmp, path)
+except OSError as exc:
+    try:
+        os.unlink(tmp)
+    except OSError:
+        pass
+    print("x cannot write %s: %s. Nothing was recorded." % (path, exc), file=sys.stderr)
+    sys.exit(1)
+label = "%s:%s" % (series, profile) if profile else series
+print("  recorded %s for %s" % (", ".join("%s=%s" % kv for kv in pairs), label))
+PY
+}
+
+# ---------------------------------------------------------------------------
+# _detect_pg_facts <series> <profile>
+#   stdout: `db_run_mode=<v>` [+ `db_container=<name>`]; exit 3 undeterminable.
+#   Uses the instance's DECLARED db_port to identify the container, so the human
+#   never types a container name and a wrong one is never guessed.
+# ---------------------------------------------------------------------------
+_detect_pg_facts() {
+    local series="$1" profile="${2:-}" io="$SCRIPT_DIR/../lib/instances_io.py"
+    local db_port="" kv=""
+    if [[ -f "$INSTANCES_TOML" && -f "$io" ]]; then
+        kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null)" || kv=""
+        if [[ -n "$kv" ]]; then
+            eval "$kv" 2>/dev/null || true
+            db_port="${INST_DB_PORT:-}"
+        fi
+    fi
+    pg_detect_mode "$db_port"
+}
+
+# ---------------------------------------------------------------------------
+# _verify_can_createdb <venv_py> <series> <profile> <odoo_root>
+#   WARN-ONLY reachability + capability check on the facts just recorded, so a
+#   user learns at setup time what runtime would refuse - without blocking a
+#   registration that is perfectly valid before Postgres is started.
+# ---------------------------------------------------------------------------
+_verify_can_createdb() {
+    local venv_py="$1" series="$2" profile="${3:-}" odoo_root="${4:-}"
+    local io="$SCRIPT_DIR/../lib/instances_io.py"
+    [[ -x "$venv_py" && -f "$ODOO_DB_PY" && -f "$io" ]] || return 0
+    local kv=""
+    kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null)" || return 0
+    [[ -n "$kv" ]] || return 0
+    eval "$kv" 2>/dev/null || return 0
+    local -a args=("$ODOO_DB_PY" can-createdb
+        --db-host "${INST_DB_HOST:-localhost}" --db-user "${INST_DB_USER:-odoo}")
+    [[ -n "$odoo_root" ]] && args+=(--odoo-root "$odoo_root")
+    [[ -n "${INST_DB_PORT:-}" ]] && args+=(--db-port "${INST_DB_PORT}")
+    # BOUNDED: a setup-time advisory must never hang the setup it advises on.
+    local verdict="" rc=0
+    verdict="$(pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" "$venv_py" "${args[@]}" 2>/dev/null)" || rc=$?
+    if [[ "$rc" -eq 0 && "$verdict" == "true" ]]; then
+        echo "  ok role ${INST_DB_USER:-odoo} may CREATE DATABASE (ephemeral isolation available)"
+    elif [[ "$rc" -eq 0 && "$verdict" == "false" ]]; then
+        echo "  Warning: role ${INST_DB_USER:-odoo} may NOT CREATE DATABASE. An 'ephemeral'" >&2
+        echo "  acquire will REFUSE with exit 6 (it never silently shares the declared" >&2
+        echo "  database). Grant CREATEDB to that role to enable isolated test databases." >&2
+    else
+        echo "  Warning: could not determine whether ${INST_DB_USER:-odoo} may CREATE DATABASE" >&2
+        echo "  (the cluster may not be running yet). An 'ephemeral' acquire will REFUSE with" >&2
+        echo "  exit 7 until this can be answered. Start Postgres, then re-run record-env." >&2
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# _record_env_facts <series> <profile> <venv_py> <odoo_root>
+#   Record every VERIFIED environment fact on the matched block. python and
+#   odoo_root come from the caller's already-passed `<venv_py> <odoo-bin>
+#   --version` gate; db_run_mode/db_container come from the detector. Returns
+#   non-zero when a fact could not be determined - having recorded no guess for it.
+# ---------------------------------------------------------------------------
+_record_env_facts() {
+    local series="$1" profile="${2:-}" venv_py="${3:-}" odoo_root="${4:-}"
+    local -a facts=()
+    local rc=0 line
+    [[ -n "$venv_py" ]] && facts+=("python=$venv_py")
+    [[ -n "$odoo_root" ]] && facts+=("odoo_root=$odoo_root")
+    local detected="" drc=0
+    detected="$(_detect_pg_facts "$series" "$profile")" || drc=$?
+    if [[ "$drc" -eq 0 ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && facts+=("$line")
+        done <<<"$detected"
+    else
+        rc=1
+    fi
+    if [[ "${#facts[@]}" -gt 0 ]]; then
+        _upsert_instance_keys "$series" "$profile" "${facts[@]}" || return 1
+    fi
+    return "$rc"
+}
+
+cmd_record_env() {
+    local series="" profile=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --series) series="$2"; shift 2 ;;
+            --profile) profile="$2"; shift 2 ;;
+            *) echo "Unknown arg: $1" >&2; return 2 ;;
+        esac
+    done
+    [[ -n "$series" ]] || { echo "x --series is required (e.g. --series 17.0)" >&2; return 2; }
+    [[ -f "$INSTANCES_TOML" ]] || {
+        echo "x no instance catalog at $INSTANCES_TOML - declare the instance first (step 40)." >&2
+        return 1
+    }
+
+    local io="$SCRIPT_DIR/../lib/instances_io.py" kv=""
+    kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "${profile:-}" 2>/dev/null)" || kv=""
+    [[ -n "$kv" ]] || { echo "x no [[instance]] declared for series $series." >&2; return 1; }
+    eval "$kv"
+
+    local rc=0 venv_py="${INST_PYTHON:-}" odoo_root="" core_bin=""
+    if [[ -n "$venv_py" && -x "$venv_py" ]]; then
+        core_bin="$(_core_odoo_bin_from_addons_path "${INST_ADDONS_PATH:-}")" || core_bin=""
+        if [[ -z "$core_bin" ]]; then
+            core_bin="$(_core_odoo_bin_for_series "$series" "${profile:-}")" || core_bin=""
+        fi
+        if [[ -n "$core_bin" ]] && "$venv_py" "$core_bin" --version >/dev/null 2>&1; then
+            odoo_root="$(dirname "$core_bin")"
+        else
+            echo "x '$venv_py <odoo-bin> --version' failed - python and odoo_root were NOT" >&2
+            echo "  recorded. Rebuild the venv: $(basename "$0") create-venv --series $series." >&2
+            venv_py=""
+            rc=1
+        fi
+    else
+        echo "x this instance declares no runnable 'python' - python and odoo_root were NOT" >&2
+        echo "  recorded. Build one: $(basename "$0") create-venv --series $series." >&2
+        venv_py=""
+        rc=1
+    fi
+
+    _record_env_facts "$series" "${profile:-}" "$venv_py" "$odoo_root" || rc=1
+    [[ -z "$venv_py" ]] || _verify_can_createdb "$venv_py" "$series" "${profile:-}" "$odoo_root"
+    return "$rc"
 }
 
 cmd_create_venv() {
@@ -372,110 +668,20 @@ PY
         return 1
     fi
 
-    # Record the interpreter on the instance so step 50 uses it.
-    # Matches on (series, profile): when profile is set, only update the [[instance]]
-    # block whose series AND profile both match. When profile is empty, match by
-    # series only (first matching block, preserving backward compat).
-    # NOTE: this only REPLACES an existing `python = ...` line in the matched
-    # [[instance]] block; it assumes step 40 already wrote a `python = ""`
-    # placeholder line into that block. If the line is absent, nothing is written.
-    if [[ -f "$INSTANCES_TOML" ]]; then
-        local _rec_rc=0
-        python3 - "$INSTANCES_TOML" "$series" "$venv_py" "$profile" <<'PY' || _rec_rc=$?
-import sys
-path, series, py, profile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
-try:
-    src = open(path, encoding="utf-8").read()
-except OSError:
-    sys.exit(0)
-lines = src.splitlines(keepends=True)
-out = []
-in_block = False
-block_series = ""
-block_profile = ""
-matched = False
-updated = False
-
-# When profile is empty: only match unprofiled blocks (block_profile == "").
-# Detect whether the series has ONLY profiled blocks (no unprofiled block to
-# write to) so we can fail-loud instead of silently poisoning the wrong block.
-if profile == "":
-    # Mini scan: collect (series, has_profile) pairs for each [[instance]] block.
-    _in = False
-    _bs = ""
-    _bp = ""
-    _profiled_series = set()    # series that have at least one profiled block
-    _unprofiled_series = set()  # series that have at least one unprofiled block
-    def _flush():
-        if _in and _bs:
-            if _bp:
-                _profiled_series.add(_bs)
-            else:
-                _unprofiled_series.add(_bs)
-    for raw_line in lines:
-        s = raw_line.strip()
-        if s == "[[instance]]":
-            _flush()
-            _in = True; _bs = ""; _bp = ""
-        elif s.startswith("["):
-            _flush()
-            _in = False; _bs = ""; _bp = ""
-        if _in and s.startswith("series") and "=" in s:
-            _bs = s.split("=", 1)[1].strip().strip('"').strip("'")
-        if _in and s.startswith("profile") and "=" in s:
-            _bp = s.split("=", 1)[1].strip().strip('"').strip("'")
-    _flush()  # flush last block
-    # Fail-loud only when ALL blocks for this series are profiled (none unprofiled).
-    if series in _profiled_series and series not in _unprofiled_series:
-        print(
-            f"x series {series!r} has only profile-specific [[instance]] blocks but "
-            f"create-venv was called without --profile. Pass --profile <name> to "
-            f"select the correct block. python was NOT recorded.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-for line in lines:
-    s = line.strip()
-    if s == "[[instance]]":
-        in_block = True
-        block_series = ""
-        block_profile = ""
-        matched = False
-    elif s.startswith("["):
-        in_block = False
-        matched = False
-    if in_block and s.startswith("series") and "=" in s:
-        block_series = s.split("=", 1)[1].strip().strip('"').strip("'")
-    if in_block and s.startswith("profile") and "=" in s:
-        block_profile = s.split("=", 1)[1].strip().strip('"').strip("'")
-    # Re-evaluate match: stricter than select_instance (refuses to guess a profiled block when no --profile is given).
-    # profile=="" -> only match blocks where block_profile=="" (unprofiled).
-    # profile set  -> match blocks where block_series==series AND block_profile==profile.
-    if in_block and block_series:
-        if block_series == series:
-            if profile == "" and block_profile == "":
-                matched = True
-            elif profile != "" and block_profile == profile:
-                matched = True
-            else:
-                matched = False
-        else:
-            matched = False
-    if in_block and matched and s.startswith("python") and "=" in s and not updated:
-        indent = line[:len(line) - len(line.lstrip())]
-        out.append(f'{indent}python = "{py}"\n')
-        updated = True
-        continue
-    out.append(line)
-if updated:
-    open(path, "w", encoding="utf-8").write("".join(out))
-    label = f"{series}:{profile}" if profile else series
-    print(f"  recorded python for {label} -> {py}")
-PY
-        # Propagate non-zero exit from the recorder (e.g. fail-loud on profile
-        # ambiguity: sys.exit(1) in the Python block above).
-        [[ "$_rec_rc" -eq 0 ]] || return "$_rec_rc"
+    # Record the VERIFIED environment facts on the instance so step 50 and the
+    # allocator use them: `python` (the interpreter just proven able to run
+    # odoo-bin), `odoo_root` (that same repo's root - what makes `import odoo`
+    # resolve for a source checkout), and the Postgres client surface
+    # (`db_run_mode`/`db_container`). Matches on (series, profile) and INSERTS a
+    # key whose line is absent, so a catalog written before a key existed gains it.
+    local _rec_rc=0
+    _record_env_facts "$series" "$profile" "$venv_py" "$(dirname "$core_bin")" || _rec_rc=$?
+    _verify_can_createdb "$venv_py" "$series" "$profile" "$(dirname "$core_bin")"
+    # A detector that could not decide is reported, not fatal: the venv IS ready
+    # and every non-ephemeral mode works without the client-surface fact.
+    if [[ "$_rec_rc" -ne 0 ]]; then
+        echo "  Warning: db_run_mode was NOT recorded (see the message above);" >&2
+        echo "  re-run '$(basename "$0") record-env --series $series' once resolved." >&2
     fi
     echo "ok venv ready: $venv_py"
 }
@@ -486,5 +692,6 @@ case "${1:-}" in
     apply)    cmd_apply ;;
     suggest)  shift; cmd_suggest "$@" ;;
     create-venv) shift; cmd_create_venv "$@" ;;
-    *) echo "Usage: $(basename "$0") {describe|check|apply|suggest <series>|create-venv ...}" >&2; exit 2 ;;
+    record-env)  shift; cmd_record_env "$@" ;;
+    *) echo "Usage: $(basename "$0") {describe|check|apply|suggest <series>|create-venv ...|record-env --series X.Y [--profile P]}" >&2; exit 2 ;;
 esac

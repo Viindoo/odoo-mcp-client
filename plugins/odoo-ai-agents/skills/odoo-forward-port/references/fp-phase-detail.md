@@ -756,11 +756,9 @@ clean retry.
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
   `merge-log.md` and do NOT block the forward-port on it. Only an install that is green on clean
   origin/target and red after absorption is an FP-delta to fix.
-- **CREATEDB-role footgun:** the allocator probes this automatically inside every `odoo-instance`
-  dispatch and degrades `ephemeral` -> `exclusive` when the role lacks it - a degrade means two
-  parallel batches can collide on the same DB. If the returned `instance-ops` notes flag a
-  degrade, serialize remaining batches rather than run them concurrently. Full mechanism:
-  `[[fp-merge-absorption]]` § Allocator footgun.
+- **CREATEDB role:** an `ephemeral` acquire refuses with exit 6 or 7 instead of borrowing the
+  declared DB, so batches are never silently serialised onto one database; on either exit follow
+  `[[fp-merge-absorption]]` § Ephemeral isolation.
 
 Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 

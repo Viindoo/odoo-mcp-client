@@ -582,3 +582,237 @@ def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
         # only reverts the 'odoo' key set explicitly above, so remove the rest ourselves.
         for name in ("odoo.tools", "odoo.service", "odoo.service.db"):
             sys.modules.pop(name, None)
+
+
+# ---------------------------------------------------------------------------
+# Read-only cluster queries: can-createdb / list-databases / db-age-s /
+# db-size-bytes, plus --odoo-root
+#
+# Every one of these goes through Odoo's OWN connection layer
+# (odoo.sql_db.db_connect, openerp.sql_db on v8-v9), so a question about the
+# cluster resolves the connection EXACTLY like drop/exists do. That is what makes
+# it impossible for the CREATEDB verdict and the drop to disagree about WHICH
+# cluster they mean - and it means none of them needs a libpq client binary.
+# ---------------------------------------------------------------------------
+
+def _build_fake_odoo_with_sql_db(tmp_path, *, rolcreatedb=True, databases=("a_db",),
+                                 age=1234.5, size=4096, raise_on_connect=False,
+                                 pkg_name="odoo", dirname="fake_odoo_sqldb"):
+    """A fake Odoo package that also exposes sql_db.db_connect.
+
+    `pkg_name` is a parameter because v8/v9 ship the SAME api under `openerp`:
+    the script resolves the namespace and imports `<pkg>.sql_db` through it, so
+    the openerp case must be exercised, not assumed.
+    """
+    pkg_root = tmp_path / dirname
+    pkg_dir = pkg_root / pkg_name
+    (pkg_dir / "service").mkdir(parents=True)
+    (pkg_dir / "tools").mkdir()
+
+    (pkg_dir / "__init__.py").write_text(
+        f"from {pkg_name} import tools, service\n", encoding="utf-8")
+    (pkg_dir / "tools" / "__init__.py").write_text(
+        textwrap.dedent("""\
+        class _Config(dict):
+            def parse_config(self, args=None):
+                args = args or []
+                i = 0
+                while i < len(args):
+                    if args[i].startswith('--') and i + 1 < len(args):
+                        self[args[i].lstrip('-')] = args[i + 1]
+                        i += 2
+                    else:
+                        i += 1
+
+        config = _Config()
+        """), encoding="utf-8")
+    (pkg_dir / "service" / "__init__.py").write_text(
+        f"from {pkg_name}.service import db\n", encoding="utf-8")
+    (pkg_dir / "service" / "db.py").write_text(
+        "def exp_drop(db_name):\n    return True\n\n"
+        "def exp_db_exist(db_name):\n    return True\n", encoding="utf-8")
+
+    (pkg_dir / "sql_db.py").write_text(
+        textwrap.dedent(f"""\
+        _RAISE = {raise_on_connect!r}
+        _ROLCREATEDB = {rolcreatedb!r}
+        _DATABASES = {list(databases)!r}
+        _AGE = {age!r}
+        _SIZE = {size!r}
+
+
+        class _Cursor(object):
+            def __init__(self):
+                self._rows = []
+
+            def execute(self, sql, params=None):
+                low = " ".join(sql.split()).lower()
+                if "rolcreatedb" in low:
+                    self._rows = [] if _ROLCREATEDB is None else [(_ROLCREATEDB,)]
+                elif "pg_database where datistemplate" in low:
+                    self._rows = [(n,) for n in _DATABASES]
+                elif "pg_stat_file" in low:
+                    self._rows = [] if _AGE is None else [(_AGE,)]
+                elif "pg_database_size" in low:
+                    self._rows = [] if _SIZE is None else [(_SIZE,)]
+                else:
+                    raise AssertionError("unexpected SQL: " + sql)
+
+            def fetchall(self):
+                return self._rows
+
+            def close(self):
+                pass
+
+
+        class _Connection(object):
+            def cursor(self, *args, **kwargs):
+                return _Cursor()
+
+
+        def db_connect(to, allow_uri=False):
+            if _RAISE:
+                raise RuntimeError("could not connect to server")
+            return _Connection()
+        """), encoding="utf-8")
+    return pkg_root
+
+
+def test_can_createdb_answers_true_without_any_native_binary(tmp_path):
+    """The verdict comes from the CLUSTER, so it must be answerable on a host with
+    NO libpq client at all - the exact host class whose missing psql used to be
+    reported as "this role may not create databases"."""
+    bindir = tmp_path / "emptybin"
+    bindir.mkdir()
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, rolcreatedb=True)
+    # PATH holds only an EMPTY dir: no psql, no dropdb, no createdb anywhere.
+    res = _run("can-createdb", "--db-host", "h", "--db-user", "u",
+               env_extra={"PATH": str(bindir)}, pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == "true"
+
+
+def test_can_createdb_answers_false_for_a_role_without_the_privilege(tmp_path):
+    """A POSITIVE negative: the role exists and genuinely lacks CREATEDB. This must
+    be distinguishable from 'could not ask' - the allocator maps them to different
+    exits (6 vs 7) because the remedies differ."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, rolcreatedb=False)
+    res = _run("can-createdb", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == "false"
+
+
+def test_can_createdb_fails_loudly_when_the_cluster_cannot_be_reached(tmp_path):
+    """An unreachable cluster must NOT print a verdict. Printing `false` here would
+    resurrect the false negative in a new place."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, raise_on_connect=True)
+    res = _run("can-createdb", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_FAILURE, f"got {res.returncode}"
+    assert res.stdout.strip() == "", (
+        f"no verdict may be printed when the question could not be asked; got {res.stdout!r}")
+    assert "h" in res.stderr, "the diagnostic must name the host it could not reach"
+
+
+def test_can_createdb_cannot_answer_when_the_role_has_no_pg_roles_row(tmp_path):
+    """No row means the question was not answered - fail, do not infer `false`."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, rolcreatedb=None)
+    res = _run("can-createdb", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_FAILURE
+    assert res.stdout.strip() == ""
+
+
+def test_can_createdb_works_under_the_openerp_namespace(tmp_path):
+    """v8/v9 ship this API as `openerp.sql_db`. The import resolves through the
+    RESOLVED package name, so both namespaces must work with no version guess."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, rolcreatedb=True, pkg_name="openerp",
+                                       dirname="fake_openerp_sqldb")
+    res = _run("can-createdb", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.strip() == "true"
+
+
+def test_list_databases_prints_one_name_per_line(tmp_path):
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, databases=("alpha", "beta"))
+    res = _run("list-databases", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert res.stdout.split() == ["alpha", "beta"]
+
+
+def test_list_databases_prints_nothing_and_fails_when_it_cannot_enumerate(tmp_path):
+    """"Could not enumerate" must never be readable as "there are zero databases":
+    the caller would then treat a whole cluster as having no orphans."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, raise_on_connect=True)
+    res = _run("list-databases", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
+    assert res.returncode != EXIT_OK
+    assert res.stdout.strip() == ""
+
+
+def test_db_age_and_size_print_their_measurement(tmp_path):
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, age=200000.0, size=104857600)
+    age = _run("db-age-s", "some_db", "--db-host", "h", pythonpath_prepend=pkg)
+    assert age.returncode == EXIT_OK, f"stderr={age.stderr!r}"
+    assert float(age.stdout.strip()) == 200000.0
+    size = _run("db-size-bytes", "some_db", "--db-host", "h", pythonpath_prepend=pkg)
+    assert size.returncode == EXIT_OK, f"stderr={size.stderr!r}"
+    assert int(size.stdout.strip()) == 104857600
+
+
+def test_db_age_fails_closed_when_unmeasurable(tmp_path):
+    """pg_stat_file needs elevated privilege on many builds. An unmeasurable age
+    must fail - a caller that reads it as 0 would reap a database created seconds
+    ago."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, age=None)
+    res = _run("db-age-s", "some_db", "--db-host", "h", pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_FAILURE
+    assert res.stdout.strip() == ""
+
+
+def test_odoo_root_puts_the_checkout_on_sys_path_before_import(tmp_path):
+    """A source checkout is not pip-installed: `import odoo` fails under the venv
+    unless the repo root is on sys.path, which is the ONLY reason odoo-bin works.
+    Without --odoo-root the import fails (exit 10); with it, the same call
+    succeeds - so a source instance stops taking a fallback it never needed."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path, rolcreatedb=True)
+
+    without = _run("can-createdb", "--db-host", "h")  # no PYTHONPATH, no --odoo-root
+    assert without.returncode == EXIT_NO_VENV, (
+        f"a bare import must fail for a source checkout; got {without.returncode}")
+
+    with_root = _run("can-createdb", "--db-host", "h", "--odoo-root", str(pkg))
+    assert with_root.returncode == EXIT_OK, (
+        f"--odoo-root must make the import resolve; stderr={with_root.stderr!r}")
+    assert with_root.stdout.strip() == "true"
+
+
+def test_odoo_root_is_accepted_by_drop_too(tmp_path):
+    """The drop path is the one that was silently taking the raw fallback on every
+    source instance, so it must accept the flag as well."""
+    pkg = _build_fake_odoo_with_sql_db(tmp_path)
+    res = _run("drop", "some_db", "--db-host", "h", "--odoo-root", str(pkg))
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+
+
+@pytest.mark.parametrize("argv", [
+    ("can-createdb", "--db-host", "h"),
+    ("list-databases", "--db-host", "h"),
+    ("db-age-s", "some_db", "--db-host", "h"),
+    ("db-size-bytes", "some_db", "--db-host", "h"),
+])
+def test_no_subcommand_ever_spawns_a_client_binary(tmp_path, argv):
+    """Extends the drop-path guarantee to every new subcommand: this script asks
+    Postgres everything through psycopg2 and spawns NO libpq client, ever."""
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    call_log = tmp_path / "pg_calls.log"
+    for tool in ("dropdb", "psql", "createdb", "createuser", "pg_isready"):
+        shim = bindir / tool
+        shim.write_text(f'#!/bin/sh\necho "{tool} $*" >> "{call_log}"\n', encoding="utf-8")
+        shim.chmod(0o755)
+    pkg = _build_fake_odoo_with_sql_db(tmp_path)
+
+    res = _run(*argv, env_extra={"PATH": f"{bindir}{os.pathsep}{os.environ.get('PATH', '')}"},
+               pythonpath_prepend=pkg)
+    assert res.returncode == EXIT_OK, f"stderr={res.stderr!r}"
+    assert not call_log.exists(), (
+        f"{argv[0]} must never spawn a libpq client; got "
+        f"{call_log.read_text(encoding='utf-8')!r}")

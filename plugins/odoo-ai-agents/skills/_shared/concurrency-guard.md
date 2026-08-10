@@ -118,20 +118,19 @@ narrower-than-intended result, which is reason enough to keep passing `profile_n
 ## Odoo instance allocation (DB / port)
 
 The OSM rule above protects the static index; this protects LIVE instances. Under
-concurrency, never reuse the single declared `db_name`/`http_port` for a MUTATION -
-tests (`--test-enable`), `-i`/`-u`, or a throwaway server - a concurrent agent or
-another session may hold it. Acquire an isolated lease instead:
-`scripts/lib/allocator.py acquire --mode ephemeral --run-id <id>` (reserves a unique DB name +
-ports under that run's ownership; the DB is created through Odoo by your `-i` run and dropped
-through Odoo on release)
-or `--mode exclusive` (single-holder lease on a declared DB); a read-only attach
-stays lease-free. The allocator returns version-agnostic port NUMBERS - map them to
-CLI flags via `cli_help` for the target series at runtime. Full protocol + GC/stale
-rules: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate and
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`. Whatever lease you acquire
-here, you release before your terminal status - the imperative + release mechanics are the
-resource-teardown contract's, not this file's:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3.
+concurrency, never reuse the declared `db_name`/`http_port` for a MUTATION - tests
+(`--test-enable`), `-i`/`-u`, a throwaway server: another agent or session may hold it.
+Acquire an isolated lease: `scripts/lib/allocator.py acquire --mode ephemeral --run-id
+<id>` (a unique DB name + ports owned by that run; the DB is created through Odoo by your
+`-i` run and dropped through Odoo on release) or `--mode exclusive` (single-holder lease on
+a declared DB); a read-only attach stays lease-free. The returned port NUMBERS are
+version-agnostic - map them to CLI flags via `cli_help`. Exit **6 or 7** is a
+REFUSAL, never a degrade: handle both, and say so when you trade isolation away for
+`--mode exclusive`. Exit codes (§6.6), protocol, GC/stale rules:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` and
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. Release before your
+terminal status - that imperative and the release mechanics belong to
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3, not to this file.
 
 ## Browser exclusivity (orthogonal)
 

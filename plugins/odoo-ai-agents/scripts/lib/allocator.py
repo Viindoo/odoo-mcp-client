@@ -23,7 +23,10 @@ Modes:
                  (create-on-init) and dropped through Odoo on release (raw dropdb only
                  as a venv-unavailable fallback). Ports only when --ports N>0.
                  Default for tests / -i verification.
-                 Auto-degrades to `exclusive` when the role lacks CREATEDB.
+                 REFUSES (exit 6 no CREATEDB / exit 7 undeterminable) instead of
+                 degrading: an ephemeral request either gets an isolated
+                 throwaway DB or fails, never an `exclusive` lease on the
+                 declared database the caller did not ask for.
     exclusive  - the declared (or named) DB held under an exclusive lease.
     shared     - a long-lived, NON-exclusive lease for the visual stack's live
                  render server: many readers attach to ONE lease (never blocked),
@@ -47,9 +50,23 @@ CLI:
                  # (pre-fix) code instead. Pass --addons-path-override to state the
                  # tree explicitly (see _addons_path_worktree_mismatch).
     allocator.py query --series <X.Y>     # the live shared render server for a series, if any
-    allocator.py release <token> [--run-id <id>] [--force] [--instances <path>]
+    allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
+                 # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
+                 # when undeterminable) and exit 0|6|7 - the SAME ladder and the SAME
+                 # codes `acquire --mode ephemeral` gates on, so a reporting caller
+                 # never re-implements the question. Writes NO lease.
+    allocator.py release <token> [--run-id <id>] [--force] [--force-forget]
+                 [--instances <path>]
                  # refuses only when the caller's run differs from a non-empty
                  # owner run (token-possession otherwise); --force overrides loudly.
+                 # A drop that FAILS keeps the lease (so gc / a later retry can
+                 # finish it) - and the drop surface is re-resolved from the
+                 # CURRENT catalog on every attempt, so `45-venv.sh record-env`
+                 # repairs an EXISTING lease, not just future ones.
+                 # --force-forget is the documented escape when nothing on this
+                 # host can ever drop the DB: it removes the lease and NAMES the
+                 # abandoned database (stderr + ALLOC_ABANDONED_DB) - it never
+                 # reports a teardown that did not happen.
     allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]
                  # read-only: non-zero if a FRESH lease on <db> is owned by a
                  # DIFFERENT run, OR is UNOWNED (no run_id recorded at all -
@@ -76,6 +93,27 @@ CLI:
 
 All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
 instances_io.py's INST_* convention. acquire prints ALLOC_*.
+
+acquire exit codes:
+    0 acquired as requested (a lease is written)
+    1 no instance for that series in the catalog
+    2 usage / unknown --mode
+    3 exclusive conflict - the db is already exclusively held
+    4 port pool exhausted
+    5 addons_path worktree mismatch (pass --addons-path-override)
+    6 `ephemeral` REFUSED: the role positively LACKS CREATEDB
+    7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE
+Every non-zero exit writes NO lease. 6 and 7 stay distinct because the remedy
+differs: 6 is fixed by granting the role CREATEDB, 7 by declaring a working
+`python` + `odoo_root` (45-venv.sh record-env), by declaring a `db_run_mode`
+client surface (the route a compose-run instance takes - it declares no
+`python` of its own), or by starting the cluster.
+
+Every call that talks to Postgres is BOUNDED (see `_probe_timeout_s`): psycopg2
+opens the connection with no libpq connect timeout, so an unreachable cluster
+never replies at all, and an unbounded probe would make `acquire` hang with no
+lease, no refusal and no verdict - strictly worse than a wrong answer, because
+the caller learns nothing. A bound that elapses is UNDETERMINED, never a "no".
 """
 
 import contextlib
@@ -452,53 +490,253 @@ def _pg_env():
     return env
 
 
-def _run(cmd, env=None):
+# ONE timeout policy for the whole plugin: the SAME env var pg_mode.sh's
+# PG_MODE_PROBE_TIMEOUT reads, with the same default, so a host that tunes the
+# bound gets it applied to every probe rather than to half of them.
+PROBE_TIMEOUT_ENV = "ODOO_AI_PG_PROBE_TIMEOUT"
+DEFAULT_PROBE_TIMEOUT_S = 10
+# A MUTATING Postgres call is not a probe: dropping a large database legitimately
+# takes minutes, so it gets a far longer bound - DERIVED from the same knob rather
+# than introduced as a second one. It is still bounded: an unreachable cluster
+# blocks inside libpq with no connect timeout, and an unbounded drop hangs
+# `release` exactly as an unbounded probe hangs `acquire`.
+PG_OP_TIMEOUT_MULTIPLE = 30
+# `timeout`'s own "bound elapsed" code, reused here so the shell and python halves
+# report an unanswered probe identically. Callers MUST read it as UNDETERMINED.
+EXIT_PROBE_TIMEOUT = 124
+# odoo_db.py's "venv unavailable" sentinel (its EXIT_NO_VENV).
+EXIT_NO_VENV = 10
+
+
+def _probe_timeout_s():
+    """Wall-clock bound (seconds) for a read-only PROBE. A non-numeric or
+    non-positive value falls back to the default rather than disabling the bound:
+    "no bound" is never a safe reading of a malformed knob."""
+    raw = os.environ.get(PROBE_TIMEOUT_ENV, "")
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        secs = int(str(raw).strip() or DEFAULT_PROBE_TIMEOUT_S)
+    except ValueError:
+        return DEFAULT_PROBE_TIMEOUT_S
+    return secs if secs > 0 else DEFAULT_PROBE_TIMEOUT_S
+
+
+def _pg_op_timeout_s():
+    """Wall-clock bound (seconds) for a MUTATING Postgres call - see
+    PG_OP_TIMEOUT_MULTIPLE."""
+    return _probe_timeout_s() * PG_OP_TIMEOUT_MULTIPLE
+
+
+def _run(cmd, env=None, timeout=None):
+    """(rc, stdout, stderr). `timeout` bounds the call in wall-clock seconds and
+    reports EXIT_PROBE_TIMEOUT when it elapses - "could not answer", never a
+    factual answer. Every call that talks to Postgres passes one."""
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=timeout)
         return p.returncode, p.stdout, p.stderr
     except FileNotFoundError:
         return 127, "", f"{cmd[0]}: not found"
+    except subprocess.TimeoutExpired:
+        return EXIT_PROBE_TIMEOUT, "", (
+            f"{cmd[0]}: probe timed out after {timeout}s (no answer - not an answer of 'no')"
+        )
 
 
-def _probe_createdb(host, user, port=""):
-    """True iff the connecting role has CREATEDB. False on any error (-> degrade).
+def _which(binary):
+    from shutil import which
 
-    Threads -p <port> ONLY when a port is declared (same empty-omit rule as the
-    drop path) so the probe hits the SAME cluster create/drop will use.
-    """
-    cmd = ["psql", "-h", host, "-U", user]
-    if port:
-        cmd += ["-p", str(port)]
-    cmd += ["-d", "postgres", "-tAc",
-            "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user"]
-    rc, out, _ = _run(cmd, env=_pg_env())
-    return rc == 0 and out.strip() == "t"
+    return which(binary)
 
 
 # _createdb removed: the allocator no longer creates the ephemeral DB.
 # The caller's `odoo-bin -d <db> -i <modules> --stop-after-init` performs
 # create-on-init instead (B2 model: caller-side create, through-Odoo drop).
-# _probe_createdb is still needed: Odoo create-on-init also requires CREATEDB,
-# so if the role lacks it we degrade ephemeral -> exclusive (same invariant).
+# The CREATEDB CAPABILITY is still required (Odoo create-on-init needs it too),
+# but it is asked as a LIVE privilege query through the instance's own
+# interpreter - see _can_createdb. A client binary is never consulted: its
+# absence is not evidence about a role's privileges.
 
 
-def _dropdb(host, user, db, port=""):
-    """Terminate backends then drop, with retry (portable to PG10+).
+def _pg_client_argv(mode, container, binary, host, user, port, args):
+    """argv running libpq client `binary` against this cluster in the DECLARED
+    mode, or None when the mode offers no client surface.
 
-    Threads -p <port> into BOTH the psql terminate-backend call and dropdb ONLY
-    when a port is declared (empty-omit) so the raw fallback hits the same cluster.
+    The CONNECTION flags differ per mode and must not be passed through blindly:
+      native - reach the cluster the way every other consumer does: -h <host>,
+               -U <user>, and -p <port> only when declared (empty-omit).
+      docker - the command runs INSIDE the container, where the declared host and
+               the PUBLISHED port do not exist: the mapping is a host-side fact
+               and <host> resolves to the container's own loopback. Connect over
+               the container's local socket (-U only). Passing the published port
+               here would target a port nothing listens on inside the container.
+    PARITY: mirrors pg_mode.sh `pg_run_client` - keep the two in lockstep.
     """
-    env = _pg_env()
-    port_args = ["-p", str(port)] if port else []
-    for _ in range(3):
-        _run(
-            ["psql", "-h", host, "-U", user] + port_args + ["-d", "postgres", "-tAc",
-             "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
-             f"WHERE datname = '{db}' AND pid <> pg_backend_pid()"],
-            env=env,
+    if mode == "native":
+        conn = ["-h", host, "-U", user]
+        if port:
+            conn += ["-p", str(port)]
+        return [binary] + conn + list(args)
+    if mode == "docker":
+        if not container:
+            return None
+        pre = ["docker", "exec"]
+        if os.environ.get("ODOO_PG_PASSWORD"):
+            pre += ["-e", "PGPASSWORD"]
+        return pre + ["-i", container, binary, "-U", user] + list(args)
+    return None
+
+
+# The ONE live privilege query behind every CREATEDB answer, whichever route
+# asks it. odoo_db.py's cmd_can_createdb issues this same statement, so the two
+# routes below can never disagree about WHAT is being asked.
+_CREATEDB_SQL = "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user"
+_RECORD_ENV_HINT = (
+    "run `45-venv.sh record-env --series <X.Y> [--profile <P>]` to declare "
+    "`python` + `odoo_root` (and the `db_run_mode` client surface) for this instance"
+)
+
+
+def _can_createdb_via_python(inst, host, user, port):
+    """(verdict, reason) asked THROUGH the instance's own declared interpreter.
+
+    THIS script runs under the ambient python3, which is not guaranteed to have
+    psycopg2 - an Odoo venv is, since it cannot run odoo-bin without it. Same
+    interpreter, same odoo_db.py, same connection resolution as the drop path.
+    """
+    venv_python = inst.get("python", "")
+    if not venv_python:
+        return None, ("this instance declares no `python` (a compose-run instance never "
+                      "does), so no interpreter could ask")
+    if not os.path.isfile(_ODOO_DB_PY):
+        return None, "odoo_db.py not found at {p}".format(p=_ODOO_DB_PY)
+    cmd = [venv_python, _ODOO_DB_PY, "can-createdb", "--db-host", host, "--db-user", user]
+    odoo_root = inst.get("odoo_root", "")
+    if odoo_root:
+        cmd += ["--odoo-root", odoo_root]
+    if port:
+        cmd += ["--db-port", str(port)]
+    # The password is NOT passed on argv (it would be world-readable in `ps`):
+    # odoo_db.py reads ODOO_PG_PASSWORD from its environment, which this child
+    # inherits - the same by-name discipline the docker client arm already applies.
+    rc, out, err = _run(cmd, timeout=_probe_timeout_s())
+    out = out.strip()
+    if rc == 0 and out == "true":
+        return True, ""
+    if rc == 0 and out == "false":
+        return False, ""
+    if rc == EXIT_PROBE_TIMEOUT:
+        return None, ("the interpreter probe timed out after {s}s - the cluster did not "
+                      "answer (psycopg2 opens the connection with no libpq connect "
+                      "timeout, so an unreachable cluster simply never replies); start "
+                      "the cluster, or raise ${env}".format(
+                          s=_probe_timeout_s(), env=PROBE_TIMEOUT_ENV))
+    if rc == EXIT_NO_VENV:
+        # odoo_db.py's own wording here is "cannot import odoo (no venv?)", which
+        # MISDIAGNOSES the usual cause: a source checkout is never pip-installed,
+        # so `import odoo` resolves only via `odoo_root` - the venv is fine and the
+        # missing thing is a DECLARED key.
+        return None, ("the declared `python` cannot import odoo: for a source checkout "
+                      "that means `odoo_root` is not declared (the venv itself is fine) - "
+                      + _RECORD_ENV_HINT)
+    return None, "odoo_db.py can-createdb exited {rc}: {msg}".format(
+        rc=rc, msg=err.strip() or out or "no output")
+
+
+def _can_createdb_via_client(inst, host, user, port):
+    """(verdict, reason) asked over the DECLARED libpq client surface.
+
+    The route for an instance that declares no interpreter of its own - a
+    `run_mode = "docker"` instance is launched by compose and never declares
+    `python`, so without this route `--mode ephemeral` could NEVER succeed for a
+    first-class supported run mode: it would always exit 7, no matter what the
+    role's privileges actually are.
+
+    This is a POSITIVE query put to the cluster, not an inference from which
+    binaries exist: a client that is ABSENT still says nothing about a role's
+    privileges (that conflation is the original defect), which is why a mode with
+    no client surface returns None here rather than False.
+    """
+    mode = inst.get("db_run_mode", "")
+    container = inst.get("db_container", "")
+    argv = _pg_client_argv(mode, container, "psql", host, user, port,
+                           ["-d", "postgres", "-tAc", _CREATEDB_SQL])
+    if argv is None:
+        return None, ("db_run_mode={m} offers no libpq client surface either, so no "
+                      "client could ask".format(m=mode or "<absent>"))
+    rc, out, err = _run(argv, env=_pg_env(), timeout=_probe_timeout_s())
+    ans = out.strip().lower()
+    if rc == 0 and ans in ("t", "true"):
+        return True, ""
+    if rc == 0 and ans in ("f", "false"):
+        return False, ""
+    if rc == EXIT_PROBE_TIMEOUT:
+        return None, ("the psql probe over db_run_mode={m} timed out after {s}s".format(
+            m=mode, s=_probe_timeout_s()))
+    return None, "psql CREATEDB probe over db_run_mode={m} exited {rc}: {msg}".format(
+        m=mode, rc=rc, msg=err.strip() or ans or "no output")
+
+
+def _can_createdb(inst, host, user, port):
+    """(verdict, reason): may the connecting role CREATE DATABASE?
+
+    Two routes, tried in order, each asking the CLUSTER the same live privilege
+    question: the instance's own interpreter first (the SSOT resolution path,
+    shared with drop), then the declared libpq client surface. The first route
+    that ANSWERS wins; `None` only when every route failed, and the reason then
+    names each exhausted route so the user can see what to declare.
+
+    verdict:
+      True  - the role positively HAS CREATEDB.
+      False - the role positively LACKS it.
+      None  - UNDETERMINABLE (no route could answer).
+    NEVER collapse None into False: cmd_acquire gives them different, both-loud
+    exits, and neither degrades.
+    """
+    reasons = []
+    for route in (_can_createdb_via_python, _can_createdb_via_client):
+        verdict, why = route(inst, host, user, port)
+        if verdict is not None:
+            return verdict, ""
+        reasons.append(why)
+    return None, "; ".join(reasons)
+
+
+def _dropdb(host, user, db, port="", mode="", container=""):
+    """Terminate backends then drop, via the DECLARED client surface.
+
+    Returns False - having dropped NOTHING - when the declared mode offers no
+    client surface. A missing client is NOT a completed drop: the caller must
+    keep the lease and report, never remove a lease whose database is still on
+    disk (that is how an unreferenced orphan is minted).
+    """
+    if not mode:
+        # LEGACY-ONLY shim, and only in this fallback-of-a-fallback: a lease
+        # minted before db_run_mode existed carries no mode. Accept `native`
+        # when both binaries are genuinely present, so a pre-change lease on a
+        # native host still drops exactly as it did before. This is not an
+        # ad-hoc re-probe of the FACT (absent != tcp-only): it can only ever
+        # succeed where the pre-fix code also succeeded, and it never fires for
+        # an explicitly declared mode.
+        if _which("psql") and _which("dropdb"):
+            mode = "native"
+    term_sql = ("SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = '{db}' AND pid <> pg_backend_pid()".format(db=db))
+    psql_argv = _pg_client_argv(mode, container, "psql", host, user, port,
+                                ["-d", "postgres", "-tAc", term_sql])
+    drop_argv = _pg_client_argv(mode, container, "dropdb", host, user, port,
+                                ["--if-exists", db])
+    if psql_argv is None or drop_argv is None:
+        sys.stderr.write(
+            "allocator: ERROR - cannot raw-drop {db}: db_run_mode={mode!r} offers no libpq "
+            "client surface on this host. NOTHING was dropped and the lease is kept. Fix the "
+            "through-Odoo path (declare a working `python` + `odoo_root` via 45-venv.sh) or "
+            "declare db_run_mode=native|docker.\n".format(db=db, mode=mode or "<absent>")
         )
-        rc, _, err = _run(
-            ["dropdb", "-h", host, "-U", user] + port_args + ["--if-exists", db], env=env)
+        return False
+    env = _pg_env()
+    err = ""
+    for _ in range(3):
+        _run(psql_argv, env=env, timeout=_pg_op_timeout_s())
+        rc, _, err = _run(drop_argv, env=env, timeout=_pg_op_timeout_s())
         if rc == 0:
             return True
         time.sleep(0.5)
@@ -524,7 +762,86 @@ def _drop_filestore(db):
 _ODOO_DB_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "odoo_db.py")
 
 
-def _drop_through_odoo(lease):
+_DROP_SURFACE_KEYS = ("python", "odoo_root", "db_run_mode", "db_container")
+
+
+def _catalog_drop_surface(lease, instances_path=None):
+    """The drop-surface facts the CURRENT catalog declares for `lease`, as a dict
+    limited to _DROP_SURFACE_KEYS.
+
+    A lease minted before a key existed carries nothing for it, and nothing ever
+    back-fills a written lease - so on a host with no libpq client, such a lease
+    is PERMANENTLY un-droppable: odoo_db.py exits 10 (no odoo_root), the raw
+    fallback finds no mode, `_dropdb` refuses, release re-appends the lease, gc
+    repeats it, and reap-orphans excludes any DB a lease references. Re-reading
+    the catalog is what makes `45-venv.sh record-env` able to fix an EXISTING
+    lease and not just future ones.
+
+    Matched by series first (the lease's own series), then by cluster identity
+    (db_host/db_user/db_port) - never by guesswork. Every adopted value is
+    VALIDATED first (an interpreter that exists, a root that exists): a catalog
+    can name a python that has since been deleted, and adopting that would turn a
+    working raw fallback into a 127 the drop path reads as a real failure.
+    Returns {} when nothing matches or the catalog cannot be read: a gap stays a
+    gap, never a fabrication.
+    """
+    try:
+        items = instances_io.load_instances(resolve_instances_path(instances_path))
+    except (OSError, ValueError):
+        return {}
+    series = lease.get("series", "")
+    host = lease.get("db_host") or lease.get("_pg", {}).get("host", "")
+    user = lease.get("db_user") or lease.get("_pg", {}).get("user", "")
+    port = str(lease.get("db_port") or lease.get("_pg", {}).get("port", "") or "")
+    by_series = [it for it in items if series and instances_io.series_of(it) == series]
+    by_cluster = [
+        it for it in items
+        if (it.get("db_host", "localhost") == (host or "localhost")
+            and it.get("db_user", "odoo") == (user or "odoo")
+            and str(it.get("db_port", "") or "") == port)
+    ]
+    for item in by_series + by_cluster:
+        facts = {}
+        if item.get("python") and os.path.isfile(item["python"]):
+            facts["python"] = item["python"]
+        if item.get("odoo_root") and os.path.isdir(item["odoo_root"]):
+            facts["odoo_root"] = item["odoo_root"]
+        if item.get("db_run_mode"):
+            facts["db_run_mode"] = item["db_run_mode"]
+            if item.get("db_container"):
+                facts["db_container"] = item["db_container"]
+        if facts:
+            return facts
+    return {}
+
+
+def _drop_surface(lease, instances_path=None):
+    """(python, odoo_root, db_run_mode, db_container) for this lease.
+
+    The LEASE is authoritative for every fact it actually carries - it names the
+    surface the database was created against. Only the GAPS are filled from the
+    current catalog (see `_catalog_drop_surface`), so re-resolution can never
+    redirect a drop at a cluster the lease never used.
+    """
+    values = {k: lease.get(k, "") for k in _DROP_SURFACE_KEYS}
+    if all(values.values()):
+        return values
+    fallback = _catalog_drop_surface(lease, instances_path)
+    filled = []
+    for key in _DROP_SURFACE_KEYS:
+        if not values[key] and fallback.get(key):
+            values[key] = fallback[key]
+            filled.append(key)
+    if filled:
+        sys.stderr.write(
+            "allocator: lease for {db} predates {keys}; re-resolved from the current "
+            "catalog so the drop surface is the one declared TODAY.\n".format(
+                db=lease.get("db_name", "<unnamed>"), keys=", ".join(filled))
+        )
+    return values
+
+
+def _drop_through_odoo(lease, instances_path=None):
     """Drop the ephemeral DB via odoo_db.py (through-Odoo path, B2 mandate).
 
     Falls back to raw _dropdb ONLY when:
@@ -536,6 +853,10 @@ def _drop_through_odoo(lease):
     allocator does NOT fall back to raw dropdb, does NOT drop the filestore,
     and does NOT remove the lease (so gc can retry / a human can investigate).
     Returns True on success, False when the drop failed and the lease must be kept.
+
+    A raw fallback that FAILS returns False too: its return value is honoured,
+    never discarded. Reporting a drop that did not happen as success is what
+    mints a database with no lease referencing it - an orphan nothing can find.
 
     Any fallback (rc=10 / no venv) is logged loudly to stderr.
     The filestore is cleaned up ONLY after a successful drop.
@@ -551,27 +872,43 @@ def _drop_through_odoo(lease):
     # Postgres port travels top-level with a _pg mirror for backward compat.
     # Empty -> omit the flag (same empty-omit rule as the rest of the port surface).
     port = lease.get("db_port") or pg.get("port", "")
-    venv_python = lease.get("python", "")
+    # The DECLARED drop surface, carried on the lease for the same reason
+    # python/db_host/db_user are: release/gc must reconstruct the invocation after
+    # the caller process is gone. Any key ABSENT on a pre-change lease is
+    # re-resolved from the CURRENT catalog (see `_drop_surface`), so a lease
+    # written before a key existed is repairable by `45-venv.sh record-env`
+    # instead of permanently stuck; only a gap the catalog cannot fill falls
+    # through to the narrowly-scoped legacy shim inside _dropdb.
+    surface = _drop_surface(lease, instances_path)
+    venv_python = surface["python"]
+    mode = surface["db_run_mode"]
+    container = surface["db_container"]
+    odoo_root = surface["odoo_root"]
 
     if venv_python and os.path.isfile(_ODOO_DB_PY):
         cmd = [venv_python, _ODOO_DB_PY, "drop", db, "--db-host", host, "--db-user", user]
+        if odoo_root:
+            cmd += ["--odoo-root", odoo_root]
         if port:
             cmd += ["--db-port", str(port)]
-        pw = os.environ.get("ODOO_PG_PASSWORD")
-        if pw:
-            cmd += ["--db-password", pw]
-        rc, _, err = _run(cmd)
+        # The password travels in the ENVIRONMENT (odoo_db.py reads
+        # ODOO_PG_PASSWORD), never on argv where `ps` exposes it.
+        rc, _, err = _run(cmd, timeout=_pg_op_timeout_s())
         if rc == 0:
             _drop_filestore(db)
             return True
         elif rc == 10:
-            # venv-unavailable sentinel: fall back to raw dropdb (logged).
+            # venv-unavailable sentinel: attempt the raw client drop (logged).
             sys.stderr.write(
-                "allocator: WARNING - venv unavailable ({python}), "
-                "dropped {db} via raw dropdb fallback\n".format(
-                    python=venv_python, db=db)
+                "allocator: WARNING - venv unavailable ({python}), attempting the raw client "
+                "drop of {db}\n".format(python=venv_python, db=db)
             )
-            _dropdb(host, user, db, port)
+            if not _dropdb(host, user, db, port, mode, container):
+                sys.stderr.write(
+                    "allocator: ERROR - raw fallback drop of {db} FAILED; DB retained, lease "
+                    "kept for retry.\n".format(db=db)
+                )
+                return False
             _drop_filestore(db)
             return True
         else:
@@ -583,20 +920,24 @@ def _drop_through_odoo(lease):
             )
             return False
 
-    # No venv python or odoo_db.py missing: fall back to raw dropdb.
+    # No venv python or odoo_db.py missing: attempt the raw client drop.
     if not venv_python:
         sys.stderr.write(
-            "allocator: WARNING - venv unavailable, "
-            "dropped {db} via raw dropdb fallback\n".format(db=db)
+            "allocator: WARNING - venv unavailable, attempting the raw client "
+            "drop of {db}\n".format(db=db)
         )
     else:
         # odoo_db.py missing on disk (should not happen, but handle gracefully).
         sys.stderr.write(
-            "allocator: WARNING - odoo_db.py not found at {path}, "
-            "dropped {db} via raw dropdb fallback\n".format(
-                path=_ODOO_DB_PY, db=db)
+            "allocator: WARNING - odoo_db.py not found at {path}, attempting the raw "
+            "client drop of {db}\n".format(path=_ODOO_DB_PY, db=db)
         )
-    _dropdb(host, user, db, port)
+    if not _dropdb(host, user, db, port, mode, container):
+        sys.stderr.write(
+            "allocator: ERROR - raw fallback drop of {db} FAILED; DB retained, lease "
+            "kept for retry.\n".format(db=db)
+        )
+        return False
     _drop_filestore(db)
     return True
 
@@ -657,7 +998,7 @@ def _is_stale(lease):
     return False
 
 
-def _gc(reg):
+def _gc(reg, instances_path=None):
     """Reclaim stale leases (drop their ephemeral DB via through-Odoo path). Mutates reg."""
     kept, reclaimed = [], []
     for lease in reg["leases"]:
@@ -669,7 +1010,7 @@ def _gc(reg):
             # no-op (the same-host + liveness guard short-circuits).
             _stop_owner_group_if_local(lease)
             if lease.get("drop_on_release") and lease.get("db_name"):
-                drop_ok = _drop_through_odoo(lease)
+                drop_ok = _drop_through_odoo(lease, instances_path)
                 if not drop_ok:
                     # Genuine drop failure: retain the lease so a human / next gc
                     # can retry.  Do not count it as reclaimed.
@@ -882,7 +1223,7 @@ def cmd_acquire(opts):
         attached = 0
         with _locked():
             reg = _read_registry()
-            _gc(reg)
+            _gc(reg, path)
             existing = next(
                 (lz for lz in reg["leases"]
                  if lz.get("mode") == "shared"
@@ -979,16 +1320,46 @@ def cmd_acquire(opts):
 
     # B2 model: the allocator NO LONGER calls createdb.  The ephemeral DB is
     # created by the caller's `odoo-bin -d <db> -i <mods> --stop-after-init`
-    # (Odoo create-on-init).  We still probe CREATEDB because Odoo create-on-init
-    # also requires the role to have that privilege; if it is absent, degrading to
-    # the declared exclusive DB (which already exists) is still the right move.
-    if mode == "ephemeral":
-        if not opts.get("no_create") and not _probe_createdb(host, user, db_port):
+    # (Odoo create-on-init), which also requires the role to have CREATEDB.
+    #
+    # NEVER DEGRADE. An `ephemeral` request either gets an ISOLATED throwaway DB
+    # or fails loudly. Silently handing back an `exclusive` lease on the DECLARED,
+    # long-lived database (the pre-fix behavior) destroyed the only guarantee this
+    # mode exists to provide: two concurrent callers wrote the same durable DB and
+    # neither was told. The caller - not this script - owns any trade of isolation
+    # for serialisation, and must state it by re-dispatching with an explicit
+    # --mode exclusive. --no-create still skips the check entirely (the caller
+    # declared it creates no database, so CREATEDB is irrelevant to it).
+    if mode == "ephemeral" and not opts.get("no_create"):
+        verdict, why = _can_createdb(inst, host, user, db_port)
+        if verdict is False:
             sys.stderr.write(
-                "allocator: role lacks CREATEDB - degrading ephemeral -> exclusive "
-                "on the declared database.\n"
+                "allocator: REFUSING ephemeral acquire - role {user!r} on {host}:{port} may not "
+                "CREATE DATABASE, so an isolated throwaway database is impossible.\n"
+                "  Choose ONE, explicitly:\n"
+                "    - grant the role CREATEDB, then retry --mode ephemeral; or\n"
+                "    - re-dispatch with --mode exclusive to accept a SERIALISED hold on the\n"
+                "      declared database - isolation is then NOT provided, say so in your report; or\n"
+                "    - pass --no-create if this run creates no database at all.\n".format(
+                    user=user, host=host, port=db_port or "libpq-default")
             )
-            mode = "exclusive"
+            return 6
+        if verdict is None:
+            sys.stderr.write(
+                "allocator: REFUSING ephemeral acquire - CREATEDB capability is UNDETERMINABLE "
+                "for series {series}: {why}.\n"
+                "  Undeterminable is NEVER read as 'no': the acquire fails so that no caller can "
+                "receive a non-isolated lease it did not ask for.\n"
+                "  Choose ONE, explicitly:\n"
+                "    - {hint}, then retry; or\n"
+                "    - declare db_run_mode=docker + db_container (or native) so the capability "
+                "can be asked over a libpq client surface instead; or\n"
+                "    - start the cluster, if it is simply not running; or\n"
+                "    - re-dispatch with an explicit --mode (exclusive provides NO isolation - "
+                "say so in your report).\n".format(
+                    series=instances_io.series_of(inst), why=why, hint=_RECORD_ENV_HINT)
+            )
+            return 7
 
     if mode == "ephemeral":
         db_name = f"{prefix}_t_{uuid.uuid4().hex[:8]}"
@@ -997,7 +1368,13 @@ def cmd_acquire(opts):
 
     with _locked():
         reg = _read_registry()
-        _gc(reg)
+        if _gc(reg, path):
+            # PERSIST THE GC OUTCOME IMMEDIATELY. `_gc` has already DROPPED the
+            # reclaimed leases' databases, and the paths below can still return
+            # 3 (exclusive conflict) or 4 (port pool exhausted) before the single
+            # registry write at the end - which would leave the registry
+            # advertising a lease whose database no longer exists.
+            _write_registry(reg)
 
         if mode == "exclusive":
             for lease in reg["leases"]:
@@ -1039,6 +1416,14 @@ def cmd_acquire(opts):
             # time, even if the caller process is long gone.  Password is NOT stored
             # here - read from ODOO_PG_PASSWORD at drop time.
             "python": inst.get("python", ""),
+            # odoo_root makes `import odoo` resolve for a source checkout (the
+            # through-Odoo drop's precondition); db_run_mode/db_container decide
+            # how a client binary is reached if the raw fallback is ever taken.
+            # All three are empty on a catalog that predates them - handled, and
+            # never a reason to invent a value.
+            "odoo_root": inst.get("odoo_root", ""),
+            "db_run_mode": inst.get("db_run_mode", ""),
+            "db_container": inst.get("db_container", ""),
             # addons_path is forward-context only (for future tooling that may want
             # to launch odoo-bin from the lease); the drop path never reads it.
             # Odoo's --addons-path/addons_path takes COMMA-separated directories
@@ -1138,13 +1523,35 @@ def cmd_release(opts):
         _stop_owner_group_if_local(found)
 
         if found.get("drop_on_release") and found.get("db_name"):
-            drop_ok = _drop_through_odoo(found)
-            if not drop_ok:
+            drop_ok = _drop_through_odoo(found, opts.get("instances"))
+            if not drop_ok and not opts.get("force_forget"):
                 # Genuine drop failure: retain the lease, signal error to caller.
                 # The lease stays in the registry so gc can retry.
+                sys.stderr.write(
+                    "allocator: the lease for {db} is KEPT because the database is still "
+                    "there. Fix the drop surface (see the message above; `45-venv.sh "
+                    "record-env` re-declares it and is re-read on every retry), or - when "
+                    "nothing on this host can ever drop it - pass --force-forget to give "
+                    "up the lease and have the abandoned database named for manual "
+                    "cleanup.\n".format(db=found.get("db_name"))
+                )
                 reg["leases"] = kept + [found]
                 _write_registry(reg)
                 return 1
+            if not drop_ok:
+                # --force-forget: the DOCUMENTED escape from an un-droppable lease.
+                # It never pretends the teardown happened - the database, its
+                # cluster, and the manual step are all named, and the name is also
+                # emitted machine-readably so a caller can carry it into a report.
+                sys.stderr.write(
+                    "allocator: FORCE-FORGETTING the lease for {db} - the database was "
+                    "NOT dropped and is now ABANDONED on {user}@{host}:{port}. Drop it by "
+                    "hand once a client surface exists; nothing will retry it.\n".format(
+                        db=found.get("db_name"), user=found.get("db_user", "odoo"),
+                        host=found.get("db_host", "localhost"),
+                        port=found.get("db_port") or "libpq-default")
+                )
+                _emit("ALLOC_ABANDONED_DB", found.get("db_name", ""))
         reg["leases"] = kept
         _write_registry(reg)
     return 0
@@ -1207,7 +1614,7 @@ def cmd_bind(opts):
 def cmd_gc(opts):
     with _locked():
         reg = _read_registry()
-        reclaimed = _gc(reg)
+        reclaimed = _gc(reg, opts.get("instances"))
         _write_registry(reg)
     for lease in reclaimed:
         _emit("ALLOC_RECLAIMED", lease.get("token", ""))
@@ -1287,37 +1694,55 @@ def _reap_candidates(dbs, leased_names, prefixes, min_age_s):
     return candidates, skipped
 
 
-def _list_cluster_databases(host, user, port):
-    """Non-template datnames on this cluster, or None on ANY psql failure
-    (connection refused, auth failure, missing psql binary). None means
-    "could not enumerate" - NEVER conflated with an empty list, so a cluster
-    this process cannot currently reach is skipped, not silently treated as
-    having zero orphans."""
-    cmd = ["psql", "-h", host, "-U", user]
-    if port:
-        cmd += ["-p", str(port)]
-    cmd += ["-d", "postgres", "-tAc", "SELECT datname FROM pg_database WHERE datistemplate = false"]
-    rc, out, _ = _run(cmd, env=_pg_env())
+def _odoo_db_query(cluster, subcommand, *extra):
+    """(rc, stdout): run one read-only odoo_db.py query under the cluster's own
+    declared interpreter. rc != 0 means "could not answer" - the caller decides
+    what that means for ITS question, and must never read it as a factual answer.
+
+    Every question this command asks Postgres is a plain SELECT, so it goes
+    through the interpreter the catalog already declares (psycopg2 via Odoo's own
+    connection layer) rather than a client binary. A host with the cluster in a
+    container and no libpq client installed is therefore fully served - the shape
+    that used to make reap-orphans a silent no-op exactly where its orphans were.
+    """
+    venv_python = cluster.get("python", "")
+    if not venv_python or not os.path.isfile(_ODOO_DB_PY):
+        return 1, ""
+    cmd = [venv_python, _ODOO_DB_PY, subcommand, *extra,
+           "--db-host", cluster.get("host", "localhost"),
+           "--db-user", cluster.get("user", "odoo")]
+    if cluster.get("odoo_root"):
+        cmd += ["--odoo-root", cluster["odoo_root"]]
+    if cluster.get("port"):
+        cmd += ["--db-port", str(cluster["port"])]
+    # The password travels in the ENVIRONMENT (odoo_db.py reads ODOO_PG_PASSWORD),
+    # never on argv where `ps` exposes it.
+    # BOUNDED: these are read-only PROBES, and an unreachable cluster blocks
+    # inside libpq with no connect timeout - an unbounded sweep would hang.
+    rc, out, _ = _run(cmd, timeout=_probe_timeout_s())
+    return rc, out
+
+
+def _list_cluster_databases(cluster):
+    """Non-template datnames on this cluster, or None on ANY failure (no declared
+    `python`, a venv that cannot import odoo, connection refused, auth failure).
+    None means "could not enumerate" - NEVER conflated with an empty list, so a
+    cluster this process cannot currently reach is skipped, not silently treated
+    as having zero orphans."""
+    rc, out = _odoo_db_query(cluster, "list-databases")
     if rc != 0:
         return None
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
-def _db_age_s(host, user, port, db_name):
+def _db_age_s(cluster, db_name):
     """Best-effort DB age in seconds via pg_stat_file's mtime on PG_VERSION -
     the same proxy a human operator uses to eyeball this by hand, since
     Postgres itself records no database creation time. Returns None on ANY
     failure (pg_stat_file needs elevated privilege on many Postgres builds;
     a connection error; a db that vanished between enumeration and this call) -
     callers MUST treat None as unknown, never as "0 / just created"."""
-    cmd = ["psql", "-h", host, "-U", user]
-    if port:
-        cmd += ["-p", str(port)]
-    cmd += ["-d", "postgres", "-tAc",
-            "SELECT extract(epoch FROM (now() - "
-            "(pg_stat_file('base/'||oid||'/PG_VERSION')).modification)) "
-            f"FROM pg_database WHERE datname = '{db_name}'"]
-    rc, out, _ = _run(cmd, env=_pg_env())
+    rc, out = _odoo_db_query(cluster, "db-age-s", db_name)
     out = out.strip()
     if rc != 0 or not out:
         return None
@@ -1327,14 +1752,10 @@ def _db_age_s(host, user, port, db_name):
         return None
 
 
-def _db_size_bytes(host, user, port, db_name):
+def _db_size_bytes(cluster, db_name):
     """Best-effort size via pg_database_size; None on any failure. Reporting-
     only - it never gates the reap decision."""
-    cmd = ["psql", "-h", host, "-U", user]
-    if port:
-        cmd += ["-p", str(port)]
-    cmd += ["-d", "postgres", "-tAc", f"SELECT pg_database_size('{db_name}')"]
-    rc, out, _ = _run(cmd, env=_pg_env())
+    rc, out = _odoo_db_query(cluster, "db-size-bytes", db_name)
     out = out.strip()
     if rc != 0 or not out:
         return None
@@ -1369,36 +1790,57 @@ def cmd_reap_orphans(opts):
     leased_names = {lz.get("db_name") for lz in reg.get("leases", []) if lz.get("db_name")}
 
     # Dedup clusters by connection identity so a multi-series catalog on one
-    # Postgres cluster is queried once, not once per declared instance.
+    # Postgres cluster is queried once, not once per declared instance. The
+    # queries and the drop both run through the catalog ITEM's declared facts
+    # (`python`, `odoo_root`, `db_run_mode`, `db_container`), so a lease-free DB
+    # is reachable here even though no lease exists to carry them. The FIRST item
+    # declaring a `python` for a cluster wins - two instances on one cluster are
+    # two interpreters for the same questions, and either answers identically.
     clusters = {}
     for it in items:
         key = (it.get("db_host", "localhost"), it.get("db_user", "odoo"), it.get("db_port", ""))
-        clusters[key] = True
+        entry = clusters.setdefault(key, {
+            "host": key[0], "user": key[1], "port": key[2],
+            "python": "", "odoo_root": "", "db_run_mode": "", "db_container": "",
+        })
+        if not entry["python"] and it.get("python"):
+            entry["python"] = it.get("python", "")
+            entry["odoo_root"] = it.get("odoo_root", "")
+        if not entry["db_run_mode"] and it.get("db_run_mode"):
+            entry["db_run_mode"] = it.get("db_run_mode", "")
+            entry["db_container"] = it.get("db_container", "")
 
     all_candidates, all_skipped, unreachable = [], [], []
-    for host, user, port in clusters:
-        names = _list_cluster_databases(host, user, port)
+    for cluster in clusters.values():
+        host, user, port = cluster["host"], cluster["user"], cluster["port"]
+        names = _list_cluster_databases(cluster)
         if names is None:
             unreachable.append(f"{user}@{host}:{port or 'default'}")
             continue
         dbs = []
         for name in names:
             if not _is_ephemeral_shaped(name, prefixes):
-                continue  # cheap pre-filter before any per-db psql round-trip
+                continue  # cheap pre-filter before any per-db round-trip
             if name in leased_names:
                 continue
             dbs.append({
                 "name": name,
-                "age_s": _db_age_s(host, user, port, name),
-                "size_bytes": _db_size_bytes(host, user, port, name),
+                "age_s": _db_age_s(cluster, name),
+                "size_bytes": _db_size_bytes(cluster, name),
                 "host": host, "user": user, "port": port,
+                "db_run_mode": cluster["db_run_mode"],
+                "db_container": cluster["db_container"],
             })
         cands, skipped = _reap_candidates(dbs, leased_names, prefixes, min_age_s)
         all_candidates.extend(cands)
         all_skipped.extend(skipped)
 
-    for cluster in unreachable:
-        sys.stderr.write(f"allocator: reap-orphans could not reach {cluster}; skipped.\n")
+    for cluster_label in unreachable:
+        sys.stderr.write(
+            "allocator: reap-orphans could not reach {c}; skipped. The enumeration runs "
+            "through the instance's declared `python` (+ `odoo_root`) - declare them via "
+            "45-venv.sh, or start the cluster.\n".format(c=cluster_label)
+        )
 
     for name, reason in all_skipped:
         _emit("REAP_SKIPPED", f"{name}: {reason}")
@@ -1409,7 +1851,8 @@ def cmd_reap_orphans(opts):
         size_mb = (db["size_bytes"] or 0) / (1024 * 1024)
         _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}")
         if yes:
-            if _dropdb(db["host"], db["user"], db["name"], db["port"]):
+            if _dropdb(db["host"], db["user"], db["name"], db["port"],
+                       db.get("db_run_mode", ""), db.get("db_container", "")):
                 _drop_filestore(db["name"])
                 dropped.append(db["name"])
             else:
@@ -1423,6 +1866,39 @@ def cmd_reap_orphans(opts):
 
     print(f"# {len(all_candidates)} orphan candidate(s) found (list-only - pass --yes to drop)")
     return 0
+
+
+def cmd_can_createdb(opts):
+    """Read-only: may this instance's role CREATE DATABASE?
+
+    The SAME ladder `acquire --mode ephemeral` gates on (`_can_createdb`), exposed
+    so a reporting caller never has to re-implement it. The setup-time report used
+    to invoke odoo_db.py directly, which duplicated route 1 in shell and could not
+    reach route 2 at all - so a compose-run instance got no answer from the very
+    command whose job is to say whether isolation is available.
+
+    Exits mirror acquire's: 0 = true, 6 = positively false, 7 = undeterminable.
+    Writes NO lease - it is a question, not an allocation.
+    """
+    path = resolve_instances_path(opts.get("instances"))
+    series = opts.get("series", "")
+    profile = opts.get("profile", "")
+    inst, _items = _resolve_instance(path, series, profile=profile or None)
+    if inst is None:
+        sys.stderr.write(f"allocator: no instance for series {series!r} in {path}.\n")
+        return 1
+    verdict, why = _can_createdb(
+        inst, inst.get("db_host", "localhost"), inst.get("db_user", "odoo"),
+        inst.get("db_port", ""))
+    if verdict is True:
+        _emit("CREATEDB", "true")
+        return 0
+    if verdict is False:
+        _emit("CREATEDB", "false")
+        return 6
+    _emit("CREATEDB", "undeterminable")
+    _emit("CREATEDB_WHY", why)
+    return 7
 
 
 def cmd_query(opts):
@@ -1532,7 +2008,7 @@ _FLAG_KEYS = {
 }
 _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
-    "--yes": "yes",
+    "--yes": "yes", "--force-forget": "force_forget",
 }
 # Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
 # two conventional Unix forms. This is the SSOT the regression test derives its
@@ -1613,11 +2089,14 @@ def main(argv):
         return cmd_list(opts)
     if cmd == "query":
         return cmd_query(opts)
+    if cmd == "can-createdb":
+        return cmd_can_createdb(opts)
     if cmd == "assert-droppable":
         return cmd_assert_droppable(opts)
     sys.stderr.write(
         f"Unknown subcommand: {cmd!r}. "
-        "Use acquire|release|bind|heartbeat|gc|reap-orphans|list|query|assert-droppable.\n"
+        "Use acquire|release|bind|heartbeat|gc|reap-orphans|list|query|assert-droppable|"
+        "can-createdb.\n"
     )
     return 2
 

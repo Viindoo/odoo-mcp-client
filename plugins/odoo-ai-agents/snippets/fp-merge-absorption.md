@@ -193,26 +193,13 @@ Canonical merge-log record: `<sha> | C3 | source issue <ref|DEFERRED> | <evidenc
 Reviewer backstop (P12): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
 security/safety); an inherited bug carried faithfully + routed upstream is correct.
 
-## Allocator footgun - CREATEDB role
+## Ephemeral isolation - CREATEDB required
 
-`odoo-instance`'s `ephemeral` path reserves a unique DB name; the DB is then created via Odoo
-create-on-init. Both the allocator's own probe and Odoo create-on-init require the PostgreSQL
-`CREATEDB` role. If the OS user lacks it, the allocator degrades `ephemeral` to `exclusive`
-SILENTLY - it borrows the single declared `db_name` without holding a real isolated lease. Under
-concurrency (another session or another agent running at the same time), both may write to the
-same DB and produce undefined test results. This probe runs automatically inside every
-`odoo-instance` dispatch - the orchestrator never runs it separately.
-
-If the returned `instance-ops` notes flag a degrade (or a batch produces undefined/flaky results
-under concurrency), serialize remaining batches (one at a time) instead of running them in
-parallel, and have a human fix the role grant. A human diagnosing a suspected degrade directly on
-the DB host (outside any agent dispatch) can confirm with:
-
-```bash
-psql -c "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user;"
-# must return 't'
-```
-
+An `ephemeral` acquire either returns an ISOLATED throwaway DB or FAILS - it never silently shares
+the declared database, so two parallel batches can never collide on one DB unnoticed.
+On exit 6 (the role lacks `CREATEDB`) or exit 7 (undeterminable), STOP: either have a human grant
+`CREATEDB`, or re-dispatch `--mode exclusive` and run the remaining batches ONE AT A TIME, stating
+in your report that isolation was not provided.
 Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
 § Allocate and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
 

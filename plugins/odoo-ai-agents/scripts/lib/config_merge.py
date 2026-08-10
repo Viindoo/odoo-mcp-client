@@ -455,19 +455,38 @@ def cmd_toml_append_array_item(args: list[str]) -> int:
     target_path, array_name, field, value = args
     body_raw = sys.stdin.read()
 
+    existing = ""
     if os.path.exists(target_path):
         if _toml_array_has_item(target_path, array_name, field, value):
             print("exists")
             return 0
         bak = _backup(target_path)
         print(f"backup -> {bak}")
+        with open(target_path, encoding="utf-8") as fh:
+            existing = fh.read()
 
+    addition = "\n" + f"[[{array_name}]]\n"
+    if body_raw.strip():
+        addition += body_raw.rstrip("\n") + "\n"
+
+    # ATOMIC publish: write a sibling temp file, then os.replace it over the
+    # target - same discipline as 45-venv.sh's _upsert_instance_keys. An
+    # in-place append (the prior "a" mode) leaves a window in which the
+    # host's only instance catalog is truncated/partial if the process is
+    # killed mid-write.
     os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
-    with open(target_path, "a", encoding="utf-8") as fh:
-        fh.write("\n")
-        fh.write(f"[[{array_name}]]\n")
-        if body_raw.strip():
-            fh.write(body_raw.rstrip("\n") + "\n")
+    tmp = "%s.tmp.%d" % (target_path, os.getpid())
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(existing + addition)
+        os.replace(tmp, target_path)
+    except OSError as exc:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        print(f"x cannot write {target_path}: {exc}. Nothing was recorded.", file=sys.stderr)
+        return 1
 
     print(f"appended -> {target_path}")
     return 0
