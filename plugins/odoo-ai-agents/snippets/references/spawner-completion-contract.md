@@ -5,21 +5,19 @@
 
 # Spawner Completion Contract - rationale
 
-## Why the unroutable/missing-REPLY_TO fallback is always "return inline"
+## Why R3 states the whole return path inline rather than citing it
 
-Never an inferred guess at an address - a guessed address can silently misdeliver to a context that
-is not blocking on the worker (R1), which is worse than the honest transcript-return fallback. The
-main file states the WHY (a worker does not know its own `agentId`, per
-`context-handoff-protocol.md` "Lead is the address authority") inline, not as a pointer, because a
-prior regression let an earlier, undecidable two-step framing of this same fallback survive
-unnoticed once it was only cited rather than stated in full.
+Every earlier revision of this rule assumed a reply address the runtime never provides, and each
+repair re-specified the address instead of removing it. R3 now states the one action (emit the
+report as your final message) in full, in the SSOT itself, because a rule that is only cited drifts
+the moment a consumer restates it - which is exactly how the address-shaped versions survived
+repeated corrections.
 
-## Why reporting to `main` when a coordinator launched you strands the coordinator
+## Why an inferred send target is worse than no send at all
 
-A spawner coordinator (e.g. `odoo-coder`) blocks on its launched children per R1 - it is actively
-waiting for their completion reports. If a worker it launched reports to `main` instead (skipping
-the coordinator), the coordinator never sees the report and sits blocked forever while `main`
-receives a report addressed to the wrong recipient's context.
+A guessed address either fails to resolve or silently misdelivers to a context that is not blocking
+on the sender (R1). The launch call's own return value already delivers the report to the one
+context that is waiting for it, so a send adds a failure mode and no capability.
 
 ## Why the task-list tool's native status field is a mirror, not the authority
 

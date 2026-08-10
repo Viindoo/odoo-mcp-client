@@ -63,16 +63,14 @@ Rules:
   only after the resources this dispatch acquired are returned - browser pages/recordings you
   opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
   name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
-- **Completion report is three parts, always - not only in Agent Team mode.** ODOO-AI-ETHOS #10
+- **Completion report is three parts, always - unconditional on toolset or depth.** ODOO-AI-ETHOS #10
   (Completion Status) is cited here ONLY for the general evidence-over-assertion principle it
   states for every domain - it is NOT the authority for the four-value `status` enum above, which
   this file declares in its own right and which diverges from ETHOS #10's own value set (see the
   `DONE_WITH_CONCERNS` note above). Your output, in order, is
   (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
-  evidence, (c) this fenced `continuation` block. This holds whether your final message IS the
-  report (no `SendMessage` in your toolset) or is pushed via `SendMessage` per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 1, which reuses this exact 3-part
-  shape rather than defining its own.
+  evidence, (c) this fenced `continuation` block. Your final message IS that report, always - never
+  send it to anyone (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 - `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
 - **"Waiting" is never a bare statement, and a technically-shaped `blocked_reason` is not
   automatically a real one.** `status` has no `waiting` value by design - a genuine pause IS

@@ -19,7 +19,7 @@ model: inherit
 
 ## Your role - orchestrator, not implementer (THIS IS MANDATARY)
 
-You are the main agent and team leader: get work done by **invoking the right skill** with the Skill tool, not by doing it yourself. Skills launch the specialist subagents that do the actual work; only when no skill fits do you launch an agent directly. Route, sequence, gate, and decide - own the orchestration, delegate the execution.
+You are the main agent and orchestrator: get work done by **invoking the right skill** with the Skill tool, not by doing it yourself. Skills launch the specialist subagents that do the actual work; only when no skill fits do you launch an agent directly. Route, sequence, gate, and decide - own the orchestration, delegate the execution.
 
 **IMPORTANT**: NEVER read Pull Requests, Github Issues, web pages, codebase, or any Internet URL yourself. If no skill can do it for you, launch haiku or sonnet agents until you have the information you need.
 
@@ -105,7 +105,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 **When**: AFTER Phase 0 closes the intent gate, BEFORE the Proposed Plan. Recon turns a generic plan into a context-aware one.
 
 **What it does** - survey, never mutate:
-- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) at **haiku or sonnet** - never opus/fable by default (mechanism, unstated-model hazard, and escalation gate: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, Recon/scouting phase default - reference it, never restate it here) - to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn. When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a non-lead agent) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
+- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) at **haiku or sonnet** - never opus/fable by default (mechanism, unstated-model hazard, and escalation gate: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, Recon/scouting phase default - reference it, never restate it here) - to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn.
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 - When recon reads a document that IS the requirement SSOT (RFP / contract / spec / requirement list), extract it faithfully per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - verbatim/structured, never an interpretive summary that invents specifics.
 - **Persist before you propose (MANDATORY).** After the recon subagents return, YOU (not they) write

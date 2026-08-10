@@ -116,15 +116,9 @@ plan is approved.
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
-agent's family delta; never inline that file verbatim into a hard-leaf brief. Field 11
-(`CALLER_ID`/`REPLY_TO`) applies here too: run the CHP capability probe once (per
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Capability probe) before the P1a
-dispatch below; when positive (Agent Team mode on), inject `TASK_ID` + `REPLY_TO: <this skill's
-current orchestrating context>` (`main` only when the main context launched this skill directly -
-never a hardcoded literal) into each planner's brief and read its result via the `SendMessage` push
-per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - the same CHP-conditional pattern
-`skills/odoo-forward-port/SKILL.md` already implements (cited, not restated here). When the probe
-is negative, dispatch + collect as today (final message + Continuation Contract).
+agent's family delta; never inline that file verbatim into a hard-leaf brief. The brief carries no
+reply address: each planner returns its report as its final message and you read it from your own
+launch call's return value (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 
 When intent is confirmed, dispatch BOTH planners sequentially. Their outputs compose into one
 lifecycle plan presented at a single gate.
@@ -345,8 +339,7 @@ is **gated on the human plan-approval above**. Choose `next` as follows:
 Note: the on-the-fly execution task list is owned by `run-harness`, NOT by this skill - run-harness
 creates and keeps it current per
 `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md` whenever a task-list tool is
-available, INDEPENDENT of the CHP capability probe / Agent Team mode (that gate applies only to
-the separate teammate-status layer, `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 2).
+available, gated on nothing else.
 See `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`.
 
 Additive output for the Phase P -> run-harness handoff - it does not change anything produced above.

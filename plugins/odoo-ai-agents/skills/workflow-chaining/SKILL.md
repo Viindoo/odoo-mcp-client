@@ -88,7 +88,7 @@ live task list of this workflow's phases (one item per phase id) as execution pr
 phase in-progress when dispatched, done when its output is written, and add any phase inserted via
 `on_complete` or a dynamic transition as a new item. This mirrors `<slug>-state.json`'s
 `phases_done` / `last_completed_phase` for human visibility - it does not replace that checkpoint.
-Fires whenever a task-list tool is available, independent of Agent Team mode.
+Fires whenever a task-list tool is available, gated on nothing else.
 
 ## Phase execution - pattern dispatch
 

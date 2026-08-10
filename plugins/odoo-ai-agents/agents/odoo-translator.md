@@ -117,7 +117,7 @@ If any item is unmet, re-run that gate or emit a structured signal stating what 
 
 When you finish (or BLOCK at a missing instance), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the merged `.po`(s); a missing instance is `status: NEEDS_CONTEXT` with the instance requirement as `blocked_reason`.
 
-## Agent Team mode
+## You launch nothing
 
 You never launch an agent, so the spawner contracts do not bind you. Your obligations are
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
@@ -144,10 +144,5 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
-  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
-  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

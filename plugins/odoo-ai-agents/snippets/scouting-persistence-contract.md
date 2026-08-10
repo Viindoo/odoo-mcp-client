@@ -15,7 +15,7 @@ makes the finding a FILE and makes the consumer READ it.
 
 Existing artifacts KEEP their current tier and filename - this clause adds no path change.
 
-- **Write:** at the end of your scouting phase, before the plan/gate/next phase - return a POINTER plus counts to your caller, never an inline dump of the findings.
+- **Write:** at the end of your scouting phase, before the plan/gate/next phase - return a POINTER plus counts, never an inline dump of the findings.
 - **Read:** the consuming phase names the artifact by filename and re-reads it from disk before it dispatches - it does not rely on the scout's returned text still being in context.
 - **Resume:** before dispatching a scout, glob for a matching artifact for THIS slug. Present -> read it and skip the dispatch. Absent -> dispatch. Never dispatch a scout twice per slug per run.
 - **Staleness:** slug matches but the recorded target ref/branch does not -> STALE - re-dispatch and overwrite, recording `stale: <old-ref> -> <new-ref>` in the new file. This clause applies only to a consumer whose OWN artifact schema actually carries the ref it checks (e.g. Clause 2's `target_ref:` header, or `_scope.md`'s `base_ref:`) - a consumer with no such field (and no staleness clause of its own) is unaffected.

@@ -130,10 +130,12 @@ before this clears. The approved master §10 is the hard constraint for all chil
   `UPSTREAM_CHILD_DESIGNS: [<abs path to each already-authored lower-layer child TDD it
   depends_on>]` ALONGSIDE `MASTER_DESIGN_DOC`. Child cites master §10 for every cross-module
   symbol it references.
-- When dispatching a same-layer batch of >1 child, inject `PEERS: <other child names in this
-  batch>` into each child brief - you (the orchestrating skill) are the address authority for this
-  lead-brokered list. A lone-child layer gets `PEERS: none`. Full contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Peer reconciliation.
+- Same-layer children cannot reach each other. After the whole layer returns, read
+  `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`, decide each contested symbol against
+  master §10, write the decision into the master TDD, and re-dispatch ONLY the children whose
+  proposal lost, with the decision in their brief. ONE reconciliation round per layer; unresolved
+  after it -> the layer is BLOCKED for a human. Full contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation.
 - After each child subagent returns, YOU (the orchestrating main agent) write `status: designed`
   for that module to `index.yaml` (checkpoint for resume on interruption) - confirm every module
   in the current layer is `designed` before dispatching the next layer's batch.
@@ -142,15 +144,15 @@ before this clears. The approved master §10 is the hard constraint for all chil
 `odoo-solution-architect` `MODE: consistency`. Reads CONTRACT SUBSET of each child (§1 Intent,
 §9 Acceptance Criteria - confirming each child carries its own MANDATORY module-level AC block with
 the INDEPENDENCE GUARD honored (expected values requirement-derived, never code/OSM-derived) -
-cross-module fields/models/deps - NOT full body) + master §10. CONSUMES the peer-reconciled child
-TDDs (each peer having recorded its agreed contract in its own TDD per
-`master-child-design-contract.md` § Peer reconciliation) and is the SOLE §10/`index.yaml` applier -
+cross-module fields/models/deps - NOT full body) + master §10. CONSUMES the child TDDs plus
+`contested-symbols.md` and your decisions on it (`master-child-design-contract.md` § Contested-symbol
+reconciliation) and is the SOLE §10/`index.yaml` applier -
 children never write §10 themselves. Reconciles any remaining seams, emits `conflict-list.md`
-(split RESOLVED-BY-PEERS vs ESCALATED) at the artifact root.
+(split LEAD-RESOLVED vs ESCALATED) at the artifact root.
 
 **e. Batch gate (human, single gate for all children).** Present conflict-list split into ESCALATED
 seams (the human decides these - the only seams needing a decision; MANDATORY - state explicitly if
-none) and RESOLVED-BY-PEERS seams (informational, state the count only) + per-child TDD summaries
+none) and LEAD-RESOLVED seams (informational, state the count only) + per-child TDD summaries
 (approach, top risk, data-model delta). Gate: `approve-all` (default) / `review-children` (opt-in -
 dispatch `odoo-solution-architect MODE: review` over the domain-close child clusters that sit on the
 same dependency chain, then re-present this gate with FINDINGS) / `refine:<module>: [feedback]` /

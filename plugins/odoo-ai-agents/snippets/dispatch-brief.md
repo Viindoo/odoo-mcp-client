@@ -19,7 +19,7 @@ This file is **READ BY PATH** by non-leaf spawners while they compose a dispatch
 field list already carried inline in its own body (see `## Brief self-check` below) - the opposite
 of `worker-brief.md`, which IS inlined into leaves because it is worker-side behavior.
 
-## Universal skeleton (11 fields)
+## Universal skeleton (10 fields)
 
 | # | Field | ALWAYS / COND | Definition |
 |---|-------|----------------|------------|
@@ -33,7 +33,10 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
-| 11 | `CALLER_ID` (`REPLY_TO`) | ALWAYS | An ADDRESS, never a name. Exactly one of: the literal `main`; the stable spawn `name` you launched this agent under; a raw `agentId`. A skill has no address of its own - it runs inline in whatever context invoked it, so its dispatches carry THAT context's address, `main` only when main is the invoker (full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "A skill has no address of its own") - never a skill name, never a prose sentence. An agent that will itself dispatch or be messaged MUST have been launched with a stable `name`; its children cannot address it otherwise. Unaddressable, or a send that fails: RETURN INLINE, never wait (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). The `SendMessage`/task-board transport that carries it (`TASK_ID`, `NOTIFY`) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`; the worker-side consumption contract is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. |
+
+**No reply-address field exists.** Do not add one under any name. The agent you dispatch returns its
+report as its final message and you read it from your own launch call's return value - rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; ask the caller only for what no rung
@@ -65,8 +68,6 @@ pointer back to this file - never the full skeleton table.
 - Non-negotiable interfaces other modules assume.
 - Whether a human gate precedes code.
 - `ACCEPTANCE` resolves to the design doc's S9 (skeleton field 6).
-- `PEERS` - same-layer sibling addresses the lead brokered for bounded peer reconciliation; `none`
-  when the layer has one child.
 
 ### Coder
 
@@ -218,10 +219,6 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
-  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 ```
@@ -254,21 +251,16 @@ inbound; never self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `SURVEY` (the key entirely absent, not even the literal
   `none`), or a load-bearing field with no safe default: surface the gap
-  to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
+  in your own report before dispatching any leaf - do not silently guess or degrade, and do not
   dispatch a leaf on an unresolved brief.
 - Brief carries BOTH `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons`: malformed, never a
-  safe default - surface the gap to your own caller before dispatching any leaf or running the
+  safe default - surface the gap in your own report before dispatching any leaf or running the
   integrated verification; do not silently pick one and proceed (this is the exact field your
   worktree-addons branch keys on).
 - `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
   outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line before re-briefing your leaves.
-- Your own toolset carries `SendMessage` (Agent Team mode is active) AND your OWN inbound brief
-  carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the malformed-input
-  fallback in `spawner-completion-contract.md` R3 (final-message report, stating the missing
-  condition) rather than guessing or stalling; still re-brief your own leaves with the `REPLY_TO`
-  you inject as their launcher regardless of your own inbound gap.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target

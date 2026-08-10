@@ -334,7 +334,7 @@ On `approve`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
 The coder agents run as autonomous agents - never inline codegen in main, never via the Skill tool.
 Launch **ONE `odoo-coder` COORDINATOR PER MODULE** (every module, whatever its stack tag; launch the
-agent by name; if a short name fails to resolve, retry with the plugin-qualified form
+agent by TYPE; if a short type fails to resolve, retry with the plugin-qualified form
 `odoo-ai-agents:odoo-coder`):
 
 - **any module (backend-only, frontend-only, or fullstack)** -> launch ONE `odoo-coder` per-module
@@ -383,38 +383,25 @@ Phase 0 step 4 already resolved (via
 re-resolve it here and never substitute a default. Carry the design-doc path, the runSlug
 (scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
 
-0. Context-handoff probe (run ONCE per run, before the first batch fires). Follow
-   `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`: run the capability probe a single
-   time and cache the result for the whole run. When Tier A is available, spawn each coder with a
-   stable `name` (e.g. `coder-<module-slug>`), and - as the LEAD and sole address authority - capture
-   the `agentId` the Agent launch returns and record it per module in plan.md (the coordinator never
-   self-IDs). When Tier A is NOT available, proceed exactly as today (Tier C: fresh Agent calls,
-   worklog for context). Tier C is always correct; Tier A is an optional optimization that degrades
-   silently to Tier C. When the CHP capability probe is positive (Agent Team mode on), TaskCreate
-   one task per dispatched module, inject TASK_ID + REPLY_TO: the current orchestrating context
-   (`main` here) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for
-   status, and read each result from the
-   teammate's SendMessage push (NEVER from the .output transcript) - per
-   `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
+0. Resume registry (once per run). You may RESUME a coordinator you launched earlier in THIS run
+   instead of cold-spawning it again: capture the id your own launch call returns and record it per
+   module in plan.md. That id is the only address you will ever hold for it, and it holds none for
+   you. No id recorded (first dispatch, fresh run) -> cold-spawn; always correct. Semantics:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` Tier A.
 
-**Caller-supplied cross-invocation resume name (`WORKER NAME`).** When a module's brief carries
-`WORKER NAME: <name>`, that name comes from a PRIOR `odoo-coding` invocation - THIS invocation is a
-fresh Skill-tool call (e.g. a forward-port run re-invoking this skill for a LATER commit touching
-the same module). Use that name as this module's coordinator name in step 3 below: if a worker
-under that name is already addressable, resume it via `SendMessage` instead of cold-spawning - the
-identical mechanism step 4 already uses for a BLOCKED-module retry within one run, just addressed
-by a CALLER-supplied name instead of this run's own self-generated one. If no worker is addressable
-under that name yet (this is the module's first commit), spawn fresh under it. Record the name
-(and the returned `agentId`, exactly as any other dispatch) in THIS run's plan.md. Absent
-`WORKER NAME` (every caller that does not pass it - unchanged default), proceed exactly as
-documented: self-generate `coder-<module-slug>`.
+**Caller-supplied cross-invocation resume id (`WORKER_AGENT_ID`).** When a module's brief carries
+`WORKER_AGENT_ID: <id>`, that id was captured by the CALLER from ITS OWN earlier launch of this
+module's coordinator in a PRIOR `odoo-coding` invocation (e.g. a forward-port run re-invoking this
+skill for a LATER commit touching the same module) - never a string anyone invented. Resume that id
+in step 3 below when it still resolves; cold-spawn otherwise. Record it (and the id your own launch
+returns) in THIS run's plan.md. Absent `WORKER_AGENT_ID` (today's default) -> cold-spawn.
 
-**Distinguishing predicate (this resume vs step 4's agentId resume - never conflate the two).**
-Apply step 4's agentId resume ONLY to a BLOCKED module THIS SAME `odoo-coding` invocation itself
-dispatched and recorded in ITS OWN plan.md earlier in this same run; apply this `WORKER NAME`
-resume whenever the coordinator to reach was dispatched by a DIFFERENT, already-ended `odoo-coding`
+**Distinguishing predicate (this resume vs step 4's resume - never conflate the two).**
+Apply step 4's resume ONLY to a BLOCKED module THIS SAME `odoo-coding` invocation itself
+dispatched and recorded in ITS OWN plan.md earlier in this same run; apply this `WORKER_AGENT_ID`
+resume whenever the coordinator to reach was launched by a DIFFERENT, already-ended `odoo-coding`
 invocation that this run holds no record of - the caller's brief, not this run's own plan.md, is
-what carries that identity across the invocation boundary.
+what carries that id across the invocation boundary.
 
 1. Order modules so every module appears after its in-set dependencies (the wave column already
    encodes this).
@@ -425,11 +412,9 @@ what carries that identity across the invocation boundary.
 3. Fire the whole batch as parallel agent launches in a SINGLE message, ONE `odoo-coder` coordinator
    per module (the coordinator internally splits the module into WIs, sequences backend-before-frontend,
    and runs the integrated test - you do not fire the worker agents or decide the WI split yourself).
-   When Tier A is in effect, give each launch its stable `name` and record the returned `agentId` in
-   plan.md as you go. A module whose brief carries `WORKER NAME` uses that value as its stable
-   `name` here (resumed via `SendMessage` when already addressable, spawned fresh under it
-   otherwise) instead of a self-generated `coder-<module-slug>` - it still counts as this batch's
-   ONE coordinator for that module either way.
+   Record the id each launch returns in plan.md as you go. A module whose brief carries
+   `WORKER_AGENT_ID` resumes that id when it still resolves and cold-spawns otherwise - it still
+   counts as this batch's ONE coordinator for that module either way.
 4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
    in step 3, hold until every coordinator in the batch has returned one of the four terminal
    Continuation Contract statuses - `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` - before
@@ -440,8 +425,8 @@ what carries that identity across the invocation boundary.
    even expose a dedicated `blocked` state), not an assumption. A batch is done only when every
    coordinator returned a terminal status, rolling up `NEEDS_NEXT`/`NEEDS_CONTEXT` exactly as a
    `BLOCKED` per R2. A later step re-dispatches a `BLOCKED`/`NEEDS_CONTEXT` module at the SAME
-   recorded tier: under Tier A, resume the recorded `agentId` by `SendMessage` when it is still
-   addressable; otherwise (Tier C fallback) make a fresh Agent call. The worklog stays the
+   recorded tier: resume the recorded id when it still resolves; otherwise (Tier C fallback) make a
+   fresh launch. The worklog stays the
    always-correct context layer the re-dispatched worker reads.
    **A coordinator dispatch that resolves WITHOUT a parseable Continuation Contract - a
    harness-level dispatch error, an empty/content-less return, or output that does not parse to any
@@ -524,7 +509,7 @@ Coder brief (target = the `odoo-coder` coordinator for the module):
 
 ```
 DISPATCH MODEL: <tier>
-WORKER NAME: <name> - OPTIONAL, present only when the caller pre-assigns a stable CHP Tier-A identity for this module's coordinator across separate `odoo-coding` invocations (e.g. a forward-port run resuming the same module's coordinator across separate source commits touching it). Same field shape as the P8a `odoo-test-writer` name in `odoo-forward-port` - a NAME, never an agentId. When present, use THIS as the coordinator's stable Tier-A `name` in step 0/3 below INSTEAD of self-generating `coder-<module-slug>`: if a worker under this name is already addressable, resume it via `SendMessage`; otherwise spawn fresh under this name. Absent (every caller that does not opt in - today's default) -> proceed exactly as documented below: self-generate `coder-<module-slug>`.
+WORKER_AGENT_ID: <id> - OPTIONAL. An id the CALLER captured from ITS OWN earlier launch of this module's coordinator in a PRIOR `odoo-coding` invocation (e.g. a forward-port run walking later commits that touch the same module) - never a string anyone invented. Present -> resume that id in step 0/3 below instead of cold-spawning. Absent (today's default) -> cold-spawn.
 REQUEST: <the change for this module: target model + constraints (+ frontendRequest for a frontend WI)>
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its descriptor / static assets). Resolve the descriptor filename ONCE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one the module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
@@ -546,9 +531,6 @@ COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>')
 BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase - cr.commit() FORBIDDEN, isolation is savepoint rollback>
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-  main-context driver invoked this skill, else the dispatching skill/agent's own name - universal
-  skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
 GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
@@ -616,8 +598,8 @@ change (branch, feature name, or the module set).
 
 plan.md MUST record, per module: stack, wave, the model tier chosen
 (and frontendModel when split), the dispatch path (subagent launch), the per-module
-result status, and the `agentId` (when CHP Tier A is in effect - plan.md is the agentId
-registry per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`; omit when Tier C).
+result status, and the `agentId` that module's launch returned - plan.md IS the agentId registry
+(`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` Tier A).
 A later review / fix / resume step re-dispatches BLOCKED modules at the SAME recorded tier
 (unless the human changes it) via the Tier-A/Tier-C rule in § Dispatch loop step 4.
 

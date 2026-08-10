@@ -5,11 +5,9 @@
 
 # Worker Brief - rationale
 
-## Why REPLY_TO must never be framed as team-mode-only
+## Why a leaf is told it holds no send target at all
 
-An earlier revision grouped `REPLY_TO` under a heading literally titled "present only when team
-mode is on", alongside the genuinely conditional `TASK_ID`/`NOTIFY` keys. That directly
-contradicted `dispatch-brief.md` field 11's ALWAYS classification and was the real, textual root
-cause of dispatch-composing skills treating `REPLY_TO` as Tier-A-only (only supplying it when Agent
-Team mode was active). Only the DELIVERY MECHANISM is tier-conditional; the obligation to state
-`REPLY_TO` is not.
+Earlier revisions told a leaf to push its report to an address its brief carried. A leaf launches
+nothing, so the only address any agent can hold - the id its own launch call returned for a child -
+never exists for it. Stating the absence positively ("you hold no legal send target") is what stops
+a leaf from reading a messaging tool's presence in its toolset as permission to look for one.

@@ -237,16 +237,17 @@ def test_master_design_doc_wired(consumer):
 
 
 # ---------------------------------------------------------------------------
-# Peer reconciliation (P2 wave 5): bounded same-layer debate + deadlock
-# escalation exactly one level up + single-writer discipline (a child NEVER
-# writes §10/index.yaml itself - B2 correction).
+# Contested-symbol reconciliation (same-layer siblings): no agent can address
+# a sibling, so a child records the contested symbol and the LEAD decides
+# after its R1 barrier clears - bounded to ONE reconciliation round per layer,
+# with single-writer discipline preserved (a child NEVER writes §10/index.yaml).
 #
-# Business rule this protects: same-layer child architects may negotiate a
-# shared-symbol contract directly with each other (the sanctioned LATERAL
-# case of spawner-completion-contract.md R3), but that negotiation MUST be
-# bounded (never an open-ended back-and-forth) and a deadlock MUST escalate
-# to the lead - never get silently resolved by one side picking a winner,
-# and never skip past the lead to some other ancestor.
+# Business rule this protects: a same-layer disagreement must neither block a
+# child nor be silently resolved by one side picking a winner. The earlier
+# design had peers message each other directly - unimplementable twice over
+# (no launcher can name a sibling, and a child's roster contains only agents it
+# launched itself), so a child following it would stall on a send that cannot
+# resolve.
 # ---------------------------------------------------------------------------
 
 ARCHITECT_AGENT = PLUGIN / "agents" / "odoo-solution-architect.md"
@@ -264,86 +265,85 @@ def _normalized(text: str) -> str:
     return _WS.sub(" ", text)
 
 
-def test_peer_reconciliation_bounded_and_escalates():
-    """Peer debate between same-layer child architects must be BOUNDED (a
-    fixed round-trip cap, not an open-ended negotiation) and a deadlock must
-    ESCALATE - never get silently resolved - exactly ONE level up (to the
-    lead/main), never past it and never laterally to a third peer.
+def test_contested_symbol_reconciliation_is_lead_brokered_and_bounded():
+    """A child must NEVER be told to reach a sibling, must not block, and must not decide - it
+    records the contested symbol and reports DONE. The LEAD decides after every child in the
+    layer has returned, bounded to ONE reconciliation round.
 
-    FAILS if the round cap disappears (reopening the unbounded-debate risk
-    the survey flagged) or if the escalation path stops naming "one level"
-    (reopening the level-skipping risk R3 exists to prevent).
+    FAILS if sibling messaging returns (an unimplementable send a child would stall on), if the
+    round bound disappears (reopening the unbounded-negotiation risk), or if the child is left
+    able to decide a contested symbol on its own.
     """
     contract = _normalized(MASTER_CHILD_CONTRACT.read_text(encoding="utf-8"))
-    idx = contract.find("## Peer reconciliation")
+    idx = contract.find("## Contested-symbol reconciliation")
     assert idx != -1, (
         "master-child-design-contract.md must define a "
-        "'## Peer reconciliation' section (the P2 peer-debate SSOT)."
+        "'## Contested-symbol reconciliation' section (the same-layer seam SSOT)."
     )
     section = contract[idx : idx + 3000]
 
-    # Bounded: a concrete round-trip cap, not an open-ended loop.
-    assert "TWO round-trips" in section, (
-        "Peer reconciliation must state a concrete bounded round-trip cap (N=2) - "
-        "an unbounded loop is the failure mode this rule exists to prevent."
+    assert "cannot message each other" in section and "no agent can address a sibling" in section, (
+        "the section must state plainly that a sibling is not addressable - otherwise a child "
+        "re-derives a send that cannot resolve"
     )
-
-    # Deadlock -> escalate, never silently pick a winner (stated in the §10
-    # block just above the section heading, not inside the section itself -
-    # check the whole file, not the sliced section).
-    assert "never silently pick a winner" in contract, (
-        "A deadlock (cap exhausted or a §10 HARD-rule conflict) must escalate - "
-        "the contract must forbid silently picking a winner."
+    assert "do NOT block and do NOT guess" in section, (
+        "a child hitting a contested symbol must neither block nor guess - both are how a layer "
+        "silently stalls or diverges"
     )
-
-    # Escalation goes UP exactly one level - to the lead - never past it.
-    assert "goes UP exactly one level" in section or "UP exactly one level" in section, (
-        "Escalation must be scoped to exactly one level up (the lead), mirroring "
-        "spawner-completion-contract.md R3 - never a level-skip."
+    assert "contested-symbols.md" in section, (
+        "the section must name the shared file a child appends its proposal to - a decision the "
+        "lead cannot read is not brokered"
+    )
+    assert "after its R1 barrier clears" in section, (
+        "reconciliation is the LEAD's, and only after every child in the layer has returned (R1)"
+    )
+    assert "ONE reconciliation round per layer" in section, (
+        "the lead's reconciliation must be bounded to one round - unbounded is the failure mode "
+        "this rule exists to prevent"
+    )
+    assert "BLOCKED for a human" in section, (
+        "an unresolved layer after the single round must escalate to a human, never loop"
     )
     assert "spawner-completion-contract.md" in section, (
-        "Peer reconciliation must cross-reference spawner-completion-contract.md "
-        "R3 as the SSOT for the report-up-one-level rule it lateralizes."
+        "the section must cross-reference R3 as the SSOT for what is and is not addressable"
     )
 
-    # The child-agent-facing summary in the architect must mirror both invariants
-    # - a runtime-dispatched child reads the agent body, not the snippet, first.
+    # The child-agent-facing summary in the architect must mirror the same invariants -
+    # a runtime-dispatched child reads the agent body, not the snippet, first.
     architect = _normalized(ARCHITECT_AGENT.read_text(encoding="utf-8"))
-    idx2 = architect.find("## Peer reconciliation (child mode)")
+    idx2 = architect.find("## Contested-symbol reconciliation (child mode)")
     assert idx2 != -1, (
         "odoo-solution-architect.md must carry a "
-        "'## Peer reconciliation (child mode)' subsection."
+        "'## Contested-symbol reconciliation (child mode)' subsection."
     )
     child_section = architect[idx2 : idx2 + 3000]
-    assert "Two round-trips" in child_section, (
-        "Child-mode section must restate the bounded round-trip cap."
+    assert "no agent can address a sibling" in child_section, (
+        "the child-facing summary must state the sibling is unreachable"
     )
-    assert "Escalate UP one level only" in child_section, (
-        "Child-mode section must restate escalate-up-exactly-one-level-only."
+    assert "contested-symbols.md" in child_section, (
+        "the child-facing summary must name where the child records its proposal"
     )
-    assert "never past the lead" in child_section or "never to the peer, never past" in child_section, (
-        "Child-mode section must forbid escalating past the lead or laterally to a peer."
+    assert "report DONE" in child_section, (
+        "the child must finish on its own proposal and report DONE, never wait for a sibling"
     )
 
 
-def test_peer_reconciliation_child_never_writes_section10_or_index():
-    """Single-writer correction (B2): once peers agree, EACH records the
-    contract in its OWN child TDD/worklog - NEITHER peer edits index.yaml or
-    §10 directly. The MODE: consistency pass (dispatched by the orchestrating
-    skill) remains the SOLE §10/index.yaml applier.
+def test_contested_symbol_child_never_writes_section10_or_index():
+    """Single-writer discipline (B2, preserved): a child records its proposal in its OWN child
+    TDD and in contested-symbols.md - NEVER in index.yaml or §10. The MODE: consistency pass
+    remains the SOLE applier.
 
-    FAILS if any of the three touched files stop stating this invariant -
-    regressing to the pre-fix design where the debate mechanism could write
-    §10 directly and recreate the concurrent-write race B2 flagged.
+    FAILS if any of the three touched files stop stating this invariant - regressing to a design
+    where a child writes §10 directly and recreates the concurrent-write race B2 flagged.
     """
     contract = _normalized(MASTER_CHILD_CONTRACT.read_text(encoding="utf-8"))
-    assert "NEITHER peer edits `index.yaml`/§10 directly" in contract, (
-        "master-child-design-contract.md must forbid peers from writing "
+    assert "NEITHER child edits `index.yaml`/§10 directly" in contract, (
+        "master-child-design-contract.md must forbid children from writing "
         "§10/index.yaml directly - only the consistency pass may."
     )
-    assert "records the agreed contract in its OWN child TDD" in contract, (
-        "master-child-design-contract.md must require each peer to record the "
-        "agreed contract in its OWN child TDD, never in the shared §10/index.yaml."
+    assert "record the symbol, your proposed contract, and why, in your own TDD" in contract, (
+        "master-child-design-contract.md must require the child to record its proposal in its "
+        "OWN TDD, never in the shared §10/index.yaml."
     )
     assert "is the SOLE §10" in contract and "`index.yaml` applier" in contract, (
         "master-child-design-contract.md's Conflict list section must name the "
@@ -353,11 +353,11 @@ def test_peer_reconciliation_child_never_writes_section10_or_index():
     architect = _normalized(ARCHITECT_AGENT.read_text(encoding="utf-8"))
     assert "Never edit `index.yaml` or §10 yourself" in architect, (
         "odoo-solution-architect.md child mode must forbid the child from "
-        "editing §10/index.yaml itself even after a peer agreement."
+        "editing §10/index.yaml itself."
     )
     assert "never edit `index.yaml`/§10" in architect, (
         "odoo-solution-architect.md's child-row grounding cell must forbid "
-        "editing index.yaml/§10 as part of the peer-reconcile note."
+        "editing index.yaml/§10 as part of the contested-symbol note."
     )
 
     skill = _normalized(SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8"))
@@ -367,29 +367,16 @@ def test_peer_reconciliation_child_never_writes_section10_or_index():
     )
 
 
-def test_peers_field_is_the_lead_brokered_address_authority():
-    """The lead (odoo-solution-design, main context) is the address authority
-    for PEERS - it injects the field at fan-out; a child never guesses an
-    address. A lone-child layer must get the field explicitly set to `none`
-    (never an implicit gap a child could misread as "no PEERS field at all
-    means I may guess"). Also confirms the caller-side schema (dispatch-brief.md)
-    documents the field for any spawner composing a same-layer batch brief.
-    """
-    brief = _normalized(DISPATCH_BRIEF_SNIPPET.read_text(encoding="utf-8"))
-    assert "`PEERS`" in brief, (
-        "dispatch-brief.md's designer/planner delta must name the PEERS field."
-    )
-
+def test_lead_side_reconciliation_is_wired_into_the_dispatching_skill():
+    """The lead half of the contract has to live where the lead actually runs: the dispatching
+    skill. A rule stated only in the snippet is a rule nothing executes."""
     skill = _normalized(SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8"))
-    assert "PEERS: <other child names in this" in skill, (
-        "odoo-solution-design/SKILL.md step c must inject PEERS: <...> at "
-        "same-layer fan-out."
+    assert "contested-symbols.md" in skill, (
+        "odoo-solution-design/SKILL.md must read contested-symbols.md after the layer returns"
     )
-    assert "PEERS: none" in skill, (
-        "odoo-solution-design/SKILL.md must explicitly set PEERS: none for a "
-        "lone-child layer - never leave the field silently absent."
+    assert "re-dispatch ONLY the children whose proposal lost" in skill, (
+        "the lead must re-dispatch only the losers, with its decision in their brief"
     )
-    assert "address authority" in skill, (
-        "odoo-solution-design/SKILL.md must state the orchestrating skill is "
-        "the address authority for the PEERS list it brokers."
+    assert "ONE reconciliation round per layer" in skill, (
+        "the lead's round bound must be stated where the lead executes, not only in the snippet"
     )

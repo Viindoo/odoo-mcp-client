@@ -69,8 +69,8 @@ brief. Concurrency: Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurr
 - the budget counts MODULES in flight, not commits); rolling-window beyond the budget. No child
 worktree - extraction is read-only on git history + OSM. A second instance for a module already
 dispatched this run, WHILE the first is still live or already succeeded, is a defect; resume the
-SAME instance (CHP Tier-A `SendMessage`) for a failed or incomplete pass. **Tier-C (no
-`SendMessage` available):** once the failed/incomplete instance's turn has fully ended, dispatch
+SAME instance by the id its own launch returned (CHP Tier-A) for a failed or incomplete pass.
+**Tier-C (no recorded id, or it no longer resolves):** once the failed/incomplete instance's turn has fully ended, dispatch
 ONE superseding `general-purpose` worker carrying the SAME full `commit_dump_paths` plus `PRIOR
 ATTEMPT: <failure detail>` - a replacement, never a second concurrent instance. Full rule: `SKILL.md`
 § P1.
@@ -121,9 +121,6 @@ TASK: For EACH commit in commit_dump_paths (in order), extract the business inte
       Note any overlap or revert
       between commits in this SAME module bundle. Do NOT copy diff hunks as intent. Do NOT
       classify the 4-outcome bucket (caller's job).
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-      main-context driver invoked this skill, else the dispatching skill/agent's own name -
-      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -488,9 +485,10 @@ with no exception. SSOT: `[[fp-merge-absorption]]` §Absorption-window.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest).
 **R2b - at most one `odoo-test-writer` instance per module across the WHOLE run:** on the module's
-FIRST commit in this run, launch a NEW `odoo-test-writer` agent named `fp-adapt-<slug>-<module>`
-in adapt mode (it authors by invoking the `odoo-test-writing` skill inline, in its own context); on
-any LATER commit touching the SAME module, RESUME that same named instance via `SendMessage`
+FIRST commit in this run, launch a NEW `odoo-test-writer` agent in adapt mode (it authors by
+invoking the `odoo-test-writing` skill inline, in its own context) and record the id that launch
+returns in `plan.md` keyed by module; on
+any LATER commit touching the SAME module, RESUME that recorded id
 (CHP Tier-A) instead of launching a new one - full rule and the cd-on-resume requirement:
 `SKILL.md` § P8. The brief below is identical on a fresh launch or a resume; only the SOURCE TEST
 content and the per-commit fields (INTENT/BUCKET/BROKEN TEST-SYMBOLS) change per commit - the
@@ -499,8 +497,6 @@ the whole run, `SKILL.md` § Git topology).
 
 ```
 TEST ADAPT MODE: forward this source test to the target platform.
-WORKER NAME: fp-adapt-<slug>-<module>   (stable for the WHOLE run - launch once, resume for every
-      later commit touching this module; never re-launch fresh under this name)
 SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<module>/tests/<test_file>
   (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
    text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
@@ -515,9 +511,6 @@ TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo
       that already test this behavior the target-idiomatic way - imitate their structure>
 BROKEN TEST-SYMBOLS: <the P6 / P7 SYMBOL-BROKEN entries that land in THIS test file - the
       author must repair each (do not forward them verbatim)>
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-      main-context driver invoked this skill, else the dispatching skill/agent's own name -
-      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
 RULE: translate to target API; STRIP implementation-coupled assertions (private method asserts,
       call counts, internal ordering); re-create the BEHAVIOR on target; confirm RED on target.
       Never relax/rewrite an assertion to pass unless the target platform legitimately redefines
@@ -538,20 +531,19 @@ list is empty for this file.
 **8b - adapt the code** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
 FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out (via its
 `odoo-coder` per-module coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`,
-`odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED: name the coordinator
-once, resume it across commits - the SAME field shape as 8a, a NAME, never an agentId.**
+`odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED: launch the
+coordinator once, record the id, resume it across commits - the SAME field shape as 8a, an id your
+own launch returned.**
 `agents/odoo-coder.md` § Cross-round resume confirms the coordinator is round-scoped, not
-single-shot-forever - a caller may resume the SAME named coordinator for a LATER commit instead of
+single-shot-forever - a caller may resume the SAME coordinator for a LATER commit instead of
 cold-spawning a fresh one, the same mechanism already used for the 8a `odoo-test-writer` above.
-On the module's FIRST commit, and on every LATER commit touching the same module, carry
-`WORKER NAME: fp-adapt-<slug>-<module>-coder` in the brief below (distinct from the 8a
-test-writer's `fp-adapt-<slug>-<module>` name; the SAME field label 8a already uses, never a
-second differently-shaped field) - resume addresses a worker BY NAME (it keeps resolving after a
-worker completes and is resumed from its transcript); a raw agentId is only the fallback for an
-unnamed worker, and this worker is always named, so an agentId would carry no information the name
-does not already carry. **R2b IS closed at 8b: `odoo-coding`'s brief-consumption contract now
-recognizes `WORKER NAME` and resumes the already-addressable worker via `SendMessage` instead of
-cold-spawning a fresh one under a self-generated name** (full reasoning:
+On the module's FIRST commit omit the field and record the coordinator id `odoo-coding` reports back
+for that module in `plan.md`; on every LATER commit touching the same module, carry that recorded
+value as `WORKER_AGENT_ID: <id>` in the brief below - the SAME field label and shape the 8a leg
+uses, never a second differently-shaped field, and never a string anyone invented.
+**R2b IS closed at 8b: `odoo-coding`'s brief-consumption contract
+recognizes `WORKER_AGENT_ID` and resumes that id instead of
+cold-spawning a fresh coordinator** (full reasoning:
 `SKILL.md` § P8). Hard rule 2 is unaffected either way: one resumed coordinator making N commits'
 worth of adapt work still produces N separate target merge commits, one per source SHA. The extra
 context a generic
@@ -578,11 +570,8 @@ ODOO VERSION: <target>
 WORKLOG: <slug> - read, then append.
 MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET version on conflict, never bump), C2 (migration-dir
   retarget), C3 (carry pre-existing source bugs faithfully, do not inline-fix) - [[fp-merge-absorption]]
-WORKER NAME: fp-adapt-<slug>-<module>-coder   (stable for the WHOLE run - launch once, resume for
-      every later commit touching this module - see above)
-CALLER_ID (REPLY_TO): <this skill's current orchestrating context - literal `main` only when the
-      main-context driver invoked this skill, else the dispatching skill/agent's own name -
-      universal skeleton field 11, `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`>
+WORKER_AGENT_ID: <id recorded for this module on its first dispatch this run>   (omit on the
+      module's FIRST commit - see above)
 USER LANGUAGE: <lang | omit when English>
 ```
 

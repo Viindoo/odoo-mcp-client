@@ -1,8 +1,8 @@
 """Contract tests for the Context-Handoff Protocol (CHP) snippet and its wiring.
 
 These protect the BEHAVIOR the plugin promises when orchestrator skills dispatch
-worker agents across three capability tiers (SendMessage-resume / fork / fresh
-spawn). Each assertion guards one wiring that, if silently dropped, would break
+worker agents across three capability tiers (resume-a-child-you-launched / fork /
+fresh spawn). Each assertion guards one wiring that, if silently dropped, would break
 the CHP contract: tier documentation, fallback conditions, confidentiality framing,
 async park-and-resume semantics, Phase-1 skill wiring, handoff field validity, and
 Tier-C fallback reachability from every non-fresh skill.
@@ -24,7 +24,6 @@ GENERATOR = PLUGIN / "generator"
 DOCS_REF = PLUGIN / "docs" / "reference"
 
 CHP_SNIPPET = SNIPPETS / "context-handoff-protocol.md"
-AGENT_TEAM_PROTOCOL = SNIPPETS / "agent-team-protocol.md"
 SKILL_TOOL_DEPS = GENERATOR / "skill_tool_deps.json"
 ORCHESTRATION_MAP = DOCS_REF / "ORCHESTRATION-MAP.md"
 
@@ -51,21 +50,19 @@ def test_chp_snippet_exists():
     assert CHP_SNIPPET.is_file(), f"missing SSOT snippet {CHP_SNIPPET}"
 
 
-def test_agent_team_protocol_exists():
-    """The agent-team-protocol.md SSOT snippet must exist and carry its anchor tokens.
-
-    This is the worker->lead half of the Agent Team contract (CHP owns lead->worker). The
-    anchors guard its two load-bearing asks (the teammate completion-report push 'Ask 1' and
-    the low-context task board 'Ask 2') plus the two tool surfaces they ride on (`SendMessage`
-    for the report push, `TaskCreate` for the board). Dropping any one silently breaks the
-    protocol, so each is asserted here (mirrors test_chp_snippet_exists for the CHP SSOT).
-    """
-    assert AGENT_TEAM_PROTOCOL.is_file(), f"missing SSOT snippet {AGENT_TEAM_PROTOCOL}"
-    body = _read(AGENT_TEAM_PROTOCOL)
-    for token in ("Ask 1", "Ask 2", "SendMessage", "TaskCreate"):
-        assert token in body, (
-            f"agent-team-protocol.md: missing anchor token '{token}'"
-        )
+def test_return_path_ssot_is_not_duplicated_into_chp():
+    """The message-DIRECTION rule has exactly one home (spawner-completion-contract.md R3).
+    CHP may CITE it but must never restate it - a second copy is how this contract drifted
+    before."""
+    body = _read(CHP_SNIPPET)
+    assert "spawner-completion-contract.md" in body, (
+        "context-handoff-protocol.md must cite the R3 SSOT for the return path"
+    )
+    low = " ".join(body.split()).lower()
+    assert "your completion report is the final text of your turn" not in low, (
+        "context-handoff-protocol.md restates R3's own declaring sentence instead of pointing "
+        "at it - the restatement drifts the moment R3 changes"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -88,23 +85,34 @@ def test_chp_snippet_documents_three_tiers():
 # ---------------------------------------------------------------------------
 
 
-def test_chp_snippet_documents_fallback_conditions():
-    """Snippet must name all key fallback-condition tokens."""
+def test_chp_snippet_documents_tier_a_conditions_and_fallback():
+    """Tier A must be decidable from LOCAL state only - the id your own launch returned plus a
+    messaging tool in your current toolset - and every negative must fall back to Tier C
+    silently. No environment flag, no run-wide probe, no roster: those gate on state this
+    runtime never exposes, which is how the whole tier became unreachable before."""
     body = _read(CHP_SNIPPET)
-    required_tokens = [
-        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS",
-        "SendMessage",
-        "not addressable",
-        "resume",
-    ]
-    for token in required_tokens:
-        assert token in body, (
-            f"context-handoff-protocol.md: missing fallback-condition token '{token}'"
+    low = " ".join(body.split()).lower()
+    assert "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS" not in body, (
+        "context-handoff-protocol.md must not gate any tier on an environment flag - the tier "
+        "is decided from the launcher's own captured id"
+    )
+    for shape in (
+        r"launch call returned",
+        r"in your current toolset",
+        r"no run-wide (?:probe|state|flag|lookup)",
+        r"no environment (?:flag|variable|gate)",
+    ):
+        assert re.search(shape, low), (
+            f"context-handoff-protocol.md: Tier A must state {shape!r} so the decision is "
+            "local, per child, and consults nothing global"
         )
-    # non-lead token: accept either form
-    assert "non-lead" in body or "not the team lead" in body, (
-        "context-handoff-protocol.md: missing non-lead orchestrator fallback token "
-        "('non-lead' or 'not the team lead')"
+    assert "not\nadressable" not in low  # sanity: no typo'd marker
+    assert "addressable" in low and "cold-spawn (tier c)" in low, (
+        "context-handoff-protocol.md: an unresolvable target must fall back to a Tier-C "
+        "cold-spawn, named as such"
+    )
+    assert "never surface a fallback to the user as an error" in low, (
+        "context-handoff-protocol.md: the fallback must be explicitly silent, never an error"
     )
 
 

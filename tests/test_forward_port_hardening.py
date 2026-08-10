@@ -1994,39 +1994,15 @@ class TestExtractTierOpusHumanConfirmGate:
 
 
 # ---------------------------------------------------------------------------
-# Invariant (R2b, 8b leg) - the P8 CODE-adapt leg is no longer a silently
-# unqualified "N coders per module" exception. `agents/odoo-coder.md` states its
-# per-round lifecycle is resumable (CHP Tier-A), the SAME mechanism already
-# proven for the 8a odoo-test-writer leg; SKILL.md and fp-phase-detail.md name a
-# stable per-module coder-resume identity (`fp-adapt-<slug>-<module>-coder`) and
-# carry it via a `WORKER NAME` brief field so a later commit can ask
-# `odoo-coding` to resume the SAME coordinator instead of cold-spawning -
-# DELIBERATELY the SAME field label the 8a `odoo-test-writer` leg already uses
-# (never a second, differently-shaped field for the same purpose - see
-# TestBothLegsUseTheSameResumeFieldShape below). The remaining wiring -
-# `odoo-coding` accepting/honoring `WORKER NAME` - is a separate, out-of-
-# ownership change (handed off, not landed here); until it lands this leg
-# safely falls back to today's per-commit dispatch, and the prose says so
-# explicitly - a named, bounded gap, never a silent "sometimes N agents".
+# Invariant (R2b, 8b leg) - the P8 CODE-adapt leg is not an "N coders per module"
+# exception. `agents/odoo-coder.md` states its per-round lifecycle is resumable
+# (CHP Tier-A); SKILL.md and fp-phase-detail.md rest the per-module cap on the
+# `WORKER_AGENT_ID` registry - ids the skill captured from its OWN launches,
+# recorded one per module for the whole run. A launch call cannot assign a name,
+# so a name-shaped resume identity is unimplementable and must never come back.
 #
-# RED-before-green evidence (measured via `git show HEAD:<path>` - the true
-# pre-this-round baseline; the working tree carries many concurrent uncommitted
-# edits from other groups, so HEAD, not the working tree, is the honest diff
-# base):
-#   - agents/odoo-coder.md: 'Cross-round resume' -> 0 occurrences; 'does not
-#     itself terminate you or preclude a later resume' -> 0.
-#   - SKILL.md: 'fp-adapt-<slug>-<module>-coder' -> 0; 'WORKER NAME:' inside
-#     the 8b paragraph -> 0; 'a named, bounded gap' -> 0. (The OLD "EXCLUDED
-#     from the R2b cap" framing this fix replaces was itself uncommitted
-#     Group-C working-tree prose, not present at this same HEAD baseline -
-#     confirmed absent by the same measure - so its own regression guard below
-#     is read-verified against the pre-edit working tree directly, not
-#     `git show HEAD`. The intermediate `RESUME_CODER` field shape this round
-#     also tried and then dropped never reached HEAD either - see the
-#     same-shape guard's own RED count below, measured against the pre-fix
-#     working tree, not HEAD.)
-#   - fp-phase-detail.md: 'WORKER NAME' inside the 8b paragraph -> 0;
-#     'fp-adapt-<slug>-<module>-coder' -> 0.
+# Red-before-green: strike the id registry, or reintroduce a minted name, and the
+# matching assertion below goes red.
 # ---------------------------------------------------------------------------
 
 CODER_COORDINATOR = AGENTS_DIR / "odoo-coder.md"
@@ -2042,7 +2018,7 @@ class TestCoderCoordinatorIsResumableAcrossRounds:
         text = _ws_normalize(CODER_COORDINATOR.read_text(encoding="utf-8"))
         assert "Cross-round resume" in text, (
             "agents/odoo-coder.md must contain a 'Cross-round resume' section stating the "
-            "coordinator is round-scoped and may be resumed via SendMessage across rounds"
+            "coordinator is round-scoped and may be resumed by the id its launch returned"
         )
 
     def test_coder_states_done_does_not_preclude_a_later_resume(self):
@@ -2055,15 +2031,15 @@ class TestCoderCoordinatorIsResumableAcrossRounds:
     def test_coder_default_behavior_is_unchanged_absent_a_resume(self):
         text = _ws_normalize(CODER_COORDINATOR.read_text(encoding="utf-8")).lower()
         assert "this round's" in text and "was your last" in text, (
-            "agents/odoo-coder.md must state that absent a SendMessage resume, a round's DONE "
+            "agents/odoo-coder.md must state that absent a resume, a round's DONE "
             "is terminal exactly as today - the resume path must be purely additive"
         )
 
 
-class TestForwardPort8bNamesAndResumesTheCoder:
-    """SKILL.md and fp-phase-detail.md must name the module's odoo-coder coordinator once and
-    carry a WORKER NAME field for later commits, replacing the old blanket 'excluded from the R2b
-    cap' framing that treated N-coders-per-module as unavoidable."""
+class TestForwardPort8bLaunchesAndResumesTheCoderById:
+    """SKILL.md and fp-phase-detail.md must launch the module's odoo-coder coordinator once and
+    carry its captured `WORKER_AGENT_ID` into every later commit, replacing the old blanket
+    'excluded from the R2b cap' framing that treated N-coders-per-module as unavoidable."""
 
     def test_skill_md_no_longer_claims_the_leg_is_unconditionally_excluded(self):
         text = SKILL_MD.read_text(encoding="utf-8")
@@ -2072,48 +2048,65 @@ class TestForwardPort8bNamesAndResumesTheCoder:
             "the coordinator is resumable (agents/odoo-coder.md); the gap is narrower and named"
         )
 
-    def test_skill_md_names_a_stable_coder_resume_identity(self):
-        text = SKILL_MD.read_text(encoding="utf-8")
-        assert "fp-adapt-<slug>-<module>-coder" in text, (
-            "SKILL.md P8 8b must name a stable per-module coder-resume identity distinct from "
-            "the 8a test-writer's fp-adapt-<slug>-<module> name"
+    def test_skill_md_founds_the_per_module_cap_on_a_captured_id_registry(self):
+        """R2b (at most one agent per module across the run) must rest on ids the skill CAPTURED
+        from its own launches, recorded per module. A name cannot carry it: a launch call cannot
+        name the agent it starts, so a name-based cap is unenforceable at runtime."""
+        text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        assert "fp-adapt-<slug>-<module>" not in text, (
+            "SKILL.md must not mint an agent NAME for the per-module cap - no launch call can "
+            "assign one, so the cap would rest on a primitive that does not exist"
+        )
+        assert "Per-module agent-id registry" in text, (
+            "SKILL.md P8 must declare the per-module id registry the R2b cap rests on"
+        )
+        assert "one id per module for the WHOLE run" in text, (
+            "the registry must be stated as one id per module for the whole run - that IS R2b"
         )
 
-    def test_skill_md_carries_worker_name_field(self):
+    def test_skill_md_carries_worker_agent_id_field(self):
         text = SKILL_MD.read_text(encoding="utf-8")
-        assert "WORKER NAME:" in text and "fp-adapt-<slug>-<module>-coder" in text, (
-            "SKILL.md P8 8b must document the WORKER NAME brief field carried into odoo-coding - "
-            "the SAME field label the 8a odoo-test-writer leg already uses, never a differently "
-            "shaped field (e.g. an agentId) for the same cross-invocation resume purpose"
+        assert "WORKER_AGENT_ID:" in text, (
+            "SKILL.md P8 8b must document the WORKER_AGENT_ID brief field carried into "
+            "odoo-coding - the SAME field shape the 8a leg uses, an id the caller captured from "
+            "its own earlier launch"
+        )
+        assert "WORKER NAME" not in text, (
+            "the retired name-shaped field must not survive alongside the id-shaped one"
         )
 
     def test_skill_md_states_r2b_is_closed_at_8b_not_a_lingering_gap(self):
-        """`skills/odoo-coding/SKILL.md` now recognizes WORKER NAME (the receiving side landed),
-        so the OLD interim 'named, bounded gap' / 'does NOT yet satisfy R2b' fallback framing is
+        """`skills/odoo-coding/SKILL.md` recognizes `WORKER_AGENT_ID` (the receiving side
+        landed), so the OLD interim 'named, bounded gap' / 'does NOT yet satisfy R2b' framing is
         stale and must be replaced by a plain closure statement - an accurate description must
         not overstate a gap that no longer exists."""
         text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
         assert "is CLOSED at the 8b leg" in text, (
             "SKILL.md must state plainly that R2b is now CLOSED at the 8b leg, now that "
-            "skills/odoo-coding/SKILL.md's receiving side recognizes WORKER NAME"
+            "skills/odoo-coding/SKILL.md's receiving side recognizes WORKER_AGENT_ID"
         )
         assert "a named, bounded gap" not in text and "does NOT yet satisfy R2b" not in text, (
             "SKILL.md must not still claim the old interim fallback framing ('a named, bounded "
             "gap' / 'does NOT yet satisfy R2b') now that the odoo-coding receiving side actually "
-            "recognizes WORKER NAME and resumes the named coordinator"
+            "recognizes WORKER_AGENT_ID and resumes that id"
         )
 
-    def test_phase_detail_p8b_carries_worker_name_field(self):
+    def test_phase_detail_p8b_carries_worker_agent_id_field(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
-        assert "WORKER NAME:" in text and "fp-adapt-<slug>-<module>-coder" in text, (
-            "fp-phase-detail.md P8b coder brief template must carry the WORKER NAME field - the "
-            "SAME field label 8a's odoo-test-writer template already uses"
+        assert "WORKER_AGENT_ID:" in text, (
+            "fp-phase-detail.md P8b coder brief template must carry the WORKER_AGENT_ID field - "
+            "the SAME field shape 8a's odoo-test-writer leg uses"
+        )
+        assert "WORKER NAME" not in text, (
+            "the retired name-shaped field must not survive in the concrete brief template a "
+            "caller copies from"
         )
 
-    def test_phase_detail_names_the_same_stable_coder_resume_identity(self):
+    def test_phase_detail_mints_no_agent_name(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
-        assert "fp-adapt-<slug>-<module>-coder" in text, (
-            "fp-phase-detail.md P8 8b must name the same stable coder-resume identity as SKILL.md"
+        assert "fp-adapt-<slug>-<module>" not in text, (
+            "fp-phase-detail.md must not mint an agent NAME - the resume identity is the id the "
+            "caller's own launch returned"
         )
 
     def test_phase_detail_states_r2b_is_closed_at_8b_not_a_lingering_gap(self):
@@ -2124,99 +2117,73 @@ class TestForwardPort8bNamesAndResumesTheCoder:
         )
         assert "a named, bounded gap" not in text and "does NOT yet satisfy R2b" not in text, (
             "fp-phase-detail.md must not still claim the old interim fallback framing now that "
-            "the odoo-coding receiving side actually recognizes WORKER NAME"
+            "the odoo-coding receiving side actually recognizes WORKER_AGENT_ID"
         )
 
 
 # ---------------------------------------------------------------------------
 # Invariant (drift guard) - the 8a (odoo-test-writer) and 8b (odoo-coder) cross-
-# invocation resume legs MUST use the IDENTICAL field shape - a NAME, never an
-# agentId, and never two differently-labeled fields for the same purpose. This
-# is the specific defect class the main agent flagged mid-round: an earlier
-# draft of the 8b fix used `RESUME_CODER: <agentId> | none` while 8a used
-# `WORKER NAME: <name>` - two shapes for one job, the same pattern as this
-# repo's own INST_ADDONS_PATH/ALLOC_ADDONS_PATH incident. Structural (not just
-# "mentioned somewhere in the file") - it checks each leg's OWN field/value
-# pairing, not just that both strings appear anywhere in the document.
-#
-# RED-before-green evidence (measured directly against the pre-unification
-# text this same round produced, before the drop-agentId fix below - not
-# `git show HEAD`, since neither the RESUME_CODER draft nor its predecessor
-# ever reached a commit): checking `WORKER NAME:\s*fp-adapt-<slug>-<module>`
-# (8a shape, no `-coder` suffix) and `WORKER NAME:\s*fp-adapt-<slug>-<module>-coder`
-# (8b shape) against the pre-fix text - SKILL.md: 8a-shape found=False (its 8a
-# bullet did not carry a literal `WORKER NAME:` field before this fix either),
-# 8b-shape found=False (8b carried `RESUME_CODER` instead) - MISMATCH.
-# fp-phase-detail.md: 8a-shape found=True, 8b-shape found=False (8b carried
-# `RESUME_CODER` instead) - MISMATCH. Both files RED (same-shape check failed)
-# before this fix; both GREEN after.
-#
-# This guard was later EXTENDED to the RECEIVING side (`skills/odoo-coding/SKILL.md`)
-# rather than duplicated into a second guard class: the sending side (above) is only
-# half the contract - the receiving side must accept the IDENTICAL field shape (a
-# caller-supplied NAME, never an agentId) or the two sides silently drift apart, the
-# same INST_ADDONS_PATH/ALLOC_ADDONS_PATH failure class. RED-before-green (measured
-# against `git show HEAD:plugins/odoo-ai-agents/skills/odoo-coding/SKILL.md`, the true
-# pre-this-round baseline, since the working tree carries other groups' concurrent
-# uncommitted edits): 'WORKER NAME' occurrences at HEAD = 0; 'a NAME, never an
-# agentId' occurrences at HEAD = 0 - both assertions below RED at HEAD, GREEN in the
-# current tree once the receiving side landed.
+# invocation resume legs MUST use the IDENTICAL field shape: `WORKER_AGENT_ID`,
+# an id the caller captured from its OWN earlier launch. Two differently-labeled
+# fields for one job is this repo's INST_ADDONS_PATH/ALLOC_ADDONS_PATH failure
+# class. The guard is structural on BOTH sides - the sending side (SKILL.md,
+# fp-phase-detail.md) and the receiving side (skills/odoo-coding/SKILL.md) - since
+# a receiving side that accepts a different shape strands every send.
 # ---------------------------------------------------------------------------
 
-_WORKER_NAME_8A_SHAPE_RE = re.compile(r"WORKER NAME:\s*fp-adapt-<slug>-<module>(?!-coder)")
-_WORKER_NAME_8B_SHAPE_RE = re.compile(r"WORKER NAME:\s*fp-adapt-<slug>-<module>-coder")
+_AGENT_NAME_MINT_RE = re.compile(r"fp-adapt-<slug>-<module>")
 
 
 class TestBothLegsUseTheSameResumeFieldShape:
-    """The 8a odoo-test-writer leg and the 8b odoo-coder leg must both carry their cross-invocation
-    resume identity as a `WORKER NAME: <name>` field with the SAME label - never a second,
-    differently-shaped field (e.g. an agentId) reintroduced for one leg only. Extended to the
-    RECEIVING side (`skills/odoo-coding/SKILL.md`): it must accept that IDENTICAL field shape,
-    not a second, differently-shaped acceptance point."""
+    """The 8a odoo-test-writer leg and the 8b odoo-coder leg must carry their cross-invocation
+    resume identity as the SAME thing: an id the caller captured from ITS OWN earlier launch.
+    Neither leg may mint a name (no launch call can assign one), and the RECEIVING side
+    (`skills/odoo-coding/SKILL.md`) must accept that IDENTICAL shape, not a second one."""
 
     @pytest.mark.parametrize("path,label", [
         (SKILL_MD, "SKILL.md"),
         (PHASE_DETAIL, "fp-phase-detail.md"),
     ])
-    def test_8a_and_8b_both_use_the_worker_name_field_shape(self, path, label):
+    def test_neither_leg_mints_an_agent_name(self, path, label):
         text = _ws_normalize(path.read_text(encoding="utf-8"))
-        has_8a_shape = bool(_WORKER_NAME_8A_SHAPE_RE.search(text))
-        has_8b_shape = bool(_WORKER_NAME_8B_SHAPE_RE.search(text))
-        assert has_8a_shape and has_8b_shape, (
-            f"{label}: the 8a leg (fp-adapt-<slug>-<module>) and the 8b leg "
-            f"(fp-adapt-<slug>-<module>-coder) must BOTH carry their resume identity via the "
-            f"literal 'WORKER NAME:' field label - found 8a-shape={has_8a_shape}, "
-            f"8b-shape={has_8b_shape}; a mismatch means the two legs have drifted onto "
-            f"differently-shaped resume fields"
+        assert not _AGENT_NAME_MINT_RE.search(text), (
+            f"{label}: a minted agent name (fp-adapt-<slug>-<module>...) survives. A launch call "
+            f"cannot assign a name, so a name-based resume identity is unimplementable - both "
+            f"legs resume by the id their own launch returned."
+        )
+        assert "WORKER NAME" not in text, (
+            f"{label}: the retired name-shaped resume field survives"
         )
 
-    def test_receiving_side_declares_the_same_worker_name_field(self):
+    def test_receiving_side_declares_the_same_worker_agent_id_field(self):
         """The receiving side (skills/odoo-coding/SKILL.md Coder-brief schema) must declare the
-        literal `WORKER NAME:` field label - the SAME label the sending side (8a/8b, above)
+        literal `WORKER_AGENT_ID:` field label - the SAME label the sending side (8a/8b, above)
         emits - not a differently-named or differently-shaped acceptance point."""
         text = CODING_SKILL_MD.read_text(encoding="utf-8")
-        assert "WORKER NAME:" in text, (
-            "skills/odoo-coding/SKILL.md must declare a 'WORKER NAME:' field in its Coder brief "
-            "schema - the receiving side of the field forward-port's sending side already emits; "
-            "a missing or differently-labeled field here would strand the sending side's resume"
+        assert "WORKER_AGENT_ID:" in text, (
+            "skills/odoo-coding/SKILL.md must declare a 'WORKER_AGENT_ID:' field in its Coder "
+            "brief schema - the receiving side of what forward-port's sending side emits; a "
+            "missing or differently-labeled field here would strand the sending side's resume"
         )
 
-    def test_receiving_side_documents_the_field_as_a_name_never_an_agentid(self):
+    def test_receiving_side_documents_the_field_as_a_captured_id_never_an_invented_string(self):
         """Structural pairing (not just 'mentioned somewhere'): the receiving side must document
-        WORKER NAME with the SAME 'a NAME, never an agentId' shape declaration the sending side
-        uses, so a future reader cannot silently redefine it as agentId-shaped on this side only."""
+        WORKER_AGENT_ID with the SAME provenance declaration the sending side uses, so a future
+        reader cannot silently redefine it as a name on this side only."""
         text = _ws_normalize(CODING_SKILL_MD.read_text(encoding="utf-8"))
-        assert "a NAME, never an agentId" in text, (
-            "skills/odoo-coding/SKILL.md must document its WORKER NAME field as 'a NAME, never an "
-            "agentId' - the identical shape declaration the sending side "
-            "(SKILL.md/fp-phase-detail.md) uses for the same field, so both sides of R2b's 8b leg "
-            "agree on the shape"
+        assert "captured from ITS OWN earlier launch" in text, (
+            "skills/odoo-coding/SKILL.md must document WORKER_AGENT_ID as an id the CALLER "
+            "captured from ITS OWN earlier launch"
+        )
+        assert "never a string anyone invented" in text, (
+            "skills/odoo-coding/SKILL.md must forbid an invented value for WORKER_AGENT_ID - "
+            "that is exactly the unimplementable name-shaped field this replaced"
         )
 
     def test_resume_coder_agent_id_field_never_reintroduced(self):
         """Regression guard: the abandoned `RESUME_CODER` (agentId-shaped) field must never
         reappear anywhere in the plugin tree - it was deliberately dropped in favor of the
-        WORKER NAME field shape 8a already uses. This scan already covers the receiving side
+        `WORKER_AGENT_ID` shape both legs use. This scan already covers the receiving side
         (skills/odoo-coding/SKILL.md sits under PLUGIN too) - no separate receiving-side
         regression guard is needed for this specific check."""
         offenders = []
@@ -2224,8 +2191,8 @@ class TestBothLegsUseTheSameResumeFieldShape:
             if "RESUME_CODER" in path.read_text(encoding="utf-8"):
                 offenders.append(str(path.relative_to(PLUGIN)))
         assert not offenders, (
-            f"'RESUME_CODER' must not appear anywhere in the plugin tree (dropped in favor of the "
-            f"WORKER NAME field shape); found in: {offenders}"
+            f"'RESUME_CODER' must not appear anywhere in the plugin tree (dropped in favor of "
+            f"the WORKER_AGENT_ID shape); found in: {offenders}"
         )
 
 
@@ -2390,57 +2357,51 @@ class TestP3DesignDocReachesTheP8bBrief:
         )
 
 
-class TestReplyToPresentInAllThreeBriefTemplates:
-    """F3 (DEGRADES): dispatch-brief.md states CALLER_ID/REPLY_TO is ALWAYS present in the
-    universal skeleton, but none of this skill's three literal brief templates - P1, 8a, 8b -
-    carried it; an agent filling the CONCRETE template it is handed (the whole point of a
-    template) would omit the reply address. Fixed by adding a `CALLER_ID (REPLY_TO)` field,
-    using the SAME field label dispatch-brief.md's own skeleton row 11 uses, to all three.
+class TestNoReplyAddressInAnyBriefTemplate:
+    """A concrete brief template is what a caller actually copies, so a retired field surviving
+    in one re-seeds it even after the schema drops it. None of this skill's three literal brief
+    templates - P1, 8a, 8b - may carry a reply address: a launch call cannot name the agent it
+    starts and no agent is shown its launcher, so the field can only ever hold a guess. The
+    dispatched agent's report is its final message (spawner-completion-contract.md R3)."""
 
-    RED-before-green (measured via `git show HEAD:<path>`): 'CALLER_ID' occurrences in the P1
-    brief block = 0, the 8a brief block (fp-phase-detail.md) = 0, the 8b brief block
-    (fp-phase-detail.md) = 0, SKILL.md's 8a bullet = 0. All non-zero in the current tree
-    (GREEN, verified below) - this guard checks ALL THREE templates, not one."""
-
-    def test_p1_brief_template_carries_caller_id(self):
+    def test_p1_brief_template_carries_no_reply_address(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.index("DISPATCH MODEL: <extract-tier>")
         end = text.index("USER LANGUAGE: <lang | omit when English>", start)
         block = text[start:end]
-        assert "CALLER_ID (REPLY_TO)" in block, (
-            "fp-phase-detail.md's P1 odoo-intent-extractor brief template must carry a "
-            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
-            "skeleton field 11"
-        )
+        for banned in ("CALLER_ID", "REPLY_TO"):
+            assert banned not in block, (
+                f"fp-phase-detail.md's P1 odoo-intent-extractor brief template still carries "
+                f"{banned!r}"
+            )
 
-    def test_8a_brief_template_carries_caller_id(self):
+    def test_8a_brief_template_carries_no_reply_address(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.index("TEST ADAPT MODE: forward this source test to the target platform.")
         end = text.index("RULE: translate to target API", start)
         block = text[start:end]
-        assert "CALLER_ID (REPLY_TO)" in block, (
-            "fp-phase-detail.md's 8a odoo-test-writer brief template must carry a "
-            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
-            "skeleton field 11"
-        )
+        for banned in ("CALLER_ID", "REPLY_TO"):
+            assert banned not in block, (
+                f"fp-phase-detail.md's 8a odoo-test-writer brief template still carries {banned!r}"
+            )
 
-    def test_8b_brief_template_carries_caller_id(self):
+    def test_8b_brief_template_carries_no_reply_address(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.index("DISPATCH MODEL: <adapt-tier>")
         end = text.index("USER LANGUAGE: <lang | omit when English>", start)
         block = text[start:end]
-        assert "CALLER_ID (REPLY_TO)" in block, (
-            "fp-phase-detail.md's 8b odoo-coding brief template must carry a "
-            "CALLER_ID (REPLY_TO) field per dispatch-brief.md's ALWAYS-present universal "
-            "skeleton field 11"
-        )
+        for banned in ("CALLER_ID", "REPLY_TO"):
+            assert banned not in block, (
+                f"fp-phase-detail.md's 8b odoo-coding brief template still carries {banned!r}"
+            )
 
-    def test_skill_md_8a_and_8b_bullets_also_document_caller_id(self):
+    def test_skill_md_8a_and_8b_bullets_carry_no_reply_address(self):
         text = SKILL_MD.read_text(encoding="utf-8")
-        assert text.count("CALLER_ID (REPLY_TO)") >= 2, (
-            "SKILL.md's own 8a and 8b bullets (the second literal-field presentation of the "
-            "same briefs) must also document the CALLER_ID (REPLY_TO) field, at least once each"
-        )
+        for banned in ("CALLER_ID", "REPLY_TO"):
+            assert banned not in text, (
+                f"SKILL.md's own 8a/8b bullets (the second literal-field presentation of the "
+                f"same briefs) still carry {banned!r}"
+            )
 
 
 class TestTable2FableGateSymmetricWithTable1Opus:
@@ -2775,10 +2736,10 @@ class TestForwardPortSlugMandatoryNoFallback:
 
 # ---------------------------------------------------------------------------
 # Invariant (B3) - Tier-C has a legal retry for a failed/incomplete P1 module
-# pass. The contract sanctions exactly one retry (a CHP Tier-A `SendMessage`
-# resume of the SAME instance) and calls a second instance "a pipeline
-# defect, never a valid retry" - with no carve-out for when Tier-A itself is
-# unavailable (SendMessage absent). Fix: an explicit Tier-C retry path - a
+# pass. The contract sanctions exactly one retry (a CHP Tier-A resume of the
+# SAME instance) and calls a second instance "a pipeline defect, never a valid
+# retry" - with no carve-out for when Tier-A itself is unavailable. Fix: an
+# explicit Tier-C retry path - a
 # SUPERSEDING fresh dispatch (never a second CONCURRENT one) once the failed
 # instance's turn has fully ended.
 #
@@ -2789,7 +2750,7 @@ class TestForwardPortSlugMandatoryNoFallback:
 
 class TestTierCRetryForFailedModulePass:
     """A failed or incomplete P1 module pass must have a legal retry path even when
-    CHP Tier-A (`SendMessage`) is unavailable - never an unsatisfiable instruction."""
+    CHP Tier-A is unavailable - never an unsatisfiable instruction."""
 
     def setup_method(self):
         self.skill_text = SKILL_MD.read_text(encoding="utf-8")
@@ -2798,8 +2759,8 @@ class TestTierCRetryForFailedModulePass:
     def test_skill_md_states_a_tier_c_retry_path(self):
         assert "Tier-C retry" in self.skill_text, (
             "SKILL.md P1 must name an explicit Tier-C retry path for a failed/incomplete "
-            "module pass - the contract cannot sanction only a Tier-A SendMessage resume "
-            "with no fallback when SendMessage is unavailable"
+            "module pass - the contract cannot sanction only a Tier-A resume with no "
+            "fallback when no resume is possible"
         )
         assert "SUPERSEDING" in self.skill_text, (
             "SKILL.md's Tier-C retry must be framed as a SUPERSEDING dispatch (replacing the "
@@ -2807,9 +2768,18 @@ class TestTierCRetryForFailedModulePass:
         )
 
     def test_phase_detail_mirrors_the_tier_c_retry_path(self):
-        assert "Tier-C" in self.phase_text and "SendMessage" in self.phase_text, (
+        normalized = _ws_normalize(self.phase_text)
+        assert "Tier-C" in normalized, (
             "fp-phase-detail.md's P1 section must mirror the Tier-C retry carve-out, not "
-            "leave the stricter (unsatisfiable) SendMessage-only retry rule unqualified"
+            "leave the stricter (unsatisfiable) resume-only retry rule unqualified"
+        )
+        assert "the id its own launch returned" in normalized, (
+            "the sanctioned retry must be a resume of the SAME instance by the id the caller's "
+            "own launch returned - the only address it can hold"
+        )
+        assert "no recorded id, or it no longer resolves" in normalized, (
+            "the Tier-C branch must name the decidable condition that selects it, not a probe "
+            "on state this runtime never exposes"
         )
 
     def test_retry_ban_still_requires_the_first_instance_to_have_ended(self):

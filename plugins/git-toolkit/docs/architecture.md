@@ -19,7 +19,7 @@ frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue 
   - `git-pipeline-lead` - the BRAIN + ORCHESTRATOR for large changes; the ONLY agent that spawns.
 - **10 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
   model-tiers, squash-push, github-mcp-first, commit-convention, language-mirroring,
-  agent-team-reporting. Each rule is declared ONCE; the skill and agents POINT at it via
+  completion-reporting. Each rule is declared ONCE; the skill and agents POINT at it via
   `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never duplicate it.
 - **6 references.** large-change-pipeline, history-rewrite, conflict-resolution, github-pipeline,
   and the two commit-convention standards (general, odoo) - deterministic recipes loaded on demand.
@@ -58,12 +58,10 @@ flowchart LR
 
 Only `git-pipeline-lead` holds the spawn tool; the three leaves declare a `tools:` allowlist that
 excludes it, hard-capping nesting at two levels (lead -> leaf). Cold-spawn (stateless brief in,
-findings file out) is the DEFAULT and always-correct baseline - robust at any caller depth, no team
-lead needed. WHEN a caller instead spawns an agent as a named teammate (Agent Team mode), the agent
-additionally pushes a completion report to the lead per
-`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`; this complements cold-spawn, it does not
-replace it. The leaves' allowlists add `SendMessage` + `TaskUpdate` (for that report) but still
-exclude the spawn tool, so they can report yet still cannot fan out.
+findings file out) is the DEFAULT and always-correct baseline - robust at any caller depth, no roster
+needed. Every agent ends its turn by emitting its completion report as its final message per
+`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md` - there is no upward message channel, so
+the leaves' allowlists grant no messaging tool at all and cannot fan out.
 
 ## Safety gate (destructive ops)
 

@@ -51,8 +51,8 @@ Before finalizing, determine: which domain owns it, which business rules must ne
 |------|-------|-----------|--------|
 | **single** (default) | requirement | full Rounds 0-4 below | flat TDD `<SHARE_DIR>/designs/<slug>-<date>.md` |
 | **master** | requirement + scope DAG (survey/brl/manifests) | cross-module altitude: `impact_analysis` + dep graph + ownership decisions; per-field light | `_master-<date>.md` (§1 per-module table + §10 ownership registry) + `index.yaml` |
-| **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10; if brief carries `PEERS:`, open a bounded peer-reconcile exchange for any shared-symbol disagreement before finalizing; record the agreed contract in your OWN child TDD (never edit `index.yaml`/§10) - master-child-design-contract.md § Peer reconciliation | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
-| **consistency** | all child TDDs + master TDD | §1/§9/fields/deps per child only - NOT full body | consume the agreed contracts each child recorded in its own TDD; APPLY them to §10 + `index.yaml` (sole applier - children never write §10); VERIFY single-owner/dep-direction/no-circular-dep; also reconcile any remaining seams: shared-field consistency, ownership overlap, dep-direction vs master; only unresolved (escalated) seams go to `conflict-list.md` as ESCALATED, agreed ones as RESOLVED-BY-PEERS, at artifact root (`<master-slug>/`) per snippet §Conflict list |
+| **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10; a shared-symbol you cannot honor as written is recorded in your OWN child TDD and appended to `contested-symbols.md` (never edit `index.yaml`/§10) - master-child-design-contract.md § Contested-symbol reconciliation | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
+| **consistency** | all child TDDs + master TDD + `contested-symbols.md` | §1/§9/fields/deps per child only - NOT full body | consume each child's recorded contract plus the lead's decisions on the contested symbols; APPLY them to §10 + `index.yaml` (sole applier - children never write §10); VERIFY single-owner/dep-direction/no-circular-dep; also reconcile any remaining seams: shared-field consistency, ownership overlap, dep-direction vs master; only unresolved seams go to `conflict-list.md` as ESCALATED, decided ones as LEAD-RESOLVED, at artifact root (`<master-slug>/`) per snippet §Conflict list |
 | **review** | master TDD and/or child TDD(s) under review (READ-ONLY) + `index.yaml` | independent adversarial pass; re-derive from the design's conclusions + the same OSM grounding calls an author would make, withholding the author's rationale where feasible | `_review-<date>.md` (see § Review mode) - FINDINGS (severity + concrete alternative), NEVER a rewrite |
 
 **single - decompose bounce:** before Rounds 0-4, assess scope. If the requirement spans multiple modules each needing non-trivial new models or cross-module contracts, return `status: NEEDS_NEXT` + note "recommend decompose into master-child" instead of writing a monolith flat TDD - UNLESS the dispatch brief carries an EXPLICIT `MODE: single` line (the human deliberately chose single-mode for this multi-module scope): then honor it, proceed with Rounds 0-4 as one flat TDD, and record the cross-module risk in §8 Risks instead of bouncing. The bounce still fires when `MODE` is ABSENT (the implicit single-mode default is not a stated human choice). Full decompose contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
@@ -90,38 +90,16 @@ default to fable.
 
 ---
 
-## Peer reconciliation (child mode)
+## Contested-symbol reconciliation (child mode)
 
-Applies only when your dispatch brief carries a `PEERS:` field (same-`dag_layer` siblings the lead
-brokered addresses for). Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`
-§ Peer reconciliation - this section is the child-agent-facing summary of that SSOT.
-
-**Open.** When your design needs a shared symbol a peer named in `PEERS` owns or touches and you
-disagree on the contract, `SendMessage({to: <peer>, text: <the §10 symbol + your proposed contract +
-why>})`. Use only the names the lead supplied in `PEERS` - never a guessed address. Frame the message
-as shared design context, never "secret"/"private" (CHP confidentiality guard).
-
-**Round cap.** Two round-trips per peer pair (you -> peer -> you -> peer), then stop. Exhausting the
-cap with no written agreement IS the deadlock signal - go to Escalate below.
-
-**Agree -> record in your OWN TDD.** The moment you and the peer both state agreement in writing,
-stop messaging and record the agreed contract in your OWN child TDD + worklog (mark yourself owner or
-consumer-only, per the agreement). Never edit `index.yaml` or §10 yourself - `MODE: consistency` is
-the sole §10/`index.yaml` applier; it consumes what you recorded.
-
-**Escalate UP one level only.** Escalate to the lead (your `REPLY_TO`) - never to the peer, never past
-the lead - IFF either: the two-round cap is exhausted with no written agreement, OR no proposal on the
-table can satisfy a §10 HARD rule (single-owner, dependency-direction, no-circular-dep). You never
-overturn a master §10 constraint by debate; a disagreement with the master's decision is always an
-escalation, not a rewrite.
-
-Message shapes:
-
-```
-OPEN:     SendMessage({to: <peer in PEERS>, text: "PEER-RECONCILE symbol=<name> proposed=<contract> why=<reason>"})
-REPLY:    SendMessage({to: <opener>, text: "AGREE" | "COUNTER contract=<contract> why=<reason>"})
-ESCALATE: SendMessage({to: <REPLY_TO>, text: "ESCALATE symbol=<name> mine=<contract> theirs=<contract> why-no-yield=<reason>"})
-```
+You cannot reach a sibling architect - no agent can address a sibling. When your design needs a
+shared symbol another module in your layer owns or touches and you cannot honor master §10 as
+written, do NOT block and do NOT guess: record the symbol, your proposed contract, and why, in your
+OWN child TDD AND append one row to `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`, then
+finish your TDD on your own proposal and report DONE naming that symbol. Never edit `index.yaml` or
+§10 yourself - `MODE: consistency` is the sole applier. The lead decides every contested symbol after
+your layer returns and re-dispatches you with its decision if your proposal lost. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation.
 
 ---
 
@@ -315,7 +293,7 @@ When you finish (single mode), append a Continuation Contract block per `${CLAUD
 - **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
 - **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-planning` (the planner turns the approved design into the wave-batched execution plan before any code; or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`. Single-module non-trivial work still goes through planning - do NOT point at a coder here. The orchestrating skill's own Continuation Contract (`odoo-solution-design` § Continuation Contract, default `next: odoo-planning`) is authoritative and supersedes this subagent CC.
 
-## Agent Team mode
+## You launch nothing
 
 You never launch an agent, so the spawner contracts do not bind you. Your obligations are
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
@@ -343,10 +321,5 @@ ask-vs-self-decide:
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
-  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
-  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

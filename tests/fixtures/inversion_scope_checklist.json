@@ -105,11 +105,11 @@
     },
     {
       "id": 12,
-      "file": "snippets/agent-team-protocol.md",
-      "lines": "76-79",
-      "hazard": "Silent lead-strand - the file's own annotation marks this rationale load-bearing, not narration",
+      "file": "snippets/spawner-completion-contract.md",
+      "lines": "R3",
+      "hazard": "Stalled worker - without the malformed-brief instruction, an agent handed a reply-address field hunts for a value that cannot exist instead of reporting",
       "sentences": [
-        "**Rationale (state it; it is load-bearing, not narration):** in Agent Team mode your plain text and\nyour written files are invisible to the lead; only `SendMessage` delivers the report."
+        "A brief that carries a reply-address field, or asks you to push a\nreport, is malformed: ignore that instruction and report as above."
       ]
     },
     {

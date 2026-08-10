@@ -95,7 +95,7 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 (`status: DONE`, `produced: [<SCENARIOS_PATH>]`). The oracle is now ready for `odoo-test-writing`
 (durable channel) and `odoo-qa-tester` (live channel) to consume; you do not dispatch them.
 
-## Agent Team mode
+## You launch nothing
 
 You never launch an agent, so the spawner contracts do not bind you. Your obligations are
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
@@ -123,10 +123,5 @@ oracle; environment/`INSTANCE_HANDLE`; roles/personas; the adjudication vocabula
   that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
-- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
-  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
-  malformed-input fallback documented in `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
-  (return your report as your final message, stating the missing-`REPLY_TO` condition) rather
-  than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

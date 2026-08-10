@@ -98,7 +98,7 @@ hard-rules line banning them from dispatching further spawner skills or subagent
 platform limit. Dispatch is capability-branching, not role-based - read your own toolset before
 acting; SSOT `snippets/spawner-completion-contract.md` §R0. Orchestrator skills that dispatch
 worker agents use the **Context-Handoff Protocol (CHP)** -
-a 3-tier dispatch optimization (Tier A `SendMessage`-resume / Tier B fork /
+a 3-tier dispatch optimization (Tier A resume-a-child-you-launched / Tier B fork /
 Tier C fresh spawn + worklog) whose SSOT is `snippets/context-handoff-protocol.md`. Resources
 are platform-managed.
 
@@ -414,9 +414,9 @@ flowchart TD
     P5 --> P6["P6 - Symbol-survival check<br/>(7 classes: field/method/model/<br/>test-base/import/installable/orm-field-key)<br/>+ test-survival sub-check"]
     P6 --> P7["P7 - Pre-adapt drift scan<br/>(Lane 1: ALL .py - import+pyflakes+orm-field-key<br/>Lane 2: tests-only collect gate)"]
 
-    subgraph P8_grp["P8 - Adapt (test-first;<br/>ONE named, resumable worker<br/>per module across ALL its commits)"]
-        P7 --> PA["8a forward tests RED-on-target<br/>(odoo-test-writer, named once,<br/>SendMessage-resumed per later commit)"]
-        PA --> PB["8b adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip<br/>(odoo-coding -> odoo-coder, resumed<br/>the same way by WORKER NAME)"]
+    subgraph P8_grp["P8 - Adapt (test-first;<br/>ONE resumable worker<br/>per module across ALL its commits)"]
+        P7 --> PA["8a forward tests RED-on-target<br/>(odoo-test-writer, launched once,<br/>resumed by the id its first launch returned)"]
+        PA --> PB["8b adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip<br/>(odoo-coding -> odoo-coder, resumed<br/>the same way by WORKER_AGENT_ID)"]
         PB --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
@@ -438,7 +438,7 @@ flowchart TD
 | P5 Git merge --no-commit | Merge source commit onto target branch, keep SHA | Serial per commit | - |
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
-| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit (the git merge stays one-commit-per-target-commit; the 8a test-adapt worker is named once per module and SendMessage-resumed for every later commit touching it - 8b code-adapt closes the same way once its receiving side accepts the resume hint) | - |
+| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit (the git merge stays one-commit-per-target-commit; the 8a test-adapt worker is launched once per module and resumed by the id that launch returned for every later commit touching it - 8b code-adapt closes the same way) | - |
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
 | P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
@@ -832,7 +832,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`<ISOLATE_DIR>/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
 | `snippets/state-root-resolution.md` | The `$ODOO_AI_HOME` two-axis state root: Tier-1 flat (machine-global, never namespaced - the lease registry lives here) vs Tier-2 SHARE (`<SHARE_DIR>`, converges across a repo's worktrees) vs Tier-2 ISOLATE (`<ISOLATE_DIR>`, per-worktree); the repo-key/wt-key resolvers; and the mandatory resolve-once-capture-substitute protocol every skill/agent follows before any Read/Write/Edit under a Tier-2 path |
 | `snippets/odoo-bin-resource-limits.md` | The odoo-bin memory-cap policy for every launch: a version-general `ulimit -Sv` + `--limit-memory-hard` pair (the v12.0 boundary where Odoo's own enforcement begins), the `MemTotal`-derived default (overridable via `ODOO_AI_LIMIT_MEMORY_HARD`), and which limit flags fire on a `--stop-after-init` build vs a long-running listener conf |
-| `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A `SendMessage`-resume / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
+| `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A resume a child you launched, by the id its own launch returned / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-backend-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
 | `snippets/upg-conventions.md` | Viindoo upgrade + module-rename conventions (Viindoo Standard/Internal profile, OSM-gated): keeping the manifest `version` unchanged on a code-level upgrade; a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-backend-coder`, `odoo-code-reviewer`) |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`); `odoo-planning` is the canonical producer of the wave-batched result, which `odoo-coding` and `run-harness`'s between-wave integration consume so all dispatch in dependency order and respect module boundaries |

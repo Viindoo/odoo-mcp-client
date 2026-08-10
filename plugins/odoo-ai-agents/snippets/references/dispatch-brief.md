@@ -16,10 +16,11 @@ a human handed over - the caller had no textual reason to know the field even ex
 "key must be present even at its safe value" rule (same as skeleton field 4 `INPUTS` itself) closes
 this: omitting the key entirely, not just omitting a value, is the STOP condition.
 
-## Why field 11 (CALLER_ID/REPLY_TO) reads as an address grammar, not a description
+## Why the skeleton carries no reply-address field
 
-A prior revision described the field loosely ("the launching context's name/id"), which reads as
-free prose rather than a value an agent can mechanically check. The field is now an enumerated
-grammar - exactly one of `main` / a stable spawn `name` / a raw `agentId` - because a skill name or
-a prose sentence is not a valid `CALLER_ID` value, and a caller composing a brief needs a decidable
-check, not a description to interpret.
+Earlier revisions carried an eleventh, always-required address field so a dispatched agent could
+push its report back. No such address exists at runtime: a launch call cannot name the agent it
+starts, and the roster an agent is shown contains neither itself nor its launcher, so the field
+could only ever be filled with a guess. The return path the runtime already provides - the launch
+call's own return value - made the field redundant as well as unfillable, so it was removed rather
+than re-specified.

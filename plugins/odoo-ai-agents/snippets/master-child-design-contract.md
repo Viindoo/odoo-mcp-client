@@ -121,50 +121,38 @@ Three constraints enforced by this section:
    never in either sibling (that would create a circular dep). State the decision explicitly in
    the Notes column.
 
-A single-owner or dependency-direction dispute peers cannot resolve within the bounded loop is a
-deadlock - escalate per § Peer reconciliation, never silently pick a winner.
+A single-owner or dependency-direction dispute a child cannot honor as written is contested, not a
+child's to decide - record it per § Contested-symbol reconciliation, never silently pick a winner.
 
 Cross-cluster sequencing (which `dag_layer` builds first) must match `dag_layers` in `index.yaml`.
 
-## Peer reconciliation (bounded, same-layer siblings)
+## Contested-symbol reconciliation (same-layer siblings)
 
-Applies to child architects in the SAME `dag_layer` running concurrently (Mode B). It is the
-sanctioned lateral use of report-up-one-level
-(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3): peers may message peers
-DIRECTLY, but escalation still only ever goes UP exactly one level (to the lead - your `REPLY_TO`;
-`main` only when main is the actual lead, never a hardcoded literal), never past it.
+Same-layer child architects run concurrently and cannot message each other - no agent can address a
+sibling (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). Reconciliation is the
+LEAD's, after its R1 barrier clears:
 
-**Addressing.** The lead is the address authority. When it fans out a same-layer batch it injects into
-each child brief a `PEERS:` field listing the SendMessage-addressable names of the OTHER children in
-that same batch (`none` when the layer has one child). A child uses only the names the lead supplied,
-never a guessed address. Lower-layer children have already terminated by fan-out time, so a
-higher-layer child does NOT debate a lower-layer decision live - it reads the lower-layer child's
-finished TDD (its `UPSTREAM_CHILD_DESIGNS` artifact) and escalates a disagreement to the lead. The
-master has also terminated; a child never debates a live master - it honors the master §10 artifact
-and escalates a §10 disagreement to the lead.
+- **Child.** When your design needs a shared symbol another module in this layer owns or touches and
+  you cannot honor the master §10 contract as written, do NOT block and do NOT guess: record the
+  symbol, your proposed contract, and why, in your own TDD AND append one row to
+  `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`. Then finish your TDD on your own
+  proposal and report DONE, naming the contested symbol in your report. Frame the row as shared
+  design context, never "secret"/"private" (CHP confidentiality guard).
+- **Lead.** After every child in the layer has returned, read `contested-symbols.md`. Decide each
+  contested symbol against the master §10 contract, write the decision into the master TDD, and
+  re-dispatch ONLY the children whose proposal lost, with the decision in their brief. Bound this to
+  ONE reconciliation round per layer; unresolved after it -> the layer is BLOCKED for a human.
 
-**Bounded loop.** When child A's design needs a shared symbol a same-layer peer B owns or touches and
-they disagree on the contract, A opens a direct exchange:
-`SendMessage({to: <B in PEERS>, text: <the specific §10 symbol + A's proposed contract + why>})`.
-B replies AGREE or COUNTER (its contract + why). Cap at TWO round-trips per peer pair (A->B->A->B).
-Frame every message as shared design context, never "secret"/"private" (CHP confidentiality guard).
+Lower-layer children and the master have already terminated by fan-out time: a child never debates a
+live master or a lower layer - it honors the finished artifact (`MASTER_DESIGN_DOC`,
+`UPSTREAM_CHILD_DESIGNS`) and records the disagreement for the lead the same way.
 
-**Termination (agreement) - single-writer discipline.** The loop terminates the moment both sides
-state agreement in writing. NEITHER peer edits `index.yaml`/§10 directly: the orchestrating skill and
-the `MODE: consistency` pass are the ONLY §10/`index.yaml` writers (a child never re-declares a §10
-symbol - see § single-owner). Instead EACH peer records the agreed contract in its OWN child TDD (the
-symbol owner marks itself owner; the consumer marks itself consumer-only) and in its worklog. The
-MANDATORY consistency pass then CONSUMES these recorded agreements and APPLIES them to §10, verifying
-single-owner / dep-direction / no-circular-dep still hold before emitting `conflict-list.md`.
-
-**Escalation (deadlock).** Escalate to the lead (your `REPLY_TO` - `main` only when main is the
-actual lead, never a hardcoded literal; see `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
-R3) - one SendMessage with a structured
-disagreement summary (the symbol, each side's contract, why neither yields) - IFF either: (a) the
-two-round cap is exhausted with no written agreement, OR (b) no proposal on the table can satisfy a
-§10 HARD rule (single-owner, dependency-direction, no-circular-dep). A child NEVER changes a master
-§10 constraint by debate; a disagreement with a master decision is an escalation, not a child edit.
-Escalation is the ONLY path a seam reaches the human gate; a peer-reconciled seam does not.
+**Single-writer discipline.** NEITHER child edits `index.yaml`/§10 directly: the orchestrating skill
+and the `MODE: consistency` pass are the ONLY §10/`index.yaml` writers (a child never re-declares a
+§10 symbol - see § single-owner). The MANDATORY consistency pass CONSUMES the recorded proposals and
+the lead's decisions and APPLIES them to §10, verifying single-owner / dep-direction /
+no-circular-dep still hold before emitting `conflict-list.md`. A child NEVER changes a master §10
+constraint; the lead's decision is the only path a seam reaches the human gate.
 
 ## Optional independent review (MODE: review)
 
@@ -215,18 +203,19 @@ valid only in single mode. Downstream consumers resolve per-module paths from `d
 **Non-drift rule**: child TDD = the coder's primary spec. Master TDD = hard constraints on data
 model, dep direction, shared-symbol ownership, and cross-module sequencing. A child design or
 implementation that violates a master-TDD constraint is a CRITICAL finding at review. A child
-cannot overturn a master §10 constraint via peer debate - a disagreement with a master decision
-escalates to the lead.
+cannot overturn a master §10 constraint - a disagreement with a master decision is recorded for the
+lead, never resolved by the child.
 
 ## Conflict list
 
-The master-phase consistency pass CONSUMES the peer-reconciled child TDDs (each peer having
-recorded its agreed contract in its own TDD per § Peer reconciliation) and is the SOLE §10/
+The master-phase consistency pass CONSUMES the child TDDs plus `contested-symbols.md` and the lead's
+decisions on it (§ Contested-symbol reconciliation) and is the SOLE §10/
 `index.yaml` applier - children never write §10 themselves. It emits `conflict-list.md` at the
 artifact root - the same subdir as `index.yaml` (i.e.
-`<SHARE_DIR>/designs/<master-slug>/conflict-list.md`). `conflict-list.md` splits into RESOLVED-BY-PEERS
-seams (peers already agreed; informational, no decision needed) and ESCALATED seams (peers hit the
-bounded-loop cap or a §10 HARD-rule conflict; need a human decision). This file is a MANDATORY
+`<SHARE_DIR>/designs/<master-slug>/conflict-list.md`). `conflict-list.md` splits into
+LEAD-RESOLVED seams (the lead decided; informational, no decision needed) and ESCALATED seams (the
+one reconciliation round did not settle it, or a §10 HARD-rule conflict; need a human decision).
+This file is a MANDATORY
 INPUT to the batch coding gate: the gate reads it and resolves every listed ESCALATED conflict
 before dispatching child coders. The consistency agent and the batch-gate skill both reference
 this fixed path - do not move or rename it.

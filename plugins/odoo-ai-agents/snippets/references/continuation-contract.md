@@ -7,10 +7,10 @@
 
 ## Why the 3-part report shape is stated once, here, and only pointed at elsewhere
 
-`agent-team-protocol.md`'s Ask 1 (the SendMessage transport for Agent Team mode) used to
-independently re-enumerate the 3-part shape (prose summary / produced / continuation block) -
-a second, driftable copy of the same rule. This file is now the sole declaring SSOT for the shape;
-Ask 1 only supplies the transport (SendMessage vs. final-message transcript return) on top of it.
+A second file used to re-enumerate the 3-part shape (prose summary / produced / continuation block)
+alongside a now-retired transport rule - a driftable copy of the same content. This file is the sole
+declaring SSOT for the shape, and the shape is unconditional: the report is always the final text of
+the turn, so there is no transport to describe on top of it.
 
 ## Why the `SUGGESTED_NEXT:` back-compat superseding matters
 

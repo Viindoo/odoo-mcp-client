@@ -49,11 +49,11 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 TOOLKIT = REPO_ROOT / "plugins" / "git-toolkit"
 
-# git-toolkit's OWN, provider-agnostic team-mode reporting snippet. It is the inverse-direction
-# counterpart of odoo-ai-agents' agent-team-protocol.md: it tells a git-toolkit agent spawned as a
-# named teammate how to end its turn (push a report), naming NO consumer. Guarded for existence +
-# anchors here; the independence scan below additionally proves it names no odoo-ai-agents artifact.
-AGENT_TEAM_REPORTING = TOOLKIT / "snippets" / "agent-team-reporting.md"
+# git-toolkit's OWN, provider-agnostic completion-reporting snippet: it tells a git-toolkit agent
+# how to end its turn (emit the report as its final message, never send it), naming NO consumer.
+# Guarded for existence + anchors here; the independence scan below additionally proves it names no
+# odoo-ai-agents artifact.
+COMPLETION_REPORTING = TOOLKIT / "snippets" / "completion-reporting.md"
 
 # The consumer-side delegation snippet filename. Distinct from the provider's own
 # ``git-delegation-decision.md`` - forbidding this token must NOT flag that file
@@ -175,22 +175,61 @@ def test_denylist_is_populated():
     assert "_shared" not in names, "private/shared dirs must be excluded"
 
 
-def test_agent_team_reporting_snippet_exists():
-    """git-toolkit's team-mode reporting SSOT snippet must exist and carry its anchor tokens.
+def test_completion_reporting_snippet_exists():
+    """git-toolkit's completion-reporting SSOT snippet must exist and carry its anchor tokens.
 
-    The snippet's contract: a git-toolkit agent spawned as a NAMED TEAMMATE must end its turn with
-    a report PUSH to the lead (`SendMessage`), as opposed to a cold-spawned agent that returns its
-    result as the final message. The anchors guard that report-contract language. This complements
-    the independence scan: that test proves the snippet names no consumer, this one proves the
-    snippet still says what it must (the two together stop it from being silently emptied OR
-    quietly re-coupled to a consumer).
+    The snippet's contract: a git-toolkit agent ends its turn by emitting its report as its FINAL
+    MESSAGE and never sending it anywhere - it cannot address the context that dispatched it, and a
+    messaging tool being in its toolset is not an instruction to try. The anchors guard exactly
+    that. This complements the independence scan: that test proves the snippet names no consumer,
+    this one proves the snippet still says what it must (the two together stop it from being
+    silently emptied OR quietly re-coupled to a consumer).
     """
-    assert AGENT_TEAM_REPORTING.is_file(), f"missing SSOT snippet {AGENT_TEAM_REPORTING}"
-    body = AGENT_TEAM_REPORTING.read_text(encoding="utf-8")
-    for token in ("SendMessage", "completion report", "report push", 'to: "main"'):
-        assert token in body, (
-            f"agent-team-reporting.md: missing anchor token '{token}'"
+    assert COMPLETION_REPORTING.is_file(), f"missing SSOT snippet {COMPLETION_REPORTING}"
+    body = COMPLETION_REPORTING.read_text(encoding="utf-8")
+    low = " ".join(body.split()).lower()
+    # The first entry is asserted verbatim ON PURPOSE: it is the identity marker
+    # test_return_path_contract.py counts to prove the rule has exactly one home per plugin.
+    # The rest are SHAPES, so a rewording that preserves the rule still passes.
+    assert "your completion report is the final text of your turn" in low, (
+        "completion-reporting.md must carry the declaring sentence verbatim - it is the marker "
+        "the single-home guard counts"
+    )
+    for shape in (
+        r"never send (?:the|your) report to anyone",
+        r"cannot address the [\w-]+ that dispatched you|no agent can address",
+        r"(?:is not|never) an instruction to (?:try|use one|use it)",
+        r"never end a turn on a bare tool call",
+    ):
+        assert re.search(shape, low), (
+            f"completion-reporting.md: no text matches the required rule shape {shape!r}"
         )
+    for banned in ("SendMessage", "TaskUpdate", 'to: "main"'):
+        assert banned not in body, (
+            f"completion-reporting.md must not name {banned!r} - there is no upward channel, and "
+            "naming the tool is what made an agent look for one"
+        )
+
+
+def test_git_toolkit_leaf_allowlists_grant_no_messaging_tool():
+    """A hard leaf launches nothing, so it holds no legal send target. Listing a messaging tool in
+    its `tools:` allowlist is worse than useless: the model calls it and errors instead of cleanly
+    falling back to its final message. Data-driven over every git-toolkit agent that declares a
+    `tools:` list."""
+    offenders = []
+    for agent in sorted((TOOLKIT / "agents").glob("*.md")):
+        body = agent.read_text(encoding="utf-8")
+        m = re.search(r"^tools:\s*\[(.*?)\]\s*$", body, re.MULTILINE | re.DOTALL)
+        if not m:
+            continue  # inherits the full surface - not an allowlist decision
+        allowlist = m.group(1)
+        for banned in ("SendMessage", "TaskUpdate"):
+            if banned in allowlist:
+                offenders.append(f"{agent.name}: tools: grants {banned}")
+    assert not offenders, (
+        "git-toolkit agents with a `tools:` allowlist must grant no messaging tool:\n"
+        + "\n".join(offenders)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -267,7 +306,7 @@ def test_github_operator_fanout_recipe_names_no_odoo_ai_agents_artifact():
 # `tests/test_commit_convention_gate.py::test_nesting_protocol_states_subagent_wake_physics` -
 # that file belongs to a LATER wave (M3/PR2, git-toolkit commit gate) and does not exist yet on
 # this branch. This test is placed here instead, in the file that already owns
-# git-nesting-protocol.md's other guards (test_agent_team_reporting_snippet_exists is the sibling
+# git-nesting-protocol.md's other guards (test_completion_reporting_snippet_exists is the sibling
 # "does the SSOT snippet still say what it must" pattern this follows) - the wave-2 implementer
 # can move it verbatim into test_commit_convention_gate.py once that file exists, with no
 # behavior change.

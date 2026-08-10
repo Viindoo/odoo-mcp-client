@@ -73,7 +73,7 @@ Version matters: "custom" on v12 may be "standard" on v16. v8/v9 migrations cost
 
 This skill is an ORCHESTRATOR. It does NOT classify requirements inline - it dispatches the
 `odoo-gap-analyzer` worker agent and synthesizes the workers' output from disk, keeping the
-main / team-leader context clean.
+orchestrator's context clean.
 
 **Cluster by functional area first.** Group the requirement list by cohesive functional area
 (sales, inventory, accounting, HR, manufacturing, CRM, project, website, ...), then size the

@@ -459,12 +459,10 @@ def test_dispatch_brief_instance_ops_family_declares_gate_role():
 
 
 # ---------------------------------------------------------------------------
-# P4 - CALLER_ID/REPLY_TO must not read as conditional on Agent Team mode.
-# worker-brief.md previously grouped REPLY_TO under a heading literally
-# titled "present only when team mode is on" alongside the genuinely
-# conditional TASK_ID/NOTIFY keys, directly contradicting dispatch-brief.md
-# field 11's ALWAYS classification - a real, textual root cause for why
-# dispatch-composing skills treated REPLY_TO as Tier-A-only.
+# P4 - the worker brief carries no reply-address key at all. Earlier
+# revisions argued about WHEN such a key applied; the key itself is what a
+# leaf cannot use, since a leaf launches nothing and therefore holds no
+# address of any kind.
 # ---------------------------------------------------------------------------
 
 WORKER_BRIEF = (
@@ -472,17 +470,16 @@ WORKER_BRIEF = (
 )
 
 
-def test_worker_brief_reply_to_not_gated_on_team_mode():
+def test_worker_brief_carries_no_reply_address_key():
     text = WORKER_BRIEF.read_text(encoding="utf-8")
-    assert "present only when team mode is on" not in text, (
-        "worker-brief.md must not frame REPLY_TO as conditional on team "
-        "mode - dispatch-brief.md field 11 classifies CALLER_ID/REPLY_TO "
-        "ALWAYS; a team-mode-only heading covering REPLY_TO contradicts "
-        "that and is the root cause of callers treating it as Tier-A-only"
-    )
-    assert "NOT" in text and "conditional on team mode" in text, (
-        "worker-brief.md must explicitly state CALLER_ID/REPLY_TO is NOT "
-        "conditional on team mode, unlike TASK_ID/NOTIFY"
+    for banned in ("REPLY_TO", "CALLER_ID", "TASK_ID", "NOTIFY"):
+        assert banned not in text, (
+            f"worker-brief.md must not name {banned} - a leaf launches nothing, so it holds no "
+            "send target and no reply address can be supplied to it"
+        )
+    low = " ".join(text.split()).lower()
+    assert "you hold no legal send target at all" in low, (
+        "worker-brief.md must state the absence POSITIVELY, or the next author re-adds the key"
     )
 
 
@@ -558,16 +555,17 @@ _AGENT_DISPATCH_TEMPLATE_FILES = [
 
 
 @pytest.mark.parametrize("path", _AGENT_DISPATCH_TEMPLATE_FILES, ids=lambda p: p.name)
-def test_agent_dispatch_template_carries_caller_id(path):
+def test_agent_dispatch_template_carries_no_caller_id(path):
+    """A filled-in template is what a caller actually copies, so a retired field surviving there
+    re-seeds it even after the schema drops it. These five files carried the field literal."""
     assert path.exists(), f"{path} not found"
     text = path.read_text(encoding="utf-8")
-    assert "CALLER_ID" in text, (
-        f"{path.relative_to(REPO_ROOT)}: a concrete agent-dispatch brief "
-        "template in this file must carry the literal `CALLER_ID` "
-        "(REPLY_TO) field, matching field 11 of dispatch-brief.md's "
-        "universal skeleton and the established pattern already correct in "
-        "odoo-forward-port/references/fp-phase-detail.md"
-    )
+    for banned in ("CALLER_ID", "REPLY_TO"):
+        assert banned not in text, (
+            f"{path.relative_to(REPO_ROOT)}: a concrete agent-dispatch brief template in this "
+            f"file still carries {banned!r}. No brief carries a reply address - the dispatched "
+            "agent's report is its final message (spawner-completion-contract.md R3)."
+        )
 
 
 def test_missing_continuation_contract_allowlist_is_shrink_only():
@@ -591,18 +589,17 @@ def test_missing_continuation_contract_allowlist_is_shrink_only():
 # ---------------------------------------------------------------------------
 
 
-def test_dispatch_brief_field_11_is_address_grammar():
+def test_dispatch_brief_skeleton_ends_at_field_10():
+    """The skeleton table must stop at field 10. An eleventh row is, by construction, the retired
+    reply-address field coming back under some name - there is no other candidate."""
     text = DISPATCH_BRIEF.read_text(encoding="utf-8")
-    rows = [line for line in text.splitlines() if line.startswith("| 11 | `CALLER_ID`")]
-    assert rows, "dispatch-brief.md: field 11 `CALLER_ID` row not found"
-    row = rows[0]
-    for token in ("An ADDRESS, never a name", "the literal `main`", "`agentId`", "RETURN INLINE"):
-        assert token in row, (
-            f"dispatch-brief.md field 11 must state {token!r} - it must read as an "
-            "address grammar (a skill name or prose sentence is not a valid "
-            "CALLER_ID value), not a generic 'the launching context's name/id' "
-            "description"
-        )
+    rows = [line for line in text.splitlines() if re.match(r"^\| 11 \|", line)]
+    assert not rows, (
+        f"dispatch-brief.md: the universal skeleton must stop at field 10, found: {rows}"
+    )
+    assert "| 10 | `RETURN_BUDGET`" in text, (
+        "sanity: field 10 (RETURN_BUDGET) must still be the last skeleton row"
+    )
 
 
 def test_dispatch_brief_has_two_rules_section():
@@ -660,10 +657,10 @@ def _instance_brief_fence(text):
 def test_odoo_instance_brief_fence_is_discovered():
     text = ODOO_INSTANCE_SKILL.read_text(encoding="utf-8")
     fence = _instance_brief_fence(text)
-    assert "OPERATION:" in fence and "CALLER_ID" in fence, (
+    assert "OPERATION:" in fence and "WORKTREE_PATH:" in fence, (
         "odoo-instance/SKILL.md: could not locate the dispatch-brief fenced "
         "field block (expected it to start at OPERATION: and include "
-        "CALLER_ID) - the extraction anchor drifted"
+        "WORKTREE_PATH) - the extraction anchor drifted"
     )
 
 
