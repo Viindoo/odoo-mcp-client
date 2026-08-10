@@ -23,13 +23,11 @@ Before launching any agent, look at the launch capability you actually have:
    DEFAULT, preferred shape, including when you yourself are a subagent.
 3. No such switch -> every launch is asynchronous, returning a receipt, not a result: launch, then
    END YOUR TURN. You are parked and resumed when the child completes. Do NOT poll, sleep, or
-   re-launch.
+   re-launch. Scoped to a launched CHILD: a blocking call that RETURNS a verdict inside the one
+   tool call is not a poll.
 
 Rule 3 is unreliable on a non-interactive surface (`-p` / SDK), where nothing resumes a parked
 agent - bound the damage instead: never end a turn with uncommitted work.
-
-Never end silently, on a bare tool call, or on plain text with no report: emit one of the four
-terminal statuses every time.
 
 You are a SPAWNER this turn iff you launched at least one agent (a direct dispatch call) or invoked a
 spawner skill that fans out agents below you. A HARD LEAF that launched nothing is vacuously compliant

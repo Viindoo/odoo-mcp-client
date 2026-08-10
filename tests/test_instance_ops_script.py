@@ -2458,3 +2458,103 @@ def test_retention_sweep_is_skipped_when_the_lease_registry_is_unreadable(tmp_pa
         )
     finally:
         registry.chmod(0o644)
+
+
+# ---------------------------------------------------------------------------
+# wait-log's default bound must not race the harness's per-call ceiling
+#
+# A default EQUAL to the tool ceiling is a trap: when the harness wins the race
+# the call returns NO `BUILD_RESULT=` line, the caller has nothing to check, and
+# it reports "still waiting" - the exact idle-stall this active-wait mechanism
+# exists to prevent. Asserted as a RELATIONSHIP between the two declared
+# constants, never against the literal 570, so raising or lowering the ceiling
+# shows up here as a visible failure instead of silently becoming wrong again.
+# ---------------------------------------------------------------------------
+def _sh_constant(name: str) -> int:
+    """Read an integer constant from 55-instance-ops.sh by name."""
+    import re
+    src = STEP55.read_text(encoding="utf-8")
+    m = re.search(rf"^{re.escape(name)}=(\d+)\s*$", src, re.M)
+    assert m, f"{name} must be declared as a bare integer constant in 55-instance-ops.sh"
+    return int(m.group(1))
+
+
+def test_wait_log_default_timeout_stays_below_the_tool_call_ceiling():
+    default_s = _sh_constant("_WAIT_LOG_DEFAULT_TIMEOUT_S")
+    ceiling_s = _sh_constant("_TOOL_CALL_CEILING_S")
+    assert default_s < ceiling_s, (
+        f"wait-log's default bound ({default_s}s) must be strictly BELOW the "
+        f"per-call tool ceiling ({ceiling_s}s). At or above it, the harness can cut "
+        "the call off before any BUILD_RESULT= line is printed, leaving the caller "
+        "with nothing to check - an idle stall by construction."
+    )
+    assert ceiling_s - default_s >= 15, (
+        f"leave real headroom: {ceiling_s - default_s}s between the default bound and "
+        "the ceiling is not enough to print the verdict and return"
+    )
+
+
+def test_wait_log_uses_the_declared_default_not_a_hardcoded_number():
+    """The constant must actually REACH cmd_wait_log. A constant that is declared
+    and never read is this repo's most common defect shape - the guard above would
+    then pass while the real default stayed at the ceiling."""
+    import re
+    src = STEP55.read_text(encoding="utf-8")
+    m = re.search(r"local logf=\"\" timeout=(\S+) interval=", src)
+    assert m, "cmd_wait_log's option defaults line was not found"
+    assert m.group(1) == '"$_WAIT_LOG_DEFAULT_TIMEOUT_S"', (
+        f"cmd_wait_log must default to the declared constant, not the literal "
+        f"{m.group(1)} - two sources for one number is how it drifted to the ceiling"
+    )
+
+
+@requires_bash
+def test_wait_log_always_prints_a_build_result_within_its_bound(tmp_path):
+    """The behavior the bound protects: a wait that reaches its timeout STILL emits
+    a terminal `BUILD_RESULT=` line (and a non-zero exit), so the caller always has
+    something to act on rather than an empty response."""
+    logf = tmp_path / "build.log"
+    logf.write_text("Loading module x\n", encoding="utf-8")  # no terminal marker
+    res = _run("wait-log", "--log", str(logf), "--timeout", "1", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode != 0, "a timed-out wait must exit non-zero"
+    assert "BUILD_RESULT=timeout" in res.stdout, (
+        f"a bounded wait must ALWAYS print a terminal BUILD_RESULT line; got {res.stdout!r}"
+    )
+
+
+def test_drop_threads_odoo_root_to_odoo_db_py(tmp_path):
+    """A source checkout is not pip-installed, so `import odoo` resolves only with
+    the repo root on sys.path - which is the ONLY reason odoo-bin works. Without
+    this passthrough every through-Odoo drop on a source instance exits 10 and the
+    caller takes a raw-client fallback it should never have needed."""
+    log = tmp_path / "odoo-db-argv.log"
+    py_dir = tmp_path / "logpy"
+    py_dir.mkdir()
+    fake_py = py_dir / "python"
+    _write_stub(fake_py, f'echo "$@" >> "{log}"\nexit 0\n')
+
+    res = _run(
+        "drop", "--db", "dropme", "--python", str(fake_py),
+        "--db-host", "pghost", "--odoo-root", "/srv/core",
+        env=_base_env(tmp_path),
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    argv = log.read_text(encoding="utf-8")
+    assert "--odoo-root /srv/core" in argv, (
+        f"drop must thread --odoo-root through to odoo_db.py: {argv}"
+    )
+
+
+def test_drop_omits_odoo_root_when_not_declared(tmp_path):
+    """Absent stays absent: an undeclared odoo_root must not be fabricated into a
+    guessed path, which would put the WRONG checkout on sys.path."""
+    log = tmp_path / "odoo-db-argv.log"
+    py_dir = tmp_path / "logpy"
+    py_dir.mkdir()
+    fake_py = py_dir / "python"
+    _write_stub(fake_py, f'echo "$@" >> "{log}"\nexit 0\n')
+
+    res = _run("drop", "--db", "dropme", "--python", str(fake_py), env=_base_env(tmp_path))
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "--odoo-root" not in log.read_text(encoding="utf-8")

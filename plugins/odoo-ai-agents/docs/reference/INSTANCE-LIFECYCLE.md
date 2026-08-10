@@ -65,7 +65,9 @@
    Do not hardcode one version's CLI for another.
    **Venv probe gate:** verify the venv by running `odoo-bin --version` (not `import odoo`);
    a bare `import odoo` fails on source-only checkouts and is unreliable on Odoo 19 namespace
-   packages. The `python` field is only recorded on `[[instance]]` after this gate passes.
+   packages. Step 45 records `python` on `[[instance]]` only after this gate passes, alongside
+   `odoo_root` (the checkout root that makes `import odoo` resolve) and the Postgres client
+   surface `db_run_mode` (+ `db_container` in docker mode).
 3. **Classify the change** (decision tree above) → choose `-i` / `-u` / restart-only /
    drop+recreate, and state the classification before acting.
 4. **Generalize the environment** - read addons-path, port, DB name, data dir from the
@@ -192,12 +194,13 @@ contract's ownership matrix or DONE-gate wording.**
   missed:
   1. **Prose release** - the agent releases its own lease as the normal, graceful path (this doc's
      checklists + `resource-teardown-contract.md` T1/T3).
-  2. **`SubagentStop` hard block** (`hooks/enforce-teardown.sh`) - the one hard-blocking gate in
-     the system: it fires only on a live, non-shared lease that the SUBAGENT ITSELF provisioned
-     (correlated from its own `acquire`/`bind`/`heartbeat` `--run-id`) at a `status: DONE` claim,
-     and refuses the DONE until it is released or explicitly handed off. Browser findings are
-     ADVISORY only (never block) on both `SubagentStop` and `Stop` - the asymmetry is intentional,
-     see `resource-teardown-contract.md` "Why browsers and instances are enforced differently".
+  2. **`SubagentStop` hard block** (`hooks/enforce-teardown.sh`) - the one hard-blocking gate:
+     it fires only on a live, non-shared lease that the SUBAGENT ITSELF provisioned (correlated
+     from its own `acquire`/`bind`/`heartbeat` `--run-id`), at any turn end but a
+     `BLOCKED`/`NEEDS_CONTEXT` report or a T4 named handoff, refusing it until the lease is
+     released or handed off. Browser findings are ADVISORY only (never block) on both
+     `SubagentStop` and `Stop` - see `resource-teardown-contract.md` "Why browsers and instances
+     are enforced differently".
   3. **`SessionEnd` crash backstop** (`hooks/session-end-gc.sh`) - runs `allocator.py gc`
      unconditionally when the session ends, silent and bounded, so a killed/OOM'd session (no DONE
      claim, no hook 2 trigger) gets its orphaned server group-stopped and its ephemeral DB dropped

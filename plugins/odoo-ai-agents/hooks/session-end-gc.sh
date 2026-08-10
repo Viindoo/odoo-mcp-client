@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # session-end-gc.sh - SessionEnd crash backstop for the resource-teardown mechanism (L1.3).
 #
-# WHY: a -9 / OOM / abort runs no teardown prose and emits no DONE claim, so the
-# DONE-gated SubagentStop teardown gate self-passes and never fires. An orphaned
+# WHY: a -9 / OOM / abort kills the run without executing SubagentStop or Stop at
+# all, so the teardown gate never gets the chance to fire. An orphaned
 # `odoo-bin` master + its Postgres backend then survive the WHOLE Claude session
 # (unlike browser pages, which die with the session's MCP server process). This
 # hook is the crash-time trigger for the allocator's gc: after L1.2, gc
@@ -77,8 +77,8 @@
 #   reviews it and runs `allocator.py reap-orphans --yes` explicitly, elsewhere.
 #
 # This is one link in the teardown chain: prose release (graceful) -> SubagentStop
-# block (a lying DONE) -> SessionEnd gc + reap-orphans-list (session death) ->
-# next-acquire gc / ttl / a human's explicit reap-orphans --yes.
+# block (an unforwarded live lease) -> SessionEnd gc + reap-orphans-list (session
+# death) -> next-acquire gc / ttl / a human's explicit reap-orphans --yes.
 
 set -uo pipefail
 

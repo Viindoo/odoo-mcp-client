@@ -33,15 +33,14 @@ leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline l
 mandatory for a leaf caller, not a judgment call. For a spawner/coordinator/skill caller, provision
 the way that fits the caller's context - run the ops steps INLINE in the caller's own context (see
 "Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per "Brief shape" below; this
-skill is the component that owns launching that agent - the agent-launch path is available only to
-spawner/coordinator/skill callers, never to a hard-leaf caller. However the
+skill is the component that owns launching that agent. However the
 operation is carried out, the SAME HARD RULES apply - the inline path is not a bypass. A provided
 `INSTANCE_HANDLE` ALWAYS wins over self-provisioning either way (contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`), and neither path ever calls
 `scripts/lib/allocator.py` directly - that would skip the HARD RULES this skill enforces.
 
-Instance-ops work does not vary by domain complexity: the `odoo-instance-ops` agent runs at a flat
-`sonnet` tier when launched - there is deliberately NO per-operation model-tier table to drift.
+The `odoo-instance-ops` agent runs at a flat `sonnet` tier when launched - there is no
+per-operation model-tier table.
 
 ## Dispatch
 
@@ -51,7 +50,7 @@ When invoked, gather the following from the caller's request:
 |-----------|----------------|
 | `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
-| `persist` | `ephemeral` / `exclusive-running` / `shared-running` (default `ephemeral`) - the instance lifetime + isolation `create` needs: `ephemeral` = throwaway mutation build (`--stop-after-init`, unique db, no listening port); `exclusive-running` = a live, listening instance that is MINE (unique db + an allocator-issued pooled port + my `run_id` recorded as lease owner - use for mutating work that must stay up; never converges on `8069`); `shared-running` = attach to / register the SHARED read-only render target for this series (still owner-stamped with `run_id` so it cannot be foreign-bare-dropped). The judgment call: will the caller MUTATE and need the process to stay listening (`exclusive-running`) vs a read-only view of the shared target (`shared-running`) vs a throwaway build with no listener (`ephemeral`) |
+| `persist` | `ephemeral` / `exclusive-running` / `shared-running` (default `ephemeral`) - the instance lifetime + isolation `create` needs: `ephemeral` = throwaway mutation build (`--stop-after-init`, unique db, no listening port); `exclusive-running` = a live, listening instance that is MINE (unique db + an allocator-issued pooled port + my `run_id` recorded as lease owner - use for mutating work that must stay up; never converges on `8069`); `shared-running` = attach to / register the SHARED read-only render target for this series (still owner-stamped with `run_id` so it cannot be foreign-bare-dropped) |
 | `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
 | `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
@@ -93,29 +92,25 @@ the brief's extra flags, which is placed after the default and therefore wins. T
 
 **Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
 longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
-build in the background and poll `LOG_PATH` to a TERMINAL marker - for init/update, the ONLY success
-marker is `Modules loaded.` present AND no failure marker (matching the script's own
-`_install_confirmed` verdict, SSOT-shared with the `wait-log` helper's `_scan_build_markers`;
-`loading <N> modules...` / exit 0 / `Initiating shutdown` are progress signals only, never
-independently sufficient for success); failure: `Traceback` / ` CRITICAL ` / ` ERROR ` / `Failed to load registry` /
-the silent-skip markers (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet
-dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=` (`inconclusive` is a terminal marker like any other, never a stall). Emit a heartbeat between
-polls; the exit code stays authoritative for FAILURE (never let a marker override a non-zero exit)
-while the completion marker is still required for SUCCESS - never idle-stalling or returning before a
-terminal marker; on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
+build in the background, capture `LOG_PATH`, then BLOCK in the FOREGROUND on
+`55-instance-ops.sh wait-log --log "<LOG_PATH>"` as its VERY NEXT tool call - never backgrounding
+that call, and never ending its turn on a text-only "waiting for the build" reply. The Bash tool's
+generic "you will be notified, do not poll" default is explicitly OVERRIDDEN for this one call: it
+blocks and RETURNS `BUILD_RESULT=success|failure|timeout`, and no notification resumes a dispatched
+agent's ended turn. `timeout` -> re-invoke the same foreground call while `BUILD_MARKER` advances,
+else `BLOCKED` with `LOG_PATH` preserved. The exit code stays authoritative for FAILURE while the
+`Modules loaded.` completion marker is still required for SUCCESS; run-tests reuses `TEST_RESULT=`.
+Full contract (markers, heartbeat, reaped-launcher rule):
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
 
-**Readiness/completion signal is DETERMINISTIC, never a log tail.** Two different, deterministic
-signals apply, one per job shape: an install/update job's DONE signal is the launched process
-EXITING (`--stop-after-init` guarantees this), confirmed by exit 0 AND a forced completion marker
-(`Modules loaded.`, kept on the log at any caller-chosen level via
-`--log-handler=<ns>.modules.loading:INFO`, `<ns>` = `openerp` v8-v9 / `odoo` v10+) AND the absence
-of any failure marker - exit 0 ALONE is NOT proof of install (a bad module name, an unresolved
-dependency, or a failed demo load can all exit 0 while silently skipping the install). A LISTENING
-instance's READY signal is a BOUNDED-timeout HTTP port poll - primary `/web/database/selector`,
-fallback `/web/login` - never a log line. Full contract:
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Deterministic completion contract" and
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` item 14.
+**Readiness/completion signal is DETERMINISTIC, never a log tail.** One signal per job shape. An
+install/update job is DONE when the launched process EXITS (`--stop-after-init` guarantees this),
+confirmed by exit 0 AND the forced `Modules loaded.` completion marker AND no failure marker - exit
+0 ALONE is NOT proof of install (a bad module name, an unresolved dependency, or a failed demo load
+can each exit 0 while silently skipping it). A LISTENING instance is READY on a BOUNDED-timeout HTTP
+port poll - primary `/web/database/selector`, fallback `/web/login` - never a log line. Full
+contract: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Deterministic completion contract"
+and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` item 14.
 
 **`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
 base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate
@@ -135,8 +130,7 @@ dispatched `odoo-instance-ops` agent then PINS that profile (`set_active_profile
 absent `PROFILE` field is what triggers the agent's own vanilla-profile resolution) and performs two further DATA-DRIVEN unions
 before building the `odoo-bin` command, on top of the `en_US` union above:
 - **Viindoo `to_base` on `--load`.** Callers pass nothing extra for this one - it is unconditional
-  for every `create`/`init`/`update`/`run-tests` build, by design (R7's scope is lint-class gates
-  only, never `to_base`). The agent pins the resolved profile (brief `PROFILE`, or the series'
+  for every `create`/`init`/`update`/`run-tests` build. The agent pins the resolved profile (brief `PROFILE`, or the series'
   vanilla profile when absent, or `NEEDS_CONTEXT`) then checks it for `to_base`; when present, it
   unions `to_base` into the server-wide `--load` list (never as an ordinary `-i`) - see
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Server-wide modules (`--load`) - Viindoo
@@ -150,15 +144,13 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
   module at all - a `test_lint`/`test_pylint` violation in that dispatch's own module is caught
   ONLY at the run's designated pre-PR gate, never as a per-module `tests-failed` blocker. A
   `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved refuses with
-  `NEEDS_CONTEXT` rather than guess either way (installing would silently reinstate a per-wave lint
-  gate; skipping could silently produce a false-green pre-PR gate). Full contract:
+  `NEEDS_CONTEXT` rather than guess either way. Full contract:
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY for the
   designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
-  Installing and tagging these modules is not the same as proving their checkers actually ran - a
-  clean counter set on a `pre-pr-lint-gate` dispatch is NOT automatically `tests-passed` until the
-  agent's own checker-load coverage confirmation clears too; this skill does not restate that
-  decidable rule (SSOT stays in `agents/odoo-instance-ops.md` "Checker-load coverage confirmation").
+  Installing and tagging them is not proof their checkers ran: a clean counter set on a
+  `pre-pr-lint-gate` dispatch is NOT `tests-passed` until the agent's own coverage confirmation
+  clears too (SSOT: `agents/odoo-instance-ops.md` "Checker-load coverage confirmation").
 
 **Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
 reads no config file, the generated-conf path is a unique temp file per run; see
@@ -200,12 +192,9 @@ WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent's own
 ```
 
 `INSTANCE_RESOLUTION`, `ALLOCATOR`, and `OSM_GROUNDING` are deliberately NOT brief fields: the
-dispatched `odoo-instance-ops` agent's own "Common preamble" (Steps A-D) and its per-version
-port-flag tie-break HARD RULE already own that procedure end to end, keyed off `SERIES`/`PERSIST`/
-`RUN_ID`/`WORKTREE_PATH` above - restating "follow `instance-resolution.md`" or the acquire-mode
-decision table here would be a hidden sub-task duplicating what the agent's own body already does,
-never a resolved value this skill could supply ahead of the agent's live `cli_help`/`allocator.py`
-calls.
+dispatched agent's own "Common preamble" (Steps A-D) and port-flag tie-break own that procedure end
+to end, keyed off `SERIES`/`PERSIST`/`RUN_ID`/`WORKTREE_PATH` above. Never add a field whose value is
+a procedure to follow rather than a value this skill already resolved.
 
 ### WORKTREE_PATH substitution (mechanical - run before `acquire`, never edit the catalog)
 
@@ -254,7 +243,7 @@ skipped: <n or null>          # run-tests only; from TEST_SKIPPED=
 findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
 status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings|tests-inconclusive|tests-failed|BLOCKED|NEEDS_CONTEXT>
-notes: <short human-readable summary or error>
+notes: <short human-readable summary or error; run-tests: ALWAYS carries the scope figures + any out-of-scope verdict, see below>
 ```
 
 This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the orchestrator forwards
@@ -266,6 +255,15 @@ port under the right owner. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-h
 
 On `status: NEEDS_CONTEXT`, surface its `blocked_reason` and stop - do not retry without the missing
 information.
+
+**Scope transparency on every `run-tests` relay.** `auto_install` fan-out makes a run install and
+test far more modules than `modules` names, so a per-module verdict can be decided by tests the
+dispatch was not verifying. NEVER narrow the run to hide that - never add a `test_tags` or
+`skip_auto_install` the caller did not ask for, because suppressing tests manufactures a false
+green. Relay instead, verbatim in `notes`, the agent's scope figures (modules actually loaded, tests
+actually run) and its statement of any verdict decided by tests OUTSIDE the module under
+verification; never summarize them away, and never report an out-of-scope `tests-failed` as this
+module's own regression. SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Scope transparency.
 
 ### Inline leaf-mode (dispatched leaf / subagent self-provision)
 
@@ -303,7 +301,8 @@ them here):
    profile-less.
 4. **Run the operation** via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`
    (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
-   contract above (background launch + poll `LOG_PATH` to a terminal marker; never idle-stall).
+   contract above - background launch, then a FOREGROUND `wait-log --log "<LOG_PATH>"` as the very
+   next tool call; never idle-stall, and report the same run-tests scope figures.
 5. **Release** the lease when done - you release it UNLESS you forward the handle to a NAMED
    catcher in `next.inputs` (`INSTANCE_HANDLE`, naming the skill that needs the live state); an
    unforwarded live lease at your terminal status is a leak, not a valid handoff. Full rule:
