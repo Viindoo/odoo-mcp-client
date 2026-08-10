@@ -72,10 +72,17 @@
 #             non-zero exit on their own. --version picks the era-correct marker
 #             (v8-v13 "Ran <N> tests in <X>s" vs v14+ "<F> failed, <E> error(s) of <T>
 #             tests"); omitted, EITHER wording is accepted.
+#             Also emits MODULES_LOADED=<n> and TESTS_RUN=<n> - the SCOPE the run
+#             actually covered, as machine output rather than something a caller
+#             has to grep for and retype. EMPTY means the log carried no such
+#             marker (unmeasured), never 0. The whole summary block is ALSO
+#             appended to the log, so `wait-log` can surface the verdict.
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U] [--db-port P]
-#             [--run-id ID] [--force]
+#             [--odoo-root R] [--run-id ID] [--force]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
 #             --db-port threads to odoo_db.py when non-empty (empty -> omit).
+#             --odoo-root threads the instance's declared odoo_root the same way:
+#             a source checkout needs it for `import odoo` to resolve at all.
 #             Unless --force is given, always calls allocator.py assert-droppable first
 #             (with whatever --run-id value the caller has, including an empty one for a
 #             standalone/one-off caller) and refuses a fresh foreign lease (route via
@@ -94,6 +101,11 @@
 # Full policy (why both mechanisms, the v12.0 enforcement boundary, the
 # uncapped escape hatch): snippets/odoo-bin-resource-limits.md.
 #   wait-log --log <logf> [--timeout <secs>] [--interval <secs>]
+#             Blocks in the FOREGROUND until a terminal marker appears or the
+#             bound elapses, then prints BUILD_RESULT=success|failure|timeout.
+#             The DEFAULT bound is deliberately below the harness's per-call
+#             ceiling (see _WAIT_LOG_DEFAULT_TIMEOUT_S) so ONE call always
+#             returns a verdict; for a longer build, re-invoke it.
 #             Deterministic build-completion detector for a build launched in the
 #             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
 #             so the caller (odoo-instance-ops agent) never idle-stalls on a long
@@ -102,12 +114,23 @@
 #             LOG_PATH=<logf>. Exit 0 (success), 1 (failure), 2 (timeout). The build's
 #             own exit code stays authoritative; this is a completion + diagnostics
 #             signal, NOT the running-server readiness probe (that is 50-instance-spinup.sh's
-#             HTTP-200 probe). Markers are version-stable v8-v19. BUILD_RESULT=success/failure
-#             share the SAME "Modules loaded." success marker and silent-skip failure-marker
-#             regex as _install_confirmed (SSOT constants below) - so this background verdict
-#             can NEVER disagree with the init/update script's own STATUS=ok|error line; a log
-#             showing both "Modules loaded." and a silent-skip marker (e.g. "invalid module
-#             names, ignored") reports BUILD_RESULT=failure, never success.
+#             HTTP-200 probe). Markers are version-stable v8-v19.
+#             The terminal predicate is resolved from the log's OWN run-verb stamp
+#             (_RUN_VERB_STAMP, written by _open_log):
+#               init/update - "Modules loaded." plus the silent-skip failure-marker
+#                 regex, the SAME SSOT constants _install_confirmed applies, so this
+#                 background verdict can NEVER disagree with the script's own
+#                 STATUS=ok|error line; a log showing both "Modules loaded." and a
+#                 silent-skip marker (e.g. "invalid module names, ignored") reports
+#                 BUILD_RESULT=failure, never success.
+#               test - the run's own TEST_RESULT= line (appended to the log by the
+#                 `test` verb, and echoed back here) or, before that lands, the
+#                 era-correct "the suite ran" marker; the failure set additionally
+#                 unions _TEST_FAIL_RE. "Modules loaded." is only PROGRESS for a
+#                 test run: Odoo logs it before the post-install suite starts, so
+#                 certifying there would stop the wait while the tests have not
+#                 begun. BUILD_RESULT answers "has it finished"; TEST_RESULT (echoed
+#                 when the log carries it) is the pass/fail verdict.
 #
 # LOG convention (mirrors 50-instance-spinup.sh):
 #   Dir:  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
@@ -115,6 +138,9 @@
 #     ONLY in the HOME fallback so the path is consistent with allocator.py _home().
 #   File: <db>-<UTC-ts>.log  (e.g. mydb-20260620T153012Z.log)
 #   Line: LOG_PATH=<absolute-path>   (parseable; one per operation)
+#   The log's FIRST line is the run-verb stamp (_RUN_VERB_STAMP=<verb> SERIES=<X.Y>),
+#   which is what lets `wait-log` pick the era- and verb-correct terminal predicate
+#   from the log alone. Every writer APPENDS after that line.
 #
 # STATUS line:  STATUS=ok|error        (parseable; always emitted)
 # TEST_RESULT:  TEST_RESULT=passed|failed|inconclusive  (parseable; only for `test` verb;
@@ -124,6 +150,8 @@
 #               have run; NEVER reported as a bare `passed`)
 # TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n> TEST_SKIPPED=<n>
 #               (parseable; `test` verb only; best-effort from the log)
+# TEST scope:   MODULES_LOADED=<n> TESTS_RUN=<n>  (parseable; `test` verb only;
+#               EMPTY when the log carries no marker for it - unmeasured, not zero)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
 #               holding the FAIL/ERROR test names + traceback heads, the WARNING lines
 #               (in-scope warnings - mentioning a --modules name - listed separately),
@@ -312,6 +340,39 @@ _TEST_RAN_MODERN_RE='[0-9]+ failed, [0-9]+ error\(s\) of [1-9][0-9]* tests'
 #   Series unknown (--version omitted) -> accept EITHER, so a missing series
 #   degrades to permissive, never to a false `inconclusive`.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# _modules_loaded_count <logf> - how many modules the run actually loaded, from
+#   `loading <N> modules...` (INFO, byte-identical v8-v19). Prints NOTHING when
+#   the log carries no such line: "not measurable" is a different fact from 0.
+# ---------------------------------------------------------------------------
+_modules_loaded_count() {
+    local logf="$1" line
+    line="$(grep -aoE 'loading [0-9]+ modules\.\.\.' "$logf" 2>/dev/null | tail -n 1 || true)"
+    [[ -n "$line" ]] || return 0
+    printf '%s\n' "$line" | grep -oE '[0-9]+' | head -n 1
+}
+
+# ---------------------------------------------------------------------------
+# _tests_run_count <logf> [version] - how many tests actually RAN, summed over
+#   every era-correct ran-marker in the log (SSOT: _test_ran_re). Both eras put
+#   the total in the marker's LAST integer ("Ran <N> tests in", "<F> failed, <E>
+#   error(s) of <T> tests"). Prints NOTHING when no marker is present: a run
+#   whose tag filter matched nothing is UNMEASURED, not zero.
+# ---------------------------------------------------------------------------
+_tests_run_count() {
+    local logf="$1" version="${2:-}"
+    local total=0 hit=0 line n
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        n="$(printf '%s\n' "$line" | grep -oE '[0-9]+' | tail -n 1)"
+        [[ -n "$n" ]] || continue
+        total=$(( total + n ))
+        hit=1
+    done < <(grep -aoE "$(_test_ran_re "$version")" "$logf" 2>/dev/null || true)
+    [[ "$hit" -eq 1 ]] && printf '%s\n' "$total"
+    return 0
+}
+
 _test_ran_re() {
     local major
     major="$(_series_major "${1:-}")"
@@ -355,6 +416,18 @@ _install_confirmed() {
 # wanted.
 # ---------------------------------------------------------------------------
 _LOG_RETENTION_DAYS=14
+
+# The agent harness's per-call Bash-tool ceiling, in seconds (600000 ms).
+# SSOT for the relationship below - a future ceiling change edits this line.
+_TOOL_CALL_CEILING_S=600
+# wait-log's DEFAULT bound. It MUST stay strictly BELOW _TOOL_CALL_CEILING_S:
+# a default EQUAL to the ceiling races the harness, and when the harness wins the
+# call returns NO `BUILD_RESULT=` line at all - the caller then has nothing to
+# check and reports "still waiting", which is exactly the idle-stall this
+# active-wait mechanism exists to prevent. Below the ceiling, one call ALWAYS
+# returns a verdict (success | failure | timeout), and a build that legitimately
+# needs longer is handled by re-invoking wait-log, not by a longer default.
+_WAIT_LOG_DEFAULT_TIMEOUT_S=570
 
 # ---------------------------------------------------------------------------
 # _leased_db_names - every db_name the allocator lease registry references
@@ -422,10 +495,47 @@ _prune_stale_logs() {
 }
 
 # ---------------------------------------------------------------------------
-# _open_log - set $logf, mkdir, prune stale runs, emit LOG_PATH=
+# Run-verb stamp - the FIRST line of every log this script opens.
+#
+# `wait-log` runs in a DIFFERENT process from the build it waits on - usually a
+# different agent turn - so the log is the only thing it can read, and the
+# terminal predicate DIFFERS by verb: "Modules loaded." IS completion for an
+# install/update build, but on a test run Odoo logs it BEFORE the post-install
+# suite starts (loading.py logs it; the post_install position is launched later,
+# from the server's preload path). Stamping the log makes it SELF-DESCRIBING, so
+# the predicate is resolved from the log itself and no caller can pick the wrong
+# one by forgetting a flag.
+_RUN_VERB_STAMP='ODOO_AI_RUN_VERB'
+
+# ---------------------------------------------------------------------------
+# _log_stamp_field <logf> <VERB|SERIES> - read one field of the run-verb stamp.
+#   Empty when the log carries no stamp (a log from an older run): the caller
+#   then behaves exactly as it did before the stamp existed.
+# ---------------------------------------------------------------------------
+_log_stamp_field() {
+    local logf="$1" field="$2" line=""
+    line="$(grep -aE "^${_RUN_VERB_STAMP}=" "$logf" 2>/dev/null | head -n 1 || true)"
+    [[ -n "$line" ]] || return 0
+    case "$field" in
+        VERB)
+            line="${line#"${_RUN_VERB_STAMP}"=}"
+            printf '%s\n' "${line%% *}" ;;
+        SERIES)
+            [[ "$line" == *" SERIES="* ]] || return 0
+            line="${line##* SERIES=}"
+            printf '%s\n' "${line%% *}" ;;
+    esac
+}
+
+# ---------------------------------------------------------------------------
+# _open_log <db_slug> [verb] [version]
+#   set $logf, mkdir, prune stale runs, write the run-verb stamp, emit LOG_PATH=
+#   The stamp is written HERE, at the single place that owns the log file, so a
+#   future verb cannot forget it. Every caller appends (>>) to $logf afterwards -
+#   a truncating redirect would wipe the stamp.
 # ---------------------------------------------------------------------------
 _open_log() {
-    local db_slug="$1"
+    local db_slug="$1" verb="${2:-}" version="${3:-}"
     local logs_dir
     logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
     mkdir -p "$logs_dir"
@@ -433,6 +543,7 @@ _open_log() {
     local ts
     ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
     logf="$logs_dir/${db_slug}-${ts}.log"
+    printf '%s=%s SERIES=%s\n' "$_RUN_VERB_STAMP" "$verb" "$version" >"$logf"
     echo "LOG_PATH=$logf"
 }
 
@@ -570,6 +681,14 @@ _parse_test_result() {
     echo "TEST_WARNING=$n_warn"
     echo "TEST_SKIPPED=$n_skip"
     echo "FINDINGS_PATH=$findings"
+    # SCOPE the run actually covered, as machine output. The alternative is an
+    # agent hand-running two greps and hand-writing both figures into free text -
+    # the same discretion that produced the original silent cover-up. An EMPTY
+    # value means "no marker in the log", never 0: a tag filter that matched
+    # nothing leaves the count unmeasured, and reporting that as zero would be a
+    # fabricated fact rather than an absent one.
+    echo "MODULES_LOADED=$(_modules_loaded_count "$logf")"
+    echo "TESTS_RUN=$(_tests_run_count "$logf" "${arg_version:-}")"
 
     # --- Pass/fail verdict (unchanged decision logic, plus the skip branch) ---
     if [[ "$exit_code" -ne 0 ]]; then
@@ -645,11 +764,22 @@ _scan_build_markers() {
     local logf="$1"
     [[ -f "$logf" ]] || return 2
 
+    # The VERB decides the terminal predicate, read from the log's own run-verb
+    # stamp (_open_log) so this works in a process that knows nothing else about
+    # the run. An unstamped log (an older run) resolves to the install predicate -
+    # exactly the pre-stamp behavior.
+    local verb series
+    verb="$(_log_stamp_field "$logf" VERB)"
+    series="$(_log_stamp_field "$logf" SERIES)"
+
     # FAILURE first - a failure marker anywhere means the build did not succeed,
     # even if an earlier line looked like progress. _INSTALL_FAIL_RE (SSOT,
     # shared with _install_confirmed) is unioned with broader generic build-
-    # failure signals below.
+    # failure signals below; a TEST run adds the test-failure marker set (SSOT:
+    # _TEST_FAIL_RE, shared with _parse_test_result) so a suite that failed can
+    # never be reported as a successful build.
     local fail_re="${_INSTALL_FAIL_RE}|[[:space:]]ERROR[[:space:]]|Failed to load registry|psycopg2\.|ParseError"
+    [[ "$verb" == "test" ]] && fail_re="${fail_re}|${_TEST_FAIL_RE}"
     local fail_line
     fail_line="$(grep -aE "$fail_re" "$logf" 2>/dev/null | head -n 1 || true)"
     if [[ -n "$fail_line" ]]; then
@@ -657,21 +787,52 @@ _scan_build_markers() {
         return 1
     fi
 
-    # SUCCESS - the SAME completion marker _install_confirmed requires (SSOT:
-    # _INSTALL_SUCCESS_MARKER). Never treat a progress line or "Initiating
-    # shutdown" alone as success - see docstring above.
-    local ok_line
-    ok_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
-    if [[ -n "$ok_line" ]]; then
-        echo "BUILD_MARKER=$ok_line"
-        return 0
+    if [[ "$verb" == "test" ]]; then
+        # A test run's OWN verdict line, appended to the log by cmd_test when the
+        # run finished, is the strongest terminal signal there is - and echoing it
+        # is what puts TEST_RESULT within reach of a polling caller at all.
+        local verdict
+        verdict="$(grep -aE '^TEST_RESULT=' "$logf" 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$verdict" ]]; then
+            echo "BUILD_MARKER=$verdict"
+            printf '%s\n' "$verdict"
+            return 0
+        fi
+        # Otherwise the era-correct POSITIVE "the suite ran" marker (SSOT:
+        # _test_ran_re - v8-v13 runner trailer, v14+ per-database summary).
+        # "Modules loaded." is NOT terminal here: Odoo logs it BEFORE the
+        # post-install suite starts, so certifying there stops the wait while the
+        # tests have not begun.
+        local ran_line
+        ran_line="$(grep -aE "$(_test_ran_re "$series")" "$logf" 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$ran_line" ]]; then
+            echo "BUILD_MARKER=$ran_line"
+            return 0
+        fi
+    else
+        # SUCCESS - the SAME completion marker _install_confirmed requires (SSOT:
+        # _INSTALL_SUCCESS_MARKER). Never treat a progress line or "Initiating
+        # shutdown" alone as success - see docstring above.
+        local ok_line
+        ok_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$ok_line" ]]; then
+            echo "BUILD_MARKER=$ok_line"
+            return 0
+        fi
     fi
 
     # PROGRESS (never terminal, never success) - `loading <N> modules...` is
     # INFO and byte-identical v8-v19, so an in-flight poll reports real forward
-    # progress instead of an empty marker on every series.
-    local prog_line
-    prog_line="$(grep -aE 'loading [0-9]+ modules\.\.\.' "$logf" 2>/dev/null | tail -n 1 || true)"
+    # progress instead of an empty marker on every series. For a test run
+    # "Modules loaded." is the LATER of the two progress signals: the modules are
+    # in, the suite has not finished.
+    local prog_line=""
+    if [[ "$verb" == "test" ]]; then
+        prog_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
+    fi
+    if [[ -z "$prog_line" ]]; then
+        prog_line="$(grep -aE 'loading [0-9]+ modules\.\.\.' "$logf" 2>/dev/null | tail -n 1 || true)"
+    fi
     [[ -n "$prog_line" ]] && echo "BUILD_MARKER=$prog_line"
     return 2
 }
@@ -680,7 +841,7 @@ _scan_build_markers() {
 # cmd_wait_log - bounded poll of a build log for a terminal marker.
 # ---------------------------------------------------------------------------
 cmd_wait_log() {
-    local logf="" timeout=600 interval=5
+    local logf="" timeout="$_WAIT_LOG_DEFAULT_TIMEOUT_S" interval=5
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --log)
@@ -832,7 +993,7 @@ cmd_init() {
     _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
-    _open_log "$arg_db"
+    _open_log "$arg_db" init "${arg_version:-}"
 
     # arg_addons is SSOT-normalized (tolerates a stray legacy colon; every
     # real producer already emits pure comma) - see _addons_csv_from.
@@ -900,7 +1061,7 @@ cmd_init() {
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
-    ) >"$logf" 2>&1 || rc=$?
+    ) >>"$logf" 2>&1 || rc=$?
 
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
@@ -933,7 +1094,7 @@ cmd_update() {
     _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
-    _open_log "$arg_db"
+    _open_log "$arg_db" update "${arg_version:-}"
 
     # arg_addons is SSOT-normalized (tolerates a stray legacy colon; every
     # real producer already emits pure comma) - see _addons_csv_from.
@@ -980,7 +1141,7 @@ cmd_update() {
             --log-handler="${log_ns}.modules.loading:INFO" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
-    ) >"$logf" 2>&1 || rc=$?
+    ) >>"$logf" 2>&1 || rc=$?
 
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
@@ -1016,7 +1177,7 @@ cmd_test() {
     _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
-    _open_log "$arg_db"
+    _open_log "$arg_db" test "${arg_version:-}"
 
     local test_tags_args=()
     if [[ -n "${arg_test_tags:-}" ]]; then
@@ -1076,9 +1237,17 @@ cmd_test() {
             "${log_flag_args[@]}" \
             --limit-memory-hard="$_lim_bytes" \
             ${arg_extra}
-    ) >"$logf" 2>&1 || rc=$?
+    ) >>"$logf" 2>&1 || rc=$?
 
-    _parse_test_result "$rc"
+    # The summary goes to stdout AND into the log. `wait-log` reads nothing but
+    # the log, so a verdict that only ever reaches stdout is unreachable by
+    # construction - a polling caller could never be shown the TEST_RESULT it is
+    # waiting for. Captured first, then written to both, so the appended lines
+    # cannot be re-read by the greps that produced them.
+    local _test_summary
+    _test_summary="$(_parse_test_result "$rc")"
+    printf '%s\n' "$_test_summary"
+    printf '%s\n' "$_test_summary" >>"$logf"
 
     if [[ "$rc" -eq 0 ]]; then
         echo "STATUS=ok"
@@ -1102,9 +1271,10 @@ cmd_test() {
 # ---------------------------------------------------------------------------
 cmd_drop() {
     local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_db_port="" arg_run_id="" arg_force=""
+    local arg_odoo_root=""
 
     # Parse drop-specific args (subset of common + optional db-host/db-user/db-port
-    # + ownership guard --run-id/--force).
+    # + odoo-root + ownership guard --run-id/--force).
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --db)
@@ -1122,6 +1292,9 @@ cmd_drop() {
             --db-port)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-port requires a value" >&2; exit 2; }
                 arg_db_port="$2"; shift 2 ;;
+            --odoo-root)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --odoo-root requires a value" >&2; exit 2; }
+                arg_odoo_root="$2"; shift 2 ;;
             --run-id)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --run-id requires a value" >&2; exit 2; }
                 arg_run_id="$2"; shift 2 ;;
@@ -1164,6 +1337,11 @@ cmd_drop() {
     [[ -n "$arg_db_host" ]] && drop_args+=("--db-host" "$arg_db_host")
     [[ -n "$arg_db_user" ]] && drop_args+=("--db-user" "$arg_db_user")
     [[ -n "$arg_db_port" ]] && drop_args+=("--db-port" "$arg_db_port")
+    # --odoo-root makes `import odoo` resolve for a SOURCE checkout (a venv alone
+    # does not - odoo-bin only works because it puts the repo root on sys.path).
+    # Forward the instance's declared odoo_root and exit 10 stops being the
+    # normal outcome of every through-Odoo drop on a source instance.
+    [[ -n "$arg_odoo_root" ]] && drop_args+=("--odoo-root" "$arg_odoo_root")
 
     local rc=0
     "$arg_python" "${drop_args[@]}" || rc=$?

@@ -30,6 +30,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
 MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
+# Postgres client-surface detector + db_run_mode vocabulary SSOT.
+# shellcheck source=../lib/pg_mode.sh
+source "$SCRIPT_DIR/../lib/pg_mode.sh"
 
 # Look up the recommended Python version for an Odoo series (e.g. "17.0").
 # Prints the recommended version or nothing. Data-driven from MATRIX_JSON.
@@ -133,19 +136,62 @@ _ensure_gitignore() {
 }
 
 # ---------------------------------------------------------------------------
+# _toml_escape <value>
+#
+# Encode <value> for a TOML basic string (the `key = "..."` shape below) -
+# SAME escaping order as 45-venv.sh's toml_escape() (backslash FIRST, then
+# quote); do not invent a second scheme. Unescaped, a `"` closes the string
+# early and the whole catalog stops parsing - every instances_io.load_instances
+# consumer (allocator, every setup step, the teardown hook) then fails until a
+# human repairs the file by hand. An unescaped `\` decodes silently WRONG
+# instead (`\t` becomes a TAB) rather than breaking loudly.
+# ---------------------------------------------------------------------------
+_toml_escape() {
+    local v="$1"
+    v="${v//\\/\\\\}"
+    v="${v//\"/\\\"}"
+    printf '%s' "$v"
+}
+
+# ---------------------------------------------------------------------------
 # _write_instance_from_spec  (shared by apply)
 #   $1 = series   $2 = addons_path TOML literal (already quoted, comma-sep)
 #   $3 = http_port  $4 = db_name  $5 = db_host  $6 = db_user  $7 = python
 #   $8 = profile (optional; empty string = no profile)
+#   $9 = db_port (optional; EMPTY = write no db_port line at all - libpq/PGPORT
+#        resolves it. NEVER fabricate 5432.)
 # ---------------------------------------------------------------------------
 _write_instance_from_spec() {
     local ver="$1" paths="$2" port="$3" db_name="$4" db_host="$5" db_user="$6" py="$7"
-    local profile="${8:-}"
+    local profile="${8:-}" db_port="${9:-}"
     local suggested_py pyline profileline instance_key_val match_field match_value out
+    local db_portline="" pg_lines="" _pg_kv
+
+    [[ -n "$db_port" ]] && db_portline=$(printf 'db_port = %s' "$db_port")
+
+    # Postgres client surface (db_run_mode / db_container - vocabulary SSOT:
+    # lib/pg_mode.sh). Detected once, here, from the DECLARED db_port so the
+    # human never types a container name. Undeterminable -> the detector printed
+    # why and NOTHING is written: an absent key is a handled, safe state, and it
+    # must not block declaring an instance that is perfectly usable for
+    # readonly/exclusive. Re-derive later with `45-venv.sh record-env`.
+    local detected="" drc=0
+    detected="$(pg_detect_mode "$db_port")" || drc=$?
+    if [[ "$drc" -eq 0 ]]; then
+        # Split on the FIRST '=' only (mirrors 45-venv.sh's raw.partition("="))
+        # so an '=' inside the value itself is never mistaken for the delimiter.
+        while IFS= read -r _pg_kv; do
+            [[ -n "$_pg_kv" ]] || continue
+            pg_lines+="$(printf '%s = "%s"\n' "${_pg_kv%%=*}" "$(_toml_escape "${_pg_kv#*=}")")"
+        done <<<"$detected"
+    else
+        echo "  db_run_mode was NOT recorded for $ver (see above); run" >&2
+        echo "  '45-venv.sh record-env --series $ver' once resolved." >&2
+    fi
 
     suggested_py="$(_suggested_python "$ver")"
     if [[ -n "$py" ]]; then
-        pyline=$(printf 'python = "%s"' "$py")
+        pyline=$(printf 'python = "%s"' "$(_toml_escape "$py")")
     elif [[ -n "$suggested_py" ]]; then
         pyline=$(printf 'python = ""                     # venv python for source mode; suggested Python for %s: %s' "$ver" "$suggested_py")
     else
@@ -158,7 +204,7 @@ _write_instance_from_spec() {
     # don't conflict and don't dedupe each other.
     if [[ -n "$profile" ]]; then
         instance_key_val="${ver}:${profile}"
-        profileline=$(printf 'profile = "%s"\n' "$profile")
+        profileline=$(printf 'profile = "%s"\n' "$(_toml_escape "$profile")")
         match_field="instance_key"
         match_value="$instance_key_val"
     else
@@ -169,16 +215,18 @@ _write_instance_from_spec() {
     fi
 
     out="$( {
-        printf 'series = "%s"\n' "$ver"
+        printf 'series = "%s"\n' "$(_toml_escape "$ver")"
         [[ -n "$profileline" ]] && printf '%s\n' "$profileline"
-        printf 'instance_key = "%s"\n' "$instance_key_val"
+        printf 'instance_key = "%s"\n' "$(_toml_escape "$instance_key_val")"
         printf 'addons_path = [%s]\n' "$paths"
         printf 'run_mode = "source"            # source | docker\n'
         printf 'http_port = %s\n' "$port"
-        printf 'db_name = "%s"\n' "$db_name"
-        printf 'db_host = "%s"\n' "$db_host"
-        printf 'db_user = "%s"\n' "$db_user"
+        printf 'db_name = "%s"\n' "$(_toml_escape "$db_name")"
+        printf 'db_host = "%s"\n' "$(_toml_escape "$db_host")"
+        printf 'db_user = "%s"\n' "$(_toml_escape "$db_user")"
+        [[ -n "$db_portline" ]] && printf '%s\n' "$db_portline"
         printf '%s\n' "$pyline"
+        [[ -n "$pg_lines" ]] && printf '%s\n' "$pg_lines"
         printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
     } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance "$match_field" "$match_value" )"
     if printf '%s' "$out" | grep -q '^exists'; then
@@ -314,7 +362,12 @@ import json, sys
 data = json.load(open(sys.argv[1]))
 item = data[int(sys.argv[2])]
 paths = item.get("addons_path", [])
-print(", ".join(f'"{p}"' for p in paths))
+# Same escaping order as 45-venv.sh's toml_escape() (backslash FIRST, then
+# quote) - each item lands inside a TOML basic string, so it needs the same
+# treatment as every other string value this step writes.
+def _esc(v):
+    return v.replace("\\", "\\\\").replace('"', '\\"')
+print(", ".join('"%s"' % _esc(p) for p in paths))
 PY
 )"
         http_port_raw="$(python3 - "$spec_file" "$i" "$base_port" "$port_idx" <<'PY'
@@ -368,9 +421,22 @@ item = data[int(sys.argv[2])]
 print(item.get("python") or "")
 PY
 )"
+        # db_port: written ONLY when the spec declares it. Absent stays absent -
+        # libpq/PGPORT resolves the port and a fabricated 5432 would override a
+        # legitimate non-default cluster.
+        local db_port_raw
+        db_port_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+port = item.get("db_port")
+print("" if port in (None, "") else int(port))
+PY
+)"
 
         if _write_instance_from_spec "$ver" "$addons_raw" "$http_port_raw" \
-                "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw" "$profile_raw"; then
+                "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw" "$profile_raw" \
+                "$db_port_raw"; then
             : # already present - port_idx unchanged
         else
             port_idx=$((port_idx + 1))

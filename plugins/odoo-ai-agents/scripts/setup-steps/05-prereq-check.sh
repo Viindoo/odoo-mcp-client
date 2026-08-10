@@ -4,10 +4,11 @@
 # must satisfy before the instance/browser steps can succeed.
 #
 # It splits requirements into:
-#   AUTO-DETECTED   - probed here (Node, Python, PostgreSQL running, curl,
-#                     docker, ffmpeg, Odoo repos under ODOO_GIT_BASE)
-#   NEEDS CONFIRM   - cannot be detected (PostgreSQL role/password, system
-#                     build deps, an Odoo venv with deps installed)
+#   AUTO-DETECTED   - probed here (Node, Python, PostgreSQL reachability and the
+#                     db_user's CREATEDB capability, curl, docker, ffmpeg, Odoo
+#                     repos under ODOO_GIT_BASE)
+#   NEEDS CONFIRM   - cannot be detected (PostgreSQL password, system build deps,
+#                     an Odoo venv with deps installed)
 #
 # This script NEVER installs anything and NEVER runs sudo. The setup command
 # turns the checklist into an explicit "ready / skip instance / cancel" prompt.
@@ -30,6 +31,9 @@ SETUP_FILTER="${SETUP_FILTER:-all}"
 # scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
 # shellcheck source=../lib/resolve_instances.sh
 source "$LIB_DIR/resolve_instances.sh"
+# Postgres client dispatch (pg_run_client) + db_run_mode vocabulary SSOT.
+# shellcheck source=../lib/pg_mode.sh
+source "$LIB_DIR/pg_mode.sh"
 
 cmd_describe() {
     echo "Check host prerequisites setup cannot install for you (Node, PostgreSQL, Odoo repos, Python)"
@@ -113,6 +117,136 @@ for it in instances_io.load_instances(toml):
 PY
 }
 
+# Probe PostgreSQL reachability through the DECLARED client surface of the
+# highest declared instance (db_run_mode - see lib/pg_mode.sh).
+#   0 = proven reachable   1 = proven UNREACHABLE   2 = no surface to probe with
+# "No client installed" and "cluster down" are DIFFERENT facts: only a probe that
+# actually ran may report 1, and 2 is reported out loud rather than passed as ok.
+_pg_probe_declared() {
+    local toml py="" host="localhost" user="odoo" port="" mode="" container="" root=""
+    if toml="$(_resolve_instances_path)" && [[ -f "$toml" ]]; then
+        local kv=""
+        kv="$(python3 "$LIB_DIR/instances_io.py" read "$toml" 2>/dev/null)" || kv=""
+        if [[ -n "$kv" ]]; then
+            eval "$kv" 2>/dev/null || true
+            py="${INST_PYTHON:-}"; host="${INST_DB_HOST:-localhost}"
+            user="${INST_DB_USER:-odoo}"; port="${INST_DB_PORT:-}"
+            mode="${INST_DB_RUN_MODE:-}"; container="${INST_DB_CONTAINER:-}"
+            root="${INST_ODOO_ROOT:-}"
+        fi
+    fi
+    local -a port_args=()
+    [[ -n "$port" ]] && port_args=(-p "$port")
+    # Probe ladder, cheapest first, every rung BOUNDED. pg_isready is used for a
+    # `native` surface AND for an UNDECLARED one (nothing recorded yet, so a
+    # locally installed client is exactly the pre-declaration behavior) - but
+    # never for `tcp-only`, which declares that this cluster has no client
+    # surface at all. pg_isready is not part of PG_MODE_NATIVE_BINS, so a native
+    # host may still lack it; falling through is then mandatory, because a
+    # missing binary must never be reported as a down cluster.
+    # 124 = the bound elapsed; 125 = the bound itself could not be applied
+    # (pg_mode.sh's contract). Neither is a cluster fact, so both map to 2 ("no
+    # verdict") on EVERY rung - the identical rule 50-instance-spinup.sh applies.
+    local prc=0
+    if [[ "$mode" == "native" || -z "$mode" ]] && _have pg_isready; then
+        pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
+            pg_isready -h "$host" "${port_args[@]}" -U "$user" -q >/dev/null 2>&1 || prc=$?
+        [[ "$prc" -eq 0 ]] && return 0
+        [[ "$prc" -eq 124 || "$prc" -eq 125 ]] && return 2
+        return 1
+    fi
+    if [[ "$mode" == "docker" && -n "$container" ]] && _have docker; then
+        pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
+            pg_run_client docker "$container" "$host" "$user" "$port" pg_isready -q \
+            >/dev/null 2>&1 || prc=$?
+        [[ "$prc" -eq 0 ]] && return 0
+        [[ "$prc" -eq 124 || "$prc" -eq 125 ]] && return 2
+        return 1
+    fi
+    # tcp-only, an undeclared surface, or a client that is not installed after
+    # all: opening a connection through the instance's own python IS the probe
+    # (no client binary, no privilege needed).
+    if [[ -n "$py" && -x "$py" && -f "$LIB_DIR/odoo_db.py" ]]; then
+        local -a ex=("$LIB_DIR/odoo_db.py" exists postgres --db-host "$host" --db-user "$user")
+        [[ -n "$root" ]] && ex+=(--odoo-root "$root")
+        [[ -n "$port" ]] && ex+=(--db-port "$port")
+        prc=0
+        pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" "$py" "${ex[@]}" >/dev/null 2>&1 || prc=$?
+        # 10 = this venv cannot import odoo; 124/125 = the probe did not answer.
+        # Neither is a cluster fact - the venv gate below owns 10 - so neither may
+        # be reported as a down cluster.
+        [[ "$prc" -eq 10 || "$prc" -eq 124 || "$prc" -eq 125 ]] && return 2
+        [[ "$prc" -eq 0 ]] && return 0
+        return 1
+    fi
+    # No instance declared at all (a fresh setup): a bare local pg_isready is the
+    # only thing left, and its absence means "cannot probe" - never "down".
+    if _have pg_isready; then
+        prc=0
+        pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" pg_isready -q >/dev/null 2>&1 || prc=$?
+        [[ "$prc" -eq 0 ]] && return 0
+        [[ "$prc" -eq 124 || "$prc" -eq 125 ]] && return 2
+        return 1
+    fi
+    return 2
+}
+
+# Report the CREATEDB capability per declared instance, auto-detected by asking the
+# cluster (never inferred from which binaries are installed). An instance whose role
+# lacks it cannot use `ephemeral` isolation: the allocator REFUSES with exit 6
+# rather than silently sharing the declared database.
+#
+# The question is asked through `allocator.py can-createdb`, which is the SAME
+# two-route ladder the `acquire` gate uses and returns the SAME exit codes. Asking
+# odoo_db.py directly from here would re-implement route 1 in shell and could not
+# reach route 2 at all - so a `run_mode = "docker"` instance, which declares no
+# `python` because compose launches it, got no answer from the very command whose
+# job is to say whether isolation is available.
+_createdb_report() {
+    local toml series profile
+    toml="$(_resolve_instances_path)" || return 0
+    [[ -f "$toml" ]] || return 0
+    [[ -f "$LIB_DIR/allocator.py" ]] || return 0
+    while IFS=$'\t' read -r series profile; do
+        [[ -n "$series" ]] || continue
+        local label="$series"
+        [[ -n "$profile" ]] && label="$series:$profile"
+        local -a args=("$LIB_DIR/allocator.py" can-createdb --series "$series" --instances "$toml")
+        [[ -n "$profile" ]] && args+=(--profile "$profile")
+        local out="" rc=0
+        out="$(python3 "${args[@]}" 2>/dev/null)" || rc=$?
+        case "$rc" in
+            0) echo "  [ok ] the declared role may CREATE DATABASE for $label (ephemeral isolation available)" ;;
+            6) echo "  [ -- ] the declared role may NOT CREATE DATABASE for $label - 'ephemeral'"
+               echo "         acquires refuse (exit 6). fix: grant that role CREATEDB." ;;
+            *) echo "  [ ?? ] CREATEDB for $label undeterminable - 'ephemeral' acquires refuse (exit 7)."
+               echo "         fix: start PostgreSQL, then 45-venv.sh record-env --series $series"
+               echo "         (a compose-run instance declares no python: declare db_run_mode +"
+               echo "         db_container so the capability can be asked inside the container)" ;;
+        esac
+    done < <(_enumerate_instance_keys "$toml")
+}
+
+# Emit TAB-separated `series<TAB>profile` for EVERY declared instance, whatever its
+# run_mode. Kept separate from _enumerate_source_instances (which is deliberately
+# source-only: it gates the VENV, a source-mode-only concern) so adding a column
+# here can never shift that reader's fields.
+_enumerate_instance_keys() {
+    local toml="$1"
+    [[ -f "$toml" ]] || return 0
+    python3 - "$toml" "$LIB_DIR" <<'PY' 2>/dev/null || true
+import sys
+toml, libdir = sys.argv[1], sys.argv[2]
+sys.path.insert(0, libdir)
+import instances_io
+for it in instances_io.load_instances(toml):
+    series = instances_io.series_of(it)
+    if not series:
+        continue
+    print("\t".join([series, str(instances_io.profile_of(it) or "")]))
+PY
+}
+
 # Locate odoo-bin for a comma-delimited addons_path (ODOO_BIN wins, else scan).
 _find_odoo_bin_in() {
     local addons_path="$1" p
@@ -173,9 +307,11 @@ cmd_check() {
     if _needs_instance; then
         _have python3 || return 1
         _have curl || return 1
-        if _have pg_isready; then
-            pg_isready -q 2>/dev/null || return 1
-        fi
+        # A cluster PROVEN unreachable blocks; "could not probe at all" does not
+        # (that is reported by apply, never silently converted into a verdict).
+        local _pgrc=0
+        _pg_probe_declared || _pgrc=$?
+        if [[ "$_pgrc" -eq 1 ]]; then return 1; fi
         _repos_present || return 1
         # HARD venv gate for declared source instances (opt-out via ODOO_AI_ALLOW_NO_VENV=1).
         _venv_gate || return 1
@@ -210,24 +346,27 @@ cmd_apply() {
         printf '  %s' "$(_mark _have python3)"; echo " python3 (runs odoo-bin in source mode)"
         echo "         fix: install python3, or 'uv python install <version>'"
         printf '  %s' "$(_mark _have curl)";    echo " curl (polls /web/database/selector during spin-up, falling back to /web/login)"
-        if _have pg_isready; then
-            printf '  %s' "$(_mark pg_isready -q)"; echo " PostgreSQL running (pg_isready)"
-        else
-            echo "  [ ?? ] PostgreSQL running (pg_isready not installed - cannot probe)"
-        fi
+        local _pgrc=0
+        _pg_probe_declared || _pgrc=$?
+        case "$_pgrc" in
+            0) echo "  [ok ] PostgreSQL reachable (probed through the declared db_run_mode)" ;;
+            1) echo "  [ -- ] PostgreSQL NOT reachable (probed through the declared db_run_mode)" ;;
+            *) echo "  [ ?? ] PostgreSQL: no way to probe yet - declare an instance, then run" ;
+               echo "         45-venv.sh create-venv + record-env for it" ;;
+        esac
         echo "         fix: start PostgreSQL, e.g. 'sudo systemctl start postgresql'"
-        echo "              or 'docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pass postgres:16'"
+        echo "              or run it in a container publishing a host port of YOUR choosing,"
+        echo "              then declare that port as db_port on the [[instance]]"
+        _createdb_report
         printf '  %s' "$(_mark _repos_present)"; echo " Odoo repos under \${ODOO_GIT_BASE:-\$HOME/git} ($ODOO_GIT_BASE)"
         echo "         fix: git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17"
         echo "              (or set ODOO_GIT_BASE to where your repos live)"
-        printf '  %s' "$(_mark _have docker)";   echo " docker (optional - only for run_mode=docker)"
+        printf '  %s' "$(_mark _have docker)";   echo " docker (REQUIRED when your PostgreSQL runs in a container - db_run_mode=docker)"
         printf '  %s' "$(_mark _have ffmpeg)";   echo " ffmpeg (optional - pagecast video/GIF recording)"
     fi
     echo
     echo "NEEDS YOUR CONFIRMATION (cannot be auto-detected):"
     if _needs_instance; then
-        echo "  [ ] PostgreSQL role with CREATEDB exists for your db_user (default: odoo)"
-        echo "        e.g. createuser --createdb --login odoo"
         echo "  [ ] DB password exported as ODOO_PG_PASSWORD (skip if using trust auth)"
         echo "  [ ] System build deps installed (only if you build a fresh venv):"
         echo "        build-essential python3-dev libxml2-dev libxslt1-dev libpq-dev"

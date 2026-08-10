@@ -293,7 +293,20 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      repo path, re-run Probe 1 with that path.
 
    Wait for the user's choice (reuse existing venv / build new / skip) - this
-   is **CONFIRM #4**. The orchestrator then runs `45 apply` for the chosen series.
+   is **CONFIRM #4**. The orchestrator then runs `45 apply` for the chosen series,
+   and then, for EVERY series in the confirmed spec - including a series whose
+   venv was reused or skipped:
+
+   ```
+   "$STEPS_DIR/45-venv.sh" record-env --series <X.Y> [--profile <name>]
+   ```
+
+   It asks nothing and records only VERIFIED facts (`python`, `odoo_root`,
+   `db_run_mode`/`db_container`). Skipping it is what leaves a catalog written
+   before those keys existed, and an `ephemeral` acquire then refuses with exit 7
+   forever: `create-venv` records them only for a venv it just built, so a reused
+   or pre-existing venv gets them from nowhere else. A non-zero exit names the one
+   fact it could not determine and records no guess - report it and continue.
 
    **CONFIRM #5 - choose the series and profile to spin up**
 
@@ -306,8 +319,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    to the same instance slot.
 
    The orchestrator then runs `50 apply --version <X.Y> [--profile <name>]`
-   (fail-loud preflight: verify `odoo-bin --version` runs + `pg_isready` before
-   launch; see step-specific notes).
+   (fail-loud preflight: verify `odoo-bin --version` runs, then probe PostgreSQL
+   through the declared `db_run_mode`, before launch; see step-specific notes).
 
 3. **For each selected step (non-instance steps), in numeric order:**
    a. Run `"$s" check`. Capture the exit code.
@@ -443,13 +456,16 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
        repos in the addons_path. This creates the venv under
        `venvs/<series>-<profile>`, installs the deps, verifies all the
        profile's repos are present and that `odoo-bin --version` runs, then
-       records the interpreter back onto the instance.
+       records `python`, `odoo_root` and the Postgres client surface
+       (`db_run_mode`/`db_container`) back onto the instance.
   In both cases, step `45` verifies `odoo-bin --version` runs in the chosen
   interpreter BEFORE writing the `python` field to `instances.toml`. If the
   venv cannot run `odoo-bin --version`, step `45` does NOT record the python
   field and prints an error with guidance.
   Never silently pick an incompatible Python. If the user declines, just print
   the suggestion and move on - step 50 will fall back to `python3`.
+  `record-env` runs as part of the numbered flow after CONFIRM #4 (see there);
+  re-run it by hand after any change to the venv or the Postgres container.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
@@ -461,8 +477,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - **50-instance-spinup** - before launching anything, runs a **fail-loud
   preflight**: verifies (a) `odoo-bin --version` runs under the instance's
   Python (confirms the venv is functional and Odoo is reachable) and
-  (b) `pg_isready` (or equivalent) confirms PostgreSQL is reachable. If either
-  check fails, it prints a clear error with remediation guidance and stops -
+  (b) PostgreSQL is reachable, probed through the declared `db_run_mode`:
+  `pg_isready` for a `native` surface, `pg_isready` inside `db_container` for
+  `docker`, otherwise a bounded psycopg2 connection through the instance's own
+  `python` - so the gate never disappears on a host with no libpq client, and a
+  probe that cannot run is reported as NOT PROBED rather than as a down cluster.
+  If either check fails, it prints a clear error with remediation guidance and stops -
   it does NOT launch and then time out polling. On preflight pass: generates a
   temp `odoo.conf`, launches Odoo (`odoo-bin --dev=all` or
   `docker compose up -d`), polls `/web/login` to HTTP 200, prints the URL.

@@ -952,3 +952,96 @@ def test_attach_guard_recognizes_a_pre_fix_colon_joined_identity_marker(tmp_path
         "independence fix - a real, unchanged instance must not see a false "
         f"COLLISION on upgrade; stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Step 40 catalog values must be TOML-escaped and the write must be atomic -
+# the same unescaped `key = "%s"` defect fixed for step 45's
+# `_upsert_instance_keys`/`toml_escape`, latent here only because ODOO_AI_
+# PROFILE_SPEC fields happen to come from constrained vocabularies today
+# (that is luck, not a guarantee).
+# --------------------------------------------------------------------------- #
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+@pytest.mark.parametrize("hostile", ['pa"th', "pa\\th", "pa\\tb"])
+def test_step40_apply_keeps_the_catalog_parseable_for_any_recorded_value(tmp_path, hostile):
+    """A recorded value must round-trip through step 40's `apply`, whatever
+    characters it contains.
+
+    Unescaped, a `"` closes the TOML string early and the WHOLE catalog stops
+    parsing (every instances_io.load_instances consumer - allocator, every
+    setup step, the teardown hook - then fails until a human repairs the file
+    by hand); a backslash is the quieter variant - `\\t` decodes to a TAB, so
+    the recorded value is silently WRONG rather than loudly broken.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    proj = tmp_path / "proj"
+    proj.mkdir()
+
+    spec = tmp_path / "spec.json"
+    spec.write_text(
+        json.dumps([{
+            "series": "17.0",
+            "profile": hostile,
+            "addons_path": [f"/repos/{hostile}"],
+            "db_host": hostile,
+            "db_user": hostile,
+            "python": hostile,
+        }]),
+        encoding="utf-8",
+    )
+
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ODOO_AI_INSTANCES", "ODOO_AI_PROFILE_SPEC")}
+    env["ODOO_AI_HOME"] = str(home)
+    env["HOME"] = str(home)
+    env["ODOO_AI_PROFILE_SPEC"] = str(spec)
+
+    proc = subprocess.run(
+        ["bash", str(STEP40), "apply"], capture_output=True, text=True,
+        cwd=proj, env=env,
+    )
+    assert proc.returncode == 0, f"apply failed:\n{proc.stdout}\n{proc.stderr}"
+
+    toml_path = home / "instances.toml"
+    # tomllib.loads raises TOMLDecodeError outright when the catalog is broken.
+    data = tomllib.loads(toml_path.read_text())
+    inst = data["instance"][0]
+    assert inst["profile"] == hostile, f"profile must round-trip exactly, got {inst!r}"
+    assert inst["db_host"] == hostile, f"db_host must round-trip exactly, got {inst!r}"
+    assert inst["db_user"] == hostile, f"db_user must round-trip exactly, got {inst!r}"
+    assert inst["python"] == hostile, f"python must round-trip exactly, got {inst!r}"
+    assert inst["addons_path"] == [f"/repos/{hostile}"], (
+        f"addons_path must round-trip exactly, got {inst!r}"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_write_path_publishes_atomically_via_config_merge(tmp_path):
+    """The catalog is replaced ATOMICALLY by `config_merge.py`'s
+    `toml-append-array-item` - step 40's OWN write path - never truncated in
+    place, mirroring 45-venv.sh's `_upsert_instance_keys` (tmp + os.replace).
+    An in-place append has a window in which the host's only instance catalog
+    is truncated/partial if the process is killed mid-write.
+    """
+    src = CONFIG_MERGE.read_text(encoding="utf-8")
+    body = src[
+        src.index("def cmd_toml_append_array_item"):
+        src.index('# Subcommand: json-ensure-allow')
+    ]
+    assert "os.replace" in body, (
+        "toml-append-array-item must publish the new catalog with an atomic "
+        "os.replace, not an in-place append/truncate of the host's SSOT"
+    )
+    assert 'open(target_path, "a"' not in body, (
+        "toml-append-array-item must not open the catalog itself in append "
+        "mode (that is not atomic)"
+    )
+
+    # And the mechanism must actually work end to end.
+    toml = tmp_path / "instances.toml"
+    _append_instance(toml, "17.0", _body("17.0", 8069))
+    data = tomllib.loads(toml.read_text())
+    assert data["instance"][0]["series"] == "17.0"
+    leftovers = [p.name for p in toml.parent.glob("instances.toml.tmp*")]
+    assert leftovers == [], f"the temp file must not survive a successful write: {leftovers}"

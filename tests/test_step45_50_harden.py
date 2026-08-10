@@ -2141,3 +2141,492 @@ def test_step50_conf_limit_memory_hard_is_env_overridable(tmp_path):
     assert "limit_memory_hard = 1234567890" in conf, (
         f"conf must honor an explicit ODOO_AI_LIMIT_MEMORY_HARD override.\nconf:\n{conf}"
     )
+
+
+@requires_bash
+def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
+    """The PostgreSQL reachability preflight is BOUNDED.
+
+    When no client surface is declared and no pg_isready exists, reachability is
+    probed through the instance's own declared interpreter. That interpreter is a
+    third-party program: it can hang (an unreachable cluster with no connect
+    timeout, a broken venv wrapper). An unbounded probe would stall the whole
+    spin-up - and the spin-up's own timeout + process-group cleanup contract could
+    never even be reached. The probe must therefore be cut off, reported as NOT
+    PROBED, and never mistaken for 'the cluster is down'.
+    """
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir()
+    fake_py = py_bin_dir / "python"
+    # --version answers (the venv gate passes); ANY other invocation - notably the
+    # odoo_db.py reachability probe - hangs forever.
+    _write_stub(fake_py, textwrap.dedent("""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        while :; do sleep 1; done
+    """))
+    odoo_bin = tmp_path / "odoo-bin"
+    _write_stub(odoo_bin, "exit 0\n")
+    bind = tmp_path / "bin50"
+    bind.mkdir()
+    _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
+
+    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
+    env = dict(os.environ)
+    # PATH deliberately WITHOUT pg_isready, so the ladder falls to the interpreter.
+    env["PATH"] = f"{bind}:/usr/bin:/bin"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["SPINUP_TIMEOUT"] = "3"
+    env["SPINUP_STOP_GRACE"] = "2"
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "2"
+    env["ODOO_BIN"] = str(odoo_bin)
+    env.pop("ODOO_PG_PASSWORD", None)
+
+    res = _run_step50_args(env)  # a 30s subprocess bound: a hang FAILS this test
+    out = res.stdout + res.stderr
+
+    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
+        f"a probe that did not answer must NOT be reported as an unreachable "
+        f"cluster - that conflation is the defect this dispatch replaced\n{out}"
+    )
+    assert "was NOT probed" in out, (
+        f"an unanswered probe must be said out loud, never skipped silently\n{out}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The DOCKER Postgres surface - the host class this dispatch was written for
+# (Postgres in a container, no libpq client installed). Nothing here needs a
+# real docker: a stub on PATH stands in for the daemon.
+# ---------------------------------------------------------------------------
+def _make_step50_toml_with_pg_surface(
+    tmp_path: Path, *, py_path: str, series: str = "17.0", extra: str = "",
+) -> Path:
+    """instances.toml carrying the DECLARED Postgres client surface keys.
+
+    `extra` is appended verbatim inside the one [[instance]] block, so a test can
+    declare db_run_mode/db_container/db_port without a second fixture shape.
+    """
+    fake_addons = tmp_path / "fake-core" / "addons"
+    fake_addons.mkdir(parents=True, exist_ok=True)
+    toml = tmp_path / "instances50-pgsurface.toml"
+    toml.write_text(
+        textwrap.dedent(f"""\
+            [[instance]]
+            series = "{series}"
+            python = "{py_path}"
+            http_port = 18069
+            db_name = "odoo_test"
+            db_host = "db.example"
+            db_user = "odoo"
+            run_mode = "source"
+            addons_path = "{fake_addons}"
+        """) + extra,
+        encoding="utf-8",
+    )
+    return toml
+
+
+def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
+    """A source-mode step-50 scenario whose Postgres is declared as `docker`.
+
+    Returns (env, out_paths). `docker_body` is the stub daemon's behavior, so one
+    fixture covers a healthy daemon, a hanging one, or a refusing one.
+    """
+    launch_log = tmp_path / "odoo-launch.log"
+    docker_log = tmp_path / "docker-calls.log"
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir(exist_ok=True)
+    fake_py = py_bin_dir / "python"
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        echo "odoo-bin launched $*" >> "{launch_log}"
+        exec sleep 15
+    """))
+    odoo_bin = tmp_path / "odoo-bin"
+    _write_stub(odoo_bin, "exit 0\n")
+
+    bind = tmp_path / "bin50-docker"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", curl_body)
+    _write_stub(bind / "docker", f'echo "docker $*" >> "{docker_log}"\n' + docker_body)
+
+    toml = _make_step50_toml_with_pg_surface(
+        tmp_path, py_path=str(fake_py),
+        extra='db_port = 5544\ndb_run_mode = "docker"\ndb_container = "pg-for-tests"\n',
+    )
+    env = dict(os.environ)
+    # /usr/bin:/bin keeps a REAL `timeout` reachable - the arm on which handing a
+    # shell function to that coreutils binary fails.
+    env["PATH"] = f"{bind}:/usr/bin:/bin"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["SPINUP_TIMEOUT"] = "3"
+    env["SPINUP_STOP_GRACE"] = "2"
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "3"
+    env["ODOO_BIN"] = str(odoo_bin)
+    env.pop("ODOO_PG_PASSWORD", None)
+    return env, launch_log, docker_log
+
+
+@requires_bash
+def test_step50_docker_pg_preflight_probes_inside_the_container_and_launches(tmp_path):
+    """A `docker` Postgres surface must PASS its preflight and launch.
+
+    The probe is `pg_bounded_run <secs> pg_run_client docker ...` - a bound
+    applied to a shell FUNCTION. `timeout` is a coreutils BINARY that EXECs its
+    argument, so that composition returns 127 unless the bound handles a function
+    too, and 127 then reads as `PREFLIGHT FAILED: PostgreSQL is not reachable` on
+    a perfectly healthy cluster: the instance never launches, on exactly the host
+    class the docker arm exists for.
+    """
+    # 000 on the first probe (so the 'already up' short-circuit is not taken and
+    # the preflight actually runs), 200 afterwards.
+    cnt = tmp_path / "curl.count"
+    env, launch_log, docker_log = _docker_pg_scenario(
+        tmp_path, docker_body="exit 0\n", curl_body=textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+    res = _run_step50_args(env)
+    out = res.stdout + res.stderr
+
+    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
+        f"a healthy containerised cluster must not be reported unreachable\n{out}"
+    )
+    assert res.returncode == 0, f"the spin-up must succeed\n{out}"
+    assert "ok PostgreSQL reachable" in out, (
+        f"the docker rung must report a POSITIVE reachability verdict\n{out}"
+    )
+    assert docker_log.exists(), f"the probe never invoked docker at all\n{out}"
+    calls = docker_log.read_text(encoding="utf-8")
+    assert "exec" in calls and "pg-for-tests" in calls and "pg_isready" in calls, (
+        f"the probe must run pg_isready INSIDE the declared container; got:\n{calls}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("surface", ["native", "docker"])
+def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path, surface):
+    """124 means "the probe did not answer", on EVERY rung of the ladder.
+
+    Only the interpreter rung was guarded, so a bound that elapsed on the native
+    or docker rung fell straight through to `PREFLIGHT FAILED: PostgreSQL is not
+    reachable ... (exit 124)` and refused to launch. Its sibling
+    05-prereq-check.sh gets this right on both rungs, so the two ladders
+    disagreed about the same rule.
+    """
+    hang = "while :; do :; done\n"
+    if surface == "docker":
+        env, launch_log, _ = _docker_pg_scenario(
+            tmp_path, docker_body=hang, curl_body='echo "000"\n')
+    else:
+        launch_log = tmp_path / "odoo-launch.log"
+        py_bin_dir = tmp_path / "fake-py-bin"
+        py_bin_dir.mkdir(exist_ok=True)
+        fake_py = py_bin_dir / "python"
+        _write_stub(fake_py, textwrap.dedent(f"""\
+            if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+            echo "odoo-bin launched $*" >> "{launch_log}"
+            exec sleep 15
+        """))
+        odoo_bin = tmp_path / "odoo-bin"
+        _write_stub(odoo_bin, "exit 0\n")
+        bind = tmp_path / "bin50-native"
+        bind.mkdir(exist_ok=True)
+        _write_stub(bind / "curl", 'echo "000"\n')
+        _write_stub(bind / "pg_isready", hang)
+        toml = _make_step50_toml_with_pg_surface(
+            tmp_path, py_path=str(fake_py), extra='db_run_mode = "native"\n')
+        env = dict(os.environ)
+        env["PATH"] = f"{bind}:/usr/bin:/bin"
+        env["ODOO_AI_INSTANCES"] = str(toml)
+        env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+        env["SPINUP_TIMEOUT"] = "3"
+        env["SPINUP_STOP_GRACE"] = "2"
+        env["ODOO_AI_PG_PROBE_TIMEOUT"] = "3"
+        env["ODOO_BIN"] = str(odoo_bin)
+        env.pop("ODOO_PG_PASSWORD", None)
+
+    res = _run_step50_args(env)
+    out = res.stdout + res.stderr
+
+    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
+        f"[{surface}] a bound that elapsed says NOTHING about the cluster\n{out}"
+    )
+    assert "was NOT probed" in out, (
+        f"[{surface}] an unanswered probe must be said out loud\n{out}"
+    )
+    assert launch_log.exists(), (
+        f"[{surface}] an unanswered probe must not block the launch\n{out}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The upsert writes into the HOST'S instance catalog - the SSOT every consumer
+# reads (the allocator, all five setup steps, the teardown hook). A value it
+# cannot represent does not corrupt one field: it makes the whole file
+# unparseable, and every one of those consumers then fails until a human
+# repairs it by hand.
+# ---------------------------------------------------------------------------
+def _tomllib_load(path: Path) -> dict:
+    import tomllib
+
+    with open(path, "rb") as fh:
+        return tomllib.load(fh)
+
+
+@requires_bash
+@pytest.mark.parametrize("hostile", ['pa"th', "pa\\th", "pa\\tb"])
+def test_step45_upsert_keeps_the_catalog_parseable_for_any_recorded_value(tmp_path, hostile):
+    """A recorded value must round-trip, whatever characters it contains.
+
+    `create-venv --path DIR` takes this value from user input. Unescaped, a `"`
+    closes the TOML string early and the catalog stops parsing altogether; a
+    backslash is the quieter variant - `\\t` decodes to a TAB, so the recorded
+    value is silently WRONG rather than loudly broken.
+    """
+    core = _make_core_dir(tmp_path)
+    toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
+    env = dict(os.environ)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+
+    # Drive the upsert directly: it is the unit that owns value encoding, and
+    # calling it here needs no venv, no uv and no Odoo.
+    # `source <script> check` loads the functions without tripping the argv
+    # dispatcher at the bottom of the file (which would `exit 2`).
+    res = subprocess.run(
+        ["bash", "-c",
+         f'source "{STEP45}" check >/dev/null; '
+         f'_upsert_instance_keys "17.0" "" "python=$1"', "_", hostile],
+        capture_output=True, text=True, env=env,
+    )
+    out = res.stdout + res.stderr
+
+    parsed = _tomllib_load(toml)  # raises TOMLDecodeError when the catalog is broken
+    got = parsed["instance"][0]["python"]
+    assert got == hostile, (
+        f"the recorded value must round-trip exactly; wrote {hostile!r}, read back "
+        f"{got!r}\noutput:\n{out}"
+    )
+
+
+@requires_bash
+def test_step45_upsert_never_leaves_a_half_written_catalog(tmp_path):
+    """The catalog is replaced ATOMICALLY, never truncated in place.
+
+    An in-place truncate has a window in which the host's only instance catalog
+    is empty or partial; a crash there loses every declared instance. The
+    allocator's own registry write already uses tmp + os.replace - the same
+    discipline applies to the file the allocator READS.
+    """
+    core = _make_core_dir(tmp_path)
+    toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
+    src = STEP45.read_text(encoding="utf-8")
+    upsert = src[src.index("_upsert_instance_keys() {"):src.index("# _detect_pg_facts")]
+    assert "os.replace" in upsert, (
+        "the upsert must publish the new catalog with an atomic os.replace, not an "
+        "in-place truncate of the host's SSOT"
+    )
+    assert 'open(path, "w"' not in upsert, (
+        "the upsert must not open the catalog itself for writing (that truncates it)"
+    )
+    # And the mechanism must actually work end to end.
+    env = dict(os.environ)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    res = subprocess.run(
+        ["bash", "-c",
+         f'source "{STEP45}" check >/dev/null; '
+         f'_upsert_instance_keys "17.0" "" "odoo_root=/srv/odoo"'],
+        capture_output=True, text=True, env=env,
+    )
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert _tomllib_load(toml)["instance"][0]["odoo_root"] == "/srv/odoo"
+    leftovers = [p.name for p in toml.parent.glob("instances.toml.tmp*")]
+    assert leftovers == [], f"the temp file must not survive a successful write: {leftovers}"
+
+
+# ---------------------------------------------------------------------------
+# step 55 (instance ops): the ACTIVE-WAIT terminal predicate.
+#
+# These live in this file because it is this change's owned home for setup-step
+# behavior; the rule they protect belongs to 55-instance-ops.sh.
+#
+# `wait-log` runs in a different process - often a different agent turn - from the
+# build it is waiting on, so the only thing it can read is the log. The terminal
+# predicate DIFFERS by verb: "Modules loaded." IS completion for an
+# install/update build, but on a test run Odoo logs it BEFORE the post-install
+# suite starts (verified against a local checkout: modules/loading.py logs it
+# ahead of the post_install test step). Certifying a test run there stops the wait
+# while the suite has not begun.
+# ---------------------------------------------------------------------------
+STEP55 = (
+    ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "55-instance-ops.sh"
+)
+
+_MODERN_SUMMARY = (
+    "2026-01-01 00:00:00,000 1 INFO testdb odoo.service.server: "
+    "0 failed, 0 error(s) of 5 tests when loading database 'testdb'"
+)
+_LOADED_MARKER = (
+    "2026-01-01 00:00:00,000 1 INFO testdb odoo.modules.loading: Modules loaded."
+)
+_PROGRESS_LINE = (
+    "2026-01-01 00:00:00,000 1 INFO testdb odoo.modules.loading: loading 3 modules..."
+)
+
+
+def _run55(subcmd: str, *args, env: dict, timeout: int = 60):
+    return subprocess.run(
+        ["bash", str(STEP55), subcmd, *args],
+        capture_output=True, text=True, env=env, timeout=timeout,
+    )
+
+
+def _step55_env(tmp_path: Path) -> dict:
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env.pop("ODOO_AI_INSTANCES", None)
+    return env
+
+
+def _run55_test_verb(tmp_path: Path, *, odoo_output: str, exit_code: int = 0):
+    """Run the `test` verb against a fake odoo-bin that emits `odoo_output`."""
+    fake_bin = tmp_path / "odoo-bin"
+    _write_stub(fake_bin, f'cat <<"EOF"\n{odoo_output}\nEOF\nexit {exit_code}\n')
+    fake_py = tmp_path / "fake-py-bin" / "python"
+    fake_py.parent.mkdir(exist_ok=True)
+    real = shutil.which("python3") or "/usr/bin/python3"
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server (preflight)"; exit 0; fi
+        if [[ "$1" == "{fake_bin}" ]]; then shift; exec bash "{fake_bin}" "$@"; fi
+        exec {real} "$@"
+    """))
+    addons = tmp_path / "addons"
+    addons.mkdir(exist_ok=True)
+    env = _step55_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    res = _run55("test", "--db", "testdb", "--python", str(fake_py),
+                 "--addons", str(addons), "--modules", "sale",
+                 "--version", "17.0", env=env)
+    log = next(
+        (line.split("=", 1)[1] for line in res.stdout.splitlines()
+         if line.startswith("LOG_PATH=")), "")
+    return res, Path(log), env
+
+
+def _write_stamped_log(tmp_path: Path, name: str, *, verb: str, series: str, body: str) -> Path:
+    """A log shaped exactly as 55-instance-ops.sh opens one: the run-verb stamp
+    first, then odoo's own output."""
+    log = tmp_path / name
+    log.write_text(f"ODOO_AI_RUN_VERB={verb} SERIES={series}\n{body}\n", encoding="utf-8")
+    return log
+
+
+@requires_bash
+def test_step55_test_verb_reports_the_scope_it_actually_covered(tmp_path):
+    """How many modules loaded and how many tests ran are MACHINE output.
+
+    Left as prose instructions, both figures depend on an agent hand-running two
+    greps and hand-writing the numbers into free text - the same discretion that
+    produced the original silent cover-up. The caller must RECEIVE them.
+    """
+    res, log, _env = _run55_test_verb(
+        tmp_path, odoo_output=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}\n{_MODERN_SUMMARY}")
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "MODULES_LOADED=3" in res.stdout, (
+        f"the number of modules loaded must be emitted\nstdout:\n{res.stdout}"
+    )
+    assert "TESTS_RUN=5" in res.stdout, (
+        f"the number of tests that ran must be emitted\nstdout:\n{res.stdout}"
+    )
+    # The pre-existing lines other consumers parse must be untouched.
+    for kept in ("TEST_RESULT=passed", "TEST_FAILED=0", "TEST_SKIPPED=0", "FINDINGS_PATH="):
+        assert kept in res.stdout, f"{kept} must still be emitted\nstdout:\n{res.stdout}"
+
+
+@requires_bash
+def test_step55_test_verb_log_is_self_describing_and_carries_its_verdict(tmp_path):
+    """The log must say WHICH verb produced it, and end up holding the verdict.
+
+    `wait-log` reads nothing but the log, so a verdict that only ever reaches the
+    script's stdout is unreachable by construction - the caller then waits for a
+    `TEST_RESULT=` that no polling call can ever show it.
+    """
+    res, log, env = _run55_test_verb(
+        tmp_path, odoo_output=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}\n{_MODERN_SUMMARY}")
+    assert res.returncode == 0, res.stdout + res.stderr
+    contents = log.read_text(encoding="utf-8")
+    assert contents.startswith("ODOO_AI_RUN_VERB=test"), (
+        f"the log must be stamped with its run verb\nlog head:\n{contents[:200]}"
+    )
+    assert "SERIES=17.0" in contents.splitlines()[0], (
+        f"the stamp must carry the series so the era gate can be resolved\n{contents[:200]}"
+    )
+    assert "TEST_RESULT=passed" in contents, (
+        f"the verdict must be IN the log, where wait-log can reach it\n{contents[-400:]}"
+    )
+
+    waited = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
+    assert "TEST_RESULT=passed" in waited.stdout, (
+        f"wait-log must surface the verdict the log carries\nstdout:\n{waited.stdout}"
+    )
+    assert "BUILD_RESULT=success" in waited.stdout, waited.stdout
+
+
+@requires_bash
+def test_step55_wait_log_does_not_certify_a_test_run_at_modules_loaded(tmp_path):
+    """"Modules loaded." is NOT completion for a test run.
+
+    Odoo logs it before the post-install suite starts, so certifying there tells
+    the agent to stop waiting while the tests have not begun - and the dispatch
+    then reports `tests-inconclusive` for a run that would have passed or failed
+    cleanly.
+    """
+    log = _write_stamped_log(tmp_path, "test-run.log", verb="test", series="17.0",
+                             body=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}")
+    env = _step55_env(tmp_path)
+    res = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
+    assert "BUILD_RESULT=success" not in res.stdout, (
+        f"a test run with no ran-marker must not be certified complete\nstdout:\n{res.stdout}"
+    )
+    assert "BUILD_RESULT=timeout" in res.stdout, (
+        f"the wait must report that no terminal marker was seen yet\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series,summary", [
+    ("17.0", _MODERN_SUMMARY),
+    ("12.0", "2026-01-01 00:00:00,000 1 INFO testdb odoo.tests: Ran 5 tests in 1.234s"),
+])
+def test_step55_wait_log_certifies_a_test_run_on_its_own_ran_marker(tmp_path, series, summary):
+    """A test run's terminal predicate is the era-correct "the suite ran" marker -
+    the regexes this script already holds, era-gated exactly as the verdict parser
+    gates them (v8-v13 runner trailer, v14+ per-database summary)."""
+    # Deliberately WITHOUT "Modules loaded.": the ran-marker must be what
+    # certifies, so the assertion cannot be satisfied by the install predicate.
+    log = _write_stamped_log(tmp_path, "test-ran.log", verb="test", series=series,
+                             body=f"{_PROGRESS_LINE}\n{summary}")
+    env = _step55_env(tmp_path)
+    res = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
+    assert res.returncode == 0, f"[{series}] {res.stdout}\n{res.stderr}"
+    assert "BUILD_RESULT=success" in res.stdout, (
+        f"[{series}] a completed suite must be certified complete\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_step55_wait_log_still_certifies_an_install_build_at_modules_loaded(tmp_path):
+    """For an install/update build "Modules loaded." IS completion - the verdict
+    _install_confirmed reaches on the same log. Splitting the test predicate must
+    not move this one."""
+    log = _write_stamped_log(tmp_path, "init-run.log", verb="init", series="17.0",
+                             body=f"{_PROGRESS_LINE}\n{_LOADED_MARKER}")
+    env = _step55_env(tmp_path)
+    res = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "BUILD_RESULT=success" in res.stdout, res.stdout

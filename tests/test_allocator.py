@@ -66,10 +66,13 @@ def _env(home: Path, toml: Path) -> dict:
     return e
 
 
-def _run(env, *args):
+def _run(env, *args, timeout=None):
+    """Invoke the allocator. `timeout` is a HARD test-side bound: every command
+    promises to return a verdict, so a hang is a FAILURE (TimeoutExpired), never
+    a test that waits until the harness kills it."""
     return subprocess.run(
         [sys.executable, str(ALLOC), *args],
-        capture_output=True, text=True, env=env,
+        capture_output=True, text=True, env=env, timeout=timeout,
     )
 
 
@@ -111,6 +114,55 @@ def fixt(tmp_path):
 def _acquire(env, *extra):
     p = _run(env, "acquire", "--series", "17.0", *extra)
     return p, _parse_alloc(p.stdout)
+
+
+def _make_fake_venv_python(bindir, name="fake_python", log=None,
+                           createdb="true", createdb_rc=0, drop_rc=0):
+    """Write a stand-in for the instance's DECLARED venv python and return its path.
+
+    The allocator asks every Postgres question through this interpreter, so the
+    stub answers `odoo_db.py <subcommand>` the way a real venv would and logs the
+    full argv of each call. It deliberately does NOT stub any libpq client
+    binary: the whole point of the contract under test is that a role's CREATEDB
+    privilege is asked of the CLUSTER, never inferred from installed binaries.
+    """
+    bindir.mkdir(parents=True, exist_ok=True)
+    py = bindir / name
+    log_line = 'echo "$@" >> "%s"\n    ' % log if log is not None else ""
+    py.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ]; then\n'
+        '    %s'
+        'case "$2" in\n'
+        '      can-createdb) %sexit %d ;;\n'
+        '      drop) exit %d ;;\n'
+        '    esac\n'
+        '    exit 0\n'
+        'fi\n'
+        'exec %s "$@"\n' % (
+            log_line,
+            ('echo %s; ' % createdb) if createdb is not None else "",
+            createdb_rc, drop_rc, sys.executable,
+        ),
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    return py
+
+
+def _env_with_fake_venv(tmp_path, toml_text=None, **stub):
+    """(env, log, py): a catalog whose `python` points at a stubbed venv
+    interpreter, so an ephemeral acquire can be exercised with no real Postgres,
+    no real Odoo, and no libpq client anywhere on PATH."""
+    log = tmp_path / "odoo_db_argv.log"
+    stub.setdefault("log", log)
+    py = _make_fake_venv_python(tmp_path / "fakebin", **stub)
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    toml = tmp_path / "instances.toml"
+    toml.write_text((toml_text or INSTANCES_TOML).replace(
+        'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
+    return _env(home, toml), log, py
 
 
 # --------------------------------------------------------------------------- #
@@ -274,36 +326,25 @@ def test_maxed_out_pool_never_hands_out_a_sibling_instances_declared_port(tmp_pa
 def test_ephemeral_lease_carries_drop_context(tmp_path):
     """Verify the new B2 lease fields that _drop_through_odoo reads at release time.
 
-    We need drop_on_release=True which requires an ephemeral lease WITHOUT --no-create.
-    Inject a fake psql that makes _probe_createdb return True (role has CREATEDB) so
-    the probe succeeds without a real Postgres.
+    We need drop_on_release=True which requires an ephemeral lease WITHOUT
+    --no-create. The instance's declared python answers `can-createdb` with
+    `true` (the role HAS CREATEDB), which is the only thing that may keep an
+    ephemeral request in ephemeral mode.
     """
-    # Fake psql: any invocation prints 't' (role has CREATEDB) and exits 0.
-    bindir = tmp_path / "fakebin"
-    bindir.mkdir()
-    fake_psql = bindir / "psql"
-    fake_psql.write_text("#!/bin/sh\necho t\n", encoding="utf-8")
-    fake_psql.chmod(0o755)
-
-    home = tmp_path / "home"
-    home.mkdir()
-    toml = tmp_path / "instances.toml"
-    toml.write_text(INSTANCES_TOML, encoding="utf-8")
-    env = _env(home, toml)
-    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    env, _log, fake_py = _env_with_fake_venv(tmp_path)
 
     p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
     a = _parse_alloc(p.stdout)
-    assert p.returncode == 0
+    assert p.returncode == 0, p.stderr
     assert a["ALLOC_MODE"] == "ephemeral", (
-        "fake psql returning 't' must allow the probe to pass and stay in ephemeral mode"
+        "a role that positively HAS CREATEDB must keep the acquire in ephemeral mode"
     )
 
     leases = _leases(env)
     assert len(leases) == 1
     lz = leases[0]
     assert lz["drop_on_release"] is True, "ephemeral lease must set drop_on_release=True"
-    assert lz["python"] == "/srv/venv/bin/python", "venv interpreter must be stored in lease"
+    assert lz["python"] == str(fake_py), "venv interpreter must be stored in lease"
     assert lz["db_host"] == "localhost", "db_host must be stored for drop-context"
     assert lz["db_user"] == "odoo", "db_user must be stored for drop-context"
     # Password must NOT be stored - it is read from ODOO_PG_PASSWORD at drop time.
@@ -595,8 +636,12 @@ def _pg_available() -> bool:
 
     createdb is NOT required by the allocator itself in B2 mode; the test
     harness uses it to stand in for `odoo-bin --stop-after-init`, but the
-    allocator's own drop path only needs psql (for terminate-backend) and dropdb
-    (for the raw-fallback path).
+    allocator's own RAW-FALLBACK drop path needs psql (terminate-backend) and
+    dropdb. These gates are harness-level: the tests below drive a REAL database,
+    so they need real binaries. Nothing in the allocator's own contract needs
+    them - the CREATEDB capability and every read-only query go through the
+    instance's declared python, and those paths are covered by CPU-only stub
+    tests here and in tests/test_pg_mode.py.
     """
     from shutil import which
 
@@ -650,11 +695,6 @@ def test_ephemeral_reserve_only_then_caller_creates_then_release_drops(fixt, tmp
     4. Assert: (a) DB absent after acquire; (b) fake odoo_db.py was called with
        `drop <db>`; (c) DB gone after release; (d) raw `dropdb` shell tool was NOT
        used by the allocator directly (it went through odoo_db.py).
-
-    NOTE: if the role lacks CREATEDB the allocator degrades to exclusive mode,
-    which has drop_on_release=False and no DB drop at release.  Skip the
-    through-Odoo drop assertions in that case (degraded path is separately tested
-    by the fallback test below).
     """
     from shutil import which
 
@@ -712,8 +752,12 @@ exec {sys.executable} "$@"
     a = _parse_alloc(p.stdout)
     assert p.returncode == 0
 
-    if a["ALLOC_MODE"] != "ephemeral":
-        pytest.skip("role lacks CREATEDB - degraded to exclusive, B2 drop path not exercised")
+    # NOT a skip: an ephemeral request has exactly two outcomes (isolated, or a
+    # non-zero refusal), so a non-ephemeral mode here is a contract violation to
+    # report, never a reason to quietly stop exercising the B2 drop path.
+    assert a["ALLOC_MODE"] == "ephemeral", (
+        f"acquire exited 0 but did not return an ephemeral lease; got {a!r}"
+    )
 
     db = a["ALLOC_DB_NAME"]
 
@@ -865,8 +909,9 @@ db_user = "odoo"
     a = _parse_alloc(p.stdout)
     assert p.returncode == 0
 
-    if a["ALLOC_MODE"] != "ephemeral":
-        pytest.skip("role lacks CREATEDB - degraded to exclusive, fallback path not exercised")
+    assert a["ALLOC_MODE"] == "ephemeral", (
+        f"acquire exited 0 but did not return an ephemeral lease; got {a!r}"
+    )
 
     db = a["ALLOC_DB_NAME"]
 
@@ -899,18 +944,13 @@ def test_ephemeral_release_does_not_fallback_on_genuine_drop_failure(tmp_path):
     the allocator must NOT invoke raw dropdb, must retain the lease, and must return
     a non-zero exit code.
 
-    This is a pure-CPU test (no Postgres needed): we use a fake psql that makes
-    _probe_createdb return True, a fake odoo_db.py that exits rc=1, and a fake
-    dropdb binary that logs any invocation so we can assert it was NOT called.
+    This is a pure-CPU test (no Postgres needed): the declared venv python answers
+    `can-createdb` with true and exits rc=1 on `drop`, and a fake dropdb binary
+    logs any invocation so we can assert it was NOT called.
     """
-    # Fake psql: prints 't' (role has CREATEDB) so probe passes without real PG.
     bindir = tmp_path / "fakebin"
     bindir.mkdir()
     dropdb_log = tmp_path / "dropdb_calls.log"
-
-    fake_psql = bindir / "psql"
-    fake_psql.write_text("#!/bin/sh\necho t\n", encoding="utf-8")
-    fake_psql.chmod(0o755)
 
     # Fake dropdb: logs any call (must NOT be invoked on genuine rc=1).
     fake_dropdb = bindir / "dropdb"
@@ -920,20 +960,9 @@ def test_ephemeral_release_does_not_fallback_on_genuine_drop_failure(tmp_path):
     )
     fake_dropdb.chmod(0o755)
 
-    # Fake venv python: invoked as `<python> /path/to/odoo_db.py drop <db> ...`
-    # so $1=odoo_db.py path, $2=drop, $3=db_name.
-    # Exits rc=1 to simulate a genuine Odoo exp_drop failure (NOT rc=10).
-    fake_python = bindir / "fake_python"
-    fake_python.write_text(
-        '#!/bin/sh\n'
-        'if [ "$(basename "$1")" = "odoo_db.py" ] && [ "$2" = "drop" ]; then\n'
-        '    echo "odoo_db: exp_drop failed" >&2\n'
-        '    exit 1\n'
-        'fi\n'
-        'exec {real_py} "$@"\n'.format(real_py=sys.executable),
-        encoding="utf-8",
-    )
-    fake_python.chmod(0o755)
+    # Declared venv python: answers can-createdb=true, exits rc=1 on `drop` to
+    # simulate a genuine Odoo exp_drop failure (NOT the rc=10 venv sentinel).
+    fake_python = _make_fake_venv_python(bindir, drop_rc=1)
 
     home = tmp_path / "home"
     home.mkdir()
@@ -951,11 +980,11 @@ def test_ephemeral_release_does_not_fallback_on_genuine_drop_failure(tmp_path):
         bin=bindir, sep=os.pathsep, path=env.get("PATH", "")
     )
 
-    # Acquire an ephemeral lease (psql returns 't' so probe passes).
+    # Acquire an ephemeral lease (can-createdb answers true).
     p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
     a = _parse_alloc(p.stdout)
-    assert p.returncode == 0
-    assert a["ALLOC_MODE"] == "ephemeral", "fake psql should have allowed ephemeral mode"
+    assert p.returncode == 0, p.stderr
+    assert a["ALLOC_MODE"] == "ephemeral", "a role WITH CREATEDB must stay in ephemeral mode"
 
     # Release: fake odoo_db.py exits rc=1 -> genuine failure path.
     rel = _run(env, "release", a["ALLOC_TOKEN"])
@@ -1169,43 +1198,42 @@ def test_acquire_db_port_empty_when_absent_not_5432(fixt):
 
 
 def _make_drop_logger_env(tmp_path, toml_text):
-    """Return (env, log_path): a fake psql that passes the CREATEDB probe and a
-    fake venv python that LOGS the odoo_db.py argv (so we can assert the drop
-    command flags) and exits 0. CPU-only: no real Postgres, no real dropdb."""
-    bindir = tmp_path / "fakebin"
-    bindir.mkdir()
-    (bindir / "psql").write_text("#!/bin/sh\necho t\n", encoding="utf-8")
-    (bindir / "psql").chmod(0o755)
-    log = tmp_path / "odoo_db_argv.log"
-    fake_python = bindir / "fake_python"
-    fake_python.write_text(
-        '#!/bin/sh\n'
-        'if [ "$(basename "$1")" = "odoo_db.py" ]; then echo "$@" >> "%s"; exit 0; fi\n'
-        'exec %s "$@"\n' % (log, sys.executable),
-        encoding="utf-8",
-    )
-    fake_python.chmod(0o755)
-    home = tmp_path / "home"
-    home.mkdir()
-    toml = tmp_path / "instances.toml"
-    toml.write_text(toml_text.replace('python = "/srv/venv/bin/python"',
-                                      f'python = "{fake_python}"'), encoding="utf-8")
-    env = _env(home, toml)
-    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    """Return (env, log_path): a stubbed venv python that answers `can-createdb`
+    with `true` and LOGS every odoo_db.py argv (so we can assert the drop command
+    flags), exiting 0. CPU-only: no real Postgres, no real Odoo, and NO libpq
+    client binary anywhere - the contract under test must not need one."""
+    env, log, _py = _env_with_fake_venv(tmp_path, toml_text)
     return env, log
+
+
+def _acquire_ephemeral_or_fail(env):
+    """Acquire in ephemeral mode and REQUIRE it to have stayed ephemeral.
+
+    A hard assertion on purpose: an ephemeral request has exactly two possible
+    outcomes (isolated, or a non-zero refusal). Any pytest.skip here would let
+    the through-Odoo drop coverage below evaporate silently the next time the
+    mechanism changes - which is exactly how this defect stayed shippable.
+    """
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, (
+        f"ephemeral acquire must succeed with a stubbed can-createdb=true; "
+        f"rc={p.returncode} stderr={p.stderr!r}"
+    )
+    assert a.get("ALLOC_MODE") == "ephemeral", (
+        f"an ephemeral request must NEVER come back as anything else; got {a!r}"
+    )
+    return a
 
 
 def test_drop_through_odoo_includes_db_port_when_set(tmp_path):
     """_drop_through_odoo must thread --db-port to odoo_db.py when the lease has one."""
     env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML_PORT)
-    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
-    a = _parse_alloc(p.stdout)
-    assert p.returncode == 0
-    if a["ALLOC_MODE"] != "ephemeral":
-        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    a = _acquire_ephemeral_or_fail(env)
     rel = _run(env, "release", a["ALLOC_TOKEN"])
     assert rel.returncode == 0, rel.stderr
     argv = log.read_text(encoding="utf-8")
+    assert "drop" in argv, f"the drop must have gone through odoo_db.py; got {argv!r}"
     assert "--db-port" in argv and "5433" in argv, (
         f"drop command must include --db-port 5433 when the lease carries db_port; got {argv!r}"
     )
@@ -1215,16 +1243,34 @@ def test_drop_through_odoo_omits_db_port_when_empty(tmp_path):
     """No declared db_port -> the drop command must NOT carry --db-port (empty-omit)."""
     # INSTANCES_TOML has db_name_prefix but no db_port.
     env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML)
-    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
-    a = _parse_alloc(p.stdout)
-    assert p.returncode == 0
-    if a["ALLOC_MODE"] != "ephemeral":
-        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    a = _acquire_ephemeral_or_fail(env)
     rel = _run(env, "release", a["ALLOC_TOKEN"])
     assert rel.returncode == 0, rel.stderr
     argv = log.read_text(encoding="utf-8")
+    assert "drop" in argv, f"the drop must have gone through odoo_db.py; got {argv!r}"
     assert "--db-port" not in argv, (
         f"drop command must OMIT --db-port when no db_port is declared; got {argv!r}"
+    )
+
+
+def test_drop_through_odoo_threads_the_declared_odoo_root(tmp_path):
+    """A source checkout needs the repo root on sys.path for `import odoo` to
+    resolve at all, so a declared odoo_root MUST reach odoo_db.py - otherwise
+    every through-Odoo drop on a source instance takes the raw fallback it was
+    written to avoid."""
+    toml = INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        'odoo_root = "/srv/odoo"\npython = "/srv/venv/bin/python"')
+    env, log = _make_drop_logger_env(tmp_path, toml)
+    a = _acquire_ephemeral_or_fail(env)
+    assert _leases(env)[0]["odoo_root"] == "/srv/odoo", (
+        "the lease must carry odoo_root - release/gc run after the caller is gone"
+    )
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+    assert rel.returncode == 0, rel.stderr
+    argv = log.read_text(encoding="utf-8")
+    assert "--odoo-root /srv/odoo" in argv, (
+        f"drop command must thread the declared odoo_root; got {argv!r}"
     )
 
 
@@ -1279,14 +1325,20 @@ def test_release_different_run_id_refused_and_db_not_dropped(tmp_path):
     p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
              "--run-id", "run-A")
     a = _parse_alloc(p.stdout)
-    assert p.returncode == 0
-    if a["ALLOC_MODE"] != "ephemeral":
-        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    assert p.returncode == 0, p.stderr
+    assert a.get("ALLOC_MODE") == "ephemeral", (
+        f"an ephemeral request must never come back as anything else; got {a!r}"
+    )
     rel = _run(env, "release", a["ALLOC_TOKEN"], "--run-id", "run-B")
     assert rel.returncode != 0, "a foreign run must be refused"
     assert "run-A" in rel.stderr, f"refusal must name the owner run; stderr={rel.stderr!r}"
     assert len(_leases(env)) == 1, "a refused release must KEEP the lease"
-    assert not log.exists(), "a refused release must NOT invoke the drop (DB untouched)"
+    # The log also records the acquire's own can-createdb call, so assert on the
+    # DROP specifically - the thing that must not have happened.
+    argv = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert " drop " not in f" {argv} ", (
+        f"a refused release must NOT invoke the drop (DB untouched); logged {argv!r}"
+    )
 
 
 def test_force_release_of_foreign_run_proceeds_and_logs(fixt):
@@ -1529,7 +1581,7 @@ def test_release_stops_process_group_before_dropping(tmp_path, monkeypatch):
 
         seen = {}
 
-        def _recording_drop(lease):
+        def _recording_drop(lease, instances_path=None):
             # Snapshot liveness at the exact moment the drop fires: if the group
             # was stopped FIRST, both members are already gone here.
             seen["called"] = True
@@ -1918,3 +1970,809 @@ def test_python_and_shell_agree_on_instances_nonempty(tmp_path):
         sh_result = sh.returncode == 0
         assert sh_result is expected, f"shell side for {path.name}: {sh.stderr}"
         assert py_result == sh_result, f"python/shell disagree for {path.name}"
+
+
+# --------------------------------------------------------------------------- #
+# THE LOAD-BEARING INVARIANT: `--mode ephemeral` NEVER degrades
+#
+# An ephemeral request has exactly TWO outcomes:
+#   (a) exit 0 with ALLOC_MODE=ephemeral and a fresh <prefix>_t_<hex8> db name, or
+#   (b) a non-zero exit that writes NO lease and names the remedies.
+# There is no third outcome. ALLOC_MODE=exclusive can only ever be produced by a
+# caller that literally passed --mode exclusive. Before this contract existed the
+# allocator answered "is this role allowed to create databases?" by shelling out
+# to psql - so a host with no libpq client installed (Postgres in a container)
+# was told its role lacks the privilege, and silently handed back an `exclusive`
+# lease on the DECLARED, long-lived database: two concurrent callers wrote the
+# same durable DB and neither was told.
+# --------------------------------------------------------------------------- #
+
+# Every way the capability question can fail, mapped to the exit it must produce.
+# 6 = the role positively LACKS CREATEDB (a human fixes it with a grant).
+# 7 = the capability is UNDETERMINABLE (a human fixes it with a declaration or by
+#     starting the cluster). Never collapsed into 6: the remedies differ.
+_EPHEMERAL_REFUSAL_SHAPES = {
+    "role positively lacks CREATEDB": (dict(createdb="false"), None, 6),
+    "cluster unreachable": (dict(createdb=None, createdb_rc=1), None, 7),
+    "venv cannot import odoo": (dict(createdb=None, createdb_rc=10), None, 7),
+    "capability answer is garbage": (dict(createdb="maybe"), None, 7),
+    "no python declared": (None, None, 7),
+    "tcp-only declared and role lacks CREATEDB": (
+        dict(createdb="false"), 'db_run_mode = "tcp-only"', 6),
+    "docker declared and capability undeterminable": (
+        dict(createdb=None, createdb_rc=1),
+        'db_run_mode = "docker"\ndb_container = "declared-elsewhere"', 7),
+}
+
+
+def _refusal_env(tmp_path, shape):
+    """Build a catalog+stub for one refusal shape. Returns (env, declared_db_name)."""
+    stub, toml_extra, _exit = _EPHEMERAL_REFUSAL_SHAPES[shape]
+    toml_text = INSTANCES_TOML
+    if toml_extra:
+        toml_text = toml_text.replace(
+            'python = "/srv/venv/bin/python"', toml_extra + '\npython = "/srv/venv/bin/python"')
+    if stub is None:
+        # No `python` at all: the capability cannot be asked, so it is
+        # UNDETERMINABLE - which must never be read as a factual "no".
+        toml_text = toml_text.replace('python = "/srv/venv/bin/python"\n', "")
+        home = tmp_path / "home"
+        home.mkdir(exist_ok=True)
+        toml = tmp_path / "instances.toml"
+        toml.write_text(toml_text, encoding="utf-8")
+        env = _env(home, toml)
+    else:
+        env, _log, _py = _env_with_fake_venv(tmp_path, toml_text, **stub)
+    return env, "odoo_17_0"
+
+
+@pytest.mark.parametrize("shape", sorted(_EPHEMERAL_REFUSAL_SHAPES))
+def test_ephemeral_request_never_yields_exclusive_lease(tmp_path, shape):
+    """For EVERY way the CREATEDB question can fail, the acquire refuses loudly -
+    it never answers an ephemeral request with an exclusive lease."""
+    env, declared_db = _refusal_env(tmp_path, shape)
+    expected_exit = _EPHEMERAL_REFUSAL_SHAPES[shape][2]
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+
+    assert p.returncode == expected_exit, (
+        f"[{shape}] must exit {expected_exit}; got {p.returncode}, stderr={p.stderr!r}"
+    )
+    assert "ALLOC_MODE=exclusive" not in p.stdout, (
+        f"[{shape}] an ephemeral request must NEVER be answered with an exclusive "
+        f"lease; stdout={p.stdout!r}"
+    )
+    assert declared_db not in p.stdout, (
+        f"[{shape}] the DECLARED long-lived database must never be handed to an "
+        f"ephemeral request; stdout={p.stdout!r}"
+    )
+    assert p.stderr.strip(), f"[{shape}] a refusal must say why"
+
+
+@pytest.mark.parametrize("shape", sorted(_EPHEMERAL_REFUSAL_SHAPES))
+def test_ephemeral_declared_db_name_never_leased_by_an_ephemeral_request(tmp_path, shape):
+    """The registry - not stdout - is the authority: after EVERY refusal shape no
+    lease exists at all, and in particular none on the declared db_name. Asserted
+    on leases.json so a future change to the emit format cannot make this pass
+    vacuously."""
+    env, declared_db = _refusal_env(tmp_path, shape)
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    assert p.returncode != 0, f"[{shape}] expected a refusal; stdout={p.stdout!r}"
+
+    leases = _leases(env)
+    assert leases == [], f"[{shape}] a refused acquire must write NO lease; got {leases!r}"
+    assert declared_db not in {lz.get("db_name") for lz in leases}, (
+        f"[{shape}] the declared database must never appear in a lease minted by an "
+        "ephemeral request"
+    )
+
+
+def test_broken_native_client_does_not_change_the_ephemeral_outcome(tmp_path):
+    """The false negative that caused the defect, replayed: psql present but
+    broken (and dropdb absent). The capability answer comes from the CLUSTER
+    through the declared python, so a broken client binary is IRRELEVANT and the
+    acquire must succeed as a fully isolated ephemeral lease."""
+    import re
+
+    env, _log, _py = _env_with_fake_venv(tmp_path)
+    bindir = tmp_path / "brokenbin"
+    bindir.mkdir()
+    for name, body in (("psql", "#!/bin/sh\nexit 127\n"), ("createuser", "#!/bin/sh\nexit 1\n")):
+        (bindir / name).write_text(body, encoding="utf-8")
+        (bindir / name).chmod(0o755)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, f"a broken psql must not affect the outcome; stderr={p.stderr!r}"
+    assert a["ALLOC_MODE"] == "ephemeral"
+    assert re.match(r"^odoo_17_0_t_[0-9a-f]{8}$", a["ALLOC_DB_NAME"]), (
+        f"an ephemeral acquire must hand back a fresh throwaway db name; got "
+        f"{a['ALLOC_DB_NAME']!r}"
+    )
+    assert a["ALLOC_DB_NAME"] != "odoo_17_0", "never the declared database"
+
+
+def test_role_positively_without_createdb_exits_6_and_writes_no_lease(tmp_path):
+    """Exit 6 is the role-lacks-the-privilege verdict, and its message must name
+    every explicit option a caller has - it must not leave the caller to guess."""
+    env, _log, _py = _env_with_fake_venv(tmp_path, createdb="false")
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    assert p.returncode == 6, f"got {p.returncode}, stderr={p.stderr!r}"
+    assert _leases(env) == []
+    low = p.stderr.lower()
+    assert "createdb" in low, "the message must name the missing privilege"
+    assert "--mode exclusive" in p.stderr, "it must name the explicit serialise alternative"
+    assert "--no-create" in p.stderr, "it must name the probe-free alternative"
+
+
+def test_undeterminable_createdb_capability_exits_7_and_writes_no_lease(tmp_path):
+    """Exit 7 is UNDETERMINABLE, distinct from 6 so the remedy is unambiguous. It
+    must name the series and the cause; 'I could not tell' is never read as 'no'."""
+    env, _log, _py = _env_with_fake_venv(tmp_path, createdb=None, createdb_rc=1)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    assert p.returncode == 7, f"got {p.returncode}, stderr={p.stderr!r}"
+    assert _leases(env) == []
+    assert "17.0" in p.stderr, f"the refusal must name the series; got {p.stderr!r}"
+    assert "can-createdb" in p.stderr, "it must name the cause it could not resolve"
+
+
+def test_no_create_keeps_ephemeral_and_asks_nothing(tmp_path):
+    """--no-create means the caller creates no database, so CREATEDB is irrelevant
+    to it: the capability must not even be asked, and the mode must stay ephemeral."""
+    probe_log = tmp_path / "odoo_db_argv.log"
+    env, log, _py = _env_with_fake_venv(tmp_path, createdb="false")
+    assert log == probe_log
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral",
+             "--ports", "0", "--no-create")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, p.stderr
+    assert a["ALLOC_MODE"] == "ephemeral", "--no-create must stay a probe-free path"
+    assert not probe_log.exists(), (
+        "with --no-create the capability must not be asked at all; the stub logged "
+        f"{probe_log.read_text(encoding='utf-8') if probe_log.exists() else ''!r}"
+    )
+    assert _leases(env)[0]["drop_on_release"] is False
+
+
+def test_acquire_has_no_mode_reassignment(tmp_path):
+    """Source-level backstop for the exact SHAPE that produced the defect: inside
+    cmd_acquire, `mode` is bound ONCE from the caller's request and never
+    reassigned. An AST walk, not a string match, so no comment or message wording
+    can make it pass."""
+    import ast
+
+    tree = ast.parse(ALLOC.read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree)
+              if isinstance(n, ast.FunctionDef) and n.name == "cmd_acquire")
+    writes = []
+    for node in ast.walk(fn):
+        targets = []
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            targets = [node.target]
+        for t in targets:
+            if isinstance(t, ast.Name) and t.id == "mode":
+                writes.append(node.lineno)
+    assert len(writes) == 1, (
+        "cmd_acquire must bind `mode` exactly once (the caller's request) and never "
+        f"rewrite it - a rewrite is how an ephemeral request silently became an "
+        f"exclusive lease. Assignments found at lines {writes}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Drop safety: a drop that did not happen is NEVER reported as success
+# --------------------------------------------------------------------------- #
+def test_failed_raw_fallback_drop_keeps_the_lease(tmp_path):
+    """The raw fallback's return value must be HONOURED. When the declared client
+    surface cannot drop (tcp-only), release must fail, the lease must survive, and
+    the filestore must be left alone. Discarding that return value deletes the
+    lease while the database survives - an orphan nothing can find, since the only
+    thing that could find it (reap-orphans) needs a lease to know it existed."""
+    toml = INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        'db_run_mode = "tcp-only"\npython = "/srv/venv/bin/python"')
+    # can-createdb answers true (so we get a real ephemeral lease); the drop then
+    # exits 10 = "venv unavailable", which is what sends it to the raw fallback.
+    env, _log, _py = _env_with_fake_venv(tmp_path, toml, drop_rc=10)
+    xdg = tmp_path / "xdg"
+    env["XDG_DATA_HOME"] = str(xdg)
+
+    a = _acquire_ephemeral_or_fail(env)
+    filestore = xdg / "Odoo" / "filestore" / a["ALLOC_DB_NAME"]
+    filestore.mkdir(parents=True)
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+
+    assert rel.returncode != 0, (
+        f"a drop that did not happen must NOT be reported as a successful release; "
+        f"stderr={rel.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, (
+        "the lease must be KEPT so gc can retry and the DB stays findable"
+    )
+    assert filestore.is_dir(), "the filestore must not be removed when nothing was dropped"
+    assert "tcp-only" in rel.stderr, f"the error must name the declared mode; got {rel.stderr!r}"
+
+
+def test_tcp_only_mode_never_invokes_a_client_binary(tmp_path):
+    """db_run_mode=tcp-only is a declaration that this host has NO client surface.
+    The allocator must honour it rather than trying a binary that happens to be on
+    PATH - a client that works for a DIFFERENT cluster is the wrong-cluster shape."""
+    toml = INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        'db_run_mode = "tcp-only"\npython = "/srv/venv/bin/python"')
+    env, _log, _py = _env_with_fake_venv(tmp_path, toml, drop_rc=10)
+    calls = tmp_path / "client_calls.log"
+    bindir = tmp_path / "clientbin"
+    bindir.mkdir()
+    for name in ("psql", "dropdb"):
+        (bindir / name).write_text(
+            '#!/bin/sh\necho "%s $*" >> "%s"\nexit 0\n' % (name, calls), encoding="utf-8")
+        (bindir / name).chmod(0o755)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+
+    a = _acquire_ephemeral_or_fail(env)
+    _run(env, "release", a["ALLOC_TOKEN"])
+
+    assert not calls.exists(), (
+        "a tcp-only declaration must never reach a libpq client binary; got "
+        f"{calls.read_text(encoding='utf-8') if calls.exists() else ''!r}"
+    )
+
+
+def test_legacy_lease_without_db_run_mode_still_drops_on_a_native_host(tmp_path):
+    """Backward compatibility, scoped as narrowly as it can be: a lease minted
+    before db_run_mode existed carries none, and on a host where BOTH client
+    binaries are genuinely present the raw fallback must still work exactly as it
+    did. Absent is not silently equated with tcp-only."""
+    calls = tmp_path / "client_calls.log"
+    bindir = tmp_path / "clientbin"
+    bindir.mkdir()
+    for name in ("psql", "dropdb"):
+        (bindir / name).write_text(
+            '#!/bin/sh\necho "%s $*" >> "%s"\nexit 0\n' % (name, calls), encoding="utf-8")
+        (bindir / name).chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML, encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+
+    token = "cd" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": token, "mode": "ephemeral", "db_name": "odoo_17_0_t_0badcafe",
+        "drop_on_release": True, "python": "",  # no venv -> raw fallback
+        "db_host": "localhost", "db_user": "odoo", "db_port": "",
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }])
+
+    rel = _run(env, "release", token)
+    assert rel.returncode == 0, f"a pre-change lease must still release; stderr={rel.stderr!r}"
+    assert _leases(env) == [], "a successful drop must remove the lease"
+    logged = calls.read_text(encoding="utf-8")
+    assert "odoo_17_0_t_0badcafe" in logged, (
+        f"the raw fallback must have dropped the DB on a native host; got {logged!r}"
+    )
+
+
+def test_release_keeps_the_lease_when_the_raw_drop_command_fails(tmp_path):
+    """Isolates the discarded-return-value defect, with no dependence on the
+    acquire path: a seeded lease with no venv takes the raw fallback, and the
+    `dropdb` command FAILS. The database therefore still exists, so the lease must
+    still exist too. Deleting the lease here strands a database that nothing can
+    ever find again - reap-orphans only knows a db was ephemeral by its NAME, and
+    a caller that was told "released" never retries."""
+    calls = tmp_path / "client_calls.log"
+    bindir = tmp_path / "clientbin"
+    bindir.mkdir()
+    # psql (terminate-backend) succeeds; dropdb FAILS every attempt.
+    (bindir / "psql").write_text('#!/bin/sh\nexit 0\n', encoding="utf-8")
+    (bindir / "dropdb").write_text(
+        '#!/bin/sh\necho "dropdb $*" >> "%s"\necho "dropdb: could not drop" >&2\nexit 1\n' % calls,
+        encoding="utf-8")
+    for name in ("psql", "dropdb"):
+        (bindir / name).chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML, encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    xdg = tmp_path / "xdg"
+    env["XDG_DATA_HOME"] = str(xdg)
+    filestore = xdg / "Odoo" / "filestore" / "odoo_17_0_t_feedface"
+    filestore.mkdir(parents=True)
+
+    token = "ef" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": token, "mode": "ephemeral", "db_name": "odoo_17_0_t_feedface",
+        "drop_on_release": True, "python": "",  # no venv -> raw fallback
+        "db_host": "localhost", "db_user": "odoo", "db_port": "",
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }])
+
+    rel = _run(env, "release", token)
+
+    assert calls.exists(), "test setup: the raw fallback must have been attempted"
+    assert rel.returncode != 0, (
+        "a failed drop must NOT be reported as a successful release; "
+        f"stderr={rel.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, (
+        "the lease must be KEPT when the drop failed - the database is still there"
+    )
+    assert filestore.is_dir(), "the filestore must survive a drop that did not happen"
+
+
+# --------------------------------------------------------------------------- #
+# Probes are BOUNDED - an acquire that cannot answer must still RETURN.
+#
+# psycopg2 opens the connection with no libpq connect timeout (`connect_timeout`
+# appears nowhere in Odoo's sql_db across the supported series), so a paused or
+# firewalled cluster blocks INSIDE db_connect. An unbounded probe therefore never
+# returns: no lease, no exit 6, no exit 7, no verdict at all - strictly worse
+# than the wrong answer the probe replaced, because the caller learns nothing.
+# --------------------------------------------------------------------------- #
+def _hanging_venv_python(bindir, name="hang_python", subcommand="can-createdb"):
+    """A stand-in venv interpreter that HANGS on one odoo_db.py subcommand.
+
+    Spins rather than sleeping: `sleep` may be absent from a restricted PATH, and
+    the process must genuinely outlive the bound for the bound to be what is
+    measured.
+    """
+    bindir.mkdir(parents=True, exist_ok=True)
+    py = bindir / name
+    py.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ] && [ "$2" = "%s" ]; then\n'
+        '    while : ; do : ; done\n'
+        'fi\n'
+        'exec %s "$@"\n' % (subcommand, sys.executable),
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    return py
+
+
+def test_ephemeral_acquire_returns_a_verdict_when_the_createdb_probe_hangs(tmp_path):
+    """An unresponsive CREATEDB probe must end in exit 7, not in a hang.
+
+    The refusal is what makes `ephemeral` honest, so the refusal itself must be
+    reachable: a probe with no bound means `acquire` never returns, the caller's
+    tool call dies at the harness ceiling, and NOTHING is reported - not even
+    "undeterminable".
+    """
+    py = _hanging_venv_python(tmp_path / "hangbin")
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
+    env = _env(home, toml)
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "2"
+
+    started = time.monotonic()
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    elapsed = time.monotonic() - started
+
+    assert p.returncode == 7, (
+        f"an unanswerable capability probe must REFUSE with exit 7; got {p.returncode}, "
+        f"stderr={p.stderr!r}"
+    )
+    assert elapsed < 45, f"the probe must be bounded; acquire took {elapsed:.1f}s"
+    assert "timed out" in p.stderr.lower(), (
+        f"the reason must say the probe did not answer - never a factual 'no'; got {p.stderr!r}"
+    )
+    assert _leases(env) == [], "a refused acquire writes NO lease"
+
+
+def test_the_probe_bound_is_the_same_knob_the_shell_half_uses(tmp_path):
+    """ONE timeout policy, not two.
+
+    pg_mode.sh bounds every shell-side probe with $ODOO_AI_PG_PROBE_TIMEOUT; the
+    python half must read the SAME variable, or a host that tunes the bound gets
+    it applied to half of its probes.
+    """
+    py = _hanging_venv_python(tmp_path / "hangbin")
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
+
+    def _elapsed(secs):
+        env = _env(home, toml)
+        env["ODOO_AI_PG_PROBE_TIMEOUT"] = str(secs)
+        started = time.monotonic()
+        p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+                 timeout=90)
+        assert p.returncode == 7, p.stderr
+        return time.monotonic() - started
+
+    short = _elapsed(2)
+    long = _elapsed(9)
+    assert long - short >= 3.0, (
+        f"$ODOO_AI_PG_PROBE_TIMEOUT must govern the python-side probe too; 2s took "
+        f"{short:.1f}s and 9s took {long:.1f}s"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# The UNDETERMINABLE message must diagnose correctly AND name the remedy.
+# --------------------------------------------------------------------------- #
+def test_undeterminable_createdb_names_the_record_env_remedy(tmp_path):
+    """`import odoo` failing is an UNDECLARED `odoo_root`, not a broken venv.
+
+    A source checkout is never pip-installed, so a catalog written before
+    `odoo_root` existed makes odoo_db.py exit 10 - and its own message says "no
+    venv?", which is FALSE: the venv is fine. Repeating that diagnosis and then
+    offering only "re-dispatch with an explicit --mode" hides the one cheap fix,
+    which is the very thing that records the missing key.
+    """
+    bindir = tmp_path / "sentinelbin"
+    bindir.mkdir()
+    py = bindir / "py10"
+    py.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ]; then\n'
+        '    echo "odoo_db: cannot import odoo (no venv?) - no module named odoo" >&2\n'
+        '    exit 10\n'
+        'fi\n'
+        'exec %s "$@"\n' % sys.executable,
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
+    env = _env(home, toml)
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+
+    assert p.returncode == 7, f"got {p.returncode}: {p.stderr!r}"
+    assert "record-env" in p.stderr, (
+        f"the ONE cheap fix must be named on this path too; got {p.stderr!r}"
+    )
+    assert "odoo_root" in p.stderr, (
+        f"the message must name the fact that is actually missing, not blame the "
+        f"venv; got {p.stderr!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# A compose-run instance declares no `python` at all - but it is a FIRST-CLASS
+# supported run mode, so `--mode ephemeral` must not be permanently unreachable
+# for it. When the catalog declares a libpq client surface, the SAME capability
+# question is asked over that surface.
+# --------------------------------------------------------------------------- #
+INSTANCES_TOML_DOCKER_RUN = """\
+[[instance]]
+series = "18.0"
+run_mode = "docker"
+http_port = 8069
+http_port_base = 8170
+port_pool_size = 10
+db_name = "odoo_18_0"
+db_name_prefix = "odoo_18_0"
+db_host = "db.example"
+db_port = 5544
+db_user = "odoo"
+db_run_mode = "docker"
+db_container = "pg-for-tests"
+"""
+
+INSTANCES_TOML_DOCKER_RUN_TCP_ONLY = INSTANCES_TOML_DOCKER_RUN.replace(
+    'db_run_mode = "docker"\ndb_container = "pg-for-tests"\n', 'db_run_mode = "tcp-only"\n')
+
+
+def _docker_client_env(tmp_path, toml_text, *, answer="t", rc=0, log=None):
+    """A catalog with NO `python` and a stubbed `docker` on PATH, so the declared
+    container is the only surface that can answer anything."""
+    bindir = tmp_path / "clientbin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    docker = bindir / "docker"
+    docker.write_text(
+        '#!/bin/sh\n'
+        + ('echo "$@" >> "%s"\n' % log if log is not None else "")
+        + ('echo "%s"\n' % answer if answer is not None else "")
+        + 'exit %d\n' % rc,
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    toml = tmp_path / "instances.toml"
+    toml.write_text(toml_text, encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    return env
+
+
+def test_compose_run_instance_can_still_acquire_an_ephemeral_lease(tmp_path):
+    """A `run_mode = "docker"` instance declares no `python` (compose launches
+    it), so the interpreter probe can never answer for it. With a declared docker
+    client surface the SAME live privilege query is asked inside the container -
+    otherwise `--mode ephemeral` is permanently exit 7 for a first-class supported
+    run mode, and isolation is unavailable by construction rather than by fact."""
+    log = tmp_path / "docker_calls.log"
+    env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN, answer="t", log=log)
+
+    p = _run(env, "acquire", "--series", "18.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    a = _parse_alloc(p.stdout)
+
+    assert p.returncode == 0, (
+        f"a compose-run instance with a declared client surface must be able to "
+        f"acquire an isolated lease; got {p.returncode}, stderr={p.stderr!r}"
+    )
+    assert a["ALLOC_MODE"] == "ephemeral"
+    assert a["ALLOC_DB_NAME"].startswith("odoo_18_0_t_")
+    calls = log.read_text(encoding="utf-8")
+    assert "pg-for-tests" in calls and "rolcreatedb" in calls, (
+        f"the capability must be asked of the CLUSTER inside the declared "
+        f"container; got:\n{calls}"
+    )
+
+
+def test_compose_run_instance_refuses_with_6_when_the_role_lacks_createdb(tmp_path):
+    """The client-surface answer keeps False and undeterminable DISTINCT: a role
+    that positively lacks CREATEDB is exit 6 (grant it), never exit 7."""
+    env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN, answer="f")
+    p = _run(env, "acquire", "--series", "18.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    assert p.returncode == 6, f"got {p.returncode}: {p.stderr!r}"
+    assert _leases(env) == [], "a refused acquire writes NO lease"
+
+
+def test_no_interpreter_and_no_client_surface_says_why_and_what_to_do(tmp_path):
+    """The residual dead end must be a STATED answer, not a silent one.
+
+    No `python` and `db_run_mode = "tcp-only"` means nothing on this host can ask
+    Postgres anything, so exit 7 is correct - but the message must name BOTH
+    exhausted routes and the declaration that would open one, or the user has no
+    way out.
+    """
+    env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN_TCP_ONLY, answer=None)
+    p = _run(env, "acquire", "--series", "18.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    assert p.returncode == 7, f"got {p.returncode}: {p.stderr!r}"
+    err = p.stderr
+    assert "python" in err and "db_run_mode" in err, (
+        f"both exhausted routes must be named; got {err!r}"
+    )
+    assert "record-env" in err, f"the remedy must be named; got {err!r}"
+
+
+# --------------------------------------------------------------------------- #
+# A pre-change lease must not become PERMANENTLY un-droppable.
+# --------------------------------------------------------------------------- #
+def test_release_re_resolves_the_drop_surface_from_the_current_catalog(tmp_path):
+    """A lease minted before `odoo_root`/`db_run_mode` existed must still drop.
+
+    On a host whose Postgres is containerised (no libpq client at all), such a
+    lease has: no odoo_root -> odoo_db.py exits 10 -> raw fallback -> no mode ->
+    no client argv -> drop refused -> release exits 1 and re-appends the lease.
+    `gc` repeats it, and reap-orphans excludes any DB a lease references: stuck
+    forever, with `record-env` able to fix the catalog but never the lease. The
+    CURRENT catalog is the live fact, so release must re-read it.
+    """
+    calls = tmp_path / "odoo_db_argv.log"
+    py = _make_fake_venv_python(tmp_path / "fakebin", log=calls, drop_rc=0)
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    # The catalog HAS been repaired (this is what `45-venv.sh record-env` writes).
+    toml.write_text(
+        INSTANCES_TOML.replace('python = "/srv/venv/bin/python"',
+                               f'python = "{py}"\nodoo_root = "/srv/odoo"\n'
+                               'db_run_mode = "tcp-only"'),
+        encoding="utf-8")
+    env = _env(home, toml)
+
+    token = "cd" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        # A PRE-CHANGE lease: none of python / odoo_root / db_run_mode exist on it.
+        "token": token, "mode": "ephemeral", "series": "17.0",
+        "db_name": "odoo_17_0_t_deadbeef", "drop_on_release": True,
+        "db_host": "localhost", "db_user": "odoo", "db_port": "",
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }])
+
+    rel = _run(env, "release", token, timeout=60)
+
+    assert rel.returncode == 0, (
+        f"a pre-change lease must be droppable once the catalog declares the facts; "
+        f"stderr={rel.stderr!r}"
+    )
+    assert _leases(env) == [], "a successful drop removes the lease"
+    logged = calls.read_text(encoding="utf-8")
+    assert "drop odoo_17_0_t_deadbeef" in logged, (
+        f"the drop must have gone THROUGH Odoo using the catalog's interpreter; got {logged!r}"
+    )
+
+
+def test_release_force_forget_never_loses_a_database_silently(tmp_path):
+    """When nothing can drop the DB, the operator needs an explicit way out that
+    LEAKS LOUDLY rather than one that pretends success.
+
+    `--force-forget` removes the lease only after naming the database, the
+    cluster it lives on, and what still has to be cleaned up by hand - so the
+    escape can never be mistaken for a completed teardown.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    # Nothing on this host can reach Postgres: no python, no client surface.
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"', 'db_run_mode = "tcp-only"'), encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = str(tmp_path / "empty-bin")  # no psql / dropdb anywhere
+
+    token = "9a" * 16
+    now = int(time.time())
+    lease = {
+        "token": token, "mode": "ephemeral", "series": "17.0",
+        "db_name": "odoo_17_0_t_0badf00d", "drop_on_release": True, "python": "",
+        "db_host": "localhost", "db_user": "odoo", "db_port": "",
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }
+    _seed_registry(env, [lease])
+
+    stuck = _run(env, "release", token, timeout=60)
+    assert stuck.returncode != 0, "test setup: this lease must be undroppable here"
+    assert len(_leases(env)) == 1, "test setup: the lease must be retained"
+
+    forget = _run(env, "release", token, "--force-forget", timeout=60)
+    assert forget.returncode == 0, f"the escape must succeed; stderr={forget.stderr!r}"
+    assert _leases(env) == [], "--force-forget must remove the lease"
+    assert "odoo_17_0_t_0badf00d" in forget.stderr, (
+        f"the abandoned database must be NAMED so it can be cleaned up by hand; "
+        f"got {forget.stderr!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# gc runs INSIDE acquire, and acquire has early returns after it.
+# --------------------------------------------------------------------------- #
+def test_gc_result_survives_an_exclusive_conflict_exit(tmp_path):
+    """A lease whose DB gc already DROPPED must not still be listed.
+
+    `acquire` gc's under the lock and then may return 3 (exclusive conflict) or 4
+    (port pool exhausted) - both BEFORE the single registry write. The drop has
+    already happened by then, so the registry keeps advertising a lease whose
+    database is gone: `release` on it then fails, and every reader sees a
+    resource that does not exist.
+    """
+    calls = tmp_path / "odoo_db_argv.log"
+    py = _make_fake_venv_python(tmp_path / "fakebin", log=calls, drop_rc=0)
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"', f'python = "{py}"'), encoding="utf-8")
+    env = _env(home, toml)
+
+    now = int(time.time())
+    host = socket.gethostname()
+    _seed_registry(env, [
+        {  # STALE ephemeral lease: gc will drop its DB and reclaim it.
+            "token": "11" * 16, "mode": "ephemeral", "series": "17.0",
+            "db_name": "odoo_17_0_t_abcdef01", "drop_on_release": True,
+            "python": str(py), "db_host": "localhost", "db_user": "odoo", "db_port": "",
+            "owner": {"host": host, "pid": None, "run_id": "", "started_at": 0},
+            "ttl_s": 1, "heartbeat_at": 0,
+        },
+        {  # FRESH exclusive lease on the declared DB: forces the exit-3 path.
+            "token": "22" * 16, "mode": "exclusive", "series": "17.0",
+            "db_name": "odoo_17_0", "drop_on_release": False,
+            "owner": {"host": host, "pid": None, "run_id": "other", "started_at": now},
+            "ttl_s": 3600, "heartbeat_at": now,
+        },
+    ])
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "exclusive", "--ports", "0",
+             timeout=60)
+    assert p.returncode == 3, f"test setup: expected an exclusive conflict; got {p.returncode}"
+    assert calls.exists() and "drop odoo_17_0_t_abcdef01" in calls.read_text(encoding="utf-8"), (
+        "test setup: gc must have dropped the stale lease's database"
+    )
+
+    remaining = {lz["db_name"] for lz in _leases(env)}
+    assert "odoo_17_0_t_abcdef01" not in remaining, (
+        "a lease whose database gc already dropped must not survive the early "
+        f"return; registry still lists {sorted(remaining)}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Secrets never travel on argv.
+# --------------------------------------------------------------------------- #
+def test_no_postgres_question_puts_the_password_on_the_command_line(tmp_path):
+    """A password on argv is world-readable in `ps`.
+
+    The docker client arm already avoids this deliberately (`docker exec -e
+    PGPASSWORD` forwards it by NAME), so the interpreter arm applying the opposite
+    standard is an inconsistency, not a trade-off - and it is free to fix:
+    odoo_db.py already reads ODOO_PG_PASSWORD from its environment, which a child
+    process inherits.
+    """
+    log = tmp_path / "odoo_db_argv.log"
+    env, _log, _py = _env_with_fake_venv(tmp_path, log=log, createdb="true")
+    env["ODOO_PG_PASSWORD"] = "s3cret-on-argv"
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    assert p.returncode == 0, p.stderr
+    logged = log.read_text(encoding="utf-8")
+    assert "can-createdb" in logged, f"test setup: the probe must have run; got {logged!r}"
+    assert "--db-password" not in logged, (
+        f"the password flag must not be on argv; got {logged!r}"
+    )
+    assert "s3cret-on-argv" not in logged, (
+        f"the password value must never appear on argv; got {logged!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# `can-createdb` - ONE ladder, asked from anywhere.
+#
+# The setup-time report used to invoke odoo_db.py directly, which duplicated route
+# 1 of the ladder in shell and could not reach route 2 at all - so a compose-run
+# instance (no `python`) got no answer, from the very command whose job is to tell
+# the user whether isolation is available.
+# --------------------------------------------------------------------------- #
+def test_can_createdb_reports_the_same_verdict_acquire_would_refuse_on(tmp_path):
+    """The read-only query and the acquire gate must share ONE ladder.
+
+    Two implementations of "may this role create a database" drift the moment only
+    one is exercised, and the drifted one is what a human reads before deciding
+    whether their setup works.
+    """
+    env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN, answer="t")
+    ok = _run(env, "can-createdb", "--series", "18.0", timeout=60)
+    assert ok.returncode == 0, f"a positive answer must exit 0; {ok.stderr!r}"
+    assert "CREATEDB=true" in ok.stdout, ok.stdout
+
+    env_no = _docker_client_env(tmp_path / "no", INSTANCES_TOML_DOCKER_RUN, answer="f")
+    no = _run(env_no, "can-createdb", "--series", "18.0", timeout=60)
+    assert no.returncode == 6, (
+        f"a positive NO must exit 6 - the same code acquire refuses with; got {no.returncode}"
+    )
+    assert "CREATEDB=false" in no.stdout, no.stdout
+
+    env_un = _docker_client_env(
+        tmp_path / "un", INSTANCES_TOML_DOCKER_RUN_TCP_ONLY, answer=None)
+    un = _run(env_un, "can-createdb", "--series", "18.0", timeout=60)
+    assert un.returncode == 7, (
+        f"undeterminable must exit 7 and stay DISTINCT from a factual no; got {un.returncode}"
+    )
+    assert "CREATEDB=undeterminable" in un.stdout, un.stdout
+    assert "CREATEDB_WHY=" in un.stdout, (
+        f"the reason must be machine-readable, not only prose on stderr; {un.stdout!r}"
+    )
+
+
+def test_can_createdb_writes_no_lease(tmp_path):
+    """It is a QUESTION, not an allocation: nothing may be reserved by asking."""
+    env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN, answer="t")
+    _run(env, "can-createdb", "--series", "18.0", timeout=60)
+    assert _leases(env) == [], "a read-only query must never write a lease"

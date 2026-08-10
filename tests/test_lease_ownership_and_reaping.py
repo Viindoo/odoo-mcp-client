@@ -271,43 +271,48 @@ def _write_stub(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
-def _make_fake_psql(tmp_path, db_names, ages, sizes) -> Path:
-    """A fake `psql` that answers three query shapes by sniffing the LAST argv
-    token (the `-tAc` query text): the 'list non-template databases' query,
-    the pg_stat_file age probe, and the pg_database_size probe. `ages`/`sizes`
-    map db name -> value; a name ABSENT from the map makes that probe FAIL
-    (non-zero exit, empty stdout) - simulating an unmeasurable value."""
+def _make_fake_query_python(tmp_path, db_names, ages, sizes) -> Path:
+    """A fake VENV PYTHON that answers reap-orphans' three read-only questions the
+    way odoo_db.py does: `list-databases`, `db-age-s <db>`, `db-size-bytes <db>`.
+    `ages`/`sizes` map db name -> value; a name ABSENT from the map makes that
+    query FAIL (non-zero exit, empty stdout) - simulating an unmeasurable value.
+
+    Every one of these questions is a plain SELECT, so it goes through the
+    instance's declared interpreter (psycopg2 via Odoo's own connection layer),
+    NOT a libpq client binary. That is what makes reap-orphans work on a host
+    whose Postgres lives in a container with no client installed - the host class
+    where it used to be a silent no-op, i.e. exactly where its orphans are.
+    """
     bindir = tmp_path / "fakebin"
     bindir.mkdir(exist_ok=True)
-    psql = bindir / "psql"
-    names_blob = "\n".join(db_names)
+    py = bindir / "fake_venv_python"
+    # printf is a shell BUILTIN; a heredoc + `cat` would need an external binary,
+    # which a PATH-stripped test deliberately does not provide.
+    names_args = " ".join(f'"{n}"' for n in db_names)
 
     def _case_block(mapping):
-        lines = []
-        for name, val in mapping.items():
-            lines.append(f'      "{name}") echo "{val}"; exit 0 ;;')
-        return "\n".join(lines)
+        return "\n".join(f'      "{name}") echo "{val}"; exit 0 ;;'
+                         for name, val in mapping.items())
 
     script = f"""\
-last=""
-for a in "$@"; do last="$a"; done
-case "$last" in
-  *"pg_database WHERE datistemplate"*)
-    cat <<'PSQL_EOF'
-{names_blob}
-PSQL_EOF
+script="$1"; cmd="$2"; db="$3"
+# The shell parameter expansion below strips the directory the same way
+# `basename` would, WITHOUT needing it on PATH: a test may replace PATH with the
+# stub dir alone to prove no libpq client is reachable, and then no external
+# command is reachable either.
+case "${{script##*/}}::$cmd" in
+  *"odoo_db.py::list-databases")
+    printf '%s\\n' {names_args}
     exit 0
     ;;
-  *"pg_stat_file"*)
-    name=$(echo "$last" | sed -n "s/.*datname = '\\([^']*\\)'.*/\\1/p")
-    case "$name" in
+  *"odoo_db.py::db-age-s")
+    case "$db" in
 {_case_block(ages)}
       *) exit 1 ;;
     esac
     ;;
-  *"pg_database_size"*)
-    name=$(echo "$last" | sed -n "s/.*pg_database_size('\\([^']*\\)').*/\\1/p")
-    case "$name" in
+  *"odoo_db.py::db-size-bytes")
+    case "$db" in
 {_case_block(sizes)}
       *) exit 1 ;;
     esac
@@ -317,13 +322,31 @@ PSQL_EOF
     ;;
 esac
 """
-    _write_stub(psql, script)
+    _write_stub(py, script)
     return bindir
 
 
+def _reap_catalog(bindir: Path, db_run_mode: str = "native") -> str:
+    """CATALOG_TOML with `python` pointed at the query stub - the interpreter every
+    Postgres QUESTION now goes through - and a declared client surface for the
+    one thing that still needs a binary: the actual drop.
+
+    db_run_mode defaults to `native` ON PURPOSE. Every test below that asserts
+    "nothing was dropped" must fail if reap-orphans wrongly decides to drop, so
+    dropping has to be POSSIBLE in those tests; with no declared surface the drop
+    would refuse anyway and the assertion would pass vacuously.
+    """
+    extra = f'\npython = "{bindir / "fake_venv_python"}"\n'
+    if db_run_mode:
+        extra += f'db_run_mode = "{db_run_mode}"\n'
+    return CATALOG_TOML.rstrip("\n") + extra
+
+
 def _make_fake_dropdb(bindir: Path, calls_file: Path) -> None:
-    dropdb = bindir / "dropdb"
-    _write_stub(dropdb, f'echo "$@" >> "{calls_file}"\nexit 0\n')
+    """Stub the two binaries the raw drop uses: dropdb (logged) and psql (the
+    terminate-backend step that runs before it)."""
+    _write_stub(bindir / "dropdb", f'echo "$@" >> "{calls_file}"\nexit 0\n')
+    _write_stub(bindir / "psql", "exit 0\n")
 
 
 CATALOG_TOML = """\
@@ -351,13 +374,13 @@ def test_reap_orphans_lists_an_old_unleased_ephemeral_db_as_a_candidate(tmp_path
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path,
         db_names=["odoo_17_0_t_deadbeef", "odoo_17_0", "postgres"],
         ages={"odoo_17_0_t_deadbeef": 200000},
         sizes={"odoo_17_0_t_deadbeef": 104857600},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     env = _reap_env(tmp_path, home, toml, bindir)
 
     p = _run(env, "reap-orphans")
@@ -370,12 +393,12 @@ def test_reap_orphans_default_is_list_only_and_never_invokes_dropdb(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0_t_deadbeef"],
         ages={"odoo_17_0_t_deadbeef": 200000},
         sizes={"odoo_17_0_t_deadbeef": 1000},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     calls = tmp_path / "dropdb-calls.log"
     _make_fake_dropdb(bindir, calls)
     env = _reap_env(tmp_path, home, toml, bindir)
@@ -385,16 +408,74 @@ def test_reap_orphans_default_is_list_only_and_never_invokes_dropdb(tmp_path):
     assert not calls.exists(), "dropdb must NEVER run without --yes"
 
 
-def test_reap_orphans_yes_drops_the_candidate_and_reports_it(tmp_path):
+def test_reap_orphans_enumerates_without_any_libpq_client_on_path(tmp_path):
+    """Every QUESTION reap-orphans asks Postgres is a plain SELECT, so it goes
+    through the instance's declared interpreter - not a client binary. On a host
+    with NO libpq client at all (Postgres in a container) enumeration must still
+    work, because that host class is exactly where the orphans are: the pre-fix
+    psql-based enumeration made reap-orphans a silent no-op there, so an orphaned
+    database could never be found by anything."""
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0_t_deadbeef"],
         ages={"odoo_17_0_t_deadbeef": 200000},
         sizes={"odoo_17_0_t_deadbeef": 1000},
     )
+    toml.write_text(_reap_catalog(bindir, db_run_mode="tcp-only"), encoding="utf-8")
+    env = _reap_env(tmp_path, home, toml, bindir)
+    # PATH is REPLACED by the stub dir: no psql, no dropdb, no createdb anywhere.
+    env["PATH"] = str(bindir)
+
+    p = _run(env, "reap-orphans")
+    assert p.returncode == 0, p.stderr
+    assert "REAP_CANDIDATE" in p.stdout and "odoo_17_0_t_deadbeef" in p.stdout, (
+        f"the orphan must be found with no client binary present; stdout={p.stdout!r}"
+    )
+    assert "could not reach" not in p.stderr, (
+        "a missing client binary must NEVER be reported as an unreachable cluster"
+    )
+
+
+def test_reap_orphans_refuses_to_drop_when_no_client_surface_is_declared(tmp_path):
+    """The drop is the ONE operation that genuinely needs a client binary. With
+    db_run_mode=tcp-only there is none, so reap must report failure and drop
+    NOTHING - never claim a reap it did not perform."""
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    bindir = _make_fake_query_python(
+        tmp_path, db_names=["odoo_17_0_t_deadbeef"],
+        ages={"odoo_17_0_t_deadbeef": 200000},
+        sizes={"odoo_17_0_t_deadbeef": 1000},
+    )
+    toml.write_text(_reap_catalog(bindir, db_run_mode="tcp-only"), encoding="utf-8")
+    calls = tmp_path / "dropdb-calls.log"
+    _make_fake_dropdb(bindir, calls)
+    env = _reap_env(tmp_path, home, toml, bindir)
+
+    p = _run(env, "reap-orphans", "--yes")
+    assert p.returncode != 0, "a reap that could not drop must not report success"
+    assert "REAP_DROPPED" not in p.stdout, (
+        f"nothing was dropped, so nothing may be reported as dropped; {p.stdout!r}")
+    assert not calls.exists(), (
+        "a tcp-only declaration must be honoured even though dropdb sits on PATH - "
+        "a client that works for a DIFFERENT cluster is the wrong-cluster hazard"
+    )
+    assert "tcp-only" in p.stderr, f"the error must name the declared mode; {p.stderr!r}"
+
+
+def test_reap_orphans_yes_drops_the_candidate_and_reports_it(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    bindir = _make_fake_query_python(
+        tmp_path, db_names=["odoo_17_0_t_deadbeef"],
+        ages={"odoo_17_0_t_deadbeef": 200000},
+        sizes={"odoo_17_0_t_deadbeef": 1000},
+    )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     calls = tmp_path / "dropdb-calls.log"
     _make_fake_dropdb(bindir, calls)
     env = _reap_env(tmp_path, home, toml, bindir)
@@ -410,12 +491,12 @@ def test_reap_orphans_never_touches_a_db_referenced_by_any_lease_even_stale(tmp_
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0_t_leased1"],
         ages={"odoo_17_0_t_leased1": 999999},
         sizes={"odoo_17_0_t_leased1": 1000},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     calls = tmp_path / "dropdb-calls.log"
     _make_fake_dropdb(bindir, calls)
 
@@ -448,12 +529,12 @@ def test_reap_orphans_skips_too_young_candidate_without_dropping(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0_t_0000a001"],
         ages={"odoo_17_0_t_0000a001": 10},  # 10s old
         sizes={"odoo_17_0_t_0000a001": 1000},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     calls = tmp_path / "dropdb-calls.log"
     _make_fake_dropdb(bindir, calls)
     env = _reap_env(tmp_path, home, toml, bindir)
@@ -469,12 +550,12 @@ def test_reap_orphans_skips_unmeasurable_age_fail_closed_even_with_yes(tmp_path)
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0_t_00000fee"],
         ages={},  # age probe fails for every name -> unmeasurable
         sizes={"odoo_17_0_t_00000fee": 1000},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     calls = tmp_path / "dropdb-calls.log"
     _make_fake_dropdb(bindir, calls)
     env = _reap_env(tmp_path, home, toml, bindir)
@@ -492,12 +573,12 @@ def test_reap_orphans_never_lists_a_declared_instance_db_name(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
     toml = tmp_path / "instances.toml"
-    toml.write_text(CATALOG_TOML, encoding="utf-8")
-    bindir = _make_fake_psql(
+    bindir = _make_fake_query_python(
         tmp_path, db_names=["odoo_17_0"],
         ages={"odoo_17_0": 999999},
         sizes={"odoo_17_0": 1000},
     )
+    toml.write_text(_reap_catalog(bindir), encoding="utf-8")
     env = _reap_env(tmp_path, home, toml, bindir)
 
     p = _run(env, "reap-orphans")

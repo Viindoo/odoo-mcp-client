@@ -633,9 +633,8 @@ and drops the DB through Odoo on release). The executor returns a structured res
 pass/fail + the instance log path), NOT the raw firehose. From that block THIS skill stays the
 adjudicator of FP intent: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta tests
 only, triaging each red test as FP-delta vs pre-existing (re-run it on clean target tip via the same
-executor). Never relax an assertion to hide a pre-existing failure. Full per-batch + CREATEDB-role
-protocol (CREATEDB still required - Odoo create-on-init needs the same privilege):
-`[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
+executor). Never relax an assertion to hide a pre-existing failure. Full per-batch protocol +
+§ Ephemeral isolation: `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
 
 **P9.5 - i18n reconcile [MANDATORY, per batch, reuses the P9 instance].** For every module in this

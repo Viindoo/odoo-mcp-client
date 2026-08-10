@@ -2,13 +2,9 @@
 
 `instances.toml` declares the local Odoo instances on THIS host - series,
 `http_port`, `db_port`, `db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`.
-It is **Tier-1 - flat under `$ODOO_AI_HOME`**, not project-scoped: an execute-agent has no
-guaranteed working directory, so the instance profile must be findable from any cwd, and
-namespacing it per project/worktree would fragment one host's instance catalog into copies.
-Every OTHER `.odoo-ai/`-rooted artifact - `survey/`, `worklog/`, `designs/`, ... - is
-project- or worktree-scoped under the two-axis `$ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]`
-convention, **never** a project-relative `./.odoo-ai/`. Full Tier-1/SHARE/ISOLATE
-classification tables + the resolve-capture-substitute protocol every consumer follows:
+It is **Tier-1 - flat under `$ODOO_AI_HOME`**, not project-scoped (every other `.odoo-ai/`
+artifact is Tier-2, project/worktree-scoped). Full Tier-1/SHARE/ISOLATE classification tables +
+the resolve-capture-substitute protocol every consumer follows:
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - do not restate the tables
 here).
 
@@ -61,9 +57,7 @@ INTERNALLY for the deterministic, concurrency-safe DB/port reservation. An agent
 instance and was handed no `INSTANCE_HANDLE` should invoke `Skill(odoo-instance)` - which performs
 the acquire below AND applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union,
 lint-module install union, per-version `cli_help` grounding) - rather than calling
-`scripts/lib/allocator.py acquire` directly, which would skip those rules. The recipe below stays
-here for `odoo-instance` (and any other genuinely low-level caller) that still needs the raw
-mechanism.
+`scripts/lib/allocator.py acquire` directly, which would skip those rules.
 
 The resolution above is correct for a **read-only** need (a URL to open / query a
 running server - many agents may share it). But the moment you MUTATE - run tests
@@ -81,10 +75,16 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done.
 ```
 
+An `ephemeral` acquire can exit `6` or `7` - both REFUSALS that write no lease and
+never a silent degrade to `exclusive`; re-dispatching `--mode exclusive` is the caller's own
+explicit trade of isolation and must be stated in its report. Codes + remedies:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 6.6.
+
 `ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your
 `-i` run (Odoo create-on-init) and dropped through Odoo on release via
-`scripts/lib/odoo_db.py` (raw `dropdb` only as a logged fallback for the venv-unavailable
-case); `exclusive` holds the declared DB under a single-holder lease; `shared` registers a
+`scripts/lib/odoo_db.py` (raw `dropdb` only as a fallback, refused when the declared
+`db_run_mode` names no client surface); `exclusive` holds the declared DB under a
+single-holder lease; `shared` registers a
 long-lived,
 NON-exclusive render server (the visual stack's live target) with its actual `--port`
 so other sessions discover it via `query` and gc reclaims it when its server pid dies -
