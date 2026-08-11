@@ -260,6 +260,134 @@ def test_detector_says_nothing_about_reachability(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Discovery of WHERE this host's connections arrive from, and whether that
+# address may be trusted. Same contract as pg_detect_mode: never guess.
+#
+# A host-side connection to a PUBLISHED container port does not arrive as
+# loopback - it is re-originated from the bridge gateway - and that gateway
+# differs between the default bridge and a user-defined network on one machine.
+# So a plausible-looking constant is WRONG on the second container, and a trust
+# rule for an address nothing arrives from authorises a stranger while leaving the
+# original failure in place. Refusing is strictly better.
+# --------------------------------------------------------------------------- #
+def test_origin_address_discovery_refuses_rather_than_defaulting_to_a_bridge_address(
+        tmp_path):
+    """An unanswerable `docker inspect` must produce NOTHING and a non-zero exit.
+
+    `172.17.0.1` is the default bridge gateway on a great many hosts, which is
+    exactly what makes defaulting to it so tempting and so wrong: it would be
+    silently correct on the common case and silently authorise a stranger on the
+    rest.
+    """
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", "exit 1\n")
+    p = _sh(bindir, 'pg_origin_address pg-one')
+    assert p.returncode == 3, (
+        f"an unanswerable discovery must exit 3 (undeterminable); got {p.returncode}"
+    )
+    assert p.stdout.strip() == "", f"nothing may be emitted; got {p.stdout!r}"
+    for banned in ("172.17.0.1", "127.0.0.1", "172.18.0.1", "10."):
+        assert banned not in p.stdout, f"a plausible default leaked: {banned!r}"
+
+
+def test_origin_address_discovery_refuses_when_docker_is_not_installed(tmp_path):
+    """No docker means the question cannot be asked at all - which is not the same
+    fact as "there is no gateway", and must not be answered as one."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    p = _sh(bindir, 'pg_origin_address pg-one')
+    assert p.returncode == 3 and p.stdout.strip() == ""
+
+
+def test_origin_address_attaches_a_single_host_prefix_length_per_family(tmp_path):
+    """The prefix length is attached at discovery, once: a BARE address in a pg_hba
+    rule is a HOST NAME to PostgreSQL, and a wider prefix would trust every other
+    container on the bridge."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", 'printf "10.44.0.1\\nfd00::1\\n"\nexit 0\n')
+    p = _sh(bindir, 'pg_origin_address pg-one')
+    assert p.returncode == 0, p.stderr
+    assert sorted(p.stdout.split()) == ["10.44.0.1/32", "fd00::1/128"]
+
+
+def test_origin_address_discards_a_value_that_is_not_an_address_literal(tmp_path):
+    """A garbled inspect output must not become a trust line. Nothing parseable
+    means nothing emitted, which the ladder then reports as undeterminable."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", 'printf "not-an-address\\n\\n"\nexit 0\n')
+    p = _sh(bindir, 'pg_origin_address pg-one')
+    assert p.returncode == 3 and p.stdout.strip() == ""
+
+
+@pytest.mark.parametrize("host_ip,expect", [
+    ("127.0.0.1", 0), ("127.1.2.3", 0), ("::1", 0),
+    ("0.0.0.0", 1), ("192.0.2.7", 1), ("::", 1),
+])
+def test_publish_gate_reads_an_empty_or_routable_host_ip_as_not_loopback(
+        tmp_path, host_ip, expect):
+    """Trusting the gateway trusts THE HOST, so the gate must be exact.
+
+    An EMPTY HostIp is docker's own spelling of "every interface": reading it as
+    loopback is how a routable publish slips past the one check that keeps the
+    trade-off acceptable.
+    """
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", f'printf "5432/tcp {host_ip}\\n"\nexit 0\n')
+    p = _sh(bindir, 'pg_publish_is_loopback_only pg-one')
+    assert p.returncode == expect, f"HostIp {host_ip!r}: got {p.returncode}"
+
+
+def test_publish_gate_refuses_when_it_cannot_be_asked_rather_than_passing(tmp_path):
+    """No bindings reported, or an inspect that failed, is UNKNOWN - and unknown is
+    never read as safe. 3 is distinct from 1 so a caller can say which it hit."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", 'exit 0\n')
+    assert _sh(bindir, 'pg_publish_is_loopback_only pg-one').returncode == 3
+    _stub(bindir, "docker", 'exit 1\n')
+    assert _sh(bindir, 'pg_publish_is_loopback_only pg-one').returncode == 3
+
+
+def test_publish_gate_refuses_when_any_one_binding_is_routable(tmp_path):
+    """ALL bindings must be loopback. One routable publish is enough to make the
+    trust rule reachable from off-host, so a mixed answer is a refusal."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker",
+          'printf "5432/tcp 127.0.0.1\\n5433/tcp 0.0.0.0\\n"\nexit 0\n')
+    p = _sh(bindir, 'pg_publish_is_loopback_only pg-one')
+    assert p.returncode == 1
+    assert "0.0.0.0" in p.stderr, "the offending binding must be named"
+
+
+def test_hba_file_path_asks_the_server_and_never_assumes_a_location(tmp_path):
+    """hba_file may live inside PGDATA (every stock image) or under a distribution
+    config dir. Editing a guessed path changes nothing while looking like success,
+    so the path is ASKED for - and an unanswerable ask emits nothing."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "docker", 'printf "/somewhere/else/pg_hba.conf\\n"\nexit 0\n')
+    p = _sh(bindir, 'pg_hba_file_path docker pg-one h u 5544')
+    assert p.returncode == 0, p.stderr
+    assert p.stdout.strip() == "/somewhere/else/pg_hba.conf"
+
+    _stub(bindir, "docker", 'exit 1\n')
+    q = _sh(bindir, 'pg_hba_file_path docker pg-one h u 5544')
+    assert q.returncode == 3 and q.stdout.strip() == ""
+
+    # A relative or empty answer is not a path: it must be refused, not written to.
+    _stub(bindir, "docker", 'printf "pg_hba.conf\\n"\nexit 0\n')
+    r = _sh(bindir, 'pg_hba_file_path docker pg-one h u 5544')
+    assert r.returncode == 3 and r.stdout.strip() == ""
+
+
+def test_hba_file_path_refuses_for_a_mode_with_no_client_surface(tmp_path):
+    """tcp-only declares there is no client surface here, so the server cannot be
+    asked at all - and a path must not be invented for it."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    p = _sh(bindir, 'pg_hba_file_path tcp-only "" h u ""')
+    assert p.returncode == 3 and p.stdout.strip() == ""
+
+
+# --------------------------------------------------------------------------- #
 # Client dispatch, and its cross-language parity with allocator.py
 # --------------------------------------------------------------------------- #
 # ${0##*/} rather than `basename`: PATH is replaced with the stub dir alone, so no
@@ -535,6 +663,59 @@ def test_bounded_run_survives_a_zero_padded_bound(tmp_path):
     )
 
 
+# A child that IGNORES SIGTERM. Not a contrived case: a probe reaches an
+# interpreter, a wrapper script and a client binary, any of which may install a
+# handler - and `trap '' TERM` in a shell wrapper is the commonest way it happens.
+_TERM_TRAPPING_STUB = "trap '' TERM\nwhile :; do :; done\n"
+
+
+@pytest.mark.parametrize("with_timeout", [True, False])
+def test_bounded_run_still_bounds_a_child_that_ignores_sigterm(tmp_path, with_timeout):
+    """A TERM-only bound is not a bound: it is defeated by any child that traps.
+
+    `timeout <secs>` sends SIGTERM and then WAITS for a process that has already
+    refused to leave - so the wait never ends and the probe outlives the launch it
+    was gating, which is the exact unbounded hang the bound exists to prevent. Both
+    arms must escalate to SIGKILL.
+
+    A hang FAILS this test rather than hanging it: the subprocess call carries its
+    own hard bound, so the failure is a TimeoutExpired, not a stuck suite.
+    """
+    bindir = tmp_path / "bin"
+    _stub(bindir, "trapper", _TERM_TRAPPING_STUB)
+    if with_timeout and not _link_real(bindir, "timeout"):
+        pytest.skip("no `timeout` binary on this host to exercise that arm")
+    probe = ('command -v timeout >/dev/null 2>&1 && echo HAVE_TIMEOUT >&2\n'
+             'pg_bounded_run 3 "$1"')
+    started = time.monotonic()
+    p = _sh(bindir, probe, bindir / "trapper", timeout=45)
+    elapsed = time.monotonic() - started
+
+    assert ("HAVE_TIMEOUT" in p.stderr) is with_timeout, (
+        f"test setup: `timeout` reachability must be {with_timeout}; stderr={p.stderr!r}"
+    )
+    assert p.returncode == 124, (
+        f"a child that ignores SIGTERM must still be cut off AND reported as 124 - "
+        f"every caller special-cases 124 alone, so any other code becomes a factual "
+        f"negative about the cluster; got {p.returncode}"
+    )
+    assert elapsed <= 25.0, f"the bound was not enforced within a sane window ({elapsed:.1f}s)"
+
+
+def test_bounded_run_kill_grace_is_shared_by_both_arms(tmp_path):
+    """One named grace value, consulted by `timeout -k` and by the fallback's
+    TERM/sleep/KILL sequence alike - so the two arms cannot drift into enforcing
+    different bounds for the same probe."""
+    text = PG_MODE_SH.read_text(encoding="utf-8")
+    assert "PG_MODE_KILL_GRACE" in text
+    assert 'timeout -k "$PG_MODE_KILL_GRACE"' in text, (
+        "the `timeout` arm must pass a kill-after, or a trapping child defeats it"
+    )
+    assert 'sleep "$PG_MODE_KILL_GRACE"' in text, (
+        "the fallback arm must use the SAME grace, not a hardcoded second"
+    )
+
+
 def test_bounded_run_refuses_a_non_numeric_bound_instead_of_answering(tmp_path):
     """A non-numeric bound is a CALLER bug, and it must never be answered.
 
@@ -770,7 +951,7 @@ def test_the_degrade_scan_sees_a_claim_split_across_a_sentence_boundary():
     one_sentence = "The allocator degrades an ephemeral request to an exclusive lease."
     assert _degrade_claim_hits(one_sentence), "the single-sentence shape must still be caught"
     negated = ("An ephemeral request NEVER degrades to an exclusive lease. It refuses "
-               "with exit 6 or 7 instead.")
+               "with exit 6, 7, 8 or 9 instead.")
     assert not _degrade_claim_hits(negated), (
         "a sentence that FORBIDS the behavior is what we want to keep, not a finding"
     )
@@ -843,3 +1024,99 @@ def test_docs_do_not_call_docker_optional_for_postgres():
     assert not offenders, (
         f"docker is REQUIRED when Postgres is containerised, whatever run_mode says: {offenders}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The bound must hold when the callee has DESCENDANTS - the only shape that
+# actually occurs in production.
+#
+# Every real callee is reached through at least one intermediate shell: the
+# FUNCTION arm re-enters bash, and `pg_run_client` then forks psql. Signalling the
+# direct child alone leaves the grandchild alive holding the caller's stdout pipe,
+# and `out="$(pg_bounded_run ...)"` cannot return until that pipe closes - so a 2s
+# bound waited for libpq's full TCP timeout and then delivered the LATE bytes
+# alongside status 124.
+#
+# MEASURED before the fix, with this exact stub shape: rc=124, elapsed 8s for a 2s
+# bound, `LATE` in the captured output, grandchild still running afterwards.
+# --------------------------------------------------------------------------- #
+# The child exits immediately; the GRANDCHILD holds stdout and outlives it, which
+# is what a killed-parent-but-live-client looks like.
+_GRANDCHILD_STUB = (
+    'marker="$1"\n'
+    '( sleep 8; echo "LATE-OUTPUT"; echo survived > "$marker" ) &\n'
+    'sleep 8\n'
+)
+
+
+@pytest.mark.parametrize("with_timeout", [True, False])
+def test_bounded_run_bounds_a_callee_whose_grandchild_outlives_it(tmp_path, with_timeout):
+    """Three properties at once, because they are one failure: the bound holds in
+    WALL CLOCK, the caller's captured output carries nothing from the timed-out
+    tree, and no descendant is left running to keep the pipe open."""
+    bindir = tmp_path / "bin"
+    _stub(bindir, "spawner", _GRANDCHILD_STUB)
+    _link_real(bindir, "sleep")
+    if with_timeout:
+        if not _link_real(bindir, "timeout"):
+            pytest.skip("no `timeout` binary on this host to exercise that arm")
+    marker = tmp_path / "grandchild-marker"
+    # Captured with $( ), exactly as _psql_scalar and pg_hba_file_path capture it -
+    # the capture is what turns a surviving grandchild into an unbounded wait.
+    probe = ('out="$(pg_bounded_run 2 "$1" "$2")" || rc=$?\n'
+             'echo "RC=${rc:-0}"\n'
+             'echo "OUT=[$out]"\n')
+    started = time.monotonic()
+    p = _sh(bindir, probe, bindir / "spawner", marker, timeout=45)
+    elapsed = time.monotonic() - started
+
+    assert "RC=124" in p.stdout, (
+        f"the bound must report 124; got {p.stdout!r} stderr={p.stderr!r}")
+    assert elapsed < 6.0, (
+        f"a 2s bound took {elapsed:.1f}s - the wait is ending when the GRANDCHILD "
+        f"gives up, not when the bound elapses")
+    assert "OUT=[]" in p.stdout, (
+        f"a timed-out tree must deliver NOTHING to the caller's variable, or 124 "
+        f"arrives beside a value the caller may use; got {p.stdout!r}")
+    # Give the grandchild the rest of its own lifetime; if it was never signalled
+    # it writes the marker.
+    time.sleep(8.5)
+    assert not marker.exists(), (
+        "a descendant of the timed-out callee is still running after the bound - it "
+        "holds the caller's pipe, and on a real probe it is a live psql against the "
+        "cluster the caller was told nothing about")
+
+
+@pytest.mark.parametrize("with_timeout", [True, False])
+def test_pg_hba_file_path_is_bounded_like_every_other_question(tmp_path, with_timeout):
+    """`SHOW hba_file` is on the MUTATING path (48-db-local-auth.sh asks it before it
+    edits anything) and on the advisory path. Unbounded, a daemon that wedges AFTER
+    the earlier `docker ps` probe succeeded left `apply` never returning at all -
+    and pg_mode.sh's own header promises every question here honours the bound.
+
+    "Could not ask in time" is exit 3 with nothing on stdout: the same answer this
+    function already gives for a server that refused, because both mean the path to
+    edit is unknown and nothing may be guessed."""
+    bindir = tmp_path / "bin"
+    # A stub that SLEEPS rather than spins: a bound that is broken makes this test
+    # fail by TIMING OUT, and a busy-loop survivor would then burn a core for the
+    # rest of the suite. Not answering is the property under test either way.
+    _stub(bindir, "docker", "sleep 120\n")
+    _link_real(bindir, "sleep")
+    if with_timeout and not _link_real(bindir, "timeout"):
+        pytest.skip("no `timeout` binary on this host to exercise that arm")
+    started = time.monotonic()
+    p = _sh(bindir,
+            'out="$(pg_hba_file_path docker "$1" "" "$2" "")" || rc=$?\n'
+            'echo "RC=${rc:-0}"\n'
+            'echo "OUT=[$out]"\n',
+            "pg-stub", "odoo",
+            env_extra={"ODOO_AI_PG_PROBE_TIMEOUT": "2", "ODOO_AI_PG_KILL_GRACE": "1"},
+            timeout=45)
+    elapsed = time.monotonic() - started
+    assert "RC=3" in p.stdout, (
+        f"a question that could not be asked must be exit 3; got {p.stdout!r}")
+    assert "OUT=[]" in p.stdout, (
+        f"and nothing may be emitted for a path nobody answered; got {p.stdout!r}")
+    assert elapsed < 12.0, (
+        f"a 2s bound took {elapsed:.1f}s - this call is not bounded at all")

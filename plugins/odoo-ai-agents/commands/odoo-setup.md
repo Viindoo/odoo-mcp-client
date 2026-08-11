@@ -31,7 +31,9 @@ What it sets up:
    writes the machine-global `$ODOO_AI_HOME/instances.toml` (resolvable from any cwd by any agent
    on this host; see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` for the full
    Tier-1/SHARE/ISOLATE convention).
-5. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
+5. **DB local auth** - makes a LOCAL cluster accept the declared PostgreSQL role without a stored
+   password, so every build can open Odoo's own connection; reverted with `48-db-local-auth.sh revert`.
+6. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
 
@@ -46,7 +48,7 @@ menu" below).
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
-| `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-4 + `40-instance-profile` + optional `45-venv` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
+| `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-5 + `40-instance-profile` + optional `45-venv` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -69,29 +71,15 @@ Which parts of the Odoo visual workflow would you like to set up?
 
 [ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
     flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
-    (runs steps AI-1..AI-4 + 40 + optional 45 + 50)
+    (runs steps AI-1..AI-5 + 40 + optional 45 + 48 + 50)
 
 [ ] Reset instances.toml - backup then clean the instance registry
     (runs step 47 only; equivalent to --reset)
 ```
 
-Map each ticked option to its corresponding filter/steps and execute them in
-numeric order:
-
-| Checkbox ticked | Equivalent filter / steps |
-|-----------------|--------------------------|
-| Browser automation stack | `browser` - steps 10, 12, 20, 30 |
-| Declare + spin up a local Odoo instance | `instance` - AI-1..AI-4 + 40 + optional 45 + 50 |
-| Reset instances.toml | `--reset` - step 47 only |
-
-If the user ticks multiple options, run them in the order listed above (browser
-steps first, then instance steps, then reset). After collecting selections,
-confirm the plan with the user before executing (the normal per-step [Y/n] gates
-still apply).
-
-Preflight (`00-osm-gate` + `05-prereq-check`) always runs first - see Step 0.
-`45-venv` is an optional instance sub-step (offered between `40` and `50`).
-`47-instance-reset` runs ONLY via `--reset` (never in the `all`/`instance` loops).
+Map each ticked option to its filter in the table above (`browser`, `instance`,
+`--reset`); with several ticked, run them in that order. Confirm the plan before
+executing - the per-step [Y/n] gates still apply.
 
 ## Steps for the AI agent
 
@@ -136,12 +124,12 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    - Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and show
      the checklist. It probes (read-only, never sudo) the tools setup cannot
      install for you - Node, Python, a running PostgreSQL, cloned Odoo repos,
-     etc. - and lists the items only you can confirm (DB role/password, system
-     build deps, an Odoo venv).
+     etc. - and lists the items only you can confirm (build deps, an Odoo venv).
    - Then require an explicit choice from the user before continuing:
      - `ready` → all required items are satisfied; proceed.
-     - `skip instance` → run only browser/permissions steps; skip `40`, `45`,
-       and `50`.
+     - `skip instance` → run only browser/permissions steps; skip AI-1..AI-5 and
+       `40`, `45`, `48`, `50`. `48` edits a live cluster's `pg_hba.conf`, so it is
+       never reached by a run the user asked to skip.
      - `cancel` → stop, make no changes.
    - Any REQUIRED auto-detected item shown as missing (marked `[ -- ]`) must be
      fixed before `ready` - point the user at the suggested fix command.
@@ -164,9 +152,11 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    (see the table above). Exclude `47-instance-reset` from `all` and `instance`
    plan listings - it runs only via `--reset`.
 
-2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-4).**
+2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-5).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
-   numbered step scripts `40`/`45`/`50` and drives them with confirmed data.
+   numbered step scripts `40`/`45`/`48`/`50` and drives them with confirmed data.
+   AI-5 is INSIDE this cluster: stopping after AI-4 leaves step `48` unrun and
+   every later build refused on authentication.
 
    **AI-1 - OSM version + profile probe (CONFIRM #1)**
 
@@ -302,13 +292,32 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```
 
    It asks nothing and records only VERIFIED facts (`python`, `odoo_root`,
-   `db_run_mode`/`db_container`). Skipping it is what leaves a catalog written
-   before those keys existed, and an `ephemeral` acquire then refuses with exit 7
-   forever: `create-venv` records them only for a venv it just built, so a reused
-   or pre-existing venv gets them from nowhere else. A non-zero exit names the one
-   fact it could not determine and records no guess - report it and continue.
+   `db_run_mode`/`db_container`). Never skip it: `create-venv` records those keys
+   only for a venv it just built, so a reused venv gets them from nowhere else and
+   an `ephemeral` acquire then refuses with exit 7 forever. A non-zero exit names
+   the fact it could not determine, records no guess - report and continue.
 
-   **CONFIRM #5 - choose the series and profile to spin up**
+   **AI-5 - DB local auth (CONFIRM #5)**
+
+   For EVERY series in the confirmed spec, run
+   `"$STEPS_DIR/48-db-local-auth.sh" check --series <X.Y> [--profile <name>]`.
+   Exit `0` → nothing to do. Exit `1` → Odoo cannot authenticate, so no build can
+   start: show the rule `apply` adds to that cluster's `pg_hba.conf` (`host all
+   <declared db_user> <discovered-addr>/32 trust`), the container it edits (if any), and
+   that `48-db-local-auth.sh revert` undoes it. It changes PostgreSQL config, so it
+   is **never** silent: wait for **CONFIRM #5**, then run `48 apply --series <X.Y>
+   [--profile <name>]`. Forward its output verbatim. On a refusal (a `tcp-only`,
+   managed or remote cluster) the alternative it names is `$ODOO_PG_PASSWORD`, read
+   from the ENVIRONMENT OF THE PROCESS that runs each step and exported to libpq as
+   `PGPASSWORD` for that launch only - stored nowhere, in no conf file. It must
+   therefore be exported BEFORE `50 apply`, in the SAME shell that runs it and every
+   later build; a value the human exports in their own terminal never reaches yours.
+   NEVER ask for it, echo it, or put it on a command line. When you do not control
+   the shell that runs `50 apply` - the normal case - name the durable route instead:
+   one `${PGPASSFILE:-~/.pgpass}` line for that host/port/user, which libpq resolves
+   in every later process with no export at all. Then continue.
+
+   **CONFIRM #6 - choose the series and profile to spin up**
 
    Present the list of series (and profiles, if any were selected in AI-1) in
    the confirmed spec and ask the user which one to launch now. Do not silently
@@ -319,8 +328,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    to the same instance slot.
 
    The orchestrator then runs `50 apply --version <X.Y> [--profile <name>]`
-   (fail-loud preflight: verify `odoo-bin --version` runs, then probe PostgreSQL
-   through the declared `db_run_mode`, before launch; see step-specific notes).
+   (fail-loud preflight: verify `odoo-bin --version` runs, then Odoo's OWN
+   connection - a green `pg_isready` is only a cheap note and never makes the
+   launch green; see step-specific notes).
 
 3. **For each selected step (non-instance steps), in numeric order:**
    a. Run `"$s" check`. Capture the exit code.
@@ -333,7 +343,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
-        one at CONFIRM #5 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
+        one at CONFIRM #6 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
         target). Surface the stderr verbatim and STOP that step; do not retry,
         do not delete anything.
@@ -449,19 +459,15 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   2. Then let the user choose:
      - **Reuse an existing venv** - set the `python` field on the matching
        `[[instance]]` in `$ODOO_AI_HOME/instances.toml`, or export `ODOO_PYTHON`.
-       Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
        `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --profile <name> --tool uv|pip [--python <VER>] [--requirements <path>] ...`
-       Accepts multiple `--requirements` flags to gather deps from all addon
-       repos in the addons_path. This creates the venv under
-       `venvs/<series>-<profile>`, installs the deps, verifies all the
-       profile's repos are present and that `odoo-bin --version` runs, then
-       records `python`, `odoo_root` and the Postgres client surface
-       (`db_run_mode`/`db_container`) back onto the instance.
-  In both cases, step `45` verifies `odoo-bin --version` runs in the chosen
-  interpreter BEFORE writing the `python` field to `instances.toml`. If the
-  venv cannot run `odoo-bin --version`, step `45` does NOT record the python
-  field and prints an error with guidance.
+       Repeat `--requirements` to gather deps from every addon repo in the
+       addons_path. It creates the venv under `venvs/<series>-<profile>`, installs
+       the deps, verifies the profile's repos are present and that `odoo-bin
+       --version` runs, then records `python`, `odoo_root` and the Postgres client
+       surface (`db_run_mode`/`db_container`) onto the instance.
+  In both cases `45` verifies `odoo-bin --version` runs in the chosen interpreter
+  BEFORE writing the `python` field, and records nothing when it does not.
   Never silently pick an incompatible Python. If the user declines, just print
   the suggestion and move on - step 50 will fall back to `python3`.
   `record-env` runs as part of the numbered flow after CONFIRM #4 (see there);
@@ -474,21 +480,33 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   records - the only filter is path existence). Hard mode (`apply --hard`): wipes all entries
   unconditionally. `check` always exits 0 (reset is always available); it is
   excluded from the `all`/`instance` loops so it never runs silently.
+- **48-db-local-auth** *(instance sub-step - runs between 45 and 50)* - lets Odoo
+  reach the declared PostgreSQL role from THIS host without a password, via one
+  delimited managed block in that cluster's `pg_hba.conf`:
+  `host all <declared db_user> <discovered-addr>/32 trust` - one `/32`, one role.
+  The address is DISCOVERED per container (a published-port connection arrives
+  from the bridge gateway, never loopback). Idempotent; backs up before every edit
+  and never overwrites a backup; undone with `48-db-local-auth.sh revert`; never
+  reports success without reconnecting. REFUSES and writes nothing when the
+  address is undiscoverable, the port is published on a non-loopback address, or
+  docker access is missing. Which arm runs is decided by where the SERVER is, NOT by
+  `db_run_mode` (that records only whether libpq binaries are on THIS host's PATH):
+  ONE container publishing the declared `db_port` takes the container arm and IS
+  edited, even on a `db_run_mode=native` host; TWO publishers is refused with both
+  named (declare `db_container` to resolve it); a genuinely native SERVER - no
+  container publishes that port - gets printed instructions instead; a `tcp-only`,
+  managed or remote cluster is refused - AI-5 owns what to do with the alternative
+  it names.
 - **50-instance-spinup** - before launching anything, runs a **fail-loud
-  preflight**: verifies (a) `odoo-bin --version` runs under the instance's
-  Python (confirms the venv is functional and Odoo is reachable) and
-  (b) PostgreSQL is reachable, probed through the declared `db_run_mode`:
-  `pg_isready` for a `native` surface, `pg_isready` inside `db_container` for
-  `docker`, otherwise a bounded psycopg2 connection through the instance's own
-  `python` - so the gate never disappears on a host with no libpq client, and a
-  probe that cannot run is reported as NOT PROBED rather than as a down cluster.
-  If either check fails, it prints a clear error with remediation guidance and stops -
-  it does NOT launch and then time out polling. On preflight pass: generates a
-  temp `odoo.conf`, launches Odoo (`odoo-bin --dev=all` or
-  `docker compose up -d`), polls `/web/login` to HTTP 200, prints the URL.
-  The series to spin up comes from CONFIRM #5 (never silently defaulted). The
-  Python interpreter comes from the instance `python` field / `$ODOO_PYTHON` /
-  `python3`. The DB password is read only from `$ODOO_PG_PASSWORD`.
+  preflight**: (a) `odoo-bin --version` runs under the instance's Python, then
+  (b) Odoo's OWN connection through the instance's `python`. `pg_isready` runs
+  first as a cheap note but can never make the launch green - it answers the same
+  whatever the credentials are. On a refused connection it prints the refusal and
+  launches NOTHING. On pass: generates a temp `odoo.conf`, launches Odoo
+  (`odoo-bin --dev=all` or `docker compose up -d`), polls `/web/login` to HTTP
+  200, prints the URL. The series comes from CONFIRM #6 (never silently
+  defaulted). The Python interpreter comes from the instance `python` field /
+  `$ODOO_PYTHON` / `python3`.
 
 ## Hard rules
 
@@ -498,11 +516,14 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* - steps 30
   and 32 write there. Do not edit either file by hand with `Edit`/`Write`; the
   step scripts back up, refuse invalid JSON, and stay idempotent.
-- **Never echo secrets.** No API keys, no DB passwords in any output. DB
-  passwords live in `$ODOO_PG_PASSWORD` / a keychain, never in
-  `instances.toml`.
-- **Never sudo silently.** ffmpeg and system packages are only *advised*; the
-  user runs any privileged install themselves.
+- **Never echo secrets, and store no DB password anywhere.** Step 48 makes the
+  local cluster accept the declared role without one; `$ODOO_PG_PASSWORD` is the
+  escape hatch for a cluster that cannot be reconfigured (scope + ordering: AI-5) -
+  never `instances.toml`, never a generated conf, never any output.
+- **Never sudo silently.** ffmpeg, system packages and a native SERVER's
+  `pg_hba.conf` (one no container publishes - step 48 edits no system file and has
+  no flag that makes it) are only *advised*; the user runs any privileged change
+  themselves.
 - **Idempotent.** Always run a step's `check` before its `apply`. Re-running
   the whole command must be a no-op when everything is already configured.
 - **Spawn a HAIKU subagent ONLY for read-only local filesystem scans** (repo →

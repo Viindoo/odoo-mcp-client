@@ -16,6 +16,7 @@ assert the new Claude opt-in step (12-browser-mcp-optin.sh) uses
 Stdlib + bash only.
 """
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -28,6 +29,7 @@ LIB = PLUGIN / "scripts" / "lib" / "browser-mcp-servers.sh"
 STEP10 = PLUGIN / "scripts" / "setup-steps" / "10-browser-mcp.sh"
 STEP12 = PLUGIN / "scripts" / "setup-steps" / "12-browser-mcp-optin.sh"
 STEP32 = PLUGIN / "scripts" / "setup-steps" / "32-permissions-state-root.sh"
+STEP48 = PLUGIN / "scripts" / "setup-steps" / "48-db-local-auth.sh"
 ODOO_SETUP_CMD = PLUGIN / "commands" / "odoo-setup.md"
 
 requires_bash = pytest.mark.skipif(shutil.which("bash") is None, reason="bash not available")
@@ -200,3 +202,55 @@ def test_odoo_setup_command_enumerates_step32_in_all_and_permissions_modes():
         "not just the argument-filter table"
     )
 
+
+
+# --------------------------------------------------------------------------- #
+# Step 48 (local passwordless DB auth) is wired into odoo-setup.md             #
+#                                                                             #
+# Without this, the step's own 52 behaviour tests all stay green while the step #
+# becomes unreachable dead code: nothing else asserts that the setup command    #
+# runs it, or that it is executable at all. Modelled on step 32's pair above.   #
+# --------------------------------------------------------------------------- #
+
+def test_step48_file_exists_and_executable():
+    assert STEP48.is_file(), f"missing step script: {STEP48}"
+    assert os.access(STEP48, os.X_OK), f"step script must be executable: {STEP48}"
+
+
+def test_odoo_setup_command_enumerates_step48_in_the_instance_loop():
+    text = ODOO_SETUP_CMD.read_text(encoding="utf-8")
+    # The `instance` row is the loop that provisions a declared instance, and this
+    # step must run inside it - between the venv step that records `python` and the
+    # spin-up that needs the connection to work.
+    instance_row = next(
+        (ln for ln in text.splitlines() if ln.strip().startswith("| `instance`")), None
+    )
+    assert instance_row is not None, (
+        "odoo-setup.md must have an `instance` row in the argument-filter table"
+    )
+    assert "48-db-local-auth" in instance_row, (
+        f"the `instance` mode row must enumerate 48-db-local-auth; got: {instance_row!r}"
+    )
+    # The `all` loop runs every step except the reset-only one, so 48 must NOT be
+    # excluded there either.
+    all_row = next((ln for ln in text.splitlines() if ln.strip().startswith("| `all`")), None)
+    assert all_row is not None, "odoo-setup.md must have an `all` row"
+    assert "48-db-local-auth" not in all_row.replace("EXCEPT", "EXCEPT"), (
+        f"the `all` row must not name 48-db-local-auth as an exclusion; got: {all_row!r}"
+    )
+    # And the step-reference section must describe it, not just the table row.
+    assert "**48-db-local-auth**" in text, (
+        "odoo-setup.md must document 48-db-local-auth in its step-reference section, "
+        "not just the argument-filter table"
+    )
+    # Its two non-default verbs are the user's escape routes; naming them is what
+    # makes the change reversible from the documentation alone.
+    for verb in ("revert", "check"):
+        # Matched loosely on purpose: the command file quotes the path in some
+        # places ("$STEPS_DIR/48-db-local-auth.sh" check) and not in others, and
+        # this guard is about the VERB being documented, not about its quoting.
+        assert re.search(r'48-db-local-auth\.sh"?\s+' + verb, text), (
+            "odoo-setup.md must name the {v!r} verb: this step edits a live "
+            "pg_hba.conf, so the way back and the way it is offered both belong in "
+            "the documented contract".format(v=verb)
+        )
