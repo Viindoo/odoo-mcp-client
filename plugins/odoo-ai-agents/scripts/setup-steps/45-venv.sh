@@ -37,7 +37,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
-ODOO_DB_PY="$SCRIPT_DIR/../lib/odoo_db.py"
 MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
 # Postgres client-surface detector + db_run_mode vocabulary SSOT.
 # shellcheck source=../lib/pg_mode.sh
@@ -319,37 +318,19 @@ _detect_pg_facts() {
 }
 
 # ---------------------------------------------------------------------------
-# _verify_can_createdb <venv_py> <series> <profile> <odoo_root>
-#   WARN-ONLY reachability + capability check on the facts just recorded, so a
-#   user learns at setup time what runtime would refuse - without blocking a
-#   registration that is perfectly valid before Postgres is started.
+# _report_db_preflight <series> <profile>
+#   Advisory, never fatal. Asks the SSOT (allocator.py db-preflight - the SAME
+#   ladder `acquire` gates on) and forwards its verdict verbatim. This function
+#   must never restate, re-derive or re-word the answer: a second copy of the
+#   question is how a setup step came to contradict the command that runs next.
+#   BOUNDED: a setup-time advisory must never hang the setup it advises on.
 # ---------------------------------------------------------------------------
-_verify_can_createdb() {
-    local venv_py="$1" series="$2" profile="${3:-}" odoo_root="${4:-}"
-    local io="$SCRIPT_DIR/../lib/instances_io.py"
-    [[ -x "$venv_py" && -f "$ODOO_DB_PY" && -f "$io" ]] || return 0
-    local kv=""
-    kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null)" || return 0
-    [[ -n "$kv" ]] || return 0
-    eval "$kv" 2>/dev/null || return 0
-    local -a args=("$ODOO_DB_PY" can-createdb
-        --db-host "${INST_DB_HOST:-localhost}" --db-user "${INST_DB_USER:-odoo}")
-    [[ -n "$odoo_root" ]] && args+=(--odoo-root "$odoo_root")
-    [[ -n "${INST_DB_PORT:-}" ]] && args+=(--db-port "${INST_DB_PORT}")
-    # BOUNDED: a setup-time advisory must never hang the setup it advises on.
-    local verdict="" rc=0
-    verdict="$(pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" "$venv_py" "${args[@]}" 2>/dev/null)" || rc=$?
-    if [[ "$rc" -eq 0 && "$verdict" == "true" ]]; then
-        echo "  ok role ${INST_DB_USER:-odoo} may CREATE DATABASE (ephemeral isolation available)"
-    elif [[ "$rc" -eq 0 && "$verdict" == "false" ]]; then
-        echo "  Warning: role ${INST_DB_USER:-odoo} may NOT CREATE DATABASE. An 'ephemeral'" >&2
-        echo "  acquire will REFUSE with exit 6 (it never silently shares the declared" >&2
-        echo "  database). Grant CREATEDB to that role to enable isolated test databases." >&2
-    else
-        echo "  Warning: could not determine whether ${INST_DB_USER:-odoo} may CREATE DATABASE" >&2
-        echo "  (the cluster may not be running yet). An 'ephemeral' acquire will REFUSE with" >&2
-        echo "  exit 7 until this can be answered. Start Postgres, then re-run record-env." >&2
-    fi
+_report_db_preflight() {
+    local series="$1" profile="${2:-}" alloc="$SCRIPT_DIR/../lib/allocator.py"
+    [[ -f "$alloc" ]] || return 0
+    local -a args=("$alloc" db-preflight --series "$series" --instances "$INSTANCES_TOML")
+    [[ -n "$profile" ]] && args+=(--profile "$profile")
+    pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" python3 "${args[@]}" || true
     return 0
 }
 
@@ -423,7 +404,7 @@ cmd_record_env() {
     fi
 
     _record_env_facts "$series" "${profile:-}" "$venv_py" "$odoo_root" || rc=1
-    [[ -z "$venv_py" ]] || _verify_can_createdb "$venv_py" "$series" "${profile:-}" "$odoo_root"
+    _report_db_preflight "$series" "${profile:-}"
     return "$rc"
 }
 
@@ -676,7 +657,7 @@ PY
     # key whose line is absent, so a catalog written before a key existed gains it.
     local _rec_rc=0
     _record_env_facts "$series" "$profile" "$venv_py" "$(dirname "$core_bin")" || _rec_rc=$?
-    _verify_can_createdb "$venv_py" "$series" "$profile" "$(dirname "$core_bin")"
+    _report_db_preflight "$series" "$profile"
     # A detector that could not decide is reported, not fatal: the venv IS ready
     # and every non-ephemeral mode works without the client-surface fact.
     if [[ "$_rec_rc" -ne 0 ]]; then

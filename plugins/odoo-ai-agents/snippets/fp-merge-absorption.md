@@ -197,9 +197,11 @@ security/safety); an inherited bug carried faithfully + routed upstream is corre
 
 An `ephemeral` acquire either returns an ISOLATED throwaway DB or FAILS - it never silently shares
 the declared database, so two parallel batches can never collide on one DB unnoticed.
-On exit 6 (the role lacks `CREATEDB`) or exit 7 (undeterminable), STOP: either have a human grant
-`CREATEDB`, or re-dispatch `--mode exclusive` and run the remaining batches ONE AT A TIME, stating
-in your report that isolation was not provided.
+On any acquire refusal - exit 6, 7, 8 or 9, the complete set - STOP. For 6 (the role lacks
+`CREATEDB`) or 7 (undeterminable): either have a human grant `CREATEDB`, or re-dispatch `--mode
+exclusive` and run the remaining batches ONE AT A TIME, stating in your report that isolation was not
+provided. For 8/9 (Odoo cannot authenticate / the cluster did not answer) `exclusive` is gated too -
+fix the cluster first; no mode gets past them.
 Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
 § Allocate and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
 

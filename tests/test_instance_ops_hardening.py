@@ -1514,3 +1514,668 @@ def test_no_prose_claims_ephemeral_silently_degrades_to_exclusive():
         "the agent must state the failure shape: it either succeeds as ephemeral or fails "
         "writing no lease"
     )
+
+
+# ---------------------------------------------------------------------------
+# The DB-AUTH refusal wave: acquire gained exits 8 (Odoo cannot AUTHENTICATE to
+# the cluster) and 9 (the cluster did not answer at all), both checked BEFORE
+# 6/7 and for `--mode exclusive` as well as `ephemeral`.
+#
+# Every defect this section guards shipped at once, and every one of them
+# survived review because no guard reached it: five files stated the refusal set
+# as 6-and-7 only, one sentence handed a stopped cluster an authentication fix,
+# `DB_AUTH=unknown` (the ONE state that must never block) was never stated to
+# the agent, and the agent was told to report a Continuation-only status value
+# into an output block whose enum has no such value.
+# ---------------------------------------------------------------------------
+SETUP_CMD_MD = PLUGIN / "commands" / "odoo-setup.md"
+ALLOCATION_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION.md"
+
+# An exit-code ENUMERATION: a refusal/exit lead-in followed by two or more codes
+# joined by any separator this repo's prose actually uses. Shape, not phrasing -
+# "exit 6 or 7", "exits 6/7/8/9", "Exit **6, 7, 8 or 9**", "Acquire refusals -
+# `6`, `7`, `8` and `9`" all match the same way.
+_CODE = r"[`*\s:\-]{0,4}(\d)[`*]{0,2}"
+_JOIN = r"\s*(?:,|/|\bor\b|\band\b|-|\bto\b|\bthrough\b)\s*"
+_EXIT_ENUM = re.compile(
+    r"\b(?:exit|exits|code|codes|refusal|refusals)\b" + _CODE
+    + r"(?:" + _JOIN + _CODE + r")+", re.IGNORECASE)
+
+
+# The RULE itself, not the two cross-references that point at it by name.
+_REFUSAL_RULE = re.compile(r"Refused before launch \(exits", re.IGNORECASE)
+
+
+def _contract_text(path: Path) -> str:
+    """Whitespace-normalized CONTRACT text of a file.
+
+    For markdown / shell / json that is the whole file. For the repo's own
+    `tests/*.py` it is the COMMENT banners plus the docstrings - the text a
+    maintainer reads as the rule - and never the fixture string literals a guard
+    must quote verbatim in order to ban them.
+    """
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    if path.suffix != ".py":
+        return " ".join(raw.split())
+    parts: list[str] = []
+    try:
+        import io
+        import tokenize
+        for tok in tokenize.generate_tokens(io.StringIO(raw).readline):
+            if tok.type == tokenize.COMMENT:
+                parts.append(tok.string)
+    except Exception:  # pragma: no cover - an unparsable file falls back to raw
+        parts.append(raw)
+    try:
+        import ast
+        tree = ast.parse(raw)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+                doc = ast.get_docstring(node)
+                if doc:
+                    parts.append(doc)
+    except Exception:  # pragma: no cover
+        parts.append(raw)
+    return " ".join(" ".join(parts).split())
+
+
+_ONE_CODE = re.compile(r"\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}(\d)\b", re.IGNORECASE)
+
+
+def _contract_paragraphs(path: Path) -> list[str]:
+    """The file's contract text split into PASSAGES - the unit a remedy is offered in.
+
+    A blank-line-separated block for markdown/shell/json; one contiguous comment
+    run or one docstring for the repo's own tests. Passage granularity beats a
+    sliding character window here: it is what makes "this passage offers a remedy"
+    decidable instead of "some remedy token happens to sit N characters away".
+    """
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    if path.suffix != ".py":
+        return [" ".join(b.split()) for b in re.split(r"\n\s*\n", raw) if b.strip()]
+    import ast
+    import io
+    import tokenize
+    blocks: list[str] = []
+    run: list[str] = []
+    last_line = -2
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(raw).readline):
+            if tok.type != tokenize.COMMENT:
+                continue
+            if tok.start[0] == last_line + 1:
+                run.append(tok.string)
+            else:
+                if run:
+                    blocks.append(" ".join(run))
+                run = [tok.string]
+            last_line = tok.start[0]
+    except Exception:  # pragma: no cover
+        return [" ".join(raw.split())]
+    if run:
+        blocks.append(" ".join(run))
+    try:
+        tree = ast.parse(raw)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+                doc = ast.get_docstring(node)
+                if doc:
+                    blocks.append(doc)
+    except Exception:  # pragma: no cover
+        pass
+    return [" ".join(b.split()) for b in blocks if b.strip()]
+
+
+def _refusal_enumerations(corpus=None) -> list[tuple[Path, str, str]]:
+    """Every (file, matched enumeration, +/-260-char window) naming BOTH 6 and 7.
+
+    Naming 6 and 7 together is what makes a passage the ACQUIRE refusal set - no
+    other exit-code family in this plugin pairs them. TWO shapes are detected, so
+    a rephrasing does not silence the scan: one joined list ("exit 6 or 7",
+    "exits 6/7/8/9", "refusals - `6`, `7`, `8` and `9`") and two separate mentions
+    close enough to be one passage ("exit 6 (...) or exit 7 (...)").
+    """
+    found = []
+    for path in (corpus if corpus is not None else _stale_claim_corpus()):
+        text = _contract_text(path)
+        for m in _EXIT_ENUM.finditer(text):
+            digits = set(re.findall(r"\d", m.group(0)))
+            if {"6", "7"} <= digits:
+                lo, hi = max(0, m.start() - 260), min(len(text), m.end() + 260)
+                found.append((path, m.group(0), text[lo:hi]))
+        singles = [(m.start(), m.end(), m.group(1)) for m in _ONE_CODE.finditer(text)]
+        for (s1, e1, d1), (s2, e2, d2) in zip(singles, singles[1:]):
+            if {d1, d2} != {"6", "7"}:
+                continue
+            gap = text[e1:s2]
+            # One PASSAGE offering the set, not two codes being contrasted: the
+            # codes are joined across at most a parenthetical, inside one clause
+            # (no sentence break) and with no negation between them - "exit 6
+            # (...) or exit 7" states the set; "must exit 6 ... never exit 7" and
+            # "no exit 6, no exit 7" contrast them and state nothing.
+            if len(gap) > 120 or re.search(r"[.;]", gap):
+                continue
+            if re.search(r"\b(no|not|never|rather|instead)\b", gap, re.IGNORECASE):
+                continue
+            lo, hi = max(0, s1 - 260), min(len(text), e2 + 260)
+            found.append((path, text[s1:e2], text[lo:hi]))
+    return found
+
+
+def test_the_refusal_set_scan_reaches_every_restating_file():
+    """Discovery floor. This scan is only worth anything if it actually reaches
+    the files that restate the contract - a broken glob, a renamed separator or a
+    changed lead-in word would make it vacuous instead of failing."""
+    found = _refusal_enumerations()
+    seen = {_rel(p) for p, _, _ in found}
+    for expected in (
+        "plugins/odoo-ai-agents/agents/odoo-instance-ops.md",
+        "plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION.md",
+        "plugins/odoo-ai-agents/snippets/instance-resolution.md",
+        "plugins/odoo-ai-agents/snippets/fp-merge-absorption.md",
+        "plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md",
+        "plugins/odoo-ai-agents/skills/odoo-forward-port/references/fp-phase-detail.md",
+    ):
+        assert expected in seen, (
+            f"{expected} restates the acquire refusal set but the enumeration scan "
+            f"no longer reaches it - the scan is broken, not the file. Reached: {sorted(seen)}"
+        )
+    assert len(found) >= 6, f"only {len(found)} refusal enumerations found - scan is broken"
+
+
+def test_no_file_states_the_acquire_refusal_set_without_8_and_9():
+    """A passage that enumerates the acquire refusals MUST cover 8 and 9 too.
+
+    Pre-fix RED: `snippets/instance-resolution.md`, `skills/_shared/concurrency-guard.md`,
+    `snippets/fp-merge-absorption.md` and `skills/odoo-forward-port/references/fp-phase-detail.md`
+    each said "exit 6 or 7" - a set that has been incomplete since acquire started
+    refusing on authentication. An agent that hits 8 finds nothing matching in the
+    paragraph written for exactly that purpose and either retries blind or falls
+    into a generic error path."""
+    offenders = []
+    for path, enum, window in _refusal_enumerations():
+        if not ("8" in window and "9" in window):
+            offenders.append(f"{_rel(path)}: {enum!r} in ...{window[:200]}...")
+    assert not offenders, (
+        "these passages state the acquire refusal set without exits 8 and 9 - the "
+        "agent cannot act on a code the contract never names:\n  " + "\n  ".join(offenders)
+    )
+
+
+def _instance_ops_status_lines(corpus=None) -> list[tuple[Path, str]]:
+    """Every `status:` line inside an ```instance-ops fenced block, tree-wide."""
+    lines = []
+    for path in (corpus if corpus is not None else _stale_claim_corpus()):
+        if path.suffix != ".md":
+            continue
+        inside = False
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            stripped = raw.strip()
+            if not inside:
+                if re.match(r"^`{3,}instance-ops\s*$", stripped):
+                    inside = True
+                continue
+            if re.match(r"^`{3,}\s*$", stripped):
+                inside = False
+                continue
+            if stripped.startswith("status:"):
+                lines.append((path, stripped))
+    return lines
+
+
+def test_instance_ops_status_never_takes_a_continuation_only_value():
+    """The two status vocabularies must stay separable.
+
+    The `instance-ops` output block carries OPERATIONAL outcomes (up/created/
+    dropped/tests-*/error); `DONE`/`NEEDS_NEXT`/`BLOCKED`/`NEEDS_CONTEXT` belong
+    to the Continuation Contract and to nothing else. A file that offers a
+    Continuation value as an `instance-ops` `status:` forces the agent either to
+    emit an out-of-enum value (breaking every caller that parses the block) or to
+    drop the actionable distinction.
+
+    Pre-fix RED: `skills/odoo-instance/SKILL.md` listed `BLOCKED|NEEDS_CONTEXT`
+    inside the block it tells the skill to relay verbatim, while the agent's own
+    enum for the same block had neither."""
+    lines = _instance_ops_status_lines()
+    files = {_rel(p) for p, _ in lines}
+    assert _rel(AGENT_MD) in files and _rel(SKILL_MD) in files, (
+        f"the instance-ops block scan must reach both the agent and the skill; reached {files}"
+    )
+    offenders = [
+        f"{_rel(p)}: {line!r}" for p, line in lines
+        if re.search(r"\b(DONE|NEEDS_NEXT|BLOCKED|NEEDS_CONTEXT)\b", line)
+    ]
+    assert not offenders, (
+        "a Continuation Contract status value is offered as an `instance-ops` block "
+        "status - the two vocabularies must never cross:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_refusal_before_launch_rule_maps_both_status_fields_explicitly():
+    """The agent must say WHICH value goes in WHICH block on a refusal - naming
+    one vocabulary's value with no block named is what made the two collide."""
+    text = _norm(AGENT_MD)
+    rule = _windows(text, _REFUSAL_RULE, 0, 1800)
+    assert rule, "the agent must carry a named 'Refused before launch' rule for exits 8/9"
+    body = rule[0]
+    assert re.search(r"`instance-ops` block[^.]{0,80}`?status: error", body), (
+        "the rule must name the value that goes in the `instance-ops` block (`error` - "
+        "the only refusal value its enum has)"
+    )
+    assert re.search(r"Continuation Contract[^.]{0,90}NEEDS_CONTEXT", body), (
+        "the rule must name the value that goes in the Continuation Contract"
+    )
+    assert re.search(r"NEEDS_CONTEXT", _norm(AGENT_MD)[
+        _norm(AGENT_MD).find("Continuation Contract block per"):][:900]), (
+        "the Continuation Contract section must keep ONE rule for a refusal, not a "
+        "second, contradicting mapping"
+    )
+
+
+def test_exit_8_and_exit_9_never_share_one_remedy():
+    """Exit 9's remedy differs IN KIND from exit 8's: start the cluster / correct
+    db_host-db_port, not an authentication fix. A passage that names both codes and
+    offers only an auth remedy sends a stopped cluster to `48-db-local-auth.sh`,
+    which does nothing for a cluster that is not running.
+
+    Pre-fix RED: the agent's Through-Odoo paragraph named both exits and then one
+    remedy - `/odoo-ai-agents:odoo-setup`, with the parenthetical attached to 8.
+    A passage that states NO remedy (a pure cross-reference to the SSOT) is not a
+    finding - only one that states an auth remedy without the reachability one."""
+    auth = re.compile(r"odoo-setup|ODOO_PG_PASSWORD|48-db-local-auth", re.IGNORECASE)
+    reach = re.compile(r"start(?:ing|s)?\s+(?:the\s+)?cluster|db_host|db_port", re.IGNORECASE)
+    code8 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])8\b")
+    code9 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])9\b")
+    offenders = []
+    checked = 0
+    for path in _stale_claim_corpus():
+        for passage in _contract_paragraphs(path):
+            if not (code8.search(passage) and code9.search(passage)):
+                continue
+            # A passage that offers NO remedy is a cross-reference to the SSOT,
+            # not a fifth copy of it - nothing to check.
+            if not auth.search(passage):
+                continue
+            checked += 1
+            if not reach.search(passage):
+                offenders.append(f"{_rel(path)}: ...{passage[:260]}...")
+    assert checked >= 2, (
+        f"only {checked} passage(s) offer a remedy for exits 8/9 - the scan is broken, "
+        "not the prose"
+    )
+    assert not offenders, (
+        "exit 8 and exit 9 are given ONE remedy - a stopped cluster is being sent to "
+        "an authentication fix:\n  " + "\n  ".join(offenders)
+    )
+    agent = _norm(AGENT_MD)
+    assert re.search(r"ODOO_PG_PASSWORD", agent), (
+        "the agent must name `ODOO_PG_PASSWORD` as the managed/remote alternative - "
+        "step 48 REFUSES exactly that class of cluster, so setup alone is a dead end there"
+    )
+
+
+def test_db_auth_unknown_is_stated_as_never_blocking():
+    """`unknown` is the ONE DB_AUTH state that must never block, and the primitive
+    prints a `BLOCKED - DB_AUTH=<state>` stderr block for EVERY non-ok state -
+    `unknown` included - so a fully successful acquire can print a scary refusal
+    line moments before succeeding. Wherever the states are enumerated for an
+    agent, the never-block rule and the exit-code-over-stderr rule travel with
+    them.
+
+    Pre-fix RED: "unknown" appeared nowhere near DB_AUTH in the agent file, so an
+    agent had no textual basis for treating exit 0 with that stderr as a pass."""
+    corpus = [p for p in _stale_claim_corpus() if "DB_AUTH" in _contract_text(p)]
+    reached = {_rel(p) for p in corpus}
+    assert _rel(AGENT_MD) in reached and _rel(ALLOCATION_DOC) in reached, (
+        f"the DB_AUTH scan must reach the agent and the allocation reference; got {reached}"
+    )
+    never_blocks = re.compile(
+        r"(unknown|undetermin\w*)[^.]{0,200}?\b(?:never|does not|do not|cannot)\b[^.]{0,120}?block"
+        r"|\b(?:never|does not|do not|cannot)\b[^.]{0,140}?block[^.]{0,200}?(unknown|undetermin\w*)",
+        re.IGNORECASE)
+    offenders = []
+    for path in corpus:
+        text = _contract_text(path)
+        states = [s for s in ("denied", "unreachable", "unknown") if s in text]
+        if len(states) >= 2 and not never_blocks.search(text):
+            offenders.append(f"{_rel(path)} enumerates {states} without the never-block rule")
+    assert not offenders, (
+        "a DB_AUTH state enumeration omits the rule that an UNDETERMINABLE state never "
+        "blocks - only a PROVEN 8 or 9 does:\n  " + "\n  ".join(offenders)
+    )
+    agent = _norm(AGENT_MD)
+    assert re.search(
+        r"DB_AUTH=unknown[^.]{0,400}?(exit code is authoritative|EXIT CODE is authoritative)",
+        agent, re.IGNORECASE), (
+        "the agent must be told the EXIT CODE is authoritative for `unknown`, not the "
+        "`BLOCKED - DB_AUTH=` stderr string every non-ok state prints"
+    )
+
+
+def test_the_agent_never_self_applies_the_pg_hba_setup_step():
+    """Step 48 edits a live cluster's `pg_hba.conf` the moment it is invoked and
+    carries no confirm gate of its own - the gate lives in `/odoo-setup`
+    (CONFIRM #5). This agent self-invokes numbered setup scripts routinely
+    (`45-venv.sh`, `50-instance-spinup.sh`), so silence here reads as permission.
+
+    Pre-fix RED: nothing forbade it, and the file's own idiom said yes."""
+    agent = _norm(AGENT_MD)
+    window = _windows(agent, re.compile(r"48-db-local-auth\.sh"), 400, 700)
+    assert window, "the agent must name the step 48 remedy for exit 8"
+    assert any(
+        re.search(r"NEVER run `?48-db-local-auth\.sh", w, re.IGNORECASE)
+        or re.search(r"never (?:run|invoke)[^.]{0,60}48-db-local-auth", w, re.IGNORECASE)
+        for w in window
+    ), "the agent must be forbidden from running step 48 itself"
+    assert any(re.search(r"route[^.]{0,80}(human|odoo-setup)", w, re.IGNORECASE) for w in window), (
+        "the prohibition must name the route that replaces it - through the human via "
+        "`/odoo-ai-agents:odoo-setup`"
+    )
+
+
+def test_the_mandatory_wait_log_step_has_an_arm_for_a_build_that_opens_no_log():
+    """A refusal before launch emits no `LOG_PATH=` at all, so the HARD RULE's
+    mandatory `wait-log` call has no argument to take. Without a named arm the
+    agent has no valid next tool call and the rule reads as a stall.
+
+    Pre-fix RED: the rule covered a reaped launcher with no `STATUS=` line but not
+    a build that never opened a log."""
+    text = _norm(AGENT_MD)
+    arm = _windows(text, re.compile(r"No `LOG_PATH=` line at all", re.IGNORECASE), 0, 420)
+    assert arm, "the active-wait HARD RULE must carry an arm for a build that opens no log"
+    body = arm[0]
+    assert re.search(r"terminal|report", body, re.IGNORECASE), (
+        "the arm must resolve to a report, not to a wait"
+    )
+    assert re.search(r"skip|nothing to wait on", body, re.IGNORECASE), (
+        "the arm must say the mandatory wait-log call is skipped in this ONE case"
+    )
+
+
+def test_the_forwarded_refusal_has_a_documented_home_outside_the_one_line_notes():
+    """`notes:` is documented as a one-line summary; the primitive's refusal is
+    4-6 lines and must be forwarded AS-IS. Without a named home the agent either
+    violates the block convention or truncates the primitive's own text."""
+    text = _norm(AGENT_MD)
+    rule = _windows(text, _REFUSAL_RULE, 0, 1800)
+    assert rule, "the refusal rule must exist"
+    body = rule[0]
+    assert re.search(r"(fenced block|prose summary)", body, re.IGNORECASE), (
+        "the multi-line refusal needs a named home - a fenced block in the prose summary"
+    )
+    assert re.search(r"never[^.]{0,80}(truncat|fold)[^.]{0,60}`?notes", body, re.IGNORECASE), (
+        "the rule must forbid truncating the refusal into the one-line `notes:` field"
+    )
+
+
+def test_force_forget_is_named_and_its_outcomes_are_flag_gated():
+    """`--force-forget` gates two of the three release outcome keys, and a plain
+    release on a present-or-unverifiable DB emits NONE of them (exit 1, lease
+    kept). The flag PERMANENTLY accepts a leaked database, so the file must say
+    who decides.
+
+    Pre-fix RED: `--force-forget` appeared 0 times in the agent, while the prose
+    told the agent to distinguish three outcomes as if all three were reachable
+    from the plain release the code block above it shows."""
+    text = _norm(AGENT_MD)
+    assert "--force-forget" in text, (
+        "the flag that gates two of the three release outcome keys must be named"
+    )
+    win = _windows(text, re.compile(r"ALLOC_FORGOTTEN_DB"), 400, 900)
+    assert win, "the release outcomes must be documented"
+    body = " ".join(win)
+    assert re.search(r"WITHOUT the flag|without `--force-forget`|plain release", body, re.IGNORECASE), (
+        "the outcomes reachable WITHOUT the flag must be separated from those needing it"
+    )
+    assert re.search(r"(NO key|no key at all)[^.]{0,120}(exit 1|KEEPS the lease|lease)", body,
+                     re.IGNORECASE) or re.search(
+        r"(KEEPS the lease|lease is KEPT)[^.]{0,140}(exit 1)", body, re.IGNORECASE), (
+        "the fourth case - present or unverifiable without the flag: no key, lease kept, "
+        "exit 1 - must be covered"
+    )
+    assert re.search(r"PERMANENTLY|permanent", body, re.IGNORECASE) and re.search(
+        r"(caller|human)[^.]{0,120}(asked|owns|decide)", body, re.IGNORECASE), (
+        "escalating to --force-forget permanently accepts a leak, so the file must say "
+        "who decides"
+    )
+
+
+def test_the_setup_command_carries_one_step_inventory():
+    """`commands/odoo-setup.md` is EXECUTED by a router: an executable header that
+    bounds the instance cluster at AI-4 while AI-5 lives inside it, or a
+    `skip instance` list that omits the one step which edits a live cluster's
+    `pg_hba.conf`, is a routing bug, not a documentation nit.
+
+    Pre-fix RED: the cluster header said AI-1 through AI-4, the skip list named
+    only 40/45/50, and the "what it sets up" list stopped at 5 = spin-up."""
+    text = _norm(SETUP_CMD_MD)
+    assert "AI-5" in text, "AI-5 must exist in the command"
+    assert not re.search(r"AI-1 through AI-4|AI-1\.\.AI-4", text), (
+        "no header may bound the instance cluster at AI-4 while AI-5 runs inside it"
+    )
+    skip = _windows(text, re.compile(r"skip instance"), 60, 400)
+    assert skip, "the Gate #2 skip-instance branch must exist"
+    assert any(re.search(r"`48`|`48-db-local-auth", w) for w in skip), (
+        "an explicit `skip instance` must skip step 48 - it edits a live cluster's "
+        "pg_hba.conf"
+    )
+    inventory = _windows(text, re.compile(r"5\.\s+\*\*DB local auth"), 0, 200)
+    assert inventory, (
+        "the 'what it sets up' inventory must include DB local auth, renumbering "
+        "spin-up to 6 as `docs/setup.md` already does"
+    )
+    assert re.search(r"6\.\s+\*\*Instance spin-up", text), (
+        "instance spin-up must be item 6 once DB local auth is item 5"
+    )
+    assert not re.search(r"probe PostgreSQL through the declared `db_run_mode`", text), (
+        "step 50's gate is Odoo's OWN connection; a green pg_isready can never make the "
+        "launch green, and the numbered flow must not describe it as the preflight"
+    )
+
+
+# ---------------------------------------------------------------------------
+# The `instance-ops` OPERATIONAL status enum is declared in exactly ONE place.
+#
+# The two-vocabulary collision this section's earlier guards fix arose from a
+# COPY: `skills/odoo-instance/SKILL.md` restated the enum it is told to relay
+# verbatim, and the copy then drifted - it grew `started`, lost `ready-for-doc`,
+# and gained two Continuation-only values the agent's own enum never had. A
+# second copy is therefore not a style problem, it is the defect's origin.
+# ---------------------------------------------------------------------------
+# Operational values only. `started` is the RETIRED value the drifted copy grew;
+# it stays in the pattern so a copy carrying it is caught rather than missed.
+_OPERATIONAL_STATUS_VALUES = (
+    "tests-passed-with-warnings", "tests-inconclusive", "tests-failed",
+    "tests-passed", "ready-for-doc", "created", "dropped", "started",
+    "up", "down", "error",
+)
+_STATUS_ENUM_RUN = re.compile(
+    r"\b(?:" + "|".join(_OPERATIONAL_STATUS_VALUES) + r")\b"
+    r"(?:\s*[|,/]\s*\b(?:" + "|".join(_OPERATIONAL_STATUS_VALUES) + r")\b){2,}"
+)
+
+
+def _status_enum_copies(corpus=None) -> list[tuple[Path, str]]:
+    """Every place an operational-status ENUM is spelled out, tree-wide.
+
+    The shape is >=3 of the operational values joined by `|`, `,` or `/` - a
+    declaration, not a prose mention of one value. That is what separates "this
+    file declares the enum" from "this file talks about tests-inconclusive".
+    """
+    found = []
+    for path in (corpus if corpus is not None else _stale_claim_corpus()):
+        text = _contract_text(path)
+        for m in _STATUS_ENUM_RUN.finditer(text):
+            found.append((path, m.group(0)))
+    return found
+
+
+def test_the_operational_status_enum_is_declared_in_exactly_one_place():
+    """ONE declaration, everywhere else a cross-reference.
+
+    Pre-fix RED: `skills/odoo-instance/SKILL.md` carried a second copy of the enum
+    inside the ```instance-ops block it relays verbatim. Two copies is how the
+    vocabularies drifted apart in the first place - the copy grew `started`, lost
+    `ready-for-doc`, and admitted `BLOCKED`/`NEEDS_CONTEXT`."""
+    copies = _status_enum_copies()
+    # Discovery floor: the ONE declaration must still be found, in the agent, inside
+    # its own instance-ops block, and still complete - a renamed value or a reflowed
+    # block would otherwise make this guard vacuous instead of failing.
+    mine = [run for path, run in copies if path == AGENT_MD]
+    assert len(mine) == 1, (
+        f"the agent must carry exactly ONE operational status enum; found {len(mine)}"
+    )
+    declaration = mine[0]
+    assert sum(v in declaration for v in _OPERATIONAL_STATUS_VALUES) >= 8, (
+        f"the declaration lost values - the scan is matching something else: {declaration!r}"
+    )
+    assert "error" in declaration and "ready-for-doc" in declaration, (
+        "the declaration must still carry the refusal value `error` and `ready-for-doc`"
+    )
+    assert "started" not in declaration, (
+        "`started` is the retired value the drifted copy grew - it must not enter the "
+        "declaration"
+    )
+    assert any(
+        line.startswith("status:") and _STATUS_ENUM_RUN.search(line)
+        for path, line in _instance_ops_status_lines() if path == AGENT_MD
+    ), "the declaration must live on the `status:` line of the agent's instance-ops block"
+    offenders = [f"{_rel(p)}: {run[:160]!r}" for p, run in copies if p != AGENT_MD]
+    assert not offenders, (
+        "the operational status enum is declared in more than one place - every other "
+        "file must cross-reference the agent instead of copying it:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_the_password_escape_hatch_states_its_ordering_and_its_scope():
+    """`$ODOO_PG_PASSWORD` is read from the ENVIRONMENT of the process that runs
+    each step (the scripts export it to libpq as PGPASSWORD for that launch only,
+    and the generated conf carries no db_password line). Offered without that
+    ordering, the human exports it in their own terminal, the orchestrator's next
+    `50 apply` never sees it, and the build refuses again.
+
+    Pre-fix RED: AI-5 said only "on a refusal offer the alternative it names and
+    continue" - no ordering, no process scope, and no route for the case that
+    actually bites (the orchestrator does not control the human's shell)."""
+    text = _norm(SETUP_CMD_MD)
+    win = _windows(text, re.compile(r"ODOO_PG_PASSWORD"), 200, 900)
+    assert win, "the setup command must name the escape hatch"
+    body = " ".join(win)
+    assert re.search(r"\bSAME shell\b|same shell", body), (
+        "the export must be scoped to the SAME shell/process that runs the consuming step"
+    )
+    assert re.search(r"(before|precede)[^.]{0,60}`?50 apply", body, re.IGNORECASE), (
+        "the ordering must be explicit: the export precedes the step that consumes it"
+    )
+    assert re.search(r"never reaches yours|own terminal", body, re.IGNORECASE), (
+        "the failure mode must be named - a value exported in the human's own terminal "
+        "never reaches the orchestrator's process"
+    )
+    assert re.search(r"PGPASSFILE|pgpass", body), (
+        "the case that bites - no control over the consuming shell - needs the durable "
+        "route libpq resolves by itself, not an export that will never arrive"
+    )
+    assert re.search(r"NEVER ask for it|never (?:ask|echo)", body, re.IGNORECASE), (
+        "a secret must never be requested, echoed, or placed on a command line"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Step 48's arm is chosen by WHERE THE SERVER RUNS, never by `db_run_mode`.
+#
+# `db_run_mode` records only whether libpq binaries are on THIS host's PATH
+# (`pg_mode.sh`: "native = libpq client binaries on PATH reach this cluster"), and
+# it prefers `native` whenever they are. The modal developer host - client
+# installed, PostgreSQL in a container publishing a loopback port - therefore
+# records `native` while its SERVER is a container. Routing the FIX on that value
+# sent exactly that host to the advise-only arm, which prints loopback trust rules
+# that can never match a connection arriving from the bridge gateway. Step 48 now
+# asks `_container_publishing` where the SERVER is; the prose must not reinstate
+# the retired premise that `native` means advice-only.
+# ---------------------------------------------------------------------------
+# A backticked bare `native` is the db_run_mode LITERAL. "native SERVER" (no
+# backticks) is the server-location fact, which IS a legitimate advisory trigger -
+# so the shape distinguishes them instead of banning the word.
+_DB_RUN_MODE_LITERAL = re.compile(r"`native`")
+_ADVISORY_OUTCOME = re.compile(
+    r"advis\w*|printed instructions|instructions only|prints? (?:the )?instructions",
+    re.IGNORECASE)
+
+
+def test_no_prose_ties_the_advise_only_arm_to_the_db_run_mode_value():
+    """The advise-only arm belongs to a native SERVER, not to `db_run_mode=native`.
+
+    Pre-fix RED: `commands/odoo-setup.md` said "A `native` cluster gets printed
+    instructions only" and "a `native` cluster's `pg_hba.conf` are only *advised*" -
+    both keying the outcome on the CLIENT-surface value, which is what sent a
+    container-served host to an arm that could not fix it."""
+    offenders = []
+    checked = 0
+    for path in _stale_claim_corpus():
+        for passage in _contract_paragraphs(path):
+            if not re.search(r"48-db-local-auth|step 48|`48`", passage, re.IGNORECASE):
+                continue
+            checked += 1
+            for m in _DB_RUN_MODE_LITERAL.finditer(passage):
+                tail = passage[m.end(): m.end() + 80]
+                if _ADVISORY_OUTCOME.search(tail):
+                    offenders.append(f"{_rel(path)}: ...{passage[m.start() - 60:m.end() + 90]}...")
+    assert checked >= 2, (
+        f"only {checked} passage(s) about step 48 were scanned - the scan is broken, "
+        "not the prose"
+    )
+    assert not offenders, (
+        "the advise-only arm is keyed on the `db_run_mode` value instead of on where "
+        "the SERVER runs - the retired premise:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_the_setup_command_states_the_real_step_48_routing_key():
+    """The router must be able to predict which arm runs: the server's location,
+    a single publisher of the declared port, and the two-publisher refusal."""
+    bullet = [
+        p for p in _contract_paragraphs(SETUP_CMD_MD)
+        if "48-db-local-auth" in p and "pg_hba.conf" in p
+    ]
+    assert bullet, "the step-48 bullet must exist in the setup command"
+    body = " ".join(bullet)
+    assert re.search(r"where the SERVER is|SERVER runs|the SERVER", body), (
+        "the bullet must name the routing key - where the SERVER runs"
+    )
+    assert re.search(r"NOT by\s+`db_run_mode`|not by\s+`db_run_mode`", body), (
+        "the bullet must say the arm is NOT chosen by `db_run_mode`"
+    )
+    assert re.search(r"publish\w*[^.]{0,80}`db_port`|`db_port`[^.]{0,80}publish\w*", body), (
+        "the bullet must name the actual test - a container publishing the declared "
+        "`db_port`"
+    )
+    assert re.search(r"(TWO|two)\s+publishers?[^.]{0,120}(refus|declare `db_container`)", body), (
+        "two publishers is refused and named - a router that expects a guess would "
+        "misreport the refusal"
+    )
+    assert re.search(r"native SERVER", body), (
+        "printed instructions belong to a genuinely native SERVER, and the prose must "
+        "say so in those terms"
+    )
+
+
+def test_the_never_sudo_rule_survives_and_still_covers_pg_hba():
+    """Correcting the PREMISE of the advisory arm must never weaken the rule it
+    guards: this plugin runs no sudo, and a privileged `pg_hba.conf` change stays
+    the user's to make."""
+    text = _norm(SETUP_CMD_MD)
+    rule = _windows(text, re.compile(r"Never sudo silently", re.IGNORECASE), 0, 320)
+    assert rule, "the never-sudo-silently HARD RULE must still exist"
+    body = rule[0]
+    assert "pg_hba.conf" in body, (
+        "the rule must still cover a privileged pg_hba.conf change - that is the case "
+        "step 48 refuses to perform"
+    )
+    assert re.search(r"advis", body, re.IGNORECASE) and re.search(
+        r"user runs any privileged change", body, re.IGNORECASE), (
+        "the rule must keep both halves: advise only, and the user performs the "
+        "privileged change"
+    )

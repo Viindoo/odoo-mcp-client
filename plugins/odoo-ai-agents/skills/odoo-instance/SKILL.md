@@ -242,7 +242,7 @@ warnings: <n or null>         # run-tests only; from TEST_WARNING=
 skipped: <n or null>          # run-tests only; from TEST_SKIPPED=
 findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
-status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings|tests-inconclusive|tests-failed|BLOCKED|NEEDS_CONTEXT>
+status: <one value of the agent's own enum, relayed as-is - never a Continuation status>
 notes: <short human-readable summary or error; run-tests: ALWAYS carries the scope figures + any out-of-scope verdict, see below>
 ```
 
@@ -253,8 +253,9 @@ it instead of self-provisioning. Forwarding `db_port` and `run_id` (not just `ht
 `lease_token`) is what lets a later turn drop or release the right instance on the right Postgres
 port under the right owner. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
-On `status: NEEDS_CONTEXT`, surface its `blocked_reason` and stop - do not retry without the missing
-information.
+On the agent's Continuation `status: NEEDS_CONTEXT` (its `instance-ops` block reads `status: error`
+on a refusal before launch), surface its `blocked_reason` and the refusal it quoted, then stop - do
+not retry without the missing requirement.
 
 **Scope transparency on every `run-tests` relay.** `auto_install` fan-out makes a run install and
 test far more modules than `modules` names, so a per-module verdict can be decided by tests the

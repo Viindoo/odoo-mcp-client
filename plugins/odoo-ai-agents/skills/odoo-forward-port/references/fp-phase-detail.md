@@ -756,8 +756,8 @@ clean retry.
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
   `merge-log.md` and do NOT block the forward-port on it. Only an install that is green on clean
   origin/target and red after absorption is an FP-delta to fix.
-- **CREATEDB role:** an `ephemeral` acquire refuses with exit 6 or 7 instead of borrowing the
-  declared DB, so batches are never silently serialised onto one database; on either exit follow
+- **CREATEDB role:** an `ephemeral` acquire refuses (exit 6, 7, 8 or 9) instead of borrowing the
+  declared DB, so batches are never silently serialised onto one database; on any of them follow
   `[[fp-merge-absorption]]` § Ephemeral isolation.
 
 Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.

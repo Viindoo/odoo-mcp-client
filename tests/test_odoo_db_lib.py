@@ -31,6 +31,8 @@ ODOO_DB_PY = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "odoo_db.
 EXIT_OK = 0
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
+EXIT_AUTH_DENIED = 8
+EXIT_UNREACHABLE = 9
 EXIT_NO_VENV = 10
 
 
@@ -655,6 +657,8 @@ def _build_fake_odoo_with_sql_db(tmp_path, *, rolcreatedb=True, databases=("a_db
                     self._rows = [] if _AGE is None else [(_AGE,)]
                 elif "pg_database_size" in low:
                     self._rows = [] if _SIZE is None else [(_SIZE,)]
+                elif low.startswith("select 1"):
+                    self._rows = [(1,)]
                 else:
                     raise AssertionError("unexpected SQL: " + sql)
 
@@ -704,10 +708,16 @@ def test_can_createdb_answers_false_for_a_role_without_the_privilege(tmp_path):
 
 def test_can_createdb_fails_loudly_when_the_cluster_cannot_be_reached(tmp_path):
     """An unreachable cluster must NOT print a verdict. Printing `false` here would
-    resurrect the false negative in a new place."""
+    resurrect the false negative in a new place.
+
+    The exit is the CLASSIFIED one (9 = the cluster did not answer), not the
+    catch-all 1: a caller that cannot tell "this route is unavailable" from "this
+    route works and the cluster is absent" asks another surface about a connection
+    Odoo never makes, which is how a capability probe came to contradict the build.
+    """
     pkg = _build_fake_odoo_with_sql_db(tmp_path, raise_on_connect=True)
     res = _run("can-createdb", "--db-host", "h", "--db-user", "u", pythonpath_prepend=pkg)
-    assert res.returncode == EXIT_FAILURE, f"got {res.returncode}"
+    assert res.returncode == EXIT_UNREACHABLE, f"got {res.returncode}"
     assert res.stdout.strip() == "", (
         f"no verdict may be printed when the question could not be asked; got {res.stdout!r}")
     assert "h" in res.stderr, "the diagnostic must name the host it could not reach"
@@ -793,6 +803,7 @@ def test_odoo_root_is_accepted_by_drop_too(tmp_path):
 
 
 @pytest.mark.parametrize("argv", [
+    ("preflight", "--db-host", "h"),
     ("can-createdb", "--db-host", "h"),
     ("list-databases", "--db-host", "h"),
     ("db-age-s", "some_db", "--db-host", "h"),
@@ -816,3 +827,79 @@ def test_no_subcommand_ever_spawns_a_client_binary(tmp_path, argv):
     assert not call_log.exists(), (
         f"{argv[0]} must never spawn a libpq client; got "
         f"{call_log.read_text(encoding='utf-8')!r}")
+
+
+# ---------------------------------------------------------------------------
+# The drop path must distinguish "never attempted" from "attempted and failed".
+#
+# Both used to exit 1, so a caller could not tell a connection that never reached
+# the database from a DROP DATABASE that genuinely failed - and the two demand
+# OPPOSITE handling: the first may be retried over another surface, the second
+# must never be, because the database is still in use.
+# ---------------------------------------------------------------------------
+def _build_fake_odoo_drop_raising(tmp_path, *, exc_class, pgcode, message,
+                                  dirname="fake_odoo_drop_raise"):
+    """A fake `odoo` whose exp_drop raises a psycopg2-SHAPED exception.
+
+    `exc_class` and `pgcode` are what a caller has to classify on: psycopg2 reports
+    a connection or handshake failure as OperationalError with NO SQLSTATE, and
+    anything the server itself rejected with one.
+    """
+    pkg_root = tmp_path / dirname
+    pkg = pkg_root / "odoo"
+    (pkg / "service").mkdir(parents=True)
+    (pkg / "tools").mkdir()
+    (pkg / "__init__.py").write_text("from odoo import tools, service\n", encoding="utf-8")
+    (pkg / "tools" / "__init__.py").write_text(
+        "class _Config(dict):\n"
+        "    def parse_config(self, args=None):\n"
+        "        pass\n\n"
+        "config = _Config()\n", encoding="utf-8")
+    (pkg / "service" / "__init__.py").write_text(
+        "from odoo.service import db\n", encoding="utf-8")
+    (pkg / "service" / "db.py").write_text(
+        textwrap.dedent("""\
+        class {cls}(Exception):
+            pgcode = {code!r}
+
+
+        def exp_drop(db_name):
+            raise {cls}({msg!r})
+
+
+        def exp_db_exist(db_name):
+            return True
+        """).format(cls=exc_class, code=pgcode, msg=message), encoding="utf-8")
+    return pkg_root
+
+
+@pytest.mark.parametrize("case,exc_class,pgcode,message,expected", [
+    # The server ANSWERED and rejected the credentials: the drop was never issued.
+    ("auth rejected by the server", "OperationalError", "28P01",
+     "voll uebersetzt", EXIT_AUTH_DENIED),
+    # No cluster answered at all: likewise never issued.
+    ("cluster absent", "OperationalError", None,
+     "could not connect to server: Connection refused", EXIT_UNREACHABLE),
+    # A GENUINE drop failure - the database is in use. The drop WAS attempted, so
+    # this must keep the catch-all code: a caller that read it as "never
+    # attempted" would paper it over with a client-side drop.
+    ("database in use", "ObjectInUse", "55006",
+     "database is being accessed by other users", EXIT_FAILURE),
+    # An exception that is not connection-shaped at all keeps the catch-all code
+    # too, even though no credential is resolvable in this environment.
+    ("not a connection failure", "RuntimeError", None,
+     "filestore removal failed", EXIT_FAILURE),
+])
+def test_drop_classifies_a_connection_failure_apart_from_a_failed_drop(
+        tmp_path, case, exc_class, pgcode, message, expected):
+    pkg = _build_fake_odoo_drop_raising(
+        tmp_path, exc_class=exc_class, pgcode=pgcode, message=message,
+        dirname="fake_odoo_drop_" + case.replace(" ", "_"))
+    pgpass = tmp_path / "pgpass-empty"
+    pgpass.write_text("", encoding="utf-8")
+    res = _run("drop", "some_db", "--db-host", "h", "--db-user", "u",
+               env_extra={"PGPASSFILE": str(pgpass), "ODOO_PG_PASSWORD": ""},
+               pythonpath_prepend=pkg)
+    assert res.returncode == expected, (
+        "[{c}] expected exit {e}; got {rc}, stderr={err!r}".format(
+            c=case, e=expected, rc=res.returncode, err=res.stderr))

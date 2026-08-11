@@ -46,7 +46,13 @@
 #              callers are unaffected (P5.6).
 #
 # HARD RULES:
-#   - Reads db_password ONLY from env (ODOO_PG_PASSWORD) - never from the TOML.
+#   - Never writes a password into the generated conf. A local developer cluster is
+#     reached with passwordless authentication (run /odoo-ai-agents:odoo-setup); a
+#     cluster that cannot be reconfigured is reached with PGPASSWORD exported from
+#     $ODOO_PG_PASSWORD for this launch only. No secret is written anywhere.
+#   - Never launches until Odoo's OWN connection has been probed: `pg_isready`
+#     answers whatever the credentials are, so only `odoo_db.py preflight` can
+#     prove this launch will get past its first connection.
 #   - The generated odoo.conf goes in a temp dir; no project files are mutated.
 #   - No sudo. docker mode uses `docker compose` (must already be installed).
 #
@@ -55,7 +61,9 @@
 #   ODOO_AI_INSTANCES  full-path override for instances.toml
 #   ODOO_BIN           path to odoo-bin (source mode). Auto-detected from
 #                      the 'core' addons_path entry if unset.
-#   ODOO_PG_PASSWORD   postgres password (env only; optional for trust auth).
+#   ODOO_PG_PASSWORD   the escape hatch for a cluster that cannot be reconfigured
+#                      (managed or remote). Exported to libpq as PGPASSWORD for the
+#                      launch only, never written to a file.
 #   SPINUP_TIMEOUT     poll timeout seconds (default 120).
 #   SPINUP_STOP_GRACE  seconds to wait for a failed spin-up's process group to
 #                      exit on SIGTERM before escalating to a group SIGKILL
@@ -630,21 +638,14 @@ cmd_apply() {
                 fi
             fi
 
-            # ---- PREFLIGHT: warn when ODOO_PG_PASSWORD is unset ---------------
-            # An unauthenticated conf works only with trust auth; warn so the user
-            # does not silently get a connection-refused or role-missing error at
-            # runtime with no indication of why.
-            if [[ -z "${ODOO_PG_PASSWORD:-}" ]]; then
-                echo "  Warning: ODOO_PG_PASSWORD is unset - generated conf will omit" \
-                     "db_password. This works only when pg is configured for trust auth." >&2
-            fi
-
-            # ---- PREFLIGHT: PostgreSQL reachability, per declared surface ----
-            # Dispatched on the DECLARED db_run_mode (lib/pg_mode.sh), so the gate
-            # never vanishes just because no libpq client is installed: opening a
-            # connection through the instance's own python IS the probe. Only when
-            # NEITHER a client nor a declared python exists is reachability left
-            # unprobed - and then it is said out loud, never skipped silently.
+            # ---- PREFLIGHT: PostgreSQL, per declared surface -----------------
+            # TWO rungs with DIFFERENT authority, and the difference is the whole
+            # point. pg_isready reports a cluster as accepting connections whatever
+            # the credentials are, so it can prove UNREACHABLE and can never prove
+            # that this launch will work. The connection Odoo itself opens is the
+            # only rung that answers the question the launch depends on, so it runs
+            # ALWAYS when a python is declared - never as an `elif` shadowed by a
+            # cheaper rung that cannot see the failure.
             local db_host="${INST_DB_HOST:-localhost}"
             local db_user="${INST_DB_USER:-odoo}"
             # db_name is already computed above (effective: ARG_DB_NAME override
@@ -657,19 +658,16 @@ cmd_apply() {
             local _pgr_port_args=()
             [[ -n "$db_port" ]] && _pgr_port_args=(-p "$db_port")
             local _pg_probe="" _pg_rc=0
-            # Probe ladder, cheapest FIRST, and every rung BOUNDED (a preflight
-            # must never outlive the launch it gates):
-            #   1. pg_isready, when this cluster has a client surface that can run
-            #      it - `native`, or an UNDECLARED surface (nothing recorded yet,
-            #      so a locally installed client is exactly the pre-declaration
-            #      behavior). NOT for `tcp-only`: that declaration states there is
-            #      no client surface for this cluster, and a client that answers
-            #      for a DIFFERENT cluster is the wrong-cluster hazard.
-            #   2. pg_isready inside the declared container.
-            #   3. the instance's own python over TCP - no client binary needed.
+            # Rung 1, cheap and BOUNDED (a preflight must never outlive the launch
+            # it gates). Dispatched on the DECLARED db_run_mode (lib/pg_mode.sh):
+            # `native` or an UNDECLARED surface (nothing recorded yet, so a locally
+            # installed client is exactly the pre-declaration behavior), else the
+            # declared container. NOT for `tcp-only`: that declaration states this
+            # cluster has no client surface, and a client that answers for a
+            # DIFFERENT cluster is the wrong-cluster hazard.
             # pg_isready is not one of pg_mode.sh's PG_MODE_NATIVE_BINS, so a
-            # native host may still lack it; falling through is then mandatory,
-            # because a missing binary must NEVER be reported as a down cluster.
+            # native host may still lack it; skipping is then mandatory, because a
+            # missing binary must NEVER be reported as a down cluster.
             if [[ "${INST_DB_RUN_MODE:-}" == "native" || -z "${INST_DB_RUN_MODE:-}" ]] \
                     && command -v pg_isready >/dev/null 2>&1; then
                 _pg_probe="pg_isready -h $db_host -U $db_user -d $db_name"
@@ -682,44 +680,15 @@ cmd_apply() {
                 pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
                     pg_run_client docker "${INST_DB_CONTAINER}" "$db_host" "$db_user" \
                     "$db_port" pg_isready -d "$db_name" -q >/dev/null 2>&1 || _pg_rc=$?
-            elif [[ -n "${INST_PYTHON:-}" && -f "$ODOO_DB_PY" ]]; then
-                # The instance's own python answers over TCP. `exists` needs no
-                # client and no privilege - a non-zero exit IS "unreachable".
-                local -a _ex=("$ODOO_DB_PY" exists "$db_name"
-                    --db-host "$db_host" --db-user "$db_user")
-                [[ -n "${INST_ODOO_ROOT:-}" ]] && _ex+=(--odoo-root "${INST_ODOO_ROOT}")
-                [[ -n "$db_port" ]] && _ex+=(--db-port "$db_port")
-                _pg_probe="odoo_db.py exists $db_name (psycopg2 over TCP)"
-                pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
-                    "${INST_PYTHON}" "${_ex[@]}" >/dev/null 2>&1 || _pg_rc=$?
-                if [[ "$_pg_rc" -eq 10 ]]; then
-                    # 10 = this venv cannot import odoo. A DIFFERENT fact from
-                    # "the cluster is down" - reporting it as unreachable is the
-                    # conflation this dispatch exists to end, so it never blocks
-                    # the launch. (124/125 are handled for EVERY rung below.)
-                    echo "  Warning: PostgreSQL reachability was NOT probed through" >&2
-                    echo "  '${INST_PYTHON}' (exit $_pg_rc). Run" >&2
-                    echo "  '45-venv.sh record-env --series ${INST_SERIES}' to declare odoo_root" >&2
-                    echo "  and db_run_mode for this instance." >&2
-                    _pg_probe=""
-                    _pg_rc=0
-                fi
-            else
-                echo "  Warning: PostgreSQL reachability was NOT probed - this instance declares" >&2
-                echo "  no usable client surface (db_run_mode) and no python." >&2
-                echo "  Run '45-venv.sh record-env --series ${INST_SERIES}' to declare both." >&2
             fi
-            # A NON-VERDICT applies to EVERY rung above, not just the interpreter
-            # one: 124 = the bound elapsed, 125 = the bound itself could not be
-            # applied (pg_mode.sh's contract). Neither says anything about the
-            # cluster, so neither may become a reachability verdict - the same
-            # rule 05-prereq-check.sh's `_pg_probe_declared` applies on all of its
-            # rungs. One rule, one place, no ladder can disagree with the other.
+            # 124 = the bound elapsed, 125 = the bound itself could not be applied
+            # (pg_mode.sh's contract). Neither says anything about the cluster, so
+            # neither may become a verdict - the same rule 05-prereq-check.sh's
+            # `_pg_probe_declared` applies on all of its rungs.
             if [[ "$_pg_rc" -eq 124 || "$_pg_rc" -eq 125 ]]; then
-                echo "  Warning: PostgreSQL reachability was NOT probed - the probe" >&2
-                echo "  ($_pg_probe) did not answer (exit $_pg_rc). This is NOT evidence that" >&2
-                echo "  the cluster is down; the launch proceeds and Odoo will report the" >&2
-                echo "  real connection outcome itself." >&2
+                echo "  Warning: PostgreSQL was NOT probed - the probe ($_pg_probe) did" >&2
+                echo "  not answer (exit $_pg_rc). This is NOT evidence that the cluster is" >&2
+                echo "  down." >&2
                 _pg_probe=""
                 _pg_rc=0
             fi
@@ -734,7 +703,44 @@ cmd_apply() {
                 echo "      '45-venv.sh record-env --series ${INST_SERIES}' to re-derive db_container." >&2
                 return 1
             fi
-            [[ -z "$_pg_probe" ]] || echo "  ok PostgreSQL reachable ($_pg_probe)"
+            [[ -z "$_pg_probe" ]] || \
+                echo "  ok PostgreSQL is accepting connections ($_pg_probe)"
+
+            # Rung 2, ALWAYS RUN when a python is declared: the connection Odoo
+            # itself opens, through Odoo's own resolution. This is the route the
+            # launch takes, so it is the only rung whose green means anything - and
+            # the only one that can see an authentication refusal at all. It needs
+            # no client binary and no privilege. odoo_db.py OWNS the verdict text;
+            # its stderr is forwarded verbatim rather than re-worded here.
+            if [[ -n "${INST_PYTHON:-}" && -f "$ODOO_DB_PY" ]]; then
+                local -a _pf=("$ODOO_DB_PY" preflight
+                    --db-host "$db_host" --db-user "$db_user")
+                [[ -n "${INST_ODOO_ROOT:-}" ]] && _pf+=(--odoo-root "${INST_ODOO_ROOT}")
+                [[ -n "$db_port" ]] && _pf+=(--db-port "$db_port")
+                local _pf_rc=0
+                pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
+                    "${INST_PYTHON}" "${_pf[@]}" >/dev/null || _pf_rc=$?
+                case "$_pf_rc" in
+                    0) echo "  ok Odoo can authenticate to PostgreSQL" ;;
+                    8|9)
+                        echo "" >&2
+                        echo "x PREFLIGHT FAILED: see the refusal above. NOTHING was launched." >&2
+                        return 1 ;;
+                    *)
+                        # 10 = this venv cannot import odoo; 124/125 = no answer; 1 =
+                        # undeterminable. None is a cluster fact, so none blocks the
+                        # launch - and none is reported as a green verdict either.
+                        # The RUNG is named, so a cut-off probe is distinguishable
+                        # from a ladder that never reached one (the branch below).
+                        echo "  Warning: odoo_db.py preflight was NOT probed (exit $_pf_rc)." >&2
+                        echo "  Run '45-venv.sh record-env --series ${INST_SERIES}' to declare" >&2
+                        echo "  odoo_root and db_run_mode, then retry." >&2 ;;
+                esac
+            else
+                echo "  Warning: Odoo's own connection was NOT probed - this instance" >&2
+                echo "  declares no python. Run '45-venv.sh record-env --series" >&2
+                echo "  ${INST_SERIES}' to declare it." >&2
+            fi
 
             # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
             # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
@@ -775,10 +781,14 @@ cmd_apply() {
                 if [[ -n "${INST_DB_PORT:-}" ]]; then
                     echo "db_port = ${INST_DB_PORT}"
                 fi
-                # Password ONLY from env - never echoed from a stored file.
-                if [[ -n "${ODOO_PG_PASSWORD:-}" ]]; then
-                    echo "db_password = ${ODOO_PG_PASSWORD}"
-                fi
+                # NO db_password line, deliberately: `-c "$conf"` keeps this file
+                # alive for the server's whole lifetime, so a credential written
+                # here outlives every successful spin-up with no owner and no
+                # cleanup. Odoo omits the password from its connection entirely
+                # when db_password is unset, which is exactly what lets libpq
+                # resolve PGPASSWORD from the launch environment instead (exported
+                # immediately before setsid below). Nothing is written, so there is
+                # nothing to clean up.
             } >"$conf"
             # --dev=all was introduced as a string-valued flag in v10; v9 has a
             # boolean --dev only (no =all), and v8 has no --dev at all.
@@ -828,6 +838,12 @@ cmd_apply() {
             # --dev=reload watchdog) in one os.killpg before dropping the DB.
             # A bare `&` would leave the server in the launching shell's group,
             # which has no clean target to kill. `$!` is still the leader's pid.
+            # The escape-hatch credential is handed to libpq under its OWN variable,
+            # for this launch only: Odoo passes no password to psycopg2 when
+            # db_password is unset, so libpq resolves PGPASSWORD itself. A local
+            # developer cluster needs none of this - passwordless authentication
+            # covers it.
+            [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
             # shellcheck disable=SC2086
             setsid "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!

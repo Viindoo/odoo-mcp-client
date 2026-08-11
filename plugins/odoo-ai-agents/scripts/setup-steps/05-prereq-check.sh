@@ -4,11 +4,17 @@
 # must satisfy before the instance/browser steps can succeed.
 #
 # It splits requirements into:
-#   AUTO-DETECTED   - probed here (Node, Python, PostgreSQL reachability and the
-#                     db_user's CREATEDB capability, curl, docker, ffmpeg, Odoo
-#                     repos under ODOO_GIT_BASE)
-#   NEEDS CONFIRM   - cannot be detected (PostgreSQL password, system build deps,
-#                     an Odoo venv with deps installed)
+#   AUTO-DETECTED   - probed here (Claude Code version, Node, npx, Python, curl,
+#                     PostgreSQL reachability, whether Odoo can AUTHENTICATE to
+#                     the cluster, the db_user's CREATEDB capability, Odoo repos
+#                     under ODOO_GIT_BASE, docker, ffmpeg)
+#   NEEDS CONFIRM   - cannot be detected (system build deps, an Odoo venv with
+#                     deps installed)
+# There is no "PostgreSQL password" item on either list, and adding one back
+# would be a regression: the authentication VERDICT is auto-detected above, and
+# the remedy for a refusal is /odoo-ai-agents:odoo-setup (passwordless for a
+# local cluster) or $ODOO_PG_PASSWORD for one that cannot be reconfigured -
+# never a password this checklist asks a human to type.
 #
 # This script NEVER installs anything and NEVER runs sudo. The setup command
 # turns the checklist into an explicit "ready / skip instance / cancel" prompt.
@@ -122,6 +128,8 @@ PY
 #   0 = proven reachable   1 = proven UNREACHABLE   2 = no surface to probe with
 # "No client installed" and "cluster down" are DIFFERENT facts: only a probe that
 # actually ran may report 1, and 2 is reported out loud rather than passed as ok.
+# A cluster that ANSWERED and refused our credentials is reachable, and stays the
+# authentication line's business - one question, one answer, in one place.
 _pg_probe_declared() {
     local toml py="" host="localhost" user="odoo" port="" mode="" container="" root=""
     if toml="$(_resolve_instances_path)" && [[ -f "$toml" ]]; then
@@ -166,18 +174,31 @@ _pg_probe_declared() {
     # tcp-only, an undeclared surface, or a client that is not installed after
     # all: opening a connection through the instance's own python IS the probe
     # (no client binary, no privilege needed).
+    #
+    # The verb is `preflight`, NOT `exists`: only preflight CLASSIFIES its failure.
+    # `exists` collapses every failure into 1 (its own contract is "exit 0 always"),
+    # so the rungs below that separate a refused connection from an absent cluster
+    # could never be reached - the checklist printed "PostgreSQL is not reachable"
+    # for a cluster that had answered and refused us, directly above the
+    # authentication line saying it answered. One classifier, one verdict.
     if [[ -n "$py" && -x "$py" && -f "$LIB_DIR/odoo_db.py" ]]; then
-        local -a ex=("$LIB_DIR/odoo_db.py" exists postgres --db-host "$host" --db-user "$user")
+        local -a ex=("$LIB_DIR/odoo_db.py" preflight --db-host "$host" --db-user "$user")
         [[ -n "$root" ]] && ex+=(--odoo-root "$root")
         [[ -n "$port" ]] && ex+=(--db-port "$port")
         prc=0
         pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" "$py" "${ex[@]}" >/dev/null 2>&1 || prc=$?
-        # 10 = this venv cannot import odoo; 124/125 = the probe did not answer.
-        # Neither is a cluster fact - the venv gate below owns 10 - so neither may
-        # be reported as a down cluster.
-        [[ "$prc" -eq 10 || "$prc" -eq 124 || "$prc" -eq 125 ]] && return 2
-        [[ "$prc" -eq 0 ]] && return 0
-        return 1
+        # 8 = the cluster ANSWERED and refused our credentials, which makes it
+        # REACHABLE. The credential fact belongs to the authentication line
+        # `_createdb_report` prints below, and reporting it here as a down cluster
+        # would be a second, contradicting answer to a different question.
+        [[ "$prc" -eq 0 || "$prc" -eq 8 ]] && return 0
+        # 9 = PROVEN unreachable - the only verdict that may report a down cluster.
+        [[ "$prc" -eq 9 ]] && return 1
+        # Everything else says nothing about the cluster: 1 = the question could not
+        # be answered, 10 = this venv cannot import odoo (the venv gate below owns
+        # that), 124/125 = the probe did not answer in time. "No verdict" is
+        # reported as such rather than as a down cluster.
+        return 2
     fi
     # No instance declared at all (a fresh setup): a bare local pg_isready is the
     # only thing left, and its absence means "cannot probe" - never "down".
@@ -191,17 +212,19 @@ _pg_probe_declared() {
     return 2
 }
 
-# Report the CREATEDB capability per declared instance, auto-detected by asking the
-# cluster (never inferred from which binaries are installed). An instance whose role
-# lacks it cannot use `ephemeral` isolation: the allocator REFUSES with exit 6
-# rather than silently sharing the declared database.
+# Report BOTH facts per declared instance, auto-detected by asking the cluster
+# (never inferred from which binaries are installed): can Odoo AUTHENTICATE, and
+# may the declared role CREATE DATABASE. An instance whose role lacks CREATEDB
+# cannot use `ephemeral` isolation - the allocator REFUSES with exit 6 rather than
+# silently sharing the declared database - and one whose connection is refused
+# cannot build at all, whatever its privileges are.
 #
-# The question is asked through `allocator.py can-createdb`, which is the SAME
-# two-route ladder the `acquire` gate uses and returns the SAME exit codes. Asking
-# odoo_db.py directly from here would re-implement route 1 in shell and could not
-# reach route 2 at all - so a `run_mode = "docker"` instance, which declares no
-# `python` because compose launches it, got no answer from the very command whose
-# job is to say whether isolation is available.
+# Both are asked through `allocator.py db-preflight`, which is the SAME ladder the
+# `acquire` gate uses and returns the SAME exit codes, with authentication
+# evaluated FIRST. Asking odoo_db.py directly from here would re-implement one
+# route in shell and could not reach the other at all - so a `run_mode = "docker"`
+# instance, which declares no `python` because compose launches it, got no answer
+# from the very command whose job is to say whether isolation is available.
 _createdb_report() {
     local toml series profile
     toml="$(_resolve_instances_path)" || return 0
@@ -211,14 +234,28 @@ _createdb_report() {
         [[ -n "$series" ]] || continue
         local label="$series"
         [[ -n "$profile" ]] && label="$series:$profile"
-        local -a args=("$LIB_DIR/allocator.py" can-createdb --series "$series" --instances "$toml")
+        local -a args=("$LIB_DIR/allocator.py" db-preflight --series "$series" --instances "$toml")
         [[ -n "$profile" ]] && args+=(--profile "$profile")
         local out="" rc=0
         out="$(python3 "${args[@]}" 2>/dev/null)" || rc=$?
+        # DB_AUTH's value is always one bare lowercase word, so shlex quoting never
+        # fires on it; the tr is belt for a caller that quotes anyway.
+        local auth=""
+        auth="$(printf '%s\n' "$out" | tr -d "'" | sed -n 's/^DB_AUTH=\([a-z]*\).*/\1/p' | head -n 1)"
+        case "${auth:-unknown}" in
+            ok) echo "  [ok ] Odoo can authenticate to PostgreSQL for $label" ;;
+            denied) echo "  [ -- ] Odoo CANNOT authenticate to PostgreSQL for $label - every"
+                    echo "         build refuses before launch. fix: run /odoo-ai-agents:odoo-setup" ;;
+            unreachable) echo "  [ -- ] the PostgreSQL cluster for $label did not answer at all."
+                    echo "         fix: start it, then 45-venv.sh record-env --series $series" ;;
+            *) echo "  [ ?? ] whether Odoo can authenticate for $label is undeterminable - it is"
+               echo "         read as neither a yes nor a no. fix: 45-venv.sh record-env --series $series" ;;
+        esac
         case "$rc" in
             0) echo "  [ok ] the declared role may CREATE DATABASE for $label (ephemeral isolation available)" ;;
             6) echo "  [ -- ] the declared role may NOT CREATE DATABASE for $label - 'ephemeral'"
                echo "         acquires refuse (exit 6). fix: grant that role CREATEDB." ;;
+            8|9) echo "         CREATEDB was NOT asked: the connection above must work first." ;;
             *) echo "  [ ?? ] CREATEDB for $label undeterminable - 'ephemeral' acquires refuse (exit 7)."
                echo "         fix: start PostgreSQL, then 45-venv.sh record-env --series $series"
                echo "         (a compose-run instance declares no python: declare db_run_mode +"
@@ -348,15 +385,19 @@ cmd_apply() {
         printf '  %s' "$(_mark _have curl)";    echo " curl (polls /web/database/selector during spin-up, falling back to /web/login)"
         local _pgrc=0
         _pg_probe_declared || _pgrc=$?
+        # The remedy is printed ONLY when the cluster was not reached. A cluster that
+        # answered and refused our credentials is REACHABLE (see _pg_probe_declared),
+        # and telling that reader to start PostgreSQL sends them to start something
+        # that is already running - the authentication line below owns their remedy.
         case "$_pgrc" in
             0) echo "  [ok ] PostgreSQL reachable (probed through the declared db_run_mode)" ;;
-            1) echo "  [ -- ] PostgreSQL NOT reachable (probed through the declared db_run_mode)" ;;
-            *) echo "  [ ?? ] PostgreSQL: no way to probe yet - declare an instance, then run" ;
+            1) echo "  [ -- ] PostgreSQL NOT reachable (probed through the declared db_run_mode)"
+               echo "         fix: start PostgreSQL, e.g. 'sudo systemctl start postgresql'"
+               echo "              or run it in a container publishing a host port of YOUR choosing,"
+               echo "              then declare that port as db_port on the [[instance]]" ;;
+            *) echo "  [ ?? ] PostgreSQL: no way to probe yet - declare an instance, then run"
                echo "         45-venv.sh create-venv + record-env for it" ;;
         esac
-        echo "         fix: start PostgreSQL, e.g. 'sudo systemctl start postgresql'"
-        echo "              or run it in a container publishing a host port of YOUR choosing,"
-        echo "              then declare that port as db_port on the [[instance]]"
         _createdb_report
         printf '  %s' "$(_mark _repos_present)"; echo " Odoo repos under \${ODOO_GIT_BASE:-\$HOME/git} ($ODOO_GIT_BASE)"
         echo "         fix: git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17"
@@ -367,7 +408,6 @@ cmd_apply() {
     echo
     echo "NEEDS YOUR CONFIRMATION (cannot be auto-detected):"
     if _needs_instance; then
-        echo "  [ ] DB password exported as ODOO_PG_PASSWORD (skip if using trust auth)"
         echo "  [ ] System build deps installed (only if you build a fresh venv):"
         echo "        build-essential python3-dev libxml2-dev libxslt1-dev libpq-dev"
         echo "        libldap2-dev libsasl2-dev libssl-dev libjpeg-dev zlib1g-dev"
