@@ -6,6 +6,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.25.0] - 2026-08-11
+
+4.24.2 was verified by driving the plugin against a live Odoo 17 instance. The ephemeral-isolation
+fix held - but the same run showed a real `run-tests` still dying mid-build with a raw psycopg2
+traceback, and a teardown that could not clean up after itself. The cause was not the fix: on a host
+where PostgreSQL runs only in a container, nothing the plugin could reach was able to authenticate
+as Odoo does, and nothing checked before launching. This release closes that, and makes the failure
+an early refusal that names its own remedy instead of a crash.
+
+### Added
+
+- `odoo-ai-agents` - **passwordless local authentication as a setup step** (`48-db-local-auth.sh`,
+  wired into `/odoo-ai-agents:odoo-setup` behind its own confirmation gate). It inserts one narrow,
+  delimited rule into a LOCAL cluster's `pg_hba.conf` - the declared role only, a single address
+  only - reloads, and proves the result by reconnecting the way Odoo does. `revert` removes it and
+  restores the file byte for byte. Nothing is stored: the plugin now writes no credential anywhere.
+  Which arm runs is decided by where the SERVER is, not by which client binaries this host happens
+  to have: one container publishing the declared port is edited even on a host with `psql`
+  installed; two publishers is refused and both are named; a genuinely native server is only
+  ADVISED, never edited, and there is no flag that makes it sudo.
+- `odoo-ai-agents` - `odoo_db.py preflight` and `allocator.py db-preflight`: one primitive that asks
+  the question the build itself will face, over Odoo's own connection, and owns the refusal text so
+  no caller re-words it.
+
+### Fixed
+
+- `odoo-ai-agents` - **a build no longer crashes when Odoo cannot reach the database.** Every build
+  verb now refuses BEFORE opening a log and before launching `odoo-bin`, distinguishing three
+  states: the cluster refused our credentials, the cluster never answered, and we could not tell.
+  Only the first two refuse; an undeterminable state never blocks. Grounded in Odoo's own startup
+  path, which opens a connection for every `-d` name before any module loads on every series 9
+  through 19 - so authentication was always a precondition of every verb, never just of create.
+- `odoo-ai-agents` - **a truncated `pg_hba.conf` could be committed while the step reported the file
+  was intact.** Found in review, reproduced: a write bounded by a timeout kills the local client, but
+  the process inside the container keeps its half-written file and commits it. The container side now
+  counts the bytes it received and refuses the rename on a mismatch, and a failed write no longer
+  asserts anything - it re-reads the file and reports which of four states it actually found.
+- `odoo-ai-agents` - **a probe could outlive the bound meant to cut it off.** Signalling only the
+  direct child left the real client running as a grandchild holding the output pipe: a 3-second
+  bound measured 30 seconds, and the late output was still delivered alongside the timeout status.
+  Bounded calls now signal the process group. Five orphaned probes from earlier runs were found
+  alive on the development host, each burning a core for 22 hours.
+- `odoo-ai-agents` - **an unrelated server error was reported as an authentication failure.** The
+  classifier asked only whether a password could be resolved, so on a trust-auth host with no
+  password file every unclassified error - too many connections, a cluster still starting, a missing
+  database, out of memory - became "Odoo cannot authenticate" and blocked the build with a remedy
+  that could not help. Measured against a live cluster: at connection time psycopg2 reports no
+  SQLSTATE at all, even for a genuine password failure, so the classifier now requires positive
+  evidence and names the server-reported causes it must not claim.
+- `odoo-ai-agents` - the locale pin that keeps message matching stable was defeated by `LC_ALL`, so
+  on a non-English host a real denial degraded to "could not tell" and the build proceeded.
+- `odoo-ai-agents` - the setup step asked the Odoo role to reload the server, but that is
+  superuser-only. On the ordinary developer cluster - a plain `LOGIN CREATEDB` role - the file was
+  rewritten and the reload then failed, leaving the cluster permanently half-configured. The reload
+  and the rule queries now run as a confirmed superuser, and the step refuses BEFORE editing when it
+  cannot find one. "Not permitted" and "not available" are no longer reported as the same thing.
+- `odoo-ai-agents` - a failed drop that never reached the server is retried over the declared client
+  surface instead of being reported as a genuine failure, so an ephemeral lease on a container-only
+  host can be released. A release that finds its database already gone now also removes the
+  filestore, which neither reaper could have found afterwards.
+- `odoo-ai-agents` - `release --force-forget` and the plain release path name their outcomes
+  distinctly, so "abandoned" means a database really was left behind.
+- `odoo-ai-agents` - refusals no longer name a remedy that cannot apply: a stopped cluster is told to
+  start, not to reconfigure authentication; a managed or remote cluster is told about
+  `ODOO_PG_PASSWORD`, which is the only thing that works there.
+- `odoo-ai-agents` - the pg_hba rule builder refused the role `all` but accepted `+role` (every
+  member of a role) and `@file` (every role named in a file), and accepted malformed IPv6 literals
+  that would have made the whole file unparseable.
+- `odoo-ai-agents` - the agent contract now covers all four acquire refusals rather than two, keeps
+  the operational status enum and the continuation status enum from being confused for each other,
+  states that an undeterminable state never blocks, and tells the agent to route the `pg_hba.conf`
+  step through the human rather than invoking it itself.
+
+### Changed
+
+Two behaviour changes worth reading before upgrading:
+
+- An acquire that succeeded before can now refuse, with exit `8` (the cluster refused our
+  credentials) or `9` (the cluster never answered), for `--mode ephemeral` and `--mode exclusive`
+  alike. Only a PROVEN refusal blocks; `--no-create`, `readonly` and `shared` are never gated. The
+  remedy is named in the message.
+- The plugin now edits a file it does not own, on a running server, when you ask it to. It is
+  reversible, gated behind a confirmation, refuses when any published binding is not loopback,
+  refuses when it cannot find a superuser to reload with, and backs up before replacing. A genuinely
+  native server is only advised.
+
 ## [4.24.2] - 2026-08-10
 
 4.24.1's two fixes were verified by actually driving the plugin against a live Odoo 17 instance.
