@@ -91,8 +91,15 @@
 #
 # init/update/test also accept [--db-host H] [--db-user U] [--db-port P] so the
 # CREATE/INIT/UPDATE/TEST connection matches the DROP connection (one declared
-# port honored everywhere). All three run a `<python> <odoo-bin> --version`
-# preflight and fail loud (no working venv; run 45-venv.sh) BEFORE any real run.
+# port honored everywhere). All three run TWO preflights BEFORE any real run and
+# BEFORE any log is opened, so a refusal costs no log file and no odoo-bin:
+#   1. `<python> <odoo-bin> --version` - fail loud (no working venv; run 45-venv.sh).
+#   2. `odoo_db.py preflight` - PROVE Odoo can authenticate to the cluster. Odoo
+#      opens its maintenance-database connection for every `-d <name>` run before
+#      any module loads, so a refused connection kills update and test exactly as
+#      it kills a create. Exits 8 (authentication refused) / 9 (cluster did not
+#      answer) with odoo_db.py's own refusal text forwarded verbatim; an
+#      UNDETERMINABLE state never blocks.
 #
 # RESOURCE LIMITS (init/update/test only - Problem 1 hardening): the odoo-bin
 # launch runs in a scoped subshell `( ulimit -Sv <kib> ...; <odoo-bin cmd> ...
@@ -161,8 +168,13 @@
 #   Env ODOO_BIN wins; else scan addons entries one-level-up for odoo-bin.
 #
 # CONFIG env:
-#   ODOO_AI_HOME   machine-global dir  (default $HOME/.odoo-ai)
-#   ODOO_BIN       path to odoo-bin (override; auto-detected otherwise)
+#   ODOO_AI_HOME       machine-global dir  (default $HOME/.odoo-ai)
+#   ODOO_BIN           path to odoo-bin (override; auto-detected otherwise)
+#   ODOO_PG_PASSWORD   the escape hatch for a cluster that cannot be reconfigured.
+#                      Exported to libpq as PGPASSWORD for the launch only, never
+#                      written to a file and never placed on argv. A local
+#                      developer cluster needs no password at all - run
+#                      /odoo-ai-agents:odoo-setup instead.
 
 set -euo pipefail
 
@@ -178,6 +190,15 @@ source "$LIB_DIR/resource_limits.sh"
 # scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
 # shellcheck source=../lib/resolve_instances.sh
 source "$LIB_DIR/resolve_instances.sh"
+# The bounded-probe helper (pg_bounded_run + PG_MODE_PROBE_TIMEOUT). Sourced for
+# ONE reason: _preflight_db_auth opens a Postgres connection BEFORE any log
+# exists, and psycopg2 opens it with no libpq connect timeout - so an unbounded
+# call against a host whose SYN is dropped (firewall DROP, a paused container, a
+# VPN-gated remote) hangs forever with no LOG_PATH= ever emitted, leaving the
+# dispatching agent's `wait-log --timeout` nothing to bind to. Every sibling
+# bounds this same call; this script was the only one that did not.
+# shellcheck source=../lib/pg_mode.sh
+source "$LIB_DIR/pg_mode.sh"
 
 # ---------------------------------------------------------------------------
 # describe
@@ -239,6 +260,51 @@ _preflight_venv() {
         echo "    - Point --python at a venv with Odoo deps (45-venv.sh create-venv)." >&2
         exit 1
     fi
+}
+
+# ---------------------------------------------------------------------------
+# _preflight_db_auth - PROVE Odoo can authenticate BEFORE anything is launched.
+#   Odoo's CLI opens a connection to the maintenance database for EVERY `-d
+#   <name>` run, before any registry and before any module loads. A cluster that
+#   refuses that connection therefore kills init, update and test alike - not
+#   only a create - and it does so mid-build, with a raw traceback and a log that
+#   documents nothing. So this runs BEFORE _open_log: on a refusal no log is
+#   opened and no odoo-bin is launched.
+#   The verdict and its remedy text are OWNED by odoo_db.py preflight. This
+#   function forwards the child's stderr verbatim and exits with the child's own
+#   code (8 denied, 9 unreachable, 1 undeterminable) - it never re-words a
+#   diagnosis, because a second copy of a verdict is how two layers came to
+#   contradict each other.
+#   Uses the flags this script was GIVEN: it deliberately reads no catalog.
+#   BOUNDED (pg_bounded_run): it runs BEFORE _open_log, so an unbounded hang here
+#   emits no LOG_PATH= at all and the caller's own `wait-log --timeout` has nothing
+#   to bind to - one silent forever-stall instead of a logged failure. psycopg2
+#   opens the connection with no libpq connect timeout, so a host that silently
+#   drops the SYN never replies; the bound is the only thing that ends the wait.
+# ---------------------------------------------------------------------------
+_preflight_db_auth() {
+    local py="$1" host="${2:-}" user="${3:-}" port="${4:-}" root="${5:-}"
+    [[ -f "$ODOO_DB_PY" ]] || return 0
+    local -a args=("$ODOO_DB_PY" preflight)
+    [[ -n "$host" ]] && args+=(--db-host "$host")
+    [[ -n "$user" ]] && args+=(--db-user "$user")
+    [[ -n "$port" ]] && args+=(--db-port "$port")
+    [[ -n "$root" ]] && args+=(--odoo-root "$root")
+    local rc=0
+    pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" "$py" "${args[@]}" >/dev/null || rc=$?
+    case "$rc" in
+        0) return 0 ;;
+        # UNDETERMINABLE never blocks a build: this script is handed its
+        # connection flags rather than a declared catalog, so a venv that cannot
+        # import odoo (10), a question that could not be asked (1), a bound that
+        # elapsed (124) or a bound that could not be applied (125) all say nothing
+        # about the cluster. Odoo itself then reports the real outcome - and it
+        # does so ON A LOG, which is strictly better than stalling before one
+        # exists. Exactly the rule 50-instance-spinup.sh applies to 124/125.
+        1|10|124|125) return 0 ;;
+    esac
+    echo "STATUS=error"
+    exit "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -991,6 +1057,12 @@ cmd_init() {
         exit 1
     }
     _preflight_venv "$arg_python" "$odoo_bin"
+    # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
+    # DERIVED from the odoo-bin just located - that directory IS the checkout root,
+    # which is what makes `import odoo` resolve for a source instance, and it is by
+    # construction the same checkout this build is about to run.
+    _preflight_db_auth "$arg_python" "${arg_db_host:-}" "${arg_db_user:-}" \
+        "${arg_db_port:-}" "$(dirname "$odoo_bin")"
 
     local logf
     _open_log "$arg_db" init "${arg_version:-}"
@@ -1044,6 +1116,13 @@ cmd_init() {
     # ${arg_extra} so a caller-supplied override in --extra still wins
     # (Odoo's arg parser takes the last occurrence).
     (
+        # The escape-hatch credential is handed to libpq under its OWN variable,
+        # for this launch only.
+        # Odoo omits the password from its connection entirely unless db_password is
+        # set, in which case libpq resolves PGPASSWORD itself - so exporting it here
+        # is what makes a cluster that cannot be reconfigured reachable, and argv
+        # (world-readable in `ps`) never carries it.
+        [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Positive proof of the resolved tree (issue class: Odoo's own module-
         # loading log records only RELATIVE module paths, so a verifier can
@@ -1092,6 +1171,12 @@ cmd_update() {
         exit 1
     }
     _preflight_venv "$arg_python" "$odoo_bin"
+    # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
+    # DERIVED from the odoo-bin just located - that directory IS the checkout root,
+    # which is what makes `import odoo` resolve for a source instance, and it is by
+    # construction the same checkout this build is about to run.
+    _preflight_db_auth "$arg_python" "${arg_db_host:-}" "${arg_db_user:-}" \
+        "${arg_db_port:-}" "$(dirname "$odoo_bin")"
 
     local logf
     _open_log "$arg_db" update "${arg_version:-}"
@@ -1127,6 +1212,13 @@ cmd_update() {
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     (
+        # The escape-hatch credential is handed to libpq under its OWN variable,
+        # for this launch only.
+        # Odoo omits the password from its connection entirely unless db_password is
+        # set, in which case libpq resolves PGPASSWORD itself - so exporting it here
+        # is what makes a cluster that cannot be reconfigured reachable, and argv
+        # (world-readable in `ps`) never carries it.
+        [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
@@ -1175,6 +1267,12 @@ cmd_test() {
         exit 1
     }
     _preflight_venv "$arg_python" "$odoo_bin"
+    # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
+    # DERIVED from the odoo-bin just located - that directory IS the checkout root,
+    # which is what makes `import odoo` resolve for a source instance, and it is by
+    # construction the same checkout this build is about to run.
+    _preflight_db_auth "$arg_python" "${arg_db_host:-}" "${arg_db_user:-}" \
+        "${arg_db_port:-}" "$(dirname "$odoo_bin")"
 
     local logf
     _open_log "$arg_db" test "${arg_version:-}"
@@ -1222,6 +1320,13 @@ cmd_test() {
     # invocation and never leaks past it. --limit-memory-hard sits BEFORE
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     (
+        # The escape-hatch credential is handed to libpq under its OWN variable,
+        # for this launch only.
+        # Odoo omits the password from its connection entirely unless db_password is
+        # set, in which case libpq resolves PGPASSWORD itself - so exporting it here
+        # is what makes a cluster that cannot be reconfigured reachable, and argv
+        # (world-readable in `ps`) never carries it.
+        [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.

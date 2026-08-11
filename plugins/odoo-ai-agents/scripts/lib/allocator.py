@@ -20,10 +20,14 @@ Modes:
     readonly   - attach a running instance; NO lease (shared, lease-free)
     ephemeral  - unique throwaway DB (<prefix>_t_<uuid8>); reserves a unique DB name
                  + ports - the DB is created through Odoo by the caller's `-i` run
-                 (create-on-init) and dropped through Odoo on release (raw dropdb only
-                 as a venv-unavailable fallback). Ports only when --ports N>0.
+                 (create-on-init) and dropped through Odoo on release. A raw client
+                 drop is the FALLBACK, and it is reached only on the three exits
+                 that prove the Odoo route never touched the database (8 denied,
+                 9 unreachable, 10 venv unavailable) and only when
+                 `_client_drop_allowed` permits it. Ports only when --ports N>0.
                  Default for tests / -i verification.
-                 REFUSES (exit 6 no CREATEDB / exit 7 undeterminable) instead of
+                 REFUSES (exit 6 no CREATEDB / exit 7 undeterminable / exit 8
+                 authentication denied / exit 9 cluster unreachable) instead of
                  degrading: an ephemeral request either gets an isolated
                  throwaway DB or fails, never an `exclusive` lease on the
                  declared database the caller did not ask for.
@@ -54,7 +58,18 @@ CLI:
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
                  # when undeterminable) and exit 0|6|7 - the SAME ladder and the SAME
                  # codes `acquire --mode ephemeral` gates on, so a reporting caller
-                 # never re-implements the question. Writes NO lease.
+                 # never re-implements the question. Exits 8/9 when the connection
+                 # Odoo itself opens is provably refused / the cluster is absent:
+                 # the capability was then never answered, and no client surface may
+                 # overrule a fact about that connection. Writes NO lease.
+    allocator.py db-preflight --series <X.Y> [--profile <P>] [--instances <path>]
+                 # read-only: print DB_AUTH=ok|denied|unreachable|unknown +
+                 # DB_AUTH_WHY, then CREATEDB + CREATEDB_WHY, and exit 0|6|7|8|9.
+                 # DB_AUTH is evaluated FIRST: a capability answer describes a role,
+                 # while DB_AUTH describes the connection every build opens, so
+                 # CREATEDB=true is never emitted beside a proven refusal. This is
+                 # the ONE question every reporting caller asks (05-prereq-check.sh,
+                 # 45-venv.sh) instead of re-deriving half of it. Writes NO lease.
     allocator.py release <token> [--run-id <id>] [--force] [--force-forget]
                  [--instances <path>]
                  # refuses only when the caller's run differs from a non-empty
@@ -63,10 +78,20 @@ CLI:
                  # finish it) - and the drop surface is re-resolved from the
                  # CURRENT catalog on every attempt, so `45-venv.sh record-env`
                  # repairs an EXISTING lease, not just future ones.
+                 # A drop that did not happen is CLASSIFIED before anything is
+                 # named: a database PROVABLY absent releases the lease cleanly
+                 # (ALLOC_FORGOTTEN_DB, exit 0 - the drop had nothing to do in
+                 # Postgres, and its FILESTORE is removed on that path because
+                 # neither reaper could find it once the lease is gone), one
+                 # observed PRESENT keeps it, and one whose existence cannot be
+                 # determined keeps it too.
                  # --force-forget is the documented escape when nothing on this
-                 # host can ever drop the DB: it removes the lease and NAMES the
-                 # abandoned database (stderr + ALLOC_ABANDONED_DB) - it never
-                 # reports a teardown that did not happen.
+                 # host can ever drop the DB: it removes the lease and NAMES what
+                 # was left behind - ALLOC_ABANDONED_DB when the database was
+                 # observed present, ALLOC_FORGOTTEN_DB when it provably does not
+                 # exist, ALLOC_UNVERIFIED_DB when that could not be confirmed. It
+                 # never reports a teardown that did not happen, and never claims a
+                 # cluster fact it did not observe.
     allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]
                  # read-only: non-zero if a FRESH lease on <db> is owned by a
                  # DIFFERENT run, OR is UNOWNED (no run_id recorded at all -
@@ -103,11 +128,20 @@ acquire exit codes:
     5 addons_path worktree mismatch (pass --addons-path-override)
     6 `ephemeral` REFUSED: the role positively LACKS CREATEDB
     7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE
+    8 REFUSED: Odoo cannot AUTHENTICATE to the cluster (`ephemeral`+`exclusive`)
+    9 REFUSED: the cluster did not answer at all (`ephemeral`+`exclusive`)
 Every non-zero exit writes NO lease. 6 and 7 stay distinct because the remedy
 differs: 6 is fixed by granting the role CREATEDB, 7 by declaring a working
 `python` + `odoo_root` (45-venv.sh record-env), by declaring a `db_run_mode`
 client surface (the route a compose-run instance takes - it declares no
 `python` of its own), or by starting the cluster.
+8 and 9 are checked BEFORE 6/7 and for every mode that will build: Odoo's CLI
+opens the maintenance-database connection for every `-d <name>` run before any
+module loads, so a cluster that refuses Odoo kills the build whatever the role's
+privileges are. 8 is fixed by `/odoo-ai-agents:odoo-setup` (or by exporting
+ODOO_PG_PASSWORD for a cluster that cannot be reconfigured), 9 by starting the
+cluster. Both are skipped for `--no-create`, `readonly` and `shared`, and an
+UNDETERMINABLE authentication state never blocks - only a PROVEN 8 or 9 does.
 
 Every call that talks to Postgres is BOUNDED (see `_probe_timeout_s`): psycopg2
 opens the connection with no libpq connect timeout, so an unreachable cluster
@@ -506,6 +540,12 @@ PG_OP_TIMEOUT_MULTIPLE = 30
 EXIT_PROBE_TIMEOUT = 124
 # odoo_db.py's "venv unavailable" sentinel (its EXIT_NO_VENV).
 EXIT_NO_VENV = 10
+# odoo_db.py's CONNECTION verdicts, mirrored here so this script never re-derives
+# them: 8 = Odoo was refused authentication, 9 = the cluster did not answer.
+# Both are facts about the connection every build opens, so no other surface may
+# overrule them and neither is ever read as a capability answer.
+EXIT_AUTH_DENIED = 8
+EXIT_UNREACHABLE = 9
 
 
 def _probe_timeout_s():
@@ -595,6 +635,26 @@ _RECORD_ENV_HINT = (
 )
 
 
+class _ConnBlocked(object):
+    """Route 1's answer when the CONNECTION itself failed, provably.
+
+    Not a capability verdict and not "the route could not be asked": the route
+    that PREDICTS the build outcome reached the cluster and was refused, or found
+    no cluster at all. Returned as its own type so the ladder can STOP instead of
+    consulting a surface that answers about a different connection - which is how
+    a probe came to report `true` on a host whose builds could not authenticate.
+    """
+
+    __slots__ = ("state",)
+
+    def __init__(self, state):
+        self.state = state  # "denied" | "unreachable"
+
+    @property
+    def exit_code(self):
+        return EXIT_AUTH_DENIED if self.state == "denied" else EXIT_UNREACHABLE
+
+
 def _can_createdb_via_python(inst, host, user, port):
     """(verdict, reason) asked THROUGH the instance's own declared interpreter.
 
@@ -637,6 +697,14 @@ def _can_createdb_via_python(inst, host, user, port):
         return None, ("the declared `python` cannot import odoo: for a source checkout "
                       "that means `odoo_root` is not declared (the venv itself is fine) - "
                       + _RECORD_ENV_HINT)
+    if rc in (EXIT_AUTH_DENIED, EXIT_UNREACHABLE):
+        # The route WORKED and the connection did not. Mapping this to "could not
+        # answer" is what let the ladder fall through and ask a client surface
+        # about a connection Odoo never makes.
+        state = "denied" if rc == EXIT_AUTH_DENIED else "unreachable"
+        return _ConnBlocked(state), (
+            "the connection Odoo itself opens reported {state}: {msg}".format(
+                state=state, msg=err.strip() or out or "no output"))
     return None, "odoo_db.py can-createdb exited {rc}: {msg}".format(
         rc=rc, msg=err.strip() or out or "no output")
 
@@ -685,19 +753,82 @@ def _can_createdb(inst, host, user, port):
     names each exhausted route so the user can see what to declare.
 
     verdict:
-      True  - the role positively HAS CREATEDB.
-      False - the role positively LACKS it.
-      None  - UNDETERMINABLE (no route could answer).
+      True         - the role positively HAS CREATEDB.
+      False        - the role positively LACKS it.
+      _ConnBlocked - route 1 proved the CONNECTION is refused or the cluster is
+                     absent. The ladder STOPS here: a client surface can only
+                     answer about a different connection, so letting it overrule
+                     this is answering the wrong question confidently.
+      None         - UNDETERMINABLE (no route could answer).
     NEVER collapse None into False: cmd_acquire gives them different, both-loud
-    exits, and neither degrades.
+    exits, and neither is read as the other.
     """
     reasons = []
     for route in (_can_createdb_via_python, _can_createdb_via_client):
         verdict, why = route(inst, host, user, port)
+        if isinstance(verdict, _ConnBlocked):
+            return verdict, why
         if verdict is not None:
             return verdict, ""
         reasons.append(why)
     return None, "; ".join(reasons)
+
+
+_DB_AUTH_STATES = {
+    0: "ok",
+    EXIT_AUTH_DENIED: "denied",
+    EXIT_UNREACHABLE: "unreachable",
+}
+
+
+def _db_auth(inst, host, user, port):
+    """(state, why): can Odoo AUTHENTICATE to this cluster?
+
+    Runs `odoo_db.py preflight` under the instance's DECLARED interpreter, which
+    opens the maintenance-database connection through Odoo's own resolution - the
+    exact route every build verb takes. The child OWNS the refusal text; this
+    function forwards its stderr rather than composing a second copy.
+
+    state is "ok" | "denied" | "unreachable" | "unknown". Only the two PROVEN
+    negatives ever block a caller: "unknown" means the question could not be
+    asked, and a caller that refused on it would refuse on every host that has not
+    finished declaring its environment yet.
+    """
+    venv_python = inst.get("python", "")
+    if not venv_python:
+        return "unknown", ("this instance declares no `python` (a compose-run instance "
+                           "never does), so the connection Odoo itself opens could not "
+                           "be tried")
+    if not os.path.isfile(_ODOO_DB_PY):
+        return "unknown", "odoo_db.py not found at {p}".format(p=_ODOO_DB_PY)
+    cmd = [venv_python, _ODOO_DB_PY, "preflight", "--db-host", host, "--db-user", user]
+    odoo_root = inst.get("odoo_root", "")
+    if odoo_root:
+        cmd += ["--odoo-root", odoo_root]
+    if port:
+        cmd += ["--db-port", str(port)]
+    # The password travels in the ENVIRONMENT (odoo_db.py reads ODOO_PG_PASSWORD),
+    # never on argv where `ps` exposes it.
+    rc, out, err = _run(cmd, timeout=_probe_timeout_s())
+    why = ""
+    for line in out.splitlines():
+        if line.startswith("DB_AUTH_WHY="):
+            why = line.partition("=")[2].strip()
+    if rc != 0 and err:
+        # Forward the primitive's bytes verbatim - one message, one place.
+        sys.stderr.write(err if err.endswith("\n") else err + "\n")
+    if rc in _DB_AUTH_STATES:
+        return _DB_AUTH_STATES[rc], why
+    if rc == EXIT_PROBE_TIMEOUT:
+        return "unknown", ("the connection probe timed out after {s}s - the cluster did "
+                           "not answer at all (psycopg2 opens the connection with no "
+                           "libpq connect timeout)".format(s=_probe_timeout_s()))
+    if rc == EXIT_NO_VENV:
+        return "unknown", ("the declared `python` cannot import odoo: for a source "
+                           "checkout that means `odoo_root` is not declared - "
+                           + _RECORD_ENV_HINT)
+    return "unknown", (why or "odoo_db.py preflight exited {rc}: {msg}".format(
+        rc=rc, msg=err.strip() or "no output"))
 
 
 def _dropdb(host, user, db, port="", mode="", container=""):
@@ -841,25 +972,158 @@ def _drop_surface(lease, instances_path=None):
     return values
 
 
+_EXISTS_SQL = "SELECT 1 FROM pg_database WHERE datname = '{db}'"
+
+
+def _declared_db_prefixes(instances_path=None):
+    """Every db_name_prefix (or db_name) the CURRENT catalog declares.
+
+    The same set `reap-orphans` derives, so the ephemeral-shape predicate answers
+    identically wherever it is asked. An unreadable catalog yields an empty set:
+    a gap stays a gap, and the caller then refuses rather than assuming a shape.
+    """
+    try:
+        items = instances_io.load_instances(resolve_instances_path(instances_path))
+    except (OSError, ValueError):
+        return set()
+    return {str(it.get("db_name_prefix") or it.get("db_name", "odoo")) for it in items}
+
+
+def _db_present(lease, instances_path=None):
+    """True / False / None: does this lease's database exist on its cluster?
+
+    Two routes with the SAME shape as the CREATEDB ladder - the lease's own
+    interpreter first (Odoo's connection resolution), then the DECLARED client
+    surface - because a host whose Postgres is containerised has no interpreter of
+    its own and a host with no client has no surface, and both must be answerable.
+
+    None means "we could not look", which is NEVER the same as "it is not there":
+    `dropdb --if-exists` exits 0 for a database that never existed, so an
+    unverified success is exactly how a teardown that did not happen gets reported
+    as one.
+    """
+    db = lease.get("db_name", "")
+    if not db:
+        return None
+    pg = lease.get("_pg", {})
+    host = lease.get("db_host") or pg.get("host", "localhost")
+    user = lease.get("db_user") or pg.get("user", "odoo")
+    port = lease.get("db_port") or pg.get("port", "")
+    surface = _drop_surface(lease, instances_path)
+
+    if surface["python"] and os.path.isfile(_ODOO_DB_PY):
+        cmd = [surface["python"], _ODOO_DB_PY, "exists", db,
+               "--db-host", host, "--db-user", user]
+        if surface["odoo_root"]:
+            cmd += ["--odoo-root", surface["odoo_root"]]
+        if port:
+            cmd += ["--db-port", str(port)]
+        rc, out, _err = _run(cmd, timeout=_probe_timeout_s())
+        answer = out.strip().lower()
+        if rc == 0 and answer == "true":
+            return True
+        if rc == 0 and answer == "false":
+            return False
+
+    argv = _pg_client_argv(
+        surface["db_run_mode"], surface["db_container"], "psql", host, user, port,
+        ["-d", "postgres", "-tAc", _EXISTS_SQL.format(db=db.replace("'", "''"))])
+    if argv is not None:
+        rc, out, _err = _run(argv, env=_pg_env(), timeout=_probe_timeout_s())
+        if rc == 0:
+            return bool(out.strip())
+    return None
+
+
+def _client_drop_allowed(lease, instances_path=None):
+    """(allowed, reason): may this lease's database be dropped over the CLIENT
+    surface instead of through Odoo?
+
+    Two gates, and they make the equivalence argument a PRECONDITION rather than a
+    hope. `exp_drop` closes a connection pool, issues DROP DATABASE and removes a
+    filestore; the client route matches that only for a throwaway database whose
+    owning process group the caller has already stopped:
+
+      1. `drop_on_release` must be set - true for a throwaway lease only, so a
+         declared long-lived database is out of scope by construction.
+      2. the name must carry the throwaway SHAPE for a prefix the CURRENT catalog
+         declares, reusing `reap-orphans`' predicate. A hand-edited or corrupted
+         lease naming a declared database can then never reach a client drop.
+
+    Consulted by EVERY client-drop arm, so a future arm cannot bypass it.
+    """
+    db = lease.get("db_name", "")
+    if not db:
+        return False, "the lease names no database"
+    if not lease.get("drop_on_release"):
+        return False, ("this lease does not set drop_on_release, so its database is not "
+                       "a throwaway this script may destroy over a client surface")
+    prefixes = _declared_db_prefixes(instances_path)
+    if not _is_ephemeral_shaped(db, prefixes):
+        return False, (
+            "{db} does not carry the throwaway <prefix>_t_<hex8> shape for any prefix "
+            "the current catalog declares ({p}), so a client-side drop is refused - "
+            "only the through-Odoo path may touch it".format(
+                db=db, p=", ".join(sorted(prefixes)) or "<none declared>"))
+    return True, ""
+
+
+def _client_drop(lease, host, user, db, port, mode, container, instances_path=None):
+    """Drop `db` over the DECLARED client surface, GATED and VERIFIED.
+
+    Returns True only when the gates passed, the surface reported success, AND the
+    database was not observed still present afterwards. Absence that cannot be
+    confirmed is reported out loud and accepted (the surface said it dropped it);
+    absence CONTRADICTED is a failure, because `dropdb --if-exists` exits 0 for a
+    database that was never there.
+    """
+    allowed, reason = _client_drop_allowed(lease, instances_path)
+    if not allowed:
+        sys.stderr.write(
+            "allocator: ERROR - refusing the client-side drop of {db}: {reason}. "
+            "NOTHING was dropped and the lease is kept.\n".format(db=db, reason=reason))
+        return False
+    if not _dropdb(host, user, db, port, mode, container):
+        return False
+    still_there = _db_present(lease, instances_path)
+    if still_there is True:
+        sys.stderr.write(
+            "allocator: ERROR - the client surface reported dropping {db}, but the "
+            "database is STILL on the cluster. DB retained, lease kept for retry.\n".format(
+                db=db))
+        return False
+    if still_there is None:
+        sys.stderr.write(
+            "allocator: WARNING - the client surface dropped {db} but its absence could "
+            "not be confirmed on this host.\n".format(db=db))
+    return True
+
+
 def _drop_through_odoo(lease, instances_path=None):
     """Drop the ephemeral DB via odoo_db.py (through-Odoo path, B2 mandate).
 
-    Falls back to raw _dropdb ONLY when:
+    Consults the DECLARED client surface ONLY when the through-Odoo route did not
+    reach the database at all:
       - the lease carries no `python` interpreter path, OR
       - odoo_db.py is missing on disk, OR
-      - odoo_db.py exits with code 10 (venv-unavailable sentinel).
+      - odoo_db.py exits 10 (venv-unavailable sentinel), OR
+      - odoo_db.py exits 8 / 9 - authentication refused / cluster unreachable. A
+        connection failure necessarily precedes any DROP DATABASE, so those two
+        codes are a POSITIVE statement that nothing was attempted.
 
-    Any OTHER non-zero exit is a genuine exp_drop failure.  In that case the
-    allocator does NOT fall back to raw dropdb, does NOT drop the filestore,
-    and does NOT remove the lease (so gc can retry / a human can investigate).
+    Any OTHER non-zero exit is a genuine exp_drop failure: the drop WAS attempted
+    and failed. The allocator then consults no client surface, does NOT drop the
+    filestore, and does NOT remove the lease (so gc can retry / a human can
+    investigate) - papering a real failure over with a client-side drop would
+    destroy the one signal that says the database is still in use.
     Returns True on success, False when the drop failed and the lease must be kept.
 
-    A raw fallback that FAILS returns False too: its return value is honoured,
+    A client-side drop that FAILS returns False too: its return value is honoured,
     never discarded. Reporting a drop that did not happen as success is what
     mints a database with no lease referencing it - an orphan nothing can find.
 
-    Any fallback (rc=10 / no venv) is logged loudly to stderr.
-    The filestore is cleaned up ONLY after a successful drop.
+    Every consultation of the client surface is logged loudly to stderr and gated
+    by `_client_drop_allowed`. The filestore is cleaned up ONLY after a success.
     """
     db = lease.get("db_name", "")
     if not db:
@@ -898,21 +1162,46 @@ def _drop_through_odoo(lease, instances_path=None):
             _drop_filestore(db)
             return True
         elif rc == 10:
-            # venv-unavailable sentinel: attempt the raw client drop (logged).
+            # venv-unavailable sentinel: the through-Odoo route never ran at all.
             sys.stderr.write(
-                "allocator: WARNING - venv unavailable ({python}), attempting the raw client "
-                "drop of {db}\n".format(python=venv_python, db=db)
+                "allocator: WARNING - venv unavailable ({python}), consulting the declared "
+                "client surface to drop {db}\n".format(python=venv_python, db=db)
             )
-            if not _dropdb(host, user, db, port, mode, container):
+            if not _client_drop(lease, host, user, db, port, mode, container,
+                                instances_path):
                 sys.stderr.write(
-                    "allocator: ERROR - raw fallback drop of {db} FAILED; DB retained, lease "
-                    "kept for retry.\n".format(db=db)
+                    "allocator: ERROR - the client-surface drop of {db} FAILED; DB "
+                    "retained, lease kept for retry.\n".format(db=db)
+                )
+                return False
+            _drop_filestore(db)
+            return True
+        elif rc in (EXIT_AUTH_DENIED, EXIT_UNREACHABLE):
+            # The connection failed, so DROP DATABASE was never issued: this is a
+            # POSITIVE statement that nothing was attempted, which is what makes
+            # consulting another surface honest here and dishonest below.
+            sys.stderr.write(
+                "allocator: WARNING - the through-Odoo drop of {db} never reached the "
+                "database (rc={rc}: {what}); consulting the declared client surface. "
+                "stderr: {err}\n".format(
+                    db=db, rc=rc,
+                    what=("authentication refused" if rc == EXIT_AUTH_DENIED
+                          else "cluster unreachable"),
+                    err=err.strip())
+            )
+            if not _client_drop(lease, host, user, db, port, mode, container,
+                                instances_path):
+                sys.stderr.write(
+                    "allocator: ERROR - the client-surface drop of {db} FAILED; DB "
+                    "retained, lease kept for retry.\n".format(db=db)
                 )
                 return False
             _drop_filestore(db)
             return True
         else:
-            # Genuine exp_drop failure - retain the DB and the lease for retry.
+            # Genuine exp_drop failure - the drop WAS attempted. Retain the DB and
+            # the lease for retry; no client surface is consulted, because a real
+            # failure must never be papered over with a second drop command.
             sys.stderr.write(
                 "allocator: ERROR - through-Odoo drop of {db} failed (rc={rc}); "
                 "DB retained, lease kept for retry. stderr: {err}\n".format(
@@ -920,22 +1209,22 @@ def _drop_through_odoo(lease, instances_path=None):
             )
             return False
 
-    # No venv python or odoo_db.py missing: attempt the raw client drop.
+    # No venv python or odoo_db.py missing: the through-Odoo route cannot run.
     if not venv_python:
         sys.stderr.write(
-            "allocator: WARNING - venv unavailable, attempting the raw client "
-            "drop of {db}\n".format(db=db)
+            "allocator: WARNING - venv unavailable, consulting the declared client "
+            "surface to drop {db}\n".format(db=db)
         )
     else:
         # odoo_db.py missing on disk (should not happen, but handle gracefully).
         sys.stderr.write(
-            "allocator: WARNING - odoo_db.py not found at {path}, attempting the raw "
-            "client drop of {db}\n".format(path=_ODOO_DB_PY, db=db)
+            "allocator: WARNING - odoo_db.py not found at {path}, consulting the declared "
+            "client surface to drop {db}\n".format(path=_ODOO_DB_PY, db=db)
         )
-    if not _dropdb(host, user, db, port, mode, container):
+    if not _client_drop(lease, host, user, db, port, mode, container, instances_path):
         sys.stderr.write(
-            "allocator: ERROR - raw fallback drop of {db} FAILED; DB retained, lease "
-            "kept for retry.\n".format(db=db)
+            "allocator: ERROR - the client-surface drop of {db} FAILED; DB retained, "
+            "lease kept for retry.\n".format(db=db)
         )
         return False
     _drop_filestore(db)
@@ -1330,8 +1619,37 @@ def cmd_acquire(opts):
     # for serialisation, and must state it by re-dispatching with an explicit
     # --mode exclusive. --no-create still skips the check entirely (the caller
     # declared it creates no database, so CREATEDB is irrelevant to it).
+    # AUTHENTICATION IS EVALUATED FIRST, and for every mode that will build.
+    # Odoo's CLI opens the maintenance-database connection for every `-d <name>`
+    # run before any module loads, so a cluster that refuses Odoo kills the build
+    # whatever the role's privileges are - and a capability answer emitted beside a
+    # proven refusal is a contradiction, not extra information. Only the two PROVEN
+    # negatives refuse: "unknown" never blocks, because a host that has not
+    # finished declaring its environment must still be able to allocate.
+    # --no-create skips this entirely (that caller opens no database at all).
+    if mode in ("ephemeral", "exclusive") and not opts.get("no_create"):
+        auth_state, auth_why = _db_auth(inst, host, user, db_port)
+        if auth_state in ("denied", "unreachable"):
+            sys.stderr.write(
+                "allocator: REFUSING the {m} acquire for series {series} - Odoo cannot "
+                "open its own connection to the database ({state}). NO lease was "
+                "written and NOTHING was created. See the message above; {why}\n".format(
+                    m=mode, series=instances_io.series_of(inst), state=auth_state,
+                    why=auth_why or "no detail reported")
+            )
+            return EXIT_AUTH_DENIED if auth_state == "denied" else EXIT_UNREACHABLE
+
     if mode == "ephemeral" and not opts.get("no_create"):
         verdict, why = _can_createdb(inst, host, user, db_port)
+        if isinstance(verdict, _ConnBlocked):
+            sys.stderr.write(
+                "allocator: REFUSING the ephemeral acquire for series {series} - the "
+                "CREATEDB question could not be put to the cluster because the "
+                "connection Odoo itself opens reported {state}. NO lease was written. "
+                "{why}\n".format(series=instances_io.series_of(inst),
+                                 state=verdict.state, why=why)
+            )
+            return verdict.exit_code
         if verdict is False:
             sys.stderr.write(
                 "allocator: REFUSING ephemeral acquire - role {user!r} on {host}:{port} may not "
@@ -1524,34 +1842,82 @@ def cmd_release(opts):
 
         if found.get("drop_on_release") and found.get("db_name"):
             drop_ok = _drop_through_odoo(found, opts.get("instances"))
-            if not drop_ok and not opts.get("force_forget"):
-                # Genuine drop failure: retain the lease, signal error to caller.
-                # The lease stays in the registry so gc can retry.
-                sys.stderr.write(
-                    "allocator: the lease for {db} is KEPT because the database is still "
-                    "there. Fix the drop surface (see the message above; `45-venv.sh "
-                    "record-env` re-declares it and is re-read on every retry), or - when "
-                    "nothing on this host can ever drop it - pass --force-forget to give "
-                    "up the lease and have the abandoned database named for manual "
-                    "cleanup.\n".format(db=found.get("db_name"))
-                )
-                reg["leases"] = kept + [found]
-                _write_registry(reg)
-                return 1
             if not drop_ok:
-                # --force-forget: the DOCUMENTED escape from an un-droppable lease.
-                # It never pretends the teardown happened - the database, its
-                # cluster, and the manual step are all named, and the name is also
-                # emitted machine-readably so a caller can carry it into a report.
-                sys.stderr.write(
-                    "allocator: FORCE-FORGETTING the lease for {db} - the database was "
-                    "NOT dropped and is now ABANDONED on {user}@{host}:{port}. Drop it by "
-                    "hand once a client surface exists; nothing will retry it.\n".format(
-                        db=found.get("db_name"), user=found.get("db_user", "odoo"),
-                        host=found.get("db_host", "localhost"),
-                        port=found.get("db_port") or "libpq-default")
-                )
-                _emit("ALLOC_ABANDONED_DB", found.get("db_name", ""))
+                # The drop did not happen. Before NAMING anything, ask whether the
+                # database is even there: "abandoned" is a claim about the cluster,
+                # and a build that crashed before creating anything leaves a lease
+                # whose drop can only ever "fail" - un-releasable from both ends.
+                db_name = found.get("db_name", "")
+                present = _db_present(found, opts.get("instances"))
+                cluster = "{user}@{host}:{port}".format(
+                    user=found.get("db_user", "odoo"),
+                    host=found.get("db_host", "localhost"),
+                    port=found.get("db_port") or "libpq-default")
+                if present is False:
+                    # PROVABLY absent: the drop had nothing to do IN POSTGRES, so
+                    # this is a clean release, not a failure. The other half of the
+                    # leak.
+                    # The FILESTORE is a separate object with its own lifetime, and
+                    # this path is reached exactly when the database went away
+                    # without Odoo dropping it - a deleted container volume takes
+                    # every ephemeral database with it and leaves every filestore
+                    # directory behind. Releasing the lease here puts that
+                    # directory beyond BOTH reapers at once: `gc` is lease-driven
+                    # and the lease is about to be gone, `reap-orphans` is
+                    # pg_database-driven and there is no row. So it is removed
+                    # here, before the lease is dropped, or "NOTHING was left
+                    # behind" would be false by one directory per run, forever.
+                    _drop_filestore(db_name)
+                    sys.stderr.write(
+                        "allocator: {db} does not exist on {cluster}, so there was "
+                        "nothing to drop in PostgreSQL - its filestore directory was "
+                        "removed here (no lease and no pg_database row would be left "
+                        "for either reaper to find it by), the lease is released and "
+                        "NOTHING was left behind.\n".format(db=db_name, cluster=cluster))
+                    _emit("ALLOC_FORGOTTEN_DB", db_name)
+                elif not opts.get("force_forget"):
+                    # Present, or unverifiable: retain the lease so gc can retry.
+                    if present is None:
+                        sys.stderr.write(
+                            "allocator: whether {db} exists on {cluster} could NOT be "
+                            "determined, so its lease is treated as live.\n".format(
+                                db=db_name, cluster=cluster))
+                    sys.stderr.write(
+                        "allocator: the lease for {db} is KEPT because the database is still "
+                        "there. Fix the drop surface (see the message above; `45-venv.sh "
+                        "record-env` re-declares it and is re-read on every retry), or - when "
+                        "nothing on this host can ever drop it - pass --force-forget to give "
+                        "up the lease and have the abandoned database named for manual "
+                        "cleanup.\n".format(db=db_name)
+                    )
+                    reg["leases"] = kept + [found]
+                    _write_registry(reg)
+                    return 1
+                elif present is True:
+                    # --force-forget: the DOCUMENTED escape from an un-droppable
+                    # lease. It never pretends the teardown happened - the database,
+                    # its cluster, and the manual step are all named, and the name is
+                    # also emitted machine-readably for a caller's report. The word
+                    # ABANDONED is now EARNED: the database was observed present.
+                    sys.stderr.write(
+                        "allocator: FORCE-FORGETTING the lease for {db} - the database was "
+                        "NOT dropped and is now ABANDONED on {cluster}. Drop it by "
+                        "hand once a client surface exists; nothing will retry it.\n".format(
+                            db=db_name, cluster=cluster)
+                    )
+                    _emit("ALLOC_ABANDONED_DB", db_name)
+                else:
+                    # --force-forget with existence UNVERIFIABLE. The lease is gone
+                    # either way, so say exactly that and no more: claiming the
+                    # database was abandoned would assert a cluster fact nothing
+                    # here observed.
+                    sys.stderr.write(
+                        "allocator: FORCE-FORGETTING the lease for {db} - the lease is "
+                        "gone, and whether the database still exists on {cluster} could "
+                        "NOT be confirmed from this host. Check by hand; nothing will "
+                        "retry it.\n".format(db=db_name, cluster=cluster)
+                    )
+                    _emit("ALLOC_UNVERIFIED_DB", db_name)
         reg["leases"] = kept
         _write_registry(reg)
     return 0
@@ -1868,6 +2234,56 @@ def cmd_reap_orphans(opts):
     return 0
 
 
+def cmd_db_preflight(opts):
+    """Read-only: can Odoo AUTHENTICATE, and may the role CREATE DATABASE?
+
+    Both facts, in one call, with AUTHENTICATION evaluated FIRST - the ordering is
+    the point. A capability answer describes a role; the authentication answer
+    describes the connection every build opens. Emitting `CREATEDB=true` beside a
+    proven refusal is the contradiction a probe over a client surface used to
+    produce, so the capability ladder is never even reached once the connection is
+    provably refused.
+
+    Emits DB_AUTH / DB_AUTH_WHY / CREATEDB / CREATEDB_WHY. Exits 0 both fine,
+    6 CREATEDB positively false, 7 CREATEDB undeterminable, 8 authentication
+    refused, 9 cluster unreachable. Writes NO lease.
+    """
+    path = resolve_instances_path(opts.get("instances"))
+    series = opts.get("series", "")
+    profile = opts.get("profile", "")
+    inst, _items = _resolve_instance(path, series, profile=profile or None)
+    if inst is None:
+        sys.stderr.write(f"allocator: no instance for series {series!r} in {path}.\n")
+        return 1
+    host = inst.get("db_host", "localhost")
+    user = inst.get("db_user", "odoo")
+    port = inst.get("db_port", "")
+
+    auth_state, auth_why = _db_auth(inst, host, user, port)
+    _emit("DB_AUTH", auth_state)
+    _emit("DB_AUTH_WHY", auth_why)
+    if auth_state in ("denied", "unreachable"):
+        return EXIT_AUTH_DENIED if auth_state == "denied" else EXIT_UNREACHABLE
+
+    verdict, why = _can_createdb(inst, host, user, port)
+    if isinstance(verdict, _ConnBlocked):
+        # Route 1 saw the connection fail after the preflight said otherwise (a
+        # cluster that went away in between, or a preflight that could not run).
+        # The connection verdict still wins over any client surface.
+        _emit("CREATEDB", "undeterminable")
+        _emit("CREATEDB_WHY", why)
+        return verdict.exit_code
+    if verdict is True:
+        _emit("CREATEDB", "true")
+        return 0
+    if verdict is False:
+        _emit("CREATEDB", "false")
+        return 6
+    _emit("CREATEDB", "undeterminable")
+    _emit("CREATEDB_WHY", why)
+    return 7
+
+
 def cmd_can_createdb(opts):
     """Read-only: may this instance's role CREATE DATABASE?
 
@@ -1890,6 +2306,14 @@ def cmd_can_createdb(opts):
     verdict, why = _can_createdb(
         inst, inst.get("db_host", "localhost"), inst.get("db_user", "odoo"),
         inst.get("db_port", ""))
+    if isinstance(verdict, _ConnBlocked):
+        # The capability was never answered: the connection Odoo itself opens
+        # reported a refusal, and no client surface may overrule that. Reported as
+        # undeterminable with the connection exit, so this narrow question can
+        # never contradict `db-preflight`.
+        _emit("CREATEDB", "undeterminable")
+        _emit("CREATEDB_WHY", why)
+        return verdict.exit_code
     if verdict is True:
         _emit("CREATEDB", "true")
         return 0
@@ -2091,12 +2515,14 @@ def main(argv):
         return cmd_query(opts)
     if cmd == "can-createdb":
         return cmd_can_createdb(opts)
+    if cmd == "db-preflight":
+        return cmd_db_preflight(opts)
     if cmd == "assert-droppable":
         return cmd_assert_droppable(opts)
     sys.stderr.write(
         f"Unknown subcommand: {cmd!r}. "
         "Use acquire|release|bind|heartbeat|gc|reap-orphans|list|query|assert-droppable|"
-        "can-createdb.\n"
+        "can-createdb|db-preflight.\n"
     )
     return 2
 

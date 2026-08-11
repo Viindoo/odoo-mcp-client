@@ -25,8 +25,9 @@
 #
 # ALSO: after gc, this hook runs `reap-orphans` in its DEFAULT list-only mode -
 # see "Discovery half" below. gc and reap-orphans are deliberately DIFFERENT,
-# non-overlapping mechanisms (allocator.py's own header comment,
-# scripts/lib/allocator.py:1094-1120): gc only ever reclaims a DB a LEASE still
+# non-overlapping mechanisms (allocator.py's own header comment plus the
+# "reap-orphans: DB-side sweep INDEPENDENT of the lease registry" banner in
+# scripts/lib/allocator.py): gc only ever reclaims a DB a LEASE still
 # references; reap-orphans finds the class gc structurally cannot reach - an
 # ephemeral-shaped DB with ZERO lease reference at all (a registry quarantine
 # after corruption, a crash in the narrow acquire-write window, ...). Before this

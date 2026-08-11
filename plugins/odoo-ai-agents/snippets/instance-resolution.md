@@ -59,13 +59,11 @@ the acquire below AND applies the instance HARD RULES (`en_US` union, Viindoo `t
 lint-module install union, per-version `cli_help` grounding) - rather than calling
 `scripts/lib/allocator.py acquire` directly, which would skip those rules.
 
-The resolution above is correct for a **read-only** need (a URL to open / query a
-running server - many agents may share it). But the moment you MUTATE - run tests
-(`--test-enable`), `-i`/`-u`/a migration, or spin a throwaway server - reusing the
-single declared `db_name`/`http_port` is unsafe under concurrency: another agent or
-another Claude Code session may be using the same database/port right now.
-
-For a mutation, acquire an isolated lease instead of reading the catalog directly:
+The resolution above is for a **read-only** need (a URL to open / query a running
+server - many agents may share it). For any MUTATION - tests (`--test-enable`),
+`-i`/`-u`, a migration, a throwaway server - the single declared `db_name`/`http_port`
+is unsafe under concurrency (another agent or session may hold it): acquire
+an isolated lease instead of reading the catalog directly:
 
 ```
 python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N] [--run-id <id>]
@@ -75,10 +73,11 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done.
 ```
 
-An `ephemeral` acquire can exit `6` or `7` - both REFUSALS that write no lease and
-never a silent degrade to `exclusive`; re-dispatching `--mode exclusive` is the caller's own
-explicit trade of isolation and must be stated in its report. Codes + remedies:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 6.6.
+An acquire REFUSES with exit `6`, `7`, `8` or `9` - each writes no lease and never
+degrades to `exclusive`. `8`/`9` (Odoo cannot authenticate / the cluster did not answer)
+gate `exclusive` too, so no mode gets past them; re-dispatching `--mode exclusive` after
+`6`/`7` is the caller's own trade of isolation and must be stated in its report.
+Remedies: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 6.6.
 
 `ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your
 `-i` run (Odoo create-on-init) and dropped through Odoo on release via

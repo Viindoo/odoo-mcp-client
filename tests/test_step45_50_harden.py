@@ -134,6 +134,10 @@ def _link_real_timeout(bindir: Path) -> bool:
     host the fallback arm runs, exactly as it does in production there.
     tests/test_pg_mode.py parametrizes BOTH arms directly - that is where the
     binary arm's absence is surfaced rather than passed over.
+
+    CALLERS MUST CONSUME THE RETURN VALUE (see _require_real_timeout): discarded,
+    it let a case whose name claims the binary arm run the pure-bash FALLBACK arm
+    instead - green, under a name describing an arm nothing exercised.
     """
     real = shutil.which("timeout")
     if not real:
@@ -142,6 +146,19 @@ def _link_real_timeout(bindir: Path) -> bool:
     if not link.is_symlink() and not link.exists():
         link.symlink_to(real)
     return True
+
+
+def _require_real_timeout(bindir: Path) -> None:
+    """Link the real `timeout` in, or SKIP - for a case that CLAIMS the binary arm.
+
+    The docker rung exists precisely because handing a shell FUNCTION to the
+    coreutils binary fails, so a case about that rung must actually reach the
+    binary. On a host without it the honest outcome is a named skip: pretending the
+    arm ran is how a test stops protecting the thing its name promises.
+    """
+    if not _link_real_timeout(bindir):
+        pytest.skip("no coreutils `timeout` on this host, so the binary arm of "
+                    "pg_bounded_run cannot be exercised here")
 
 
 def _make_core_dir(tmp_path: Path, series: str = "17.0") -> Path:
@@ -1397,6 +1414,11 @@ def _make_step50_forking_env(tmp_path: Path, *, trap_term: bool):
         """)
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        # A real venv python ANSWERS a bounded odoo_db.py question and returns;
+        # only an odoo-bin invocation launches a server. A stub that ran the
+        # launch body here would make the DB preflight look like a hanging
+        # server, and the test would then measure the fixture.
+        if [[ "$1" == *odoo_db.py ]]; then echo "DB_AUTH=ok"; exit 0; fi
     """) + launch_body)
 
     odoo_bin = tmp_path / "odoo-bin"
@@ -2238,15 +2260,16 @@ def test_step50_conf_limit_memory_hard_is_env_overridable(tmp_path):
 
 @requires_bash
 def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
-    """The PostgreSQL reachability preflight is BOUNDED.
+    """The step-50 preflight is BOUNDED on its odoo_db.py rung.
 
-    When no client surface is declared and no pg_isready exists, reachability is
-    probed through the instance's own declared interpreter. That interpreter is a
-    third-party program: it can hang (an unreachable cluster with no connect
-    timeout, a broken venv wrapper). An unbounded probe would stall the whole
-    spin-up - and the spin-up's own timeout + process-group cleanup contract could
-    never even be reached. The probe must therefore be cut off, reported as NOT
-    PROBED, and never mistaken for 'the cluster is down'.
+    Rung 2 - `odoo_db.py preflight`, the connection Odoo itself opens - runs ALWAYS
+    when a python is declared, never as an `elif` a cheaper rung can shadow. It runs
+    the instance's own declared interpreter, a third-party program that can hang (an
+    unreachable cluster with no connect timeout, a broken venv wrapper). An unbounded
+    probe would stall the whole spin-up, and the spin-up's own timeout +
+    process-group cleanup contract could never even be reached. The probe must
+    therefore be cut off, reported as NOT PROBED with its RUNG NAMED, and never
+    mistaken for 'the cluster is down'.
     """
     py_bin_dir = tmp_path / "fake-py-bin"
     py_bin_dir.mkdir()
@@ -2291,7 +2314,7 @@ def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
     # "was NOT probed" is ALSO what the no-surface-and-no-python branch prints, so
     # on its own it cannot tell a cut-off interpreter probe from a ladder that
     # never reached one. Name the rung that had to run.
-    assert "odoo_db.py exists" in out, (
+    assert "odoo_db.py preflight" in out, (
         f"the interpreter rung is the one under test - a PATH that also lost the "
         f"declared python would pass the assertion above while testing nothing\n{out}"
     )
@@ -2356,7 +2379,7 @@ def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
     # A REAL `timeout` must be reachable - the arm on which handing a shell
     # function to that coreutils binary fails. Linked in explicitly rather than
     # inferred from a hardcoded /usr/bin:/bin, which is a guess about the host.
-    _link_real_timeout(bind)
+    _require_real_timeout(bind)
 
     toml = _make_step50_toml_with_pg_surface(
         tmp_path, py_path=str(fake_py),
@@ -2404,8 +2427,8 @@ def test_step50_docker_pg_preflight_probes_inside_the_container_and_launches(tmp
         f"a healthy containerised cluster must not be reported unreachable\n{out}"
     )
     assert res.returncode == 0, f"the spin-up must succeed\n{out}"
-    assert "ok PostgreSQL reachable" in out, (
-        f"the docker rung must report a POSITIVE reachability verdict\n{out}"
+    assert "ok PostgreSQL is accepting connections" in out, (
+        f"the docker rung must report its POSITIVE observation\n{out}"
     )
     assert docker_log.exists(), f"the probe never invoked docker at all\n{out}"
     calls = docker_log.read_text(encoding="utf-8")
@@ -2448,7 +2471,7 @@ def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path,
         # test is this hanging one on every host - never the runner's real
         # pg_isready answering about a cluster this test knows nothing about.
         _write_stub(bind / "pg_isready", hang)
-        _link_real_timeout(bind)
+        _require_real_timeout(bind)
         toml = _make_step50_toml_with_pg_surface(
             tmp_path, py_path=str(fake_py), extra='db_run_mode = "native"\n')
         env = dict(os.environ)
@@ -2526,15 +2549,15 @@ def test_step50_a_tcp_only_declaration_never_consults_a_local_client(tmp_path):
         f"a tcp-only declaration must never reach a local client - it answers for "
         f"a DIFFERENT cluster; calls:\n{probe_log.read_text(encoding='utf-8')}\n{out}"
     )
-    assert "ok PostgreSQL reachable" not in out, (
+    assert "ok PostgreSQL is accepting connections" not in out, (
         f"the wrong cluster's client answered 0 and that became a positive "
-        f"reachability verdict for this one\n{out}"
+        f"observation about this one\n{out}"
     )
     assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
         f"a probe that did not answer must NOT be reported as an unreachable "
         f"cluster\n{out}"
     )
-    assert "was NOT probed" in out and "odoo_db.py exists" in out, (
+    assert "was NOT probed" in out and "odoo_db.py preflight" in out, (
         f"tcp-only must fall to the interpreter rung, and its non-answer must be "
         f"said out loud\n{out}"
     )
@@ -2807,3 +2830,152 @@ def test_step55_wait_log_still_certifies_an_install_build_at_modules_loaded(tmp_
     res = _run55("wait-log", "--log", str(log), "--timeout", "0", env=env)
     assert res.returncode == 0, res.stdout + res.stderr
     assert "BUILD_RESULT=success" in res.stdout, res.stdout
+
+
+# ---------------------------------------------------------------------------
+# One question, one answer.
+#
+# `05-prereq-check.sh` already delegates the DB question to the allocator, which
+# owns the ladder `acquire` gates on. `45-venv.sh` re-implemented one route of it
+# in shell instead - so on a host whose Postgres is containerised (the instance
+# declares no interpreter of its own) the setup step printed "could not determine"
+# while the command that runs next answered it perfectly well. Two copies of a
+# question is how a setup step came to contradict the command after it.
+# ---------------------------------------------------------------------------
+def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
+                            docker_answer="t", alloc_log=None):
+    """(env, toml, alloc_log): a record-env scenario carrying BOTH DB routes.
+
+    The declared interpreter answers `odoo_db.py preflight` with `preflight_rc`
+    (8 = Odoo was refused authentication), and a stub `docker` stands in for the
+    container-local client that would answer the capability question `t`. That is
+    the observed host class, and the one where the two routes disagree.
+    """
+    core = _make_core_dir(tmp_path)
+    py_dir = tmp_path / "fake-py-bin"
+    py_dir.mkdir(exist_ok=True)
+    fake_py = py_dir / "python"
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        if [[ "$1" == *odoo_db.py ]]; then
+            case "$2" in
+                preflight) echo "DB_AUTH_WHY=stub"; exit {preflight_rc} ;;
+                can-createdb) echo "{createdb}"; exit 0 ;;
+            esac
+            exit 0
+        fi
+        exit 0
+    """))
+
+    bind = tmp_path / "bin45"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "docker", f'echo "{docker_answer}"\nexit 0\n')
+    _require_real_timeout(bind)
+    log = alloc_log or (tmp_path / "alloc-calls.log")
+    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    # A python3 that RECORDS what the step asked the allocator, then runs it for
+    # real. Recording is what turns "the delegation exists" from a claim about the
+    # source text into an observation about the run - this repo's dominant defect
+    # is a correct mechanism nothing ever calls.
+    _write_stub(bind / "python3", textwrap.dedent(f"""\
+        for a in "$@"; do
+            case "$a" in *allocator.py) echo "$@" >> "{log}" ;; esac
+        done
+        exec {real_py3} "$@"
+    """))
+
+    toml = tmp_path / "instances45-db.toml"
+    toml.write_text(textwrap.dedent(f"""\
+        [[instance]]
+        series = "17.0"
+        python = "{fake_py}"
+        odoo_root = "{core}"
+        http_port = 18069
+        db_name = "odoo_test"
+        db_host = "db.example"
+        db_port = 5544
+        db_user = "odoo"
+        db_run_mode = "docker"
+        db_container = "pg-for-tests"
+        run_mode = "source"
+        addons_path = "{core / 'addons'}"
+    """), encoding="utf-8")
+
+    env = dict(os.environ)
+    # Every client name is constructed absent, THEN the stub dir is prepended: the
+    # only `docker` reachable is this fixture's, and no native client is reachable
+    # at all. `_client_free_path` validates the farm on its own (it may not be
+    # handed a stub dir that re-adds a client), so the prepend happens here.
+    env["PATH"] = os.pathsep.join([str(bind), _client_free_path(tmp_path)])
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "10"
+    env.pop("ODOO_PG_PASSWORD", None)
+    return env, toml, log
+
+
+def _run_step45_record_env(env, series="17.0"):
+    return subprocess.run(
+        ["bash", str(STEP45), "record-env", "--series", series],
+        capture_output=True, text=True, env=env, timeout=120,
+    )
+
+
+@requires_bash
+def test_record_env_delegates_the_db_question_instead_of_reimplementing_it(tmp_path):
+    """The step must ASK the owner of the ladder, and be observed doing it.
+
+    Both halves matter: the absent re-implementation, and a recorded call proving
+    the delegation is actually reached. A string that is merely absent would also
+    be satisfied by a step that asks nothing at all.
+    """
+    env, _toml, alloc_log = _step45_db_question_env(tmp_path, preflight_rc=8)
+    res = _run_step45_record_env(env)
+
+    text = STEP45.read_text(encoding="utf-8")
+    assert "can-createdb" not in text, (
+        "45-venv.sh must not re-implement the capability question in shell - the "
+        "allocator owns that ladder"
+    )
+    assert alloc_log.exists(), (
+        "the step never asked the allocator anything; stdout={out!r} stderr={err!r}".format(
+            out=res.stdout, err=res.stderr))
+    calls = alloc_log.read_text(encoding="utf-8")
+    assert "db-preflight" in calls, (
+        f"the step must ask db-preflight (both facts, authentication first); got:\n{calls}"
+    )
+
+
+@requires_bash
+def test_record_env_does_not_contradict_the_allocator_on_the_same_fixture(tmp_path):
+    """The setup step and the command that runs next must AGREE.
+
+    On this fixture the container-local client would answer the capability question
+    `t` while the connection Odoo itself opens is refused - so a step with its own
+    copy of the question reports success where the allocator refuses. Asserted on
+    the emitted verdict token, so it cannot go green on a reworded message.
+    """
+    env, toml, _log = _step45_db_question_env(tmp_path, preflight_rc=8)
+
+    step = _run_step45_record_env(env)
+    direct = subprocess.run(
+        [sys.executable, str(ALLOC), "db-preflight", "--series", "17.0",
+         "--instances", str(toml)],
+        capture_output=True, text=True, env=env, timeout=120,
+    )
+
+    def _auth(text):
+        for line in text.splitlines():
+            if line.startswith("DB_AUTH="):
+                return line.partition("=")[2].strip().strip("'\"")
+        return None
+
+    assert _auth(direct.stdout) == "denied", (
+        f"test setup: the allocator must refuse on this fixture; got {direct.stdout!r} "
+        f"{direct.stderr!r}"
+    )
+    assert _auth(step.stdout) == _auth(direct.stdout), (
+        "the setup step and the allocator must produce the SAME verdict token; step "
+        f"said {_auth(step.stdout)!r}, the allocator said {_auth(direct.stdout)!r}\n"
+        f"step stdout={step.stdout!r}\nstep stderr={step.stderr!r}"
+    )

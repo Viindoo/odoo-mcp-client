@@ -39,14 +39,31 @@ CLI contract
       A non-zero exit doubles as the cluster-REACHABILITY probe (opening the
       connection IS the probe - no pg_isready needed).
 
+  python3 odoo_db.py preflight [--db-host H] [--db-user U] [--db-port P]
+                               [--db-password P] [--odoo-root R]
+      CAN ODOO AUTHENTICATE? Opens the maintenance-database connection through
+      ``odoo.sql_db.db_connect('postgres')`` - the EXACT route every build takes,
+      because Odoo's CLI opens that connection for every ``-d <name>`` run before
+      any module loads. So this is a precondition of init / update / test alike,
+      not of a create alone.
+      stdout (shell-eval-able):
+          DB_AUTH=ok|denied|unreachable|unknown
+          DB_AUTH_WHY=<one line, never carrying a credential value>
+      Exit 0 ok, 8 denied, 9 unreachable, 1 unknown, 10 venv unavailable.
+      On any non-ok state it writes the refusal block to stderr. That text is
+      OWNED here: every caller forwards these bytes verbatim instead of composing
+      a second copy of the verdict.
+
   python3 odoo_db.py can-createdb [--db-host H] [--db-user U] [--db-port P]
                                   [--db-password P] [--odoo-root R]
       Print ``true`` or ``false``: may the connecting role CREATE DATABASE?
       A LIVE privilege query, never an inference from which binaries are
-      installed. Exit 0 when answered, 1 when the question could not be
-      answered (unreachable cluster, auth failure, no pg_roles row), 10 on
-      venv unavailable. Callers MUST keep "answered false" and "could not
-      answer" distinct - see allocator.py exits 6 and 7.
+      installed. Exit 0 when answered, 8 when Odoo was refused authentication,
+      9 when the cluster did not answer at all, 1 when the question could not be
+      answered for any other reason (no pg_roles row), 10 on venv unavailable.
+      Callers MUST keep "answered false" and "could not answer" distinct - see
+      allocator.py exits 6 and 7 - and MUST keep 8 and 9 distinct from both:
+      they are facts about the CONNECTION, so no other surface may overrule them.
 
   python3 odoo_db.py list-databases [--db-host H] [--db-user U] [--db-port P]
                                     [--db-password P] [--odoo-root R]
@@ -67,7 +84,12 @@ Password resolution (mirrors allocator._pg_env)
 -------------------------------------------------
   1. --db-password CLI flag (highest priority)
   2. ODOO_PG_PASSWORD env var
-  3. Nothing set -> Odoo uses its own default (peer auth, .pgpass, etc.)
+  3. ``${PGPASSFILE:-~/.pgpass}`` - Odoo omits the password from its connection
+     entirely when ``db_password`` is unset, so libpq resolves it from this file
+     itself. This script NEVER writes that file; it only READS it, so the
+     preflight can decide "no credential is resolvable at all" without parsing a
+     libpq message that may be localised.
+  4. Nothing set - the connection carries no password (trust / peer auth).
 
 Namespace compatibility
 -----------------------
@@ -98,6 +120,71 @@ EXIT_OK = 0
 EXIT_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_NO_VENV = 10  # "venv unavailable" sentinel - callers may detect this
+# Facts about the CONNECTION, kept distinct from EXIT_FAILURE so a caller can
+# tell "the drop was never attempted" from "the drop was attempted and failed",
+# and "this route is unavailable" from "this route works and the cluster refused
+# us". Collapsing either pair is what let a capability probe validate a route the
+# build never uses.
+EXIT_AUTH_DENIED = 8
+EXIT_UNREACHABLE = 9
+
+# SQLSTATE class 28 - invalid authorization specification. The server ANSWERED,
+# so this verdict holds whatever language its messages are in.
+#
+# REACHABILITY, measured rather than assumed (psycopg2 2.9.12, PostgreSQL over
+# TCP, LC_MESSAGES=C): a failed ``connect()`` produces NO PGresult, so psycopg2
+# has no SQLSTATE to attach and the exception arrives as a bare OperationalError
+# with ``pgcode is None`` and ``diag.sqlstate is None`` - for a genuine 28P01
+# ("password authentication failed for user ...") exactly as for a refused TCP
+# connection. This rule therefore fires only for a failure the server reported
+# about a STATEMENT (the read-only queries below run after the handshake
+# completed), never for the handshake itself. It is kept because that case is
+# real, but it is NOT what makes this classifier locale-independent: rule 3 is
+# (a fact computed here), while rules 2 and 4 read libpq's own C-locale strings.
+_AUTH_PGCODES = frozenset(("28000", "28P01", "28P02"))
+
+# Bounded signature tables over libpq's own UNTRANSLATED strings. LC_MESSAGES is
+# pinned to C before connecting (see _pin_c_messages) so these are the strings
+# libpq actually emits. Lowercase - matching is case-folded.
+_DENIED_SIGNATURES = (
+    "password authentication failed",
+    "no password supplied",
+    "no pg_hba.conf entry",
+    "peer authentication failed",
+    "ident authentication failed",
+)
+_UNREACHABLE_SIGNATURES = (
+    "could not connect to server",
+    "connection refused",
+    "could not translate host name",
+    "timeout expired",
+    "is the server running",
+    "server closed the connection unexpectedly",
+    "no route to host",
+)
+
+# Failures the SERVER raised while accepting the connection that have NOTHING to
+# do with credentials. Each row is a tuple of substrings that must ALL be present
+# (case-folded), so "database ... does not exist" (SQLSTATE 3D000) can be named
+# without also matching `role "x" does not exist`, which IS a credential fact.
+#
+# This table exists for exactly one reason: rule 3 below infers `denied` from a
+# LOCAL fact - that no credential could be offered at all - which on the default
+# developer setup (native trust cluster, no --db-password, no $ODOO_PG_PASSWORD,
+# no ~/.pgpass) is permanently true. Without this guard every such failure became
+# `denied` -> exit 8 -> a BLOCKED build advised to fix an authentication problem
+# it does not have, where the previous release let the build run and let Odoo
+# report the real error.
+_SERVER_REFUSED_SIGNATURES = (
+    ("too many connections",),
+    ("remaining connection slots",),
+    ("connection limit exceeded",),
+    ("the database system is starting up",),
+    ("the database system is shutting down",),
+    ("the database system is in recovery mode",),
+    ("out of memory",),
+    ("database", "does not exist"),
+)
 
 
 # ---- Arg parsing (stdlib only, no argparse to mirror allocator/instances_io style) ----
@@ -236,41 +323,371 @@ def _sql_connect_postgres(odoo):
     return importlib.import_module(odoo.__name__ + ".sql_db").db_connect("postgres")
 
 
-def _query_postgres(opts, sql, params=None):
-    """(rows, exit_code): run one read-only query on the maintenance database.
+def _pin_c_messages():
+    """Pin message translation to C for THIS process before any connection is
+    opened.
 
-    Returns (rows, EXIT_OK) when the query ran, or (None, EXIT_NO_VENV /
-    EXIT_FAILURE) with a diagnostic on stderr naming the RESOLVED host:port when
-    it did not. A failure here means "could not answer" - callers must never
-    read it as a factual negative answer.
+    libpq translates its own diagnostics, so the signature tables above would only
+    match on an English host - and the classification a build depends on would
+    then be decided by the operator's locale. Pinning makes the untranslated
+    strings the ones that arrive.
+
+    All THREE variables are needed, because LC_MESSAGES alone is not the top of
+    the precedence chain: LC_ALL outranks it in POSIX and in glibc, and LANGUAGE
+    outranks both whenever the resolved locale is not C. With `LC_ALL=de_DE.UTF-8
+    LC_MESSAGES=C` the resolved LC_MESSAGES is de_DE.UTF-8 and the pin does
+    nothing at all.
+    LC_ALL is overwritten only when it is ALREADY set: setting it unconditionally
+    would additionally pin LC_NUMERIC / LC_CTYPE for a process that asked for
+    neither. LANGUAGE affects message translation ONLY, so clearing it is exactly
+    scoped to the thing being pinned.
+    """
+    os.environ["LC_MESSAGES"] = "C"
+    if os.environ.get("LC_ALL"):
+        os.environ["LC_ALL"] = "C"
+    os.environ["LANGUAGE"] = ""
+
+
+def _pgpass_path():
+    return os.environ.get("PGPASSFILE") or os.path.join(
+        os.path.expanduser("~"), ".pgpass")
+
+
+def _pgpass_fields(line):
+    """Split ONE pgpass line into its 5 fields, honouring backslash escaping.
+
+    libpq escapes a literal ``:`` or ``\\`` inside a field with a backslash, so a
+    naive split misreads such a line and would report a matching entry as absent.
+    """
+    fields, cur, esc = [], [], False
+    for ch in line:
+        if esc:
+            cur.append(ch)
+            esc = False
+        elif ch == "\\":
+            esc = True
+        elif ch == ":":
+            fields.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+    fields.append("".join(cur))
+    return fields
+
+
+def _pgpass_has_entry(host, port, user):
+    """Does ``${PGPASSFILE:-~/.pgpass}`` carry a line that could serve this
+    connection? READ-ONLY: this script never writes that file.
+
+    Consulted only so the classifier can decide "no credential is resolvable at
+    all" from a FACT it computed itself, rather than from a libpq message whose
+    wording is not a contract. A missing or unreadable file is False - never an
+    exception, and never a guess in the other direction.
+
+    An empty host means the connection carries no host at all (libpq resolves it),
+    so a loopback entry is accepted for it; anything wider than that would have to
+    be guessed.
+    """
+    path = _pgpass_path()
+    try:
+        with open(path, "r") as fh:
+            lines = fh.read().splitlines()
+    except (IOError, OSError):
+        return False
+    host_ok = (host,) if host else ("localhost", "127.0.0.1", "::1")
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        fields = _pgpass_fields(line)
+        if len(fields) < 5:
+            continue
+        f_host, f_port, _f_db, f_user = fields[0], fields[1], fields[2], fields[3]
+        if f_host != "*" and f_host not in host_ok:
+            continue
+        if f_port != "*" and port and f_port != str(port):
+            continue
+        if f_user != "*" and f_user != user:
+            continue
+        return True
+    return False
+
+
+def _credential_resolvable(opts):
+    """Can ANY credential reach libpq for this connection?
+
+    The three rungs are the whole of the resolution order: the flag, the plugin's
+    own env knob, then the file libpq reads by itself. None of them present means
+    the connection is offered no password at all - which is why a server that
+    demands one rejects it with a message carrying no SQLSTATE.
+    """
+    if opts.get("db_password") or os.environ.get("ODOO_PG_PASSWORD"):
+        return True
+    return _pgpass_has_entry(
+        opts.get("db_host") or "", opts.get("db_port") or "",
+        opts.get("db_user") or "")
+
+
+def _exc_detail(exc):
+    """One line naming the exception type and its first message line.
+
+    First line only: a psycopg2 diagnostic can carry several, and DB_AUTH_WHY is a
+    single shell-eval-able line.
+    """
+    text = str(exc).strip()
+    first = text.splitlines()[0] if text else ""
+    return "{etype}: {msg}".format(etype=type(exc).__name__, msg=first)
+
+
+def _server_refused_for_another_reason(low):
+    """Does this message name a SERVER-reported failure that is not about
+    credentials? `low` is the case-folded exception text.
+
+    True means the server answered and said WHY, and the reason was not a
+    credential - so no inference about credentials may be drawn from it.
+    """
+    for row in _SERVER_REFUSED_SIGNATURES:
+        if all(part in low for part in row):
+            return True
+    return False
+
+
+def _classify_conn_error(exc, opts):
+    """('denied'|'unreachable'|'unknown', detail) for a failed connection.
+
+    Ordered, and the order is the contract:
+      1. SQLSTATE class 28 -> denied. The server answered; no message is read.
+         Reachable only for a STATEMENT failure - see _AUTH_PGCODES.
+      2. A PROVEN transport failure -> unreachable. Positive evidence about the
+         connection outranks the inference in rule 3: both states refuse, so the
+         only thing at stake is which remedy the reader is handed, and naming an
+         authentication fix for a cluster that never answered is false.
+      3. No credential is resolvable at all AND the failure carries no SQLSTATE,
+         IS an OperationalError, and names no other server-reported cause ->
+         denied. The same three-conjunct guard _classify_drop_error uses, plus the
+         non-credential table: the local fact "no password could be offered" is
+         permanently true on a trust cluster, so on its own it turned EVERY
+         failure that reached this rule into a refusal whose only remedy is an
+         authentication fix. `not pgcode` and `_is_operational_error` keep a
+         statement-level failure out; _server_refused_for_another_reason keeps out
+         the connect-time FATALs (full connection slots, a cluster still starting,
+         an absent maintenance database) that arrive with no SQLSTATE at all.
+      4. A denial signature -> denied.
+      5. Anything else -> unknown. NEVER ok, and never a factual no.
+
+    Rules 2, 4 and 5 read libpq's own strings, which is why LC_MESSAGES (and
+    LC_ALL / LANGUAGE) are pinned to C before any connection is opened; a
+    SERVER-side message is emitted in the SERVER's lc_messages, which no client
+    setting controls, and rule 3 is the belt for exactly that case.
+    """
+    detail = _exc_detail(exc)
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode and str(pgcode) in _AUTH_PGCODES:
+        return "denied", "the server rejected the credentials (SQLSTATE {c})".format(
+            c=pgcode)
+    low = str(exc).lower()
+    for sig in _UNREACHABLE_SIGNATURES:
+        if sig in low:
+            return "unreachable", detail
+    if (not pgcode and _is_operational_error(exc)
+            and not _server_refused_for_another_reason(low)
+            and not _credential_resolvable(opts)):
+        return "denied", (
+            "no credential is resolvable for this connection: no --db-password, "
+            "$ODOO_PG_PASSWORD unset, and no matching line in {f}".format(
+                f=_pgpass_path()))
+    for sig in _DENIED_SIGNATURES:
+        if sig in low:
+            return "denied", detail
+    return "unknown", detail
+
+
+def _is_operational_error(exc):
+    """Is this psycopg2's OperationalError (or a subclass)?
+
+    The type is checked by NAME across the MRO rather than by importing psycopg2:
+    this script runs under the instance's venv and must not add an import of its
+    own to a path Odoo already resolved. OperationalError is the class libpq
+    connection and handshake failures arrive as; a statement that the SERVER
+    rejected arrives with a SQLSTATE instead.
+    """
+    for cls in type(exc).__mro__:
+        if cls.__name__.lower() == "operationalerror":
+            return True
+    return False
+
+
+def _classify_drop_error(exc, opts):
+    """('denied'|'unreachable'|'', detail) - a CONNECTION failure ONLY.
+
+    Deliberately STRICTER than _classify_conn_error: it demands positive evidence
+    that the connection itself failed, because an exp_drop that failed for any
+    other reason (an active backend, a missing privilege on the database) was
+    genuinely ATTEMPTED, and reporting that as "never attempted" would let a
+    caller paper it over with a client-side drop. Empty state means exactly that:
+    the drop was attempted and failed.
+    """
+    detail = _exc_detail(exc)
+    pgcode = getattr(exc, "pgcode", None)
+    if pgcode and str(pgcode) in _AUTH_PGCODES:
+        return "denied", "the server rejected the credentials (SQLSTATE {c})".format(
+            c=pgcode)
+    low = str(exc).lower()
+    for sig in _UNREACHABLE_SIGNATURES:
+        if sig in low:
+            return "unreachable", detail
+    for sig in _DENIED_SIGNATURES:
+        if sig in low:
+            return "denied", detail
+    # The locale-independent belt, scoped to a handshake that never completed: a
+    # failure the server itself reported carries a SQLSTATE, so its ABSENCE on an
+    # OperationalError is what says the connection never got that far.
+    if not pgcode and _is_operational_error(exc) and not _credential_resolvable(opts):
+        return "denied", (
+            "no credential is resolvable for this connection: no --db-password, "
+            "$ODOO_PG_PASSWORD unset, and no matching line in {f}".format(
+                f=_pgpass_path()))
+    return "", detail
+
+
+_STATE_EXITS = {
+    "ok": EXIT_OK,
+    "denied": EXIT_AUTH_DENIED,
+    "unreachable": EXIT_UNREACHABLE,
+    "unknown": EXIT_FAILURE,
+}
+
+
+def _query_postgres_ex(opts, sql, params=None):
+    """(rows, exit_code, state, detail): run one read-only query on the
+    maintenance database, CLASSIFYING any failure.
+
+    `state` is "ok" when the query ran, "no-venv" when the package could not be
+    imported, else one of _classify_conn_error's three states. Every caller that
+    only needs the pair uses _query_postgres below.
     """
     try:
         odoo = _import_odoo(opts)
     except ImportError as exc:
         sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
-        return None, EXIT_NO_VENV
+        return None, EXIT_NO_VENV, "no-venv", str(exc)
 
     _bootstrap_config(odoo, opts)
+    _pin_c_messages()
     cr = None
     try:
         cr = _sql_connect_postgres(odoo).cursor()
         cr.execute(sql, params or ())
         rows = cr.fetchall()
     except Exception as exc:
+        state, detail = _classify_conn_error(exc, opts)
         sys.stderr.write(
             "odoo_db: query failed on {host}:{port} - {etype}: {exc}\n".format(
                 host=opts.get("db_host") or "libpq-default",
                 port=opts.get("db_port") or "libpq-default",
                 etype=type(exc).__name__, exc=exc)
         )
-        return None, EXIT_FAILURE
+        return None, _STATE_EXITS[state], state, detail
     finally:
         if cr is not None:
             try:
                 cr.close()
             except Exception:
                 pass
-    return rows, EXIT_OK
+    return rows, EXIT_OK, "ok", ""
+
+
+def _query_postgres(opts, sql, params=None):
+    """(rows, exit_code): run one read-only query on the maintenance database.
+
+    Returns (rows, EXIT_OK) when the query ran, or (None, <non-zero>) with a
+    diagnostic on stderr naming the RESOLVED host:port when it did not. A failure
+    here means "could not answer" - callers must never read it as a factual
+    negative answer - and the code says WHICH failure: 8 authentication refused,
+    9 cluster unreachable, 10 venv unavailable, 1 anything else.
+    """
+    rows, code, _state, _detail = _query_postgres_ex(opts, sql, params)
+    return rows, code
+
+
+def _conn_label(opts):
+    """`role <user> on <host>:<port>` with every unresolved part named as such."""
+    return "role {user} on {host}:{port}".format(
+        user=opts.get("db_user") or "libpq-default",
+        host=opts.get("db_host") or "libpq-default",
+        port=opts.get("db_port") or "libpq-default")
+
+
+def _refusal_denied(opts, why):
+    return (
+        "odoo_db: BLOCKED - DB_AUTH=denied. Odoo cannot authenticate to PostgreSQL as\n"
+        "  {label}. Every odoo-bin run opens this connection before any module\n"
+        "  loads, so no build, install, update or test can start until this is fixed.\n"
+        "  NOTHING was created and NOTHING was dropped.\n"
+        "  Reason: {why}\n"
+        "  Choose ONE:\n"
+        "    run /odoo-ai-agents:odoo-setup - for a local developer cluster it enables\n"
+        "    passwordless authentication for this role from this machine's address\n"
+        "    only, and verifies it by reconnecting; or\n"
+        "    export ODOO_PG_PASSWORD=... - for a cluster that cannot be reconfigured\n"
+        "    (managed or remote). Applies to THIS shell only.\n".format(
+            label=_conn_label(opts), why=why))
+
+
+def _refusal_unreachable(opts, why):
+    return (
+        "odoo_db: BLOCKED - DB_AUTH=unreachable. The PostgreSQL cluster for\n"
+        "  {label} did not accept a connection: {why}\n"
+        "  This is NOT a credential problem and NOT a capability problem - the\n"
+        "  cluster did not answer at all.\n"
+        "  Start the cluster (or correct db_host/db_port on the [[instance]]). If it\n"
+        "  runs in a container, start it and then run /odoo-ai-agents:odoo-setup so\n"
+        "  db_run_mode/db_container are re-derived.\n".format(
+            label=_conn_label(opts), why=why))
+
+
+def _refusal_unknown(opts, why):
+    return (
+        "odoo_db: BLOCKED - DB_AUTH=unknown. The question could not be asked: {why}\n"
+        "  Undeterminable is never read as a yes and never as a no.\n"
+        "  Run /odoo-ai-agents:odoo-setup to declare the missing environment facts\n"
+        "  (python, odoo_root, db_run_mode/db_container), then retry.\n".format(why=why))
+
+
+_REFUSALS = {
+    "denied": _refusal_denied,
+    "unreachable": _refusal_unreachable,
+    "unknown": _refusal_unknown,
+}
+
+
+def cmd_preflight(opts):
+    """Can Odoo AUTHENTICATE to this cluster? Emit the verdict and own the refusal.
+
+    The connection is opened through Odoo's own resolution
+    (``odoo.sql_db.db_connect('postgres')``), which is the exact route every build
+    verb takes: Odoo's CLI opens the maintenance database for every ``-d <name>``
+    run before any registry is built, so a probe over any OTHER surface can answer
+    confidently about a connection the build never makes.
+
+    The refusal text lives HERE and nowhere else. Callers forward these bytes.
+    """
+    _pin_c_messages()
+    rows, code, state, detail = _query_postgres_ex(opts, "SELECT 1")
+    if state == "no-venv":
+        state, detail = "unknown", (
+            "the interpreter could not import odoo: for a source checkout that means "
+            "`odoo_root` is not declared. " + detail)
+        code = EXIT_NO_VENV
+    elif state == "ok" and not rows:
+        # A connection that answered nothing is not a connection that answered.
+        state, detail = "unknown", "the maintenance database returned no row for SELECT 1"
+        code = EXIT_FAILURE
+    print("DB_AUTH={state}".format(state=state))
+    print("DB_AUTH_WHY={why}".format(why=detail or "the connection succeeded"))
+    if state != "ok":
+        sys.stderr.write(_REFUSALS[state](opts, detail or "no detail reported"))
+    return code
 
 
 def cmd_can_createdb(opts):
@@ -350,6 +767,7 @@ def cmd_drop(db_name, opts):
         return EXIT_NO_VENV
 
     _bootstrap_config(odoo, opts)
+    _pin_c_messages()
     service_db = _get_service_db(odoo)
 
     try:
@@ -359,6 +777,16 @@ def cmd_drop(db_name, opts):
             "odoo_db: exp_drop({db!r}) raised {etype}: {exc}\n".format(
                 db=db_name, etype=type(exc).__name__, exc=exc)
         )
+        # A CONNECTION failure necessarily precedes any DROP DATABASE, so 8 and 9
+        # are a POSITIVE statement that nothing was attempted - which is what lets
+        # a caller consult another surface without ever papering over a real
+        # exp_drop failure. Any other exception keeps EXIT_FAILURE: the drop WAS
+        # attempted and failed, and no client may retry it.
+        state, _detail = _classify_drop_error(exc, opts)
+        if state == "denied":
+            return EXIT_AUTH_DENIED
+        if state == "unreachable":
+            return EXIT_UNREACHABLE
         return EXIT_FAILURE
 
     # exp_drop returns False when the DB is not in the list (already absent) -> idempotent.
@@ -434,6 +862,9 @@ def main(argv):
             return EXIT_USAGE
         return cmd_exists(pos[0], opts)
 
+    if cmd == "preflight":
+        return cmd_preflight(opts)
+
     if cmd == "can-createdb":
         return cmd_can_createdb(opts)
 
@@ -455,7 +886,7 @@ def main(argv):
         return cmd_db_size_bytes(pos[0], opts)
 
     sys.stderr.write(
-        "odoo_db: unknown subcommand {cmd!r}. Use drop|exists|can-createdb|"
+        "odoo_db: unknown subcommand {cmd!r}. Use preflight|drop|exists|can-createdb|"
         "list-databases|db-age-s|db-size-bytes.\n".format(cmd=cmd)
     )
     return EXIT_USAGE

@@ -117,7 +117,8 @@ def _acquire(env, *extra):
 
 
 def _make_fake_venv_python(bindir, name="fake_python", log=None,
-                           createdb="true", createdb_rc=0, drop_rc=0):
+                           createdb="true", createdb_rc=0, drop_rc=0,
+                           preflight_rc=0, exists=None):
     """Write a stand-in for the instance's DECLARED venv python and return its path.
 
     The allocator asks every Postgres question through this interpreter, so the
@@ -125,6 +126,13 @@ def _make_fake_venv_python(bindir, name="fake_python", log=None,
     full argv of each call. It deliberately does NOT stub any libpq client
     binary: the whole point of the contract under test is that a role's CREATEDB
     privilege is asked of the CLUSTER, never inferred from installed binaries.
+
+    `preflight_rc` / `drop_rc` accept the CONNECTION codes (8 authentication
+    refused, 9 cluster unreachable) as well as 0, 1 and the venv sentinel 10, so a
+    test can distinguish "this route never reached the database" from "the
+    operation was attempted and failed" - the pair the allocator must never
+    conflate. `exists` answers the existence question; left None the stub says
+    nothing, which is the "could not look" case.
     """
     bindir.mkdir(parents=True, exist_ok=True)
     py = bindir / name
@@ -136,13 +144,17 @@ def _make_fake_venv_python(bindir, name="fake_python", log=None,
         'case "$2" in\n'
         '      can-createdb) %sexit %d ;;\n'
         '      drop) exit %d ;;\n'
+        '      preflight) echo "DB_AUTH_WHY=stub"; exit %d ;;\n'
+        '      exists) %sexit 0 ;;\n'
         '    esac\n'
         '    exit 0\n'
         'fi\n'
         'exec %s "$@"\n' % (
             log_line,
             ('echo %s; ' % createdb) if createdb is not None else "",
-            createdb_rc, drop_rc, sys.executable,
+            createdb_rc, drop_rc, preflight_rc,
+            ('echo %s; ' % exists) if exists is not None else "",
+            sys.executable,
         ),
         encoding="utf-8",
     )
@@ -2002,6 +2014,12 @@ _EPHEMERAL_REFUSAL_SHAPES = {
     "docker declared and capability undeterminable": (
         dict(createdb=None, createdb_rc=1),
         'db_run_mode = "docker"\ndb_container = "declared-elsewhere"', 7),
+    # The CONNECTION shapes belong in this list, not in tests of their own: they are
+    # two more ways the question can fail, and the invariant under test - an
+    # ephemeral request is never answered with an exclusive lease - is the same one.
+    # 8 and 9 stay distinct from 6 and 7 because the remedy differs again.
+    "odoo cannot authenticate": (dict(preflight_rc=8), None, 8),
+    "cluster did not answer": (dict(preflight_rc=9), None, 9),
 }
 
 
@@ -2788,3 +2806,422 @@ def test_can_createdb_writes_no_lease(tmp_path):
     env = _docker_client_env(tmp_path, INSTANCES_TOML_DOCKER_RUN, answer="t")
     _run(env, "can-createdb", "--series", "18.0", timeout=60)
     assert _leases(env) == [], "a read-only query must never write a lease"
+
+
+# --------------------------------------------------------------------------- #
+# The drop ladder must tell "never attempted" from "attempted and failed".
+#
+# Those two used to arrive as the SAME exit code, so the allocator could not tell
+# a connection that never reached the database from a DROP DATABASE that genuinely
+# failed - and they demand OPPOSITE handling. The pair below asserts the
+# DISTINCTION, which neither test can assert alone: this one proves the connection
+# case now reaches the declared surface, and its sibling
+# `test_ephemeral_release_does_not_fallback_on_genuine_drop_failure` proves a
+# genuine failure still never does.
+# --------------------------------------------------------------------------- #
+INSTANCES_TOML_DOCKER_SURFACE = INSTANCES_TOML.replace(
+    'python = "/srv/venv/bin/python"',
+    'db_run_mode = "docker"\ndb_container = "pg-for-tests"\npython = "/srv/venv/bin/python"')
+
+
+def _venv_plus_docker_env(tmp_path, toml_text, *, docker_log=None, docker_rc=0,
+                          docker_out="1", **stub):
+    """(env, docker_log, py): a catalog declaring BOTH an interpreter and a docker
+    client surface, with both constructed as stubs.
+
+    This is the observed host class: Postgres in a container, no libpq client on
+    the host, and a venv that can talk to it over TCP. Both routes therefore exist,
+    which is what makes "which route answered" observable at all.
+    """
+    log = docker_log or (tmp_path / "docker_calls.log")
+    bindir = tmp_path / "clientbin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    docker = bindir / "docker"
+    # `docker_out` is what the container-local client PRINTS: for the existence
+    # query a row means the database is there, and empty output means it is not.
+    docker.write_text(
+        '#!/bin/sh\necho "$@" >> "%s"\n%sexit %d\n' % (
+            log, ('echo "%s"\n' % docker_out) if docker_out else "", docker_rc),
+        encoding="utf-8")
+    docker.chmod(0o755)
+    py = _make_fake_venv_python(tmp_path / "fakebin", **stub)
+    home = tmp_path / "home"
+    home.mkdir(parents=True, exist_ok=True)
+    toml = tmp_path / "instances.toml"
+    toml.write_text(toml_text.replace(
+        'python = "/srv/venv/bin/python"', 'python = "%s"' % py), encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    return env, log, py
+
+
+@pytest.mark.parametrize("drop_rc,label", [(8, "authentication refused"),
+                                           (9, "cluster unreachable")])
+def test_drop_falls_back_to_the_declared_surface_when_the_through_odoo_drop_cannot_connect(
+        tmp_path, drop_rc, label):
+    """A connection failure means DROP DATABASE was never issued.
+
+    On the observed host class the container-local client CAN drop the database
+    while the host-side TCP connection cannot authenticate at all. Reading that
+    refusal as a genuine exp_drop failure keeps the lease forever, and
+    reap-orphans excludes any database a lease references - so the lease and its
+    database become permanently unreclaimable from both ends.
+    """
+    env, docker_log, _py = _venv_plus_docker_env(
+        tmp_path, INSTANCES_TOML_DOCKER_SURFACE, drop_rc=drop_rc, exists="false")
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, f"[{label}] test setup: acquire must succeed; {p.stderr!r}"
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"], timeout=60)
+    assert rel.returncode == 0, (
+        f"[{label}] the declared surface dropped it, so the release must succeed; "
+        f"stderr={rel.stderr!r}"
+    )
+    assert _leases(env) == [], f"[{label}] a successful drop must remove the lease"
+    calls = docker_log.read_text(encoding="utf-8")
+    assert "dropdb" in calls and a["ALLOC_DB_NAME"] in calls, (
+        f"[{label}] the declared client surface must have been consulted; got:\n{calls}"
+    )
+
+
+@pytest.mark.parametrize("arm,stub,lease_python", [
+    ("connection refused", dict(drop_rc=8), True),
+    ("venv unavailable", dict(drop_rc=10), True),
+    ("no interpreter at all", dict(drop_rc=0), False),
+])  # ids name the fallback ARM, so a fourth arm has to be added here to be covered
+def test_client_drop_fallback_refuses_a_lease_that_does_not_name_a_throwaway_db(
+        tmp_path, arm, stub, lease_python):
+    """The client route is equivalent to the through-Odoo one for a THROWAWAY
+    database only, so the gate is a precondition rather than a hope.
+
+    A hand-edited or corrupted lease naming the declared, long-lived database must
+    never reach a client-side drop. Parametrised over EVERY fallback arm, so a
+    fourth arm added later cannot silently bypass the gate.
+    """
+    toml_text = INSTANCES_TOML_DOCKER_SURFACE
+    if not lease_python:
+        # The drop surface is re-resolved from the CURRENT catalog on every attempt,
+        # so the interpreter has to be absent THERE too for this arm to be reached.
+        toml_text = toml_text.replace('python = "/srv/venv/bin/python"\n', "")
+    env, docker_log, py = _venv_plus_docker_env(tmp_path, toml_text, **stub)
+
+    token = "ab" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": token, "mode": "ephemeral", "series": "17.0",
+        # The DECLARED database, not a throwaway - the shape the gate refuses.
+        "db_name": "odoo_17_0", "drop_on_release": True,
+        "python": str(py) if lease_python else "",
+        "odoo_root": "", "db_run_mode": "docker", "db_container": "pg-for-tests",
+        "db_host": "localhost", "db_user": "odoo", "db_port": "",
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "",
+                  "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }])
+
+    rel = _run(env, "release", token, timeout=60)
+
+    calls = docker_log.read_text(encoding="utf-8") if docker_log.exists() else ""
+    assert "dropdb" not in calls, (
+        f"[{arm}] a lease naming the declared database must never reach a "
+        f"client-side drop; got:\n{calls}"
+    )
+    assert rel.returncode != 0, f"[{arm}] a refused drop must not report success"
+    assert len(_leases(env)) == 1, f"[{arm}] the lease must be kept"
+
+
+def test_createdb_ladder_stops_on_a_proven_auth_denial_instead_of_asking_another_surface(
+        tmp_path):
+    """A capability answer from a DIFFERENT connection is not extra information.
+
+    The container-local surface answers `true` on a host whose builds cannot
+    authenticate over TCP at all, because a stock Postgres image trusts its own
+    loopback. Letting that overrule the route the build actually takes is
+    answering the wrong question confidently - so once route 1 PROVES the refusal,
+    route 2 must not even be invoked.
+    """
+    env, docker_log, _py = _venv_plus_docker_env(
+        tmp_path, INSTANCES_TOML_DOCKER_SURFACE, createdb=None, createdb_rc=8)
+
+    p = _run(env, "can-createdb", "--series", "17.0", timeout=60)
+
+    assert p.returncode == 8, (
+        f"a proven authentication refusal must propagate, not become a capability "
+        f"answer; got {p.returncode}, stderr={p.stderr!r}"
+    )
+    assert "CREATEDB=true" not in p.stdout, (
+        f"a capability verdict must never be emitted here; got {p.stdout!r}"
+    )
+    calls = docker_log.read_text(encoding="utf-8") if docker_log.exists() else ""
+    assert calls.strip() == "", (
+        f"the second surface must not be consulted at all; got:\n{calls}"
+    )
+
+
+def test_db_preflight_never_emits_createdb_true_alongside_db_auth_denied(tmp_path):
+    """The contradiction itself, asserted on the emitted keys rather than wording.
+
+    A report that says "authentication refused" and "may create databases" in the
+    same breath tells the reader both that the build cannot start and that it can.
+    """
+    env, docker_log, _py = _venv_plus_docker_env(
+        tmp_path, INSTANCES_TOML_DOCKER_SURFACE, preflight_rc=8)
+
+    p = _run(env, "db-preflight", "--series", "17.0", timeout=60)
+    keys = dict(
+        line.partition("=")[::2] for line in p.stdout.splitlines() if "=" in line)
+
+    assert p.returncode == 8, f"got {p.returncode}, stderr={p.stderr!r}"
+    assert keys.get("DB_AUTH") == "denied", p.stdout
+    assert "CREATEDB" not in keys, (
+        f"no capability verdict may accompany a proven refusal; got {p.stdout!r}"
+    )
+    calls = docker_log.read_text(encoding="utf-8") if docker_log.exists() else ""
+    assert calls.strip() == "", f"the capability ladder must not run at all:\n{calls}"
+
+
+def test_db_preflight_reports_both_facts_when_the_connection_works(tmp_path):
+    """Both facts, one call: the report must stay USEFUL, not just safe."""
+    env, _log, _py = _venv_plus_docker_env(
+        tmp_path, INSTANCES_TOML_DOCKER_SURFACE, preflight_rc=0, createdb="true")
+    p = _run(env, "db-preflight", "--series", "17.0", timeout=60)
+    assert p.returncode == 0, f"got {p.returncode}, stderr={p.stderr!r}"
+    assert "DB_AUTH=ok" in p.stdout and "CREATEDB=true" in p.stdout, p.stdout
+    assert _leases(env) == [], "a read-only query must never write a lease"
+
+
+# --------------------------------------------------------------------------- #
+# `ABANDONED` is a claim about the cluster, so it must be EARNED.
+#
+# A build that crashed before creating anything leaves a lease whose drop can only
+# ever "fail" - un-releasable from one end, while reap-orphans cannot see the
+# database from the other. Classifying existence before naming anything closes it.
+# --------------------------------------------------------------------------- #
+_FORGET_STATES = {
+    # existence answer -> (stub kwargs, toml, expected emitted key, forbidden keys)
+    "database is there": (dict(drop_rc=1, exists="true"), INSTANCES_TOML,
+                          "ALLOC_ABANDONED_DB",
+                          ("ALLOC_FORGOTTEN_DB", "ALLOC_UNVERIFIED_DB")),
+    "database never existed": (dict(drop_rc=1, exists="false"), INSTANCES_TOML,
+                               "ALLOC_FORGOTTEN_DB",
+                               ("ALLOC_ABANDONED_DB", "ALLOC_UNVERIFIED_DB")),
+    "existence cannot be determined": (
+        dict(drop_rc=1), INSTANCES_TOML.replace(
+            'python = "/srv/venv/bin/python"',
+            'db_run_mode = "tcp-only"\npython = "/srv/venv/bin/python"'),
+        "ALLOC_UNVERIFIED_DB",
+        ("ALLOC_ABANDONED_DB", "ALLOC_FORGOTTEN_DB")),
+}
+
+
+@pytest.mark.parametrize("state", sorted(_FORGET_STATES))
+def test_force_forget_names_exactly_what_it_left_behind(tmp_path, state):
+    """--force-forget must never claim a cluster fact nothing observed.
+
+    Three outcomes, one per existence answer, asserted on the emitted KEY so a
+    reworded message cannot make this pass and a renamed key cannot make it pass
+    silently either.
+    """
+    stub, toml_text, expected, forbidden = _FORGET_STATES[state]
+    env, _log, _py = _env_with_fake_venv(tmp_path, toml_text, **stub)
+
+    a = _acquire_ephemeral_or_fail(env)
+    forget = _run(env, "release", a["ALLOC_TOKEN"], "--force-forget", timeout=60)
+
+    assert forget.returncode == 0, (
+        f"[{state}] the escape must succeed; stderr={forget.stderr!r}")
+    assert _leases(env) == [], f"[{state}] --force-forget must remove the lease"
+    assert expected in forget.stdout, (
+        f"[{state}] expected {expected}; got stdout={forget.stdout!r} "
+        f"stderr={forget.stderr!r}"
+    )
+    for key in forbidden:
+        assert key not in forget.stdout, (
+            f"[{state}] {key} must NOT be emitted; got {forget.stdout!r}")
+    assert a["ALLOC_DB_NAME"] in forget.stderr, (
+        f"[{state}] whatever the outcome, the database must be NAMED for a human")
+
+
+def test_release_succeeds_when_the_database_is_provably_absent(tmp_path):
+    """The other half of the un-releasable-lease leak.
+
+    A build that crashed before creating its database leaves a lease whose drop
+    always "fails", so the plain release path kept it forever and gc retried it
+    forever. Once absence is PROVEN there was nothing to tear down, and the release
+    is clean - no --force-forget, no leaked lease.
+    """
+    env, _log, _py = _env_with_fake_venv(tmp_path, drop_rc=1, exists="false")
+    a = _acquire_ephemeral_or_fail(env)
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"], timeout=60)
+
+    assert rel.returncode == 0, (
+        f"a database that does not exist leaves nothing to drop; stderr={rel.stderr!r}"
+    )
+    assert _leases(env) == [], "the lease must not survive a teardown with nothing to do"
+    assert "ALLOC_FORGOTTEN_DB" in rel.stdout, (
+        f"the outcome must be machine-readable; got {rel.stdout!r}")
+
+
+def test_a_provably_absent_database_takes_its_filestore_with_it(tmp_path):
+    """The filestore is a SEPARATE object with its own lifetime, and this path is
+    reached exactly when the database vanished without Odoo dropping it - deleting
+    a container's volume takes every ephemeral database and leaves every filestore
+    directory behind.
+
+    Releasing the lease here puts that directory beyond BOTH reapers at once: `gc`
+    finds work through leases and the lease is gone, `reap-orphans` finds work
+    through pg_database and there is no row. So one directory per run would leak
+    forever, with nothing left that references it - while the message says NOTHING
+    was left behind.
+    """
+    env, _log, _py = _env_with_fake_venv(tmp_path, drop_rc=1, exists="false")
+    xdg = tmp_path / "xdg"
+    env["XDG_DATA_HOME"] = str(xdg)
+
+    a = _acquire_ephemeral_or_fail(env)
+    filestore = xdg / "Odoo" / "filestore" / a["ALLOC_DB_NAME"]
+    filestore.mkdir(parents=True)
+    (filestore / "checksum").mkdir()
+    (filestore / "checksum" / "blob").write_bytes(b"attachment bytes")
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"], timeout=60)
+
+    assert rel.returncode == 0, f"stderr={rel.stderr!r}"
+    assert _leases(env) == [], "the lease must be released on a proven absence"
+    assert not filestore.exists(), (
+        "the filestore outlived the only two things that could ever have found it; "
+        f"{filestore} still holds {sorted(p.name for p in filestore.iterdir())}")
+    assert "ALLOC_FORGOTTEN_DB" in rel.stdout
+
+
+def test_release_keeps_the_lease_when_existence_cannot_be_determined(tmp_path):
+    """"We could not look" is never "it is not there".
+
+    Collapsing the two would release a lease whose database is still on disk, and
+    nothing could then find it: reap-orphans knows a database was a throwaway only
+    by its NAME, and the caller was told the teardown succeeded.
+    """
+    toml = INSTANCES_TOML.replace(
+        'python = "/srv/venv/bin/python"',
+        'db_run_mode = "tcp-only"\npython = "/srv/venv/bin/python"')
+    env, _log, _py = _env_with_fake_venv(tmp_path, toml, drop_rc=1)
+    a = _acquire_ephemeral_or_fail(env)
+
+    rel = _run(env, "release", a["ALLOC_TOKEN"], timeout=60)
+
+    assert rel.returncode != 0, (
+        f"an unverifiable teardown must not be reported as done; stderr={rel.stderr!r}")
+    assert len(_leases(env)) == 1, "the lease must be kept so gc can retry"
+
+
+# --------------------------------------------------------------------------- #
+# Authentication is a precondition of every BUILD verb, so the gate covers every
+# mode that will build - and refuses only on a PROVEN negative.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("mode", ["ephemeral", "exclusive"])
+@pytest.mark.parametrize("preflight_rc,expected", [(8, 8), (9, 9)])
+def test_acquire_refuses_when_odoo_cannot_authenticate_and_writes_no_lease(
+        tmp_path, mode, preflight_rc, expected):
+    """Odoo opens its maintenance-database connection for EVERY `-d <name>` run.
+
+    So a refused connection kills an `exclusive` build exactly as it kills an
+    ephemeral one, and handing out a lease first only moves the failure to a raw
+    traceback mid-build with a database half-created. Parametrised over both
+    building modes and both proven negatives.
+    """
+    env, _log, _py = _env_with_fake_venv(tmp_path, preflight_rc=preflight_rc)
+    token = "cc" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": token, "mode": "shared", "series": "17.0", "db_name": "other_db",
+        "drop_on_release": False, "ports": [],
+        "owner": {"host": socket.gethostname(), "pid": None, "run_id": "",
+                  "started_at": now},
+        "ttl_s": 3600, "heartbeat_at": now,
+    }])
+    registry = Path(env["ODOO_AI_HOME"]) / "runtime" / "leases.json"
+    before = registry.read_bytes()
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", mode, "--ports", "0",
+             timeout=60)
+
+    assert p.returncode == expected, (
+        f"[{mode}] got {p.returncode}, stderr={p.stderr!r}")
+    assert registry.read_bytes() == before, (
+        f"[{mode}] a refused acquire must leave the registry byte-unchanged")
+    assert p.stderr.strip(), f"[{mode}] a refusal must say why"
+
+
+@pytest.mark.parametrize("mode", ["ephemeral", "exclusive"])
+def test_acquire_never_blocks_on_an_undeterminable_authentication_state(tmp_path, mode):
+    """UNDETERMINABLE never blocks - only a PROVEN negative does.
+
+    Refusing here would refuse on every host that has not finished declaring its
+    environment, which turns a safety gate into an outage. The three states stay
+    distinct precisely so this one can be non-blocking.
+    """
+    env, _log, _py = _env_with_fake_venv(tmp_path, preflight_rc=1)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", mode, "--ports", "0",
+             timeout=60)
+    assert p.returncode == 0, (
+        f"[{mode}] an unanswerable question must not refuse the acquire; got "
+        f"{p.returncode}, stderr={p.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, f"[{mode}] the lease must be written"
+
+
+@pytest.mark.parametrize("mode", ["readonly", "shared"])
+def test_the_auth_gate_is_skipped_for_a_mode_that_builds_nothing(tmp_path, mode):
+    """A lease that opens no database must not be gated on one.
+
+    `readonly` attaches to something already running and `shared` never creates,
+    so asking the question there would refuse an attach for a reason that cannot
+    affect it. The stub records every call, so the skip is proved rather than
+    inferred.
+    """
+    log = tmp_path / "odoo_db_argv.log"
+    env, _log, _py = _env_with_fake_venv(tmp_path, log=log, preflight_rc=8)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", mode, "--ports", "0",
+             timeout=60)
+    assert p.returncode == 0, f"[{mode}] got {p.returncode}, stderr={p.stderr!r}"
+    logged = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "preflight" not in logged, (
+        f"[{mode}] the question must not even be asked; the stub logged {logged!r}")
+    _assert_the_gate_could_have_been_asked(env, log, mode)
+
+
+def test_no_create_skips_the_auth_gate_too(tmp_path):
+    """--no-create declares that this caller opens no database at all."""
+    log = tmp_path / "odoo_db_argv.log"
+    env, _log, _py = _env_with_fake_venv(tmp_path, log=log, preflight_rc=8)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             "--no-create", timeout=60)
+    assert p.returncode == 0, f"got {p.returncode}, stderr={p.stderr!r}"
+    logged = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert "preflight" not in logged, (
+        f"with --no-create nothing may be asked; the stub logged {logged!r}")
+    _assert_the_gate_could_have_been_asked(env, log, "--no-create")
+
+
+def _assert_the_gate_could_have_been_asked(env, log, case):
+    """POSITIVE CONTROL for the three "must not even be asked" assertions.
+
+    Each of those reads the argv log only `if log.exists()`, and for a skipped gate
+    the file is never created - so the assertion holds TRIVIALLY. A fixture
+    regression that stopped the allocator resolving the declared interpreter at all
+    would then report "the gate is correctly skipped" on a host where it could never
+    have been asked in the first place. So: run a mode that MUST ask, against the
+    same env and the same stub, and prove the recording works.
+    """
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             timeout=60)
+    assert p.returncode == 8, (
+        "[{c}] control: a building mode must reach the gate this fixture pins to "
+        "denied; got {rc}, stderr={err!r}".format(c=case, rc=p.returncode, err=p.stderr))
+    assert log.exists() and "preflight" in log.read_text(encoding="utf-8"), (
+        "[{c}] control: the stub never recorded a preflight even for a mode that "
+        "must ask, so the skip assertion above proved nothing".format(c=case))

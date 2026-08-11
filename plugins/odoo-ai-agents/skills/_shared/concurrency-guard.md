@@ -121,14 +121,13 @@ The OSM rule above protects the static index; this protects LIVE instances. Unde
 concurrency, never reuse the declared `db_name`/`http_port` for a MUTATION - tests
 (`--test-enable`), `-i`/`-u`, a throwaway server: another agent or session may hold it.
 Acquire an isolated lease: `scripts/lib/allocator.py acquire --mode ephemeral --run-id
-<id>` (a unique DB name + ports owned by that run; the DB is created through Odoo by your
-`-i` run and dropped through Odoo on release) or `--mode exclusive` (single-holder lease on
-a declared DB); a read-only attach stays lease-free. The returned port NUMBERS are
-version-agnostic - map them to CLI flags via `cli_help`. Exit **6 or 7** is a
-REFUSAL, never a degrade: handle both, and say so when you trade isolation away for
-`--mode exclusive`. Exit codes (§6.6), protocol, GC/stale rules:
+<id>` (a unique DB name + ports owned by that run) or `--mode exclusive` (single-holder
+lease on a declared DB); a read-only attach stays lease-free. The returned port NUMBERS are
+version-agnostic - map them to CLI flags via `cli_help`. Exit **6, 7, 8 or 9** is a
+REFUSAL, never a degrade: handle all four, and say so when you trade isolation away for
+`--mode exclusive` - which `8`/`9` gate too, so it is no way past them. Exit codes (§6.6), protocol, GC/stale rules:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` and
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. Release before your
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. Release the lease token before your
 terminal status - that imperative and the release mechanics belong to
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3, not to this file.
 

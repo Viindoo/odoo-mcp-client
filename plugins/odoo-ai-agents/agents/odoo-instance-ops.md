@@ -74,15 +74,18 @@ Mode per operation:
 - `shared` - a render server the visual stack or other agents can discover via `allocator.py query`.
 - `readonly` - read-only status check; no lease minted.
 
-**Acquire exit codes - each one has an ACTION; never retry the same call blind.** Exit `6` - the
-database role positively LACKS CREATEDB, so no throwaway DB can be created: get CREATEDB granted, OR
-re-acquire with `--mode exclusive` and STATE in your output block's `notes` that isolation was NOT
-provided (the declared DB is shared, not a throwaway), OR pass `--no-create` when the target DB
-already exists. Exit `7` - the CREATEDB capability is UNDETERMINABLE (the instance declares no
-`python`, the venv cannot import odoo, or the cluster is unreachable): resolve the venv per Step C
-and confirm the cluster answers, then re-acquire; if it stays undeterminable, return `status:
-NEEDS_CONTEXT` naming which of those three is missing. On either code, NEVER silently continue in a
-different mode than the one you asked for.
+**Acquire refusals - `6`, `7`, `8` and `9`, the COMPLETE set; each has an ACTION, never a blind retry
+and never a silent continue in a mode you did not ask for** (SSOT:
+`docs/reference/INSTANCE-ALLOCATION.md` §6.6). Exit `6` - the role positively LACKS CREATEDB, so no
+throwaway DB can be created: get CREATEDB granted, OR re-acquire with `--mode exclusive` and STATE in
+your output block's `notes` that isolation was NOT provided (the declared DB is shared, not a
+throwaway), OR pass `--no-create` when the target DB already exists. Exit `7` - CREATEDB is
+UNDETERMINABLE (no declared `python`, the venv cannot import odoo, or no `db_run_mode` client
+surface): resolve what is missing per Step C, then re-acquire; still undeterminable -> `status:
+NEEDS_CONTEXT` naming which of the three. A PROVEN unreachable cluster is exit `9`, never `7`. Exit
+`8` / `9` - Odoo cannot AUTHENTICATE / the cluster did not answer: both gate `--mode exclusive` as
+they gate `ephemeral`, so trading isolation away is no way past either. Report `7`, `8` and `9` per
+"Refused before launch" below.
 
 Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--ports 1` (or `2` when gevent/longpolling is needed) when the server must listen.
 
@@ -94,7 +97,25 @@ registration step, and never `readonly`/`shared` for work that mutates; `persist
 -> handled entirely by `50-instance-spinup.sh`'s own internal `shared` acquire (do not also acquire
 here for that mode - see operation 1).
 
-**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` run (Odoo create-on-init; memory cap - HARD RULE above). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>` (`odoo.service.db.exp_drop`). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
+**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` run (memory cap - HARD RULE above). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>`. `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. Every build verb re-checks the cluster and REFUSES BEFORE LAUNCH on exit 8 (Odoo cannot authenticate) or exit 9 (the cluster did not answer) - see below.
+
+**Refused before launch (exits `7`, `8`, `9`).** The refusal lands before any log file is opened: no
+`LOG_PATH=` is emitted, no `odoo-bin` runs. Fill BOTH status fields, each in ITS OWN vocabulary, never
+one in the other's block - the `instance-ops` block takes `status: error` (its enum has no
+`BLOCKED`/`NEEDS_CONTEXT` value), `log_path: null` and a one-line `notes:` naming the exit code; the
+Continuation Contract takes `status: NEEDS_CONTEXT` with the exit code plus remedy as
+`blocked_reason`. Quote the refusal AS-IS as a fenced block in the prose summary above both blocks -
+the primitive OWNS that text; never re-word it or truncate it into `notes:`. Remedies are NOT
+interchangeable: exit `8` -> `/odoo-ai-agents:odoo-setup`, which drives `48-db-local-auth.sh apply`
+behind its own confirm gate (undo: `48-db-local-auth.sh revert`), or `export ODOO_PG_PASSWORD=...` for
+the managed or remote cluster step 48 REFUSES to touch; exit `9` -> start the cluster or correct
+`db_host`/`db_port`, and setup fixes NOTHING there. NEVER run `48-db-local-auth.sh apply`/`revert`
+yourself: it rewrites a live cluster's `pg_hba.conf` on invocation with no gate of its own, so it is
+the ONE numbered setup script you route through the human via `/odoo-ai-agents:odoo-setup` instead of
+invoking (`45-venv.sh`, `50-instance-spinup.sh` stay self-invoked). `DB_AUTH=unknown` NEVER blocks:
+the primitive writes a `BLOCKED - DB_AUTH=<state>` stderr block for EVERY non-`ok` state, `unknown`
+included, so on `unknown` the EXIT CODE is authoritative and that string is not - a successful acquire
+(exit 0, lease written) can print it. Only a PROVEN `8` or `9` refuses.
 
 **Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
 
@@ -113,13 +134,17 @@ A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh
    ```
 
    It BLOCKS inside that ONE call - a real shell loop over the markers below - and returns `BUILD_MARKER=<line>` plus `BUILD_RESULT=success|failure|timeout`, exit `0`/`1`/`2` respectively. **The Bash tool's generic guidance - "if waiting for a background task you will be notified; do not poll" - DOES NOT APPLY to this step and is explicitly OVERRIDDEN here:** `wait-log` is one blocking read that RETURNS the verdict, not a poll of a background task, and no notification ever resumes a dispatched agent's ENDED turn. Producing a text-only, tool-call-free response while `BUILD_RESULT` is still unknown ("waiting for the background run to complete") is the idle-stall this HARD RULE forbids, never compliance with it - every response you emit before you hold a terminal `BUILD_RESULT` MUST carry a tool call. Emit a heartbeat alongside the wait so the run is never mistaken for dead: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py heartbeat <ALLOC_TOKEN>`.
+   - **No `LOG_PATH=` line at all is a TERMINAL answer, not a stall - and the ONE case where the
+     mandatory `wait-log` call is skipped.** A refusal before launch (see "Refused before launch"
+     above) exits at once and opens no log, so there is nothing to wait on: report it per that rule.
+     The mandatory wait binds only once a `LOG_PATH=` exists.
    - **`BUILD_RESULT=timeout` is not an answer - re-invoke the SAME foreground call.** A build legitimately longer than one window needs consecutive foreground waits, not a turn end. Report `status: BLOCKED` with the `LOG_PATH` preserved only once a whole window elapses with `BUILD_MARKER` UNCHANGED from the previous one - that, not the clock, is the evidence the build stopped progressing.
    - **Progress/heartbeat signals (NOT independently sufficient for success):** `loading <N> modules...` (INFO, version-stable v8-v19), process exit 0, or `Initiating shutdown` after a `--stop-after-init` run - these confirm forward progress but do not by themselves confirm a completed install/update.
    - **SUCCESS marker (init/update - matches the deterministic completion contract below):** `Modules loaded.` present AND none of the failure markers below. `wait-log`'s `_scan_build_markers` and the script's own `_install_confirmed` verdict share this EXACT marker set (SSOT) - `BUILD_RESULT=success` and `STATUS=ok` can never disagree.
    - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`, plus the SILENT-skip markers from the deterministic completion contract below (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`) - any of these wins over a success marker, even `Modules loaded.` itself.
    - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING`/`TEST_SKIPPED` counts) as the terminal signal; `_parse_test_result` already emits them. `TEST_RESULT=inconclusive` is a terminal marker like any other, not a stall.
 3. **Exit code is necessary but never sufficient.** A non-zero exit is ALWAYS `STATUS=error` - marker wording can drift across series, so a marker NEVER promotes a non-zero exit to success; the exit code stays authoritative for FAILURE. But exit 0 ALONE is NOT proof of a successful build: for init/update, `STATUS=ok` additionally requires `"Modules loaded."` present AND no failure marker, so exit 0 with the completion marker missing, or with any failure marker present, is `STATUS=error` exactly like a non-zero exit.
-   - **A reaped launcher is never a pass.** Step 1's background shell can be reaped before it prints its own `STATUS=`/`TEST_RESULT=` line while `odoo-bin` runs to completion independently. NEVER synthesize the missing line: with `BUILD_RESULT` terminal but the verb's own adjudication absent, report `tests-inconclusive` (run-tests) or `BLOCKED` (create/init/update), forward `LOG_PATH` (+ `FINDINGS_PATH` when written), and name the lost launcher stdout in `notes`.
+   - **A reaped launcher is never a pass.** Step 1's background shell can be reaped before it prints its own `STATUS=`/`TEST_RESULT=` line while `odoo-bin` runs to completion independently. NEVER synthesize the missing line: with `BUILD_RESULT` terminal but the verb's own adjudication absent, report `tests-inconclusive` (run-tests) or `error` (create/init/update) in the `instance-ops` block and `BLOCKED` in the Continuation Contract, forward `LOG_PATH` (+ `FINDINGS_PATH` when written), and name the lost launcher stdout in `notes`.
 4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
 
 **Deterministic completion contract (never a log-tail wait).** `55-instance-ops.sh init`/`update`
@@ -135,9 +160,8 @@ guarantee completion two ways:
   exit 0: a misspelled/nonexistent module name, an unresolved dependency, and a demo-data failure
   downgraded to a warning. SUCCESS therefore requires ALL of: exit 0 AND `"Modules loaded."`
   present AND NONE of step 2's FAILURE markers. Any failure marker wins even alongside a success
-  marker. `wait-log`'s `_scan_build_markers` applies that EXACT set (SSOT, shared with the script's
-  own `_install_confirmed`), so `BUILD_RESULT` and `STATUS=` can never disagree - confirm BOTH:
-  `BUILD_RESULT=success` alone leaves the script's own verdict unread.
+  marker. Confirm BOTH verdicts: `BUILD_RESULT=success` alone leaves the script's own `STATUS=`
+  unread (they share the marker set above, so they can never disagree).
 
 Version nuance: this covers BUILD completion (job shape). A LISTENING instance
 (`persist: exclusive-running`/`shared-running`, no `--stop-after-init`) has a DIFFERENT readiness
@@ -414,6 +438,16 @@ possession) - the allocator calls `odoo_db.py drop` internally for leases with
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --run-id "$ALLOC_RUN_ID"
 ```
+
+A release that could not drop has FOUR outcomes and `--force-forget` decides which are reachable -
+never report one as another (SSOT: `docs/reference/INSTANCE-ALLOCATION.md` §6.7). WITHOUT the flag: a
+DB PROVED absent emits `ALLOC_FORGOTTEN_DB=<db>` and releases cleanly (exit 0, nothing left behind);
+a DB still present OR unverifiable emits NO key at all, KEEPS the lease and exits 1 - repair the drop
+surface (`45-venv.sh record-env`) and release again, never report that as a teardown. WITH
+`--force-forget`: `ALLOC_ABANDONED_DB=<db>` (observed present - a leak owing manual cleanup) or
+`ALLOC_UNVERIFIED_DB=<db>` (unconfirmed - check by hand). The flag PERMANENTLY accepts the leak: pass
+it only when the caller or human who owns the instance asked for it and a plain release already
+failed with the drop surface repaired.
 
 Only when NO lease token exists - the DB is genuinely unmanaged, nothing an allocator lease tracks -
 may you delegate to the bare `scripts/setup-steps/55-instance-ops.sh drop`. This branch never runs
@@ -730,8 +764,6 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
 - Between successive B/C iterations (walking the path module-by-module), call
   `allocator.py heartbeat <token>` - cheap, and the only cover for the residual case the allocator
   cannot verify owner-pid liveness for at all (`docs/reference/INSTANCE-ALLOCATION.md` §7).
-- NEVER raw `createdb`/`dropdb`: DB created via Odoo create-on-init at A, released through
-  the allocator at E.
 - A NEW branch instance (independent branch) is provisioned via operation A with
   `CONTEXT: doc`, EXCLUSIVE lease, `--ports 1` on a freshly allocated DB.
 
@@ -861,7 +893,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 
 ## Continuation Contract
 
-When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`. When a caller asked for code authoring alongside instance ops (`## OUT OF SCOPE` above), add a `next:` entry naming the code skill (e.g. `odoo-coding`), low confidence (advisory - not a blocker on your own `status: DONE`) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form. Which caller holds release responsibility for the instance you just operated on (self-provisioned vs a forwarded `INSTANCE_HANDLE` vs a named T4 handoff) is governed by `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3/T4 - this agent executes the release/drop call it is asked for; it does not decide on its own whether one is owed.
+When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv, and every refusal before launch (exits 7/8/9 - see that rule above, the ONE place this mapping is decided), is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`. This `status` is the four-value Continuation enum, NEVER the `instance-ops` block's operational enum - no value crosses between the two blocks. When a caller asked for code authoring alongside instance ops (`## OUT OF SCOPE` above), add a `next:` entry naming the code skill (e.g. `odoo-coding`), low confidence (advisory - not a blocker on your own `status: DONE`) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form. Which caller holds release responsibility for the instance you just operated on (self-provisioned vs a forwarded `INSTANCE_HANDLE` vs a named T4 handoff) is governed by `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3/T4 - this agent executes the release/drop call it is asked for; it does not decide on its own whether one is owed.
 
 ## You launch nothing
 

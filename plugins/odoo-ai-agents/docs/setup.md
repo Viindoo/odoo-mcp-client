@@ -275,11 +275,10 @@ drop-in. What it does:
    Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":[]}`, empty - no locale is assumed on
    your behalf) - the machine-global language registry for the odoo-i18n cluster; edit to add your
    own target languages, e.g. `["vi_VN","en_US"]`.
-5. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
-
-> **Note for Claude Code users:** `/odoo-setup` no longer writes the browser servers into
-> `~/.claude.json` - Claude is served by the bundled `.mcp.json`. Re-running `/odoo-setup`
-> will therefore not recreate any "skipped duplicate" entries there; that is expected.
+5. **DB local auth** (`48-db-local-auth`) - lets Odoo reach the declared PostgreSQL role on a local
+   cluster without a stored password, via a managed block in that cluster's `pg_hba.conf`; reverted
+   with `48-db-local-auth.sh revert`.
+6. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-ai-agents:odoo-setup` whenever a dependency is missing.

@@ -15,7 +15,10 @@
 #
 # HARD RULES:
 #   - NEVER write a password into instances.toml. Only host / user / db name /
-#     port go in the file; the password belongs in an env var or keychain.
+#     port go in the file. The normal path stores NO password at all: step 48
+#     (48-db-local-auth.sh) makes a local cluster accept the declared role
+#     passwordless. $ODOO_PG_PASSWORD is the shell-only escape hatch for a
+#     cluster that cannot be reconfigured (managed or remote).
 #   - Writes ONLY .odoo-ai/instances.toml and one .gitignore line. Touches no
 #     Odoo source.
 #   - Backs up before modifying (via the lib); idempotent on the gitignore line.
@@ -227,7 +230,9 @@ _write_instance_from_spec() {
         [[ -n "$db_portline" ]] && printf '%s\n' "$db_portline"
         printf '%s\n' "$pyline"
         [[ -n "$pg_lines" ]] && printf '%s\n' "$pg_lines"
-        printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
+        printf '# db_password: DO NOT store here. A local developer cluster is reached with\n'
+        printf '# passwordless authentication (/odoo-ai-agents:odoo-setup); env ODOO_PG_PASSWORD\n'
+        printf '# only for a cluster that cannot be reconfigured.\n'
     } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance "$match_field" "$match_value" )"
     if printf '%s' "$out" | grep -q '^exists'; then
         local label="${ver}${profile:+:$profile}"
