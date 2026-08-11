@@ -51,6 +51,99 @@ def _write_stub(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
+# Every binary that can give this plugin a PostgreSQL client surface, plus the
+# container runtime that can lend it one. A probe ladder rung is gated on
+# `command -v <one of these>`, so their PRESENCE is what selects a rung.
+_PG_CLIENT_BINS = (
+    "pg_isready", "psql", "createdb", "dropdb", "pg_dump", "pg_restore", "docker",
+)
+
+
+def _client_free_path(tmp_path: Path, *stub_dirs: Path) -> str:
+    """A PATH that provably carries NO PostgreSQL client and no container runtime.
+
+    A test may NOT assert that a binary is absent from the host. `PATH =
+    "<stubs>:/usr/bin:/bin"` reads as "no client here", but that is a claim about
+    the RUNNER IMAGE, not about the test: a developer box without
+    postgresql-client and a CI image that preinstalls it then run two different
+    tests under one name, and the one that passes locally fails there - with the
+    product behaving exactly as documented.
+
+    So the absence is CONSTRUCTED rather than assumed: every ambient PATH entry
+    is re-exposed through a single directory of symlinks with the client names
+    left out (first occurrence wins, preserving PATH precedence). Everything the
+    script legitimately needs - bash, python3, coreutils, `timeout`, `ps` - stays
+    reachable and identical to a normal run; only the rung-selecting binaries are
+    gone. Whitelisting instead would silently change WHICH code path runs
+    whenever the script starts using one more tool.
+
+    `stub_dirs` are prepended, so a test's own stubs still shadow the ambient
+    ones. Returns the PATH string.
+    """
+    farm = tmp_path / "path-without-pg-clients"
+    farm.mkdir(exist_ok=True)
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        try:
+            names = os.listdir(entry)
+        except OSError:
+            continue  # a PATH entry that does not exist or is unreadable
+        for name in names:
+            if name in _PG_CLIENT_BINS:
+                continue
+            link = farm / name
+            if link.is_symlink() or link.exists():
+                continue  # first hit wins - ambient PATH precedence is preserved
+            src = Path(entry) / name
+            if not os.access(src, os.X_OK) or src.is_dir():
+                continue
+            try:
+                link.symlink_to(src)
+            except OSError:
+                continue
+    path = os.pathsep.join([*(str(d) for d in stub_dirs), str(farm)])
+    # Self-validating: if this construction ever stops working the test must fail
+    # loudly here, not quietly go back to inheriting whatever the image ships.
+    for name in _PG_CLIENT_BINS:
+        found = shutil.which(name, path=path)
+        assert found is None, (
+            f"the constructed PATH must not reach a client surface, but "
+            f"{name!r} resolved to {found!r} - the absence this test needs is "
+            f"no longer guaranteed"
+        )
+    assert shutil.which("bash", path=path), (
+        "the constructed PATH dropped bash - it must keep everything the script "
+        "legitimately needs, or the test stops exercising the real code path"
+    )
+    return path
+
+
+def _link_real_timeout(bindir: Path) -> bool:
+    """Make the REAL coreutils `timeout` reachable THROUGH `bindir`, if it exists.
+
+    `pg_bounded_run` has two arms - the `timeout` BINARY and a pure-bash fallback
+    - and the docker rung exists precisely because handing a shell FUNCTION to
+    the binary arm returns 127 unless that case is handled. Selecting the binary
+    arm by hardcoding `/usr/bin:/bin` into PATH is a bet on the host's directory
+    layout; link the binary in by RESOLVED location instead, so the arm is chosen
+    by what exists rather than by where it happens to live.
+
+    Returns whether the binary arm will be exercised. `timeout` is not POSIX and
+    genuinely absent on BSD/macOS, so this must not be an assertion: on such a
+    host the fallback arm runs, exactly as it does in production there.
+    tests/test_pg_mode.py parametrizes BOTH arms directly - that is where the
+    binary arm's absence is surfaced rather than passed over.
+    """
+    real = shutil.which("timeout")
+    if not real:
+        return False
+    link = bindir / "timeout"
+    if not link.is_symlink() and not link.exists():
+        link.symlink_to(real)
+    return True
+
+
 def _make_core_dir(tmp_path: Path, series: str = "17.0") -> Path:
     """Create a minimal fake Odoo core dir with odoo-bin + requirements.txt.
 
@@ -2172,8 +2265,11 @@ def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
 
     toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
     env = dict(os.environ)
-    # PATH deliberately WITHOUT pg_isready, so the ladder falls to the interpreter.
-    env["PATH"] = f"{bind}:/usr/bin:/bin"
+    # This instance declares NO db_run_mode, so rung 1 is selected by whether a
+    # pg_isready EXISTS - a fact about the host, which no test may assume. The
+    # absence is constructed here so the ladder provably falls to the interpreter
+    # on every image, including one that ships postgresql-client.
+    env["PATH"] = _client_free_path(tmp_path, bind)
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     env["SPINUP_TIMEOUT"] = "3"
@@ -2191,6 +2287,13 @@ def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
     )
     assert "was NOT probed" in out, (
         f"an unanswered probe must be said out loud, never skipped silently\n{out}"
+    )
+    # "was NOT probed" is ALSO what the no-surface-and-no-python branch prints, so
+    # on its own it cannot tell a cut-off interpreter probe from a ladder that
+    # never reached one. Name the rung that had to run.
+    assert "odoo_db.py exists" in out, (
+        f"the interpreter rung is the one under test - a PATH that also lost the "
+        f"declared python would pass the assertion above while testing nothing\n{out}"
     )
 
 
@@ -2250,15 +2353,20 @@ def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
     bind.mkdir(exist_ok=True)
     _write_stub(bind / "curl", curl_body)
     _write_stub(bind / "docker", f'echo "docker $*" >> "{docker_log}"\n' + docker_body)
+    # A REAL `timeout` must be reachable - the arm on which handing a shell
+    # function to that coreutils binary fails. Linked in explicitly rather than
+    # inferred from a hardcoded /usr/bin:/bin, which is a guess about the host.
+    _link_real_timeout(bind)
 
     toml = _make_step50_toml_with_pg_surface(
         tmp_path, py_path=str(fake_py),
         extra='db_port = 5544\ndb_run_mode = "docker"\ndb_container = "pg-for-tests"\n',
     )
     env = dict(os.environ)
-    # /usr/bin:/bin keeps a REAL `timeout` reachable - the arm on which handing a
-    # shell function to that coreutils binary fails.
-    env["PATH"] = f"{bind}:/usr/bin:/bin"
+    # The docker stub above SHADOWS any real docker the image ships, and the
+    # declared mode keeps the ladder off rung 1 entirely, so this test's outcome
+    # does not depend on what the host has installed.
+    env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     env["SPINUP_TIMEOUT"] = "3"
@@ -2336,11 +2444,15 @@ def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path,
         bind = tmp_path / "bin50-native"
         bind.mkdir(exist_ok=True)
         _write_stub(bind / "curl", 'echo "000"\n')
+        # The stub SHADOWS whatever client the image ships, so the rung under
+        # test is this hanging one on every host - never the runner's real
+        # pg_isready answering about a cluster this test knows nothing about.
         _write_stub(bind / "pg_isready", hang)
+        _link_real_timeout(bind)
         toml = _make_step50_toml_with_pg_surface(
             tmp_path, py_path=str(fake_py), extra='db_run_mode = "native"\n')
         env = dict(os.environ)
-        env["PATH"] = f"{bind}:/usr/bin:/bin"
+        env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
         env["ODOO_AI_INSTANCES"] = str(toml)
         env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
         env["SPINUP_TIMEOUT"] = "3"
@@ -2360,6 +2472,71 @@ def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path,
     )
     assert launch_log.exists(), (
         f"[{surface}] an unanswered probe must not block the launch\n{out}"
+    )
+
+
+@requires_bash
+def test_step50_a_tcp_only_declaration_never_consults_a_local_client(tmp_path):
+    """`tcp-only` positively declares NO client surface, so rung 1 is skipped.
+
+    This is the DECLARED twin of the undeclared case above, and it needs no
+    assumption about the host at all: an installed pg_isready belongs to some
+    OTHER cluster, so consulting it is the wrong-cluster hazard - it would answer
+    confidently, and about a database this instance never uses. The ladder must
+    walk straight past it to the instance's own interpreter, and when THAT cannot
+    answer, report a non-answer rather than convert one into a verdict.
+    """
+    probe_log = tmp_path / "pg_isready-calls.log"
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir()
+    fake_py = py_bin_dir / "python"
+    # --version answers (the venv gate passes); the reachability probe hangs.
+    _write_stub(fake_py, textwrap.dedent("""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+        while :; do sleep 1; done
+    """))
+    odoo_bin = tmp_path / "odoo-bin"
+    _write_stub(odoo_bin, "exit 0\n")
+    bind = tmp_path / "bin50-tcponly"
+    bind.mkdir()
+    _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
+    # A local client that would report a HEALTHY cluster - the false green the
+    # declaration exists to refuse. It records every call, so "never consulted"
+    # is proved rather than inferred from the absence of a message.
+    _write_stub(bind / "pg_isready", f'echo "called $*" >> "{probe_log}"\nexit 0\n')
+
+    toml = _make_step50_toml_with_pg_surface(
+        tmp_path, py_path=str(fake_py), extra='db_run_mode = "tcp-only"\n')
+    env = dict(os.environ)
+    # Ambient PATH is fine here: the stub above SHADOWS any client the image
+    # ships, so this test's outcome is the same whether or not one exists.
+    env["PATH"] = f"{bind}{os.pathsep}{env.get('PATH', '')}"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["SPINUP_TIMEOUT"] = "3"
+    env["SPINUP_STOP_GRACE"] = "2"
+    env["ODOO_AI_PG_PROBE_TIMEOUT"] = "2"
+    env["ODOO_BIN"] = str(odoo_bin)
+    env.pop("ODOO_PG_PASSWORD", None)
+
+    res = _run_step50_args(env)  # a 30s subprocess bound: a hang FAILS this test
+    out = res.stdout + res.stderr
+
+    assert not probe_log.exists(), (
+        f"a tcp-only declaration must never reach a local client - it answers for "
+        f"a DIFFERENT cluster; calls:\n{probe_log.read_text(encoding='utf-8')}\n{out}"
+    )
+    assert "ok PostgreSQL reachable" not in out, (
+        f"the wrong cluster's client answered 0 and that became a positive "
+        f"reachability verdict for this one\n{out}"
+    )
+    assert "PREFLIGHT FAILED: PostgreSQL is not reachable" not in out, (
+        f"a probe that did not answer must NOT be reported as an unreachable "
+        f"cluster\n{out}"
+    )
+    assert "was NOT probed" in out and "odoo_db.py exists" in out, (
+        f"tcp-only must fall to the interpreter rung, and its non-answer must be "
+        f"said out loud\n{out}"
     )
 
 

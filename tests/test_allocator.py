@@ -2069,18 +2069,30 @@ def test_ephemeral_declared_db_name_never_leased_by_an_ephemeral_request(tmp_pat
 
 
 def test_broken_native_client_does_not_change_the_ephemeral_outcome(tmp_path):
-    """The false negative that caused the defect, replayed: psql present but
-    broken (and dropdb absent). The capability answer comes from the CLUSTER
-    through the declared python, so a broken client binary is IRRELEVANT and the
-    acquire must succeed as a fully isolated ephemeral lease."""
+    """The false negative that caused the defect, replayed: every native client
+    is present and BROKEN. The capability answer comes from the CLUSTER through
+    the declared python, so a broken client binary is IRRELEVANT and the acquire
+    must succeed as a fully isolated ephemeral lease.
+
+    `dropdb` is stubbed broken rather than left off PATH on purpose. "dropdb is
+    absent" would be a claim about the HOST - true on a developer box, false on a
+    CI image that ships postgresql-client - so the same test would mean two
+    different things depending on where it ran. Present-but-broken is the
+    stricter case anyway: an absent binary cannot be consulted at all, while this
+    one can be, and still must not change the verdict.
+    """
     import re
 
     env, _log, _py = _env_with_fake_venv(tmp_path)
     bindir = tmp_path / "brokenbin"
     bindir.mkdir()
-    for name, body in (("psql", "#!/bin/sh\nexit 127\n"), ("createuser", "#!/bin/sh\nexit 1\n")):
+    for name, body in (("psql", "#!/bin/sh\nexit 127\n"),
+                       ("dropdb", "#!/bin/sh\nexit 127\n"),
+                       ("createuser", "#!/bin/sh\nexit 1\n")):
         (bindir / name).write_text(body, encoding="utf-8")
         (bindir / name).chmod(0o755)
+    # Prepended, so these SHADOW any working client the image ships: whatever the
+    # host has, the clients this acquire can reach are the broken ones above.
     env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
 
     p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
