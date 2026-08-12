@@ -6,6 +6,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.25.2] - 2026-08-12
+
+4.25.1 made the polling verdict and the run's own verdict agree on the two values it had been caught
+getting wrong. It left the third unmapped. A run whose own verdict is `inconclusive` - a tag filter
+that matched no test, or a suite whose every matched test was skipped - was still reported to a
+polling caller as a successful build. That verdict exists precisely to REFUSE to claim a pass without
+proof the suite ran, so reporting it as success overturned the refusal and handed back the same
+false green this line of work exists to remove.
+
+### Fixed
+
+- `odoo-ai-agents` - **every verdict a run can publish is now mapped deliberately.** `passed` is a
+  success, `failed` is a failure, `inconclusive` is its own terminal outcome that is neither, and an
+  unrecognised value is a failure. An unknown verdict means the scanner has fallen behind the
+  emitter, which is a defect - reporting it as benign is how this bug kept returning, so it fails
+  loudly instead. `BUILD_RESULT=inconclusive` is final: never waited on again, never green.
+- `odoo-ai-agents` - **a skip-only run can no longer be certified from its ran-marker.** Before the
+  verdict line lands, a run whose every test was skipped publishes the era-correct "the suite ran"
+  marker with a non-zero total and no failure anywhere, and the polling path certified success from
+  it while the run's own path withheld one. The two paths now share a single definition of a skip
+  marker, so a skip-blind path can no longer disagree with a skip-aware one.
+
+### Added
+
+- `odoo-ai-agents` - a structural guard: the verdict values the result parser can emit and the values
+  the polling scanner explicitly maps are both read out of the source and required to be equal in
+  both directions. Adding a verdict value without wiring it fails; leaving a mapping for a value
+  nothing emits also fails. A fallthrough can no longer absorb a value nobody considered.
+
 ## [4.25.1] - 2026-08-12
 
 4.25.0 was verified by driving the plugin against a live instance and a corpus of real run logs.
