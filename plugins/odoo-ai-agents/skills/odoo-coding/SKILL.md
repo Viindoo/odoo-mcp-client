@@ -295,6 +295,14 @@ to ground the test scope - only write what is NOT already covered:
 Skip the coverage pre-flight only when OSM is unreachable (standalone/disk fallback, same flag
 as step 4); in that case `odoo-test-writer` works from disk context alone.
 
+**A module whose change cannot go red at all.** Some in-scope work has no RED test by nature - a
+comment-only edit, a rename confined to prose, pure formatting, a docs file, a translation-text
+change. That module still gets a coder; what it does not get is a test it cannot have. DECLARE the
+exemption in its brief (`TEST_EXEMPTION`, below) naming the category and what specifically is
+untestable, and skip the coverage pre-flight for it. Silence is not a declaration: a brief that
+simply omits the field means test-first, and the coder will refuse a behavior change with no test
+exactly as before. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
+
 Carry the coverage pre-flight results (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`) into
 the coder brief so the coordinator seeds the `odoo-test-writer` brief with them (additive tests
 only, never a duplicate). There is no per-module `test-author` vs `self` choice anymore - every
@@ -451,8 +459,10 @@ what carries that id across the invocation boundary.
    coordinator. The coordinator owns the per-WI test-first for EVERY module: it launches the
    `odoo-test-writer` agent FIRST per WI (the dedicated context-isolated test author - never the code
    author, independence keeps the test honest) and hands the returned RED test paths to that WI's
-   coder, which implements to green. THIS skill does NOT launch `odoo-test-writer` and the coders no
-   longer author tests - the coordinator launches `odoo-test-writer`, and it is the ONLY test author.
+   coder, which implements to green. THIS skill does NOT launch `odoo-test-writer`; the coordinator
+   does, and it is the ONLY test author. The sole exception is a module you DECLARED
+   `TEST_EXEMPTION` for (step 6) - there the coordinator skips the test-writer for the exempt WI and
+   the coder works under the declaration, refusing the moment the work turns behavioral.
 
 ### Dependency-BLOCKED handling + the module-coordination ledger
 
@@ -526,6 +536,7 @@ SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact groun
   pointer); read it once for grounding before authoring if present. ALWAYS state a value - `none`
   when no deep survey ran this session, never omit the field.
 TEST: test-first (universal) - launch `odoo-test-writer` FIRST per WI to author the RED test, then the coder implements to green; the coders do NOT author tests. Forward the coverage pre-flight below to `odoo-test-writer`.
+TEST_EXEMPTION: none | <category> - <specifics> - `none` unless THIS module's change cannot go red at all (comment-only, prose-rename, formatting, docs, translation-text); a declared exemption names the category AND what specifically is untestable. Never declare one to move a stuck module along: a behavior change with no test stays refused. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
 EXISTING COVERAGE: <tests_covering(model='<primary_model>', odoo_version='<version>') output - TestMethods already covering this model; author ADDITIVE tests only>
 COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>') output - fields with zero/partial static-reference coverage (field-level only); prioritise these gaps>
 BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase - cr.commit() FORBIDDEN, isolation is savepoint rollback>
@@ -559,7 +570,8 @@ GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codin
 The `odoo-coder` coordinator (not this skill) launches the `odoo-test-writer` agent per WI FIRST -
 its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S), plus the coverage pre-flight
 fields above) is the coordinator's to assemble; this skill never pre-dispatches a test author and
-the coders never author tests. `odoo-test-writer` follows `snippets/test-first-contract.md`
+the coders never author tests. That FIRST launch is skipped only for a WI covered by a declared
+`TEST_EXEMPTION` - never because a test looked hard to write. `odoo-test-writer` follows `snippets/test-first-contract.md`
 (red-before-green) and `snippets/test-behavior-contract.md` (drive the real workflow -
 action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo(); never
 seed the terminal state with create({state:...})): assert observable behavior not internals; ONE

@@ -96,6 +96,13 @@ def _norm(p: Path) -> str:
     return " ".join(_text(p).split())
 
 
+def _dispatch_fences(p: Path) -> str:
+    """The fenced ``` blocks of a body - the literal brief templates a dispatcher fills. Same
+    scoping [brief-fields] (check_orchestration.py rule 12) applies, so both guards read the
+    coordinator's brief from the same place."""
+    return "\n".join(re.findall(r"```.*?```", _text(p), re.S))
+
+
 def test_backend_coder_agent_exists_and_is_registered():
     """The backend writer agent exists and is declared in plugin.json.agents."""
     assert BACKEND.is_file(), "agents/odoo-backend-coder.md must exist (the backend hard-leaf writer)"
@@ -355,9 +362,10 @@ def test_orchestration_ssot_reflects_module_primary_topology():
     """RESTORE of the topology this file originally pinned.
 
     A prior pass required the spawns list to name ONLY the coordinator (and forbade the three
-    teammate names), plus `agents.odoo-coder.spawns == []` - a field that does not even exist in
-    this schema (every other agent entry carries only `role`, never `spawns`), so that half of the
-    prior assertion was unsatisfiable by construction, not merely false.
+    teammate names), plus `agents.odoo-coder.spawns == []` - a key by that name exists nowhere in
+    this schema (the agent-side dispatch axis is spelled `spawns_agents`, and it declares the
+    coordinator's edges rather than denying them), so that half of the prior assertion was
+    unsatisfiable by construction, not merely false.
 
     RESTORED assertion: the orchestration SSOT (skill_tool_deps.json) odoo-coding spawns list
     names the coordinator + both workers so the generated ORCHESTRATION-MAP reflects the
@@ -394,22 +402,29 @@ def test_survey_field_closes_the_whole_forwarding_chain():
 
     A prior pass required odoo-coder to state it "reads SURVEY itself before authoring" and "never
     a separate agent" - built on the false premise that odoo-coder authors the RED test inline
-    instead of dispatching odoo-test-writer. Restored: SURVEY reaches odoo-coder AND its own
-    step-3 forward-to-teammates list (a literal `forward WORKTREE_PATH, INSTANCE_HANDLE, ...,
-    SURVEY, WORKLOG` sentence) AND odoo-test-writer's own brief-carries section - closing the
-    whole chain to the teammate that actually authors the RED test and most needs the grounding."""
+    instead of dispatching odoo-test-writer. Restored: SURVEY reaches odoo-coder AND every brief it
+    hands a teammate AND odoo-test-writer's own brief-carries section - closing the whole chain to
+    the teammate that actually authors the RED test and most needs the grounding.
+
+    INVERTED (forward-list half): this previously matched one frozen contiguous literal -
+    `forward `WORKTREE_PATH`, `INSTANCE_HANDLE`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SURVEY`,
+    `WORKLOG`` - which pinned the forward list to exactly the fields it already named and made
+    ADDING a dropped field (MODULE SCOPE / REQUEST, which a leaf cannot work without) fail here.
+    A guard that forbids completing the very list it guards enforces the gap. It now checks
+    MEMBERSHIP in the teammate briefs odoo-coder actually hands out, in any order or wording."""
     coder = _norm(LEAD)
     assert "SURVEY" in coder, "odoo-coder.md must name SURVEY in its inbound brief-carries prose"
-    # The forward-to-teammates sentence (step 3) must include SURVEY alongside the other forwarded
-    # fields, not merely a self-check parenthetical.
-    assert re.search(
-        r"forward\s*`WORKTREE_PATH`,\s*`INSTANCE_HANDLE`,\s*`DESIGN_DOC`,\s*`MASTER_DESIGN_DOC`,\s*"
-        r"`SURVEY`,\s*`WORKLOG`",
-        coder,
-    ), (
-        "odoo-coder.md's step-3 forward-to-teammates list must include SURVEY alongside the other "
-        "forwarded fields (WORKTREE_PATH/INSTANCE_HANDLE/DESIGN_DOC/MASTER_DESIGN_DOC/WORKLOG)"
+    fences = _dispatch_fences(LEAD)
+    assert fences, (
+        "odoo-coder.md must carry its teammate briefs as literal dispatch fences - a prose list is "
+        "not something a coordinator can fill field by field"
     )
+    for field in ("SURVEY", "WORKTREE_PATH", "DESIGN_DOC", "MASTER_DESIGN_DOC", "WORKLOG",
+                  "INSTANCE_HANDLE"):
+        assert field in fences, (
+            f"odoo-coder.md's teammate dispatch briefs must carry `{field}` - a field absent from "
+            "every brief is a field no teammate ever receives"
+        )
     test_writer = _text(TEST_WRITER)
     assert "SURVEY" in test_writer, (
         "odoo-test-writer.md must name SURVEY - the agent that authors the RED test and most "

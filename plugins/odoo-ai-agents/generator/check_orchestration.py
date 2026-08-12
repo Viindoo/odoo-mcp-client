@@ -27,10 +27,11 @@ is complete and that skills thread the shared contracts they are required to:
                     agent, its body must carry the never-SPAWN clause and show neither positive
                     spawn language nor a positive git-mutation instruction. (Historically this
                     pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
-  9. wait-scope   - WARN-ONLY (see below). Ground truth (corrected - see R0,
-                    spawner-completion-contract.md): a subagent CAN launch a child and block on it
-                    (a blocking Agent-tool launch), or launch async and park (end its turn) to be
-                    resumed by the wake router - it is never simply killed. A park/wait instruction
+  9. wait-scope   - WARN-ONLY (see below). Ground truth (see R0, spawner-completion-contract.md):
+                    a subagent CAN launch a child and block on it (a blocking Agent-tool launch),
+                    and MUST when it needs the result - only the root conversation is resumed when
+                    a background child finishes, so a subagent that parks instead never wakes at
+                    all. Async park is therefore a root-only branch. A park/wait instruction
                     (end turn / park / hold until / wait to be resumed / await) near turn/child/
                     worker/agent vocabulary, anywhere under skills/*/SKILL.md, agents/*.md,
                     snippets/*.md, is a finding when EITHER of two real hazards is present: (a) its
@@ -63,14 +64,20 @@ is complete and that skills thread the shared contracts they are required to:
                     zero findings), so an empty set is itself a finding unless the registry sets
                     the explicit top-level flag `_role_scope_no_spawners_expected: true`.
  12. brief-fields - WARN-ONLY, PERMANENTLY (not a migration window - see docstring below). For
-                    every `(skill, agent)` edge in `orchestration.<skill>.spawns_agents`, report
-                    any key in `agents.<agent>.brief.required` that never appears inside the
-                    skill's own dispatch fences (fenced ``` code blocks in its SKILL.md) - the
-                    literal brief template the skill hands the agent. Measured reality this rule
-                    exists to surface, not hide: 39 real dispatch briefs across 133 ad-hoc key
-                    names, none carrying all four ALWAYS-tier fields - see M7 in
-                    `12-design-final.md`. Full corpus normalization is explicitly out of scope;
-                    this rule reports the diff and blocks nothing.
+                    every dispatch edge, report any key in `agents.<agent>.brief.required` that
+                    never appears inside the DISPATCHER's own dispatch fences (fenced ``` code
+                    blocks) - the literal brief template that dispatcher hands the agent. Two edge
+                    tiers, because a brief is written by whoever actually fills it: skill->agent
+                    from `orchestration.<skill>.spawns_agents`, MINUS any agent that a coordinator
+                    in that same list dispatches (that field is a REACHABILITY set feeding the
+                    generated ORCHESTRATION-MAP, so a leaf under a coordinator appears there
+                    without the skill ever writing its brief - charging the skill for it yields a
+                    finding no edit to the skill can clear); and agent->agent from
+                    `agents.<dispatcher>.spawns_agents`, the tier where a coordinator's own leaf
+                    briefs live. Measured reality this rule exists to surface, not hide: 39 real
+                    dispatch briefs across 133 ad-hoc key names, none carrying all four ALWAYS-tier
+                    fields - see M7 in `12-design-final.md`. Full corpus normalization is
+                    explicitly out of scope; this rule reports the diff and blocks nothing.
  13. card-budget    - LIVE and enforcing (M9, 12-design-final.md). Data-driven, and a file
                     qualifies through EITHER of two doors. Door (a) DECLARED: it carries an entry
                     in `tests/fixtures/card_budget_grandfather.json` (checked-in data, generated
@@ -574,24 +581,56 @@ def check_role_scope(findings: list[str]) -> None:
 FENCE_BLOCK_RE = re.compile(r"```.*?```", re.S)
 
 
+def agent_spawn_edges() -> dict[str, list[str]]:
+    """Declared agent->agent dispatch edges, from `agents.<name>.spawns_agents`.
+
+    A coordinator agent that re-briefs leaves of its own is the DISPATCHER of those leaves' briefs;
+    the skill above it never writes them. Without this axis the whole agent->agent tier is invisible
+    to [brief-fields] - a required key travelling only that tier is checked by nothing at all."""
+    return {
+        name: list(entry["spawns_agents"])
+        for name, entry in load_agents().items()
+        if isinstance(entry, dict) and entry.get("spawns_agents")
+    }
+
+
+def _brief_required(agents: dict, agent_name: str) -> list[str]:
+    return ((agents.get(agent_name) or {}).get("brief") or {}).get("required") or []
+
+
+def _dispatch_fences(body: str | None) -> str:
+    return "\n".join(m.group(0) for m in FENCE_BLOCK_RE.finditer(body or ""))
+
+
 def check_brief_fields(warn_only_findings: list[str]) -> None:
-    """12. [brief-fields] - WARN-ONLY, PERMANENTLY (see module docstring). For every `(skill,
-    agent)` edge in `orchestration.<skill>.spawns_agents`, report any key in
-    `agents.<agent>.brief.required` that never appears inside the skill's own dispatch fences.
-    Never gates --strict/ORCH_STRICT, no matter how many findings - this is a permanent
-    diagnostic, not a migration-window rule (contrast rules 9-10)."""
+    """12. [brief-fields] - WARN-ONLY, PERMANENTLY (see module docstring). For every dispatch edge,
+    report any key in `agents.<agent>.brief.required` that never appears inside the DISPATCHER's own
+    dispatch fences. Never gates --strict/ORCH_STRICT, no matter how many findings - this is a
+    permanent diagnostic, not a migration-window rule (contrast rules 9-10).
+
+    Two edge tiers, because a brief is written by whoever actually fills it:
+
+      skill -> agent   `orchestration.<skill>.spawns_agents`, MINUS every agent that a coordinator
+                       in that same list dispatches. That field is a REACHABILITY set (it feeds the
+                       generated ORCHESTRATION-MAP), so a leaf sitting under a coordinator appears
+                       there even though the skill never writes that leaf's brief. Charging the
+                       skill for it produces a finding no edit to the skill can ever clear.
+      agent -> agent   `agents.<dispatcher>.spawns_agents` - the tier where a coordinator's own
+                       leaf briefs live, checked against the coordinator's body fences."""
     orch = load_orch()
     agents = load_agents()
+    edges = agent_spawn_edges()
+
     for skill_name in sorted(orch):
-        entry = orch[skill_name]
-        spawns_agents = entry.get("spawns_agents") or []
+        spawns_agents = (orch[skill_name] or {}).get("spawns_agents") or []
         if not spawns_agents:
             continue
-        body = skill_body(skill_name) or ""
-        fences = "\n".join(m.group(0) for m in FENCE_BLOCK_RE.finditer(body))
+        delegated = {leaf for a in spawns_agents for leaf in edges.get(a, ())}
+        fences = _dispatch_fences(skill_body(skill_name))
         for agent_name in spawns_agents:
-            required = ((agents.get(agent_name) or {}).get("brief") or {}).get("required") or []
-            for key in required:
+            if agent_name in delegated:
+                continue  # a coordinator in this same list writes that brief - checked below
+            for key in _brief_required(agents, agent_name):
                 if key not in fences:
                     warn_only_findings.append(
                         f"[brief-fields] '{skill_name}' dispatches '{agent_name}' but its "
@@ -599,24 +638,44 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
                         f"(agents.{agent_name}.brief.required)"
                     )
 
+    for dispatcher in sorted(edges):
+        body = agent_body(dispatcher)
+        if body is None:
+            warn_only_findings.append(
+                f"[brief-fields] '{dispatcher}' declares spawns_agents in the SSOT but "
+                f"agents/{dispatcher}.md does not exist"
+            )
+            continue
+        fences = _dispatch_fences(body)
+        for agent_name in edges[dispatcher]:
+            for key in _brief_required(agents, agent_name):
+                if key not in fences:
+                    warn_only_findings.append(
+                        f"[brief-fields] agent '{dispatcher}' dispatches '{agent_name}' but its "
+                        f"dispatch fences never emit required key '{key}' "
+                        f"(agents.{agent_name}.brief.required)"
+                    )
+
 
 # --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
 #
-# Corrected ground truth (R0, spawner-completion-contract.md): a subagent CAN launch a child and
-# CAN block on its result (a blocking Agent-tool launch, `run_in_background: false`), or - when the
-# launch tool exposes no such lever - launch async and END ITS TURN to be resumed by a wake router
-# on completion; it is never simply killed. The real hazards are NOT "a subagent parked" (that is
-# often correct) - they are: an unattributed park instruction (a reader cannot tell which R0 branch
-# it exercises), uncommitted work surviving a turn boundary, a poll/sleep loop standing in for the
-# mechanical barrier a blocking launch or a park-and-resume already provides, and a dispatch claim
-# made with no visible check that the launching capability exists in the first place.
+# Ground truth (R0, spawner-completion-contract.md): a subagent CAN launch a child and CAN block on
+# its result (a blocking Agent-tool launch, `run_in_background: false`), and MUST whenever it needs
+# that result. Only the ROOT conversation is resumed when a background child finishes - a launcher
+# that is itself dispatched is never woken by its own child - so "launch async and END ITS TURN to
+# be resumed" is a root-only branch, and taking it below the root is a permanent stall, not a
+# slower path. The hazards this pair detects are: an unattributed park instruction (a reader cannot
+# tell which R0 branch it exercises, so nothing reveals whether the park is even reachable there),
+# uncommitted work surviving a turn boundary, a poll/sleep loop standing in for the mechanical
+# barrier a blocking launch already provides, and a dispatch claim made with no visible check that
+# the launching capability exists in the first place.
 #
 # [wait-scope] (rule 9) - a park/wait instruction (end turn / park / hold until / wait to be
 # resumed / await) near turn/child/worker/agent vocabulary, anywhere under skills/*/SKILL.md,
 # agents/*.md, snippets/*.md, is a finding when its enclosing section:
 #   (a) names no R0 branch - no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/
 #       spawner-completion-contract.md citation - so a reader cannot tell whether this is a
-#       blocking launch, an async park, or the no-capability branch; or
+#       blocking launch, a root-only async park, or the no-capability branch; or
 #   (b) shows file-writing language (write/author/edit) with no commit/checkpoint safeguard
 #       stated nearby - the non-interactive-surface bound R0 itself names: never end a turn with
 #       uncommitted work.
@@ -624,8 +683,8 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
 # [wait-mechanism] (rule 10) - two independent detectors, neither ever correct under any R0
 # branch:
 #   (a) an instruction to POLL or SLEEP while waiting for a child - a blocking launch already
-#       blocks the call itself, and an async launch parks via end-of-turn; nothing legitimately
-#       polls or sleeps FOR a child's completion. A periodic task-list status check is a
+#       blocks the call itself, and a root-only async launch parks via end-of-turn; nothing
+#       legitimately polls or sleeps FOR a child's completion. A periodic task-list check is a
 #       DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
 #   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
 #       capability-handling language (own toolset / Agent tool absent / nesting cap / R0 /

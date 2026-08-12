@@ -8,7 +8,9 @@
 # Test-First Contract (red before green, behavior not snapshot)
 
 The test protects **business behavior**, not the current implementation, and MUST exist before the
-code it protects.
+code it protects. A change that cannot go red at all is exempt ONLY under a caller-declared
+`TEST_EXEMPTION` (`${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`) - never infer an
+exemption from a missing test.
 
 ## The red-before-green sequence
 
