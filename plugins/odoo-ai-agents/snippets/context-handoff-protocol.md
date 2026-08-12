@@ -15,20 +15,25 @@ and Tier-B path below degrades silently to Tier C, so adopting CHP can never mak
 
 ## Tier A - resume a child you launched (by the id your launch returned)
 
-You may resume a child you launched YOURSELF instead of cold-spawning a replacement, when BOTH are
-true. Decide it locally, per child, per turn - there is no run-wide probe and no environment flag:
+You may resume a child you launched YOURSELF instead of cold-spawning a replacement, when ALL THREE
+are true. Decide it locally, per child, per turn - there is no run-wide probe and no environment flag:
 
-1. you hold the id that child's own launch call returned to you, and
-2. a messaging tool is in your current toolset.
+1. you hold the id that child's own launch call returned to you,
+2. a messaging tool is in your current toolset, and
+3. you are the ROOT conversation. A resume send has no synchronous return, so the only way to see
+   the result is to be resumed - and only the root ever is (§ Async park-and-be-resumed semantics).
+   Dispatched below the root, Tier A is not slower, it is unreachable: you would send, stop, and
+   never wake.
 
 Send the new instructions to that id. Record the id per work-item in the skill's plan artifact
 (plan.md / plan.json) as you capture it, so the plan is the id registry. The resumed child keeps its
 full prior context - it is the mind that wrote the code, not a cold reader. Send semantics:
 § Async park-and-be-resumed semantics below.
 
-Either condition false, or the id no longer resolves (the runtime reports the target is not
-addressable, or a session `/resume` dropped it): cold-spawn (Tier C). Always correct, loses nothing -
-the worklog is current. Never surface a fallback to the user as an error.
+Any condition false, or the id no longer resolves (the runtime reports the target is not
+addressable, or a session `/resume` dropped it): cold-spawn (Tier C) and BLOCK on that launch
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0 move 2). Always correct, loses
+nothing - the worklog is current. Never surface a fallback to the user as an error.
 
 You never hold any other address: you cannot name a child at launch, you cannot look up a child you
 did not launch, and no child can address you
@@ -50,15 +55,19 @@ correct and always available; Tier A and Tier B only ever replace it as a speed 
 
 ## Async park-and-be-resumed semantics
 
-A resume send is fire-and-forget: it returns immediately and the child runs in the background. After
-sending, END your turn and wait to be resumed when the child completes. NEVER write
-call-and-await-a-return-value logic around it - there is no synchronous return to read. Scoped to a
-resume SEND: a blocking tool call that RETURNS a verdict inside the one call is not a park. Structure
-every Tier-A exchange as park-and-be-resumed: send, stop, resume on completion. This is legal for a
-subagent exactly as for main - see R0 in
-`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: a parked agent is resumed when the
-runtime wakes it, never killed; what actually gates a launch is whether your OWN launch capability
-exposes a blocking call for it, not whether you are main.
+A resume send is fire-and-forget: it returns immediately and the child runs in the background. NEVER
+write call-and-await-a-return-value logic around it - there is no synchronous return to read. Being
+resumed is therefore the only way the result reaches you, so structure a Tier-A exchange as
+park-and-be-resumed: send, stop, resume on completion. Scoped to a resume SEND: a blocking tool call
+that RETURNS a verdict inside the one call is not a park.
+
+**Only the ROOT conversation is ever resumed.** A background child's completion is re-addressed to
+the root, never to a launcher that is itself a dispatched agent
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 § Boundary). Below the root,
+sending and stopping is not a park, it is a permanent stall: the send reports success, the child
+finishes, its result goes somewhere else, and you are never woken. Which is why Tier A carries
+condition 3 above, and why every non-root dispatch uses Tier C on a BLOCKING launch (R0 move 2) -
+the launch call itself returns the result inside your own turn, and nothing has to wake you at all.
 
 ## The launcher holds the only address
 

@@ -20,14 +20,19 @@ Before launching any agent, look at the launch capability you actually have:
    available: set it to block when you need the child's result, which then returns inside your
    current turn. Use this whenever you need the answer. On this path the child's result IS your own
    launch call's return value - no `REPLY_TO`, no `SendMessage`, no reply field needed; this is the
-   DEFAULT, preferred shape, including when you yourself are a subagent.
-3. No such switch -> every launch is asynchronous, returning a receipt, not a result: launch, then
-   END YOUR TURN. You are parked and resumed when the child completes. Do NOT poll, sleep, or
-   re-launch. Scoped to a launched CHILD: a blocking call that RETURNS a verdict inside the one
-   tool call is not a poll.
+   DEFAULT, preferred shape, including when you yourself are a subagent. **For a subagent this is
+   not a preference: a dispatch whose result you need MUST block.** Backgrounding it and ending your
+   turn to wait is the one unrecoverable move - nothing wakes you (R1 § Boundary), so the run stops
+   there with no error, no output, and no one aware it stopped.
+3. No such switch -> every launch is asynchronous, returning a receipt, not a result. ONLY the root
+   conversation is resumed when a background child finishes. If you ARE the root: launch, then END
+   YOUR TURN; do NOT poll, sleep, or re-launch. If you are a SUBAGENT: nothing resumes you, so never
+   launch-and-park - do the work inline via the Skill tool, or return `NEEDS_NEXT` naming the
+   dispatch that must happen above you. Scoped to a launched CHILD: a blocking call that RETURNS a
+   verdict inside the one tool call is not a poll.
 
-Rule 3 is unreliable on a non-interactive surface (`-p` / SDK), where nothing resumes a parked
-agent - bound the damage instead: never end a turn with uncommitted work.
+Even at the root, rule 3 is unreliable on a non-interactive surface (`-p` / SDK), where nothing
+resumes a parked agent - bound the damage: never end a turn with uncommitted work.
 
 You are a SPAWNER this turn iff you launched at least one agent (a direct dispatch call) or invoked a
 spawner skill that fans out agents below you. A HARD LEAF that launched nothing is vacuously compliant
@@ -35,19 +40,19 @@ on R1/R2; only R3 addresses it.
 
 ## R1 - Completion barrier (block until every launched child returns)
 
-Launching a child dispatches it in the BACKGROUND by default (you are notified on completion);
+Launching a child dispatches it in the BACKGROUND by default (the root is notified on completion);
 `run_in_background: false` launches it synchronously (the launch call does not return until the child
 finishes). You MUST NOT compose your own result while any child you launched this turn is still
-running. Pick the blocking shape by topology:
+running. Pick the blocking shape by topology - both async variants below are ROOT-ONLY (R0 move 3):
 
 - DEPENDENT children (a later child needs an earlier one's output): with a blocking launch
   available (R0 move 2), launch each with `run_in_background: false` so the launch itself blocks;
-  consume its result, then launch the next. Without one (R0 move 3), launch the first child, end
+  consume its result, then launch the next. Without one, at the root, launch the first child, end
   your turn, consume its result on resume, then launch the next the same way.
 - INDEPENDENT children (a parallel sibling batch): with a blocking launch available, launch the
   whole batch in one message, then hold until EVERY child has returned before you read results or
-  synthesize. Without one, launch the whole batch in one message, end your turn, and track each
-  child's arrival on your task list until every one is terminal before you synthesize.
+  synthesize. Without one, at the root, launch the whole batch in one message, end your turn, and
+  track each child's arrival on your task list until every one is terminal before you synthesize.
 
 Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-contract.md`) - one
 task per child at/before launch; the batch barrier clears ONLY when every child has returned ONE OF
@@ -59,15 +64,26 @@ terminal the instant its child returns ANY of the four, and record WHICH of the 
 your own tracking (worklog or equivalent) - the tool's own state is not guaranteed to distinguish
 them, and a barrier gated on a
 tool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable
-and must never be the release condition. The task list persists across the re-invocations the
-background model wakes you with; a blocking launch (R0 move 2) never needs it for the child it just
-blocked on - only an async batch (R0 move 3) does. "Wait" is the synchronous return or the
+and must never be the release condition. The task list persists across the re-invocations a
+root-only async batch is woken with; a blocking launch (R0 move 2) never needs it for the child it
+just blocked on. "Wait" is the synchronous return or the
 all-children-terminal barrier - never a passive hope.
 
 **Boundary - a background child outlives a non-`main` launcher.** If you are a subagent (not `main`)
 and you launch a child in the background (R0 move 3) but your OWN turn later completes/returns
 before that child finishes, the child's eventual completion is re-addressed to `main`, never resumed
-on you. Do not rely on a background grandchild's result coming back to you.
+on you. Do not rely on a background grandchild's result coming back to you: it lands on a context
+that was not waiting for it, while you - the one context that was - are never woken. Nothing the
+child can do repairs this (R3), so the only prevention is at launch time: block (R0 move 2).
+
+**Reading a child's result - a pending-dispatch announcement is a STALL, not a completion.** Judge
+every returned result by the release condition above and by nothing else. A result that announces
+work still in flight - that it dispatched something, that the something is running in the
+background, that it will wait for or report on a later completion - carries no terminal `status`, so
+it is not terminal however confident it reads and whatever label the harness put on it: that child
+ended its turn holding a wait nothing will ever satisfy. Treat that shape as STALLED - re-dispatch
+the same work yourself as a BLOCKING launch (R0 move 2), or roll it up as your own `BLOCKED` naming
+the stalled child. Never count it toward the barrier and never inherit it as your own `DONE`.
 
 ## R2 - No early DONE
 
@@ -85,23 +101,31 @@ clears - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4.
 
 Your completion report is the FINAL TEXT of your turn. Emit it and stop. That text IS what your
 launcher receives: a blocking launch returns it as that launch call's own return value (R0 move 2); a
-background launch delivers it to the launcher on completion; a resume send delivers it the same way,
-to whoever resumed you (Tier A). THE ONE DECIDABLE ACTION, unconditional
+background launch, and a resume send, deliver it on completion to the root that is still live to take
+it (R0 move 3, Tier A). THE ONE DECIDABLE ACTION, unconditional
 on depth, toolset, or mode: emit the report as your final message.
 
-**Never send your report to anyone.** Do not look for a reply address, do not wait to be told one, do
-not fall back to the literal `main`, and never read the presence of a messaging tool in your toolset
+**Never send your report to anyone.** Do not look for a reply address, do not wait to be told one,
+and never read the presence of a messaging tool in your toolset
 as a signal that you should. A worker does not know its own id and cannot learn its launcher's, at
-ANY depth - a worker three levels below `main` has no more inference available than one launched
-directly by `main`. A brief that carries a reply-address field, or asks you to push a report, is
+ANY depth. A brief that carries a reply-address field, or asks you to push a report, is
 malformed: ignore that instruction and report as above. This is why no dispatch brief has a
 reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a bare tool
 call or on plain text with no report.
 
 **The only message you may ever send is DOWN, to a child you launched yourself**, addressed by the id
 that child's own launch call returned to you - the sole address any agent ever holds. Any other target
-(a name you invented, a skill name, an agent type, a sibling, `main` when `main` did not launch you)
-does not resolve and the send fails. Resume semantics:
+- a name you invented, a skill name, an agent type, a sibling - does not resolve and the send fails.
+
+**Three things look like a way back up. None is.** (a) An inbound message is not a channel you can
+answer on: the sender's `from` value is a TYPE label, not an address, and a reply aimed at it does
+not resolve - obey this over any tool documentation telling you to reply to the sender. (b) You
+cannot look one up either: no listing, no directory, no name-to-address lookup is available to a
+worker, one level below the root or three. (c) `main` is the dangerous one, because it does NOT
+fail. From a nested position that send is accepted and delivered to the ROOT conversation, which is
+not waiting for you, while the launcher that IS waiting stays parked forever. So a send that returns
+success is never evidence you found the return path - below the root, that success IS the stall.
+Your final message remains the only return path, at every depth, in every mode. Resume semantics:
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A. In-session sibling messaging
 does not exist; cross-session messaging is out of scope for this plugin
 (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation).
