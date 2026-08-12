@@ -648,6 +648,11 @@
   "agents": {
     "odoo-coder": {
       "role": "coordinator",
+      "spawns_agents": [
+        "odoo-test-writer",
+        "odoo-backend-coder",
+        "odoo-frontend-coder"
+      ],
       "brief": {
         "required": [
           "DESIGN_DOC",
@@ -658,7 +663,8 @@
           "INSTANCE_HANDLE",
           "SELF_PROVISION",
           "MASTER_DESIGN_DOC",
-          "BASE"
+          "BASE",
+          "TEST_EXEMPTION"
         ]
       }
     },
@@ -708,7 +714,8 @@
         "optional": [
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
-          "SELF_PROVISION"
+          "SELF_PROVISION",
+          "TEST_EXEMPTION"
         ]
       }
     },
@@ -828,7 +835,8 @@
         "optional": [
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
-          "SELF_PROVISION"
+          "SELF_PROVISION",
+          "TEST_EXEMPTION"
         ]
       }
     },

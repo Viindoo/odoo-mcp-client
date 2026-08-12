@@ -124,8 +124,17 @@ def _section(text: str, start_heading: str, end_heading_re: str | None = r"\n##\
 
 
 def _self_check_section(agent_path: Path) -> str:
+    """The Brief self-check SECTION, anchored at a line-start heading.
+
+    `_section`'s plain `find` matched the first occurrence anywhere, so an inline cross-reference
+    to `## Brief self-check` earlier in the body silently redefined the section this guard reads -
+    and the guard then reported the real self-check as missing. Section identity is the heading at
+    line start; a mention of its name in a sentence is a pointer, not the section."""
     text = _read(agent_path)
-    return _section(text, "## Brief self-check")
+    m = re.search(r"^## Brief self-check\s*$", text, re.M)
+    if not m:
+        return ""
+    return _section(text[m.start():], "## Brief self-check")
 
 
 def _agent_roles() -> dict[str, str]:

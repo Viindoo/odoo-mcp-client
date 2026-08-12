@@ -26,7 +26,7 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure. Governed by ODOO-AI-ETHOS #4 (Outcomes over Procedures) - cited, not restated, here: see `## Brief self-check` below for the site-specific application. |
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
-| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when no deep survey ran this session, key still required, same "key must be present" rule as this row), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
+| 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when none ran this session), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
 | 5 | `WORKTREE_PATH` (+ `BASE` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode) | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. |
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
@@ -76,6 +76,9 @@ pointer back to this file - never the full skeleton table.
 
 - `RED_TEST_PATH` - the failing test(s) `odoo-test-writer` already authored (hand over the failing
   test, not a spec).
+- `TEST_EXEMPTION` - `none` (what an absent key also means), or a caller-DECLARED
+  `<category> - <specifics>` for a change that cannot go red; never inferred by the
+  receiver. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only (the dispatcher's
@@ -85,9 +88,7 @@ pointer back to this file - never the full skeleton table.
   receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
 - `DESIGN_DOC` to follow STRUCTURALLY - never inlined pseudocode.
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
-  `none` when no deep survey ran. Same load-bearing-KEY rule as skeleton field 4 `INPUTS`: the key
-  itself must be present - omitting it entirely (not even the literal `none`) is a gap the
-  receiving agent's `## Brief self-check` STOPS on, never silently drops.
+  `none` when no deep survey ran. Same key-must-be-present rule as field 4 `INPUTS`.
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
   rebase/adapt mode - a normal build's worktree already encodes the base).
 
