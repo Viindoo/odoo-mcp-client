@@ -97,9 +97,15 @@ build in the background, capture `LOG_PATH`, then BLOCK in the FOREGROUND on
 that call, and never ending its turn on a text-only "waiting for the build" reply. The Bash tool's
 generic "you will be notified, do not poll" default is explicitly OVERRIDDEN for this one call: it
 blocks and RETURNS `BUILD_RESULT=success|failure|timeout`, and no notification resumes a dispatched
-agent's ended turn. `timeout` -> re-invoke the same foreground call while `BUILD_MARKER` advances,
-else `BLOCKED` with `LOG_PATH` preserved. The exit code stays authoritative for FAILURE while the
-`Modules loaded.` completion marker is still required for SUCCESS; run-tests reuses `TEST_RESULT=`.
+agent's ended turn. `timeout` -> re-invoke the same foreground call while `BUILD_PROGRESS` (the
+per-poll composite progress reading, emitted on every call) MOVES from the previous wait's value;
+`BLOCKED` with `LOG_PATH` preserved only once a whole window leaves a NON-EMPTY reading
+byte-identical, and that report says the wait could not separate a stopped build from a hung one.
+A non-zero exit is ALWAYS a failure, for every verb. SUCCESS is per-verb and the two rules are NOT
+interchangeable: `create`/`init`/`update` need exit 0 AND the `Modules loaded.` completion marker
+AND no failure marker; `run-tests` needs the run's OWN `TEST_RESULT=` line, and `Modules loaded.`
+is only PROGRESS there - Odoo logs it BEFORE the post-install suite starts, so it can never certify
+a tested build.
 Full contract (markers, heartbeat, reaped-launcher rule):
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
 

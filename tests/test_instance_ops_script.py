@@ -1406,16 +1406,27 @@ def test_update_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_
     )
 
 
-def _write_log(tmp_path: Path, name: str, body: str) -> Path:
+def _write_log(tmp_path: Path, name: str, body: str, verb: str | None = None) -> Path:
+    """Write a build log. `verb` writes the run-verb stamp the script's own
+    `_open_log` puts on the first line of every log it opens.
+
+    The stamp is what tells a later, separate `wait-log` process WHICH terminal
+    predicate applies, so a test that means to exercise the install/update
+    predicate has to declare `init`/`update` exactly as a real run does. Left
+    unstamped, the log declares nothing, and the script resolves that to the
+    narrower `test` predicate on purpose - see the UNKNOWN-verb tests below.
+    """
     p = tmp_path / name
-    p.write_text(body, encoding="utf-8")
+    stamp = f"ODOO_AI_RUN_VERB={verb} SERIES=\n" if verb else ""
+    p.write_text(stamp + body, encoding="utf-8")
     return p
 
 
 @requires_bash
 def test_wait_log_success_marker(tmp_path):
     """wait-log on a log with a success marker -> BUILD_RESULT=success, exit 0, LOG_PATH echoed."""
-    logf = _write_log(tmp_path, "build.log", "Loading modules...\nModules loaded.\n")
+    logf = _write_log(tmp_path, "build.log", "Loading modules...\nModules loaded.\n",
+                      verb="init")
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -1425,9 +1436,15 @@ def test_wait_log_success_marker(tmp_path):
 
 @requires_bash
 def test_wait_log_failure_marker_traceback(tmp_path):
-    """wait-log on a log with a Traceback -> BUILD_RESULT=failure, exit 1."""
+    """wait-log on an install log with a Traceback -> BUILD_RESULT=failure, exit 1.
+
+    Scoped to `init`/`update` deliberately: under -i/-u no test runs, so nothing
+    but the build itself can raise and a traceback IS the failure. On a
+    --test-enable log the same bytes are per-test/incidental evidence and must
+    NOT rule - covered by the test-verb cases in test_verdict_paths_agree.py."""
     logf = _write_log(tmp_path, "build.log",
-                      "Loading modules...\nTraceback (most recent call last):\n  File ...\n")
+                      "Loading modules...\nTraceback (most recent call last):\n  File ...\n",
+                      verb="init")
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
     assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -1439,7 +1456,8 @@ def test_wait_log_failure_marker_traceback(tmp_path):
 def test_wait_log_failure_marker_critical(tmp_path):
     """wait-log on a log with a CRITICAL log line -> BUILD_RESULT=failure, exit 1."""
     logf = _write_log(tmp_path, "build.log",
-                      "2026-01-01 00:00:00 CRITICAL db odoo.modules: boot failed\n")
+                      "2026-01-01 00:00:00 CRITICAL db odoo.modules: boot failed\n",
+                      verb="init")
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
     assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -1450,7 +1468,8 @@ def test_wait_log_failure_marker_critical(tmp_path):
 def test_wait_log_failure_wins_over_success_marker(tmp_path):
     """A failure marker present alongside a success marker still classifies as failure."""
     logf = _write_log(tmp_path, "build.log",
-                      "Registry loaded\nTraceback (most recent call last):\n")
+                      "Registry loaded\nTraceback (most recent call last):\n",
+                      verb="init")
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
     assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -1473,6 +1492,7 @@ def test_wait_log_silent_skip_marker_wins_over_modules_loaded(tmp_path):
     logf = _write_log(
         tmp_path, "build.log",
         "Loading modules...\nModules loaded.\ninvalid module names, ignored\n",
+        verb="init",
     )
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
@@ -1487,12 +1507,93 @@ def test_wait_log_silent_skip_marker_wins_over_modules_loaded(tmp_path):
 @requires_bash
 def test_wait_log_timeout_when_no_marker(tmp_path):
     """wait-log with no terminal marker within the bound -> BUILD_RESULT=timeout, exit 2."""
-    logf = _write_log(tmp_path, "build.log", "still starting up...\n")
+    logf = _write_log(tmp_path, "build.log", "still starting up...\n", verb="init")
     res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
                env=_base_env(tmp_path))
     assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
     assert "BUILD_RESULT=timeout" in res.stdout
     assert f"LOG_PATH={logf}" in res.stdout
+
+
+# ---------------------------------------------------------------------------
+# UNKNOWN verb - a log that declares no verb at all.
+#
+# Reachable, not theoretical: any log written before the run-verb stamp existed,
+# and any log a caller points `wait-log` at that this script did not open. The
+# resolution must be the one that cannot certify a WRONG answer, because the two
+# predicates disagree in exactly the places where each can be wrong.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_an_unstamped_log_is_never_certified_successful_by_the_completion_marker(tmp_path):
+    """`Modules loaded.` alone may not pass a log that never declared its verb.
+
+    On a --test-enable run Odoo logs that line BEFORE the post-install suite
+    starts. So on a log whose verb is unknown the same bytes are equally
+    consistent with "the install finished" and "the tests have not begun", and
+    certifying there hands back a green build whose tests never ran - the one
+    error class that must be unreachable. Not-decided is the honest answer; the
+    caller re-invokes and reports BLOCKED with the log preserved.
+    """
+    logf = _write_log(
+        tmp_path, "unstamped.log",
+        "Loading modules...\nModules loaded.\n"
+        "2026-01-01 00:00:00,000 1 INFO testdb odoo.addons.web.tests.test_js: "
+        "Starting WebSuite.test_unit_desktop ... \n",
+    )
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert "BUILD_RESULT=success" not in res.stdout, (
+        "an unstamped log carrying only the install completion marker was certified "
+        f"as a successful build while its suite had not started\nstdout={res.stdout}"
+    )
+    assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
+
+
+@requires_bash
+def test_an_unstamped_log_is_never_failed_by_a_lone_traceback(tmp_path):
+    """A traceback alone may not fail a log that never declared its verb.
+
+    On a --test-enable run a traceback is per-test/incidental evidence - logged
+    exceptions the run recovers from, routing errors, and every HttpCase 500 the
+    test asserts on all write one. Ruling on it turns a healthy run RED.
+    """
+    logf = _write_log(
+        tmp_path, "unstamped.log",
+        "Loading modules...\n"
+        "2026-01-01 00:00:00,000 1 INFO testdb odoo.addons.web.tests.test_js: "
+        "Starting WebSuite.test_unit_desktop ... \n"
+        "Exception in thread odoo.service.httpd:\n"
+        "Traceback (most recent call last):\n  File ...\n",
+    )
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert "BUILD_RESULT=failure" not in res.stdout, (
+        "an unstamped log was ruled a failed build by a lone traceback\n"
+        f"stdout={res.stdout}"
+    )
+    assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
+
+
+@requires_bash
+def test_an_unstamped_log_is_still_failed_by_a_hard_abort(tmp_path):
+    """Refusing to certify is not refusing to answer.
+
+    A hard abort proves odoo-bin died and will never publish a verdict of its
+    own, whichever verb it was running. It stays terminal with no stamp at all -
+    otherwise the safe default would trade a false verdict for a permanent wait.
+    """
+    logf = _write_log(
+        tmp_path, "unstamped.log",
+        "Loading modules...\n"
+        "2026-01-01 00:00:00 CRITICAL db odoo.modules.registry: boot failed\n",
+    )
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert "BUILD_RESULT=failure" in res.stdout, (
+        f"a hard abort is terminal for every verb, stamp or none\nstdout={res.stdout}"
+    )
+    assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
 
 
 # ---------------------------------------------------------------------------
@@ -2079,7 +2180,14 @@ def test_wait_log_reports_a_version_stable_progress_marker(tmp_path):
     real progress line, and that line must be one every supported series can
     emit: `loading <N> modules...` is INFO and byte-identical v8.0-v19.0,
     whereas `Registry loaded` does not exist before 15.0 - nine of the twelve
-    supported series could never produce it."""
+    supported series could never produce it.
+
+    This pins the LAST-RESORT rung only. `loading <N> modules...` is logged once
+    per registry load, so it never advances and is not the evidence a stall rule
+    compares - that is `BUILD_PROGRESS`, and the ADVANCING per-file/per-test
+    wordings it counts are covered by `test_verdict_paths_agree.py`. What must
+    hold here is that a poll with nothing else to show never returns an EMPTY
+    marker."""
     logf = _write_log(
         tmp_path, "inflight.log",
         "2026-01-01 00:00:00,000 1 INFO erad odoo.modules.loading: loading 42 modules...\n",

@@ -108,9 +108,10 @@
     down and when - see the Teardown section below, not a restatement of it.
 14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
     signals apply, one per job shape:
-    - **Install/update job** (`-i`/`-u` with `--stop-after-init` - the ephemeral build AND the
-      build leg of `persist: exclusive-running`): the job ALWAYS exits (that is what
-      `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log read. The build
+    - **Install/update job** (`-i`/`-u` with `--stop-after-init`, NO `--test-enable` - the
+      ephemeral build AND the build leg of `persist: exclusive-running`): the job ALWAYS exits
+      (that is what `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log
+      read. The build
       additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation as a
       FLOOR, so the `"Modules loaded."` completion line survives ANY caller-supplied level - `<ns>`
       is version-resolved: `openerp` for series < 10 (v8-v9), `odoo` for v10+ (the namespace
@@ -121,7 +122,20 @@
       `"Modules loaded."` marker present AND none of these failure markers present: `CRITICAL`,
       `Traceback (most recent call last)`, `invalid module names, ignored`, `Some modules are not
       loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`. Any of those -> FAILURE, reported
-      with the log path preserved for diagnosis, never a hang.
+      with the log path preserved for diagnosis, never a hang. A traceback rules here because
+      under `-i`/`-u` no test runs, so nothing but the build itself can raise.
+    - **Test job** (`--test-enable`, also `--stop-after-init`): shares the install job's shape -
+      the process exits, and that exit is completion - but NOT its verdict rules, and the two must
+      never be merged. `"Modules loaded."` is only PROGRESS here: Odoo logs it BEFORE the
+      post-install suite starts, so it can never certify a tested build. SUCCESS is the run's OWN
+      `TEST_RESULT=` line, which the harness appends once odoo-bin exits. A lone `Traceback (most
+      recent call last)` is NOT a failure marker here either: on a test run tracebacks come from
+      logged exceptions the run recovers from, routing errors, and every HttpCase 500 a test
+      asserts on, as well as from failing tests - so per-test `FAIL:`/`ERROR:` markers and the
+      per-module aggregate are the failure evidence, and they are MID-RUN, never completion. The
+      only markers terminal BEFORE the run publishes its own verdict are the hard aborts that
+      prove odoo-bin died and never will: `CRITICAL`, `Failed to load registry`, `psycopg2.`,
+      `ParseError`, plus the silent-skip markers above.
     - **Listening instance** (`persist: exclusive-running`/`shared-running`, no `--stop-after-init`
       - the process serves after load instead of exiting): READY is a BOUNDED-timeout HTTP poll of
       the port - primary `GET /web/database/selector` (auth=none, no DB required, reliable

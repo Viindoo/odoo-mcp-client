@@ -151,6 +151,41 @@ def test_agent_active_wait_names_terminal_markers():
     )
 
 
+def test_agent_active_wait_distinguishes_test_verb_failure_markers_from_install_update():
+    """The `test` verb's terminal-marker set is DIFFERENT and NARROWER than
+    init/update's - naming both under one undifferentiated list is the exact
+    prose/mechanism gap `55-instance-ops.sh`'s `_scan_build_markers` closed:
+    for `test`, a per-test `FAIL:`/`ERROR:` marker (and the traceback that
+    always follows it) is MID-RUN evidence, not completion - the suite keeps
+    running past each one and the harness appends its own authoritative
+    `TEST_RESULT=` line only once it finishes. An agent reading only an
+    undifferentiated failure-marker list can end the wait at the first failing
+    test - the exact stall the script now refuses to produce.
+
+    Pre-fix RED: the contract listed `Traceback (most recent call last):` (and
+    a bare ` ERROR ` token) as unconditional failure markers with no per-verb
+    split, so a reader had no way to learn that the `test` verb treats them
+    differently."""
+    text = _norm(AGENT_MD)
+    assert "NARROWER set" in text, (
+        "agent must state that the `test` verb's failure-marker set is a "
+        "narrower, different set from init/update's - not one shared list"
+    )
+    windows = _windows(text, re.compile(r"MID-RUN"), 400, 600)
+    assert windows, "agent must name the MID-RUN (non-terminal) status of a per-test failure"
+    assert any(
+        "FAIL:" in w and "ERROR:" in w and "TEST_RESULT=" in w for w in windows
+    ), (
+        "the MID-RUN explanation must name the per-test FAIL:/ERROR: markers and point "
+        "at the run's own TEST_RESULT= line as the real terminal signal"
+    )
+    assert "log-LEVEL column" in text and "NEVER key" in text, (
+        "agent must forbid keying a marker scan on the ` ERROR ` log-LEVEL column for "
+        "EITHER verb - Odoo logs at ERROR for reasons unrelated to the build, so a "
+        "level-keyed match turns an unrelated line into a false terminal failure"
+    )
+
+
 def test_agent_active_wait_exit_code_authoritative():
     """The build's exit code stays authoritative over a possibly-drifting marker."""
     text = _norm(AGENT_MD).lower()
@@ -1223,22 +1258,204 @@ def test_build_timeout_is_re_invoked_not_turned_into_a_turn_end():
     every build longer than one wait window BLOCKED instead of completing, and
     nothing told the agent it could wait again."""
     text = _norm(AGENT_MD)
-    windows = _windows(text, re.compile(r"BUILD_RESULT=timeout|timeout", re.IGNORECASE), 260, 560)
+    windows = _windows(text, re.compile(r"BUILD_RESULT=timeout|timeout", re.IGNORECASE), 260, 900)
     assert any(
         re.search(r"re-?invoke|re-?run|again|repeat", w, re.IGNORECASE)
-        and "BUILD_MARKER" in w
+        and "BUILD_PROGRESS" in w
         for w in windows
     ), (
         "a timeout verdict must instruct re-invoking the same foreground wait, with "
-        "BUILD_MARKER progress as the evidence for whether to continue"
+        "the BUILD_PROGRESS reading as the evidence for whether to continue"
     )
     assert any(
-        re.search(r"BLOCKED", w) and re.search(r"unchanged|stopped progress|no longer",
-                                               w, re.IGNORECASE)
+        re.search(r"BLOCKED", w)
+        and "BUILD_PROGRESS" in w
+        and re.search(r"identical|unchanged|stopped progress|no longer",
+                      w, re.IGNORECASE)
         for w in windows
     ), (
-        "the stop condition must be evidence-based (BUILD_MARKER unchanged across a "
-        "whole window), not a bare clock, and must resolve to BLOCKED"
+        "the stop condition must be evidence-based (a non-empty BUILD_PROGRESS "
+        "repeated across a whole window), not a bare clock, and must resolve to BLOCKED"
+    )
+
+
+def test_the_stall_rule_names_the_field_that_actually_advances():
+    """The stall rule is only true if the evidence it compares MOVES while the
+    build works.
+
+    `BUILD_MARKER` alone does not qualify as the rule's subject: on a test build
+    the newest deciding line can repeat for a long time, and the field the script
+    guarantees on EVERY poll - and guarantees to count real units of work - is
+    `BUILD_PROGRESS`. Naming the wrong field is not a wording nit: with frozen
+    evidence, two windows of a HEALTHY long suite read as "stopped progressing"
+    and the run is abandoned as BLOCKED.
+
+    Pre-fix RED: the contract's only stall rule was "`BUILD_MARKER` UNCHANGED
+    from the previous one - that, not the clock, is the evidence the build
+    stopped progressing", which is exactly the frozen-evidence rule.
+    """
+    for rel, path in _ACTIVE_WAIT_FILES:
+        text = _norm(path)
+        assert "BUILD_PROGRESS" in text, (
+            f"{rel}: the wait contract must name BUILD_PROGRESS - the field a poll "
+            "emits on every path and the only one that advances while a suite runs"
+        )
+        # The superseded rule must be DELETED, not left standing beside the new
+        # one: a runtime agent that reads the old sentence first obeys it.
+        #
+        # Scanned SENTENCE by SENTENCE over the WHOLE file, not through a fixed
+        # byte window forward from `BUILD_MARKER`. A bounded-adjacency window
+        # goes green the moment the paragraph is reflowed or the stale sentence
+        # is re-worded a few words longer, which is how a superseded rule
+        # survives a sweep; and the stale claim can sit anywhere in the file,
+        # not only after the token. The predicate is phrasing-independent: ANY
+        # sentence that makes the stall decision (stop / BLOCKED / stopped
+        # progressing) turn on BUILD_MARKER holding still is stale, whatever
+        # words it uses for "holding still", unless that same sentence is about
+        # BUILD_PROGRESS.
+        stale_sentence = re.compile(
+            r"BUILD_MARKER(?![_A-Z])"
+            r"(?=[^.!?]*(?:unchanged|identical|same|repeat|not moved|no longer moves|"
+            r"stopped progress|frozen|still))"
+            r"(?=[^.!?]*(?:BLOCKED|stopped progress|stop waiting|give up|abandon))",
+            re.IGNORECASE,
+        )
+        offenders = [
+            s.strip() for s in re.split(r"(?<=[.!?]) ", text)
+            if stale_sentence.search(s) and "BUILD_PROGRESS" not in s
+        ]
+        assert not offenders, (
+            f"{rel}: a stall rule keyed on BUILD_MARKER holding still is still "
+            "present - it must be replaced, not annotated. Offending sentence(s):\n"
+            + "\n".join(offenders)
+        )
+
+    text = _norm(AGENT_MD)
+    assert re.search(r"EMPTY[^.]{0,200}(NEVER|never)[^.]{0,120}BLOCKED", text), (
+        "the contract must state that an EMPTY progress reading is the absence of "
+        "evidence and never on its own grounds for BLOCKED"
+    )
+    assert re.search(r"(not a guarantee|could not separate|cannot separate)", text), (
+        "the contract must say plainly where the stall rule stays unreliable - a "
+        "single long-running test freezes a healthy run's reading - instead of "
+        "implying a guarantee"
+    )
+
+
+def test_no_file_restates_the_completion_marker_as_the_success_rule_for_every_verb():
+    """`Modules loaded.` certifies an install/update build and NOTHING else.
+
+    Odoo logs that line BEFORE a `--test-enable` build's post-install suite
+    starts, so on a test run it is PROGRESS - it cannot certify a tested build.
+    A restatement that requires it for SUCCESS without saying which verb it
+    governs is therefore wrong for run-tests, and a runtime agent that reads the
+    unscoped sentence applies it to the verb in front of it.
+
+    Scanned SENTENCE by SENTENCE across the WHOLE plugin corpus, not through an
+    adjacency window: this exact claim already survived three sweeps precisely
+    because it carried no distinctive keyword and sat far from the rule it
+    contradicted. A sentence is only acceptable if it names the verb scope it
+    applies to.
+
+    Pre-fix RED: `skills/odoo-instance/SKILL.md` carried "The exit code stays
+    authoritative for FAILURE while the `Modules loaded.` completion marker is
+    still required for SUCCESS; run-tests reuses `TEST_RESULT=`" - one unscoped
+    SUCCESS rule with the test verb tacked on as a footnote.
+    """
+    scoping = re.compile(
+        r"init|update|create|install|-i\b|-u\b|not a test|test run|--test-enable",
+        re.IGNORECASE,
+    )
+    offenders = []
+    for path in sorted(PLUGIN.rglob("*.md")):
+        text = _norm(path)
+        if "Modules loaded." not in text:
+            continue
+        for sentence in re.split(r"(?<=[.!?]) ", text):
+            if "Modules loaded." not in sentence:
+                continue
+            if not re.search(r"SUCCESS|required for|certif|proof of|confirms",
+                             sentence, re.IGNORECASE):
+                continue
+            if scoping.search(sentence):
+                continue
+            offenders.append(f"{path.relative_to(PLUGIN)}: {sentence}")
+    assert not offenders, (
+        "a SUCCESS rule built on the `Modules loaded.` completion marker must name "
+        "the verb it governs - unscoped, it certifies a --test-enable build whose "
+        "suite never ran. Offending sentence(s):\n" + "\n".join(offenders)
+    )
+
+
+def test_the_lifecycle_reference_covers_a_test_enable_build_on_its_own_terms():
+    """The completion-detection reference must have a row for a test build.
+
+    A `--test-enable` build is `--stop-after-init`, so a reader splitting the
+    world into "install/update job" and "listening instance" files it under the
+    first - where BOTH halves of the rule are wrong for it: `Modules loaded.` is
+    only progress there, and a lone traceback is per-test/incidental evidence
+    rather than a failure marker.
+
+    Pre-fix RED: item 14 named exactly two job shapes and listed `Traceback
+    (most recent call last)` as an unconditional failure marker.
+    """
+    text = _norm(LIFECYCLE_DOC)
+    anchor = re.search(r"Readiness/completion detection is DETERMINISTIC", text)
+    assert anchor, "the completion-detection item is gone from the lifecycle reference"
+    section = text[anchor.start(): anchor.start() + 4000]
+    assert "--test-enable" in section, (
+        "the completion-detection item names no test-build shape at all, so a "
+        "--test-enable run (which IS --stop-after-init) reads as an install job, "
+        "where both halves of the rule are wrong for it"
+    )
+    row = section[section.find("--test-enable"):]
+    assert re.search(r"TEST_RESULT=", row), (
+        "the test-build row must name the run's OWN TEST_RESULT= line as its "
+        "completion signal"
+    )
+    assert re.search(r"Modules loaded\.[^.]{0,240}(only PROGRESS|progress|never certif|"
+                     r"cannot certif|not certif)", row, re.IGNORECASE), (
+        "the test-build row must say that `Modules loaded.` is only progress on a "
+        "test run and cannot certify it"
+    )
+    assert re.search(r"[Tt]raceback[^.]{0,320}(NOT a failure|not a failure|MID-RUN|"
+                     r"mid-run|per-test)", row), (
+        "the test-build row must say a lone traceback is not a failure marker there - "
+        "otherwise the install row's marker list is read as applying to it"
+    )
+
+
+def test_the_agent_is_told_an_empty_count_is_not_a_zero():
+    """`TEST_FAILED=`/`TEST_ERROR=` can arrive EMPTY, and the agent must know.
+
+    The script's own header documents "unmeasured, never 0" - but the agent never
+    reads the script. Told only `TEST_FAILED=<n>`, it reports an absent
+    measurement as a measured zero, which beside a `failed` verdict says the run
+    failed and that nothing failed.
+
+    Pre-fix RED: the agent described the fields as `TEST_FAILED=<n>` /
+    `TEST_ERROR=<n>` with no empty case anywhere, and its checklist said
+    "warnings>0 with no fail/error", which does not separate empty from zero.
+    """
+    text = _norm(AGENT_MD)
+    assert re.search(r"TEST_FAILED[^.]{0,300}EMPTY", text) or re.search(
+        r"EMPTY[^.]{0,300}TEST_FAILED", text), (
+        "the agent is never told TEST_FAILED= can arrive EMPTY"
+    )
+    assert re.search(r"EMPTY[^.]{0,200}(never|NEVER|not)[^.]{0,80}(0|zero)", text), (
+        "the agent must be told an EMPTY count is UNMEASURED and never a zero"
+    )
+    assert re.search(r"(EMPTY|unmeasured)[^.]{0,200}null", text, re.IGNORECASE), (
+        "the agent must be told how to carry an EMPTY count into its output block "
+        "(null, not 0)"
+    )
+    # The pass-with-warnings rung must not be reachable on an EMPTY count.
+    checklist = [s for s in re.split(r"(?<=[.!?]) ", text)
+                 if "tests-passed-with-warnings" in s]
+    assert checklist, "the checklist must still gate tests-passed-with-warnings"
+    assert any(re.search(r"EMPTY|measured", s) for s in checklist), (
+        "the tests-passed-with-warnings rung must say an EMPTY fail/error count is "
+        "not the evidence that nothing failed - as written, empty reads as zero"
     )
 
 
