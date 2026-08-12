@@ -517,8 +517,12 @@ changes across a resume (§ Git topology above). The worker keeps
 its full prior context (earlier commits' intent records, bucket history) - far
 cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
 its own whole picture across commits, not just within one commit's retry loop.
-Structure the exchange as async park-and-be-resumed: send
-the P9 failure output (or the next commit's brief), end your turn, and consume the worker's result when it completes. On
+A resume is only reachable from the ROOT conversation, which is the only context anything ever wakes
+(CHP § Tier A condition 3): at the root, structure the exchange as async park-and-be-resumed - send
+the P9 failure output (or the next commit's brief), end your turn, and consume the worker's result
+when it completes. Running anywhere BELOW the root, take the Tier-C retry path below instead and
+BLOCK on that fresh launch (R0 move 2, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`) -
+a send-and-stop there never wakes, and the whole run stops with the worker's answer undelivered. On
 resume the worker MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
 a git worktree - cd on resume").

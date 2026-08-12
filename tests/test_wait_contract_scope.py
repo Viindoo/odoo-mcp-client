@@ -1,13 +1,14 @@
 """Self-check for the [wait-scope] / [wait-mechanism] detectors (M1 guard, rules 9/10 in
 generator/check_orchestration.py).
 
-Ground truth these detectors protect (corrected - see R0, spawner-completion-contract.md): a
-subagent CAN launch a child and CAN block on its result via a blocking Agent-tool launch
-(`run_in_background: false`), or - when the launch tool exposes no such lever - launch async and
-END ITS TURN to be resumed by a wake router on completion; it is never simply killed. A prior
-version of this file (and of the two detectors it tests) was built on the FALSE premise that "a
-SUBAGENT has no barrier to release a park with" and that a park/wait instruction is "legal ONLY for
-MAIN" - that premise is wrong and has been retired. The real hazards the corrected detectors catch:
+Ground truth these detectors protect (see R0, spawner-completion-contract.md): a subagent CAN launch
+a child and CAN block on its result via a blocking Agent-tool launch (`run_in_background: false`),
+and MUST whenever it needs that result. Only the ROOT conversation is resumed when a background
+child finishes - a launcher that is itself dispatched is never woken by its own child - so "launch
+async and END ITS TURN to be resumed" is a root-only branch, and a subagent that takes it stalls
+permanently with no error and no output. Neither detector keys on WHO is parking (they are proximity
+and citation checks, not semantic reads); what they catch is a park nobody can attribute to an R0
+branch, and work left uncommitted across the turn boundary. The hazards:
 
   [wait-scope]  - a park/wait instruction whose section (a) names no R0 branch (no citation of
                   which of the three R0 moves it exercises), or (b) shows file-writing language
