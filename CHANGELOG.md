@@ -28,12 +28,48 @@ false green this line of work exists to remove.
   it while the run's own path withheld one. The two paths now share a single definition of a skip
   marker, so a skip-blind path can no longer disagree with a skip-aware one.
 
+- `odoo-ai-agents` - **a coder no longer writes nothing when the change cannot carry a test.** Both
+  leaf coders refuse to write without a RED test, which is correct for a behaviour change and wrong
+  for work that has no failing state by nature - a comment-only edit, a rename inside prose, pure
+  formatting, a docs or translation-text change. There was no way for a caller to say so and no way
+  for the leaf to accept it, so such a dispatch returned having produced nothing. A caller now
+  declares the exemption by category and names what cannot go red; the leaf holds it VOID the moment
+  the work needs an edit a runtime observes, so a behaviour change is still refused without a test
+  even under a wrongly declared exemption. An exemption is never inferred from an absent or
+  malformed field, and an unresolved test path is never laundered into one.
+- `odoo-ai-agents` - **a refusal is now loud.** Any gate that stops a coder before it writes - the
+  test gate, the brief self-check, any other precondition - must end in a terminal status naming the
+  field that failed and the concrete referent that failed it. The final message is the only channel
+  back to a launcher, so an almost-empty one was indistinguishable from success.
+- `odoo-ai-agents` - the coordinator's forward list dropped `MODULE SCOPE`, `REQUEST` and
+  `ODOO VERSION`; a coordinator following it literally handed a coder no module path, no request
+  text and no version. The list is replaced by literal dispatch briefs carrying all three.
+- `odoo-ai-agents` - **a worker can never reach the agent that launched it, and the contract now says
+  so in terms a worker can act on.** Three things look like a way back up and none is: the sender
+  label on an inbound message is an agent TYPE, not an address; no name-to-address lookup exists for
+  a worker at any depth; and a send to the root conversation is ACCEPTED and delivered - to a
+  conversation that is not waiting, while the launcher that is waiting stays parked. The contract
+  previously listed that last one among the sends that fail, so a worker that tried it saw success
+  and reasonably concluded the rule was wrong. A send that returns success is not evidence of a
+  return path.
+- `odoo-ai-agents`, `git-toolkit` - **a coordinator may no longer launch a worker and end its turn to
+  wait for it.** Only the root conversation is ever resumed; below it, ending a turn to wait is a
+  permanent stall with no error and no output. A dispatch whose result is needed must block. Five
+  sites still instructed the opposite, including one whose branch could never have worked because
+  the agents it governs are always dispatched.
+- `odoo-ai-agents` - a caller can now recognise the stall: a result announcing that work was
+  dispatched in the background and will be awaited carries no terminal status, and is to be read as
+  STALLED - re-dispatched as a blocking launch or rolled up as blocked, never counted as done.
+
 ### Added
 
 - `odoo-ai-agents` - a structural guard: the verdict values the result parser can emit and the values
   the polling scanner explicitly maps are both read out of the source and required to be equal in
   both directions. Adding a verdict value without wiring it fails; leaving a mapping for a value
   nothing emits also fails. A fallthrough can no longer absorb a value nobody considered.
+- `odoo-ai-agents` - the brief-field lint now walks agent-to-agent dispatch edges, not only
+  skill-to-agent ones. The edge that actually carries the coder's test path was checked by nothing,
+  while the rule reported four findings against a skill that does not dispatch that edge at all.
 
 ## [4.25.1] - 2026-08-12
 
