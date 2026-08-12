@@ -6,6 +6,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.25.1] - 2026-08-12
+
+4.25.0 was verified by driving the plugin against a live instance and a corpus of real run logs.
+The database fixes held. What the same exercise showed is that the release shipped TWO functions
+that both decide whether a run failed, from the same log, using different rules - so they could
+return opposite verdicts for the same bytes. One keyed on the ERROR log-LEVEL column, which Odoo
+writes for reasons that have nothing to do with the build, so it called a healthy run failed within
+seconds of the first unrelated line; the other never matched the run's own verdict line, so a log
+saying the tests failed was reported as a successful build. This release makes the two agree, and
+gives a polling caller evidence that actually moves while a suite is running.
+
+### Added
+
+- `odoo-ai-agents` - `wait-log` now emits `BUILD_PROGRESS=markers:<n>|bytes:<m>` on every path.
+  Both components are always present: the marker count is what the run itself published, the byte
+  length is the fallback that keeps moving when a single long test publishes nothing. A reading is
+  evidence of a stall only when BOTH components are unchanged, which is what makes a stopped run
+  distinguishable from one still working. It is computed before any verdict branch and can never
+  become an outcome.
+
+### Fixed
+
+- `odoo-ai-agents` - **the polling verdict and the run's own verdict can no longer contradict each
+  other.** For a test run, terminal failure now means the run's own `TEST_RESULT=failed` line, or a
+  hard abort proving the process died. A per-test failure, and the traceback that follows every one
+  of them, are mid-run evidence: the suite keeps running past them and the harness appends the
+  authoritative verdict when it finishes. Keying a scan on the ERROR log-level column is gone for
+  both verbs. Grounded in the Odoo source across every supported series, and validated against a
+  corpus of real run logs rather than authored ones.
+- `odoo-ai-agents` - **a poller no longer reports a healthy long build as stopped.** The previous
+  progress evidence was pinned to a line that never changes once tests start, so a run that had
+  been working for many minutes looked identical to one that had died, and the stall rule the agent
+  was told to trust was not evidence at all.
+- `odoo-ai-agents` - **a log that does not declare its verb now resolves to the narrower test
+  predicate.** The install predicate certifies success from a completion marker that lands before a
+  test suite starts, and rules failure on a lone traceback: on a test log the first is a false pass
+  and the second a false failure. Logs written before the verb stamp existed are the reachable case.
+- `odoo-ai-agents` - **the failure counts and the findings file no longer contradict the verdict.**
+  When the only failure signal is an aggregate line, the counts are read from it instead of being
+  reported as zero, and a count no marker can measure is reported EMPTY, never `0`. The findings
+  file is written from the verdict, so it can no longer state that nothing failed for a run that
+  did. The agent is told what an EMPTY count means where it will read it.
+- `odoo-ai-agents` - the agent and skill prose now state the verb distinction the harness enforces,
+  so an agent reading only the instructions reaches the same conclusion the script does.
+
 ## [4.25.0] - 2026-08-11
 
 4.24.2 was verified by driving the plugin against a live Odoo 17 instance. The ephemeral-isolation
