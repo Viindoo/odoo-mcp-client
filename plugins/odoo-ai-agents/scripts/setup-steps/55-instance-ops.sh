@@ -119,7 +119,8 @@
 # uncapped escape hatch): snippets/odoo-bin-resource-limits.md.
 #   wait-log --log <logf> [--timeout <secs>] [--interval <secs>]
 #             Blocks in the FOREGROUND until a terminal marker appears or the
-#             bound elapses, then prints BUILD_RESULT=success|failure|timeout.
+#             bound elapses, then prints
+#             BUILD_RESULT=success|failure|inconclusive|timeout.
 #             The DEFAULT bound is deliberately below the harness's per-call
 #             ceiling (see _WAIT_LOG_DEFAULT_TIMEOUT_S) so ONE call always
 #             returns a verdict; for a longer build, re-invoke it.
@@ -127,9 +128,11 @@
 #             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
 #             so the caller (odoo-instance-ops agent) never idle-stalls on a long
 #             -i/-u/--test-enable build that would exceed the foreground tool timeout.
-#             Emits BUILD_RESULT=success|failure|timeout plus BUILD_MARKER=<line>,
+#             Emits BUILD_RESULT plus BUILD_MARKER=<line>,
 #             BUILD_PROGRESS=<reading> and LOG_PATH=<logf>. Exit 0 (success),
-#             1 (failure), 2 (timeout). The build's
+#             1 (failure), 2 (timeout), 3 (inconclusive). Only exit 2 means
+#             "keep waiting"; 0, 1 and 3 are all FINISHED, and only 0 is a pass.
+#             The build's
 #             own exit code stays authoritative; this is a completion + diagnostics
 #             signal, NOT the running-server readiness probe (that is 50-instance-spinup.sh's
 #             HTTP-200 probe). Markers are version-stable v8-v19.
@@ -162,12 +165,18 @@
 #                 BUILD_RESULT=failure, never success.
 #               test - the run's own TEST_RESULT= line (appended to the log by the
 #                 `test` verb, echoed back here, and the ONLY line on a test log
-#                 computed AFTER the run exited) decides it: failed -> failure,
-#                 passed/inconclusive -> success. Before that line lands, ONLY a
+#                 computed AFTER the run exited) decides it, value by value:
+#                 passed -> success, failed -> failure, inconclusive ->
+#                 inconclusive, anything unrecognized -> failure. Each value has
+#                 its own arm and NONE falls through to success: the run emits
+#                 `inconclusive` exactly when it refuses to claim a pass without
+#                 positive proof the suite ran, so relaying that as a successful
+#                 build would tell a caller the tests passed when zero tests ran.
+#                 Before that line lands, ONLY a
 #                 HARD ABORT (_BUILD_ABORT_RE - the run died and will never
 #                 publish a verdict) is a failure, and the era-correct "the suite
-#                 ran" marker certifies success ONLY while no failure marker
-#                 contradicts it. A per-test FAIL:/ERROR:, its traceback, and the
+#                 ran" marker certifies success ONLY while neither a failure
+#                 marker nor a SKIP marker contradicts it. A per-test FAIL:/ERROR:, its traceback, and the
 #                 per-MODULE failure aggregate are all MID-RUN and report
 #                 BUILD_RESULT=timeout: the suite keeps running, so preempting the
 #                 run's own verdict there both stops the wait early and hands the
@@ -502,6 +511,30 @@ _DEFAULT_LOG_LEVEL='info'
 #     trailer, INFO), v14.0-v19.0 emit the _TEST_SUMMARY_RE wording. Both
 #     REQUIRE a non-zero total, so a tag filter that matched nothing can never
 #     certify a pass.
+#   _TEST_SKIP_RE - a test the runner SKIPPED. Not a failure (a @tagged filter
+#     or a missing optional external dependency produces one legitimately) and
+#     not a pass either, so it is the one marker that turns an otherwise-clean
+#     ran-marker into `inconclusive`. BOTH verdict paths read it: it is why
+#     _parse_test_result refuses `passed`, and why _scan_build_markers refuses
+#     to certify SUCCESS from a bare ran-marker. Held here rather than inside
+#     one function because a skip-aware verdict path and a skip-blind one
+#     answering opposite things about one log is precisely the disagreement
+#     this SSOT block exists to prevent.
+#     BOTH alternatives anchor on a real test-package PATH SEGMENT, never a
+#     bare substring: a literal `.` immediately before the "test(s)" token (so
+#     it is a whole dot-delimited segment) and a literal `.`/`:` immediately
+#     after it (so a longer word cannot satisfy it). Without those anchors it
+#     false-positives on ordinary model/module names that merely CONTAIN
+#     "test" and on unrelated `... skipped` business messages.
+#       1. v14+ modern Odoo test-runner logger name: `(openerp|odoo).<pkg
+#          path>.tests?[.:]<...>: skip[ped] <name>` (<ns> = openerp v8-v9 /
+#          odoo v10+, matching _resolve_log_ns).
+#       2. Older Python-stdlib unittest verbose runner line (bypasses the Odoo
+#          logger, so no <ns> prefix): `test_name (<module path containing a
+#          .tests. or .test. segment>) ... skipped`.
+#     The exact per-series wording is Odoo framework-internal, so this is
+#     deliberately a two-shape, case-insensitive regex - but never a bare
+#     `grep -i skip`, which reopens both false-positive classes above.
 # ---------------------------------------------------------------------------
 _TEST_FAIL_PER_TEST_FAIL_RE='(^|[[:space:]])FAIL:'
 _TEST_FAIL_PER_TEST_ERROR_RE='(^|[[:space:]])ERROR:'
@@ -512,6 +545,7 @@ _TEST_SUMMARY_RE='[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests'
 _TEST_FAIL_RE="${_TEST_FAIL_PER_TEST_RE}|${_TEST_FAIL_MODULE_RE}|${_TEST_FAIL_BLANKET_RE}|[1-9][0-9]* (failed|error)"
 _TEST_RAN_LEGACY_RE='Ran [1-9][0-9]* tests? in '
 _TEST_RAN_MODERN_RE='[0-9]+ failed, [0-9]+ error\(s\) of [1-9][0-9]* tests'
+_TEST_SKIP_RE='(^|[[:space:]])(openerp|odoo)\.[a-z0-9_.]*\.tests?[.:][a-z0-9_.]*:[[:space:]]*skip|(^|[[:space:]])test_[a-z0-9_]+[[:space:]]+\([a-z0-9_.]*\.tests?\.[a-z0-9_.]+\)[[:space:]]+\.\.\.[[:space:]]+skip'
 
 # ---------------------------------------------------------------------------
 # Progress-marker SSOT - the ADVANCING evidence a polling caller diffs across
@@ -931,31 +965,11 @@ _parse_test_result() {
     # counted and surfaced as its own field rather than silently folded into
     # "passed".
     #
-    # SKIP_RE catches both version-era log shapes (validated against the
-    # issue's real repro), and BOTH alternatives are anchored on a real
-    # test-package PATH SEGMENT, never a bare substring match - an earlier
-    # draft matched `test` as a substring anywhere, which false-positived on
-    # ordinary model/module names that merely CONTAIN "test" (e.g.
-    # hr_attestation, website_testimonial, contest) and on an unrelated
-    # `\.\.\.[[:space:]]+skipped` business message (e.g. a stock reservation
-    # retry log line "... skipped (insufficient qty, will retry)"). Both
-    # alternatives below require a literal `.` immediately before the
-    # "test(s)" token (so it is a whole dot-delimited segment, not a
-    # substring) and a literal `.`/`:` immediately after it (so a longer word
-    # like "testimonial" cannot satisfy it either):
-    #   1. v14+ modern Odoo test-runner logger name: `(openerp|odoo)\.<pkg
-    #      path>.tests?[.:]<...>: skip[ped] <name>` (<ns> = openerp v8-v9 /
-    #      odoo v10+, matching _resolve_log_ns).
-    #   2. Older Python-stdlib unittest verbose runner line (bypasses the
-    #      Odoo logger, so no <ns> prefix): `test_name (<module path
-    #      containing a .tests. or .test. segment>) ... skipped`.
-    # The exact per-series wording is Odoo framework-internal (not indexed by
-    # OSM), so this is deliberately a two-shape, case-insensitive regex rather
-    # than a single hardcoded string - but never a bare `grep -i skip`, which
-    # would reopen both false-positive classes above.
-    local SKIP_RE='(^|[[:space:]])(openerp|odoo)\.[a-z0-9_.]*\.tests?[.:][a-z0-9_.]*:[[:space:]]*skip|(^|[[:space:]])test_[a-z0-9_]+[[:space:]]+\([a-z0-9_.]*\.tests?\.[a-z0-9_.]+\)[[:space:]]+\.\.\.[[:space:]]+skip'
+    # The marker itself is _TEST_SKIP_RE (SSOT above) - shared with
+    # _scan_build_markers so a skip cannot mean "not a pass" to one verdict
+    # path and nothing at all to the other.
     local n_skip
-    n_skip="$(grep -icE "$SKIP_RE" "$logf" 2>/dev/null || true)"
+    n_skip="$(grep -icE "$_TEST_SKIP_RE" "$logf" 2>/dev/null || true)"
     n_skip="${n_skip:-0}"
 
     # Skip NAMES for the findings file. Extraction runs over the plain
@@ -966,7 +980,7 @@ _parse_test_result() {
     # most one of the two shapes, so both sed passes run over the same input
     # and are merged + de-duplicated.
     local skip_lines skip_names=""
-    skip_lines="$(grep -aiE "$SKIP_RE" "$logf" 2>/dev/null || true)"
+    skip_lines="$(grep -aiE "$_TEST_SKIP_RE" "$logf" 2>/dev/null || true)"
     if [[ -n "$skip_lines" ]]; then
         skip_names="$(
             {
@@ -1132,22 +1146,33 @@ _parse_test_result() {
 #   Echoes BUILD_PROGRESS=<reading> (ALWAYS, on every path - the field a caller
 #   diffs across two polls to learn whether the build is still doing work; see
 #   _build_progress) and BUILD_MARKER=<matched line>, then returns:
-#     0 -> DECIDED, and not a failure. init/update: the "Modules loaded."
+#     0 -> DECIDED as a PASS. init/update: the "Modules loaded."
 #          completion marker present AND no _INSTALL_FAIL_RE hit - by
 #          construction the verdict _install_confirmed reaches on this same log,
 #          so BUILD_RESULT can never disagree with the script's own
 #          STATUS=ok|error line. test: the run's own TEST_RESULT= line says
-#          passed/inconclusive, or (before that line lands) the era-correct
-#          ran-marker is present with NO failure marker anywhere - which is
+#          passed, or (before that line lands) the era-correct ran-marker is
+#          present with NO failure marker and NO skip marker anywhere - which is
 #          exactly the state _parse_test_result calls `passed`.
 #     1 -> DECIDED as a failure. init/update: any _INSTALL_FAIL_RE hit (a
 #          silent-skip marker such as "invalid module names, ignored" alongside
 #          "Modules loaded." is STILL a failed build, exactly as
 #          _install_confirmed rules it). test: the run's own
 #          TEST_RESULT=failed, or a _BUILD_ABORT_RE hit proving odoo-bin died
-#          and will therefore never publish a verdict to wait for.
+#          and will therefore never publish a verdict to wait for. ALSO the
+#          fail-safe arm for a TEST_RESULT= value this scan does not recognize:
+#          a scanner that has fallen behind the emitter may not certify a build
+#          green, and a loud wrong RED is recoverable where a silent GREEN is
+#          not.
 #     2 -> NOT DECIDED yet (build still in flight; the last progress line is
 #          echoed as evidence).
+#     3 -> DECIDED, and NOT a pass: the run's own TEST_RESULT=inconclusive. The
+#          run FINISHED - it is terminal, so a caller must not wait again - but
+#          it proved no pass: the suite ran nothing, or everything it matched
+#          was skipped. Distinct from 2 for that reason: reporting it as "not
+#          finished" would leave a poller waiting forever on a run that is over,
+#          and reporting it as 0 hands the caller a pass the run explicitly
+#          refused to claim.
 #   The verb comes from the log's OWN stamp. UNSTAMPED = UNKNOWN, and UNKNOWN
 #   takes the `test` predicate: it is the narrower rule in both directions, so it
 #   is the only one that cannot certify a wrong answer on a log whose shape it
@@ -1227,8 +1252,22 @@ _scan_build_markers() {
         if [[ -n "$verdict" ]]; then
             echo "BUILD_MARKER=$verdict"
             printf '%s\n' "$verdict"
-            [[ "$verdict" == "TEST_RESULT=failed" ]] && return 1
-            return 0
+            # EVERY value _parse_test_result can assign gets its own arm. A
+            # fallthrough here is what let `inconclusive` - the verdict that
+            # exists precisely BECAUSE the run refused to claim a pass without
+            # positive proof the suite ran - be relayed as a successful build:
+            # the polling caller was told the module's tests passed while zero
+            # tests had run. The default arm is therefore FAILURE, never
+            # success: an unrecognized verdict means this scan is out of date
+            # with the emitter, and a stale scanner may not certify anything
+            # green. tests/test_verdict_paths_agree.py holds the structural
+            # guard that a value added above without an arm here fails CI.
+            case "${verdict#TEST_RESULT=}" in
+                passed)       return 0 ;;
+                failed)       return 1 ;;
+                inconclusive) return 3 ;;
+                *)            return 1 ;;
+            esac
         fi
     fi
 
@@ -1265,7 +1304,19 @@ _scan_build_markers() {
         # "Modules loaded." is NOT terminal here: Odoo logs it BEFORE the
         # post-install suite starts, so certifying there stops the wait while the
         # tests have not begun.
-        if ! grep -aqE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null; then
+        # A SKIP marker (SSOT: _TEST_SKIP_RE) blocks this branch for the same
+        # reason the failure union does. _parse_test_result rules a skip-bearing
+        # run `inconclusive`, so certifying SUCCESS from the bare ran-marker
+        # here would be this scan answering `success` about a log the run's own
+        # verdict calls not-a-pass - the disagreement this whole marker SSOT
+        # exists to make impossible. Withholding certification does NOT strand
+        # the caller: the run appends its own TEST_RESULT= line moments later
+        # and the branch above relays it. If the launching shell is reaped
+        # before it can, the wait reports `timeout` and the caller reports
+        # BLOCKED with the log preserved - "we never got a verdict" is the
+        # honest answer there, and a green one is not.
+        if ! grep -aqE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null \
+           && ! grep -aqiE "$_TEST_SKIP_RE" "$logf" 2>/dev/null; then
             local ran_line
             ran_line="$(grep -aE "$(_test_ran_re "$series")" "$logf" 2>/dev/null | head -n 1 || true)"
             if [[ -n "$ran_line" ]]; then
@@ -1332,6 +1383,9 @@ cmd_wait_log() {
 
     echo "LOG_PATH=$logf"
 
+    # Any status OTHER than 2 is terminal and ends the poll loop below - so a
+    # verdict added to _scan_build_markers is decided by construction and can
+    # never leave a caller polling a finished run.
     local waited=0 rc=2 marker=""
     while :; do
         # _scan_build_markers returns non-zero for failure(1)/none(2); capture its
@@ -1359,6 +1413,8 @@ cmd_wait_log() {
     case "$rc" in
         0) echo "BUILD_RESULT=success" ;;
         1) echo "BUILD_RESULT=failure" ;;
+        3) echo "BUILD_RESULT=inconclusive"
+           echo "! wait-log: the run FINISHED and published TEST_RESULT=inconclusive - it is over, so do not wait again, and it is not a pass; read $logf and its findings file" >&2 ;;
         *) echo "BUILD_RESULT=timeout"
            echo "x wait-log timed out after ${timeout}s with no terminal marker; see $logf" >&2 ;;
     esac

@@ -45,6 +45,7 @@ Offline: no PostgreSQL, no real Odoo, no network.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import textwrap
 from pathlib import Path
@@ -195,6 +196,29 @@ HARD_ABORTS = {
         "Unmet dependencies: sale_extra"
     ),
 }
+
+# The two shapes a run leaves behind when it FINISHED and certified nothing -
+# both taken from run logs this plugin produced, and both the reason the
+# `inconclusive` verdict exists at all.
+#   * a real skip line: the modern test-runner logger name, then
+#     `skipped <Class>.<method> : <reason>`;
+#   * the summary of a run whose tag filter matched NOTHING - the era-correct
+#     wording carrying a total of zero;
+#   * the summary of a run that matched tests and skipped every one of them - a
+#     non-zero total, no failures, and a skip line above it.
+SKIPPED_TEST_LINE = (
+    "2026-01-01 00:00:00,000 1 INFO testdb odoo.addons.website.tests.test_ui: "
+    "skipped TestUi.test_32_website_background_colorpicker : "
+    "websocket-client module is not installed"
+)
+ZERO_TESTS_SUMMARY = (
+    "2026-01-01 00:00:00,000 1 WARNING testdb odoo.tests.result: "
+    "0 failed, 0 error(s) of 0 tests when loading database 'testdb'"
+)
+SKIP_ONLY_SUMMARY = (
+    "2026-01-01 00:00:00,000 1 INFO testdb odoo.service.server: "
+    "0 failed, 0 error(s) of 4 tests when loading database 'testdb'"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -1053,6 +1077,12 @@ DISAGREEMENT_MATRIX = [
     ("blanket-failure", "17.0", [PROGRESS_LINE, AGG_BLANKET_ALL_SERIES], 0),
     ("nonzero-exit-clean-log", "17.0", [PROGRESS_LINE, LOADED_MARKER, PASSING_SUMMARY], 1),
     ("hard-abort", "17.0", [PROGRESS_LINE, HARD_ABORTS["critical"]], 1),
+    # Neither of these proves a pass, and neither is a failure - the two shapes
+    # the real corpus holds for a run that finished having certified nothing.
+    ("tag-filter-matched-nothing", "17.0",
+     [PROGRESS_LINE, LOADED_MARKER, ZERO_TESTS_SUMMARY], 0),
+    ("every-matched-test-skipped", "17.0",
+     [PROGRESS_LINE, LOADED_MARKER, SKIPPED_TEST_LINE, SKIP_ONLY_SUMMARY], 0),
 ]
 
 
@@ -1078,9 +1108,270 @@ def test_the_two_paths_never_disagree_on_the_log_the_run_produced(
             f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
             f"\nwait-log stdout:\n{waited.stdout}"
         )
-    else:
-        assert build != "failure", (
-            f"[{label}] the run reported TEST_RESULT={verdict} but the polling "
-            f"verdict reported BUILD_RESULT=failure\nverb stdout:\n{res.stdout}"
+    elif verdict == "passed":
+        assert build == "success", (
+            f"[{label}] the run reported TEST_RESULT=passed but the polling "
+            f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
             f"\nwait-log stdout:\n{waited.stdout}"
         )
+    else:
+        # Every remaining verdict is the run declining to certify a pass. The
+        # polling verdict may neither overturn that into a failure nor - the
+        # direction that actually shipped - launder it into a success.
+        assert build not in ("failure", "success"), (
+            f"[{label}] the run reported TEST_RESULT={verdict}, which certifies "
+            f"neither a pass nor a failure, but the polling verdict reported "
+            f"BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
+            f"\nwait-log stdout:\n{waited.stdout}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# CONTRACT 5 - EVERY verdict the run can publish is mapped, deliberately
+#
+# `_parse_test_result` publishes the run's verdict on the log; `_scan_build_markers`
+# reads it back and turns it into the `BUILD_RESULT=` a polling caller acts on.
+# That hand-off has been rebuilt three times, and each rebuild handled the value
+# that had just been caught and left the rest to a fallthrough:
+#
+#   * a bare unconditional success, so the run's own `failed` read as success;
+#   * a branch for `failed` with success still the fallthrough, so the run's own
+#     `inconclusive` read as success - measured on the real log corpus, where
+#     four genuine test-verb runs (two whose tag filter matched zero tests, two
+#     whose every matched test was skipped) were each relayed as a passing build.
+#
+# `inconclusive` is the value the run emits precisely BECAUSE it refuses to
+# claim a pass without positive proof the suite ran. Relaying it as success is
+# therefore the worst direction available: the refusal is overturned by the very
+# mechanism meant to carry it.
+#
+# The guard below is STRUCTURAL, not another single-value patch. It reads the
+# set of verdict values `_parse_test_result` can assign straight out of the
+# script, reads the set `_scan_build_markers` explicitly enumerates, and demands
+# they be equal - so a FOURTH value added to the emitter without an arm in the
+# reader is a RED CI, not a silent fallthrough, no matter which value it is.
+# ---------------------------------------------------------------------------
+
+STEP55_TEXT = STEP55.read_text(encoding="utf-8")
+
+# The floor the two extractors are checked against. It is not the source of the
+# contract - the script is - but without it a regex that silently matches
+# nothing would make every assertion below vacuously true, and this guard would
+# join the class of defect it exists to catch. Kept here so a genuine change to
+# the verdict vocabulary must touch this list AND the script, in one change.
+KNOWN_VERDICT_VALUES = {"passed", "failed", "inconclusive"}
+
+
+def _shell_function_body(name: str) -> str:
+    """The body of a top-level shell function, by its `name() {` ... `}` frame."""
+    lines = STEP55_TEXT.splitlines()
+    opener = f"{name}() {{"
+    try:
+        start = next(i for i, l in enumerate(lines) if l.strip() == opener)
+    except StopIteration:  # pragma: no cover - the floor assertions report it
+        return ""
+    try:
+        end = next(i for i in range(start + 1, len(lines)) if lines[i] == "}")
+    except StopIteration:  # pragma: no cover
+        return ""
+    return "\n".join(lines[start + 1:end])
+
+
+def _verdict_values_emitted() -> set[str]:
+    """Every value `_parse_test_result` can assign to the verdict it publishes."""
+    body = _shell_function_body("_parse_test_result")
+    return {
+        m.group(1)
+        for m in re.finditer(r"""verdict=["']([a-z][a-z0-9_-]*)["']""", body)
+    }
+
+
+def _verdict_values_mapped() -> set[str]:
+    """Every value `_scan_build_markers` gives an explicit arm of its own.
+
+    The wildcard arm is deliberately NOT collected: a fail-safe default is a
+    backstop for a value nobody wired, never a substitute for wiring it.
+    """
+    body = _shell_function_body("_scan_build_markers")
+    block = re.search(
+        r'case\s+"\$\{verdict#TEST_RESULT=\}"\s+in(.*?)\besac\b', body, re.DOTALL
+    )
+    if not block:
+        return set()
+    return {
+        arm
+        for m in re.finditer(r"^\s*([A-Za-z0-9_|-]+)\)", block.group(1), re.MULTILINE)
+        for arm in m.group(1).split("|")
+    }
+
+
+def test_the_extractors_still_see_the_verdict_vocabulary_they_are_checking():
+    """Non-vacuity floor for the structural guard below.
+
+    Both extractors read shell source with a regex. A refactor that computes the
+    verdict indirectly, renames a function, or reshapes the `case` would leave
+    them matching nothing - and an emptied set makes a set-equality assertion
+    pass while checking nothing at all. Failing HERE says "the guard can no
+    longer see the code", which is a different and more useful message than a
+    guard that quietly stops guarding.
+    """
+    emitted = _verdict_values_emitted()
+    assert emitted == KNOWN_VERDICT_VALUES, (
+        "the set of verdict values the run can publish has changed - the guard's "
+        "own floor must be updated in the SAME change that changes the script, so "
+        "the hardcoded list can never drift away from what the script emits.\n"
+        f"  script emits: {sorted(emitted)}\n"
+        f"  floor:        {sorted(KNOWN_VERDICT_VALUES)}"
+    )
+
+
+def test_every_verdict_the_run_can_publish_is_explicitly_mapped_by_the_polling_scan():
+    """No verdict value may reach the polling caller through a fallthrough.
+
+    This is the defect, stated once and structurally: a value the run can
+    publish, with no arm of its own in the scan that reads it back, inherits
+    whatever the default arm happens to be. Three times that default was
+    success. Adding a fourth verdict to the emitter must therefore fail CI until
+    it is given a deliberate `BUILD_RESULT`, rather than silently inheriting one.
+    """
+    emitted = _verdict_values_emitted()
+    mapped = _verdict_values_mapped()
+    assert emitted <= mapped, (
+        "a verdict the run publishes has NO explicit arm in the polling scan, so "
+        "it falls through to the default instead of being given a deliberate "
+        f"BUILD_RESULT: {sorted(emitted - mapped)}"
+    )
+    assert mapped <= emitted, (
+        "the polling scan maps a verdict value the run can never publish - dead "
+        f"code that hides which values are really covered: {sorted(mapped - emitted)}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("value", sorted(KNOWN_VERDICT_VALUES))
+def test_each_published_verdict_ends_the_wait_with_a_decided_result(tmp_path, value):
+    """Every verdict is TERMINAL: the run computed it after odoo-bin exited.
+
+    A verdict relayed as `timeout` tells the caller to wait again for a run that
+    is already over - the idle-stall the blocking wait exists to remove, reached
+    from the other side.
+    """
+    log = _stamped_log(tmp_path, f"verdict-{value}.log", verb="test", series="17.0",
+                       lines=[PROGRESS_LINE, f"TEST_RESULT={value}"])
+    waited = _wait(log, _env(tmp_path))
+    assert waited.returncode != 2, (
+        f"TEST_RESULT={value} is the run's own FINAL verdict, so the wait must be "
+        f"over\nstdout:\n{waited.stdout}"
+    )
+    assert _field(waited, "BUILD_RESULT") != "timeout", (
+        f"TEST_RESULT={value} must not be reported as an unfinished build"
+        f"\nstdout:\n{waited.stdout}"
+    )
+    assert f"TEST_RESULT={value}" in waited.stdout, (
+        f"the wait must surface the verdict the log carries\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_an_inconclusive_run_is_reported_as_neither_a_pass_nor_an_unfinished_build(tmp_path):
+    """`inconclusive` needs an outcome of its OWN - both neighbours are wrong.
+
+    Reported as success, a caller concludes the module's tests passed when zero
+    tests ran, which is the false green the verdict exists to prevent. Reported
+    as `timeout`, the caller waits again on a run that has already ended and
+    waits forever. So it is neither, and it carries its own exit status so a
+    non-parsing caller can tell it apart from a pass as well.
+    """
+    log = _stamped_log(tmp_path, "verdict-inconclusive.log", verb="test", series="17.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, "TEST_RESULT=inconclusive"])
+    waited = _wait(log, _env(tmp_path))
+    build = _field(waited, "BUILD_RESULT")
+    assert build != "success", (
+        "the run REFUSED to claim a pass without proof the suite ran, and the "
+        "polling verdict claimed it on the run's behalf\nstdout:\n" + waited.stdout
+    )
+    assert build != "timeout", (
+        "an inconclusive run has FINISHED - reporting it as unfinished makes a "
+        "poller wait forever\nstdout:\n" + waited.stdout
+    )
+    assert waited.returncode not in (0, 2), (
+        f"the exit status must separate an inconclusive run from a pass (0) and "
+        f"from an unfinished one (2); got {waited.returncode}\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_an_unrecognized_future_verdict_fails_safe_rather_than_certifying_a_pass(tmp_path):
+    """The runtime backstop behind the structural guard.
+
+    If a verdict value ever reaches this scan unmapped - a partial deployment, a
+    log written by a newer emitter - the answer must not be a green build. A
+    loud wrong RED is recoverable; a silent GREEN on an unknown verdict is the
+    exact failure this whole hand-off keeps reproducing.
+    """
+    log = _stamped_log(tmp_path, "verdict-unknown.log", verb="test", series="17.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, "TEST_RESULT=some-future-value"])
+    waited = _wait(log, _env(tmp_path))
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "an unrecognized verdict was certified as a successful build\nstdout:\n"
+        + waited.stdout
+    )
+    assert waited.returncode != 0, (
+        f"an unrecognized verdict must not exit 0\nrc={waited.returncode}\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_a_skip_bearing_ran_marker_is_not_certified_green_before_the_verdict_lands(tmp_path):
+    """The same hole, one branch upstream.
+
+    Before the run appends its verdict line, the scan may certify success from
+    the era-correct "the suite ran" marker. A skip-only run publishes exactly
+    that marker with a non-zero total and no failure anywhere - so a wait landing
+    in the window before the verdict line certifies a build the run is about to
+    call `inconclusive`. Withholding certification costs nothing: the verdict
+    line lands moments later and decides it.
+    """
+    log = _stamped_log(tmp_path, "skip-only-preverdict.log", verb="test", series="17.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, SKIPPED_TEST_LINE,
+                              SKIP_ONLY_SUMMARY])
+    waited = _wait(log, _env(tmp_path))
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "a run whose only tests were SKIPPED was certified a successful build "
+        "before it published its own verdict\nstdout:\n" + waited.stdout
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("label,series,lines", [
+    # Measured on the real corpus: two runs whose tag filter matched zero tests,
+    # two whose every matched test was skipped. Both shapes are genuine test-verb
+    # runs that finished, and neither proves a pass.
+    ("tag-filter-matched-nothing", "17.0", [ZERO_TESTS_SUMMARY]),
+    ("every-matched-test-skipped", "17.0", [SKIPPED_TEST_LINE, SKIP_ONLY_SUMMARY]),
+])
+def test_a_run_that_proved_no_pass_reads_inconclusive_on_both_paths(
+        tmp_path, label, series, lines):
+    """End to end, on the log shapes the corpus actually holds.
+
+    The `test` verb rules the run `inconclusive`, appends that to the log, and
+    `wait-log` reads the same log back. The two answers must be the SAME fact in
+    the two vocabularies - not one refusing to claim a pass while the other
+    claims it.
+    """
+    res, log, env = _run_verb(tmp_path, "test", db=f"honest{label.replace('-', '')}",
+                              version=series,
+                              lines=[PROGRESS_LINE, LOADED_MARKER, *lines])
+    assert _field(res, "TEST_RESULT") == "inconclusive", (
+        f"[{label}] the run must refuse to claim a pass\nstdout:\n{res.stdout}"
+    )
+    waited = _wait(log, env)
+    build = _field(waited, "BUILD_RESULT")
+    assert build not in ("success", "timeout"), (
+        f"[{label}] the run reported TEST_RESULT=inconclusive but the polling "
+        f"verdict reported BUILD_RESULT={build}\nverb stdout:\n{res.stdout}"
+        f"\nwait-log stdout:\n{waited.stdout}"
+    )
+    assert _field(waited, "BUILD_PROGRESS"), (
+        f"[{label}] no progress reading on an inconclusive poll\n{waited.stdout}"
+    )

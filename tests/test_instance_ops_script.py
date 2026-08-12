@@ -1131,7 +1131,11 @@ def test_extra_log_level_overrides_the_default(tmp_path):
 #       failure-marker + non-zero run to STATUS=error with LOG_PATH preserved.
 #   (b) The `wait-log` verb deterministically classifies a build log by terminal
 #       marker: success markers -> BUILD_RESULT=success (exit 0); failure markers
-#       -> BUILD_RESULT=failure (exit 1); none within the bound -> timeout (exit 2).
+#       -> BUILD_RESULT=failure (exit 1); a finished test run that certified no
+#       pass -> BUILD_RESULT=inconclusive (exit 3); none within the bound ->
+#       timeout (exit 2). Only exit 2 means "keep waiting". The value-by-value
+#       mapping of the run's own verdict, and the guard that no verdict may
+#       reach a caller through a fallthrough, live in test_verdict_paths_agree.py.
 # ---------------------------------------------------------------------------
 
 @requires_bash
