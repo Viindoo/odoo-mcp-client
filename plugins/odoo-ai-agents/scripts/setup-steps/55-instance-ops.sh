@@ -60,7 +60,17 @@
 #             Parses result and emits TEST_RESULT=passed|failed|inconclusive plus the
 #             TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and FINDINGS_PATH
 #             (a file holding the failing-test names + traceback heads, the warning
-#             lines, and any skipped-test names). TEST_RESULT=failed also covers an
+#             lines, and any skipped-test names). The counts and the findings file
+#             are resolved to AGREE with the verdict: a run whose only failure
+#             signal is an AGGREGATE line (the per-module "Module <m>: <F>
+#             failures, <E> errors[ of <T> tests]" wording, or v14+'s per-database
+#             "<F> failed, <E> error(s) of <T> tests") reports THAT line's
+#             figures, and the findings file names the line rather than answering
+#             "no failing tests" for a failed build. TEST_FAILED/TEST_ERROR are
+#             EMPTY when the log published no figure at all (e.g. the numberless
+#             "At least one test failed when loading the modules.") - unmeasured,
+#             never 0, the same rule the scope fields below follow.
+#             TEST_RESULT=failed also covers an
 #             INSTALL failure inside the build (no test could run). inconclusive fires
 #             when TEST_SKIPPED>0 and no failure occurred, AND whenever the log carries
 #             no era-correct "the suite ran" marker at all: "0 failed, 0 error(s) of 1
@@ -117,27 +127,60 @@
 #             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
 #             so the caller (odoo-instance-ops agent) never idle-stalls on a long
 #             -i/-u/--test-enable build that would exceed the foreground tool timeout.
-#             Emits BUILD_RESULT=success|failure|timeout plus BUILD_MARKER=<line> and
-#             LOG_PATH=<logf>. Exit 0 (success), 1 (failure), 2 (timeout). The build's
+#             Emits BUILD_RESULT=success|failure|timeout plus BUILD_MARKER=<line>,
+#             BUILD_PROGRESS=<reading> and LOG_PATH=<logf>. Exit 0 (success),
+#             1 (failure), 2 (timeout). The build's
 #             own exit code stays authoritative; this is a completion + diagnostics
 #             signal, NOT the running-server readiness probe (that is 50-instance-spinup.sh's
 #             HTTP-200 probe). Markers are version-stable v8-v19.
+#             BUILD_PROGRESS is the ADVANCING field, emitted on EVERY path so a
+#             caller can diff two consecutive polls. It is ONE COMPOSITE reading,
+#             `markers:<n>|bytes:<m>`, with BOTH components always present:
+#             `markers` counts the run's own progress lines (SSOT:
+#             _BUILD_PROGRESS_RE) and `bytes` is the log's length. Compare the
+#             WHOLE string - either half alone freezes on a healthy run (markers
+#             through a browser suite that is one long test; bytes never, unless
+#             the process wrote nothing). EMPTY means there is no log to measure.
+#             It NEVER feeds BUILD_RESULT: progress is not a verdict in either
+#             direction, and a build whose log carries nothing but progress lines
+#             stays BUILD_RESULT=timeout. Two polls with an IDENTICAL non-empty
+#             reading mean the process appended zero bytes in between - the
+#             strongest in-log stall evidence available, still not proof of death;
+#             BUILD_MARKER quotes the newest progress line so the reading has a
+#             human-readable form, but the composite is what a stall rule
+#             compares.
 #             The terminal predicate is resolved from the log's OWN run-verb stamp
-#             (_RUN_VERB_STAMP, written by _open_log):
-#               init/update - "Modules loaded." plus the silent-skip failure-marker
-#                 regex, the SAME SSOT constants _install_confirmed applies, so this
-#                 background verdict can NEVER disagree with the script's own
+#             (_RUN_VERB_STAMP, written by _open_log). An UNSTAMPED log resolves
+#             to the `test` predicate - the NARROWER one in both directions, so an
+#             unknown verb can never be certified green by a marker that is only
+#             progress for it, nor failed by one that is only per-test evidence:
+#               init/update - "Modules loaded." plus _INSTALL_FAIL_RE, the SAME two
+#                 SSOT constants _install_confirmed applies and nothing besides, so
+#                 this background verdict can NEVER disagree with the script's own
 #                 STATUS=ok|error line; a log showing both "Modules loaded." and a
 #                 silent-skip marker (e.g. "invalid module names, ignored") reports
 #                 BUILD_RESULT=failure, never success.
 #               test - the run's own TEST_RESULT= line (appended to the log by the
-#                 `test` verb, and echoed back here) or, before that lands, the
-#                 era-correct "the suite ran" marker; the failure set additionally
-#                 unions _TEST_FAIL_RE. "Modules loaded." is only PROGRESS for a
-#                 test run: Odoo logs it before the post-install suite starts, so
-#                 certifying there would stop the wait while the tests have not
-#                 begun. BUILD_RESULT answers "has it finished"; TEST_RESULT (echoed
-#                 when the log carries it) is the pass/fail verdict.
+#                 `test` verb, echoed back here, and the ONLY line on a test log
+#                 computed AFTER the run exited) decides it: failed -> failure,
+#                 passed/inconclusive -> success. Before that line lands, ONLY a
+#                 HARD ABORT (_BUILD_ABORT_RE - the run died and will never
+#                 publish a verdict) is a failure, and the era-correct "the suite
+#                 ran" marker certifies success ONLY while no failure marker
+#                 contradicts it. A per-test FAIL:/ERROR:, its traceback, and the
+#                 per-MODULE failure aggregate are all MID-RUN and report
+#                 BUILD_RESULT=timeout: the suite keeps running, so preempting the
+#                 run's own verdict there both stops the wait early and hands the
+#                 caller a verdict the run never published. "Modules loaded." is
+#                 only PROGRESS for a test run: Odoo logs it before the
+#                 post-install suite starts, so certifying there would stop the
+#                 wait while the tests have not begun. BUILD_RESULT answers "has it
+#                 finished"; TEST_RESULT (echoed when the log carries it) is the
+#                 pass/fail verdict.
+#             NEVER key a marker scan on the log-LEVEL column: Odoo logs at ERROR
+#             for reasons unrelated to the build, so a delimited ` ERROR ` match
+#             fires on lines that carry no verdict (measured: 30 ERROR-level lines
+#             / 1 test-failure marker on one real run). Key on MESSAGE TEXT.
 #
 # LOG convention (mirrors 50-instance-spinup.sh):
 #   Dir:  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
@@ -156,7 +199,11 @@
 #               era-correct "the suite ran" marker at all - tests were never proven to
 #               have run; NEVER reported as a bare `passed`)
 # TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n> TEST_SKIPPED=<n>
-#               (parseable; `test` verb only; best-effort from the log)
+#               (parseable; `test` verb only; from the log). TEST_FAILED/TEST_ERROR
+#               come from the individual FAIL:/ERROR: markers, falling back to the
+#               run's own aggregate figures when it named no individual test, and
+#               are EMPTY when the log published no figure at all - unmeasured,
+#               never 0, so they can never read `0` beside a `failed` verdict)
 # TEST scope:   MODULES_LOADED=<n> TESTS_RUN=<n>  (parseable; `test` verb only;
 #               EMPTY when the log carries no marker for it - unmeasured, not zero)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
@@ -359,16 +406,54 @@ _resolve_log_ns() {
 }
 
 # ---------------------------------------------------------------------------
-# Completion-marker SSOT - shared by _install_confirmed (foreground init/
-#   update verdict) AND _scan_build_markers (background wait-log verdict) so
-#   the two paths can NEVER diverge again. _INSTALL_FAIL_RE is the exact
-#   silent-skip + hard-failure marker set; _INSTALL_SUCCESS_MARKER is the
-#   completion line kept on the log by --log-handler=<ns>.modules.loading:INFO,
-#   a floor that survives any caller-supplied level. A future marker added to
-#   the install/update contract is added HERE ONLY - both call sites pick it up
-#   automatically.
+# Completion-marker SSOT - ONE definition per fact, read by EVERY verdict path
+#   in this script: _install_confirmed (foreground init/update verdict),
+#   _parse_test_result (foreground test verdict) and _scan_build_markers
+#   (background wait-log verdict). Two paths holding their own copy of "what
+#   counts as failure" is what let them answer opposite things about the same
+#   log, so a new marker is added HERE ONLY and every call site picks it up.
+#
+#   NEVER key any of these on the log-LEVEL column. Odoo logs at ERROR for
+#   reasons that have nothing to do with the build (a scheduled job raising, a
+#   mail send, a deprecated call), so a delimited ` ERROR ` match fires on
+#   lines that carry no verdict at all. MEASURED on two real run logs: an 18.0
+#   run held 30 ERROR-level lines of which 1 was a test-failure marker, and a
+#   19.0 run held 100 of which 98 were - the level column predicts nothing.
+#   Every scan below keys on MESSAGE TEXT, the same rule the ` INFO ` /
+#   `RUNBOT` level drift already forces.
+#
+#   _BUILD_ABORT_RE - the run DIED or was never able to start: after any of
+#     these it will never publish a verdict of its own, so waiting for one is a
+#     guaranteed stall and they are TERMINAL for every verb, tests included.
+#     odoo-bin's preload_registries wraps ANY load-time exception in a CRITICAL
+#     line, so a broken XML data file or a refused Postgres connection during a
+#     --test-enable build lands here through CRITICAL.
+#   _PER_TEST_TRACEBACK_RE - a failure signal ONLY for a build that runs no
+#     tests, and it is in _INSTALL_FAIL_RE for exactly that reason. Under -i/-u
+#     nothing but the build itself can raise, so a traceback there IS the
+#     failure. On a --test-enable run it is NOT: odoo/tests/result.py logError()
+#     logs "<FAIL|ERROR>: <test>" followed by
+#     traceback.TracebackException.format(), so every failing test writes one -
+#     but so does any logged exception the run recovers from, ir_http's routing
+#     errors, sql_db, and every HttpCase 500 the test asserts on. MEASURED
+#     across every real run log on disk: the traceback count matches the
+#     FAIL:/ERROR: marker count in only three quarters of them, and the
+#     divergence is large and one-directional (96 tracebacks against 4 markers;
+#     13 against 3; 12 against 9; 17 against 16), including a run with one
+#     traceback and no failure marker at all whose own summary reported nothing
+#     failed. So on a test run it is per-test/incidental evidence, never a
+#     verdict - ruling on it is the same false-RED bug as keying on the level
+#     column. EVERY test-verb path below therefore rules on
+#     _TEST_FAIL_RE|_BUILD_ABORT_RE and never on _INSTALL_FAIL_RE; a genuinely
+#     failing test is still caught because result.py logs its FAIL:/ERROR:
+#     marker BEFORE the traceback, so the marker set loses nothing.
+#   _INSTALL_SUCCESS_MARKER - the completion line kept on the log by
+#     --log-handler=<ns>.modules.loading:INFO, a floor that survives any
+#     caller-supplied level.
 # ---------------------------------------------------------------------------
-_INSTALL_FAIL_RE='CRITICAL|Traceback \(most recent call last\)|invalid module names, ignored|Some modules are not loaded|Unmet dependenc|cannot be installed'
+_BUILD_ABORT_RE='CRITICAL|invalid module names, ignored|Some modules are not loaded|Unmet dependenc|cannot be installed|Failed to load registry|psycopg2\.|ParseError'
+_PER_TEST_TRACEBACK_RE='Traceback \(most recent call last\)'
+_INSTALL_FAIL_RE="${_BUILD_ABORT_RE}|${_PER_TEST_TRACEBACK_RE}"
 _INSTALL_SUCCESS_MARKER='Modules loaded.'
 
 # ---------------------------------------------------------------------------
@@ -384,21 +469,100 @@ _DEFAULT_LOG_LEVEL='info'
 
 # ---------------------------------------------------------------------------
 # Test-outcome marker SSOT (read from Odoo source, all 12 series v8.0-v19.0).
-#   _TEST_FAIL_RE - version-GENERAL. `FAIL:`/`ERROR:` message bodies exist on
-#     every series; the per-module ERROR line's prefix is byte-identical
-#     across the eras ("Module <m>: <F> failures, <E> errors" v8-v13, the same
-#     plus " of <T> tests" v14+); loading.py's blanket ERROR line is on all 12.
-#     Odoo emits the per-module line ONLY when the run was not successful, so
-#     it can never carry "0 failures, 0 errors" - no non-zero guard needed.
+#   Split by WHAT EACH MARKER PROVES, not merely by wording, because the two
+#   verdict paths need different questions answered from the same set:
+#   _parse_test_result asks "did this FINISHED run fail?" (any of them), while
+#   _scan_build_markers asks "is this RUNNING build's outcome decided yet?"
+#   (none of them - only the run's own verdict line or a _BUILD_ABORT_RE hit).
+#
+#   _TEST_FAIL_PER_TEST_*_RE - ONE failing test. `FAIL:`/`ERROR:` message
+#     bodies (distinct from the ERROR log LEVEL) exist on every series. MID-RUN
+#     by construction: the suite carries on to the next test afterwards.
+#   _TEST_FAIL_MODULE_RE - the per-MODULE aggregate, byte-identical across the
+#     eras apart from a suffix ("Module <m>: <F> failures, <E> errors" v8.0-v13.0
+#     modules/module.py; the same plus " of <T> tests" v14.0-v19.0
+#     modules/loading.py). Also MID-RUN: it is logged inside the module loop, so
+#     the run still has later modules to load. Odoo emits it ONLY for a module
+#     whose suite was not successful, so it can never carry "0 failures, 0
+#     errors" - no non-zero guard needed, and it never contributes a false zero
+#     to a count.
+#   _TEST_FAIL_BLANKET_RE - loading.py's numberless line, on all 12 series. It
+#     states THAT something failed and never how much.
+#   _TEST_SUMMARY_RE - v14.0-v19.0's per-database total: tests/result.py's
+#     OdooTestResult.__str__ rendered by service/server.py's "%s when loading
+#     database %r". The run-level figure, so it WINS over the per-module lines
+#     when a count is being read (a v14+ run logs both wordings; summing across
+#     them would double-count).
+#   _TEST_FAIL_RE - the union: "this finished run failed". _parse_test_result's
+#     verdict input, and the gate _scan_build_markers puts in front of a
+#     completion marker so a summary reporting its own non-zero counts can never
+#     be certified as a successful build.
 #   _TEST_RAN_*_RE - the POSITIVE "tests actually RAN" marker, and the ONLY
-#     era-SPLIT one: v8-v13 emit `Ran <N> test(s) in <X>s` (stdlib runner
-#     trailer, INFO), v14+ emit `<F> failed, <E> error(s) of <T> tests`
-#     (service/server.py's per-database summary). Both REQUIRE a non-zero
-#     count, so a tag filter that matched nothing can never certify a pass.
+#     era-SPLIT one: v8.0-v13.0 emit `Ran <N> test(s) in <X>s` (stdlib runner
+#     trailer, INFO), v14.0-v19.0 emit the _TEST_SUMMARY_RE wording. Both
+#     REQUIRE a non-zero total, so a tag filter that matched nothing can never
+#     certify a pass.
 # ---------------------------------------------------------------------------
-_TEST_FAIL_RE='(^|[[:space:]])(FAIL|ERROR):|Module [A-Za-z0-9_.]+: [0-9]+ failures?, [0-9]+ errors?|At least one test failed when loading the modules|[1-9][0-9]* (failed|error)'
+_TEST_FAIL_PER_TEST_FAIL_RE='(^|[[:space:]])FAIL:'
+_TEST_FAIL_PER_TEST_ERROR_RE='(^|[[:space:]])ERROR:'
+_TEST_FAIL_PER_TEST_RE="${_TEST_FAIL_PER_TEST_FAIL_RE}|${_TEST_FAIL_PER_TEST_ERROR_RE}"
+_TEST_FAIL_MODULE_RE='Module [A-Za-z0-9_.]+: [0-9]+ failures?, [0-9]+ errors?'
+_TEST_FAIL_BLANKET_RE='At least one test failed when loading the modules'
+_TEST_SUMMARY_RE='[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests'
+_TEST_FAIL_RE="${_TEST_FAIL_PER_TEST_RE}|${_TEST_FAIL_MODULE_RE}|${_TEST_FAIL_BLANKET_RE}|[1-9][0-9]* (failed|error)"
 _TEST_RAN_LEGACY_RE='Ran [1-9][0-9]* tests? in '
 _TEST_RAN_MODERN_RE='[0-9]+ failed, [0-9]+ error\(s\) of [1-9][0-9]* tests'
+
+# ---------------------------------------------------------------------------
+# Progress-marker SSOT - the ADVANCING evidence a polling caller diffs across
+#   two waits. NEVER a verdict: nothing here may promote a build to success or
+#   demote it to failure, in any branch. A marker that decides an outcome is a
+#   terminal marker and belongs in one of the sets above.
+#
+#   Why a separate set at all: the only in-flight evidence this scan used to
+#   report was `loading <N> modules...`, which Odoo logs ONCE per registry load.
+#   During a test suite it therefore never changes, so "the same evidence twice
+#   means the build stopped" was false for every long test run - a healthy suite
+#   and an odoo-bin that had been killed mid-suite produced byte-identical
+#   output. The markers below advance while the suite runs, which is what makes
+#   that rule true.
+#
+#   MEASURED by reading the Odoo source of all 12 supported series (8.0-19.0)
+#   for the literal format string AND the level it is logged at - the level
+#   matters because the shared default is `info`, so a DEBUG line is invisible.
+#   Applied era-BLIND on purpose: a rendered log only ever holds its OWN
+#   series' wording, and every wording below means the SAME thing ("one more
+#   unit of work finished"), so a cross-era match cannot mislead. That is the
+#   opposite of _test_ran_re, which MUST gate by series because there the two
+#   wordings certify a pass and accepting the wrong era's would be a false
+#   green.
+#
+#   _PROGRESS_DATAFILE_RE - modules/loading.py logs `loading <module>/<file>`
+#     at INFO once per data file it converts. Present on ALL 12 series and the
+#     only progress wording that is; covers the module-install phase of every
+#     verb, including the install phase of a --test-enable build.
+#   _PROGRESS_TEST_START_RE - the test result class logs `Starting
+#     <Class>.<method> ...` at INFO once per test STARTED, from 13.0 onward
+#     (modules/module.py at 13.0, tests/runner.py at 14.0-15.0, tests/result.py
+#     from 16.0). Per-test granularity, so it advances throughout a long suite.
+#   _PROGRESS_TEST_MODULE_RE - 8.0-13.0 modules/module.py logs `<test module>
+#     running tests.` at INFO once per test MODULE entered. This is the only
+#     test-phase progress wording 8.0-12.0 emit at all, so on those five series
+#     progress advances per test FILE rather than per test - coarser, still
+#     advancing, and it is why a stall reading is weaker (not absent) there.
+#
+#   Deliberately NOT used, each for a measured reason:
+#     `Loading module <name> (<i>/<n>)` - DEBUG on 10.0-13.0 and absent before
+#       10.0, so invisible at the `info` floor across half the range.
+#     `Modules loaded.` - loading.py logs it XOR `At least one test failed when
+#       loading the modules.` on all 12 series, so a --test-enable build with
+#       any at_install failure never emits it. It is a terminal marker for
+#       init/update regardless and must not be counted as progress.
+# ---------------------------------------------------------------------------
+_PROGRESS_DATAFILE_RE='loading [A-Za-z0-9_.]+/[^[:space:]]+'
+_PROGRESS_TEST_START_RE='Starting .+ \.\.\.'
+_PROGRESS_TEST_MODULE_RE='[A-Za-z0-9_.]+ running tests\.'
+_BUILD_PROGRESS_RE="${_PROGRESS_DATAFILE_RE}|${_PROGRESS_TEST_START_RE}|${_PROGRESS_TEST_MODULE_RE}"
 
 # ---------------------------------------------------------------------------
 # _test_ran_re - the era-correct POSITIVE "the suite ran" marker for a series.
@@ -449,6 +613,95 @@ _test_ran_re() {
     else
         printf '%s\n' "$_TEST_RAN_MODERN_RE"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# _build_progress <logf> - one comparable reading of HOW FAR the build has got.
+#   Two consecutive readings that DIFFER prove the build did work in between;
+#   two that are IDENTICAL and non-empty prove it wrote NOTHING AT ALL in
+#   between. It answers nothing about pass/fail and no caller may derive an
+#   outcome from it.
+#
+#   BOTH components are emitted ALWAYS, as `markers:<n>|bytes:<m>` - never one
+#   OR the other. An either/or reading is what froze this field on real runs:
+#   every build publishes hundreds of install-phase progress lines, so `markers`
+#   is permanently non-zero long before the test phase starts, which permanently
+#   suppressed a byte fallback that only ever fired at `markers:0`. The byte
+#   count was therefore unavailable in the ONE state where it is the only signal
+#   left - a test phase spent inside a single long test.
+#
+#   `markers:<n>` - n progress lines the run published (SSOT:
+#     _BUILD_PROGRESS_RE). The STRONG component: n rises only when the build
+#     actually finished another data file, test module, or test, so a rise is
+#     proof of a completed unit of work. It CAN sit still through a healthy run:
+#     a browser/JS suite is one test that streams thousands of console lines
+#     under a logger no progress wording matches, and on the earliest series the
+#     finest granularity is one test FILE.
+#   `bytes:<m>` - the log's own length. The WEAK component, and weak in one
+#     direction only: a rise proves only that something was appended, not that
+#     the build advanced - but it is what makes the reading MOVE for any run
+#     that is still writing, including one inside a single long test and one at
+#     a caller-chosen level that suppresses every progress wording. Both
+#     components carry their own prefix so a reader can always tell which fact
+#     moved.
+#   Composed, the reading is FROZEN only when the process appended zero bytes
+#   for the whole comparison window - which is the strongest in-log evidence of
+#   a stopped build available without signalling the process, and is still not
+#   proof of death (a hung browser suite writes nothing either, until its own
+#   timeout fires). The caller's stall rule must stay worded accordingly.
+#   EMPTY - there is no log file to measure. Absence of a reading is NOT a
+#     stall; it is the absence of evidence either way, and the caller must not
+#     resolve it as success, failure, or a stopped build.
+# ---------------------------------------------------------------------------
+_build_progress() {
+    local logf="$1" n bytes
+    [[ -f "$logf" ]] || return 0
+    bytes="$(wc -c <"$logf" 2>/dev/null || true)"
+    bytes="${bytes//[[:space:]]/}"
+    [[ "$bytes" =~ ^[0-9]+$ ]] || return 0
+    n="$(grep -acE "$_BUILD_PROGRESS_RE" "$logf" 2>/dev/null || true)"
+    [[ "$n" =~ ^[0-9]+$ ]] || n=0
+    printf 'markers:%s|bytes:%s\n' "$n" "$bytes"
+}
+
+# ---------------------------------------------------------------------------
+# _aggregate_fail_counts <logf> - "<failures> <errors>" as the run itself
+#   REPORTED them, or NOTHING when the log carries no numeric aggregate at all.
+#   Era-BLIND on purpose: a log only ever holds its own series' wording, so a
+#   version gate here would buy nothing and could only mis-fire on a log whose
+#   --version was never threaded through.
+#   The per-DATABASE total (_TEST_SUMMARY_RE) WINS when present - a v14+ run
+#   logs the per-module wording too, so summing across the two would report
+#   double the real figure. Otherwise the per-MODULE lines are summed, one row
+#   per failing module, which is the only wording v8.0-v13.0 has.
+#   The blanket "At least one test failed" line carries no number and therefore
+#   yields nothing here: that run's counts are UNMEASURABLE, which the caller
+#   must report as EMPTY rather than invent a zero for.
+#   Prints nothing and returns 0 when there is nothing to read - "no aggregate"
+#   is not an error.
+# ---------------------------------------------------------------------------
+_aggregate_fail_counts() {
+    local logf="$1" line f e total_f=0 total_e=0 hit=0
+    line="$(grep -aoE "$_TEST_SUMMARY_RE" "$logf" 2>/dev/null | tail -n 1 || true)"
+    if [[ -n "$line" ]]; then
+        f="$(printf '%s\n' "$line" | sed -nE 's/^([0-9]+) failed, ([0-9]+) error.*/\1/p')"
+        e="$(printf '%s\n' "$line" | sed -nE 's/^([0-9]+) failed, ([0-9]+) error.*/\2/p')"
+        if [[ "$f" =~ ^[0-9]+$ && "$e" =~ ^[0-9]+$ ]]; then
+            printf '%s %s\n' "$f" "$e"
+            return 0
+        fi
+    fi
+    while IFS= read -r line; do
+        [[ -n "$line" ]] || continue
+        f="$(printf '%s\n' "$line" | sed -nE 's/.*: ([0-9]+) failures?, ([0-9]+) errors?.*/\1/p')"
+        e="$(printf '%s\n' "$line" | sed -nE 's/.*: ([0-9]+) failures?, ([0-9]+) errors?.*/\2/p')"
+        [[ "$f" =~ ^[0-9]+$ && "$e" =~ ^[0-9]+$ ]] || continue
+        total_f=$(( total_f + f ))
+        total_e=$(( total_e + e ))
+        hit=1
+    done < <(grep -aoE "$_TEST_FAIL_MODULE_RE" "$logf" 2>/dev/null || true)
+    [[ "$hit" -eq 1 ]] && printf '%s %s\n' "$total_f" "$total_e"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -575,8 +828,11 @@ _RUN_VERB_STAMP='ODOO_AI_RUN_VERB'
 
 # ---------------------------------------------------------------------------
 # _log_stamp_field <logf> <VERB|SERIES> - read one field of the run-verb stamp.
-#   Empty when the log carries no stamp (a log from an older run): the caller
-#   then behaves exactly as it did before the stamp existed.
+#   Empty when the log carries no stamp. That is a REACHABLE state, not a
+#   theoretical one - any log written before this stamp existed, and any log a
+#   caller points wait-log at that this script did not open, arrives unstamped.
+#   Empty means UNKNOWN, and the caller must resolve it to the predicate that
+#   cannot certify a wrong answer - never to whichever one happens to be first.
 # ---------------------------------------------------------------------------
 _log_stamp_field() {
     local logf="$1" field="$2" line=""
@@ -626,16 +882,45 @@ _open_log() {
 _parse_test_result() {
     local exit_code="$1"
 
-    # --- Counts + findings file (always; independent of the pass/fail verdict) ---
+    # --- Counts (always; independent of the pass/fail verdict) --------------
     # Odoo logs each failing test as a "FAIL:" line and each errored test as an
     # "ERROR:" line (the message body, distinct from the " ERROR " log level);
-    # warning log lines carry the " WARNING " level token. These markers are the
-    # most version-stable signal, so counts are derived from them best-effort.
+    # warning log lines carry the " WARNING " level token. Those per-test
+    # markers are the most precise signal, so they are read first.
     local n_fail n_error n_warn
-    n_fail="$(grep -cE '(^|[[:space:]])FAIL:' "$logf" 2>/dev/null || true)"
-    n_error="$(grep -cE '(^|[[:space:]])ERROR:' "$logf" 2>/dev/null || true)"
-    n_warn="$(grep -cE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
+    n_fail="$(grep -acE "$_TEST_FAIL_PER_TEST_FAIL_RE" "$logf" 2>/dev/null || true)"
+    n_error="$(grep -acE "$_TEST_FAIL_PER_TEST_ERROR_RE" "$logf" 2>/dev/null || true)"
+    n_warn="$(grep -acE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
     n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
+    # Whether the log NAMED individual failing tests, kept before the counts can
+    # be re-sourced from an aggregate below. The findings file branches on THIS,
+    # not on the counts: once a count may legitimately come from an aggregate, a
+    # non-zero count no longer implies there is a per-test marker to quote, and
+    # branching on the count printed an empty evidence block.
+    local per_test_markers=$(( n_fail + n_error ))
+
+    # A run can fail while naming no individual test: the aggregate wordings
+    # (SSOT above) are the only figures such a run published. Reading them here
+    # is what stops this block emitting `TEST_FAILED=0 TEST_ERROR=0` beside a
+    # `TEST_RESULT=failed` verdict - telling the caller the run failed and that
+    # nothing failed, in the same breath, and driving the findings file below
+    # into printing "no failing tests" for a failed build.
+    # When there is no aggregate either, the figure is only a MEASURED zero if
+    # the suite is PROVEN to have run (an era-correct ran-marker) and named
+    # nothing. Absent that proof it is UNMEASURABLE and reported EMPTY - the
+    # same rule MODULES_LOADED/TESTS_RUN follow, because a fabricated zero is a
+    # worse answer than an absent one.
+    if (( n_fail == 0 && n_error == 0 )); then
+        local agg
+        agg="$(_aggregate_fail_counts "$logf")"
+        if [[ -n "$agg" ]]; then
+            n_fail="${agg%% *}"
+            n_error="${agg##* }"
+        elif ! grep -aqE "$(_test_ran_re "${arg_version:-}")" "$logf" 2>/dev/null; then
+            n_fail=""
+            n_error=""
+        fi
+    fi
 
     # --- Skip detection -----------------------------------------------------
     # Bug: exit 0 + "0 failed, 0 error(s) of 1 tests" reads as green even when
@@ -693,25 +978,101 @@ _parse_test_result() {
         )"
     fi
 
+    # --- Pass/fail verdict ---------------------------------------------------
+    # Resolved BEFORE the findings file is written, because that file has to
+    # AGREE with it: an agent handed `TEST_RESULT=failed` and a findings file
+    # saying "no failing tests" has been told the run failed and that nothing
+    # failed. Computed into a variable and emitted once, further down, so there
+    # is still exactly one TEST_RESULT= line on stdout.
+    local verdict=""
+    if [[ "$exit_code" -ne 0 ]]; then
+        verdict="failed"
+    # FAILURE next - the three-era test-marker set (SSOT: _TEST_FAIL_RE above)
+    # UNIONED with the install/abort marker set (SSOT: _INSTALL_FAIL_RE). The
+    # per-module aggregate wording ("Module <m>: <F> failures, <E> errors",
+    # v8.0-v13.0, plus " of <T> tests" from v14.0) has always been part of
+    # _TEST_FAIL_RE, so the VERDICT on an aggregate-only run was already
+    # `failed`; what was wrong is that the COUNTS beside it read
+    # `TEST_FAILED=0 TEST_ERROR=0` and the findings file answered "no failing
+    # tests" for it - measured against the pre-change script, not assumed. The
+    # counts block above is what fixes that; this branch is unchanged behavior
+    # and must stay, because it is the only thing that rules such a run failed
+    # at all. An INSTALL
+    # failure inside a --test-enable build (misspelled module, unmet dependency)
+    # writes no fail-, skip- OR ran-marker at all, so it used to fall through to
+    # `inconclusive`; it is a FAILED run - the suite could not run - and the
+    # union also stops a module that DID install from certifying the build green
+    # while a named module was silently skipped.
+    # The abort half is _BUILD_ABORT_RE, NOT the whole _INSTALL_FAIL_RE: this
+    # call only ever reads a --test-enable log, where a lone traceback is
+    # per-test/incidental evidence rather than a verdict (SSOT above). Ruling on
+    # it turned a run whose own summary reported nothing failed into `failed`.
+    # _scan_build_markers gates its own completion check on this SAME union, so
+    # a log this call rules failed can never be certified a successful build
+    # there, and a log it rules passed can never be ruled failed there.
+    elif grep -aqE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null; then
+        verdict="failed"
+    # Skip verdict - MUST precede the positive-pass check: a skip-only run still
+    # emits a ran-marker with a non-zero count. Skips are not fatal (never force
+    # a non-zero exit; exit_code above already governs failed/error - they are
+    # legitimately produced by @tagged filters or a missing optional external
+    # dependency) but are never silently certified as a bare `passed`.
+    elif [[ "$n_skip" -gt 0 ]]; then
+        verdict="inconclusive"
+    # POSITIVE pass marker, era-resolved. Mirrors _install_confirmed exactly:
+    # the ABSENCE of a positive "the suite ran" line is itself the finding,
+    # never a fallthrough to success - exit 0 with no ran-marker means the tag
+    # filter matched nothing, not that the suite passed. arg_version comes from
+    # the caller's scope (bash dynamic scope); when it is absent the era gate
+    # degrades to accepting EITHER wording.
+    elif grep -aqE "$(_test_ran_re "${arg_version:-}")" "$logf" 2>/dev/null; then
+        verdict="passed"
+    else
+        verdict="inconclusive"
+    fi
+
     # Per-volume contract: the DETAIL goes to a file next to the log; stdout
     # carries only the counts + the pointer.
     local findings="${logf%.log}.findings.md"
     local tb_head=20 warn_cap=50
     local mod_regex=""
     [[ -n "${arg_modules:-}" ]] && mod_regex="${arg_modules//,/|}"
+    # The aggregate/abort line(s) that state a failure the log never attributed
+    # to an individual test - the ONLY evidence a run like that leaves behind.
+    local agg_evidence=""
+    agg_evidence="$(grep -aE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null \
+                        | head -n "$warn_cap" || true)"
 
     {
         echo "# Test findings"
         echo
         echo "Log: $logf"
+        echo "Verdict: TEST_RESULT=$verdict"
         echo "Counts: failed=$n_fail error=$n_error warning=$n_warn skipped=$n_skip"
+        echo "(an EMPTY count means the log carried no marker to measure it - never zero)"
         echo
         echo "## Failures and errors (marker line + first $tb_head lines)"
         echo
-        if [[ "$n_fail" -gt 0 || "$n_error" -gt 0 ]]; then
+        if [[ "$per_test_markers" -gt 0 ]]; then
             echo '```'
-            grep -E -A "$tb_head" '(^|[[:space:]])(FAIL|ERROR):' "$logf" 2>/dev/null || true
+            grep -aE -A "$tb_head" "$_TEST_FAIL_PER_TEST_RE" "$logf" 2>/dev/null || true
             echo '```'
+        elif [[ "$verdict" == "failed" ]]; then
+            # A failed run that named no individual test. Its failure is stated
+            # by its own aggregate/abort line, or by odoo-bin's exit code alone;
+            # either way "no failing tests" is the one answer this section must
+            # never give here.
+            echo "This run FAILED without naming an individual test."
+            if [[ -n "$agg_evidence" ]]; then
+                echo "The line(s) that state the failure:"
+                echo
+                echo '```'
+                printf '%s\n' "$agg_evidence"
+                echo '```'
+            else
+                echo "The log carries no failure marker at all: the verdict comes from"
+                echo "odoo-bin's non-zero exit code. Read the log tail for the cause."
+            fi
         else
             echo "_No failing or errored tests detected in the log._"
         fi
@@ -756,96 +1117,131 @@ _parse_test_result() {
     echo "MODULES_LOADED=$(_modules_loaded_count "$logf")"
     echo "TESTS_RUN=$(_tests_run_count "$logf" "${arg_version:-}")"
 
-    # --- Pass/fail verdict (unchanged decision logic, plus the skip branch) ---
-    if [[ "$exit_code" -ne 0 ]]; then
-        echo "TEST_RESULT=failed"
-        return
-    fi
-    # FAILURE first - the three-era test-marker set (SSOT: _TEST_FAIL_RE above)
-    # UNIONED with the install/silent-skip marker set (SSOT: _INSTALL_FAIL_RE).
-    # The v8-v13 per-module wording ("Module <m>: N failures, M errors") is a
-    # DIFFERENT string from the v14+ one and was previously unmatched, so a
-    # failures-only run on those six series was reported GREEN. An INSTALL
-    # failure inside a --test-enable build (misspelled module, unmet dependency)
-    # writes no fail-, skip- OR ran-marker at all, so it used to fall through to
-    # `inconclusive`; it is a FAILED run - the suite could not run - and the
-    # union also stops a module that DID install from certifying the build green
-    # while a named module was silently skipped. Same verdict _scan_build_markers
-    # already reaches on this same log, so the two can never disagree.
-    if grep -aqE "$_TEST_FAIL_RE|$_INSTALL_FAIL_RE" "$logf" 2>/dev/null; then
-        echo "TEST_RESULT=failed"
-        return
-    fi
-    # Skip verdict - MUST precede the positive-pass check below: a skip-only
-    # run still emits a ran-marker with a non-zero count. Skips are not fatal
-    # (never force a non-zero exit; exit_code above already governs
-    # failed/error - they are legitimately produced by @tagged filters or a
-    # missing optional external dependency) but are never silently certified
-    # as a bare `passed`.
-    if [[ "$n_skip" -gt 0 ]]; then
-        echo "TEST_RESULT=inconclusive"
-        return
-    fi
-    # POSITIVE pass marker, era-resolved. Mirrors _install_confirmed exactly:
-    # the ABSENCE of a positive "the suite ran" line is itself the finding,
-    # never a fallthrough to success - exit 0 with no ran-marker means the tag
-    # filter matched nothing, not that the suite passed. arg_version comes from
-    # the caller's scope (bash dynamic scope); when it is absent the era gate
-    # degrades to accepting EITHER wording.
-    if grep -qE "$(_test_ran_re "${arg_version:-}")" "$logf" 2>/dev/null; then
-        echo "TEST_RESULT=passed"
-        return
-    fi
-    echo "TEST_RESULT=inconclusive"
+    # The verdict is resolved above, alongside the findings file it has to agree
+    # with. Emitted LAST so it stays the final line of the summary block that
+    # cmd_test appends to the log - the line `wait-log` keys its own terminal
+    # verdict on.
+    echo "TEST_RESULT=$verdict"
 }
 
 # ---------------------------------------------------------------------------
-# _scan_build_markers - single-pass terminal-marker scan of a build log.
-#   Echoes BUILD_MARKER=<matched line> (best-effort) and returns:
-#     0 -> the "Modules loaded." completion marker present AND no failure
-#          marker seen - the SAME verdict _install_confirmed would reach on
-#          this log (shared _INSTALL_FAIL_RE / _INSTALL_SUCCESS_MARKER SSOT
-#          above), so BUILD_RESULT can never disagree with the script's own
-#          STATUS=ok|error line for an init/update build.
-#     1 -> a FAILURE marker present (wins over success: a silent-skip marker
-#          such as "invalid module names, ignored" appearing alongside
+# _scan_build_markers - terminal-marker scan of a build log for a POLLING
+#   caller. It answers ONE question - "is this build's outcome decided yet?" -
+#   and it answers it with the SAME marker constants the foreground verdict
+#   paths use, so the two can never contradict each other on one log.
+#   Echoes BUILD_PROGRESS=<reading> (ALWAYS, on every path - the field a caller
+#   diffs across two polls to learn whether the build is still doing work; see
+#   _build_progress) and BUILD_MARKER=<matched line>, then returns:
+#     0 -> DECIDED, and not a failure. init/update: the "Modules loaded."
+#          completion marker present AND no _INSTALL_FAIL_RE hit - by
+#          construction the verdict _install_confirmed reaches on this same log,
+#          so BUILD_RESULT can never disagree with the script's own
+#          STATUS=ok|error line. test: the run's own TEST_RESULT= line says
+#          passed/inconclusive, or (before that line lands) the era-correct
+#          ran-marker is present with NO failure marker anywhere - which is
+#          exactly the state _parse_test_result calls `passed`.
+#     1 -> DECIDED as a failure. init/update: any _INSTALL_FAIL_RE hit (a
+#          silent-skip marker such as "invalid module names, ignored" alongside
 #          "Modules loaded." is STILL a failed build, exactly as
-#          _install_confirmed rules it - and a Traceback after a progress
-#          line is still a failed build)
-#     2 -> no terminal marker yet (build still in flight; the last
-#          "loading <N> modules..." progress line is echoed as evidence)
-#   The failure set is a SUPERSET of _INSTALL_FAIL_RE (adds psycopg2./
-#   ParseError/"Failed to load registry"/a bare ERROR line - broader build
-#   failures outside _install_confirmed's narrower install-only scope, e.g. a
-#   DB-connectivity error or an XML ParseError during a run-tests build).
-#   "loading <N> modules..."/"Initiating shutdown"/a bare process exit 0 remain
-#   named as progress/heartbeat signals in agents/odoo-instance-ops.md's
-#   "Active-wait on long builds" section, but are NOT independently
-#   sufficient for BUILD_RESULT=success here - only "Modules loaded." is,
-#   matching _install_confirmed exactly. Markers are version-stable v8-v19;
-#   the caller's own process exit code stays authoritative - this is the
-#   in-log completion signal.
+#          _install_confirmed rules it). test: the run's own
+#          TEST_RESULT=failed, or a _BUILD_ABORT_RE hit proving odoo-bin died
+#          and will therefore never publish a verdict to wait for.
+#     2 -> NOT DECIDED yet (build still in flight; the last progress line is
+#          echoed as evidence).
+#   The verb comes from the log's OWN stamp. UNSTAMPED = UNKNOWN, and UNKNOWN
+#   takes the `test` predicate: it is the narrower rule in both directions, so it
+#   is the only one that cannot certify a wrong answer on a log whose shape it
+#   does not know. See the branch itself for the per-marker reasoning.
+#
+#   What is deliberately NOT terminal for a `test` run, and why: a per-test
+#   FAIL:/ERROR: marker, its traceback, and the per-MODULE failure aggregate.
+#   All three are MID-RUN - the suite carries on to the next test and the next
+#   module - and cmd_test appends the authoritative TEST_RESULT= line when the
+#   run actually finishes. Returning failure at the first of them stops the wait
+#   while odoo-bin is still working and hands the caller a verdict the run never
+#   published; a caller that learns the wait does that goes back to hand-rolling
+#   a poll loop, which is the behavior this mechanism exists to remove. They
+#   still keep a completion marker from certifying SUCCESS (the _TEST_FAIL_RE
+#   gate below), so the un-decided answer is the only thing they can produce.
+#
+#   "Initiating shutdown"/a bare process exit 0 remain named as progress/
+#   heartbeat signals in agents/odoo-instance-ops.md's "Active-wait on long
+#   builds" section, but are NOT independently sufficient for
+#   BUILD_RESULT=success here. Markers are version-stable v8.0-v19.0 except
+#   where the SSOT blocks above record an era split; the caller's own process
+#   exit code stays authoritative - this is the in-log completion signal.
 # ---------------------------------------------------------------------------
 _scan_build_markers() {
     local logf="$1"
-    [[ -f "$logf" ]] || return 2
+    # BUILD_PROGRESS is emitted FIRST and on EVERY path, terminal ones included,
+    # so the caller's stall rule always has the same field to compare and never
+    # has to work out which meaning BUILD_MARKER is carrying this time. It is
+    # computed before any verdict branch precisely so no branch can turn it into
+    # one. A missing log yields BOTH keys EMPTY - no evidence, not a stall.
+    if [[ ! -f "$logf" ]]; then
+        echo "BUILD_MARKER="
+        echo "BUILD_PROGRESS="
+        return 2
+    fi
+    echo "BUILD_PROGRESS=$(_build_progress "$logf")"
 
     # The VERB decides the terminal predicate, read from the log's own run-verb
     # stamp (_open_log) so this works in a process that knows nothing else about
-    # the run. An unstamped log (an older run) resolves to the install predicate -
-    # exactly the pre-stamp behavior.
+    # the run.
+    #
+    # UNKNOWN verb (no stamp - a log written before the stamp existed, or one
+    # this script never opened) resolves to the TEST predicate, which is the
+    # NARROWER of the two in BOTH directions. This is a safety choice, not a
+    # default-to-the-first-branch:
+    #   * The install predicate certifies SUCCESS from "Modules loaded.". On a
+    #     --test-enable log that line lands BEFORE the post-install suite starts,
+    #     so applying it to an unknown log certifies a build whose tests have not
+    #     run - a false GREEN, the one error class that must never be reachable.
+    #   * The install predicate also rules FAILURE on a lone traceback, which on
+    #     a test log is per-test/incidental evidence (SSOT above) - a false RED
+    #     on a healthy run.
+    #   * The test predicate can produce NEITHER error on an install log: such a
+    #     log publishes no TEST_RESULT= line and no ran-marker, so it can never
+    #     be certified success, and _BUILD_ABORT_RE stays terminal for every
+    #     verb, so a genuine abort is still ruled failure. What it gives up is
+    #     ruling a traceback-only install failure terminal; that degrades to "not
+    #     decided", which the caller resolves as BLOCKED with the log preserved.
+    #     Refusing to certify is the safe direction; a confident wrong verdict is
+    #     not.
+    # Inferring the verb from the log's own content was rejected: a test log
+    # truncated after "Modules loaded." but before its first test line carries no
+    # test evidence at all, so inference resolves it to `install` and re-opens
+    # the false-GREEN path in exactly the state where it does damage.
     local verb series
     verb="$(_log_stamp_field "$logf" VERB)"
     series="$(_log_stamp_field "$logf" SERIES)"
+    [[ -n "$verb" ]] || verb="test"
 
-    # FAILURE first - a failure marker anywhere means the build did not succeed,
-    # even if an earlier line looked like progress. _INSTALL_FAIL_RE (SSOT,
-    # shared with _install_confirmed) is unioned with broader generic build-
-    # failure signals below; a TEST run adds the test-failure marker set (SSOT:
-    # _TEST_FAIL_RE, shared with _parse_test_result) so a suite that failed can
-    # never be reported as a successful build.
-    local fail_re="${_INSTALL_FAIL_RE}|[[:space:]]ERROR[[:space:]]|Failed to load registry|psycopg2\.|ParseError"
-    [[ "$verb" == "test" ]] && fail_re="${fail_re}|${_TEST_FAIL_RE}"
+    if [[ "$verb" == "test" ]]; then
+        # The run's OWN verdict line, appended to the log by cmd_test once
+        # odoo-bin exited, outranks every other signal: it is the only line on a
+        # test log that was computed AFTER the run finished. Echoing it is also
+        # what puts TEST_RESULT within reach of a polling caller at all.
+        local verdict
+        verdict="$(grep -aE '^TEST_RESULT=' "$logf" 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$verdict" ]]; then
+            echo "BUILD_MARKER=$verdict"
+            printf '%s\n' "$verdict"
+            [[ "$verdict" == "TEST_RESULT=failed" ]] && return 1
+            return 0
+        fi
+    fi
+
+    # FAILURE - a marker that PROVES the build cannot deliver its own verdict,
+    # anywhere in the log, even if an earlier line looked like progress. For a
+    # build that runs no tests that is the whole _INSTALL_FAIL_RE set (SSOT,
+    # shared with _install_confirmed, so the two agree by construction). For a
+    # test build it is _BUILD_ABORT_RE only - the subset no individual failing
+    # test can produce (see the marker SSOT above for the measurement) - and
+    # _BUILD_ABORT_RE is itself part of _INSTALL_FAIL_RE, so anything ruled a
+    # failure here is also a failure to _parse_test_result.
+    local fail_re="$_INSTALL_FAIL_RE"
+    [[ "$verb" == "test" ]] && fail_re="$_BUILD_ABORT_RE"
     local fail_line
     fail_line="$(grep -aE "$fail_re" "$logf" 2>/dev/null | head -n 1 || true)"
     if [[ -n "$fail_line" ]]; then
@@ -854,26 +1250,28 @@ _scan_build_markers() {
     fi
 
     if [[ "$verb" == "test" ]]; then
-        # A test run's OWN verdict line, appended to the log by cmd_test when the
-        # run finished, is the strongest terminal signal there is - and echoing it
-        # is what puts TEST_RESULT within reach of a polling caller at all.
-        local verdict
-        verdict="$(grep -aE '^TEST_RESULT=' "$logf" 2>/dev/null | head -n 1 || true)"
-        if [[ -n "$verdict" ]]; then
-            echo "BUILD_MARKER=$verdict"
-            printf '%s\n' "$verdict"
-            return 0
-        fi
-        # Otherwise the era-correct POSITIVE "the suite ran" marker (SSOT:
-        # _test_ran_re - v8-v13 runner trailer, v14+ per-database summary).
+        # No verdict line yet. The era-correct POSITIVE "the suite ran" marker
+        # (SSOT: _test_ran_re - v8.0-v13.0 runner trailer, v14.0-v19.0
+        # per-database summary) shows the suite reached its end, but it may only
+        # certify SUCCESS when nothing in the log contradicts it: the modern
+        # wording carries the run's own failure counts, so reading the wording
+        # and ignoring the numbers would certify a FAILING run as a successful
+        # build. The gate is the exact union _parse_test_result rules `failed`
+        # on - _TEST_FAIL_RE|_BUILD_ABORT_RE, the lone traceback deliberately
+        # absent from BOTH (SSOT above) - which makes this branch "the verdict
+        # that call would reach". Gating on the wider install union instead left
+        # a healthy run that merely logged a traceback stuck at "not decided"
+        # while the same log's own summary said nothing failed.
         # "Modules loaded." is NOT terminal here: Odoo logs it BEFORE the
         # post-install suite starts, so certifying there stops the wait while the
         # tests have not begun.
-        local ran_line
-        ran_line="$(grep -aE "$(_test_ran_re "$series")" "$logf" 2>/dev/null | head -n 1 || true)"
-        if [[ -n "$ran_line" ]]; then
-            echo "BUILD_MARKER=$ran_line"
-            return 0
+        if ! grep -aqE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null; then
+            local ran_line
+            ran_line="$(grep -aE "$(_test_ran_re "$series")" "$logf" 2>/dev/null | head -n 1 || true)"
+            if [[ -n "$ran_line" ]]; then
+                echo "BUILD_MARKER=$ran_line"
+                return 0
+            fi
         fi
     else
         # SUCCESS - the SAME completion marker _install_confirmed requires (SSOT:
@@ -887,19 +1285,26 @@ _scan_build_markers() {
         fi
     fi
 
-    # PROGRESS (never terminal, never success) - `loading <N> modules...` is
-    # INFO and byte-identical v8-v19, so an in-flight poll reports real forward
-    # progress instead of an empty marker on every series. For a test run
-    # "Modules loaded." is the LATER of the two progress signals: the modules are
-    # in, the suite has not finished.
+    # PROGRESS (never terminal, never success) - the NEWEST progress line the run
+    # published (SSOT: _BUILD_PROGRESS_RE), so this evidence ADVANCES while a
+    # suite runs instead of quoting one line that was written before the tests
+    # even started. `loading <N> modules...` is the last resort only: Odoo logs
+    # it once per registry load, so on its own it is frozen for the whole test
+    # phase and cannot distinguish a working build from a dead one.
+    # BUILD_PROGRESS above carries the countable form of the same fact; this line
+    # is its human-readable companion, never an outcome.
     local prog_line=""
-    if [[ "$verb" == "test" ]]; then
+    prog_line="$(grep -aE "$_BUILD_PROGRESS_RE" "$logf" 2>/dev/null | tail -n 1 || true)"
+    if [[ -z "$prog_line" && "$verb" == "test" ]]; then
+        # For a test run "Modules loaded." means the modules are in and the
+        # post-install suite has not finished - later than the registry-load
+        # line, and still only progress.
         prog_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
     fi
     if [[ -z "$prog_line" ]]; then
         prog_line="$(grep -aE 'loading [0-9]+ modules\.\.\.' "$logf" 2>/dev/null | tail -n 1 || true)"
     fi
-    [[ -n "$prog_line" ]] && echo "BUILD_MARKER=$prog_line"
+    echo "BUILD_MARKER=$prog_line"
     return 2
 }
 
@@ -946,10 +1351,15 @@ cmd_wait_log() {
         waited=$(( waited + interval ))
     done
 
+    # _scan_build_markers emits BOTH keys on every path, so the block below is
+    # relayed verbatim: BUILD_MARKER= and BUILD_PROGRESS= are always present,
+    # and a caller comparing two waits never has to guess whether a field was
+    # dropped or genuinely empty.
+    printf '%s\n' "$marker"
     case "$rc" in
-        0) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=success" ;;
-        1) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=failure" ;;
-        *) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=timeout"
+        0) echo "BUILD_RESULT=success" ;;
+        1) echo "BUILD_RESULT=failure" ;;
+        *) echo "BUILD_RESULT=timeout"
            echo "x wait-log timed out after ${timeout}s with no terminal marker; see $logf" >&2 ;;
     esac
     return "$rc"
