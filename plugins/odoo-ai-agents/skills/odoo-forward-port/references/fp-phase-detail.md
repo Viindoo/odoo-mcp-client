@@ -501,6 +501,12 @@ SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<mo
   (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
    text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
    separate child worktree, so there is no WRITE-TO location distinct from where this is read.)
+WORKTREE_PATH: <path>/fp-integration   (the integration worktree named above - the ONE root this
+      dispatch works in)
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve;
+      `<ISOLATE_DIR>` keys on the enclosing repository root, so an author that resolves it from
+      inside fp-integration writes the run's worklog into that worktree's own tree>
 INTENT: <one-liner from THIS module's own <module>/intents/<sha>.md, written by that module's P1
       extractor - § P1 write path>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
@@ -567,6 +573,11 @@ MODULE SCOPE: <name>
     (merged content; for bucket (b) 3-way+adapt start from these files - they hold the
      auto-merged or conflict-marked state - and write ALL output back here, in place)
 ODOO VERSION: <target>
+WORKTREE_PATH: <path>/fp-integration   (the integration worktree named in MODULE SCOPE - the ONE
+  root this dispatch works in)
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT RECORD above was
+  built from; substitute it, never re-resolve from a worktree cwd>
 WORKLOG: <slug> - read, then append.
 MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET version on conflict, never bump), C2 (migration-dir
   retarget), C3 (carry pre-existing source bugs faithfully, do not inline-fix) - [[fp-merge-absorption]]
@@ -695,6 +706,8 @@ operation: run-tests
 series: <target>
 persist: ephemeral
 RUN_ID: <this run's id>
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/fp-integration   # re-root per the Worktree re-root note above
 modules: <union of the touched modules' full transitive depends closure, comma-separated>
 mode: fresh

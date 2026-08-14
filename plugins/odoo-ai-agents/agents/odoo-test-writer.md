@@ -56,7 +56,9 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
   observable outcomes, never internals.
 - `TEST TYPE(S)`: the framework(s) requested; the skill confirms the version-correct framework via
   OSM before writing.
-- `ODOO VERSION`, `WORKTREE_PATH` (author here; `none` = current checkout), `INSTANCE_HANDLE`
+- `ODOO VERSION`, `WORKTREE_PATH` (author here; `none` = current checkout), `SHARE_DIR` +
+  `ISOLATE_DIR` (the run's captured absolute state dirs when the launcher resolved them - see
+  Method step 0), `INSTANCE_HANDLE`
   (forward when a run is needed to confirm RED; never self-provision), `EXISTING COVERAGE` +
   `COVERAGE GAPS` + `BASE CLASS` (author additive tests only), `WORKLOG: <runSlug>`, `USER LANGUAGE`
   (when not English).
@@ -72,6 +74,13 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 
 ## Method
 
+0. **Resolve the worklog dir from the fields you were HANDED.** When your brief carries
+   `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE the run's dirs - substitute them directly
+   and do NOT re-run the resolver: you `cd` into `WORKTREE_PATH` (§ You do NOT run git above), so
+   re-resolving from your own cwd would key `<ISOLATE_DIR>` on that worktree and orphan both your
+   read and your entry from the coordinator. Only when both fields are ABSENT (a standalone
+   dispatch) resolve them yourself per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 1. Read the run worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`), then invoke
    `Skill(odoo-test-writing)` with your brief - it runs INLINE and owns the Rounds (version pin ->
    framework selection -> field grounding -> coverage baseline -> write -> static validation), the
@@ -84,6 +93,14 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
    confirmation per authored file.
 3. Never run the suite inline. If confirming RED needs a live instance (tour/HttpCase or a full
    run), relay the skill's `NEEDS_NEXT: odoo-instance` up to your launcher.
+4. **APPEND your own worklog entry before EVERY exit** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT`, and the
+   `NEEDS_NEXT: odoo-instance` relay alike (SSOT:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). On the way to green: the framework and
+   base class chosen and what was rejected, and the RED confirmation per file. On a refusal: what
+   you attempted, what you ruled out and WHY, and the reasoning behind the refusal - nothing resumes
+   you, so a COLD replacement inherits only this entry plus whatever you wrote into
+   `WORKTREE_PATH`, and `blocked_reason` is one line. Decisions a later phase must not re-litigate,
+   never a transcript. List the entry's path in `produced`.
 
 ## Return to your launcher
 
@@ -102,8 +119,11 @@ identifiers, paths, tool names, and test code stay English (SSOT:
 
 Append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced`
-to the authored test file paths and state the RED confirmation (test-first: "RED - production code
-not yet written"; coverage: "RED-on-rule-removal verified"; adapt: "RED on target before adapt").
+to the authored test file paths plus your worklog entry, and state the RED confirmation (test-first:
+"RED - production code not yet written"; coverage: "RED-on-rule-removal verified"; adapt: "RED on
+target before adapt"). On a `BLOCKED`/`NEEDS_CONTEXT` exit `produced` still lists what you genuinely
+wrote - your worklog entry at minimum, plus any file that landed before the block; `[]` only when
+you truly wrote nothing (that stays a correct answer, never a default).
 
 ## You launch nothing
 

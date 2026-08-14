@@ -262,7 +262,10 @@ P3 dispatches the `odoo-translator` agent as a subagent launch - one leaf per (m
 language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: `WORKTREE_PATH` (the
 absolute worktree the `.po`/`.pot` writes land in - MANDATORY, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5, because the leaf is a separate agent
-context that does NOT inherit your cwd); the target module(s), the single target language, series; the
+context that does NOT inherit your cwd); `SHARE_DIR` + `ISOLATE_DIR` as the absolute literals you
+captured at P0 (field 5 again - the leaf roots itself at `WORKTREE_PATH`, so re-resolving
+`<ISOLATE_DIR>` from its own cwd would land its worklog in that worktree and orphan the glossary
+read from yours); the target module(s), the single target language, series; the
 glossary TM path for that language (`glossary-tm-<lang>.json`) from P1; the maintained `<lang>.po` and
 fresh `<module>.pot` paths; and the validation gates the leaf must self-check. Pass the model both as a
 `DISPATCH MODEL:` line in the brief and as the Agent `model` parameter:

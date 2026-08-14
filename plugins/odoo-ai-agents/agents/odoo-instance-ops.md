@@ -812,7 +812,7 @@ mutable DB across concurrent capture workers.
 
 ## Worklog
 
-Before starting, read the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` (`Glob <ISOLATE_DIR>/worklog/<run-or-slug>/*.md` oldest-first). After completing the operation, append your decisions (lease mode chosen and why, ports assigned, venv path, CLI flags resolved, errors encountered and mitigations) using the entry format from `worklog-contract.md`.
+Before starting, read the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` (`Glob <ISOLATE_DIR>/worklog/<run-or-slug>/*.md` oldest-first). When your brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE the run's dirs - substitute them directly and do NOT re-run the resolver; a brief that names a `WORKTREE_PATH` names a root other than your own cwd, so a resolve of your own would key `<ISOLATE_DIR>` on the wrong tree. Only when both are ABSENT (a standalone dispatch) resolve them yourself per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Append your decisions (lease mode chosen and why, ports assigned, venv path, CLI flags resolved, errors encountered and mitigations) before EVERY exit, using the entry format from `worklog-contract.md` - a failed or refused operation is the exit whose decisions a caller most needs.
 
 ---
 
