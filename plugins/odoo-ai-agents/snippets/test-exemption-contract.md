@@ -45,7 +45,8 @@ after all, so the caller must launch `odoo-test-writer` first.
 
 Every refusal here - an absent or malformed declaration with no test, an unresolvable
 `RED_TEST_PATH`, or an exemption voided mid-work - is a FULL report, never a near-empty message:
-prose summary, `produced: []`, and the terminal `continuation` block carrying `status: BLOCKED` and
+prose summary, a `produced` list naming what you genuinely wrote (your worklog entry at minimum -
+`[]` only when you truly wrote nothing), and the terminal `continuation` block carrying `status: BLOCKED` and
 a `blocked_reason` that names the field plus the concrete referent that failed (the path you read
 and could not open, the category string you were handed, the specific edit that voided the
 exemption). Shape and rules: `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. A

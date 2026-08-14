@@ -292,7 +292,21 @@ def test_leaf_refusal_emits_a_terminal_continuation_block(name):
         "shape to copy, which is how a gate ends up exiting on near-empty text"
     )
     block = refusals[0]
-    assert "produced: []" in block, f"{name}: a refusal must report produced: [] explicitly"
+    # INVERTED. This used to require the literal `produced: []`, which made the empty list the
+    # only legal refusal shape and contradicted the field's own definition
+    # (`snippets/continuation-contract.md`: "files you actually wrote", no status qualifier) and
+    # `skills/run-harness/SKILL.md` § reconcile ("BLOCKED when the effect is PARTIAL - record what
+    # exists in `produced`"). A leaf writes into the shared WORKTREE_PATH and appends a worklog
+    # entry before it refuses, so its partial work is exactly what a cold replacement inherits.
+    # What the refusal owes is a `produced:` line that reports reality; `[]` stays correct when
+    # nothing was written, and is guarded as such in `tests/test_blocked_round_trip.py`.
+    assert re.search(r"^produced:", block, re.M), (
+        f"{name}: a refusal must carry a `produced:` line"
+    )
+    assert "produced: []" not in block, (
+        f"{name}: a refusal must not hardcode `produced: []` - it pre-empts the evidence field on "
+        "the very status where partial work is most likely"
+    )
     assert "blocked_reason:" in block, f"{name}: a refusal must carry blocked_reason"
     low = " ".join(section.split()).lower()
     assert "near-empty" in low, (
