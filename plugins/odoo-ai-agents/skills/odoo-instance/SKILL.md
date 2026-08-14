@@ -200,6 +200,8 @@ SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent's own acquire gains --addons-path-override per § WORKTREE_PATH substitution
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; the agent appends the run worklog and must not key it on WORKTREE_PATH's own toplevel>
 ```
 
 `INSTANCE_RESOLUTION`, `ALLOCATOR`, and `OSM_GROUNDING` are deliberately NOT brief fields: the

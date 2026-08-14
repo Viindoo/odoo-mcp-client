@@ -50,7 +50,7 @@ The OSM `set_active_version` pin is session-scoped server state; any other actor
 Load the glossary TM the skill assembled in P1 (`glossary-tm-<lang>.json` path from the brief) and hold it as the canonical term source. Consult the three glossary layers in order, first canonical hit wins (full layering in the recipe):
 
 1. **Translation memory from core + deps** - the already-translated `<lang>.po` of core Odoo and the module's dependency modules; reuse their `msgstr` for any recurring `msgid`. Largest, most authoritative source.
-2. **Project glossary** - `<SHARE_DIR>/glossary.yml` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) domain/regulatory terms plus their source citation; these override a generic TM hit on conflict.
+2. **Project glossary** - `<SHARE_DIR>/glossary.yml`: domain/regulatory terms plus their source citation; these override a generic TM hit on conflict. When your brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE the run's dirs - substitute them directly and do NOT re-run the resolver: you root yourself at `WORKTREE_PATH`, so re-resolving from your own cwd would key `<ISOLATE_DIR>` on that worktree and orphan your worklog entry from the caller. Only when both are ABSENT (a standalone dispatch) resolve them yourself per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Either way substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
 3. **OSM canonical field label** - for a term mapped to a model field, reuse Odoo's own UI label rather than inventing one:
 
 ```

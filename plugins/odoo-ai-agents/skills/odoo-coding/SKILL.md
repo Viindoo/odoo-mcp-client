@@ -99,9 +99,14 @@ skill never edits files inline itself - and the moment they return **IMMEDIATELY
 Bound to 3 iterations, then STOP and escalate.
 
 Otherwise (normal invocation), First READ any existing worklog for this run. Worklog is Tier-2
-ISOLATE; resolve it via the resolve-capture-substitute protocol in
+ISOLATE. **When your own brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE the
+run's dirs for this whole invocation - substitute them and do NOT re-run the resolver, here or at
+any later `<SHARE_DIR>`/`<ISOLATE_DIR>` below; re-resolving would fork the run's state root the
+moment a per-module worktree enters the picture.** Only when both are absent, resolve them yourself
+via the resolve-capture-substitute protocol in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
-below) - `<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first - per
+below), BEFORE any `cd` into a worktree - either way ONE captured literal is what you forward to
+every `odoo-coder` you dispatch. Read `<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first - per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so you build on the decisions an upstream
 phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
 things, then stop for the user's reply.
@@ -524,6 +529,8 @@ REQUEST: <the change for this module: target model + constraints (+ frontendRequ
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its descriptor / static assets). Resolve the descriptor filename ONCE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one the module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
 WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
+SHARE_DIR: <absolute path> - the run's SHARE dir. Forward the literal your own caller handed you; only when it handed none, capture it ONCE per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § The resolve-capture-substitute protocol, BEFORE any `cd` into a worktree. Never let a leaf re-resolve.
+ISOLATE_DIR: <absolute path> - same rule, and load-bearing: `<ISOLATE_DIR>` keys on the enclosing repository root, so a coordinator or leaf that resolves it after `cd`-ing into WORKTREE_PATH writes the run's worklog into that worktree's OWN tree, orphaned from every sibling (`state-root-resolution.md` § Cross-worktree dispatch). ONE literal, resolved once, forwarded to every module.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
 INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/db_port/addons_path/venv_python/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>

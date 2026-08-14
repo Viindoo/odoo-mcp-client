@@ -620,6 +620,8 @@ OUTCOME: <a|b|c|d>
 FAILURE_MODE: <from comparison.md>
 CONFLICTED_FILES: <list from git diff --check - text hunks only; .po/binary/generated handled above>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
 RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new base.
       If OUTCOME=(a): do not resolve - caller will instruct git-ops to skip that commit.
       If OUTCOME=(d): do not resolve - caller will instruct git-ops to skip that commit.
@@ -749,6 +751,8 @@ INTENT_FILE: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
 TARGET_SERIES: <series>
 NEW_BASE: <new-base branch>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
 RULE: Forward the source test as the behavioral oracle. Adapt API to target idiom
       (base class, imports, helper signatures). Confirm RED before writing the fix.
       Do NOT write a brand-new test if the source commit shipped one - adapt it.
@@ -782,7 +786,9 @@ Loop + escalate:
 2. CRITICAL/HIGH present -> dispatch `odoo-coding` with the findings as the fix brief:
    ```
    ODOO VERSION: <series>
-   WORKTREE: <WT_ROOT>/rb-integration
+   WORKTREE_PATH: <WT_ROOT>/rb-integration
+   SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+   ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
    ADAPT TIER: <same tier as the P8 adapt for these files>
    FIX BRIEF: <the CRITICAL/HIGH findings + reviewer's corrected version>
    RULE: fix to the finding's root cause only; do not expand scope; keep tests GREEN.

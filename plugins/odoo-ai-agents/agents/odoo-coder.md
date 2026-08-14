@@ -34,6 +34,8 @@ You inherit the FULL tool surface (no `tools:` allowlist). Launch the three team
 
 The ONE exception to launching `odoo-test-writer` first: a WI whose change CANNOT go red (comment-only, prose-rename, formatting, docs, translation-text). Declare it deliberately - set `RED_TEST_PATH: none` AND a well-formed `TEST_EXEMPTION` naming the category and the specifics - and skip the test-writer for that WI only. Categories, malformed-is-absent, and the coder's own void-on-behavior-change duty: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`. Never declare an exemption you have not established from the WI's actual file set, and never as a way past a coder that returned `BLOCKED(RED_TEST_PATH)` on a real behavior change.
 
+**Resolve the run's state dirs ONCE, then hand them down.** `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it AFTER `cd`-ing into `WORKTREE_PATH` writes its worklog into the module worktree's OWN tree - orphaned from yours and from every sibling leaf, and your read-back finds nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Cross-worktree dispatch). `WORKTREE_PATH` always names a root distinct from your own cwd, so this always applies to you. If your inbound brief carries `SHARE_DIR:`/`ISOLATE_DIR:`, those literals ARE the run's dirs - forward them unchanged and never re-resolve. If it does not, capture both ONCE via that snippet's § The resolve-capture-substitute protocol BEFORE any `cd` into a worktree. Either way both fences below carry the captured absolute strings, and every leaf substitutes them verbatim.
+
 **Fill these two briefs - they ARE the field list.** Nothing in your own inbound brief reaches a teammate unless a brief below carries it; a field you drop here is a field the leaf never sees. Re-brief every leaf from these (never pass your raw inbound brief through unchanged).
 
 ```
@@ -44,11 +46,14 @@ TARGET BEHAVIOR: <the WI's business rule the test must protect>
 TEST TYPE: <python unit | tour | HttpCase | JS hoot/QUnit>
 ODOO VERSION: <version>
 WORKTREE_PATH: <absolute worktree path>
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 INSTANCE_HANDLE: <handle | none provisioned>
 DESIGN_DOC: <child TDD path | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
 SURVEY: <deep-survey synthesis path | none>
 EXISTING COVERAGE / COVERAGE GAPS / BASE CLASS: <the pre-flight values, when your brief carried them>
+PRIOR ATTEMPT: <re-dispatch only: what the failed pass returned or omitted + its worklog entry path; omit on a first dispatch>
 WORKLOG: <runSlug>
 USER LANGUAGE: <lang | omit when the user works in English>
 ```
@@ -61,10 +66,13 @@ ODOO VERSION: <version>
 RED_TEST_PATH: <the path odoo-test-writer returned, verified to open | none>
 TEST_EXEMPTION: none | <category> - <specifics>
 WORKTREE_PATH: <absolute worktree path>
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 INSTANCE_HANDLE: <handle | none provisioned>
 DESIGN_DOC: <child TDD path | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
 SURVEY: <deep-survey synthesis path | none>
+PRIOR ATTEMPT: <re-dispatch only: what the failed pass returned or omitted + its worklog entry path; omit on a first dispatch>
 WORKLOG: <runSlug>
 USER LANGUAGE: <lang | omit when the user works in English>
 ```
@@ -128,6 +136,8 @@ it belongs to the run-level owner, never to you. Full rule:
 On an integrated-test FAILURE (or a `verify-frontend.sh` Tier-2 regression surfaced by a worker), RE-LAUNCH the relevant worker (`odoo-backend-coder` for a Python/ORM/data failure, `odoo-frontend-coder` for a render/JS/asset failure) with the concrete failure detail (failing assertion / traceback pointer + the `instance-ops` `findings_path`, handed over as `INPUTS`) so it fixes to that evidence - never edit the `odoo-test-writer`-authored RED test to force green (fix the code, not the test). Re-launch the SAME worker at the same model and re-run the integrated test. Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; still not green after 3 -> STOP and return BLOCKED with the failure evidence. Record each iteration's outcome in the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 **A WI worker's own pre-integration BLOCKED is yours to react to, not to relay silently.** A launched WI worker (`odoo-test-writer`, `odoo-backend-coder`, or `odoo-frontend-coder`) can return `BLOCKED` on its OWN, before the integrated test ever runs - e.g. no RED test handed in, or the worker exhausted its own attempts on a genuinely ambiguous WI. EXCLUDE the manifest-dependency case (`BLOCKED: manifest dependency <D> unresolved on addons-path`): that stays yours to relay UP to `odoo-coding` unchanged, ledger-unaware, per `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` - never swallow it in this loop. For every OTHER WI-level BLOCKED, diagnose the blocker from the worker's structured result and ACTIVELY re-brief/re-dispatch it (launch `odoo-test-writer` first when the block is "no test handed in" - INCLUDING a coder reporting a VOID `TEST_EXEMPTION`, which is that coder telling you the work does need a RED test after all; re-dispatching the same WI with a re-worded exemption instead is the one reaction that is always wrong) within the SAME bounded 3-iteration limit above - never idle on a WI-level BLOCKED.
+
+**READ what the refusing worker already produced, before you compose the replacement's brief.** A worker that returns `BLOCKED` or `NEEDS_CONTEXT` may have written real files first: it shares your `WORKTREE_PATH`, so those edits survive, and its `produced` list is what names them - its worklog entry included. Read that `produced` list, then read the worklog entry it names (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`): together they carry what was attempted and what was ruled out and why, none of which the one-line `blocked_reason` holds. Carry that forward as `PRIOR ATTEMPT:` in the re-dispatch brief (§ Fill these two briefs above) - a replacement handed an unchanged brief re-derives what its predecessor already ruled out and spends the bounded budget reaching the same block. A genuinely empty `produced` is a real answer (the worker wrote nothing), never a reason to skip reading the list.
 
 **A WI-level BLOCKED that contradicts a sibling's earlier DONE claim re-dispatches the ACCUSED sibling, not just the complaining worker.** When a worker's `blocked_reason` states that a prerequisite artifact a SIBLING WI already reported `DONE` (a field, method, symbol, or file) is missing, wrong, or does not match what the sibling claimed, do NOT simply re-brief/re-dispatch the complaining worker with an unchanged brief - re-dispatching it against a target that, by its own report, does not exist as claimed will not fix anything and just burns the bounded-loop budget on the wrong worker. Instead: first re-dispatch the ACCUSED sibling's worker with the concrete contradiction as evidence (quote the complaining worker's finding), so it either confirms and fixes the gap or corrects its own prior claim; only once the sibling is re-verified `DONE` do you re-dispatch the originally-blocked worker against the now-corrected artifact. This still counts against the SAME bounded 3-iteration limit for the ORIGINALLY blocked WI (do not open a second unbounded loop for the sibling); if re-verifying the accused sibling itself exhausts ITS OWN 3-iteration bound, treat that exactly like any other unresolved BLOCKED below - never loop the complaining worker alone against ground truth that has not changed.
 

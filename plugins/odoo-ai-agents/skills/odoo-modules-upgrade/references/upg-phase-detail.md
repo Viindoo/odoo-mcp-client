@@ -550,7 +550,11 @@ ODOO VERSION: <target_version>
 MODULE: <module>
 MODULE PATH: <path>
 ACTION: <DELETE-absorbed | OBSOLETE | KEEP | REWRITE(api) | REWRITE(model) | MERGE | SPLIT>
-WORKTREE: <path>/upg-<module>
+WORKTREE_PATH: <path>/upg-<module>
+SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substitute it>
+ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-resolve. It keys
+  on the enclosing repository root, so a coder that resolves it from inside upg-<module> writes the
+  run's worklog into that per-module worktree, orphaned from absorption/ and checkpoint.json>
 
 INPUTS:
 - Absorption verdict: absorption/<module>.md
@@ -709,6 +713,8 @@ Step 1 - create instance (once), demo=on:
 operation: create
 series: <target_version>
 demo: on   # framework-validation gate REQUIRES demo data (see note above); on v19 -> --with-demo
+SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substitute it>
+ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
                                          # creation above); forwarded verbatim as odoo-instance's
                                          # own WORKTREE_PATH field (odoo-instance/SKILL.md §
@@ -797,6 +803,9 @@ MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
 WORKTREE_PATH: <the P4 integration worktree - .po/.pot are git-tracked>
+SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substitute it>
+ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, and do NOT re-resolve or
+  improvise one from a worktree cwd>
 TARGET LANGUAGES: <explicit list when this run has one, else omit the field entirely - this
   orchestrator has no tiered resolver of its own; odoo-i18n's own P0 tiers 2-4 (registry /
   .po-filename inference / instance query) still attempt resolution from what IS available, and

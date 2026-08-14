@@ -27,7 +27,7 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
 | 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when none ran this session), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
-| 5 | `WORKTREE_PATH` (+ `BASE` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode) | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. |
+| 5 | `WORKTREE_PATH` (+ `BASE`, `SHARE_DIR`, `ISOLATE_DIR` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode); `SHARE_DIR` + `ISOLATE_DIR` required whenever this row names a root other than your own cwd | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. A `WORKTREE_PATH` always names such a root, so it always drags `SHARE_DIR` + `ISOLATE_DIR` with it: resolve both ONCE against that root and pass the captured absolute strings, or each leaf re-resolves `<ISOLATE_DIR>` from its own cwd into a DIFFERENT tree and the caller's read-back finds nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Cross-worktree dispatch). |
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
@@ -90,7 +90,12 @@ pointer back to this file - never the full skeleton table.
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
   `none` when no deep survey ran. Same key-must-be-present rule as field 4 `INPUTS`.
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
-  rebase/adapt mode - a normal build's worktree already encodes the base).
+  rebase/adapt mode - a normal build's worktree already encodes the base). `SHARE_DIR` +
+  `ISOLATE_DIR` come with it (skeleton field 5) - this family always writes a worklog and always
+  works in a worktree that is not the dispatcher's cwd.
+- `PRIOR ATTEMPT` - COND, on a re-dispatch that SUPERSEDES a failed pass ONLY (omit on a first
+  dispatch): what the failed pass returned or omitted, plus the path of the worklog entry it left.
+  A replacement handed an unchanged brief re-derives what its predecessor already ruled out.
 
 ### Reviewer / auditor
 
@@ -274,6 +279,4 @@ coordinator's self-check carves it out.
 ## How a caller uses it
 
 Any spawner reads this file BY PATH, then fills the universal skeleton + the target agent's family
-delta into the dispatch prompt. There is **no verbatim inlining** into a hard-leaf brief: a leaf
-receives a filled brief, not this caller schema, and self-checks against the family delta already
-inline in its own body.
+delta into the dispatch prompt.

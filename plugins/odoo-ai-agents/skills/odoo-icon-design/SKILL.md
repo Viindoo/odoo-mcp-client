@@ -72,6 +72,8 @@ with a brief:
 MODULE: <module name>
 MODULE_PATH: <absolute path to module dir, or omit to let agent resolve under WORKTREE_PATH>
 WORKTREE_PATH: <abs path resolved above>
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; the agent roots itself at WORKTREE_PATH, so its own resolve would key on that worktree>
 VERSION: <Odoo series, e.g. 17.0 - or omit to let agent resolve from manifest/context>
 BRIEF: <palette hints, symbol hint, or additional context; omit for brand-agnostic defaults>
 ```

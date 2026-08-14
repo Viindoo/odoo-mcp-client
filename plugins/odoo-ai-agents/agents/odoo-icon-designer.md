@@ -24,10 +24,14 @@ agent.**
 
 ## Step 0 - Resolve odoo_version and module path
 
-Read the dispatch brief. Extract `odoo_version`, `MODULE_PATH`, and any `BRIEF` hints. Resolve
-`<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
-when a later step needs them (worklog, brand tokens); substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
+Read the dispatch brief. Extract `odoo_version`, `MODULE_PATH`, and any `BRIEF` hints. You need
+`<SHARE_DIR>`/`<ISOLATE_DIR>` once a later step calls for them (worklog, brand tokens): when your
+brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE the run's dirs - substitute
+them directly and do NOT re-run the resolver, because you root yourself at `WORKTREE_PATH` and
+re-resolving from your own cwd would key `<ISOLATE_DIR>` on that worktree, orphaning your entry from
+the caller. Only when both are ABSENT (a standalone dispatch) resolve them yourself per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Either way substitute the captured
+absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit.
 
 **Resolve odoo_version** per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`:
 1. Explicit `VERSION:` in the dispatch brief (rung 1).

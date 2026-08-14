@@ -657,14 +657,17 @@
         "required": [
           "DESIGN_DOC",
           "SURVEY",
-          "WORKTREE_PATH"
+          "WORKTREE_PATH",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
         ],
         "optional": [
           "INSTANCE_HANDLE",
           "SELF_PROVISION",
           "MASTER_DESIGN_DOC",
           "BASE",
-          "TEST_EXEMPTION"
+          "TEST_EXEMPTION",
+          "PRIOR ATTEMPT"
         ]
       }
     },
@@ -698,7 +701,10 @@
         ],
         "optional": [
           "INSTANCE_HANDLE",
-          "USER LANGUAGE"
+          "USER LANGUAGE",
+          "SHARE_DIR",
+          "ISOLATE_DIR",
+          "PRIOR ATTEMPT"
         ]
       }
     },
@@ -709,13 +715,16 @@
           "RED_TEST_PATH",
           "DESIGN_DOC",
           "SURVEY",
-          "WORKTREE_PATH"
+          "WORKTREE_PATH",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
         ],
         "optional": [
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
-          "TEST_EXEMPTION"
+          "TEST_EXEMPTION",
+          "PRIOR ATTEMPT"
         ]
       }
     },
@@ -830,13 +839,16 @@
           "RED_TEST_PATH",
           "DESIGN_DOC",
           "SURVEY",
-          "WORKTREE_PATH"
+          "WORKTREE_PATH",
+          "SHARE_DIR",
+          "ISOLATE_DIR"
         ],
         "optional": [
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
-          "TEST_EXEMPTION"
+          "TEST_EXEMPTION",
+          "PRIOR ATTEMPT"
         ]
       }
     },
