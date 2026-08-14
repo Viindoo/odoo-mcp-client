@@ -60,8 +60,33 @@ false green this line of work exists to remove.
 - `odoo-ai-agents` - a caller can now recognise the stall: a result announcing that work was
   dispatched in the background and will be awaited carries no terminal status, and is to be read as
   STALLED - re-dispatched as a blocking launch or rolled up as blocked, never counted as done.
+- `odoo-ai-agents` - **a dispatch that names a worktree now hands down the resolved state dirs.**
+  The per-module coordinator's two worker briefs named a worktree but not `SHARE_DIR`/`ISOLATE_DIR`,
+  so each worker resolved them itself - after changing into that worktree. The isolate root keys on
+  the enclosing git toplevel, so coordinator and worker wrote to two different worklog trees and the
+  read-back returned nothing, silently. The requirement existed only as unnumbered prose, which is
+  why every brief that filled the numbered skeleton faithfully reproduced the omission; it is now
+  part of the worktree field itself, and eleven further dispatch sites that had the same gap carry
+  the resolved values too. A worker handed them substitutes them instead of resolving again. Two
+  briefs also spelled the worktree key by a name nothing greps for.
+- `odoo-ai-agents` - **a worker writes its decision log before every exit, not only a successful
+  one.** A refusing worker is never resumed; its replacement is spawned cold and inherits exactly
+  what is on disk. The partial edits survived, but the analysis behind the refusal did not - the
+  append was gated on reaching green, and the one-line blocked reason carries none of it. Every
+  terminal status now owes an entry, and a refusal records what was attempted, what was ruled out
+  and why. The test author, which read the log and never wrote one, now writes one too.
+- `odoo-ai-agents` - **a refusal no longer pre-empts the list of what it produced.** Both leaf coder
+  templates hardcoded an empty list on the one status where partial work is most likely, and no
+  caller was told to read it. A refusing worker now lists what it genuinely wrote, its log entry
+  included, and the coordinator reads that list and the entry it names before composing the
+  replacement's brief. An empty list stays correct when nothing was written.
 
 ### Added
+
+- `odoo-ai-agents` - `PRIOR ATTEMPT` is registered as a Coder-family brief field: on a re-dispatch
+  that supersedes a failed pass, what that pass returned or omitted plus the log entry it left. It
+  existed at a single use site and was unknown to the family whose retry loop needs it, so every
+  replacement re-derived what its predecessor had already ruled out.
 
 - `odoo-ai-agents` - a structural guard: the verdict values the result parser can emit and the values
   the polling scanner explicitly maps are both read out of the source and required to be equal in
