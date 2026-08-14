@@ -17,13 +17,17 @@ Before launching any agent, look at the launch capability you actually have:
    removed silently at the cap). Do the work inline via the Skill tool, or return `NEEDS_NEXT`
    naming what must be dispatched above you - never report a dispatch you could not make.
 2. A background/foreground switch is exposed (e.g. `run_in_background`) -> a blocking launch is
-   available: set it to block when you need the child's result, which then returns inside your
-   current turn. Use this whenever you need the answer. On this path the child's result IS your own
-   launch call's return value - no `REPLY_TO`, no `SendMessage`, no reply field needed; this is the
-   DEFAULT, preferred shape, including when you yourself are a subagent. **For a subagent this is
-   not a preference: a dispatch whose result you need MUST block.** Backgrounding it and ending your
-   turn to wait is the one unrecoverable move - nothing wakes you (R1 § Boundary), so the run stops
-   there with no error, no output, and no one aware it stopped.
+   available: set it to block whenever you need the child's answer, which then returns inside your
+   current turn. On this path the child's result IS your own launch call's return value - no
+   `REPLY_TO`, no `SendMessage`, no reply field needed. OMITTING the switch does NOT block: absent
+   means background, the tool's own default. This is the preferred shape, including when you
+   yourself are a subagent. **For a subagent this is not a preference: a dispatch whose result you
+   need MUST block - and it is now a mechanism, not an honour rule. Backgrounding is REFUSED at the
+   call by `hooks/block-nested-background-spawn.sh` (PreToolUse deny, `true` and ABSENT alike), so
+   expect a denial, not a stall; re-issue it as a blocking launch.** Backgrounding and ending your turn to wait is the one unrecoverable move -
+   nothing wakes you (R1 § Boundary), so the run stops there with no error, no output, and no one
+   aware it stopped. Concurrency survives: several blocking launches in ONE message still run
+   concurrently.
 3. No such switch -> every launch is asynchronous, returning a receipt, not a result. ONLY the root
    conversation is resumed when a background child finishes. If you ARE the root: launch, then END
    YOUR TURN; do NOT poll, sleep, or re-launch. If you are a SUBAGENT: nothing resumes you, so never
@@ -40,10 +44,10 @@ on R1/R2; only R3 addresses it.
 
 ## R1 - Completion barrier (block until every launched child returns)
 
-Launching a child dispatches it in the BACKGROUND by default (the root is notified on completion);
-`run_in_background: false` launches it synchronously (the launch call does not return until the child
-finishes). You MUST NOT compose your own result while any child you launched this turn is still
-running. Pick the blocking shape by topology - both async variants below are ROOT-ONLY (R0 move 3):
+Background is the launch default (the root is notified on completion); `run_in_background: false`
+launches it synchronously (R0 move 2). You MUST NOT compose your own result while any child you
+launched this turn is still running. Pick the blocking shape by topology - both async variants below
+are ROOT-ONLY (R0 move 3):
 
 - DEPENDENT children (a later child needs an earlier one's output): with a blocking launch
   available (R0 move 2), launch each with `run_in_background: false` so the launch itself blocks;
@@ -58,23 +62,22 @@ Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-cont
 task per child at/before launch; the batch barrier clears ONLY when every child has returned ONE OF
 THE FOUR terminal `status` values the Continuation Contract defines - `DONE`, `BLOCKED`,
 `NEEDS_NEXT`, or `NEEDS_CONTEXT` (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`) - never
-a subset of two. **This is the release vocabulary, defined here once.** Your task-list TOOL's own status
-field MIRRORS it, per `execution-tasklist-contract.md`, never the authority. Mark a task-list item
-terminal the instant its child returns ANY of the four, and record WHICH of the four separately in
-your own tracking (worklog or equivalent) - the tool's own state is not guaranteed to distinguish
-them, and a barrier gated on a
+a subset of two. **This is the release vocabulary, defined here once.** Your task-list TOOL's own
+status field MIRRORS it, never the authority. Mark a task-list item terminal the instant its child
+returns ANY of the four, and record WHICH of the four separately in your own tracking (worklog or
+equivalent) - the tool's own state is not guaranteed to distinguish them, and a barrier gated on a
 tool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable
 and must never be the release condition. The task list persists across the re-invocations a
 root-only async batch is woken with; a blocking launch (R0 move 2) never needs it for the child it
 just blocked on. "Wait" is the synchronous return or the
 all-children-terminal barrier - never a passive hope.
 
-**Boundary - a background child outlives a non-`main` launcher.** If you are a subagent (not `main`)
-and you launch a child in the background (R0 move 3) but your OWN turn later completes/returns
-before that child finishes, the child's eventual completion is re-addressed to `main`, never resumed
-on you. Do not rely on a background grandchild's result coming back to you: it lands on a context
-that was not waiting for it, while you - the one context that was - are never woken. Nothing the
-child can do repairs this (R3), so the only prevention is at launch time: block (R0 move 2).
+**Boundary - a background child outlives a non-`main` launcher.** If you are a subagent and a child
+you launched in the background (R0 move 3) finishes after your OWN turn returns, its completion is
+re-addressed to `main`, never resumed on you. Do not rely on a background grandchild's result coming
+back to you: it lands on a context that was not waiting for it, while you - the one context that
+was - are never woken. Nothing the child can do repairs this (R3); prevention is at launch time
+only, which is why R0 move 2 is now enforced rather than advised.
 
 **Reading a child's result - a pending-dispatch announcement is a STALL, not a completion.** Judge
 every returned result by the release condition above and by nothing else. A result that announces
@@ -125,7 +128,7 @@ worker, one level below the root or three. (c) `main` is the dangerous one, beca
 fail. From a nested position that send is accepted and delivered to the ROOT conversation, which is
 not waiting for you, while the launcher that IS waiting stays parked forever. So a send that returns
 success is never evidence you found the return path - below the root, that success IS the stall.
-Your final message remains the only return path, at every depth, in every mode. Resume semantics:
+Resume semantics:
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A. In-session sibling messaging
 does not exist; cross-session messaging is out of scope for this plugin
 (`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation).
