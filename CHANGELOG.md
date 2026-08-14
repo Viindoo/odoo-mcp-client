@@ -57,6 +57,15 @@ false green this line of work exists to remove.
   permanent stall with no error and no output. A dispatch whose result is needed must block. Five
   sites still instructed the opposite, including one whose branch could never have worked because
   the agents it governs are always dispatched.
+- `odoo-ai-agents` - **the launch a nested coordinator must not make is now refused, not merely
+  forbidden.** The rule above lived in prose and in tests that read prose, so a coordinator that
+  ignored it still stalled. A PreToolUse hook now denies the spawn tool outright when the caller is
+  itself a subagent and the launch would be backgrounded - which includes omitting the flag, because
+  background is the tool's own default and omitting it is the common shape a check keyed on an
+  explicit `true` would wave through. The refusal is actionable rather than a scolding: it names the
+  blocking re-issue, states that several blocking launches in one message still run concurrently,
+  and names the consequence being prevented. The root is never denied, no other tool is ever
+  touched, and any payload the hook cannot read fails open.
 - `odoo-ai-agents` - a caller can now recognise the stall: a result announcing that work was
   dispatched in the background and will be awaited carries no terminal status, and is to be read as
   STALLED - re-dispatched as a blocking launch or rolled up as blocked, never counted as done.
