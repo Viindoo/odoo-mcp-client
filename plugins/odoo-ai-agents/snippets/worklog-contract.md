@@ -24,24 +24,30 @@ the ISOLATE dir ONCE via that file's mandatory resolve-capture-substitute protoc
   the worklog dir there); otherwise the feature slug the skill already uses for its artifacts.
 - `<NNN>`: the zero-padded dispatch order if the orchestrator passed one; else a
   `date -u +%H%M%S` stamp, or a short label when you have no shell. The HARD requirement is a
-  UNIQUE filename per writer; the prefix only makes the sort best-effort.
+  UNIQUE filename per writer - parallel writers would race on a shared file; the prefix only
+  makes the sort best-effort.
 - `<agent>`: the writer's short name (`architect`, `coder-<module>`, `reviewer-<module>`,
   `wi-<id>`, ...). Qualify by stack when a module runs PARALLEL same-module WIs on both stacks:
   `coder-<module>-backend` / `coder-<module>-frontend`.
-
-**One file per writer is mandatory** - parallel workers would race on a single shared file.
 
 **Master-child design runs**: each child architect writes under a module subpath:
 `<ISOLATE_DIR>/worklog/<run-or-slug>/<module>/NNN-architect.md`. The master architect uses the
 top-level dir (no `<module>` subpath): `<ISOLATE_DIR>/worklog/<run-or-slug>/NNN-architect.md`.
 
-## When you WRITE (append, at end of your step)
+## When you WRITE (append, before EVERY exit - not only a successful one)
 
 Log only **decisions that change the outcome or that a later phase must not re-litigate** - not
 routine narration: an approach chosen AND the alternatives rejected; scope added or dropped; a
 model-tier pick or downgrade; a cross-module impact found + its mitigation; a deliberate deviation
 from a platform design principle + its justification; a test confirmed RED before code; a
-BLOCKED/escalation and what was tried.
+BLOCKED/escalation - what was tried, what was ruled out and WHY, and the reasoning behind the
+refusal itself.
+
+**Every terminal status is an exit that owes an entry** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT` and
+`NEEDS_NEXT` alike; a step that ends before reaching its normal write point still writes at that
+exit. A refusal owes one most: nothing resumes a worker, so its cold replacement inherits the files
+it wrote plus this log and nothing else, while `blocked_reason` carries a single line. List the
+entry you appended in your `produced` so the caller can find it.
 
 Entry format (one per decision) - `<when>` is a `date -u +%H:%M:%S` stamp if you have a shell, else
 the phase/step label (`Phase 0`, `Round 2`); pick exactly ONE verb:
