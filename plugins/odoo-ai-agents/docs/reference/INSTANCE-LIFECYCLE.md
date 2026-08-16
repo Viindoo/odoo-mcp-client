@@ -218,7 +218,12 @@ contract's ownership matrix or DONE-gate wording.**
   3. **`SessionEnd` crash backstop** (`hooks/session-end-gc.sh`) - runs `allocator.py gc`
      unconditionally when the session ends, silent and bounded, so a killed/OOM'd session (no DONE
      claim, no hook 2 trigger) gets its orphaned server group-stopped and its ephemeral DB dropped
-     WHEN `_is_stale` says it may (dead pid; or unprovable liveness past TTL). Note: if the
+     WHEN `_is_stale` says it may (dead pid; or unprovable liveness past TTL). The hook itself only
+     SPAWNS that reaping into a DETACHED session and returns at once - a SessionEnd hook is aborted
+     (and its child killed mid-write) roughly a second after the batch's other hooks finish, no
+     matter what `timeout` its registration declares, so anything slow left running under the hook
+     is silently truncated instead of reaping; the measurement and the resulting two-role shape are
+     in the hook's own header, not restated here. Note: if the
      `odoo-bin` child SURVIVED the session (a detached/setsid orphan that is still running), this
      layer deliberately does NOT reclaim it while its pid stays verified-alive on this host - see
      `hooks/session-end-gc.sh`'s header comment and `INSTANCE-ALLOCATION.md` §7 for the tradeoff.

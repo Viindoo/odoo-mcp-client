@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.26.0] - 2026-08-16
+
+Every session that ended printed `SessionEnd hook [...session-end-gc.sh] failed: Hook cancelled`. The
+script never failed - it exits 0 unconditionally - so the message was the CLI aborting the hook, and
+the abort was not cosmetic: it KILLED the reaper mid-run. The persisted candidate log was left 0
+bytes on every session, which means the discovery half wired up in 4.24 had never once completed,
+and a real multi-orphan crash - the case this backstop exists for, where gc spends up to 10s of
+SIGTERM grace per orphan - had no chance of being reclaimed in the time actually granted.
+
+### Fixed
+
+- `odoo-ai-agents` - **the SessionEnd crash backstop no longer runs under a budget the CLI does not
+  honour.** Measured on Claude Code 2.1.233: a SessionEnd hook is aborted roughly a second after the
+  batch's other hooks finish, whatever `timeout` its registration declares (3 runs of 3; the same
+  2.2s run completed cleanly once a slower sibling hook was added to the batch, so the budget is
+  relative to hooks this plugin neither owns nor can see). `hooks/session-end-gc.sh` now has two
+  roles: the hook role validates and spawns, returning in milliseconds, and a detached worker does
+  the actual `gc` + list-only `reap-orphans` in its own session, so it outlives both the hook and
+  the CLI. The candidate log now lands complete instead of truncated to zero.
+- `odoo-ai-agents` - **the reaping's bounds are sized for the work instead of for a hook budget.**
+  The previous inner bounds could not fit under the outer one they were documented as matching:
+  25s (gc) + 15s (reap-orphans) against the 25s the registration granted the whole script, so a gc
+  that actually used its bound guaranteed the rest was cut off. With the work detached, the worker's
+  own bounds are the only real limit and are set for a multi-orphan reclaim; the hook's `timeout`
+  drops to 10s because all it now bounds is one spawn.
+
 ## [4.25.2] - 2026-08-12
 
 4.25.1 made the polling verdict and the run's own verdict agree on the two values it had been caught
