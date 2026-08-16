@@ -390,7 +390,10 @@ ever destructive.
 
 **Wired (discovery half only).** `hooks/session-end-gc.sh` - the SessionEnd crash backstop that
 already ran `gc` on every session's end - now ALSO runs `reap-orphans` in its default list-only
-mode immediately after `gc`, persisting the candidate list to
+mode immediately after `gc`, in the hook's DETACHED worker (the hook returns at once; work left
+running under a SessionEnd hook is killed about a second after the batch's siblings finish, which
+used to leave this very log truncated to 0 bytes - see the hook's header), persisting the candidate
+list to
 `${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/reap-orphans-candidates.log` (never `/dev/null`, unlike
 `gc`'s own output, so the list is actually reviewable). This is the DISCOVERY half only: the hook
 NEVER passes `--yes`. SessionEnd is silent and unattended by its own contract (no decision is ever

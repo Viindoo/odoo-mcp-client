@@ -664,6 +664,18 @@ def _run_gc(plugin_root: Path):
     )
 
 
+def _wait_for_file(path: Path, timeout_s: float = 30.0):
+    """Wait for the DETACHED worker to produce `path`. The hook itself returns in
+    milliseconds (it only spawns), so every assertion about the reaping is an
+    assertion about the worker, and must be made after it, not after the hook."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if path.is_file():
+            return True
+        time.sleep(0.05)
+    return path.is_file()
+
+
 def test_session_end_gc_exits_zero_with_no_allocator(tmp_path):
     """No allocator.py present -> best-effort self-gate to a silent exit 0 (never errors)."""
     proc = _run_gc(tmp_path)  # empty plugin root
@@ -684,7 +696,7 @@ def test_session_end_gc_invokes_allocator_gc_when_present(tmp_path):
     proc = _run_gc(tmp_path)
     assert proc.returncode == 0, f"stderr={proc.stderr!r}"
     marker = libdir / "gc-called.txt"
-    assert marker.is_file(), "session-end-gc.sh must invoke the allocator"
+    assert _wait_for_file(marker), "session-end-gc.sh must invoke the allocator"
     assert marker.read_text(encoding="utf-8").strip() == "gc", (
         "the allocator must be called with exactly the `gc` subcommand"
     )
@@ -720,11 +732,11 @@ def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_pa
     assert proc.stdout.strip() == "", "SessionEnd gc must stay silent on its own stdout"
 
     gc_marker = libdir / "gc-called.txt"
-    assert gc_marker.is_file(), "gc must still be invoked (unchanged L1.3 behavior)"
+    assert _wait_for_file(gc_marker), "gc must still be invoked (unchanged L1.3 behavior)"
     assert gc_marker.read_text(encoding="utf-8").strip() == "gc"
 
     reap_marker = libdir / "reap-orphans-called.txt"
-    assert reap_marker.is_file(), "session-end-gc.sh must now invoke reap-orphans (#185)"
+    assert _wait_for_file(reap_marker), "session-end-gc.sh must now invoke reap-orphans (#185)"
     reap_argv = reap_marker.read_text(encoding="utf-8").strip()
     assert reap_argv == "reap-orphans", (
         f"reap-orphans must be called with NO extra flags - list-only default, "
@@ -732,12 +744,117 @@ def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_pa
     )
 
     log_path = runtime_dir / "reap-orphans-candidates.log"
+    # The redirect CREATES the file before reap-orphans emits a byte, so existence is
+    # not the property under test - a truncated, empty candidate log is exactly the
+    # failure the detach exists to prevent. Wait for actual CONTENT.
+    deadline = time.monotonic() + 30.0
+    log_text = ""
+    while time.monotonic() < deadline:
+        if log_path.is_file():
+            log_text = log_path.read_text(encoding="utf-8")
+            if "list-only" in log_text:
+                break
+        time.sleep(0.05)
     assert log_path.is_file(), (
         "the reap-orphans discovery output must be PERSISTED (not /dev/null'd like gc) "
         "so a human can actually review the candidate list later"
     )
-    log_text = log_path.read_text(encoding="utf-8")
-    assert "REAP_CANDIDATE" in log_text and "list-only" in log_text
+    assert "REAP_CANDIDATE" in log_text and "list-only" in log_text, (
+        f"the candidate log must carry the FULL discovery output, not a truncated "
+        f"prefix left behind by a killed reaper; got {log_text!r}"
+    )
+
+
+def test_session_end_gc_returns_at_once_and_reaps_from_a_detached_session(tmp_path):
+    """A SessionEnd hook does NOT get the budget its registration declares: measured on
+    Claude Code 2.1.233, this hook (declared 25s, real runtime ~2.2s) was ABORTED ~1s after
+    the batch's only other SessionEnd hook finished, 3 runs of 3 - and the abort KILLED the
+    child mid-write (the candidate log was left 0 bytes). The rule this locks in: the hook
+    must hand the reaping to a process the dying CLI does not own, and return at once.
+
+    Two observable consequences, both asserted here:
+      1. the hook returns long before the reaping could have finished (it only spawns);
+      2. the reaping still completes afterwards, from its OWN session id - i.e. it is not
+         in the CLI's process group, which is what lets it outlive the CLI's death."""
+    import os
+
+    libdir = tmp_path / "scripts" / "lib"
+    libdir.mkdir(parents=True)
+    # gc sleeps far longer than the hook may take, so a synchronous hook cannot hide here.
+    (libdir / "allocator.py").write_text(
+        "import os, sys, pathlib, time\n"
+        "argv = sys.argv[1:]\n"
+        "if argv[0] == 'gc':\n"
+        "    time.sleep(3)\n"
+        "marker = pathlib.Path(__file__).parent / (argv[0] + '-done.txt')\n"
+        "marker.write_text(str(os.getsid(0)))\n",
+        encoding="utf-8",
+    )
+
+    started = time.monotonic()
+    proc = _run_gc(tmp_path)
+    elapsed = time.monotonic() - started
+
+    assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+    assert elapsed < 2.0, (
+        f"the SessionEnd hook must return immediately (spawn only) - it took {elapsed:.2f}s, "
+        f"which means the reaping is running UNDER the hook again and will be truncated by "
+        f"the CLI's abort exactly as it was before the detach"
+    )
+
+    marker = libdir / "gc-done.txt"
+    assert not marker.is_file(), (
+        "gc must still be running when the hook returns - if it already finished, the hook "
+        "waited for it and the detach is not real"
+    )
+    assert _wait_for_file(marker), (
+        "the detached worker must still complete the gc after the hook returned - a fire-and-"
+        "forget that never runs is worse than the synchronous version it replaced"
+    )
+
+    worker_sid = int(marker.read_text(encoding="utf-8").strip())
+    assert worker_sid != os.getsid(0), (
+        "the worker must run in its OWN session (start_new_session/setsid); sharing this "
+        "caller's session is what lets the dying CLI kill it mid-reap"
+    )
+
+
+def test_session_end_gc_reaping_bounds_are_not_squeezed_under_the_hook_timeout():
+    """The pre-detach defect, in one line of arithmetic: the script's own inner bounds
+    (gc 25s + reap 15s = 40s) already exceeded the 25s its registration granted the WHOLE
+    script, so a gc that actually used its bound guaranteed the rest was cut off - and gc
+    NEEDS that room (up to 10s of SIGTERM grace PER orphan). Now that the reaping is
+    detached, its bounds are sized for the work instead of for a hook budget. Lock that in:
+    the worker's own gc bound must be LARGER than the hook timeout, which is only possible
+    if the reaping no longer runs under it."""
+    text = GC_HOOK.read_text(encoding="utf-8")
+    bounds = {
+        name: int(re.search(rf"^{name}=(\d+)", text, re.MULTILINE).group(1))
+        for name in ("GC_TIMEOUT_S", "REAP_TIMEOUT_S")
+    }
+
+    reg = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+    hook_timeouts = [
+        h.get("timeout")
+        for group in reg["hooks"]["SessionEnd"]
+        for h in group.get("hooks", [])
+        if "session-end-gc.sh" in h.get("command", "")
+    ]
+    assert hook_timeouts, "session-end-gc.sh must stay registered under SessionEnd"
+    hook_timeout = hook_timeouts[0]
+
+    assert bounds["GC_TIMEOUT_S"] > hook_timeout, (
+        f"the gc bound ({bounds['GC_TIMEOUT_S']}s) must exceed the hook timeout "
+        f"({hook_timeout}s) - if it fits under it, the reaping has been moved back under a "
+        f"budget the CLI does not honour anyway"
+    )
+    assert bounds["GC_TIMEOUT_S"] >= 60, (
+        f"gc spends up to 10s of SIGTERM grace per orphan; {bounds['GC_TIMEOUT_S']}s leaves "
+        f"no room for a real multi-orphan crash, the case this backstop exists for"
+    )
+    assert bounds["REAP_TIMEOUT_S"] <= bounds["GC_TIMEOUT_S"], (
+        "reap-orphans is the read-only half and must never outrank gc's bound"
+    )
 
 
 def test_session_end_gc_never_passes_yes_to_reap_orphans():
