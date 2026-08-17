@@ -18,16 +18,25 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
-- **4-tier orchestration: planning split from execution** (v4.0.0) - a dedicated
-  `odoo-planning` skill (with the `odoo-planner` agent) now authors the full-lifecycle
-  EXECUTION plan after solution-design: a wave-batched module-DAG, the integration cadence,
-  each module/stage wired to a skill, and the full lifecycle from code to merge in the Terminal
-  stage order constant `run-harness` owns. `run-harness` (the sequencer, renamed from `run-driver`)
-  walks it and lands each coding
-  wave-layer directly as its Between-wave integration step; and the new
-  `odoo-pr-monitoring` skill watches the opened PR to merge (CI/review poller, CI failures route to
-  `odoo-debug`, the L2-merge-gate).
-- **Git-wave execution** (v2.3.0; re-architected v4.0.0; folded into `run-harness` v4.9.0) - the
+- **Wave grouping layer deleted - plan is a flat node DAG** (v5.0.0) - `odoo-planner` no longer
+  batches modules into waves and `run-harness` no longer runs a between-wave integration
+  procedure with its own gate and cadence: a plan is now a dependency-ordered node graph with
+  `depends_on` edges, and `run-harness` takes any node whose dependencies are satisfied.
+  `odoo-coding` dispatches one `odoo-coder` per NODE (a node may span several modules), not one
+  per module. Integration and regression verification are ordinary plan nodes now, with no
+  separate cadence or auto-advance gate. Dependency ORDERING is unchanged everywhere it was real -
+  only the wave grouping vocabulary and its extra layer are gone.
+- **4-tier orchestration: planning split from execution** (v4.0.0; plan flattened to a node graph
+  v5.0.0) - a dedicated `odoo-planning` skill (with the `odoo-planner` agent) authors the
+  full-lifecycle EXECUTION plan after solution-design: a dependency-ordered node graph
+  (`depends_on` edges, no grouping layer above the node), each node wired to a skill, and the full
+  lifecycle from code to merge in the Terminal stage order constant `run-harness` owns.
+  `run-harness` (the sequencer, renamed from `run-driver`) takes any node whose dependencies are
+  satisfied - integration and regression verification are ordinary plan nodes, not a separate
+  between-node step; and the `odoo-pr-monitoring` skill watches the opened PR to merge (CI/review
+  poller, CI failures route to `odoo-debug`, the L2-merge-gate).
+- **Git-wave execution** (v2.3.0; re-architected v4.0.0; folded into `run-harness` v4.9.0; wave
+  grouping removed v5.0.0) - the
   git-executor logic that lands multiple modules as one reviewed, squashed PR without touching the
   principal branch: ONE run-level `run-integration` branch that every wave cherry-picks onto, with
   per-module worktrees + end-of-wave review + a cumulative regression close-gate. v4.9.0 absorbed
