@@ -255,6 +255,13 @@ source "$LIB_DIR/resolve_instances.sh"
 # bounds this same call; this script was the only one that did not.
 # shellcheck source=../lib/pg_mode.sh
 source "$LIB_DIR/pg_mode.sh"
+# Tier-1 run-artifact reclamation SSOT - odoo_ai_state_root (the ONE spelling of
+# the state root, previously re-derived in this file twice) plus the single
+# lease-guarded sweeper (prune_stale_run_artifacts / _prune_stale_logs) and its
+# retention bound, all of which used to live in this file where
+# 50-instance-spinup.sh could not reach them.
+# shellcheck source=../lib/state_reclaim.sh
+source "$LIB_DIR/state_reclaim.sh"
 
 # ---------------------------------------------------------------------------
 # describe
@@ -761,15 +768,6 @@ _install_confirmed() {
     grep -aqF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null
 }
 
-# ---------------------------------------------------------------------------
-# Log-retention SSOT - how many days a run's log (and its .findings.md
-# sibling) survives in the logs dir. A script constant on purpose: there is
-# nothing machine-dependent to resolve, so this is NOT a public knob and no
-# agent-facing doc mentions it. Raise it here if a longer forensic window is
-# wanted.
-# ---------------------------------------------------------------------------
-_LOG_RETENTION_DAYS=14
-
 # The agent harness's per-call Bash-tool ceiling, in seconds (600000 ms).
 # SSOT for the relationship below - a future ceiling change edits this line.
 _TOOL_CALL_CEILING_S=600
@@ -783,69 +781,11 @@ _TOOL_CALL_CEILING_S=600
 _WAIT_LOG_DEFAULT_TIMEOUT_S=570
 
 # ---------------------------------------------------------------------------
-# _leased_db_names - every db_name the allocator lease registry references
-#   (${ODOO_AI_HOME}/runtime/leases.json - scripts/lib/allocator.py's SSOT for
-#   which instances exist, live rows AND stale ones). Prints one name per line.
-#   Exit 0 + no output when no registry exists yet (nothing was ever leased on
-#   this host). Exit 1 means a registry IS there but could not be read - the
-#   caller must then prune NOTHING.
-#   Live-or-stale on purpose: liveness (owner pid + fingerprint + host) is
-#   allocator.py's judgment, and re-deriving it here would only be a second,
-#   drifting copy. The superset is strictly safe - it can only DELAY a prune,
-#   never unlink a running instance's log - and `allocator.py gc` drops each
-#   stale row, after which its logs become sweepable again.
+# _leased_db_names, _prune_stale_logs and _LOG_RETENTION_DAYS now live in
+# scripts/lib/state_reclaim.sh (sourced at the top of this file) so
+# 50-instance-spinup.sh reaches the SAME mechanism instead of growing a second
+# one. `prune_stale_run_artifacts` is the generalised sweeper both call.
 # ---------------------------------------------------------------------------
-_leased_db_names() {
-    local reg="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/runtime/leases.json"
-    [[ -e "$reg" ]] || return 0
-    [[ -r "$reg" ]] || return 1
-    { grep -oE '"db_name"[[:space:]]*:[[:space:]]*"[^"]*"' "$reg" 2>/dev/null || true; } \
-        | sed -E 's/^"db_name"[[:space:]]*:[[:space:]]*"//; s/"$//'
-}
-
-# ---------------------------------------------------------------------------
-# _prune_stale_logs - delete run artifacts older than _LOG_RETENTION_DAYS from
-#   $1, EXCEPT any whose database the lease registry still references.
-#
-#   50-instance-spinup.sh writes long-lived LISTENING-instance logs
-#   (persist: exclusive-running / shared-running) into this SAME shared dir
-#   under the same <db>-<UTC-ts>.log convention, and a lease with a
-#   verified-alive owner pid is never TTL-reclaimed - so a listening instance
-#   that simply goes quiet past the window would have its OPEN log unlinked out
-#   from under the server's fd: the server keeps appending to the detached
-#   inode while every path-based read reports "no such file".
-#
-#   Best-effort, never fatal, never touches a live file: a size cap or a
-#   truncation is deliberately NOT used, because losing the tail of a log can
-#   lose the "Modules loaded." marker _install_confirmed requires and turn a
-#   green build into STATUS=error. `-mtime +N` can never match a file written
-#   by this run. The .findings.md sibling is swept with its log so the pair
-#   never desynchronises. Candidates are enumerated (`-print0`) and removed one
-#   by one instead of `find -delete` so the exclusion can be applied by EXACT
-#   db-name match; `-maxdepth 1` plus `-type f` (find does not follow symlinks
-#   without -L) keeps every removal inside the dir. Flags used are portable
-#   across GNU and BSD find.
-# ---------------------------------------------------------------------------
-_prune_stale_logs() {
-    local logs_dir="$1"
-    [[ -d "$logs_dir" ]] || return 0
-    local leased
-    # Fail closed: an unreadable registry means no log can be PROVEN unleased.
-    leased="$(_leased_db_names)" || return 0
-    local f base db
-    while IFS= read -r -d '' f; do
-        base="${f##*/}"
-        # <db>-<UTC-ts>.log and <db>-<UTC-ts>.findings.md - the timestamp is the
-        # last hyphen-delimited field, so the db name is everything before it.
-        db="${base%-*}"
-        if [[ -n "$leased" ]] && printf '%s\n' "$leased" | grep -Fxq -- "$db"; then
-            continue
-        fi
-        rm -f -- "$f" 2>/dev/null || true
-    done < <(find "$logs_dir" -maxdepth 1 -type f \
-                  \( -name '*.log' -o -name '*.findings.md' \) \
-                  -mtime "+${_LOG_RETENTION_DAYS}" -print0 2>/dev/null || true)
-}
 
 # ---------------------------------------------------------------------------
 # Run-verb stamp - the FIRST line of every log this script opens.
@@ -889,13 +829,23 @@ _log_stamp_field() {
 #   The stamp is written HERE, at the single place that owns the log file, so a
 #   future verb cannot forget it. Every caller appends (>>) to $logf afterwards -
 #   a truncating redirect would wipe the stamp.
+#
+#   This is one of the sweep's TWO named callers (the other is
+#   50-instance-spinup.sh's cmd_apply source branch). It runs on EVERY
+#   create/init/update/run-tests build, and it sweeps BOTH Tier-1 run-artifact
+#   dirs - `logs/` (this script's own family) and `conf/` (the spin-up script's
+#   family) - because a build is the hot path a host actually exercises, while a
+#   listener spin-up may be rare on a host that only ever builds. Sweeping only
+#   the family the caller writes would leave the other reachable from one script
+#   alone, which is exactly the shape that let conf files accumulate.
 # ---------------------------------------------------------------------------
 _open_log() {
     local db_slug="$1" verb="${2:-}" version="${3:-}"
     local logs_dir
-    logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
+    logs_dir="$(odoo_ai_state_root)/logs"
     mkdir -p "$logs_dir"
     _prune_stale_logs "$logs_dir"
+    prune_stale_run_artifacts "$(odoo_ai_state_root)/conf" '*.conf'
     local ts
     ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
     logf="$logs_dir/${db_slug}-${ts}.log"

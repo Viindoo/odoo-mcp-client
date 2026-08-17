@@ -2,8 +2,10 @@
 # 50-instance-spinup.sh - Start a declared Odoo instance and wait for HTTP 200.
 #
 # Reads an instance profile written by 40-instance-profile.sh from
-# $ODOO_AI_HOME/instances.toml, generates a temporary odoo.conf with the correct
-# addons_path ordering, launches Odoo (source via odoo-bin OR docker compose),
+# $ODOO_AI_HOME/instances.toml, generates a per-instance odoo.conf with the
+# correct addons_path ordering under $ODOO_AI_HOME/conf/ (deterministic path,
+# keyed <db_name>-<http-port> - see the conf block in cmd_apply for why it is
+# NOT a temp file), launches Odoo (source via odoo-bin OR docker compose),
 # then detects READY with a BOUNDED-timeout HTTP poll of /web/database/selector
 # (fallback /web/login) - never a log-tail wait (docs/reference/
 # INSTANCE-LIFECYCLE.md item 14). /web/database/selector needs no DB and no
@@ -53,7 +55,9 @@
 #   - Never launches until Odoo's OWN connection has been probed: `pg_isready`
 #     answers whatever the credentials are, so only `odoo_db.py preflight` can
 #     prove this launch will get past its first connection.
-#   - The generated odoo.conf goes in a temp dir; no project files are mutated.
+#   - The generated odoo.conf goes under the Tier-1 state root
+#     ($ODOO_AI_HOME/conf/), never $ODOO_RC and never a project-committed or
+#     default odoo.conf; no project files are mutated.
 #   - No sudo. docker mode uses `docker compose` (must already be installed).
 #
 # CONFIG:
@@ -91,6 +95,13 @@ source "$SCRIPT_DIR/../lib/resource_limits.sh"
 # Postgres client dispatch (pg_run_client) + db_run_mode vocabulary SSOT.
 # shellcheck source=../lib/pg_mode.sh
 source "$SCRIPT_DIR/../lib/pg_mode.sh"
+# Tier-1 run-artifact reclamation SSOT - odoo_ai_state_root (the ONE spelling of
+# the state root) plus the single lease-guarded sweeper
+# (prune_stale_run_artifacts), shared with 55-instance-ops.sh. This script is one
+# of the sweeper's TWO named callers: cmd_apply sweeps $ODOO_AI_HOME/conf/ on
+# every spin-up, just before it writes this instance's conf.
+# shellcheck source=../lib/state_reclaim.sh
+source "$SCRIPT_DIR/../lib/state_reclaim.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 ODOO_DB_PY="$SCRIPT_DIR/../lib/odoo_db.py"
@@ -560,8 +571,11 @@ cmd_apply() {
         return 1
     fi
 
-    # Tracked so a poll timeout can kill the orphaned process / remove temp conf
-    # instead of leaking a port-holding Odoo and a /tmp conf file.
+    # Tracked so a poll timeout can kill the orphaned process instead of leaking
+    # a port-holding Odoo. The conf itself needs no teardown: it lives at a
+    # deterministic path under the Tier-1 state root ($ODOO_AI_HOME/conf/), keyed
+    # by this instance's db_name + http port, so the next attempt overwrites it
+    # rather than adding to a pile.
     local run_mode="${INST_RUN_MODE:-source}"
     local odoo_pid="" conf=""
 
@@ -742,12 +756,21 @@ cmd_apply() {
                 echo "  ${INST_SERIES}' to declare it." >&2
             fi
 
-            # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
-            # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
-            # the X's is not honored, and ${INST_SERIES} contains a dot. Create
-            # a bare temp file with a trailing-X template, then rename to add the
-            # .conf suffix - works on both GNU and BSD/macOS.
-            conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$conf" "$conf.conf" && conf="$conf.conf"
+            # The conf is DETERMINISTIC, keyed by the instance identity the
+            # allocator already guarantees is exclusive: db_name + http port
+            # (both resolved from the lease above). `-c "$conf"` keeps this file
+            # open for the server's whole lifetime, so it can never be deleted
+            # after launch - which is why a per-invocation mktemp name had no
+            # owner on the success path and accumulated one file per spin-up
+            # forever. Keying the file by the RESOURCE rather than by the
+            # INVOCATION makes every re-spin of the same instance overwrite in
+            # place, so the set of conf files is bounded by the set of declared
+            # instances.
+            local _conf_dir
+            _conf_dir="$(odoo_ai_state_root)/conf"
+            mkdir -p "$_conf_dir"
+            prune_stale_run_artifacts "$_conf_dir" '*.conf'
+            conf="$_conf_dir/${db_name}-${port}.conf"
             {
                 echo "[options]"
                 # INST_ADDONS_PATH is already comma-joined (the SSOT separator -
@@ -798,20 +821,21 @@ cmd_apply() {
                 _dev_flag="--dev=all"
             fi
 
-            echo "  Generated temp conf: $conf"
+            echo "  Generated conf: $conf"
             echo "  Launching: $py '$bin' -c '$conf' -d '$db_name' ${_dev_flag}"
-            # Run in background so we can poll. Logs to a temp file.
+            # Run in background so we can poll. Logs to the named path below.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
             local logf _logs_dir _db_slug _ts
             # Write log to a stable, named path so a calling agent can capture it
             # across invocations.
-            # Dir: ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
-            #   ODOO_AI_HOME IS the .odoo-ai dir (allocator semantic); .odoo-ai is
-            #   appended ONLY in the HOME fallback so the path stays consistent with
-            #   allocator.py _home() which returns ODOO_AI_HOME directly.
+            # Dir: <Tier-1 state root>/logs/ - resolved by odoo_ai_state_root
+            #   (scripts/lib/state_reclaim.sh), the ONE place that expression is
+            #   spelled. It used to be re-derived here AND twice in
+            #   55-instance-ops.sh; both now call the resolver so the three can
+            #   never drift.
             # File: <db>-<UTC-timestamp>.log (e.g. odoo_test-20260620T153012Z.log)
-            _logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
+            _logs_dir="$(odoo_ai_state_root)/logs"
             mkdir -p "$_logs_dir"
             _db_slug="$db_name"
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
@@ -882,13 +906,21 @@ cmd_apply() {
     # wait -> group SIGKILL - not the old bare `kill <pid>` that left children
     # running. For an exclusive lease the pid is already bound (above), so even
     # if this local stop is interrupted, allocator.py release/gc can still reap.
+    #
+    # The conf is deliberately NOT removed here. The leak this branch used to
+    # half-cover was caused by branch-asymmetric ownership - a per-invocation
+    # name that only this exit path ever deleted - and the fix removes that whole
+    # class by keying the file on the resource instead. The file now sitting at
+    # $ODOO_AI_HOME/conf/<db>-<port>.conf is byte-identical to what the next
+    # attempt writes, so deleting it buys no space and destroys the failed
+    # launch's exact config as evidence. prune_stale_run_artifacts reclaims it
+    # once the lease is gone.
     echo "x Odoo did not become ready. Check the launch log above." >&2
     if [[ "$run_mode" == "source" ]]; then
         if [[ -n "$odoo_pid" ]]; then
             echo "  Stopping background Odoo process group (leader pid $odoo_pid)" >&2
             _stop_group_local "$odoo_pid"
         fi
-        [[ -n "$conf" && -f "$conf" ]] && rm -f "$conf"
     elif [[ "$run_mode" == "docker" ]]; then
         echo "  Tip: run 'docker compose down' to stop the containers started above." >&2
     fi

@@ -151,6 +151,7 @@ Clause 2's leak is not unique to `visual/`. Every Tier-2 ISOLATE subpath in
 active state" - see that file's § The rule), a candidate for the identical leak: nothing has
 ever deleted any of them. This clause enumerates the FULL ISOLATE table (exhaustive per that
 file's own claim) and classifies each row once, so a later reader never has to re-derive it.
+Tier-1 subpaths (`logs/`, `conf/`) are OUT OF SCOPE here - see § 3.7.
 
 ### 3.1 - Eligible (bucket 2, run-scoped evidence/working-state - swept)
 
@@ -325,3 +326,17 @@ can never delete a live paused run's evidence. Wired at `run-harness/SKILL.md` �
 (the first action there, before this run creates or writes anything under
 its OWN `integration/<slug>/` for the first time) and detailed at `run-integration.md` § Stale integration-dir
 sweep.
+
+### 3.7 - Tier-1 `logs/` and `conf/`: swept elsewhere, deliberately outside this clause
+
+`logs/` and `conf/` are Tier-1 FLAT (`state-root-resolution.md`'s Tier-1 allowlist), not Tier-2
+ISOLATE, so they are not part of the table this clause enumerates - and their bound could not be a
+bare mtime TTL anyway: § 3.3 already showed that is unsafe for state that can legitimately go
+stale while still alive, which a long-running listener's conf or an active build's log both are.
+Both are instead reclaimed by `prune_stale_run_artifacts` (`scripts/lib/state_reclaim.sh`): its
+`_LOG_RETENTION_DAYS` mtime bound (that constant owns the number; never restate it) PLUS a
+lease-registry reachability guard (`_leased_db_names`) - stale by age AND unreachable from any
+leased instance, never by age alone. Called from `55-instance-ops.sh` (`_open_log`, every build)
+and `50-instance-spinup.sh` (every listener spin-up); the conf contract itself is
+`docs/reference/INSTANCE-ALLOCATION.md` § 6.2, not restated here. This keeps § 3.1/§ 3.2's
+exhaustiveness claim true (exhaustive over the ISOLATE table, which `logs/`/`conf/` are not in).

@@ -251,9 +251,9 @@ existing reader, so shell consumers stay simple.
 | `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--run-id <id>] (alias --session)` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); for a mode that will build, gate on DB_AUTH then CREATEDB and REFUSE per §6.6 (exits 6/7/8/9, no lease written) - both asked of the CLUSTER as LIVE queries, never inferred from installed binaries, and BOUNDED by `$ODOO_AI_PG_PROBE_TIMEOUT`; print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER/ALLOC_DB_PORT/ALLOC_RUN_ID`. `--run-id` is the canonical ownership key (the intake Phase P run id); `--session` is kept only as a back-compat alias for the same slot. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
 | `bind <token> --pid <server_pid>` | under flock: verify the token, then UPSERT the live server pid onto that lease's `owner.pid` (the same slot the `shared` acquire path writes). Refuses an unknown token or a missing `--pid`. Used by the `exclusive-running` spin-up: the caller acquires the lease first (reserving db + ports), then binds the launched server pid so `release`/`gc` can stop the whole process GROUP before the drop. Also upgrades gc for exclusive leases from ttl-only to fast-path pid-dead reclaim, for free |
-| `release <token> [--run-id <id>] [--force] [--force-forget]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries a live `owner.pid` on THIS host, STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe. A drop that did not happen is CLASSIFIED by whether the database exists before anything is named or released (§6.7) |
+| `release <token> [--run-id <id>] [--force] [--force-forget]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries an `owner.pid` on THIS host that is alive AND PROVEN to be this lease's own server (`_stop_owner_group_if_local` -> `_ownership_proof`; an unproven pid is reported and NEVER signalled), STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe. A drop that did not happen is CLASSIFIED by whether the database exists before anything is named or released (§6.7) |
 | `heartbeat <token>` | bump `heartbeat_at` - matters ONLY for a lease whose liveness `_is_stale` cannot prove (a different host, or no `--pid` ever recorded); a same-host lease with a verified-alive pid is protected regardless of heartbeat freshness |
-| `gc` | under flock: reclaim leases per `_is_stale` (§7 - liveness is AUTHORITATIVE, not a condemn-only signal), stopping a condemned lease's process group before the reclaim. For each reclaimed `drop_on_release` lease: drop through the same ladder §6.1 defines |
+| `gc` | under flock: reclaim leases per `_is_stale` (§7 - liveness is AUTHORITATIVE, not a condemn-only signal), stopping a condemned lease's process group before the reclaim - but ONLY when that pid is PROVEN to be the lease's own server (`_ownership_proof`); a proven-recycled or unprovable pid is reported and NEVER signalled, and the row is reclaimed either way. For each reclaimed `drop_on_release` lease: drop through the same ladder §6.1 defines |
 | `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for the class `gc` cannot reach: an ephemeral-shaped DB carrying NO lease reference at all. Predicate, outputs and the fail-closed age rule: §6.5. Default is list-only; `--yes` is required to drop |
 | `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - unowned does not mean "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `db-preflight --series <X.Y> [--profile <P>] [--instances <path>]` | read-only: print `DB_AUTH=ok\|denied\|unreachable\|unknown` + `DB_AUTH_WHY`, then `CREATEDB` + `CREATEDB_WHY`, exiting per §6.6. The ONE question every reporting caller asks (`05-prereq-check.sh`, `45-venv.sh`) instead of re-deriving half of it. Writes NO lease |
@@ -307,15 +307,31 @@ construction:
   `odoo-instance-ops` path) pass ALL parameters as explicit CLI flags and read NO shared config
   file at all: no `-c`/`--config` flag, no reliance on `$ODOO_RC`.
 - **`50-instance-spinup.sh`-backed operations** (the "stay-running" apply path, and `ensure-up`) DO
-  materialise an `odoo.conf` for the launched server. That file MUST be a fresh,
-  unique-per-invocation temp file (`mktemp`) - NEVER the environment's default `odoo.conf` /
-  `$ODOO_RC` - and MUST NOT mutate any project file.
+  materialise an `odoo.conf` for the launched server. That file MUST live at a DETERMINISTIC path
+  keyed by the RESOURCE - `$ODOO_AI_HOME/conf/<db_name>-<port>.conf` - NEVER the environment's
+  default `odoo.conf` / `$ODOO_RC`, and MUST NOT mutate any project file. `db_name` and `port` are
+  the identical pair the allocator's own lease already guarantees is exclusive per LIVE instance
+  (§4.1, §6), so this key is unique per live instance without minting a separate per-invocation
+  identity. Re-spinning the same instance overwrites its own conf file in place; a stale conf whose
+  lease is gone is reclaimed by `prune_stale_run_artifacts` (`scripts/lib/state_reclaim.sh`) under
+  the lease-registry reachability guard, the same mechanism that reclaims stale logs. `conf/` is a
+  Tier-1 subpath - see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s Tier-1 allowlist
+  for where it is registered; that classification is not restated here.
+
+  **Per-invocation uniqueness (`mktemp`) is FORBIDDEN for this file, going forward.** An
+  invocation-keyed name has no owner on any exit path: `-c "$conf"` keeps the file open for the
+  server's entire lifetime once launched, so it can never be deleted after that point, and a name
+  that changes on every invocation therefore has nothing that ever reclaims it - one orphaned file
+  accumulates per spin-up, forever. Keying the file by the resource instead of the invocation is
+  what makes it both correct (still exclusive per live instance) and reclaimable (bounded by the
+  set of declared instances rather than by the number of launches ever performed).
 
 **Contract:** an agent MUST NOT introduce a build step that writes to a shared or default config
-path (`$ODOO_RC`, a project-committed `odoo.conf`, or any config file reused across concurrent
-callers). Every build either (a) passes flags with no config file at all, or (b) generates a
-unique-per-run temp file - there is no third path. This is a harness-level guarantee, not an
-Odoo-CLI fact, so it applies identically across all versions (v8-v19).
+path (`$ODOO_RC`, a project-committed `odoo.conf`, or any config file reused across concurrently
+LIVE instances). Every build either (a) passes flags with no config file at all, or (b) writes the
+resource-keyed conf at its deterministic, per-live-instance path - there is no third path, and (b)
+is NEVER a per-invocation temp file. This is a harness-level guarantee, not an Odoo-CLI fact, so it
+applies identically across all versions (v8-v19).
 
 Consumers point back here rather than restating the contract: `agents/odoo-instance-ops.md`
 ("Through-Odoo DB lifecycle") and `skills/odoo-instance/SKILL.md`.
