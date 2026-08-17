@@ -1,6 +1,6 @@
 {
   "run_id": "clean-run-20260806-a1b2",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "add a discount ceiling to sale.order.line",
   "autonomy": "auto",
   "status": "DONE",
@@ -11,9 +11,10 @@
       "id": "code-discount-ceiling",
       "approach": "odoo-coding",
       "approach_kind": "skill",
+      "modules": ["sale_discount_ceiling"],
+      "files_in_scope": ["sale_discount_ceiling/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["sale_discount_ceiling/models/sale_order_line.py"],
       "contract": {
@@ -29,7 +30,6 @@
       "approach_kind": "skill",
       "inputs": {},
       "depends_on": ["code-discount-ceiling"],
-      "gate_tier": "L0",
       "status": "DONE",
       "produced": ["review/sale_discount_ceiling.md"],
       "contract": {
@@ -43,9 +43,10 @@
       "id": "skipped-doc",
       "approach": "odoo-doc-illustration",
       "approach_kind": "skill",
+      "modules": ["sale_discount_ceiling"],
+      "files_in_scope": ["sale_discount_ceiling/doc/**", "sale_discount_ceiling/static/description/**"],
       "inputs": {},
       "depends_on": ["review-1"],
-      "gate_tier": "L1",
       "status": "SKIPPED",
       "produced": [],
       "contract": {}
@@ -56,7 +57,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["review-1"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/1"],
       "contract": {
@@ -81,7 +81,6 @@
       "approach_kind": "skill",
       "inputs": {"pr": "https://example.invalid/org/repo/pull/1"},
       "depends_on": ["land"],
-      "gate_tier": "L2",
       "status": "DONE",
       "produced": ["monitor/pr-1.md"],
       "contract": {

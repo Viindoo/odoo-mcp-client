@@ -1,6 +1,6 @@
 {
   "run_id": "tier-jargon-20260806-g7h8",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "review a UI change",
   "autonomy": "auto",
   "status": "DONE",
@@ -13,7 +13,6 @@
       "approach_kind": "skill",
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L0",
       "status": "DONE",
       "produced": ["review/mod_a.md"],
       "contract": {
@@ -37,7 +36,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["review-1"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/1"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}

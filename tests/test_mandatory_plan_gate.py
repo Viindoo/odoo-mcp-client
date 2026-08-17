@@ -20,6 +20,7 @@ plan-provided fast-path) - citing the SSOT is not a self-gate.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -96,8 +97,21 @@ def test_brl_never_routes_straight_to_coding():
 
 
 def test_workflow_both_branches_terminate_at_planning():
+    """The minimal plan the trivial branch resolves to is
+    `[code, verify, review, integrate, monitor, merge]` (a flat node list, never a grouping
+    artifact) - the comment's own citation of that plan string re-wraps the file's line breaks,
+    so the "no trivial bypass" sentence that follows it can land split across a markdown
+    line-wrap (a `# `-prefixed comment continuation). Matching is whitespace-normalized so a
+    re-wrap of the comment can never silently defeat this guard - the same guard-discipline this
+    repo's other whole-tree scans already apply (normalize whitespace before matching)."""
     text = WORKFLOW.read_text(encoding="utf-8")
-    low = text.lower()
+    # Strip each line's leading `# ` comment marker BEFORE joining: this file's rationale is a
+    # multi-line YAML `#`-comment block, so a plain whitespace-collapse still leaves a literal `#`
+    # sitting between "trivial" and "direct-to-coding" wherever the sentence happens to wrap onto
+    # a new comment line - defeating the substring match exactly like an un-normalized line-wrap
+    # would in markdown prose.
+    delined = " ".join(re.sub(r"^\s*#\s?", "", line) for line in text.splitlines())
+    low = re.sub(r"\s+", " ", delined.lower())
     # Trivial branch goes directly to odoo-planning; non-trivial goes via solution-design which
     # emits next: odoo-planning. The comment asserts BOTH branches route through odoo-planning.
     assert "next: odoo-planning" in low, "The trivial branch must terminate at odoo-planning."
@@ -109,6 +123,10 @@ def test_workflow_both_branches_terminate_at_planning():
     )
     assert "no trivial direct-to-coding bypass" in low, (
         "The workflow must state there is no trivial direct-to-coding bypass."
+    )
+    assert "[code, verify, review, integrate, monitor, merge]" in low, (
+        "The workflow must name the minimal plan string the trivial branch resolves to - a flat "
+        "node list, never a grouping artifact."
     )
     # The workflow is the front-door admission gate.
     assert "front-door admission gate" in low, (

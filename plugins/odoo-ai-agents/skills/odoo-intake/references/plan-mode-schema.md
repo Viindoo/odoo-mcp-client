@@ -47,12 +47,13 @@ For a multi-repo delivery also note worktree + branch + verify command per node,
 Capability Card per REPO (serialized as the run file's `repos[]`; a single-repo delivery has a
 one-entry list).
 
-**A node's module set MUST be closed under "same landing moment".** If two modules must reach the
-integration branch as separate commits - because a later node depends on one but not the other,
-because they must be independently revertable, or because one needs deeper reasoning than the other
-and they are separable - they are two nodes. If they always land together, one node is correct and
-cheaper: Odoo installs and tests a comma-separated module list in ONE `odoo-bin` run in every series
-from 8.0 onward, so a multi-module node costs ONE database and ONE suite pass, not N.
+**A node's module set MUST be closed under "same landing moment".** Apply this test BEFORE deciding
+how many nodes a `dag_layers` edge becomes: two modules belong in ONE node when ALL THREE hold -
+(1) no OTHER node depends on one of them without also depending on the other, (2) neither needs to be
+independently revertable from the other, and (3) neither needs deeper reasoning/review than the
+other. If ANY of the three fails, they are TWO nodes, ordered by `depends_on`. One node is cheaper
+when the test passes: Odoo installs and tests a comma-separated module list in ONE `odoo-bin` run in
+every series from 8.0 onward, so a multi-module node costs ONE database and ONE suite pass, not N.
 
 **Block 2 - Dependency graph.** `nodes` + `edges` where each edge has a `type` of
 `technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's algorithm), a
@@ -98,10 +99,13 @@ Node dependency graph
       depends-on: (none)
 
   [billing-accounting-bridge] [repo: fleet-addons] [skill: odoo-coding]
-      modules: viin_fleet_billing_account (NEW), viin_fleet_billing (existing)
+      modules: viin_fleet_billing_account (NEW), viin_fleet_billing (NEW)
       depends-on: billing-core
       One node spanning two modules: the bridge cannot land without the field it reads, so
-      both modules land in ONE commit. Its cross-module test is staged - see Block 3.
+      both modules land in ONE commit. `viin_fleet_billing` is (NEW) here too - the tag is
+      evaluated once, at plan time, and stays the SAME everywhere the module appears; the
+      `depends-on: billing-core` edge, not a per-node retag, is what tells the reader
+      billing-core is the module's creating node. Its cross-module test is staged - see Block 3.
 
   [regression-after-bridge] [repo: fleet-addons] [skill: odoo-instance]
       modules: viin_fleet_billing, viin_fleet_billing_account
@@ -111,11 +115,21 @@ Node dependency graph
       run-harness re-computes that floor and STOPS BLOCKED if this list is below it. Widen it
       beyond the floor when regression-scope.md's algorithm says a sibling module is at risk.
 
-  [cluster-i18n] [repo: fleet-addons] [skill: odoo-i18n]
+  [review] [repo: fleet-addons] [skill: odoo-code-review]
       depends-on: regression-after-bridge
+      Static REVIEW node - part of the Terminal stage order, positioned before the i18n/
+      acceptance/doc tail so a review-forced code fix is re-verified once, not translated or
+      documented twice. Closes DONE only after any fix it forces re-runs verify.
+
+  [cluster-i18n] [repo: fleet-addons] [skill: odoo-i18n]
+      depends-on: review
 
   [cluster-acceptance] [repo: fleet-addons] [skill: odoo-acceptance]
       depends-on: cluster-i18n
+      Authored STATICALLY like every other node - never omitted pending a later decision.
+      Acceptance criteria come from the QA oracle (odoo-qa-planner's scenarios.md) when
+      already authored, else from the design's section 9 Acceptance Criteria. An ABSENT
+      oracle means "source criteria from section 9 instead", never "omit this node".
 
   [cluster-docs] [repo: fleet-addons] [skill: odoo-doc-illustration]
       depends-on: cluster-acceptance
@@ -147,7 +161,8 @@ Node dependency graph
   Edges (depends direction; flat list for grep/diff stability):
     billing-core               --> billing-accounting-bridge
     billing-accounting-bridge  --> regression-after-bridge
-    regression-after-bridge    --> cluster-i18n
+    regression-after-bridge    --> review
+    review                     --> cluster-i18n
     cluster-i18n               --> cluster-acceptance
     cluster-acceptance         --> cluster-docs
     cluster-docs               --> integrate
@@ -156,18 +171,24 @@ Node dependency graph
 ```
 ````
 
-**Serialized form (what Phase P writes from those tags).** Each `[repo: <repo>]` becomes a node's
-`repo` field, and each repo's Repo Capability Card becomes one `repos[]` entry (harness 8.3):
+**Serialized form (what Phase P writes from those tags).** The run file is stamped
+`"schema_version": "run/2.0"` (SSOT: `docs/reference/workflow-harness.md` section 8.3 - this schema's
+node shape is incompatible with `run/1.0` and the driver refuses anything older). Each
+`[repo: <repo>]` becomes a node's `repo` field, and each repo's Repo Capability Card becomes one
+`repos[]` entry (harness 8.3):
 
 ```json
+"schema_version": "run/2.0",
 "repos": [{"id": "fleet-addons", "base": "<principal branch>", "verify": "<command>",
            "commit": "<resolved by git-toolkit:git-ops>", "confidential": "public",
            "worktree_root": "<parent path outside the repo tree>"}],
 "nodes": [{"id": "billing-core", "repo": "fleet-addons", "approach": "odoo-coding",
-           "approach_kind": "skill", "modules": ["viin_fleet_billing"], "depends_on": []},
+           "approach_kind": "skill", "modules": ["viin_fleet_billing"],
+           "files_in_scope": ["fleet-addons/viin_fleet_billing/**"], "depends_on": []},
           {"id": "regression-after-bridge", "repo": "fleet-addons", "approach": "odoo-instance",
            "approach_kind": "skill",
            "modules": ["viin_fleet_billing", "viin_fleet_billing_account"],
+           "files_in_scope": [],
            "depends_on": ["billing-accounting-bridge"]},
           {"id": "integrate", "repo": "fleet-addons", "approach_kind": "integrate"},
           {"id": "run-summary", "repo": null, "approach_kind": "inline"}]
@@ -175,9 +196,9 @@ Node dependency graph
 
 `approach_kind` is one of `skill | agent | workflow | inline | integrate` - five values, exhaustive.
 A node's serialized field set is exactly: `id`, `repo`, `approach`, `approach_kind`, `modules`,
-`inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE and there is no
-field that groups, batches, layers, or orders nodes other than `depends_on`.** A node carries NO
-`gate_tier`: the tier is a total function resolved at dispatch
+`files_in_scope`, `inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE
+and there is no field that groups, batches, layers, or orders nodes other than `depends_on`.** A node
+carries NO `gate_tier`: the tier is a total function resolved at dispatch
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` section Gate-tier resolution). Writing a tier
 here is a schema violation.
 
@@ -192,9 +213,16 @@ PLUS the Block 3 `node -> SKILL` assignment for each `[skill: ...]` tag. `dag_la
 work must precede which; turn each layer edge into a `depends_on` edge between the nodes carrying
 that work - never into a node, a batch, or a grouping. NEW vs existing comes from the module-graph
 resolution (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`: a module resolving to
-NEITHER OSM NOR disk is `(NEW)`; otherwise `(existing)`). Every terminal lifecycle stage appears as
-its own node wired to its execute-SKILL. Neither WHICH stages exist nor their ORDER is a per-plan
-choice: read both from the Terminal stage order constant
+NEITHER OSM NOR disk is `(NEW)`; otherwise `(existing)`). Evaluate this tag ONCE per module name, at
+plan time: the SAME module carries the SAME `(NEW)`/`(existing)` tag in EVERY node where it appears,
+never re-evaluated situationally per node - the `depends_on` edge, not a per-node retag, is what
+tells the reader which node creates it. Every terminal lifecycle stage appears as its own node wired
+to its execute-SKILL, INCLUDING `review` and `acceptance` - both are authored STATICALLY like any
+other node, never omitted pending a later runtime decision. `acceptance`'s criteria come from the QA
+oracle (`odoo-qa-planner`'s `scenarios.md`) when already authored, else from the design's §9
+Acceptance Criteria; an absent oracle changes WHERE the criteria come from, never WHETHER the node
+exists. Neither WHICH stages exist nor their ORDER is a per-plan choice: read both from the Terminal
+stage order constant
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` section Pre-PR tail),
 which is its ONE owner. A stage the run does not have is skipped in place; the rest keep their order.
 
@@ -212,12 +240,22 @@ rather than shipping untested code. Place EARLIER `odoo-instance` nodes wherever
 regression late would be expensive; each one's `modules` must cover at least the union over its own
 transitive dependencies, so scope grows monotonically down the graph.
 
+**Cross-module acceptance-criterion ownership.** A cross-module acceptance criterion - including the
+design's §9 solution-level summary (`agents/odoo-solution-architect.md` §9) - is OWNED by the
+verification node whose `modules` cover EVERY module that criterion spans, whether those modules sit
+in one coding node or are split across sibling coding nodes. Name that ownership on the owning
+verification node's Block 3 line (below) - a cross-module criterion is never left unowned because no
+single coding node's own module set happens to cover it.
+
 **Block 3 - Assignment.** One line per node:
 `node -> skill | command | agent  (effort + est_agents ESTIMATE; model + count owned by the dispatched skill at runtime - ADVISORY / du kien, non-binding) -> which skill that agent uses`.
 Add per-node **acceptance criteria** + a **verify command** (Repo Capability Card). `effort` follows
 the gap-analysis legend (S/M/L/XL); `est_agents` is a rough advisory count. The plan binds WHICH
-skill, never a per-agent `model`, fan-out `count`, or `gate_tier`. For a node spanning modules, state
-in one line which of its assertions cross a module boundary, so `odoo-coder` knows what to stage
+skill, never a per-agent `model`, fan-out `count`, or `gate_tier`. For ANY acceptance criterion that
+spans more than one module - whether those modules sit in ONE node or are split across SIBLING
+nodes - state in one line, on the OWNING node's Block 3 line (the verification node named under
+§ Cross-module acceptance-criterion ownership above), which of its assertions cross a module
+boundary, so `odoo-coder` knows what to stage
 (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` section Cross-module test staging). This 3-block plan
 is ALWAYS authored by `odoo-planning` (its `odoo-planner`); planning is mandatory for all work -
 `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` section Mandatory-planning rule.
@@ -227,9 +265,10 @@ is ALWAYS authored by `odoo-planning` (its `odoo-planner`); planning is mandator
 plan for a single-node change is `[code, verify, review, integrate, monitor, merge]`. After every
 non-land-tail node in that repo is terminal and its verification is green, `run-harness` invokes
 `git-toolkit:git-ops` to squash and push the repo's integration branch and open a PR against the
-principal branch, then materializes `next -> odoo-pr-monitoring`. There is no local merge to the
-principal. Block 3 line: `integrate -> run-harness invokes git-toolkit:git-ops (squash + push + open
-PR) -> next: odoo-pr-monitoring`.
+principal branch, and reaches DONE. It materializes NOTHING: `monitor` and `merge` are the plan's own
+nodes and `pick_ready` dispatches them once `integrate` is DONE - a materialized node here would
+dispatch the watch twice. There is no local merge to the principal. Block 3 line:
+`integrate -> run-harness invokes git-toolkit:git-ops (squash + push + open PR) -> DONE`.
 
 **Workflow-as-node (G-B):** when a node's approach is a workflow-command it is **one node** -
 `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the workflow's internal

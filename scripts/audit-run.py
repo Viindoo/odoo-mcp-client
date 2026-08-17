@@ -97,13 +97,13 @@ REPO_BOUND_APPROACH_KINDS = ("integrate",)
 REPO_BOUND_APPROACHES = (
     "odoo-coding",             # writes a repo's source
     "odoo-test-writing",       # writes a repo's tests
-    "odoo-code-review",        # the pre-PR review; it can force code changes
+    "odoo-code-review",        # (1) review - the pre-PR review; it can force code changes
     "odoo-instance",           # writes no source but GATES that repo's delivery (test verdict)
-    "odoo-i18n",               # (1) i18n reconcile - writes .po/.pot into a repo
-    "odoo-acceptance",         # (2) live blast-radius oracle - gates that repo's PR
-    "odoo-doc-illustration",   # (2b) user guide + App-Store landing - writes into a repo
+    "odoo-i18n",               # (2) i18n reconcile - writes .po/.pot into a repo
+    "odoo-acceptance",         # (3) live blast-radius oracle - gates that repo's PR
+    "odoo-doc-illustration",   # (4) user guide + App-Store landing - writes into a repo
     "odoo-pr-monitoring",      # monitor + merge - watches ONE repo's PR
-    "git-toolkit:git-ops",     # (4) the land step itself
+    "git-toolkit:git-ops",     # (6) the land step itself
 )
 
 # Artefact suffixes that only a repository source tree carries. A node that produced one of these

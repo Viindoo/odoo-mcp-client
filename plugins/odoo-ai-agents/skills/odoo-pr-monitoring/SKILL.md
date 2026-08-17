@@ -18,23 +18,33 @@ model: inherit
 
 # odoo-pr-monitoring - the post-PR lifecycle owner (poller)
 
-## Where this sits in the flow (the async PR boundary)
+## Where this sits in the flow
 
 Begins where `run-harness`'s terminal `integrate` land-tail stops at "PR opened": once every node in
 that repo is terminal and a DONE verification node covers every module its coding nodes touched,
 run-harness squashes the repo's run-integration branch, fresh FIRST-pushes it (non-force), opens ONE
 PR for that repo (run-integration -> principal), and STOPS (never merges). The surviving invariant is
-exactly ONE PR per repo per run. CI runs minutes-to-hours and review takes
-hours-to-days, so the watch CANNOT be a synchronous blocking node in the `run-harness` DAG - this
-skill is the ASYNC boundary: a poller driving the open PR to merged-and-cleaned.
+exactly ONE PR per repo per run. `monitor` and `merge` are ORDINARY plan nodes that `run-harness`'s
+`pick_ready` dispatches like any other node - `monitor depends_on integrate`, `merge depends_on
+monitor` - and this skill is what runs each time either is dispatched; `run-harness` never
+materializes a second one dynamically. CI runs minutes-to-hours and review takes hours-to-days, so a
+dispatch of `monitor` never holds the run's turn open for that long: each poll tick reads once,
+classifies, and PARKS - it emits a `NEEDS_NEXT` Continuation Contract naming itself in `next[]` so the
+driver's turn ends cleanly, and a later `/loop` tick or `/schedule` cron re-invocation re-attaches via
+`run-<id>.json` and resumes. Once the watch classifies green + approved + mergeable, the `monitor`
+node itself reaches DONE - it does NOT also perform the merge; that is the separate `merge` node's
+job, dispatched only once `monitor` is DONE, so the outward L2 gate keeps its own `depends_on` edge
+and its own `gate_log` entry.
 
 ```
 run-harness's last verification node for this repo closes green  ->  integrate land-tail: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
-   --- ASYNC BOUNDARY (this skill; NOT a blocking DAG node) ---
+   --- `monitor` node (run-harness dispatches it like any other node; each tick PARKS via NEEDS_NEXT instead of blocking the turn) ---
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
         -> proposed re-push is HUMAN-GATED (X2); max_review_rounds cap; exhaustion -> BLOCKED
-   -> green + approved  ->  present merge approval gate  ->  merge (git-ops)
+   -> green + approved + mergeable  ->  `monitor` node reaches DONE
+   --- `merge` node (depends_on: monitor; run-harness dispatches it once monitor is DONE) ---
+odoo-pr-monitoring  ->  present merge approval gate  ->  merge (git-ops)
         -> post-merge cleanup (worktrees/branches/tag via git-ops)
 ```
 
@@ -68,6 +78,12 @@ or re-derive it):
 
 If no PR handle can be resolved (no run file, no PR named), STOP and report `NEEDS_CONTEXT` - never
 guess a PR or open a new one.
+
+**Two dispatch roles, one skill.** Dispatched as the `monitor` node: run Phase 1 through Phase 3
+until the watch classifies green + approved + mergeable, then stop at that node's own DONE (never
+enter Phase 4). Dispatched as the `merge` node (never ready until `monitor` is DONE): run Phase 1's
+attach step only to re-confirm the recorded state, then go straight to Phase 4 - do not re-poll or
+re-run the cadence choice below.
 
 ## Phase 1 - Attach + choose the poll cadence
 
@@ -109,7 +125,9 @@ one of three branches:
 
 - **pending** -> record the tick, keep polling (no action).
 - **any warning / error / fail** -> Phase 3 (D3).
-- **green + approved + mergeable** -> Phase 4 (the merge approval gate).
+- **green + approved + mergeable** -> the `monitor` node's watch is complete; report `DONE`. Do
+  NOT proceed to Phase 4 from here - that is the separate `merge` node's job, dispatched by
+  `run-harness` only once this `monitor` node is DONE.
 
 Record each tick's classification in the poll-state note so the next tick (or a resumed session)
 sees the history.
@@ -143,7 +161,7 @@ NEVER pushed autonomously.
    `max_review_rounds`.
 6. After an approved re-push, return to Phase 2 (poll the re-triggered CI).
 
-## Phase 4 - Green + approved -> the merge approval gate -> merge -> cleanup
+## Phase 4 - Dispatched as `merge`: the merge approval gate -> merge -> cleanup
 
 1. **Present the merge approval gate (always human).** The merge is irreversible/outward (git merge to the
    principal branch), so it is L2 and the autonomy dial can NEVER lower it (`run-harness` hard rule
@@ -235,9 +253,12 @@ state), append a Continuation Contract block per
   so the run re-attaches on the next tick.
 - **Failure routed (D3)** -> `status: NEEDS_NEXT` with `next` to `odoo-debug` then `odoo-coding`; the
   re-push stays human-gated (X2).
-- **Green + approved, merge pending the gate** -> `status: NEEDS_NEXT` with the merge approval gate as
-  the next step; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL and the
-  cleanup result in `produced`.
+- **Green + approved + mergeable, dispatched as `monitor`** -> `status: DONE`. Never emit a `next[]`
+  entry for the merge here - the plan's separate `merge` node (`depends_on: monitor`) is what
+  `run-harness` dispatches next; this skill does not materialize it.
+- **Dispatched as `merge`, gate awaiting the human** -> `status: NEEDS_NEXT` with the merge approval
+  gate as the next step; after a confirmed merge + cleanup -> `status: DONE` with the merged PR URL
+  and the cleanup result in `produced`.
 - **Bounded out / blocked** -> `status: BLOCKED` with `blocked_reason` (e.g. "max_review_rounds
   exhausted - human review") or `NEEDS_CONTEXT` when the PR handle is missing.
 

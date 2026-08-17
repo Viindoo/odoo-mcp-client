@@ -74,9 +74,10 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
 - **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
   (the immutable acceptance oracle authored by `odoo-qa-planner`). The oracle is normally authored
   LATER, at `odoo-acceptance` Phase 1, after coding - do NOT treat it as a standard planning input.
-  When absent (the common case), the plan RESERVES the acceptance stage against the design's §9
-  Acceptance Criteria (already authored at design time); when present, the plan wires its
-  review/acceptance stages to it directly.
+  The `acceptance` node is authored STATICALLY regardless, like every other terminal stage - it is
+  NEVER omitted for lack of an oracle. When the oracle is absent (the common case), the plan sources
+  the `acceptance` node's criteria from the design's §9 Acceptance Criteria (already authored at
+  design time) instead; when present, the plan wires its review/acceptance stages to it directly.
 - **Survey (OPTIONAL - ALWAYS an explicit value, never a silently-missing field)** -
   `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`, forwarded in this skill's own dispatch brief
   `INPUTS` when intake's Proposed Plan `Survey:` field resolved a deep-survey synthesis this
@@ -266,6 +267,11 @@ Approve plan? (approve / refine: [feedback] / cancel)
   annotation, or grouping construct may batch nodes together." This gate is the one human check that
   no automated guard can reach - if any header, tier, or annotation batches nodes together, reject
   and `refine: [feedback]` rather than approving.
+- **Also before approving, confirm every repo the plan touches carries at least one `odoo-instance`
+  node on `integrate`'s `depends_on` path whose `modules` cover every module any coding node in that
+  repo touches.** Catching this HERE - not at `run-harness` dispatch, after every coding node in the
+  repo has already run - is the whole point of checking it at this gate: reject and
+  `refine: [feedback]` rather than approving a plan missing its verification node.
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then

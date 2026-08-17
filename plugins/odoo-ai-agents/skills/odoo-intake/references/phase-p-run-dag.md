@@ -65,7 +65,9 @@ open a RUN-DAG.
      `odoo-planning` via the **Skill tool** - WITHOUT `plan_mode_active` (never pre-open Plan Mode
      on its behalf; `odoo-planning` is the sole enterer per `planning-gate-contract.md` § Plan-Mode
      enter/exit) - there is NO trivial/size/module-count bypass (`planning-gate-contract.md` §
-     Mandatory-planning rule); it emits the minimal `[code, review, integrate]` plan. Once
+     Mandatory-planning rule); it emits the minimal
+     `[code, verify, review, integrate, monitor, merge]` plan - `verify` is an `odoo-instance` node
+     and is never omitted, or `integrate` readiness deadlocks and the run never lands. Once
      `odoo-planning` returns its plan pointer
      (`<SHARE_DIR>/plans/<slug>-<date>.md`), ingest it BY POINTER and serialize it into `run-<id>.json`
      using the identical "ingest by pointer" procedure as the **Non-trivial path** bullet directly

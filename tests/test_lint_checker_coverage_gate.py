@@ -261,7 +261,7 @@ def test_pre_pr_lint_gate_containment_reacts_to_inconclusive_not_only_failure():
     section = _section(
         text,
         "**Containment for tail-only lint",
-        "**4 - Terminal land-tail PR",
+        "**6 - Terminal land-tail PR",
     )
     norm = re.sub(r"\s+", " ", section).lower()
     assert "inconclusive" in norm, (
@@ -283,8 +283,8 @@ def test_pre_pr_lint_gate_declares_gate_role_still_intact():
     text = _read(RUN_INTEGRATION)
     section = _section(
         text,
-        "**3 - Pre-PR lint-class gate",
-        "**4 - Terminal land-tail PR",
+        "**5 - Pre-PR lint-class gate",
+        "**6 - Terminal land-tail PR",
     )
     norm = re.sub(r"\s+", " ", section).lower()
     assert "gate_role: pre-pr-lint-gate" in norm

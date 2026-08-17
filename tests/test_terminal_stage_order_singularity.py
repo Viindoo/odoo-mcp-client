@@ -14,8 +14,12 @@ acceptance, so a plan built from them shipped untranslated, unaccepted code.
 WHAT THIS FILE CHECKS
 
   1. `test_stage_order_declared_in_exactly_one_file` - exactly one file declares the constant
-     (the owner), and the owner's own block parses into a non-empty ordered stage list. Without
-     this the two checks below could pass vacuously against an empty canon.
+     (the owner), and the owner's own block parses into a non-empty ordered stage list
+     (`test_owner_block_parses_into_an_ordered_stage_list`) that still names `review` as one of
+     its stages (`test_review_is_a_member_of_the_terminal_stage_order_canon`) - a single dropped
+     stage is exactly the drift shape that has bitten this constant before (see below) and would
+     otherwise slip through a check that only counts how many stages survived. Without these the
+     two checks below could pass vacuously against an empty or `review`-less canon.
 
   2. `test_no_competing_stage_ordering_outside_the_owner` - no file except the owner asserts its
      OWN lifecycle ordering. An ordering is an arrow chain: >= MIN_CHAIN_TOKENS canonical stage
@@ -197,6 +201,33 @@ def test_owner_block_parses_into_an_ordered_stage_list(canon: list[str], land_ta
     assert len(canon) == len(set(canon)), f"the constant lists a stage twice: {canon}"
     assert land_tail, "no land-tail stage parsed - every chain would then be ignored"
     assert land_tail <= set(canon), f"land tail {land_tail} is not a subset of the canon {canon}"
+
+
+def test_review_is_a_member_of_the_terminal_stage_order_canon(canon: list[str]) -> None:
+    """Behavior protected: `review` is a REAL stage in the canonical Terminal stage order - one of
+    the tokens `parse_canonical_stages` yields from the owner's own block - not merely a word that
+    shows up in surrounding prose (the `odoo-code-review` skill name, docstrings elsewhere in this
+    suite). A plan or the run-harness driver that reads this constant to build its `depends_on`
+    edges must see `review` as a dispatchable node, or the review stage silently disappears from
+    every plan built afterward.
+
+    This is exactly the drift class the module docstring opens with: "the worst restatements did
+    not REORDER the stages - they silently DROPPED i18n and acceptance." Dropping `review` instead
+    is the same failure with a different victim, and a check that only counts surviving stages
+    (`test_owner_block_parses_into_an_ordered_stage_list` asserts `len(canon) >= 4`) would not
+    catch it if the block still happened to carry >= 4 OTHER stages.
+
+    This asserts membership in the PARSED LIST the owner's fenced block produces via the shared
+    `parse_canonical_stages` parser - not a regex match against raw text, and not tied to one
+    spelling, indentation, or arrow-run length for the `review` row. A MUST-CATCH probe list of
+    alternate textual shapes is therefore unnecessary: whatever shape the row takes, either
+    `parse_canonical_stages` still yields a `review` token (this test stays green) or it does not
+    (this test catches it), regardless of how the row is rendered.
+    """
+    assert "review" in canon, (
+        f"Terminal stage order canon is missing 'review' - a plan built from this constant would "
+        f"never dispatch a review node: {canon}"
+    )
 
 
 def test_no_competing_stage_ordering_outside_the_owner(

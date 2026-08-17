@@ -964,7 +964,7 @@ references a driver-required workflow directly.
 ```json
 {
   "run_id": "feature-x-20260607-a3f1",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "<verbatim user NL>",
   "autonomy": "auto | step | plan",
   "status": "NEEDS_NEXT | DONE | BLOCKED | NEEDS_CONTEXT",
@@ -983,6 +983,8 @@ references a driver-required workflow directly.
      "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|inline|integrate",
      "modules": ["mod_a"],      // module technical names this node touches, in dependency order;
                                 // omit for a node that touches no Odoo module
+     "files_in_scope": ["fleet-addons/mod_a/**"],  // file globs this node may write; MUST be
+                                // disjoint across nodes - run-harness STOPS BLOCKED on overlap
      "inputs": {}, "depends_on": [],
      "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED|NEEDS_CONTEXT",
      "produced": [], "contract": { /* last emitted continuation block */ }}
@@ -995,11 +997,18 @@ references a driver-required workflow directly.
 
 `approach_kind` is one of `skill | agent | workflow | inline | integrate` - five values, exhaustive.
 A node's serialized field set is exactly: `id`, `repo`, `approach`, `approach_kind`, `modules`,
-`inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE and there is no
-field that groups, batches, layers, or orders nodes other than `depends_on`.** A node carries NO
-`gate_tier`: the tier is a total function resolved at dispatch
+`files_in_scope`, `inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE
+and there is no field that groups, batches, layers, or orders nodes other than `depends_on`.** A node
+carries NO `gate_tier`: the tier is a total function resolved at dispatch
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution). Writing a tier here is
 a schema violation - `gate_log[].tier` above is the RECORD of the resolved tier, never an input.
+`files_in_scope` mirrors Block 1's authored `files-in-scope` glob list
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1) verbatim -
+Phase P copies it, it never re-derives it.
+**`schema_version` is stamped `"run/2.0"` on every run this release produces.** The flat node shape
+above - no grouping layer, no `topology`, no `nodes[].gate_tier`, no `cumulative_modules` - is
+incompatible with the retired `run/1.0` shape; `run-harness` refuses to drive a run file stamped
+older (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Inputs).
 
 **`repos[]` + the per-node `repo` field - PR topology is per REPOSITORY.** `repos[]` promotes the
 Repo Capability Card (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
@@ -1036,9 +1045,10 @@ plan), dispatched ONCE PER REPO once that repo's `integrate` readiness predicate
 skill/agent/workflow call: `run-harness` runs its existence precheck, then invokes
 `git-toolkit:git-ops` to squash that repo's run-integration branch, push it, and open ONE PR against
 the principal branch - or UPDATE that repo's PR when the precheck finds one already open (a resumed
-run must never open a second) - then materializes a dynamic `next` node ->
-`odoo-pr-monitoring`, gated at the L2 tier by the tier function's `integrate`/outward term (the
-single outward merge gate). There is exactly ONE PR per REPO. Operational SSOT for this dispatch:
+run must never open a second) - and then reaches DONE. It materializes NOTHING: `monitor` and `merge`
+are the plan's own nodes, dispatched by `pick_ready` once `integrate` is DONE, and `merge` takes its
+L2 from the registry (`odoo-pr-monitoring`) - that is the single outward merge gate. Materializing a
+watch node here would dispatch it twice. There is exactly ONE PR per REPO. Operational SSOT for this dispatch:
 `run-harness` SKILL.md § "`integrate` node dispatch (the land tail)".
 
 **Three coordination surfaces (no overlap).** A run coordinates over three distinct surfaces,

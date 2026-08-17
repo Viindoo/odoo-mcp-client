@@ -52,6 +52,7 @@ PLUGIN = PLUGINS / "odoo-ai-agents"
 SKILLS = PLUGIN / "skills"
 AGENTS = PLUGIN / "agents"
 RUN_HARNESS = SKILLS / "run-harness" / "SKILL.md"
+RUN_INTEGRATION = SKILLS / "run-harness" / "references" / "run-integration.md"
 PLAN_SCHEMA = SKILLS / "odoo-intake" / "references" / "plan-mode-schema.md"
 PLANNER = AGENTS / "odoo-planner.md"
 CODER = AGENTS / "odoo-coder.md"
@@ -736,10 +737,33 @@ def test_the_executor_shaped_detector_leaves_the_prohibition_prose_alone(sample)
 # ===========================================================================
 
 _PER_MODULE_DISPATCH = (
-    ("one odoo-coder per module", re.compile(r"(?i)one .{0,30}odoo-coder.{0,30}per module")),
-    ("more than one odoo-coder per node", re.compile(r"(?i)more than one .{0,30}odoo-coder.{0,30}per node")),
-    ("per-module coordinator/dispatch/brief",
-     re.compile(r"(?i)per-module (COORDINATOR|coordinator|dispatch|brief)")),
+    # (a) ANY cardinality determiner before `odoo-coder`, not just "one" - "an odoo-coder ... per
+    # module" makes the same claim as "one odoo-coder ... per module" and must not evade it merely
+    # by choosing a different article/quantifier. Gaps exclude a literal period (`[^.]`, never
+    # `.`) so the match cannot silently bridge two unrelated sentences.
+    ("<determiner> odoo-coder ... per module",
+     re.compile(r"(?i)\b(?:a|an|one|each|every|single)\b[^.]{0,30}odoo-coder[^.]{0,30}per module")),
+    ("more than one odoo-coder per node", re.compile(r"(?i)more than one [^.]{0,30}odoo-coder[^.]{0,30}per node")),
+    # (b) "per-module" reaching a coordinator/dispatch/brief noun WITHIN A SHORT, SAME-CLAUSE
+    # window, never pinned to the IMMEDIATE next word - an intervening word ("coder", "whether",
+    # "and", ...) between "per-module" and the noun it modifies must not launder the same claim
+    # past the check. The window is short (<=24 chars) AND period-excluded on purpose: it must
+    # reach across "per-module coder coordinator" / "per-module whether to dispatch" / "per-module
+    # and per-node coordinator" (all <=13 chars of gap), but must NOT reach into an unrelated LATER
+    # sentence/paragraph that happens to mention a dispatch verb for a DIFFERENT agent (verified
+    # live false-positive: "### Per-module fan-out ... Dispatch one `odoo-code-reviewer` agent per
+    # module" in odoo-code-review/SKILL.md, a 27-char gap with no period - a wider or period-blind
+    # window catches it; this one does not).
+    ("per-module ... coordinator/dispatch/brief",
+     re.compile(r"(?i)per-module\b[^.]{0,24}\b(coordinator|dispatch\w*|brief)\b")),
+    # (c) REVERSED token order - a cardinality word + "module" mentioned BEFORE `odoo-coder`, the
+    # mirror image of (a): the same cardinality claim read right-to-left instead of left-to-right.
+    # Both gaps are period-excluded and short for the same reason as (b): "one module, part of
+    # one, or several). The `odoo-coder` coordinator owns the node's..." is two SEPARATE clauses
+    # about different subjects (a node's module count, then the coordinator's node-level
+    # ownership) separated by a period - not a per-module cardinality claim - and must stay clear.
+    ("<determiner> module ... odoo-coder",
+     re.compile(r"(?i)\b(?:a single|one|each|every)\b[^.]{0,20}module[^.]{0,25}odoo-coder")),
 )
 # "Never split a node into per-module dispatches" states the rule; it is not a claim of one.
 _PER_MODULE_NEGATION = re.compile(
@@ -813,9 +837,21 @@ def test_the_dispatch_unit_is_the_node_across_the_whole_plugin():
     "Fill the per-module COORDINATOR brief before dispatch.",
     "Compose a per-module brief for each coder.",
     "The per-module dispatch happens in Phase 0.",
+    # (a) a determiner OTHER than "one" - the same cardinality claim, a different article.
+    "The coordinator launches an odoo-coder per module for every touched file.",
+    "Includes 26 specialist agents: the per-module coder coordinator (odoo-coder).",
+    # (b) "per-module" followed by a word NOT in the old immediate-adjacency list - the noun it
+    # actually modifies (coordinator/dispatch/brief) sits a few words further on instead.
+    "Decide per-module whether to dispatch a coordinator for that unit.",
+    "The per-module and per-node coordinator dispatch is unified into one brief.",
+    # (c) reversed token order - "module" mentioned BEFORE `odoo-coder`, not after.
+    "Provision a single module's own odoo-coder to cover the whole node.",
 ])
 def test_the_per_module_dispatch_detector_fires_on_a_live_reintroduction(sample):
-    """Detector proof (MUST-CATCH): every phrasing of the retired cardinality is flagged."""
+    """Detector proof (MUST-CATCH): every phrasing of the retired cardinality is flagged,
+    including the three evasion shapes a real per-module claim survived under before this guard
+    was tightened: (a) a determiner other than "one", (b) "per-module" followed by a word outside
+    the old fixed adjacency list, and (c) reversed token order ("module" before `odoo-coder`)."""
     assert _scan(sample, _PER_MODULE_DISPATCH, _PER_MODULE_NEGATION), (
         f"the per-module dispatch ban must catch {sample!r}"
     )
@@ -1009,6 +1045,22 @@ def test_cross_module_test_staging_names_both_era_remedies():
 
 _APPROACH_KINDS = ("skill", "agent", "workflow", "inline", "integrate")
 
+# Each `approach_kind` needs its OWN resolution TERM - an explicit branch that itself ASSIGNS a
+# tier (`return Lx` or `t = ...`), never merely the bare kind-name WORD appearing somewhere in the
+# section (a table of contents, a comment, or an unrelated sentence would satisfy a bare-word
+# check just as well, which is exactly why the guard this replaces passed both BEFORE and AFTER
+# the totality defect was fixed - it never distinguished "named" from "resolved").
+_APPROACH_KIND_RESOLUTION_TERMS = {
+    "inline": re.compile(r'approach_kind == "inline":\s*return L0'),
+    "integrate": re.compile(r'approach_kind == "integrate":\s*return L1'),
+    "skill": re.compile(r'approach_kind == "skill":\s*t\s*=\s*registry default_gate_tier'),
+    "agent": re.compile(r'approach_kind == "agent":\s*t\s*=\s*that registry'),
+    "workflow": re.compile(r'approach_kind == "workflow":\s*t\s*=\s*HIGHEST'),
+}
+# The fallback that makes the function TOTAL rather than partial: an approach NAMED in the
+# registry/workflow but carrying no entry there must still resolve, never fall through to nothing.
+_UNDEFINED_FALLBACK_TERM = re.compile(r'if t is UNDEFINED[^:]*:\s*t\s*=\s*L2')
+
 
 def test_the_gate_tier_function_is_total_and_carries_the_ephemeral_ceiling():
     """The tier is a TOTAL function over all five `approach_kind` values, with ONE lowering term.
@@ -1020,9 +1072,16 @@ def test_the_gate_tier_function_is_total_and_carries_the_ephemeral_ceiling():
     is not shared BECAUSE IT WROTE THE BRIEF (`MODE: fresh` + `PERSIST: ephemeral` +
     `SELF_PROVISION: worktree-addons`).
 
-    Fails if: the function stops being total (an `approach_kind` with no term), the ceiling or its
-    justification is dropped, or a duplicate prose tier exception for `integrate` reappears
-    OUTSIDE the function - which would give the tier two sources again.
+    Rewritten (the guard this replaces asserted only that the five kind STRINGS appear somewhere
+    in the section, so it PASSED both before and after the totality defect it was named for was
+    fixed - a bare word match cannot tell "named" from "resolved"). This version requires each of
+    the five `approach_kind` values to carry its OWN explicit branch that ASSIGNS a tier, plus the
+    `UNDEFINED -> L2` fallback clause that makes the whole thing total rather than partial.
+
+    Fails if: the function stops being total (an `approach_kind` with no term, or the UNDEFINED
+    fallback dropped), the ceiling or its justification is dropped, or a duplicate prose tier
+    exception for `integrate` reappears OUTSIDE the function - which would give the tier two
+    sources again.
     """
     body = _read(RUN_HARNESS)
     section = _section(body, r"^## Gate-tier resolution")
@@ -1046,11 +1105,20 @@ def test_the_gate_tier_function_is_total_and_carries_the_ephemeral_ceiling():
         "the remaining kinds (skill | agent | workflow) must resolve from the registry default - "
         "that is what makes the function TOTAL over all five values"
     )
-    for kind in _APPROACH_KINDS:
-        assert kind in flat_section, (
-            f"the tier function must account for `approach_kind` = {kind!r}: all five values, or it "
-            "is not a total function and some node kind resolves to nothing"
-        )
+    missing_terms = [
+        kind for kind, pat in _APPROACH_KIND_RESOLUTION_TERMS.items()
+        if not pat.search(flat_section)
+    ]
+    assert not missing_terms, (
+        f"the tier function is missing an explicit resolution TERM (a branch that itself ASSIGNS "
+        f"a tier, not merely the kind-name word appearing in prose) for `approach_kind` = "
+        f"{missing_terms!r} - it is not a total function and some node kind resolves to nothing"
+    )
+    assert _UNDEFINED_FALLBACK_TERM.search(flat_section), (
+        "the tier function must carry the `if t is UNDEFINED (no such entry): t = L2` fallback "
+        "clause verbatim - without it a named-but-unregistered skill/agent/workflow resolves to "
+        "nothing rather than the safe L2 default, and the function is partial, not total"
+    )
     assert re.search(r"(?i)the EPHEMERAL CEILING", flat_section), (
         "the tier function must carry the EPHEMERAL CEILING term by name"
     )
@@ -1123,4 +1191,159 @@ def test_the_coder_cites_the_live_ceiling_not_the_deleted_harness_section():
     assert not re.search(r"(?i)workflow-harness\.md . ?8\.4", para), (
         "the release paragraph must NOT cite the retired `workflow-harness.md` § 8.4 wave-era tier "
         "carve-out - that pointer resolves to text which no longer states the rule"
+    )
+
+
+# ===========================================================================
+# G9 - mechanisms the wave-removal refactor introduced that nothing yet protects
+# ===========================================================================
+#
+# Each guard below covers a mechanism confirmed PRESENT in prose (the fix-agents landed it) but
+# with no test naming it - the same "mechanism described, never reached" defect class this repo
+# has been bitten by before, just for a brand-new mechanism instead of a stale pointer.
+
+
+def test_integrate_readiness_clause_iii_voids_the_verdict_on_a_later_mutation():
+    """Behaviour protected: a commit landed on repo R's `run-integration` branch AFTER the
+    clause-(ii) verification node closed GREEN must VOID that verdict - clause (ii) stays
+    UNSATISFIED until that SAME node is RE-DISPATCHED and closes GREEN again over the CURRENT
+    tip. Without clause (iii), the i18n / acceptance / doc nodes and the lint-gate's own
+    containment-loop cherry-pick - every one of which mutates `run-integration` AFTER
+    verification, by the Terminal stage order's own edges - could ship on a tree nothing ever
+    re-verified.
+
+    Fails if clause (iii) is dropped, does not name the RE-DISPATCH verb (a re-read or a re-check
+    would not be enough - the node must actually run again), or stops requiring the fresh GREEN to
+    cover the CURRENT tip specifically.
+    """
+    section = _section(_read(RUN_HARNESS), r"^## integrate readiness")
+    flat = _flat(section)
+
+    assert re.search(r"(?i)\(iii\)", flat), (
+        "§ integrate readiness must carry an explicit clause (iii)"
+    )
+    assert re.search(r"(?i)A MUTATED TREE INVALIDATES ITS VERDICT", flat), (
+        "clause (iii) must state its own rule by name: a mutated tree invalidates its verdict"
+    )
+    assert re.search(
+        r"(?i)ANY commit landed on.{0,40}run-integration.{0,20}after.{0,80}closed GREEN voids "
+        r"that verdict", flat), (
+        "clause (iii) must state that ANY commit landed on run-integration AFTER the clause-(ii) "
+        "node closed GREEN voids that verdict"
+    )
+    assert re.search(r"(?i)clause \(ii\) stays UNSATISFIED", flat), (
+        "clause (iii) must state clause (ii) stays UNSATISFIED once voided - a voided verdict is "
+        "never silently treated as still-satisfied"
+    )
+    assert re.search(r"(?i)\bre-dispatched\b", flat), (
+        "clause (iii) must name the RE-DISPATCH verb explicitly - the node must be RE-DISPATCHED "
+        "(run again), not merely re-read or re-checked, to close GREEN a second time"
+    )
+    assert re.search(r"(?i)closes GREEN over the CURRENT tip", flat), (
+        "clause (iii) must require the re-dispatched node to close GREEN over the CURRENT tip, "
+        "never the stale tip it originally verified"
+    )
+
+
+_TERMINAL_STAGE_DISPATCH_IMPERATIVES = (
+    ("dispatch the odoo-<terminal-stage>",
+     re.compile(r"(?i)dispatch the `?odoo-(i18n|doc-illustration|acceptance)\b`?")),
+    ("materialize a(n) odoo-<terminal-stage> node",
+     re.compile(r"(?i)materialize an? `?odoo-(acceptance|pr-monitoring)`? node")),
+)
+# A sentence that FORBIDS the imperative ("Do NOT materialize...") is the rule, not a violation
+# of it - the same do-not/never-scoped-to-the-sentence discipline every other inversion-rejection
+# guard in this file already applies.
+_TERMINAL_STAGE_DISPATCH_NEGATION = re.compile(r"(?i)\b(do not|don'?t|never|not|no longer)\b")
+
+
+def test_run_harness_never_imperatively_dispatches_a_terminal_stage_again():
+    """INVERSION guard: `skills/run-harness/**` must carry NO imperative telling the DRIVER to
+    (re-)dispatch a terminal lifecycle stage. `review`/`i18n`/`acceptance`/`doc`/`monitor`/`merge`
+    are ORDINARY PLAN NODES `pick_ready` already dispatches once, like any other node; an
+    imperative sentence naming one of them again is the driver re-deciding a decision the PLAN
+    already made, and for a side-effecting stage (a `.po` export, a live acceptance run, a
+    PR-monitoring materialization) that is a DOUBLE EXECUTION, not a harmless no-op.
+
+    Fails if any file under skills/run-harness/** carries "dispatch the `odoo-<stage>`" for a
+    terminal stage, or "materialize a(n) `odoo-<stage>` node" - the two imperative SHAPES the
+    driver must never carry for a plan node it does not itself execute - outside a negation.
+    """
+    offenders = []
+    for f in sorted((PLUGIN / "skills" / "run-harness").rglob("*.md")):
+        text = _strip_fences(_read(f))
+        hits = _scan(text, _TERMINAL_STAGE_DISPATCH_IMPERATIVES, _TERMINAL_STAGE_DISPATCH_NEGATION)
+        offenders += [f"{f.relative_to(REPO_ROOT)}: {hit}" for hit in hits]
+    assert not offenders, (
+        "run-harness carries an imperative to (re-)dispatch a terminal plan node. "
+        "review/i18n/acceptance/doc/monitor/merge are ordinary plan nodes `pick_ready` dispatches "
+        "once; the driver dispatching one again by name double-executes a side-effecting stage:\n"
+        + "\n".join(offenders)
+    )
+
+
+@pytest.mark.parametrize("sample", [
+    "Dispatch the `odoo-i18n` skill directly from here once the PR opens.",
+    "Dispatch the odoo-acceptance skill again after the lint gate.",
+    "Materialize an `odoo-acceptance` node from this step.",
+    "Materialize a `odoo-pr-monitoring` node once the PR is open.",
+])
+def test_terminal_stage_dispatch_imperative_detector_fires_on_a_live_reintroduction(sample):
+    """Detector proof (MUST-CATCH): every imperative shape this guard exists to reject."""
+    assert _scan(sample, _TERMINAL_STAGE_DISPATCH_IMPERATIVES, _TERMINAL_STAGE_DISPATCH_NEGATION), (
+        f"the terminal-stage dispatch-imperative ban must catch {sample!r}"
+    )
+
+
+@pytest.mark.parametrize("sample", [
+    "Do NOT materialize an `odoo-pr-monitoring` node here - the plan's own `monitor` and `merge` "
+    "nodes depend on this one.",
+    "Never dispatch the `odoo-acceptance` skill from the land tail - it is a plan node.",
+])
+def test_terminal_stage_dispatch_imperative_detector_leaves_the_prohibition_prose_alone(sample):
+    """Detector proof (MUST-NOT-CATCH): naming the imperative to FORBID it is the contract."""
+    assert not _scan(
+        sample, _TERMINAL_STAGE_DISPATCH_IMPERATIVES, _TERMINAL_STAGE_DISPATCH_NEGATION
+    ), f"the terminal-stage dispatch-imperative ban must NOT catch {sample!r}"
+
+
+def test_verification_brief_template_carries_worklog():
+    """Behaviour protected: the ONE brief `run-harness` composes itself - for a node whose
+    `approach` is `odoo-instance` - must thread `WORKLOG` exactly like every other node brief
+    template in this file, so the dispatched leaf appends its significant decisions (why a suite
+    was widened, why a re-verify was forced) to the SAME run-local log every other node writes to,
+    rather than losing that reasoning the moment the node closes.
+
+    Fails if § Verification Brief Template drops the WORKLOG field.
+    """
+    text = _read(RUN_INTEGRATION)
+    section = _section(text, r"^## Verification Brief Template")
+    assert "WORKLOG" in section, (
+        "run-integration.md § Verification Brief Template must carry the WORKLOG field, the same "
+        "as § Node Invocation Brief Template does for a coding node"
+    )
+
+
+def test_run_start_existence_precheck_says_adopt_not_re_fork():
+    """Behaviour protected: a crash-resume that re-enters Run start before node 1 ever reached
+    RUNNING looks exactly like a first start (`budget.nodes_run == 0`, no `RUNNING` node) - the
+    Existence precheck exists so that case ADOPTS the branch/worktree pair already forked instead
+    of forking a SECOND one, which would strand every commit already cherry-picked onto the first
+    (Invariant 1).
+
+    Fails if § Run start drops the precheck, or the precheck stops saying ADOPT (re-derives / re-
+    forks instead of adopting what is already there).
+    """
+    section = _section(_read(RUN_HARNESS), r"^## Run start")
+    flat = _flat(section)
+
+    assert re.search(r"(?i)Existence precheck", flat), (
+        "§ Run start must carry an Existence precheck, MANDATORY before the fork"
+    )
+    assert re.search(r"(?i)\bADOPT\b", flat), (
+        "§ Run start's existence precheck must say ADOPT what is already there, not re-derive it"
+    )
+    assert re.search(r"(?i)instead of forking a second", flat), (
+        "the precheck must explicitly reject forking a SECOND branch/worktree pair - a re-fork "
+        "strands every commit already cherry-picked onto the first"
     )

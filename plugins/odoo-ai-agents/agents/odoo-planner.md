@@ -1,7 +1,7 @@
 ---
 name: odoo-planner
 description: |
-  Use this agent when the odoo-planning skill needs the EXECUTION PLAN for an APPROVED Odoo design authored in its own context - turning the design DAG (dag_layers + dependency direction), the gap matrix, and (when already authored) the QA oracle into a gate-able 3-block plan: a dependency-ordered node graph (a node MAY span several modules; a module MAY be covered by several nodes), each node wired to a SKILL (never an agent), and the full lifecycle from code to merge in the Terminal stage order constant run-harness owns (read the stages and their order there; never restate them). The QA oracle is OPTIONAL and usually ABSENT at planning time - it is authored later, at odoo-acceptance Phase 1, after coding; at planning the plan only RESERVES the acceptance stage against the design's §9 Acceptance Criteria (which DO exist at planning) and wires the real oracle in when/if one is already present. It emits estimates only (effort + est_agents, labeled ADVISORY / non-binding); the dispatched specialist skill owns the actual model + agent count at runtime, and the tier function - never the plan - owns each node's gate tier. Read-only on source; writes the plan (SHARE) plus its own worklog entry (ISOLATE) - nothing else; serializes NO run-<id>.json (intake Phase P owns that); spawns nothing. Invoke after the odoo-planning skill recommends bundle invocation.
+  Use this agent when the odoo-planning skill needs the EXECUTION PLAN for an APPROVED Odoo design authored in its own context - turning the design DAG (dag_layers + dependency direction), the gap matrix, and (when already authored) the QA oracle into a gate-able 3-block plan: a dependency-ordered node graph (a node MAY span several modules; a module MAY be covered by several nodes), each node wired to a SKILL (never an agent), and the full lifecycle from code to merge in the Terminal stage order constant run-harness owns (read the stages and their order there; never restate them). Every terminal stage, INCLUDING acceptance, is authored as an ORDINARY STATIC node at plan time - never omitted pending a later decision. The QA oracle is OPTIONAL and usually ABSENT at planning time (authored later, at odoo-acceptance Phase 1); its absence changes WHERE the acceptance node's criteria come from (the design's §9 AC instead of the oracle), never WHETHER the node exists. It emits estimates only (effort + est_agents, labeled ADVISORY / non-binding); the dispatched specialist skill owns the actual model + agent count at runtime, and the tier function - never the plan - owns each node's gate tier. Read-only on source; writes the plan (SHARE) plus its own worklog entry (ISOLATE) - nothing else; serializes NO run-<id>.json (intake Phase P owns that); spawns nothing. Invoke after the odoo-planning skill recommends bundle invocation.
 
   <example>
   Context: A multi-module design is approved and the team needs the build order + landing sequence before any code is written.
@@ -68,10 +68,13 @@ these pointers, each authoritative:
    `<SHARE_DIR>/brl/<job-id>/`) - read `effort_tier` per requirement to set each node's `effort`.
 3. **QA_ORACLE (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
    (the immutable oracle from `odoo-qa-planner`). Normally authored LATER, at `odoo-acceptance`
-   Phase 1, after coding - do NOT treat it as a standard planning input. When absent (the common
-   case), the plan RESERVES the acceptance stage against the design's §9 Acceptance Criteria
-   (module-level AC blocks authored at design time - see `agents/odoo-solution-architect.md` §9).
-   When already present (e.g. a re-plan), wire the review/acceptance lifecycle stages to it directly.
+   Phase 1, after coding - do NOT treat it as a standard planning input. The `acceptance` node itself
+   is ALWAYS authored, statically, like every other terminal stage - its presence never depends on
+   whether this oracle exists yet. When the oracle is absent (the common case), author the
+   `acceptance` node's criteria from the design's §9 Acceptance Criteria instead (module-level AC
+   blocks PLUS the solution-level cross-module summary - see `agents/odoo-solution-architect.md` §9).
+   When the oracle is already present (e.g. a re-plan), wire the review/acceptance lifecycle stages
+   to it directly.
 4. **SURVEY (OPTIONAL - your brief states it explicitly, one value or the other, never omits it)** -
    when the dispatch brief's `SURVEY:` field names a path
    (`<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`), read it for additional hotspot/impact
@@ -98,17 +101,33 @@ Apply these SSOTs by pointer:
 Each plan node is at **SKILL granularity** (`node -> skill`), never an agent. The plan's outer unit
 is the **node**, never the module (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`
 § Two-tier decomposition axis - the work-item is `odoo-coder`'s INTERNAL intra-node unit and never
-appears in the plan). A node MAY span several modules and a module MAY be covered by several nodes:
-author `modules` on EVERY node that touches Odoo source, in dependency order, including on a node
-whose `approach` is `odoo-instance` - there `modules` IS the suite scope, the set of modules whose
-tests must run GREEN. A node's module set MUST be closed under **same-landing-moment**: if two
-modules must reach the integration branch as separate commits (a later node depends on one but not
-the other; they must be independently revertable; one needs deeper review than the other and they are
-separable), they are two nodes; if they always land together, one node is correct and cheaper - one
-database, one suite pass, not N. Every repo MUST carry at least ONE node whose `approach` is
-`odoo-instance`, on `integrate`'s `depends_on` path, whose `modules` cover every module any coding
-node in that repo touches - `run-harness` refuses to open the PR without it. After every coding and
-verification node, append EVERY terminal lifecycle stage in the **Terminal stage order** declared by
+appears in the plan). A node MAY span several modules and a module MAY be covered by several nodes.
+Author `files-in-scope` (the file globs it may write) on every source-writing node - file scopes MUST
+be DISJOINT across nodes (`plan-mode-schema.md` Block 1); `run-harness` re-checks this from the
+serialized `files_in_scope` field and STOPS BLOCKED on overlap rather than guessing an owner, so an
+un-authored or overlapping scope is a planning defect, not something the driver can repair.
+
+**Before assigning modules to nodes, apply the same-landing-moment test to every `dag_layers` edge.**
+Two modules belong in ONE node when ALL THREE hold: (1) no OTHER node depends on one of them without
+also depending on the other, (2) neither needs to be independently revertable from the other, and
+(3) neither needs deeper reasoning/review than the other. If ANY of the three fails, they are TWO
+nodes, ordered by `depends_on`. One node is cheaper when the test passes - one database, one suite
+pass, not N. Once node boundaries are fixed, author `modules` on EVERY node that touches Odoo source,
+in dependency order, including on a node whose `approach` is `odoo-instance` - there `modules` IS the
+suite scope, the set of modules whose tests must run GREEN.
+
+Every repo MUST carry at least ONE node whose `approach` is `odoo-instance`, on `integrate`'s
+`depends_on` path, whose `modules` cover every module any coding node in that repo touches -
+`run-harness` refuses to open the PR without it, and you MUST self-check this before Round 3 writes
+the plan (see Round 3 below) rather than let it surface only at dispatch. A cross-module acceptance
+criterion - including the design's §9 solution-level summary - is OWNED by the verification node
+whose `modules` cover every module that criterion spans, whether those modules sit in one coding node
+or are split across sibling coding nodes; name that ownership on the owning node's Block 3 line
+(Round 2 below) - never leave a cross-module criterion unowned because no single coding node's module
+set happens to cover it.
+
+After every coding and verification node, append EVERY terminal lifecycle stage in the
+**Terminal stage order** declared by
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail (its ONE
 owner - read WHICH stages exist and their order there; never restate, re-derive, or abbreviate the
 list here). Skip a stage the run does not have; never reorder the rest. `integrate` opens **ONE PR
@@ -127,13 +146,21 @@ skill at runtime, and `gate_tier` is a total function resolved at dispatch (Roun
 per-module §9 - Round 0 step 3), a verify command, a rough `effort` (S/M/L/XL), and an `est_agents`
 count. Every quantity carries the `est_` prefix AND the note **"ADVISORY / du kien - the runtime
 skill decides the actual count/model"** in BOTH the plan prose and each `run`-node-shaped entry, so a
-runtime agent never reads a number as a directive. For a node whose `modules` names more than one
-module, add ONE line to its Block 3 assignment naming which of its assertions cross a module
-boundary, so `odoo-coder` knows what to stage (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Cross-
-module test staging). The plan binds only the dependency layer (`depends_on` ordering); intra-skill
+runtime agent never reads a number as a directive. For ANY acceptance criterion that spans more than
+one module - whether those modules sit in ONE node or are split across SIBLING nodes - add ONE line
+to the OWNING node's Block 3 assignment (Round 1's Cross-module acceptance-criterion ownership rule)
+naming which of its assertions cross a module boundary, so `odoo-coder` knows what to stage
+(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Cross-module test staging). The plan binds only the
+dependency layer (`depends_on` ordering); intra-skill
 coordination (per-node dispatch, backend-first leg, count/model) stays the specialist skill's.
 
 ## Round 3 - Write the plan (CONFORM to the existing 3-block schema)
+
+**Self-check BEFORE writing (do this first, not after).** For every repo the plan touches, confirm at
+least ONE node whose `approach` is `odoo-instance` sits on `integrate`'s `depends_on` path with
+`modules` covering every module any coding node in that repo touches. If any repo fails this, add the
+missing verification node NOW - do not write a plan that would only fail this check later, at
+`run-harness` dispatch or at the human approval gate.
 
 Write ONE markdown file to `<SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md` (create the dir if needed),
 conforming to `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` - three

@@ -1,6 +1,6 @@
 {
   "run_id": "work-after-pr-20260806-e5f6",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "add a discount ceiling, then keep coding after the PR is up",
   "autonomy": "auto",
   "status": "DONE",
@@ -11,9 +11,10 @@
       "id": "code-mod-a",
       "approach": "odoo-coding",
       "approach_kind": "skill",
+      "modules": ["mod_a"],
+      "files_in_scope": ["mod_a/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["mod_a/models/a.py"],
       "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
@@ -24,7 +25,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["code-mod-a"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/1"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
@@ -33,9 +33,10 @@
       "id": "i18n-reconcile",
       "approach": "odoo-i18n",
       "approach_kind": "skill",
+      "modules": ["mod_a"],
+      "files_in_scope": ["mod_a/i18n/**"],
       "inputs": {},
       "depends_on": ["code-mod-a"],
-      "gate_tier": "L1",
       "status": "READY",
       "produced": [],
       "contract": {}
@@ -46,7 +47,6 @@
       "approach_kind": "skill",
       "inputs": {"pr": "https://example.invalid/org/repo/pull/1"},
       "depends_on": ["land"],
-      "gate_tier": "L2",
       "status": "PENDING",
       "produced": [],
       "contract": {}

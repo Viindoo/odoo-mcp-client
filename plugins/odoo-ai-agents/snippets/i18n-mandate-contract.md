@@ -101,8 +101,8 @@ what this run changed. The scan target resolves per caller (same signal table, d
 - **run-harness:** the run-integration branch's aggregate diff (every module, across every node) -
   invoke `git-toolkit:git-ops` (read-only) for a full-patch diff of the run's changed modules between
   the run's base and `HEAD`, inside the `<path>/run-integration` worktree; per
-  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail stage 1,
-  scanned ONCE for the whole run, never per module.
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail (stage
+  order position 2), scanned ONCE for the whole run, never per module.
 
 Consider only CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS
 on ANY match; record the fired set as a FIELD, never as raw grep output (discipline:

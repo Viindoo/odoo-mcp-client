@@ -1,6 +1,6 @@
 {
   "run_id": "multi-repo-missing-integrate-20260806-p3q4",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "code in two repos but land only one of them",
   "autonomy": "auto",
   "status": "DONE",
@@ -30,9 +30,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -42,9 +43,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "core-addons",
+      "modules": ["viin_core_hook"],
+      "files_in_scope": ["viin_core_hook/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_core_hook/models/res_config.py"],
       "contract": {"status": "DONE", "produced": ["viin_core_hook/models/res_config.py"], "next": []}
@@ -56,7 +58,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing", "core-hook"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/2"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/2"], "next": []}

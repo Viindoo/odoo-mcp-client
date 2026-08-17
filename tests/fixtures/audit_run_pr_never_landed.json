@@ -1,6 +1,6 @@
 {
   "run_id": "pr-never-landed-20260806-i9j0",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "add a discount ceiling but never land it",
   "autonomy": "auto",
   "status": "DONE",
@@ -11,9 +11,10 @@
       "id": "code-mod-a",
       "approach": "odoo-coding",
       "approach_kind": "skill",
+      "modules": ["mod_a"],
+      "files_in_scope": ["mod_a/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["mod_a/models/a.py"],
       "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
@@ -24,7 +25,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["code-mod-a"],
-      "gate_tier": "L1",
       "status": "BLOCKED",
       "produced": [],
       "contract": {

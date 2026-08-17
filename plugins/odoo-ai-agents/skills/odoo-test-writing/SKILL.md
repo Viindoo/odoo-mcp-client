@@ -151,6 +151,13 @@ the only moment the whole node is visible.
   Placing the test in the LAST module to install also works, but ONLY when the node's modules are
   totally ordered by `depends` - a node spanning modules with NO dependency edge between them has no
   "last module", so use the decorators there.
+
+**Placement: which module's `tests/` directory hosts the file.** The cross-module assertion's file
+lives in the LAST module, in the node's dependency order, among the modules it touches. When those
+modules carry no dependency edge between them, it lives in the node's own PRIMARY module instead -
+the tag/decorator above (not the file's location) is what makes the whole node visible, so hosting
+it in the primary module loses nothing.
+
 A cross-module assertion that fails with `KeyError`/`AttributeError` on a symbol you know exists is
 this bug, not a code defect: fix the staging, do not chase the symbol. When the caller (a coding
 node's `odoo-coder` coordinator, or `odoo-coding`'s own coverage pre-flight) names which target

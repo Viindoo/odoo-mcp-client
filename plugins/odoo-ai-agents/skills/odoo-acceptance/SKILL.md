@@ -132,7 +132,8 @@ Lifecycle + test-invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/I
 and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. This skill does NOT independently
 re-derive a worktree root: when the dispatching caller's brief carries a `worktree_path` /
 `WORKTREE_PATH` (e.g. `run-harness`'s pre-PR tail, `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
-§ Pre-PR tail stage 2), thread it into this Phase 2 `odoo-instance` dispatch as `WORKTREE_PATH`
+§ Pre-PR tail > Every terminal NODE's brief carries the integration worktree - acceptance is
+Terminal stage order position 3), thread it into this Phase 2 `odoo-instance` dispatch as `WORKTREE_PATH`
 verbatim - never default to the catalog/principal checkout when one was supplied.
 
 ## Phase 2a - DURABLE channel (parallelizable, no browser)

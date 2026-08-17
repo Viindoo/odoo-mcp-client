@@ -161,6 +161,12 @@ def test_solution_design_section7_invariant_requires_per_module_partition():
 
 
 def test_planner_agent_marks_qa_oracle_optional_and_usually_absent():
+    """The QA oracle stays optional/usually-absent at planning time - but acceptance's EXISTENCE
+    no longer depends on it. Prior wording had the plan RESERVE the acceptance stage pending the
+    oracle's later arrival; the current design authors acceptance as an ORDINARY STATIC node at
+    plan time, same as every other terminal stage, and never omits it pending a later decision.
+    The oracle's absence changes only WHERE the node's criteria come from (the design's §9 AC),
+    never WHETHER the node exists - that is the fact this test protects."""
     body = _read(PLANNER)
     # Red-before-green: the old headline implying the oracle is a standard planning input.
     assert "the gap matrix, and the independent QA oracle into" not in body, (
@@ -175,11 +181,22 @@ def test_planner_agent_marks_qa_oracle_optional_and_usually_absent():
         "odoo-planner must state the oracle is authored later, at odoo-acceptance Phase 1."
     )
     assert "§9" in body, (
-        "odoo-planner must state the plan reserves the acceptance stage against the design's "
-        "§9 Acceptance Criteria when the oracle is absent."
+        "odoo-planner must name the design's §9 Acceptance Criteria as the fallback source of "
+        "the acceptance node's criteria when the oracle is absent."
     )
-    assert "RESERVES" in body, (
-        "odoo-planner must use RESERVES language for the acceptance stage when no oracle exists."
+    # The behavior that actually matters: acceptance's EXISTENCE is unconditional. The old
+    # "RESERVES the acceptance stage" wording implied the node might not yet exist; the current
+    # wording states it is ALWAYS authored, statically, and never omitted pending a later call.
+    assert "ORDINARY STATIC node" in body, (
+        "odoo-planner must state acceptance is authored as an ORDINARY STATIC node at plan time, "
+        "same as every other terminal stage - never omitted pending the oracle's later arrival."
+    )
+    assert (
+        "never omitted pending a later decision" in body
+        or "never depends on whether this oracle exists" in body
+    ), (
+        "odoo-planner must state the acceptance node's EXISTENCE never depends on the oracle's "
+        "presence - only WHERE its criteria come from changes, never WHETHER the node exists."
     )
 
 

@@ -115,9 +115,14 @@ things, then stop for the user's reply.
 
 **Plan-provided fast-path - CONSUME the plan, do NOT re-derive (inter-node layer).** When the
 caller hands you a PLAN's already-computed inter-node results - via the Continuation-Contract
-`inputs` on a `run-harness` or `odoo-planning` handoff (`run-harness` dispatches this skill ONCE
-PER CODING NODE from its driver loop, passing that node's slice + that node's worktree path - see
-WORKTREE_PATH below): the **target node** (its `modules`, in dependency order), the **node DAG**
+`inputs` on a `run-harness` node dispatch (`run-harness` dispatches this skill ONCE PER CODING NODE
+from its driver loop, passing that node's slice + that node's worktree path - see WORKTREE_PATH
+below), OR via a plan handed straight to a STANDALONE invocation of this skill with no active
+`run-harness` and no `WORKTREE_PATH` (the exact branch § Worktree + commit below self-provisions
+its own worktree for - never a second executor path: `odoo-planning` never dispatches this skill
+directly, its Continuation Contract always emits `next: <return_to>` or `next: odoo-intake`, per
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Continuation Contract) - the **target
+node** (its `modules`, in dependency order), the **node DAG**
 (`depends_on` edges between nodes), the **design pointers** (`design_index` / `design_doc` /
 `design_docs`, carrying the per-node stack split + effort), and, when present, the **survey
 pointer** (`inputs.survey` / the brief's `SURVEY:` field - a deep-survey synthesis path for
@@ -140,12 +145,26 @@ inter-node dependency dispatch ordering (the intra-node WI split + the backend-b
 order is the `odoo-coder` coordinator's, not this skill's); the plan binds WHICH nodes build in
 WHAT order, never how many agents or which model (the plan's `est_agents` / `effort` is ADVISORY -
 this skill decides the actual count + tier at runtime). Trust-but-verify: if a fed node cannot be
-resolved on disk, STOP and report BLOCKED - never silently self-derive a different graph. When
-dispatched under an active run-harness (a named `run-<id>`) OR with a `WORKTREE_PATH` (the
+resolved on disk, STOP and report BLOCKED - never silently self-derive a different graph.
+
+**Disjointness self-check - own this whenever `run-harness` is NOT the dispatcher.**
+`run-harness`'s `verify_plan_agreement` check 1 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`
+§ Plan agreement - File-scope disjointness) audits every node's `files-in-scope` for an overlap
+BEFORE any worktree is created, but that audit runs ONLY inside `run-harness`'s own driver loop -
+never on a plan fed straight to a standalone invocation of this skill. Whenever Phase 0 has NO
+active run-harness (no named `run-<id>`) AND NO `WORKTREE_PATH` was handed in - exactly the branch
+that self-provisions its own worktree below - run that SAME check yourself, over every node this
+invocation was fed, before self-provisioning a worktree or dispatching any `odoo-coder`:
+pairwise-compare each node's `files-in-scope` globs against every OTHER fed node's; on ANY
+overlap, STOP and report BLOCKED naming both node ids and the shared path, and route back to
+`odoo-planning` to re-partition - never guess an owner and never create a worktree first.
+
+When dispatched under an active run-harness (a named `run-<id>`) OR with a `WORKTREE_PATH` (the
 pre-approved node dispatch path - see WORKTREE_PATH below) the upstream approval (`odoo-planning`
 ExitPlanMode / the driver L2 gate) already stands, so do not re-emit the Phase-0 confirmation gate
 - a per-node gate here would stall `run-harness`'s sequential node loop; otherwise (a plan fed to a
-standalone invocation with no worktree) proceed to the gate below.
+standalone invocation with no worktree) run the disjointness self-check above, then proceed to the
+gate below.
 
 **Worktree + commit (caller-agnostic; triggered by the WORKTREE_PATH field, not caller identity).**
 Work ALWAYS lands COMMITTED inside an isolated worktree - never an uncommitted diff, never a write
@@ -204,8 +223,12 @@ NODES by the plan schema's two rules
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` Block 1 -
 same-landing-moment closure): modules that must reach the integration branch as ONE commit - a
 later change depends on one but not the other, or they are not independently revertable - form ONE
-node; modules that can land separately form separate nodes with DISJOINT `files-in-scope`.
-Default, when nothing forces a split: one node per module. The MODULE stays a property of the
+node; modules that can land separately form separate nodes with DISJOINT `files-in-scope`. The
+SAME closure rule runs in the OTHER direction inside a single module: several unrelated,
+independently-revertable changes confined to ONE module form SEVERAL nodes - never folded into
+one - each with `modules: <that module>` and DISJOINT `files-in-scope`, chained `depends_on` in
+landing order (worked example: `plan-mode-schema.md` § Examples (short)). Default, when nothing
+forces a split: one node per module. The MODULE stays a property of the
 node - never the unit of dispatch - so a node may name one module, part of one, or several.
 
 **3. Tag each node's stack-need** - `backend`, `frontend`, or `fullstack`, computed over the WHOLE

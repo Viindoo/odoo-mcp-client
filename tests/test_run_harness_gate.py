@@ -265,21 +265,30 @@ def test_run_harness_body_states_the_only_l2_is_the_outward_merge():
     """R2 (companion): run-harness/SKILL.md itself must state that it drives to done and that the
     ONLY coding-run L2 is the downstream outward MERGE, owned by `odoo-pr-monitoring`, with EVERY
     node's tier - `integrate` included - coming from the ONE total function rather than a prose
-    exception.
+    exception. Hard rule 5 sharpened the merge clause to "the ONLY OUTWARD L2" and added a
+    companion clause: the merge is not the only L2 a run hits at all - the REGISTRY also returns
+    L2 for an instance-touching skill (`odoo-i18n`, `odoo-acceptance`). Both clauses are asserted
+    together so neither can regress alone.
 
     The guard this replaces asserted the same coupling for one node kind ("the between-X advance
     is L1, the merge is L2"). The node kind is gone; the coupling is not, and is now stated as a
     general rule - which is strictly stronger, because a prose tier exception ANYWHERE is now a
     failure rather than an accepted special case.
 
-    Fails if: a second L2 appears in a coding run, the merge stops being human-gated, or a prose
-    tier exception is re-added next to the function.
+    Fails if: a second OUTWARD L2 appears in a coding run, the merge stops being human-gated, the
+    registry-L2 companion clause for an instance-touching skill goes missing, or a prose tier
+    exception is re-added next to the function.
     """
     body = RUN_HARNESS.read_text(encoding="utf-8")
     norm = _norm(body)
     low = norm.lower()
-    assert re.search(r"(?i)The ONLY coding-run L2 is the outward MERGE", norm), (
-        "run-harness must state the ONLY coding-run L2 is the outward MERGE."
+    assert re.search(r"(?i)The merge is the ONLY OUTWARD L2", norm), (
+        "run-harness must state the merge is the ONLY OUTWARD L2."
+    )
+    assert re.search(
+        r"(?i)the REGISTRY also returns L2 for an? instance-touching skill", norm), (
+        "run-harness must state the REGISTRY also returns L2 for an instance-touching skill - "
+        "the outward merge is not the only L2 a run hits."
     )
     assert "odoo-pr-monitoring" in low, (
         "run-harness must name `odoo-pr-monitoring` as the owner of that outward merge gate."

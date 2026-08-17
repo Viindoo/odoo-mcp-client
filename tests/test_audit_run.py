@@ -371,20 +371,36 @@ def test_tier_token_in_a_recorded_contract_fails_and_names_the_node():
     )
 
 
-def test_node_gate_tier_and_gate_log_tier_are_never_flagged():
+def test_node_gate_tier_and_gate_log_tier_are_never_flagged(tmp_path):
     """The driver's internal tier control values are legitimate and must stay unflagged.
 
-    Red-before-green proof that check 3 is scoped: the clean fixture's nodes all carry
-    `gate_tier: L0/L1/L2` and its gate_log entries all carry `tier`, yet it audits clean. Widen the
-    scan to the whole node and this test goes red for the right reason.
+    Two halves. LIVE: `gate_log[].tier` is where the resolved tier is recorded under `run/2.0`, and
+    the clean run carries all three values there yet audits clean - widen the scan and this goes red
+    for the right reason. RESIDUAL: a node no longer carries `gate_tier` at all (the field was
+    deleted from the node schema), so the fixture cannot supply that half; inject a stray one and
+    prove the scanner still ignores it, so a stale run file from before the deletion cannot trip
+    check 3.
     """
     raw = json.loads((FIXTURES / "audit_run_clean.json").read_text(encoding="utf-8"))
-    tiers = {n.get("gate_tier") for n in raw["nodes"]} | {e.get("tier") for e in raw["gate_log"]}
-    assert {"L0", "L1", "L2"} <= tiers, (
-        "fixture premise: the clean run must carry internal tier control values, otherwise this "
-        f"test proves nothing - got {tiers}"
+    assert all("gate_tier" not in n for n in raw["nodes"]), (
+        "a node must not carry `gate_tier` under run/2.0 - the tier is resolved at dispatch"
+    )
+    log_tiers = {e.get("tier") for e in raw["gate_log"]}
+    assert {"L0", "L1", "L2"} <= log_tiers, (
+        "fixture premise: the clean run's gate_log must record all three tiers, otherwise this "
+        f"test proves nothing - got {log_tiers}"
     )
     assert _check(_audit_json("audit_run_clean.json"), "no-tier")["ok"] is True
+
+    stale = _fixture("audit_run_clean.json")
+    stale["nodes"][0]["gate_tier"] = "L2"
+    mutated = tmp_path / "run-stale-node-gate-tier.json"
+    mutated.write_text(json.dumps(stale), encoding="utf-8")
+    audit = json.loads(_run_file(mutated, "--json").stdout)
+    assert _check(audit, "no-tier")["ok"] is True, (
+        "a stray node-level `gate_tier` left by a pre-run/2.0 file must not trip the tier-jargon "
+        "scanner - it is an internal control value, not user-facing jargon"
+    )
 
 
 # ---------------------------------------------------------------------------
