@@ -4,7 +4,7 @@ argument-hint: "[approved design / scope]"
 description: >
   Single planning front-door for the FULL product lifecycle - turns an APPROVED Odoo technical
   design into one gate-able plan spanning code AND doc. Dispatches TWO planners: odoo-planner
-  (wave-batched code-DAG + integration cadence) AND odoo-doc-planner (dependency-cluster doc
+  (dependency-ordered node graph + landing sequence) AND odoo-doc-planner (dependency-cluster doc
   schedule + instance allocation for user-guide + marketing landing). One plan covers the full
   lifecycle from code to merge, in run-harness's Terminal stage order. Code executes first; doc
   executes after code/review/QA lands. Estimates only (ADVISORY). Fire on:
@@ -29,14 +29,14 @@ source. Correct order:
 gap/brl  ->  odoo-solution-design (TDD + index.yaml)  ->  HUMAN approves design
    ->  odoo-planning -> {odoo-planner (code plan) + odoo-doc-planner (doc plan)}
    ->  ONE lifecycle plan gate  ->  ExitPlanMode
-   ->  intake Phase P serializes run-<id>.json  ->  run-harness walks code waves
+   ->  intake Phase P serializes run-<id>.json  ->  run-harness drives the node plan
    ->  doc stage (user-doc + marketing-doc) executes after code/review/QA
 ```
 
 This skill does NOT compute either plan itself and does NOT write code - it dispatches TWO
 planners (`odoo-planner` for code, `odoo-doc-planner` for doc) and owns the approve /
 ExitPlanMode handoff. `odoo-solution-design` decides HOW to build; `odoo-planning` decides HOW TO
-SHIP (module/wave build order, integration cadence, doc cluster schedule, full lifecycle).
+SHIP (node build order, landing sequence, doc cluster schedule, full lifecycle).
 
 Note: `odoo-doc-planner` also runs STANDALONE via `odoo-doc-illustration` / `module-packaging`
 for doc-only work on existing modules - `odoo-planning` is NOT the only path to it.
@@ -46,9 +46,8 @@ for doc-only work on existing modules - `odoo-planning` is NOT the only path to 
 Odoo delivery planner. Turns an approved technical design into ONE lifecycle plan covering the
 full product journey - code-build AND doc. Dispatches TWO leaf planners in sequence:
 
-1. `odoo-planner` (code-build plan): wave-batched module-DAG, integration cadence,
-   `run-harness`'s between-wave integration cadence, each `module/stage -> SKILL` wiring. Pure
-   code-build planner - no doc-logic.
+1. `odoo-planner` (code-build plan): a dependency-ordered node graph, each node wired to a SKILL,
+   driven end to end by `run-harness`'s single node loop. Pure code-build planner - no doc-logic.
 2. `odoo-doc-planner` (doc-package plan): dependency clusters, branch-aware instance allocation,
    per-instance incremental install-doc-verify-commit order, dedup, parallelism schedule; covers
    user-guide (`doc/index.rst`) AND marketing landing (`static/description/index.html`).
@@ -59,7 +58,7 @@ constant it owns, never an order chosen here; the doc plan's stage sits inside t
 after acceptance (screenshots need the built module on a live instance).
 Both plans are authored UPFRONT in one gate and executed sequentially code then doc.
 Pairs with `odoo-solution-design` (consumes its design DAG, passed to both planners) and
-`run-harness` (walks the code waves; the doc stage follows as a subsequent lifecycle stage).
+`run-harness` (drives the node plan; the doc stage follows as a subsequent lifecycle stage).
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
 
@@ -68,8 +67,8 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
 
 - **Design DAG** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` + dependency
   direction) for a master-child design, or the single-mode `<SHARE_DIR>/designs/<slug>-<date>.md`.
-  This is the logical truth the plan batches into waves; the planner CONSUMES it, never recomputes
-  it.
+  This is the logical truth the plan turns into dependency-ordered nodes; the planner CONSUMES it,
+  never recomputes it.
 - **Gap matrix** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
   `<SHARE_DIR>/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
 - **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
@@ -82,7 +81,7 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`, forwarded in this skill's own dispatch brief
   `INPUTS` when intake's Proposed Plan `Survey:` field resolved a deep-survey synthesis this
   session (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md` § Deep survey). Additional
-  hotspot/impact grounding for wave-batching and effort estimates - never a required gate. State
+  hotspot/impact grounding for node authoring and effort estimates - never a required gate. State
   `none` explicitly to `odoo-planner` when absent rather than omitting the field, and thread it
   onward the same way (§ P1a below); the mandatory-recon analog is `odoo-intake`'s Phase P
   `inputs.recon_findings`, which this deliberately does NOT copy verbatim (it is safe to OMIT when
@@ -181,7 +180,7 @@ instance. Do NOT spawn subagents or invoke skills.
 ```
 
 After both return, stitch their summaries into the combined plan-approval gate (see below).
-Note: the doc plan's EXECUTION is deferred - it runs after the code plan's waves land.
+Note: the doc plan's EXECUTION is deferred - it runs after the code plan's nodes land.
 
 ## MCP tools
 
@@ -208,7 +207,7 @@ Note: the doc plan's EXECUTION is deferred - it runs after the code plan's waves
 > codebase with Read/Grep is the FALLBACK, only when OSM is incomplete or unreachable. OSM is
 > STATIC (no live records). Here the planner uses OSM lightly - to pin the version and
 > trust-but-verify that the modules the design DAG names exist and their dependency edges hold
-> before batching them into waves; it does NOT re-derive the DAG (that is the design's job).
+> before assigning them to nodes; it does NOT re-derive the DAG (that is the design's job).
 
 ## Agent-managed tools
 
@@ -250,7 +249,7 @@ module names, model identifiers, and skill names verbatim):
 Plan ready:
   Code plan:  <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
   Doc plan:   <SHARE_DIR>/plans/<slug>-doc-<YYYY-MM-DD>.yaml
-Build order: <wave-1 modules> -> <wave-2 modules> -> ...   (integration cadence: <one line>)
+Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one line>)
 Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
 Lifecycle:   <the Terminal stage order constant run-harness owns, rendered in full>
              (doc executes AFTER code/review/QA; both plans gate here in ONE approval)
@@ -260,15 +259,20 @@ Approve plan? (approve / refine: [feedback] / cancel)
 ```
 
 - `Lifecycle:` renders the Terminal stage order constant IN FULL - resolve it from
-  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail >
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail >
   Terminal stage order, that section being the order's ONE owner. Never restate the order here.
+- **Before approving, confirm the rendered Block 2 ASCII graph honors the schema's no-grouping
+  rule**: "`nodes` and `edges` are the ONLY ordering statement a plan makes: no field, header,
+  annotation, or grouping construct may batch nodes together." This gate is the one human check that
+  no automated guard can reach - if any header, tier, or annotation batches nodes together, reject
+  and `refine: [feedback]` rather than approving.
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then
     hand the approved 3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`
-    and dispatches `run-harness` to walk it (coding waves via its own between-wave integration,
-    then the terminal tail in the Terminal stage order constant). This skill never serializes the
-    run file itself.
+    and dispatches `run-harness` to walk it (each node via its own single node loop, then the
+    terminal tail in the Terminal stage order constant). This skill never serializes the run file
+    itself.
   - **`return_to` SET (caller-return flow):** do NOT enter Plan Mode for code and do NOT dispatch
     any executor. Emit the Continuation Contract with `next: <return_to>` and hand control back.
 - `cancel` -> stop; the plan file remains on disk.
@@ -280,25 +284,24 @@ fan-out `count` - the dispatched specialist skill (e.g. `odoo-coding`) owns thos
 its own tier table + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode-B budget.
 Every quantity the plan states carries an `est_` prefix and the explicit note
 "ADVISORY / du kien - the runtime skill decides the actual count/model", so no runtime agent ever
-reads a number as a directive. Planning is binding at the inter-module layer (wave-batched
-module-DAG + integration cadence); intra-skill coordination (per-module dispatch, backend-first
-leg, count/model) stays the specialist skill's.
+reads a number as a directive. Planning is binding at the dependency layer (the node graph's
+`depends_on` ordering); intra-skill coordination (per-node dispatch, backend-first leg, count/model)
+stays the specialist skill's.
 
-The integration cadence the plan reserves (per-wave cherry-pick onto the ONE run-integration branch +
-the saga rollback/resume + per-wave auto-advance, then the SINGLE run-level PR opened once after the
-FINAL wave - NO per-wave PR - which `run-harness`'s between-wave integration will run) follows the SSOT
+The landing sequence the plan reserves (per-node cherry-pick onto the ONE run-integration branch per
+repo, the saga rollback/resume, then the SINGLE PR opened once every non-land-tail node in that repo
+is terminal - NO per-node PR - which `run-harness`'s single node loop will run) follows the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; planning references it so the plan
-reserves that behavior - it does NOT run the loop itself. The plan likewise reserves the per-wave
-cumulative close-verify (`run-harness`'s between-wave close-gate) the planner surfaces as each coding-wave node's
-`cumulative_modules` scope, following the SSOT
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`; planning REFERENCES it, it does NOT
-run the suite.
+reserves that behavior - it does NOT run the loop itself. **The plan carries the verification
+nodes**: each `odoo-instance` node's `modules` field IS its regression scope, following the SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`; planning REFERENCES it, it does NOT run
+the suite.
 
 ## Out of Scope
 
 - **Designing the technical solution** (approach / data model / override strategy / module
   structure) -> `odoo-solution-design` (the design = HOW to build; planning = HOW TO SHIP)
-- **Writing production code** -> `odoo-coding` (backend + frontend); git-orchestrated multi-module landing is `run-harness`'s between-wave integration (driven from the approved plan, not a separate skill)
+- **Writing production code** -> `odoo-coding` (backend + frontend); git-orchestrated multi-node landing is `run-harness`'s single node loop (driven from the approved plan, not a separate skill)
 - **Classifying / costing a requirement list** -> `odoo-gap-analysis` (short) / `odoo-brl` (large)
 - **Serializing or walking the run-DAG** -> intake Phase P serializes `run-<id>.json`;
   `run-harness` walks it. The plan binds WHICH skill; never the model or count.

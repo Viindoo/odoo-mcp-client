@@ -275,10 +275,10 @@ installing it as an ordinary `-i` module is NOT equivalent - it misses the boot-
 ## Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)
 
 Lint-class gating (`test_lint`, `test_pylint`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
-`run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
-§ Pre-PR tail stage 3) - never inside a per-module or per-wave verification run. This HARD RULE is
+`run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
+§ Pre-PR tail stage 3) - never inside a node verification run. This HARD RULE is
 therefore CONDITIONAL, gated on one explicit brief field, never on the operation name alone -
-`run-tests` for the pre-PR lint gate and `run-tests` for a per-module integrated verification are
+`run-tests` for the pre-PR lint gate and `run-tests` for a node integrated verification are
 the SAME operation with DIFFERENT intent, and intent is what decides this union.
 
 **`GATE_ROLE` (REQUIRED on every `run-tests` dispatch, and any `init-modules`/`update-modules`
@@ -287,16 +287,16 @@ inferred from module count, worktree path, or any other proxy:**
 
 - `GATE_ROLE: pre-pr-lint-gate` - this dispatch IS the one designated pre-PR lint-class gate. Proceed
   to the probe-and-union steps below.
-- `GATE_ROLE: per-module-verify` - this dispatch is a per-module or per-wave integrated verification
-  (e.g. the `odoo-coder` coordinator's own integrated-module test, run every module, every wave). Do
+- `GATE_ROLE: node-verify` - this dispatch is a node verification run
+  (e.g. the `odoo-coder` coordinator's own integrated-node test, run for every node). Do
   NOT probe for, install, or tag `test_lint`/`test_pylint` here - run the requested test tags/modules
   exactly as given, with no lint-module union. A `test_lint`/`test_pylint` violation in freshly
-  written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-module
+  written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-node
   `tests-failed` blocker.
 - `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - STOP and return `status:
   NEEDS_CONTEXT`, `blocked_reason: GATE_ROLE unresolved for a test-run build - the lint-module union
   cannot be decided`. NEVER default either way: defaulting to install/tag silently reinstates the
-  per-wave/per-module lint gate this rule exists to remove; defaulting to skip risks a false-green
+  per-node lint gate this rule exists to remove; defaulting to skip risks a false-green
   pre-PR lint gate that forgot to declare its own role. This is the SAME resolve-or-refuse discipline
   the `to_base`/profile HARD RULE above already applies to `PROFILE:` - never probe (or skip
   probing) on an unresolved input.
@@ -581,14 +581,14 @@ verification, naming those modules. The verdict itself never softens: an out-of-
 still `tests-failed` and still BLOCKING. Naming it as out-of-scope is what lets the caller route a
 pre-existing failure separately instead of reading it as this module's own regression.
 
-**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** A custom checker (or a whole checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of the four signals: not a failure (the checker never ran), not a skip (it is not a test), not a warning (nothing objected). The wrapper test still runs, so the build earns a genuine `TEST_RESULT=passed` at `0/0/0/0` having checked less than the caller asked for, and the ladder above would resolve that straight to `tests-passed`. This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these modules; a `GATE_ROLE: per-module-verify` dispatch never installs them, so there is nothing to check coverage on there.
+**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** A custom checker (or a whole checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of the four signals: not a failure (the checker never ran), not a skip (it is not a test), not a warning (nothing objected). The wrapper test still runs, so the build earns a genuine `TEST_RESULT=passed` at `0/0/0/0` having checked less than the caller asked for, and the ladder above would resolve that straight to `tests-passed`. This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these modules; a `GATE_ROLE: node-verify` dispatch never installs them, so there is nothing to check coverage on there.
 
 For every lint-class module this build unioned into the install+tag set (the SAME probe result the Lint modules HARD RULE above used - never a second probe), read that module's own portion of the log for POSITIVE evidence that its full checker/rule set loaded and ran. The exact wording is a live-log fact of THIS run, never a fixed phrase assumed from memory or carried over from a prior series or report - these modules' reporting is framework-internal and NOT OSM-indexed. Read what this run's log actually printed, then decide:
 
 - It states that fewer checkers/checks loaded or ran than that module registered or requested (any wording naming a checker/plugin import failure, a "not loaded"/"skipped loading" statement tied to a checker name, or an explicit smaller-than-expected count) -> a CONFIRMED coverage shortfall.
 - It carries NO statement at all of how many checks/checkers the module ran, for a module installed and tagged this run -> coverage is UNCONFIRMED. Silence is never proof of a clean run: exactly as `"Modules loaded."` is REQUIRED for an init/update pass, the absence of a positive coverage statement is itself the finding.
 
-Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of the four counters, even a genuine `0/0/0/0`. This widens `tests-inconclusive`'s existing definition ("not proof the suite ran clean") to also cover "ran, but checked less than it should have"; no fifth status is needed. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so a human - or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR lint-class gate) - can act on evidence rather than a bare status flip.
+Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of the four counters, even a genuine `0/0/0/0`. This widens `tests-inconclusive`'s existing definition ("not proof the suite ran clean") to also cover "ran, but checked less than it should have"; no fifth status is needed. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so a human - or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR lint-class gate) - can act on evidence rather than a bare status flip.
 
 ### 6. ensure-up / status
 
@@ -886,7 +886,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
 - [ ] profile resolved and PINNED before any `to_base`/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
 - [ ] server-wide modules: `check_module_exists('to_base', ..., profile_name=<pinned>)` probed with the pinned profile before building `--load`; era default resolved via `cli_help` with local-source fallback (`base,web`, flagged `grounded: local-source`) when `cli_help` is silent (v19); `to_base` unioned into `--load` (never replacing the era default) when Indexed=Yes, left untouched when Indexed=No
-- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `per-module-verify` -> no lint probe, no lint union, run only the requested tags/modules; `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `node-verify` -> no lint probe, no lint union, run only the requested tags/modules; `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision
@@ -913,7 +913,7 @@ checked against your own Inputs table below; the caller-side schema is
 Confirm the dispatch brief carries this family's required fields (`INSTANCE_HANDLE` - the handle to create/drive/report on; target series/version;
 the module list to init/update; demo-data + languages flags; `addons_path`; for every `run-tests`
 (or test-enable `init-modules`/`update-modules`) dispatch, `GATE_ROLE` (`pre-pr-lint-gate` |
-`per-module-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
+`node-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
 designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,
 never guessed either way); the provision-once/forward-everywhere rule per
 `instance-handle-contract.md`). `INPUTS`, any artifact-path field (`DESIGN_DOC` and its kin), `OBJECTIVE`, and `ACCEPTANCE` are NOT keys of this family's brief and are NEVER required here - this family operates live infrastructure, not design docs, and `skills/odoo-instance/SKILL.md` § Brief shape is the exhaustive key list, emitting none of the four. Their absence is NEVER a STOP and never something to go looking for; the required fields above carry that substance. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:

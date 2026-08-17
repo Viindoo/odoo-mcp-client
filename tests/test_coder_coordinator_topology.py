@@ -1,4 +1,4 @@
-"""Topology guard for the module-primary / coder-coordinator model.
+"""Topology guard for the node-primary / coder-coordinator model.
 
 Protects the BEHAVIOR of the two-tier decomposition (not a wording snapshot).
 
@@ -15,17 +15,19 @@ topology. That premise is FALSE and has been retired in turn; the three-teammate
 RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blocking launches via
 `run_in_background: false`, never a passive/unbounded wait):
 
-- The OUTER unit is the MODULE. `odoo-coding` dispatches ONE `odoo-coder` COORDINATOR per module
-  (EVERY module - backend-only, frontend-only, or full-stack). There is no single-stack
+- The OUTER unit is the NODE (D1/D4 - the wave grouping layer is deleted and one-coder-per-module
+  goes with it). `odoo-coding` dispatches ONE `odoo-coder` COORDINATOR per node (EVERY node -
+  backend-only, frontend-only, or full-stack; a node may span one module, part of one, or several -
+  the module is a PROPERTY of a node, never the dispatch unit). There is no single-stack
   direct-to-worker path.
-- `odoo-coder` is the per-module COORDINATOR that OWNS the module's INTERNAL work-item (WI) split:
-  it divides its ONE module into 1..N disjoint-file-set WIs, schedules INDEPENDENT WIs in PARALLEL
+- `odoo-coder` is the per-node COORDINATOR that OWNS the node's INTERNAL work-item (WI) split:
+  it divides its ONE node into 1..N disjoint-file-set WIs, schedules INDEPENDENT WIs in PARALLEL
   and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and per WI launches
   THREE teammates - `odoo-test-writer` FIRST (authors the RED test, test-first), then
   `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests) -
   blocking on each via R0 move 2 (`run_in_background: false`) when it needs the result. It tests
-  the integrated module via `Skill(odoo-instance)` (inline in its own context, or by launching
-  `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its module by
+  the integrated node via `Skill(odoo-instance)` (inline in its own context, or by launching
+  `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its node by
   invoking `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and
   returns the SHA to `odoo-coding` (which collects it, no longer re-committing). It also reacts to a
   WI worker's own pre-integration BLOCKED within its bounded loop (excluding the
@@ -35,7 +37,8 @@ RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blo
   nothing.
 - The WI is `odoo-coder`'s PRIVATE unit: it MUST NOT appear as an outer-layer unit in
   odoo-planning / plan-mode-schema / phase-p / run-harness.
-- `odoo-module-graph.md` states the two-tier axis (module outer, WI internal to odoo-coder).
+- `odoo-module-graph.md` states the two-tier axis (node outer, WI internal to odoo-coder; the
+  module is a PROPERTY of a node, not a third tier).
 - The agent is registered in plugin.json and reflected in the orchestration SSOT (`odoo-coding`'s
   spawns list names the coordinator + all three teammates).
 
@@ -62,8 +65,9 @@ MODULE_GRAPH = PLUGIN / "skills" / "_shared" / "odoo-module-graph.md"
 CLAUDE_MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 DEPS = PLUGIN / "generator" / "skill_tool_deps.json"
 
-# The OUTER-layer sites that must think in MODULES only (never frame the outer unit as a WI).
-# (the separate per-wave git-executor was folded into run-harness; see run-harness/SKILL.md § Between-wave integration.)
+# The OUTER-layer sites that must think in NODES only (never frame the outer unit as a WI, and
+# never resurrect the module as the dispatch/grouping unit - D1/D4: the module is a property of a
+# node, not the outer unit, and the wave layer these sites used to group nodes into is deleted).
 OUTER_LAYER_FILES = {
     "odoo-planning": PLUGIN / "skills" / "odoo-planning" / "SKILL.md",
     "odoo-planner": AGENTS / "odoo-planner.md",
@@ -320,56 +324,64 @@ def test_workers_are_hard_leaves():
         )
 
 
-_ONE_CODER_PER_MODULE_RE = re.compile(r"(?i)\bone\b.{0,30}?odoo-coder.{0,30}?per\s+module")
-# A bare `"one" in low and "per module" in low` is satisfied by policy-INVERTING text like
-# "odoo-coding may dispatch MORE THAN one odoo-coder per module" (asserts multiple coders per
-# module - the opposite rule) - "one" and "per module" both still appear as substrings. Explicitly
+# D1/D4: the dispatch unit is the NODE, never the module - a node may span one module, part of
+# one, or several (the module is a PROPERTY of a node, not the outer/dispatch unit).
+_ONE_CODER_PER_NODE_RE = re.compile(r"(?i)\bone\b.{0,30}?odoo-coder.{0,30}?per\s+(?:work\s+)?node")
+# A bare `"one" in low and "per node" in low` is satisfied by policy-INVERTING text like
+# "odoo-coding may dispatch MORE THAN one odoo-coder per node" (asserts multiple coders per
+# node - the opposite rule) - "one" and "per node" both still appear as substrings. Explicitly
 # reject the cardinality-inverting qualifier.
-_MULTI_CODER_PER_MODULE_INVERSION_RE = re.compile(
-    r"(?i)(more\s+than\s+one|multiple|two\s+or\s+more)\b.{0,40}?odoo-coder.{0,40}?per\s+module"
+_MULTI_CODER_PER_NODE_INVERSION_RE = re.compile(
+    r"(?i)(more\s+than\s+one|multiple|two\s+or\s+more)\b.{0,40}?odoo-coder.{0,40}?per\s+(?:work\s+)?node"
 )
+# The RETIRED per-module cardinality claim must not be resurrected anywhere in odoo-coding -
+# regardless of "one" vs "more than one", a claim that odoo-coder is dispatched PER MODULE
+# restores the exact constraint D4 abolished.
+_CODER_PER_MODULE_CARDINALITY_RE = re.compile(r"(?i)\bodoo-coder\b.{0,40}?per\s+module")
 
 
-def test_coding_dispatches_one_coder_per_module_for_every_module():
-    """odoo-coding launches ONE odoo-coder COORDINATOR per module - for EVERY module, with no
-    single-stack direct-to-worker bypass."""
+def test_coding_dispatches_one_coder_per_node_for_every_node():
+    """odoo-coding launches ONE odoo-coder COORDINATOR per NODE - for EVERY node, whatever module(s)
+    it touches - with no single-stack direct-to-worker bypass and no resurrected per-module
+    dispatch-cardinality claim (D1/D4: the wave layer is deleted and the module is a PROPERTY of a
+    node, never the dispatch unit)."""
     body = _text(CODING)
     low = body.lower()
     assert "odoo-coder" in body, "odoo-coding must launch the odoo-coder coordinator"
-    assert _ONE_CODER_PER_MODULE_RE.search(low), (
-        "odoo-coding must dispatch ONE odoo-coder per module - not merely mention \"one\" and "
-        "\"per module\" separately anywhere in the doc"
+    assert _ONE_CODER_PER_NODE_RE.search(low), (
+        "odoo-coding must dispatch ONE odoo-coder per (work) node - not merely mention \"one\" and "
+        "\"per node\" separately anywhere in the doc"
     )
-    assert not _MULTI_CODER_PER_MODULE_INVERSION_RE.search(low), (
-        "odoo-coding text asserts MORE THAN ONE odoo-coder per module, which INVERTS the "
-        "one-coordinator-per-module rule"
+    assert not _MULTI_CODER_PER_NODE_INVERSION_RE.search(low), (
+        "odoo-coding text asserts MORE THAN ONE odoo-coder per node, which INVERTS the "
+        "one-coordinator-per-node rule"
     )
-    assert "every module" in low, (
-        "odoo-coding must launch the coordinator for EVERY module (not just full-stack)"
+    assert not _CODER_PER_MODULE_CARDINALITY_RE.search(low), (
+        "odoo-coding must NOT resurrect a per-module odoo-coder dispatch-cardinality claim - the "
+        "dispatch unit is the node; the module is only a property of it"
+    )
+    assert "every node" in low, (
+        "odoo-coding must launch the coordinator for EVERY node (not just full-stack)"
     )
     # The old single-stack direct-dispatch topology must be gone.
     assert not re.search(r"single-stack module\s*->\s*launch", low), (
-        "odoo-coding must NOT keep the old single-stack direct-to-worker dispatch - every module "
+        "odoo-coding must NOT keep the old single-stack direct-to-worker dispatch - every node "
         "goes through the odoo-coder coordinator now."
     )
-    # odoo-coding must NOT own the intra-module WI split (that is the coordinator's).
-    assert "does not split" in low or "does NOT split".lower() in low or "not split a module into wis" in low, (
-        "odoo-coding must state it does NOT split a module into WIs - the coordinator owns that."
+    # odoo-coding must NOT own the intra-node WI split (that is the coordinator's).
+    assert "does not split" in low, (
+        "odoo-coding must state it does NOT split a node into WIs - the coordinator owns that."
     )
 
 
-def test_orchestration_ssot_reflects_module_primary_topology():
-    """RESTORE of the topology this file originally pinned.
+def test_orchestration_ssot_reflects_node_primary_topology():
+    """The orchestration SSOT (skill_tool_deps.json) odoo-coding spawns list names the coordinator +
+    all three teammates, and states the dispatch cardinality as ONE odoo-coder per NODE - never per
+    module (D1/D4: the dispatch unit is the node; the module is a property of it, not a tier).
 
-    A prior pass required the spawns list to name ONLY the coordinator (and forbade the three
-    teammate names), plus `agents.odoo-coder.spawns == []` - a key by that name exists nowhere in
-    this schema (the agent-side dispatch axis is spelled `spawns_agents`, and it declares the
-    coordinator's edges rather than denying them), so that half of the prior assertion was
-    unsatisfiable by construction, not merely false.
-
-    RESTORED assertion: the orchestration SSOT (skill_tool_deps.json) odoo-coding spawns list
-    names the coordinator + both workers so the generated ORCHESTRATION-MAP reflects the
-    module-primary topology."""
+    (Earlier note, still true: the agent-side dispatch axis is spelled `spawns_agents`, which
+    declares the coordinator's edges rather than denying them - there is no `agents.odoo-coder.spawns
+    == []` key to assert against.)"""
     orch = json.loads(_text(DEPS))["orchestration"]["odoo-coding"]
     spawns = " ".join(orch["spawns"])
     low = spawns.lower()
@@ -380,21 +392,50 @@ def test_orchestration_ssot_reflects_module_primary_topology():
         "odoo-coding orchestration spawns must name the coordinator + all three teammates "
         "(odoo-test-writer + odoo-backend-coder + odoo-frontend-coder)"
     )
-    assert "coordinator" in low, "the spawns entry must mark odoo-coder as the per-module coordinator"
-    assert "per module" in low, "the dispatch note must say ONE odoo-coder per module"
+    assert "coordinator" in low, "the spawns entry must mark odoo-coder as the per-node coordinator"
+    assert "per node" in low, "the dispatch note must say ONE odoo-coder per node"
+    assert "per module" not in low, (
+        "the spawns entry must NOT resurrect a per-module dispatch-cardinality claim - the "
+        "dispatch unit is the node"
+    )
 
 
 def test_module_graph_states_two_tier_axis():
     """odoo-module-graph.md must state the two-tier axis: module is the OUTER unit; the WI is
     odoo-coder's INTERNAL intra-module unit (1 module -> 1..N WIs)."""
     text = _text(MODULE_GRAPH)
-    low = text.lower()
+    low = " ".join(text.lower().split())
     assert "two-tier" in low, "odoo-module-graph.md must carry the two-tier decomposition axis section"
-    assert "outer" in low and "module" in low, "the OUTER tier must be the module"
+    assert "outer" in low and "node" in low, "the OUTER tier must be the NODE"
+    assert re.search(r"outer tier\s*=\s*the node", low), (
+        "the OUTER tier must be stated as the NODE, not the module - D1/D4 abolished the "
+        "module-outer topology"
+    )
     assert "internal" in low and ("work-item" in low or "wi" in low), (
         "the INNER tier (work-item) must be declared odoo-coder's INTERNAL unit"
     )
     assert "odoo-coder" in text, "the axis must name odoo-coder as the owner of the WI tier"
+    # The module is a PROPERTY of a node, never a third tier of decomposition.
+    assert "property" in low and "not a tier" in low, (
+        "the file must state the module is a PROPERTY of a node, NOT a tier of decomposition"
+    )
+    assert "exactly two tiers" in low, (
+        "the file must state the decomposition has EXACTLY TWO tiers (no third tier)"
+    )
+    assert not re.search(r"\bthird tier\b|\bthree[\s-]tiers?\b", low), (
+        "odoo-module-graph.md must NOT introduce a third tier of decomposition"
+    )
+    # The conflict-freedom argument must name DISJOINT FILE SCOPES, not the module boundary (H3):
+    # a node - and a WI within it - MAY span modules, so the module boundary can no longer be the
+    # thing that keeps the outer DAG conflict-free.
+    assert "disjoint file scope" in low, (
+        "the conflict-freedom argument must name DISJOINT FILE SCOPES as what keeps the outer DAG "
+        "conflict-free, not the module boundary"
+    )
+    assert not re.search(r"\bwi\b[^.]{0,150}\bnever\b[^.]{0,150}\bspan\b[^.]{0,30}\btwo modules\b", low), (
+        "odoo-module-graph.md must NOT restate the retired module-boundary conflict-freedom claim "
+        "('a WI can never span two modules') - a WI MAY span modules within a node"
+    )
 
 
 def test_survey_field_closes_the_whole_forwarding_chain():
@@ -501,12 +542,13 @@ def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
 def test_wi_checkpoint_rule_present():
     """M1c (12-design-final.md) - uncommitted work must not survive a turn boundary.
 
-    Root cause this protects: odoo-coder authors 1..N work-items per module inside ONE turn; if
+    Root cause this protects: odoo-coder authors 1..N work-items per node inside ONE turn; if
     that turn ends early (context limit, an interrupt, a crash) with no commit yet, every WI
-    written so far is lost - a stall costs the WHOLE MODULE, not just the WI in flight. The fix:
-    before ending its turn for ANY reason (DONE, NEEDS_NEXT, BLOCKED, or a budget cutoff), the
-    coordinator must request a checkpoint commit of everything written so far via
-    Skill(git-toolkit:git-ops), so a stall costs at most one work-item.
+    written so far is lost - a stall costs the WHOLE NODE, not just the WI in flight (D4: the
+    coordinator's unit is the node, which may span several modules). The fix: before ending its
+    turn for ANY reason (DONE, NEEDS_NEXT, BLOCKED, or a budget cutoff), the coordinator must
+    request a checkpoint commit of everything written so far via Skill(git-toolkit:git-ops), so a
+    stall costs at most one work-item.
 
     What this proves: the rule is stated in the prose an executing agent reads. What it does NOT
     prove: that a commit actually happens at runtime - the only evidence for that is on disk
@@ -525,9 +567,9 @@ def test_wi_checkpoint_rule_present():
         "the checkpoint commit must be requested via Skill(git-toolkit:git-ops), same as the "
         "final integrated-green commit"
     )
-    assert "a stall must cost one work-item, never the module" in low, (
+    assert "a stall must cost one work-item, never the node" in low, (
         "the rule must state the bound explicitly: a stall costs at most one work-item, never "
-        "the whole module"
+        "the whole node"
     )
 
 

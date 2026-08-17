@@ -536,7 +536,7 @@ list is empty for this file.
 
 **8b - adapt the code** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
 FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out (via its
-`odoo-coder` per-module coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`,
+`odoo-coder` per-node coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`,
 `odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED: launch the
 coordinator once, record the id, resume it across commits - the SAME field shape as 8a, an id your
 own launch returned.**
@@ -801,7 +801,7 @@ straight to P8, which would absorb it without a merge or a symbol/drift check).
 
 Runs AFTER P11 (end-to-end acceptance, `SKILL.md` § P11) has already cleared for this batch -
 acceptance, then this review gate, THEN the PR opens; never the reverse (`SKILL.md` Hard rule 9;
-SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
 § Pre-PR tail).
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):

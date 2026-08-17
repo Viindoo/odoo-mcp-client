@@ -1,7 +1,7 @@
 {
   "run_id": "pr-by-evidence-20260807-t1u2",
   "schema_version": "run/1.0",
-  "intent": "land each coding wave on its own PR while declaring the nodes as ordinary skills",
+  "intent": "land each coding node on its own PR while declaring the nodes as ordinary skills",
   "autonomy": "auto",
   "status": "DONE",
   "cursor": null,
@@ -18,9 +18,9 @@
   ],
   "nodes": [
     {
-      "id": "wave-1",
+      "id": "code-billing",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": [],
@@ -30,36 +30,36 @@
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
     },
     {
-      "id": "land-wave-1",
+      "id": "land-billing",
       "approach": "git-toolkit:git-ops",
       "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["code-billing"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/11"],
       "contract": {"status": "DONE", "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/11"], "next": []}
     },
     {
-      "id": "wave-2",
+      "id": "code-billing-account",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["land-wave-1"],
+      "depends_on": ["land-billing"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing_account/models/account_move.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing_account/models/account_move.py"], "next": []}
     },
     {
-      "id": "land-wave-2",
+      "id": "land-billing-account",
       "approach": "git-toolkit:git-ops",
       "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-2"],
+      "depends_on": ["code-billing-account"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["PR opened: https://example.invalid/org/fleet-addons/pull/12"],
@@ -71,7 +71,7 @@
       "approach_kind": "integrate",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-2"],
+      "depends_on": ["code-billing-account"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/13"],
@@ -93,8 +93,8 @@
     }
   ],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
-    {"node": "wave-2", "tier": "L1", "decision": "auto-pass"},
+    {"node": "code-billing", "tier": "L1", "decision": "auto-pass"},
+    {"node": "code-billing-account", "tier": "L1", "decision": "auto-pass"},
     {"node": "monitor-13", "tier": "L2", "decision": "approve"}
   ],
   "completion": {

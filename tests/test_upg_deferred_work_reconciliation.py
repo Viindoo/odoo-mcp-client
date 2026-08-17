@@ -10,7 +10,7 @@ implement (odoo-coding) -> P4b review -> P5 test path as the rest of the cluster
 
 The scan itself is context-heavy (it sweeps every in-scope file of a module) and MUST NOT be run
 by the orchestrating/main context. odoo-modules-upgrade already dispatches `odoo-diff-comparator`
-per module in P2 (dep order, parallel within a wave) to read that module's FULL source for the
+per module in P2 (dep order, parallel within a dependency level) to read that module's FULL source for the
 core-absorption comparison - the reconciliation reuses that SAME delegated read instead of adding
 a new phase/agent/dispatch, and returns a compact structured `deferred_work` block, never raw grep
 output the orchestrator would have to sift through itself.

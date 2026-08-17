@@ -20,15 +20,16 @@ model: inherit
 
 ## Where this sits in the flow (the async PR boundary)
 
-Begins where `run-harness`'s terminal `integrate` land-tail stops at "PR opened": after the FINAL
-coding wave closes green, run-harness squashes the run-integration branch, fresh FIRST-pushes it
-(non-force), opens ONE run-level PR (run-integration -> principal), and STOPS (never merges). There is
-NO per-wave PR - exactly ONE PR for the whole run. CI runs minutes-to-hours and review takes
+Begins where `run-harness`'s terminal `integrate` land-tail stops at "PR opened": once every node in
+that repo is terminal and a DONE verification node covers every module its coding nodes touched,
+run-harness squashes the repo's run-integration branch, fresh FIRST-pushes it (non-force), opens ONE
+PR for that repo (run-integration -> principal), and STOPS (never merges). The surviving invariant is
+exactly ONE PR per repo per run. CI runs minutes-to-hours and review takes
 hours-to-days, so the watch CANNOT be a synchronous blocking node in the `run-harness` DAG - this
 skill is the ASYNC boundary: a poller driving the open PR to merged-and-cleaned.
 
 ```
-run-harness final wave closes green  ->  integrate land-tail: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
+run-harness's last verification node for this repo closes green  ->  integrate land-tail: squash + fresh first-push + open ONE PR  ->  STOP at "PR opened"
    --- ASYNC BOUNDARY (this skill; NOT a blocking DAG node) ---
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
@@ -137,7 +138,7 @@ NEVER pushed autonomously.
    git-toolkit enforces the confirm gate as a backstop). An unattended `/schedule` poll that hits a
    failure does NOT push - it parks the proposal and waits for a human at the next attended turn.
 5. **Out-of-plan fix -> re-plan, do not silently expand scope (CG-2).** If the fix needs a
-   module/wave NOT in the approved plan, do not widen scope (that would bypass the L2 source-writing
+   node NOT in the approved plan, do not widen scope (that would bypass the L2 source-writing
    gate). Emit a re-plan request back to `odoo-planning` (a new gated plan), still bounded by
    `max_review_rounds`.
 6. After an approved re-push, return to Phase 2 (poll the re-triggered CI).
@@ -153,11 +154,11 @@ NEVER pushed autonomously.
    as `confirmed: yes - <quote>`). This is the only place this skill triggers the merge; there is no
    auto-merge and no CI-triggered merge.
 3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
-   cleanup in one brief (the checklist run-harness's between-wave integration reserved for this owner:
-   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` Cleanup Checklist): remove
-   ALL per-module worktrees (every wave) and the run-integration worktree, delete the per-module
+   cleanup in one brief (the checklist `run-harness` reserved for this owner:
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` Cleanup Checklist): remove
+   ALL node worktrees and the run-integration worktree, delete the per-node
    branches + the run-integration branch, delete the run-integration-backup tag, and prune stale
-   worktree refs. `<ISOLATE_DIR>/wave/<slug>/` (outside any git
+   worktree refs. `<ISOLATE_DIR>/integration/<slug>/` (outside any git
    working tree, so no gitignore entry applies) and this skill's own
    `<ISOLATE_DIR>/pr-monitoring/<id>.md` may be removed inline. Optionally surface a
    version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for `run-harness` to
@@ -202,13 +203,14 @@ family delta; never inline that file verbatim into a hard-leaf brief.
 ## Out of Scope
 
 - **Opening or squashing the PR** -> `run-harness`'s terminal `integrate` land-tail owns that (ONE PR
-  for the whole run, opened once after the final wave) and STOPS at "PR opened"; this skill starts after.
+  per repo, opened once that repo's last verification node closes green) and STOPS at "PR opened";
+  this skill starts after.
 - **Writing a fix** -> `odoo-coding` (backend + frontend); **diagnosing a failure** -> `odoo-debug`
   (root-cause first). This skill only ROUTES to them and gates the re-push.
 - **Any inline git / GitHub-API op** -> delegated to git-toolkit via the `git-ops` skill (PR read +
   merge, the re-push, and post-merge cleanup; git-ops routes each to the right leaf). This skill
   never runs `gh`, a GitHub MCP call, or an inline git mutation.
-- **Re-planning scope** -> `odoo-planning` (when a fix needs a module/wave outside the approved
+- **Re-planning scope** -> `odoo-planning` (when a fix needs a node outside the approved
   plan, CG-2). This skill never silently expands scope.
 - **Autonomous merge or autonomous re-push** -> both are L2 and human-gated; an unattended poll
   never merges and never pushes.

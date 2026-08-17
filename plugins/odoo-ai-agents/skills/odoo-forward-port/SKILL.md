@@ -42,8 +42,8 @@ never squash or cherry-pick in continuous mode.
   the P3 conditional route-out (which delegates to odoo-solution-design and returns) - that is
   IN scope of this skill, not a hand-off boundary
 - Parallelizing N disjoint WIs with cherry-pick + squash semantics -> use `odoo-planning` (the
-  USER-facing choice; it plans the wave-batched delivery for `run-harness`'s between-wave integration,
-  which re-bases by cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
+  USER-facing choice; it plans the node execution for `run-harness`, which lands each node by
+  cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
 
 > **Route in (Odoo forward-port lands HERE, not bare git-ops):** an Odoo forward-port routes to
 > this skill - it wraps git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding
@@ -130,7 +130,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 9. **Acceptance is mandatory (narrow escape only)** - P11 dispatches `odoo-acceptance` ONCE for
    the whole forward-ported batch BEFORE P12 pushes the branch, opens the PR, or runs its
    lint-class review gate - the position the **Terminal stage order** constant assigns it
-   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail is that
+   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail is that
    constant's ONE owner: read the order there, never restate it here),
    mirroring the rigor a new module build gets. This is NOT opt-in: skip it only when the touched
    module set is a true dependency leaf with zero in-repo dependents and no behavioral surface,
@@ -166,10 +166,12 @@ human-confirmed.
 
 **WORK tier - NOT used by P8 adapt (read before assuming otherwise).** A per-module child
 worktree (branched off integration, converged back via merge, then removed) is the generic
-WORK-tier pattern a fanned-out phase uses for genuinely PARALLEL, filesystem-isolated writers
-(the pattern `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` §
-Topology values documents generically). **P8 adapt never qualifies for it, for two INDEPENDENT
-reasons that both hold on every P8 call this pipeline makes, in EITHER mode:**
+WORK-tier pattern a fanned-out phase uses for genuinely PARALLEL, filesystem-isolated writers -
+each independent writer forks its own child worktree off the integration branch so concurrent
+writes never race on the same git index, then lands back by cherry-pick (the same shape
+`run-harness` applies to every source-writing plan node's worktree, per
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop). **P8 adapt never qualifies for it,
+for two INDEPENDENT reasons that both hold on every P8 call this pipeline makes, in EITHER mode:**
 
 1. **No parallelism to isolate.** P8 is explicitly SERIAL per-module within a commit AND serial
    across commits (§ P8 header below). Child-worktree filesystem isolation exists to stop
@@ -583,7 +585,7 @@ worklog is always written regardless of tier.
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
   every test assertion referencing a symbol removed at target;
 - **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
-  `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-module
+  `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-node
   coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
   `odoo-frontend-coder`) -
   with an FP-ENRICHED brief = the named **Worktree path: `<path>/fp-integration`** field (same
@@ -669,7 +671,7 @@ merge or a symbol/drift check.
 only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
 commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
 the PR, or runs its lint-class review gate - the position the **Terminal stage order** constant
-assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail
+assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail
 is that constant's ONE owner: read the order there, never restate it here). Acceptance and the i18n
 reconcile (P9.5, already mandatory per batch, ahead of every P10 gate) both land ahead of the PR and
 its review for the reason the constant states: a stage that can force a CODE CHANGE runs before the
@@ -717,7 +719,7 @@ inline (via the Skill tool, from this orchestrating context) passing `TARGET: wo
 JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
 so the skill reviews the fp integration tree, not the principal tree - this lint-class review gate
 runs BEFORE the PR is opened, at the position the **Terminal stage order** constant assigns it
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). It can
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail). It can
 force code changes, so it must precede the PR, not follow it. It is OPTIONAL for a trivial port
 (docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a

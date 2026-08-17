@@ -1,6 +1,6 @@
 <!-- SSOT snippet. The single declaring file for `TEST_EXEMPTION` - the ONE sanctioned escape from
      red-before-green, which `test-first-contract.md` owns and which stays the default. Referenced
-     (not copy-pasted) by odoo-coding (declares it per module), odoo-coder (declares it per
+     (not copy-pasted) by odoo-coding (declares it per node), odoo-coder (declares it per
      work-item), odoo-backend-coder / odoo-frontend-coder (receive and verify it). Edit here only;
      consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md. -->
 
@@ -15,7 +15,7 @@ unresolvable field - an absent declaration is a refusal, not a licence.
 
 `TEST_EXEMPTION: <category> - <what specifically cannot go red>`
 
-- Declared by the CALLER that fills the brief (`odoo-coding` per module, `odoo-coder` per
+- Declared by the CALLER that fills the brief (`odoo-coding` per node, `odoo-coder` per
   work-item), on the same brief that carries `RED_TEST_PATH`.
 - `TEST_EXEMPTION: none` and an absent key mean the SAME thing: no exemption. That is the safe
   value, and it is what every brief that says nothing about testability means.

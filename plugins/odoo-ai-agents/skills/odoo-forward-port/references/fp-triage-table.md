@@ -66,7 +66,7 @@ Mode approval covers it. On a decline, downgrade that module's EXTRACT tier to *
 `<module>: sonnet (opus declined)` in `plan.md`. **Suppressed-gate auto-downgrade** (same pattern
 `skills/odoo-coding/SKILL.md` § Model triage already uses for its own fable gate - reused here by
 pointer, not re-derived): when Plan Mode itself is suppressed (an active `run-<id>` node or a
-`WORKTREE_PATH` between-wave context with no interactive human available), AUTO-DOWNGRADE to
+`WORKTREE_PATH` dispatched-node context with no interactive human available), AUTO-DOWNGRADE to
 sonnet and record `<module>: sonnet (opus auto-downgraded - gate suppressed)` in `plan.md` -
 never silently proceed at opus, and never deadlock waiting on a human who is not there.
 
@@ -102,7 +102,7 @@ Constraints:
 - **Suppressed-gate auto-downgrade** (same pattern `skills/odoo-coding/SKILL.md` § Model triage
   already uses for its own fable gate, and Table 1's R2d opus gate above already reuses by
   pointer - reused here too, not re-derived): when the P4 Plan Mode gate itself is suppressed (an
-  active `run-<id>` node or a `WORKTREE_PATH` between-wave context with no interactive human
+  active `run-<id>` node or a `WORKTREE_PATH` dispatched-node context with no interactive human
   available), no inline human confirmation is possible - if a work-item resolves to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
   in `plan.md`, in the SAME format as the human-declined downgrade above. This closes the identical

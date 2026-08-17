@@ -15,5 +15,5 @@ side of the Mode A/B decision rule, not the definition:
   `docs/reference/workflow-harness.md`) - none fans out more than one worker writing a shared
   module/worktree.
 - Mode B (model-weighted budget): `odoo-coding` (subagent weighted batches - each `odoo-coder`
-  per-module coordinator's WI workers write a disjoint file set within the same module/worktree,
+  node coordinator's WI workers write a disjoint file set within the same node/worktree,
   coordinated via the module-coordination-ledger).

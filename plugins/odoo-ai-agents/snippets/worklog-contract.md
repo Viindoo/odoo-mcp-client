@@ -1,5 +1,5 @@
 <!-- SSOT snippet. Referenced (not copy-pasted) by every spawner skill, every named agent,
-     and every spawned worker brief (wave WI workers, odoo-coding fan-out, conflict resolver).
+     and every spawned worker brief (a node's WI workers, odoo-coding fan-out, conflict resolver).
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md. -->
 
 # Worklog Contract (cross-agent decision log)
@@ -25,7 +25,7 @@ the ISOLATE dir ONCE via that file's mandatory resolve-capture-substitute protoc
 - `<NNN>`: the zero-padded dispatch order if the orchestrator passed one; else a
   `date -u +%H%M%S` stamp, or a short label when you have no shell. The HARD requirement is a
   UNIQUE filename per writer - parallel writers would race on a shared file; the prefix only
-  makes the sort best-effort.
+  aids sort order.
 - `<agent>`: the writer's short name (`architect`, `coder-<module>`, `reviewer-<module>`,
   `wi-<id>`, ...). Qualify by stack when a module runs PARALLEL same-module WIs on both stacks:
   `coder-<module>-backend` / `coder-<module>-frontend`.

@@ -197,7 +197,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 | `odoo-data-migration` | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-git-rebase` | Rebase a feature branch onto another branch of the same Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto` |
 | `odoo-modules-upgrade` | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster |
-| `odoo-planning` | Turn an approved design into the EXECUTION plan that ships it - a wave-batched module-DAG wiring each module/stage to a skill across the full lifecycle, whose stages and their order are the Terminal stage order constant `run-harness` owns. The sequencer `run-harness` then drives it, cherry-picking each coding wave onto one run-level integration branch and auto-advancing (no per-wave PR); after the final wave it opens ONE PR per REPOSITORY via the terminal `integrate` land-tail, then the async `odoo-pr-monitoring` poller drives it to merge. |
+| `odoo-planning` | Turn an approved design into the EXECUTION plan that ships it - a flat DAG of work nodes wiring each node to a skill across the full lifecycle, whose stages and their order are the Terminal stage order constant `run-harness` owns. The sequencer `run-harness` then drives it node by node, cherry-picking each coding node's commit onto one run-level integration branch; once a repository's nodes are all done and verified, it opens ONE PR per REPOSITORY via the terminal `integrate` land-tail, then the async `odoo-pr-monitoring` poller drives it to merge. |
 
 ---
 

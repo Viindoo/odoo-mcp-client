@@ -122,7 +122,7 @@ Merge findings from Steps 0.6-3.6, applying Step 3.6's ownership-transfer rule s
 
 ## Verification gates
 
-Reproduce the CI quality gates you are RESPONSIBLE for as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate. The CI-parity lint-class suites (`/test_lint` + `/test_pylint`, and the Tier-1 eslint leg of `verify-frontend.sh`) run ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail) - not per module here.
+Reproduce the CI quality gates you are RESPONSIBLE for as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate. The CI-parity lint-class suites (`/test_lint` + `/test_pylint`, and the Tier-1 eslint leg of `verify-frontend.sh`) run ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail) - not per module here.
 
 **Frontend (JS / OWL / SCSS) - Tier-2 static pitfalls only.** When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite the Tier-2 per-file `[BLOCK]`/`[WARN]` markers as evidence for your OWL/SCSS findings. The script's Tier-1 eslint output is informational only here - do NOT cite it as a clean or failed JS lint pass and do NOT gate your verdict on it; that gate is verified once at the pre-PR tail instead.
 

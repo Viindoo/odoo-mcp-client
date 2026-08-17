@@ -28,7 +28,7 @@ Progress ledger: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint
   P2 skips {absorbed, designed, adapted, reviewed, installed, done};
   P4 skips {adapted, reviewed, installed, done};
   P4b skips {reviewed, installed, done};
-  P5 skips {installed, done} at the wave level.
+  P5 skips {installed, done} at the dependency-level granularity.
 
 ---
 
@@ -250,7 +250,7 @@ preemptive fix list), but list it in the P3 plan so the human sees what P4 will 
 
 ## P2 - Core-absorption dispatch briefs
 
-Per module in dep order (topo_order from graph.md), parallel within the same wave
+Per module in dep order (topo_order from graph.md), parallel within the same dependency level
 (modules at the same depth in the DAG). Concurrency: Mode B, model-weighted budget 8
 per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
 
@@ -530,7 +530,7 @@ count). `n <= 1` -> SKIP steps 1-3 below: dispatch the one module DIRECTLY into
 `<path>/upg-integration`. `n >= 2` -> steps 1-3 as written; the child worktree is there for
 poison-containment, not for an `index.lock` race (P4 is "Per module in dep order" - sequential - so
 that race never occurs here). Semantics:
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Single-unit collapse.
 
 1. Create child worktree - invoke `git-toolkit:git-ops` to add a worktree (branch
    `upg/<src>-<tgt>-<cluster>-<module>`, worktree `<path>/upg-<module>`,
@@ -659,8 +659,8 @@ be re-dispatched with the root cause from the debugger. Fix to that root cause o
 
 ## P4b - Code-review loop (in-pipeline; per module, dep order; fix-until-clean before install)
 
-Goal: review each adapted module's diff BEFORE the P5 ephemeral-instance install/test waves,
-fixing in a loop until no CRITICAL/HIGH remains. Two review points exist: this in-pipeline loop
+Goal: review each adapted module's diff BEFORE P5's ephemeral-instance install/test (run one
+dependency level at a time), fixing in a loop until no CRITICAL/HIGH remains. Two review points exist: this in-pipeline loop
 and the final P7 dep-order review of the integration worktree, which runs ahead of the PR - do NOT
 remove P7.
 
@@ -691,9 +691,9 @@ STOP-gates stay at P6/P7.
 
 ## P5 - Install + test gate format
 
-Install bottom-up wave-by-wave (one wave = one DAG depth level, leaves first) so
-failures localize to the wave that introduced them and resume skips proven waves.
-Per-wave green is recorded in `checkpoint.json` (status `installed` per module) and
+Install bottom-up one dependency level at a time (leaves first) so
+failures localize to the level that introduced them and resume skips proven levels.
+Per-level green is recorded in `checkpoint.json` (status `installed` per module) and
 `install-test.md`.
 
 **Framework-validation gate is MERGED into P5 (no separate phase) and runs demo=on.** A module
@@ -723,39 +723,39 @@ WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ I
                                          # depends on ("its addons path MUST cover WORKTREE_PATH")
 ```
 
-For each wave in topo_order (leaves first), run Steps 2-3 before moving to the next wave:
+For each dependency level in topo_order (leaves first), run Steps 2-3 before moving to the next level:
 
-Step 2 - init (install) this wave's modules:
+Step 2 - init (install) this level's modules:
 ```
 operation: init
 series: <target_version>
-modules: <FULL transitive closure of THIS WAVE's modules - including external/core deps from
+modules: <FULL transitive closure of THIS LEVEL's modules - including external/core deps from
           graph.md P1a's full closure - plus all previously installed modules, comma-separated;
           re-specifying deps ensures Odoo's dep-order logic holds and no external dep is skipped>
-CONFIRM: "confirm each module in this wave emits a Loading line; report per-module install status"
+CONFIRM: "confirm each module in this level emits a Loading line; report per-module install status"
 ```
 
-Step 3 - run tests for this wave:
+Step 3 - run tests for this level:
 ```
 operation: run-tests
 series: <target_version>
-modules: <THIS WAVE's modules only, comma-separated>
+modules: <THIS LEVEL's modules only, comma-separated>
 flags: --test-enable
-test_tags: (none - run all module tests for this wave)
-CONFIRM: "report per-module test result for this wave"
+test_tags: (none - run all module tests for this level)
+CONFIRM: "report per-module test result for this level"
 ```
 
-After each wave: write wave result to `install-test.md` and update `checkpoint.json`
-(set `installed` for each module in the wave that passed). On FAILURE in a wave:
+After each level: write level result to `install-test.md` and update `checkpoint.json`
+(set `installed` for each module in the level that passed). On FAILURE in a level:
 dispatch `odoo-backend-debugger` or `odoo-ui-debugger` with the traceback + module source, plus
 `ISOLATE_DIR:` (the SAME literal resolved at P0 intake, per `## Base` above) and
-`SLUG: <cluster>-wave<wave_number>` (this skill's own `<cluster>` scope slug from `SKILL.md` § The
-pipeline plus this wave's number) - `odoo-ui-debugger` substitutes both literals to compose
-`<ISOLATE_DIR>/visual/debug/<cluster>-wave<wave_number>/` for its own captured evidence, correlated
-to the failing wave, and MUST NOT re-resolve or improvise one from its own cwd.
+`SLUG: <cluster>-level<n>` (this skill's own `<cluster>` scope slug from `SKILL.md` § The
+pipeline plus this failing level's number `<n>`) - `odoo-ui-debugger` substitutes both literals to compose
+`<ISOLATE_DIR>/visual/debug/<cluster>-level<n>/` for its own captured evidence, correlated
+to the failing level, and MUST NOT re-resolve or improvise one from its own cwd.
 Receive proven root cause -> feed back to P4 for the affected module only (dispatch
 `odoo-coding` with `AUTONOMOUS FIX` sentinel + root cause). Re-run P5 FROM THE FAILING
-WAVE (skip waves already recorded as `installed` in `checkpoint.json`).
+LEVEL (skip levels already recorded as `installed` in `checkpoint.json`).
 
 Final `install-test.md` schema:
 
@@ -763,20 +763,25 @@ Final `install-test.md` schema:
 # install-test.md
 cluster: <cluster>
 target_version: <target_version>
-waves:
-  - wave: <wave_number>
+levels:
+  - level: <n>
     modules: [<m1>, <m2>]
     install_ok: true | false
     test_result: passed | failed | error
     root_cause: null | "<proven root cause from debugger>"
 per_module:
   - module: <m>
-    wave: <wave_number>
+    level: <n>
     install_ok: true | false
     test_result: passed | failed | error
     root_cause: null | "<proven root cause from debugger>"
 overall: green | red
 ```
+
+Backward-compat read (one release only): a ledger written before this release carries `waves:` /
+`wave: <wave_number>` instead of `levels:` / `level: <n>` - on resume, read those old keys as
+`levels:` / `level:` (same meaning, same numbering), then rewrite the file in the new key names on
+the next update to this pipeline. An in-flight upgrade must never be stranded by the rename.
 
 ---
 
@@ -861,7 +866,7 @@ Keep exactly ONE commit per module; never one commit per cluster.
 ## P7 - Final review, then PR creation command
 
 Stage order inside this phase is the **Terminal stage order** constant
-(${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md § Pre-PR tail, its ONE
+(${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md § Pre-PR tail, its ONE
 owner): checklist -> final dep-order review -> push -> open PR. Do not reorder it locally.
 
 **Pre-PR checklist (extends P6 sign-off).** Run the Runbot parity gates
@@ -915,7 +920,7 @@ PR body template:
  reasons - sourced from the structured verdict list, not grep of plan.md prose>
 
 ### Test result
-See <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all waves green.
+See <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all levels green.
 
 ### Review request
 Please review modules in dependency order (leaves first):

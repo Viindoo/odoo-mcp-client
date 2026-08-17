@@ -87,12 +87,18 @@ _tier2_classify_top() {
         documentation | survey | brl | brand-tokens.json | mockups | \
         glossary.yml | cost-config.json)
             printf 'share\n' ;;
-        worklog | wave | brainstorm | git-rebase | forward-port | \
+        worklog | integration | brainstorm | git-rebase | forward-port | \
         modules-upgrade | pr-monitoring | coding | reviews | followups | \
         i18n | bids | content | debug | discovery | implement | packaging | \
         positioning | qa | research | sales | support | upgrade-plans | \
         video | run-*.json)
             printf 'isolate\n' ;;
+        wave)
+            # Pre-4.26 legacy name for the ISOLATE integration-log dir (renamed
+            # wave/<slug>/ -> integration/<slug>/ when the wave grouping layer
+            # was removed). Classified separately so the DESTINATION name can
+            # differ from the legacy SOURCE name - see the dispatch below.
+            printf 'legacy-wave\n' ;;
         visual)
             printf 'visual\n' ;;
         *)
@@ -230,6 +236,10 @@ migrate_project_state() {
                 _tier2_copy_one "$entry" "$share_dir/$name" "$name" "SHARE" ;;
             isolate)
                 _tier2_copy_one "$entry" "$isolate_dir/$name" "$name" "ISOLATE" ;;
+            legacy-wave)
+                # Legacy .odoo-ai/wave/ -> Tier-2 ISOLATE integration/ (the new
+                # name), not ISOLATE wave/ - see _tier2_classify_top above.
+                _tier2_copy_one "$entry" "$isolate_dir/integration" "wave" "ISOLATE" ;;
             visual)
                 _tier2_migrate_visual "$entry" "$share_dir" "$isolate_dir" ;;
             *)

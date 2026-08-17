@@ -17,10 +17,10 @@
     }
   ],
   "nodes": {
-    "wave-1": {
-      "id": "wave-1",
+    "fleet-billing": {
+      "id": "fleet-billing",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": [],
@@ -35,7 +35,7 @@
       "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["fleet-billing"],
       "gate_tier": "L2",
       "status": "PENDING",
       "produced": [],
@@ -47,7 +47,7 @@
       "approach_kind": "integrate",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["fleet-billing"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/41"],
@@ -68,7 +68,7 @@
   },
   "dynamic_nodes": [],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+    {"node": "fleet-billing", "tier": "L1", "decision": "auto-pass"}
   ],
   "completion": {
     "status": "DONE",

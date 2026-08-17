@@ -13,7 +13,7 @@ description: >-
   cluster to a new major (use odoo-modules-upgrade), to write one isolated change
   (use odoo-coding), to diff only (use odoo-version-diff), to review a PR without rebasing
   (use odoo-code-review), or to parallelize N disjoint work-items with cherry-pick + squash
-  (use odoo-planning - it plans the wave-batched delivery; rebase replays one branch range
+  (use odoo-planning - it plans the node execution; rebase replays one branch range
   without squashing)
 model: opus
 ---
@@ -41,7 +41,7 @@ judges business behavior inline.
 | A version-to-version API delta only | `odoo-version-diff` | pure diff, no git op |
 | Review an existing PR/diff without rebasing | `odoo-code-review` | static review, no replay |
 | STANDALONE design, no commits to rebase | `odoo-solution-design` | a bucket-(c) re-implement INSIDE a rebase run uses the P5 route-out (in scope) |
-| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the wave-batched delivery (`run-harness`'s between-wave integration cherry-picks + squashes disjoint WIs); rebase replays one branch range, never squashes |
+| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the node execution (`run-harness` cherry-picks each node's commit onto the run-integration branch, then squashes it for the PR); rebase replays one branch range, never squashes |
 
 > **Route in (Odoo rebase lands HERE, not bare git-ops):** an Odoo same-series rebase routes to
 > this skill - it wraps git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding
@@ -207,7 +207,7 @@ dispatch ever owns a given commit below the batching threshold, so no write coll
 possible) in every extractor brief. Model per EXTRACT tier (`references/rb-triage-table.md`
 Table 1). Each writes `intents/<sha>.md`: {intent_one_liner, symbols, outcome_hint, grounding}.
 **Above ~30 non-(a) commits, batch intent extraction by MODULE (one extractor per module
-covering its commits) rather than per-commit, to bound dispatch waves and the P3 context
+covering its commits) rather than per-commit, to bound dispatch batches and the P3 context
 load - when batching, a commit touching two modules is dispatched inside BOTH modules'
 bundles, so set that dispatch's `SLUG` to `<slug>/<module>` (never the bare run `<slug>`) so
 the two concurrent instances write to different paths instead of racing on the same
@@ -289,7 +289,7 @@ worktree, avoiding the `fatal: already used by worktree` abort. git-ops returns
 For each commit the rebase stops on: dispatch Explore to read conflicted files + the commit's
 `intents/<sha>.md` + P4 outcome; then dispatch the `odoo-coding` skill (via the Skill tool,
 mirroring §P9b) at the ADAPT tier to resolve hunks to INTENT on the new-base idiom. `odoo-coding`
-owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-module
+owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-node
 coordinator) - including `odoo-frontend-coder`
 for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
@@ -357,7 +357,7 @@ Present `rebase-log.md` + `verify.md`. STOP. Wait for human approval before any 
 
 **P12 - Final review + PR [delegated review capability - human merge].**
 Order inside this phase is fixed by the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
 owner). FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
 its CRITICAL/HIGH findings on that worktree: this review can force CODE CHANGES, so it runs BEFORE
 the branch is pushed and the PR opened - a review that lands after would make the PR churn and leave

@@ -6,9 +6,9 @@ run-harness runs; schema SSOT: `plugins/odoo-ai-agents/docs/reference/workflow-h
   1. ONE PR per REPOSITORY, detected by the ACT and cross-checked against the DECLARATION. A node
      that recorded a pull-request URL in `produced` OPENED a PR whatever `approach_kind` it
      declares; a DONE `approach_kind: integrate` node that recorded no PR URL never proved it
-     opened one. Each entry in `repos[]` gets exactly one landed PR-opening node - never one per
-     wave, and never one for a two-repo run. A run file that predates `repos[]` is audited in the
-     legacy single-repo form, reported as such.
+     opened one. Each entry in `repos[]` gets exactly one landed PR-opening node, and never one for
+     a two-repo run. A run file that predates `repos[]` is audited in the legacy single-repo form,
+     reported as such.
   2. Nothing substantive after the PR opens, SCOPED PER REPO. A landed PR-opening node while a node
      OF ITS OWN REPO outside the land tail is still unfinished must FAIL, naming that node - and
      must NOT name another repo's unfinished nodes. Land-tail membership is EXACT (the node's
@@ -35,6 +35,7 @@ asserting the verdict, so none of them can pass vacuously.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import pathlib
 import re
@@ -50,6 +51,19 @@ FIXTURES = REPO_ROOT / "tests" / "fixtures"
 EXIT_OK = 0
 EXIT_VIOLATION = 1
 EXIT_USAGE = 2
+
+
+def _load_audit_module():
+    """Load `scripts/audit-run.py` as a module - the only way to reach its vocabulary constants.
+
+    Used exclusively to check SSOT membership (e.g. `REPO_BOUND_APPROACHES`), never to call the
+    script's internals in place of running it: every behavioral assertion in this file still goes
+    through the CLI via `_run`/`_run_file`.
+    """
+    spec = importlib.util.spec_from_file_location("audit_run_under_test", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _run(fixture_name: str, *extra: str) -> subprocess.CompletedProcess:
@@ -134,7 +148,7 @@ def test_read_only_run_with_no_pr_node_is_not_a_violation():
 
 
 def test_two_pr_opening_nodes_fail_and_both_are_named():
-    """Two DONE `integrate` nodes = two PRs for one run - the per-wave-PR defect."""
+    """Two DONE `integrate` nodes = two PRs for one run - a duplicate-land defect."""
     result = _run("audit_run_two_prs.json")
     assert result.returncode == EXIT_VIOLATION, (
         f"a run with two PR-opening nodes must exit {EXIT_VIOLATION}:\n{result.stdout}"
@@ -143,7 +157,7 @@ def test_two_pr_opening_nodes_fail_and_both_are_named():
     check = _check(audit, "one-pr")
     assert check["ok"] is False
     named = {v["node"] for v in check["violations"]}
-    assert named == {"land-wave-1", "land-wave-2"}, (
+    assert named == {"land-mod-a", "land-mod-b"}, (
         f"both offending PR-opening nodes must be named, got {named}"
     )
 
@@ -271,7 +285,7 @@ def test_after_pr_check_names_only_the_landing_repos_own_unfinished_work():
     assert by_id["core-land"]["status"] != "DONE", (
         "fixture premise: core-addons must NOT have landed, else its nodes would be in scope"
     )
-    for unfinished in ("core-wave-1", "core-review"):
+    for unfinished in ("core-hook", "core-review"):
         assert by_id[unfinished]["status"] not in ("DONE", "SKIPPED"), (
             f"fixture premise: {unfinished} must be unfinished, or the scoping proof is vacuous"
         )
@@ -296,27 +310,29 @@ def test_after_pr_check_names_only_the_landing_repos_own_unfinished_work():
     )
 
 
-def test_a_wave_node_with_no_repo_cannot_be_attributed_and_fails(tmp_path):
-    """Mutation proof: strip the `repo` off a coding wave and the audit must refuse to pass it.
+def test_a_coding_node_with_no_repo_cannot_be_attributed_and_fails(tmp_path):
+    """Mutation proof: strip the `repo` off a coding node and the audit must refuse to pass it.
 
-    A `wave`/`integrate` node with `repo: null` would silently escape every repo's readiness scope,
-    so per-repo PR topology becomes unprovable. The unmutated fixture is green (asserted above), so
+    Repo-boundness for coding work no longer rests on a dedicated `approach_kind` (there is no
+    `wave` value) - it rests on the node's `approach` name, via `REPO_BOUND_APPROACHES`. An
+    `odoo-coding` node with `repo: null` would silently escape every repo's readiness scope, so
+    per-repo PR topology becomes unprovable. The unmutated fixture is green (asserted above), so
     this failure is caused by the mutation and nothing else.
     """
     raw = _fixture("audit_run_multi_repo_clean.json")
-    target = next(n for n in raw["nodes"] if n["approach_kind"] == "wave")
+    target = next(n for n in raw["nodes"] if n["approach"] == "odoo-coding")
     target["repo"] = None
     mutated = tmp_path / "run-mutated.json"
     mutated.write_text(json.dumps(raw), encoding="utf-8")
 
     result = _run_file(mutated)
     assert result.returncode == EXIT_VIOLATION, (
-        f"an unattributable wave node must exit {EXIT_VIOLATION}:\n{result.stdout}"
+        f"an unattributable coding node must exit {EXIT_VIOLATION}:\n{result.stdout}"
     )
     audit = json.loads(_run_file(mutated, "--json").stdout)
     violations = _check(audit, "one-pr")["violations"]
     assert any(v["node"] == target["id"] for v in violations), (
-        f"the unattributed wave node must be named, got {violations}"
+        f"the unattributed coding node must be named, got {violations}"
     )
 
 
@@ -458,7 +474,7 @@ def test_a_node_that_opened_a_pr_counts_even_when_it_declares_another_kind():
         and _pr_urls(n["produced"]) - _pr_urls(n.get("inputs"))
         and n["approach"] != "odoo-pr-monitoring"
     }
-    assert undeclared_openers == {"land-wave-1", "land-wave-2"}, (
+    assert undeclared_openers == {"land-billing", "land-billing-account"}, (
         f"fixture premise: two non-integrate nodes must carry PR evidence, got {undeclared_openers}"
     )
     assert all(n["status"] == "DONE" for n in _nodes(raw) if n["id"] in undeclared_openers)
@@ -471,7 +487,7 @@ def test_a_node_that_opened_a_pr_counts_even_when_it_declares_another_kind():
         f"themselves:\n{result.stdout}"
     )
     named = _named(_audit_json("audit_run_pr_by_evidence.json"), "one-pr")
-    assert {"land-wave-1", "land-wave-2"} <= named, (
+    assert {"land-billing", "land-billing-account"} <= named, (
         f"the nodes that actually opened the extra PRs must be named, got {named}"
     )
 
@@ -679,6 +695,109 @@ def test_genuinely_repo_less_work_stays_out_of_every_repo_scope():
     )
 
 
+def test_odoo_instance_is_repo_bound_and_a_repo_null_verification_node_is_flagged(tmp_path):
+    """A verification node writes no source but GATES that repo's delivery (M4).
+
+    `odoo-instance` must be in `REPO_BOUND_APPROACHES`: without it, a `repo: null` verification
+    node would sit outside every `integrate` scope, and a run could open its PR having proven
+    nothing about the repo it claims to deliver. First the vocabulary, then the behavior it must
+    produce: build a minimal per-repo run whose ONLY problem is a verification node stamped
+    `repo: null`, and confirm the auditor refuses to let it hide.
+    """
+    module = _load_audit_module()
+    assert "odoo-instance" in module.REPO_BOUND_APPROACHES, (
+        "odoo-instance must be repo-bound: it writes no source but gates that repo's delivery"
+    )
+
+    run = {
+        "run_id": "instance-repo-null-20260817-a1b2",
+        "schema_version": "run/1.0",
+        "intent": "verify fleet-addons on a live instance without naming its repo",
+        "autonomy": "auto",
+        "status": "DONE",
+        "cursor": None,
+        "budget": {"max_nodes": 8, "nodes_run": 2},
+        "repos": [
+            {
+                "id": "fleet-addons",
+                "base": "18.0",
+                "verify": "make test",
+                "commit": "<resolved by git-toolkit:git-ops>",
+                "confidential": "public",
+                "worktree_root": "<worktree parent outside the repo tree>",
+            }
+        ],
+        "nodes": [
+            {
+                "id": "fleet-billing",
+                "approach": "odoo-coding",
+                "approach_kind": "skill",
+                "repo": "fleet-addons",
+                "inputs": {},
+                "depends_on": [],
+                "gate_tier": "L1",
+                "status": "DONE",
+                "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+                "contract": {
+                    "status": "DONE",
+                    "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
+                    "next": [],
+                },
+            },
+            {
+                "id": "fleet-verify",
+                "approach": "odoo-instance",
+                "approach_kind": "skill",
+                "repo": None,
+                "inputs": {},
+                "depends_on": ["fleet-billing"],
+                "gate_tier": "L1",
+                "status": "DONE",
+                "produced": ["test verdict: 42 passed"],
+                "contract": {"status": "DONE", "produced": ["test verdict: 42 passed"], "next": []},
+            },
+            {
+                "id": "integrate",
+                "approach": "git-toolkit:git-ops",
+                "approach_kind": "integrate",
+                "repo": "fleet-addons",
+                "inputs": {},
+                "depends_on": ["fleet-verify"],
+                "gate_tier": "L1",
+                "status": "DONE",
+                "produced": ["https://example.invalid/org/fleet-addons/pull/61"],
+                "contract": {
+                    "status": "DONE",
+                    "produced": ["https://example.invalid/org/fleet-addons/pull/61"],
+                    "next": [],
+                },
+            },
+        ],
+        "dynamic_nodes": [],
+        "gate_log": [
+            {"node": "fleet-billing", "tier": "L1", "decision": "auto-pass"},
+            {"node": "fleet-verify", "tier": "L1", "decision": "auto-pass"},
+        ],
+        "completion": {
+            "status": "DONE",
+            "evidence": ["https://example.invalid/org/fleet-addons/pull/61"],
+            "summary": "the verification node gates fleet-addons' delivery but was stamped repo: null",
+        },
+    }
+    run_file = tmp_path / "run-instance-repo-null.json"
+    run_file.write_text(json.dumps(run), encoding="utf-8")
+
+    result = _run_file(run_file)
+    assert result.returncode == EXIT_VIOLATION, (
+        f"a repo: null verification node must fail the audit:\n{result.stdout}\n{result.stderr}"
+    )
+    audit = json.loads(_run_file(run_file, "--json").stdout)
+    named = _named(audit, "one-pr")
+    assert "fleet-verify" in named, (
+        f"the repo: null odoo-instance node must be named as unattributable, got {named}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Verdict 3 - could-not-check. A run file the auditor cannot fully read is
 # never reported as clean.
@@ -723,8 +842,8 @@ def test_an_approach_kind_outside_the_schema_enum_is_could_not_check():
     """
     raw = _fixture("audit_run_unknown_approach_kind.json")
     kinds = {n["approach_kind"] for n in _nodes(raw)}
-    assert "land" in kinds, "fixture premise: an out-of-enum kind must be present"
-    assert kinds - {"land"} <= {"skill", "agent", "workflow", "wave", "inline", "integrate"}, (
+    assert "bogus-kind" in kinds, "fixture premise: an out-of-enum kind must be present"
+    assert kinds - {"bogus-kind"} <= {"skill", "agent", "workflow", "inline", "integrate"}, (
         f"fixture premise: every OTHER kind must be in the documented enum, got {kinds}"
     )
 

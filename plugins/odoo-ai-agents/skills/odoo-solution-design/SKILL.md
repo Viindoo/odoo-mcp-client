@@ -180,9 +180,9 @@ inputs:
 Do NOT emit bare `design_doc:` (single-mode only). Do NOT put `design_index` /
 `master_design_doc` / `design_docs` as bare top-level keys - they belong under `inputs:`.
 `next:` same rule as single mode: `return_to` SET → `next: <return_to>`; UNSET →
-`next: odoo-planning` (the planner consumes `index.yaml` `dag_layers` and batches the modules into
-a wave-batched execution plan before any code is written - it is the first consumer of the design
-DAG; the coders later follow the plan's module/wave order rather than `dag_layers` directly).
+`next: odoo-planning` (the planner consumes `index.yaml` `dag_layers` and turns it into
+an execution plan before any code is written - it is the first consumer of the design
+DAG; the coders later follow the plan's node order rather than `dag_layers` directly).
 
 ---
 
@@ -399,7 +399,7 @@ Approve design? (approve / refine: [feedback] / cancel)
   - **`return_to` is UNSET (default standalone flow):** hand off to `odoo-planning` to turn the
     approved design into the execution plan (module order + integration cadence + lifecycle
     wiring); `odoo-planning` owns the code Plan Mode and the plan wires `odoo-coding` (each coding
-    wave landed by `run-harness`'s between-wave integration) per its plan. (Migration carve-out: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Migration carve-out - single-module scripts only; THIS skill owns that front-door routing decision, no executor re-validates it.)
+    node landed by `run-harness`) per its plan. (Migration carve-out: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Migration carve-out - single-module scripts only; THIS skill owns that front-door routing decision, no executor re-validates it.)
   - **`return_to` is SET (caller-return flow):** do NOT enter a code Plan Mode and do NOT
     dispatch any coder. Emit the Continuation Contract (see below) with `next: <return_to>`
     and hand control back to the caller. The caller (e.g. `odoo-forward-port`) owns the
@@ -427,7 +427,7 @@ the design is approved. Choose `next` as follows:
   doc path needs to cross the boundary. The caller resumes with the approved design doc and
   runs its own Plan Mode.
 - **`return_to` is UNSET (default):** for a backend, frontend, or full-stack design emit
-  `next: odoo-planning` (the planner turns the approved design into the wave-batched execution
+  `next: odoo-planning` (the planner turns the approved design into the execution
   plan before any code is written); for a migration design that meets the Migration carve-out
   (single-module script, single `dag_layer`) emit `next: odoo-data-migration` (or `odoo-coding`)
   directly - a front-door routing decision THIS skill owns, per

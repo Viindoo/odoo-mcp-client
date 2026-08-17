@@ -27,40 +27,34 @@ open a RUN-DAG.
 
 **Procedure** (when Phase P is engaged):
 1. Serialize the approved 3-block plan into `<ISOLATE_DIR>/run-<id>.json` (resolve `<ISOLATE_DIR>`/`<SHARE_DIR>` via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) per the blackboard schema
-   (harness §8.3). The plan's OUTER unit is the MODULE, never a work-item (SSOT:
+   (harness §8.3). The plan's OUTER unit is the **node**, never the module (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis). Emit
-   one `nodes[]` entry per plan node, with `depends_on` from the dependency graph and
-   `approach`/`approach_kind` from the assignment. **Serialize `repos[]` and every node's `repo`:**
+   ONE `nodes[]` entry per PLAN node, ONE-TO-ONE - never grouped, batched, or merged - with
+   `depends_on` from the dependency graph, `approach`/`approach_kind` from the assignment, and
+   `modules` carried straight from the plan node (the module technical names that node touches, in
+   dependency order; omit for a node that touches no Odoo module). On a node whose `approach` is
+   `odoo-instance`, `modules` IS that node's suite scope - copy it verbatim, never recompute it.
+   **Serialize `repos[]` and every node's `repo`:**
    one `repos[]` entry per repository the plan's Block-2 `[repo: <repo>]` annotations name, each
    carrying that repo's Repo Capability Card (`id` + `base`/`verify`/`commit`/`confidential`/
-   `worktree_root`, template in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+   `worktree_root`, template in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
    § Repo Capability Card Template - `id` is ORIGIN-DERIVED there, never invented from a directory
    name, a worktree path, or a series, and two entries that resolve to the SAME id are ONE repo:
    collapse them into one card, or STOP if their cards disagree). Stamp each node's `repo` from its
    own `[repo: ...]` annotation. **`repo: null` is legal ONLY for a node that writes into no
    repository tree and gates no repo's delivery** - the chat-only synthesis / routing / report node;
-   every `wave`, `integrate`, and terminal lifecycle node (review, i18n, acceptance, doc, lint,
-   monitor, merge) MUST name a declared repo, and a `null` on any of them is a serialization bug
-   that opens the PR without that stage having run. Rule owner (do not restate a competing version):
-   `${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md` §8.3 § `repo: null` legality -
-   `run-harness` re-derives the SAME predicate at dispatch and fails the run BLOCKED on an illegal
-   `null`, so a mis-stamped node is caught whether or not it reaches the auditor.
+   every SOURCE-writing, `odoo-instance`, `integrate`, and terminal lifecycle node (review, i18n,
+   acceptance, doc, lint, monitor, merge) MUST name a declared repo, and a `null` on any of them is a
+   serialization bug that opens the PR without that stage having run. Rule owner (do not restate a
+   competing version): `${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md` §8.3 §
+   `repo: null` legality - `run-harness` re-derives the SAME predicate at dispatch and fails the run
+   BLOCKED on an illegal `null`, so a mis-stamped node is caught whether or not it reaches the
+   auditor.
    Emit exactly ONE `integrate` node per `repos[]` entry: N repos = N integrate nodes = N PRs; a
-   single-repo run is a one-entry list and one `integrate`. **PRESERVE the Block 2 `Wave N` grouping:** the
-   coding modules within one `Wave N` are grouped into a SINGLE wave node (`approach_kind: wave`)
-   that carries the wave's MODULES + their module-DAG + `topology` (value set and the `n <= 1`
-   collapse rule are owned by `run-harness/references/wave-integration.md` § Topology values - not
-   restated here) + `cumulative_modules` (regression scope, NEVER the topology count) + the
-   Block-2W lineage slice - this is the wave node `run-harness` drives via its § Between-wave
-   integration (it iterates the wave's modules and invokes `odoo-coding` per module; there is no
-   separate git-executor skill). A terminal lifecycle stage (doc / i18n /
-   acceptance / PR / monitor / merge) is its own node, tagged with its repo. Serialize each terminal
-   `integrate@R` node's `depends_on` to AGREE with the driver's `integrate` readiness precondition - declared in
-   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, not restated here -
-   which `run-harness` RE-DERIVES anyway: under-specifying it cannot open the PR early, but naming a
-   land-tail node in it deadlocks the run. The work-item never appears at this layer - it
-   is `odoo-coder`'s INTERNAL intra-module unit. The `<id>` is
-   `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
+   single-repo run is a one-entry list and one `integrate`. Every terminal lifecycle stage (doc /
+   i18n / acceptance / review / lint / monitor / merge) is its own node, tagged with its repo. The
+   work-item never appears at this layer - it is `odoo-coder`'s INTERNAL intra-node unit. The
+   `<id>` is `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
    concurrent runs never collide.
    - **Non-trivial path (plan authored by `odoo-planning`):** ingest the planner artifact BY
      POINTER - read the approved 3-block plan from `<SHARE_DIR>/plans/<slug>-<date>.md` and serialize
@@ -74,11 +68,13 @@ open a RUN-DAG.
      Mandatory-planning rule); it emits the minimal `[code, review, integrate]` plan. Once
      `odoo-planning` returns its plan pointer
      (`<SHARE_DIR>/plans/<slug>-<date>.md`), ingest it BY POINTER and serialize it into `run-<id>.json`
-     using the identical "ingest by pointer" procedure as the non-trivial path directly above
-     (`phase-p-run-dag.md:43-47`) - never hand-author the plan inline.
+     using the identical "ingest by pointer" procedure as the **Non-trivial path** bullet directly
+     above - never hand-author the plan inline.
    - **Decision X (node inputs):** each node carries `inputs: {effort, est_agents}` (ADVISORY /
-     du kien) and **no binding `model`** - the dispatched specialist skill owns the actual model +
-     agent count at runtime; the run-node never pins them.
+     du kien) and **no binding `model`, and NO `gate_tier`** - the dispatched specialist skill owns
+     the actual model + agent count at runtime, and the tier is a total function resolved at dispatch
+     (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution); the run-node never
+     pins any of the three.
    - **Recon pointer (additive, optional).** When Phase R persisted a findings file, add
      `inputs.recon_findings: <captured ABSOLUTE literal>` to every node that consumes recon. It MUST
      be the captured absolute path - never a `<ISOLATE_DIR>` placeholder and never a relative path: a
@@ -86,22 +82,23 @@ open a RUN-DAG.
      today. This adds a key; it does not change who first writes `run-<id>.json`.
    - **Survey pointer (opt-in, ALWAYS an explicit key - never omitted, unlike Recon above).**
      When the Proposed Plan's `Survey:` field (`SKILL.md` § Deep survey) resolved to a synthesis
-     path this session, add `inputs.survey: <captured ABSOLUTE literal>` to every coding-wave node
+     path this session, add `inputs.survey: <captured ABSOLUTE literal>` to every coding node
      and the review node. When no deep survey was opted into, set `inputs.survey: "none"`
      explicitly on those same nodes instead of omitting the key: `inputs.recon_findings` is safe to
      omit because the mandatory recon step always scouts for itself when absent, but a downstream
-     per-module brief (`odoo-coding`'s `SURVEY:` field) treats an OMITTED artifact-path key as a
+     per-node brief (`odoo-coding`'s `SURVEY:` field) treats an OMITTED artifact-path key as a
      load-bearing gap (`dispatch-brief.md`'s self-check) rather than "nobody asked" - so this key is
      always present, one explicit value or the other. Threaded onward exactly like `design_index`
-     above: the receiving skill (`odoo-planner`'s `SURVEY:` field, `odoo-coding`'s per-module
+     above: the receiving skill (`odoo-planner`'s `SURVEY:` field, `odoo-coding`'s per-node
      `SURVEY:` field) reads it by pointer, never re-derives a survey.
-2. Tag each node's `gate_tier` from the registry `default_gate_tier`
-   (`generator/skill_tool_deps.json`), raising it if the node writes outside the `$ODOO_AI_HOME` state root.
-   - For each SOURCE-writing node (writes outside the `$ODOO_AI_HOME` state root) that is NOT a self-provisioning
-     specialist (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning
-     specialists), set `inputs.needs_worktree: true`. `run-harness` provisions the actual
-     worktree/branch at dispatch (its Hard rule 6); Phase P only RECORDS the requirement - it does
-     not run git.
+2. For each SOURCE-writing node (writes outside the `$ODOO_AI_HOME` state root) that is NOT a
+   self-provisioning specialist (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` §
+   Self-provisioning specialists), set `inputs.needs_worktree: true`. `run-harness` provisions the
+   actual worktree/branch at dispatch (its Hard rule 6); Phase P only RECORDS the requirement - it
+   does not run git. **Phase P computes NO gate tier, here or anywhere** - the field is deleted from
+   the schema; the tier is a total function resolved at dispatch
+   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution). Do not tag a
+   `gate_tier` on any node.
 3. Set `autonomy`, `budget` (`max_nodes` ≈ 2× node count), `status: NEEDS_NEXT`.
 4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-harness`,
    which walks the DAG to DONE/BLOCKED/NEEDS_CONTEXT.

@@ -230,8 +230,9 @@ def test_table_no_longer_disclaims_the_two_rows_it_used_to_flag_as_unwired():
         "both wave/<slug>/ and followups/<slug>.md are now wired at their owner files; a "
         "leftover disclaimer would misrepresent reality in the OTHER direction now"
     )
-    assert re.search(r"(?i)wave/<slug>/.{0,400}(wired|stale wave-dir sweep)", norm), (
-        "the wave/<slug>/ table row must positively state it is wired (and point at the sweep)"
+    assert re.search(r"(?i)integration/<slug>/.{0,400}(wired|stale integration-dir sweep)", norm), (
+        "the integration/<slug>/ table row (renamed from wave/<slug>/ when the wave grouping "
+        "layer was removed) must positively state it is wired (and point at the sweep)"
     )
     assert re.search(r"(?i)followups/<slug>\.md.{0,400}wired", norm), (
         "the followups/<slug>.md table row must positively state it is wired"
@@ -334,20 +335,82 @@ def test_gc_coverage_table_clause_2_grouped_row_sweeps_all_four_subpaths():
     )
 
 
-def test_section_3_6_documents_a_fail_closed_correlated_criterion_for_wave_slug():
+def test_section_3_6_documents_a_fail_closed_correlated_criterion_for_integration_slug():
+    """Renamed with its subject: `wave/<slug>/` -> `integration/<slug>/` when the wave grouping
+    layer was removed. The assertions below check generic tokens (NEEDS_NEXT, fail-closed, the
+    run-id correlation), never the literal word "wave", so the behavior they protect survived the
+    rename unweakened - only this test's own name and messages were still naming the retired term.
+    """
     norm = _norm(_contract_text())
     assert "3.6" in norm, "Expected a § 3.6 documenting the two known implementation gaps"
     # The corrected criterion must correlate against the run's OWN recorded status
     # (never a bare mtime check) and must fail closed on every unprovable case -
     # absent correlating file, unreadable status, or a still-mid-flight NEEDS_NEXT.
     assert "NEEDS_NEXT" in norm, (
-        "§ 3.6 must name NEEDS_NEXT (the non-terminal run status) as a case the wave/<slug>/ "
+        "§ 3.6 must name NEEDS_NEXT (the non-terminal run status) as a case the integration/<slug>/ "
         "criterion must NOT reap - this is exactly the live-paused-run danger being closed"
     )
     assert re.search(r"(?i)fail.closed", norm), (
-        "§ 3.6 must state the wave/<slug>/ criterion is fail-closed on any unprovable condition"
+        "§ 3.6 must state the integration/<slug>/ criterion is fail-closed on any unprovable "
+        "condition"
     )
     assert re.search(r"(?i)run-\$\{slug\}\.json|run-<id>\.json", norm), (
-        "§ 3.6's corrected criterion must correlate wave/<slug>/ against its OWN run-<id>.json, "
-        "not act on mtime alone"
+        "§ 3.6's corrected criterion must correlate integration/<slug>/ against its OWN "
+        "run-<id>.json, not act on mtime alone"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Legacy-`wave/` migration case (wave-layer removal, spec 7.2 `migrate_project_state.sh` row): a
+# project checked out before the rename has a legacy `.odoo-ai/wave/` dir on disk. The one-time
+# Tier-2 migration helper must recognize that legacy top-level name and copy it into the RENAMED
+# destination (`integration/`) - never leave it unclassified (silently skipped as "unknown", the
+# generic fallback for a name in neither exhaustive table) and never copy it into a `wave/`
+# destination that no longer matches any ISOLATE table row above. This is the migration PATH's
+# own guard, distinct from the GC-coverage checks above (which cover the LIVE integration/<slug>/
+# row, not a legacy on-disk directory from before the rename).
+# --------------------------------------------------------------------------- #
+
+MIGRATE_SCRIPT_PATH = PLUGIN / "scripts" / "lib" / "migrate_project_state.sh"
+
+
+def test_migrate_project_state_wires_a_legacy_wave_to_integration_case():
+    """Behavior protected: the Tier-2 state-root migration helper classifies a legacy top-level
+    `.odoo-ai/wave/` entry distinctly from the live `integration` name (a same-name isolate
+    classification cannot express a DESTINATION that differs from the SOURCE name), and its
+    dispatch copies that legacy entry into `$isolate_dir/integration` - never into a `wave/`
+    destination, which no longer appears in the ISOLATE table this file's other tests guard.
+
+    Fails if the classifier has no `wave)` case, if that case resolves to the plain `isolate`
+    tier (which cannot rename the destination), or if the dispatch for it does not target the
+    isolate `integration` directory.
+    """
+    assert MIGRATE_SCRIPT_PATH.exists(), f"expected file missing: {MIGRATE_SCRIPT_PATH}"
+    text = MIGRATE_SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert re.search(r"\bwave\)\s*\n", text), (
+        "migrate_project_state.sh's classifier must keep a `wave)` case for the pre-rename "
+        "legacy top-level directory name - a checkout migrated before the rename still has one."
+    )
+
+    m = re.search(r"wave\)\s*\n(?:[^\n]*\n)*?\s*printf '([a-zA-Z0-9_-]+)\\n'", text)
+    assert m, "could not find the classifier's return value for the `wave)` case"
+    legacy_tier = m.group(1)
+    assert legacy_tier != "isolate", (
+        "the `wave)` case must NOT resolve to the plain `isolate` tier - the destination name "
+        "differs from the legacy source name (wave -> integration), which the plain isolate "
+        "dispatch (same name in and out) cannot express."
+    )
+
+    dispatch = re.search(
+        re.escape(legacy_tier) + r"\)[\s\S]*?_tier2_copy_one[^\n]*", text
+    )
+    assert dispatch, f"could not find the dispatch case for tier {legacy_tier!r}"
+    assert '"$isolate_dir/integration"' in dispatch.group(0), (
+        f"the {legacy_tier!r} dispatch must copy the legacy wave/ dir into "
+        '"$isolate_dir/integration" (the renamed ISOLATE destination), not a wave/ destination.'
+    )
+    assert '"$isolate_dir/wave"' not in dispatch.group(0), (
+        "the legacy wave/ migration must not copy into a wave/ destination - that name no "
+        "longer appears in the ISOLATE table since the rename."
     )

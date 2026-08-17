@@ -68,7 +68,7 @@ per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the ca
 path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). `<path>` = the upgrade-worktree base, a
 `.upg-worktrees/` directory SIBLING to the principal checkout (never inside it, so principal
 `git status` stays clean). The integration-loop saga/rollback + checkpoint contract this pipeline
-runs (record the pre-loop SHA, checkpoint each integrated wave, clean-abort or resume on failure -
+runs (record the pre-loop SHA, checkpoint each integrated dependency level, clean-abort or resume on failure -
 never leave a half-built integration branch) is the shared SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; `checkpoint.json` (§ below) is this
 skill's realization of it. `<work-base>` = the base ref the integration branch forks from: HEAD
@@ -143,7 +143,7 @@ entry and ask the user to break the cycle before P2 proceeds (do not
 hard-fail - cycles exist in real custom clusters and require human resolution).
 Assert all dependencies exist at the target.
 
-**P2 - Core-absorption comparison [per module, dep order, parallel within waves].**
+**P2 - Core-absorption comparison [per module, dep order, parallel within dependency levels].**
 Principle: a major-series module upgrade is a CODE upgrade - no old-series compatibility, no
 migration script, no version bump. Full rule + the P4-time dispositions:
 `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
@@ -153,7 +153,7 @@ REWRITE(model) / MERGE / SPLIT by comparing custom behavior vs target-version co
 
 Per module in dep order (topo order from graph.md): dispatch 1x `odoo-diff-comparator`
 (sonnet, opus for cluster-wide) + invoke `odoo-gap-analysis` (via Skill tool, sonnet) in
-parallel. Modules at the SAME DAG depth (same wave) may be dispatched in parallel; a module
+parallel. Modules at the SAME DAG depth (same dependency level) may be dispatched in parallel; a module
 is NOT dispatched until its in-cluster dependencies have finished P2. Dispatch concurrency
 follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode B.
 Comparator brief: "compare the module's nghiệp vụ / ý đồ / expected outcomes /
@@ -242,7 +242,7 @@ tool) to add a worktree (branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/up
 Per module in dep order: invoke the `odoo-coding` skill (via the Skill tool) at the ADAPT tier
 (per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
 in a child worktree off integration. `odoo-coding` owns the backend/frontend split, coder fan-out
-(via its `odoo-coder` per-module coordinator), and model, and grounds any ported OWL/QWeb/SCSS against
+(via its `odoo-coder` per-node coordinator), and model, and grounds any ported OWL/QWeb/SCSS against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder`,
 `odoo-backend-coder`, or `odoo-frontend-coder`).
 For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
@@ -289,10 +289,10 @@ dispatch at P5.8 below, which reuses P1's `graph.md` reverse-closure instead of 
 per module. This is the clause that was missing before - without it the hand-off was silently
 dropped on the floor.
 
-**P5 - Install + test gate [ephemeral instance, wave-by-wave, demo=on].**
-Goal: prove the whole cluster installs + tests green on a fresh target DB, bottom-up
-wave by wave (one wave = one DAG depth level, leaves first). Installing wave-by-wave
-localizes failures and allows resume to skip proven waves.
+**P5 - Install + test gate [ephemeral instance, one dependency level at a time, demo=on].**
+Goal: prove the whole cluster installs + tests green on a fresh target DB, bottom-up,
+one dependency level at a time (leaves first). Installing one dependency level at a time
+localizes failures and allows resume to skip proven levels.
 Run the instance with **demo=on** (no separate framework-validation phase): a module that
 flips `installable: False -> True` is scanned by the target's FULL suite for the first time -
 from v18 `base.TestInvisibleField` + `hr.TestSelfAccessProfile` run there and need demo data
@@ -301,17 +301,17 @@ gate stays demo=on regardless). The P4b review MUST cover ACL / `.sudo()` for ev
 write/compute override on a widely-used core model. Cross-ref
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`.
 Dispatch `odoo-instance` (via Skill tool, L2 human gate applies). Create the instance
-once; then for each wave: dispatch init for that wave's modules, then run-tests for that
-wave. Record per-wave green in `checkpoint.json` (status `installed`) and `install-test.md`.
-On failure in a wave, dispatch `odoo-backend-debugger` or `odoo-ui-debugger` to diagnose
+once; then for each dependency level: dispatch init for that level's modules, then run-tests for
+that level. Record per-level green in `checkpoint.json` (status `installed`) and `install-test.md`.
+On failure in a level, dispatch `odoo-backend-debugger` or `odoo-ui-debugger` to diagnose
 to root cause (pass `ISOLATE_DIR:` - the SAME literal resolved at P0 intake - so `odoo-ui-debugger`
-can place its captured evidence under `<ISOLATE_DIR>/visual/debug/<cluster>-wave<wave_number>/`
-instead of re-resolving; also pass `SLUG: <cluster>-wave<wave_number>` - reusing this skill's own
-`<cluster>` scope slug (§ The pipeline) plus the failing wave's number, so the debug evidence
-correlates to the failing wave instead of an improvised value);
+can place its captured evidence under `<ISOLATE_DIR>/visual/debug/<cluster>-level<n>/`
+instead of re-resolving; also pass `SLUG: <cluster>-level<n>` - reusing this skill's own
+`<cluster>` scope slug (§ The pipeline) plus the failing level's number, so the debug evidence
+correlates to the failing level instead of an improvised value);
 feed the diagnosis back to P4 for the affected module. Resume P5 from the
-failing wave (skip already-green waves per `checkpoint.json`). Loop until all waves green.
-Output: `install-test.md` - {per-wave + per-module install ok?, test result, root-cause if red}.
+failing level (skip already-green levels per `checkpoint.json`). Loop until all levels green.
+Output: `install-test.md` - {per-level + per-module install ok?, test result, root-cause if red}.
 
 **P5.7 - i18n reconcile [MANDATORY, narrow escape only].**
 Goal: keep translations intact across the upgrade WITHOUT regenerating them. MANDATORY for every
@@ -362,7 +362,7 @@ narrow-escape). Wait for human sign-off before the PR.
 
 **P7 - Final review + PR [human merge].**
 Stage order inside this phase is the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
 owner): every code-changing check clears, THEN the PR opens. Do not reorder it locally.
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
@@ -454,24 +454,24 @@ Status progression:
 - `designed` - P2b design doc received (only for modules routed to design).
 - `adapted` - P4 code changes committed and merged to integration worktree.
 - `reviewed` - P4b code-review loop returned no CRITICAL/HIGH for the module.
-- `installed` - module's wave passed P5 install + test green.
+- `installed` - module's dependency level passed P5 install + test green.
 - `done` - module fully processed (installed green + verified).
 
 Resume behavior (per-phase skip rules - prevents overwriting completed work on crash/resume):
 - P2 skips modules with status in {absorbed, designed, adapted, reviewed, installed, done}.
 - P4 skips modules with status in {adapted, reviewed, installed, done}.
 - P4b skips modules with status in {reviewed, installed, done}.
-- P5 skips modules at the wave level with status in {installed, done}.
+- P5 skips modules at the dependency-level granularity with status in {installed, done}.
 On crash or credit exhaustion, restart the orchestrator: it reads `checkpoint.json`
 and resumes from the first module that has not yet reached the target phase's skip-threshold.
-P5 per-wave records green in the ledger so re-runs do not re-install proven waves.
+P5 per-level records green in the ledger so re-runs do not re-install proven levels.
 
 ## Cluster / dependency handling
 
 - DAG built ONCE in P1 by a subagent; the orchestrator only topo-sorts it (cheap).
 - P2->P4 run per module in dep order (leaves first).
-- P5 installs bottom-up WAVE BY WAVE (one wave per DAG depth level), recording per-wave
-  green so failures localize and resume skips proven waves. ONE PR for the cluster (P7).
+- P5 installs bottom-up ONE DEPENDENCY LEVEL AT A TIME (leaves first), recording per-level
+  green so failures localize and resume skips proven levels. ONE PR for the cluster (P7).
 
 ## Git / PR conventions
 

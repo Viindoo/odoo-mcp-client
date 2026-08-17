@@ -2,7 +2,7 @@
      inline vs delegate, INSTANCE_HANDLE precedence, the NEEDS_NEXT escalation, and the
      output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
      odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
-     the odoo-coder per-module coordinator (launched for EVERY module) owns the INTEGRATED whole-module
+     the odoo-coder node coordinator (launched once per work node) owns the INTEGRATED whole-node
      instance test; odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate
      only - ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a
      delegated odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail).

@@ -10,7 +10,7 @@ users complained were violated in real runs:
                    DECLARATION second: a node that recorded a pull-request URL in `produced`
                    OPENED a PR whatever its `approach_kind` says, and a node declaring
                    `approach_kind: "integrate"` is the land tail that is SUPPOSED to open one
-                   (harness 8.3: "There is exactly ONE PR per REPO - never one per wave"). The two
+                   (harness 8.3: "There is exactly ONE PR per REPO."). The two
                    signals must agree: a node that produced a PR URL without declaring `integrate`
                    is a finding (an undeclared land step), and a DONE `integrate` node that
                    produced no PR URL is a finding too (the land step's evidence is missing). The
@@ -68,7 +68,7 @@ from pathlib import Path
 
 # The documented `approach_kind` enum. A kind outside it is not audited as if it were harmless:
 # the auditor cannot tell whether an unknown kind opens a PR, so it reports could-not-check.
-APPROACH_KINDS = ("skill", "agent", "workflow", "wave", "inline", "integrate")
+APPROACH_KINDS = ("skill", "agent", "workflow", "inline", "integrate")
 
 # The documented node `status` enum, same reasoning.
 NODE_STATUSES = (
@@ -80,20 +80,25 @@ NODE_STATUSES = (
 # are cross-checked against each other.
 PR_OPENING_APPROACH_KINDS = ("integrate",)
 
-# Node kinds that ALWAYS belong to a repository: a coding wave writes that repo's source tree, and
-# an `integrate` node opens that repo's PR. `repo: null` on either is a serialization bug - it puts
-# real work outside every repo's readiness scope.
-REPO_BOUND_APPROACH_KINDS = ("wave", "integrate")
+# The only `approach_kind` that is ALWAYS repo-bound by its KIND alone: an `integrate` node opens
+# that repo's PR. `repo: null` on it is a serialization bug - it puts real work outside every
+# repo's readiness scope. Repo-boundness for CODING work no longer rests on the kind (there is no
+# `wave` kind) - it rests on the node's `approach` name, via REPO_BOUND_APPROACHES below.
+REPO_BOUND_APPROACH_KINDS = ("integrate",)
 
 # Stage skills that CANNOT be repo-less either: each one writes into a repository's tree or gates
 # that repository's delivery, so `repo: null` on one of them is a mis-stamped lifecycle node, not
 # repo-less work. Sourced from the Terminal stage order constant (its ONE owner is
-# `plugins/odoo-ai-agents/skills/run-harness/references/wave-integration.md`, section "Terminal
-# stage order") plus the code-changing front doors the coding waves dispatch.
+# `plugins/odoo-ai-agents/skills/run-harness/references/run-integration.md`, section "Terminal
+# stage order") plus the code-changing front doors the coding nodes dispatch. `odoo-instance` is
+# included even though it writes no source: a verification node writes no source but GATES that
+# repo's delivery, so without this a `repo: null` verification node would pass the audit and sit
+# outside every `integrate` scope.
 REPO_BOUND_APPROACHES = (
-    "odoo-coding",             # coding wave - writes a repo's source
+    "odoo-coding",             # writes a repo's source
     "odoo-test-writing",       # writes a repo's tests
     "odoo-code-review",        # the pre-PR review; it can force code changes
+    "odoo-instance",           # writes no source but GATES that repo's delivery (test verdict)
     "odoo-i18n",               # (1) i18n reconcile - writes .po/.pot into a repo
     "odoo-acceptance",         # (2) live blast-radius oracle - gates that repo's PR
     "odoo-doc-illustration",   # (2b) user guide + App-Store landing - writes into a repo

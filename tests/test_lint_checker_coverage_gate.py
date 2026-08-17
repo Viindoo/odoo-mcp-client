@@ -11,8 +11,9 @@ own text describes as "the only verdict that lets the caller proceed with nothin
 
 Confirmed pre-fix (zero hits across the whole scope): grepping `checker`, `checks run`,
 `custom check`, and `sql inject` in `agents/odoo-instance-ops.md`, `skills/odoo-instance/SKILL.md`,
-and `skills/run-harness/references/wave-integration.md` returned nothing - there was no coverage
-axis anywhere in the contract.
+and `skills/run-harness/references/run-integration.md` (formerly `wave-integration.md`, renamed
+when the wave grouping layer was removed) returned nothing - there was no coverage axis anywhere
+in the contract.
 
 Grounding for the fix's shape: this repo's OWN SSOT docs (`docs/reference/ODOO-TESTING.md`,
 `docs/reference/odoo-code-quality.md`) already state that OSM's `lint_check` does NOT reproduce
@@ -30,11 +31,12 @@ ran clean" now explicitly covers "ran, but checked less than it should have") ra
 fifth status - the caller-facing contract for that status ("MUST NOT treat this as a verified
 pass... without a human reviewing findings_path first") already says the right thing. The axis is
 scoped to `GATE_ROLE: pre-pr-lint-gate` only (the ONE dispatch that installs+tags the lint modules
-at all, per the pre-existing HARD RULE) - `per-module-verify` never installs them, so there is
-nothing to check coverage on there; this composes with, and does not duplicate or contradict, the
-existing GATE_ROLE mechanism.
+at all, per the pre-existing HARD RULE) - `node-verify` (renamed from `per-module-verify` when the
+wave grouping layer was removed - the per-module unit became the per-node unit) never installs
+them, so there is nothing to check coverage on there; this composes with, and does not duplicate or
+contradict, the existing GATE_ROLE mechanism.
 
-A second, related gap: `skills/run-harness/references/wave-integration.md`'s pre-PR lint-class gate
+A second, related gap: `skills/run-harness/references/run-integration.md`'s pre-PR lint-class gate
 containment loop (the ONE place a `tests-inconclusive` verdict from this ONE gate actually needs to
 be ACTED on, since there is no later gate to catch it) pre-fix only reacted to "a FAILURE" - an
 `inconclusive` verdict (skip-only OR the new coverage-shortfall reason) had no wired reaction at
@@ -52,7 +54,7 @@ PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 AGENT_MD = PLUGIN / "agents" / "odoo-instance-ops.md"
 SKILL_MD = PLUGIN / "skills" / "odoo-instance" / "SKILL.md"
-WAVE_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "wave-integration.md"
+RUN_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
 
 
 def _read(p: Path) -> str:
@@ -86,7 +88,7 @@ def test_baseline_measurement_zero_coverage_hits_is_recorded_accurately():
     only in this test file.
     """
     combined = "\n".join(
-        _read(p) for p in (AGENT_MD, SKILL_MD, WAVE_INTEGRATION)
+        _read(p) for p in (AGENT_MD, SKILL_MD, RUN_INTEGRATION)
     ).lower()
     assert "checker" in combined, (
         "no file in scope mentions 'checker' at all - the coverage axis did not land."
@@ -130,18 +132,20 @@ def test_agent_verdict_contract_never_lets_a_clean_zero_count_shortcut_the_check
 
 def test_agent_verdict_contract_scopes_coverage_check_to_pre_pr_lint_gate_only():
     """Behavior protected: the coverage axis must be scoped to GATE_ROLE: pre-pr-lint-gate - the
-    ONE dispatch that installs+tags the lint modules at all - and explicitly say a per-module-verify
+    ONE dispatch that installs+tags the lint modules at all - and explicitly say a node-verify
     dispatch has nothing to check (composing with, not duplicating, the existing GATE_ROLE
-    mechanism from agents/odoo-instance-ops.md "Lint modules" HARD RULE).
+    mechanism from agents/odoo-instance-ops.md "Lint modules" HARD RULE). `node-verify` is the
+    renamed non-lint GATE_ROLE value (formerly `per-module-verify`, before the wave grouping layer
+    was removed) - the scoping behavior is unchanged, only the value's name.
     """
     text = _norm(AGENT_MD)
     assert "gate_role: pre-pr-lint-gate" in text, (
         "the coverage axis must name GATE_ROLE: pre-pr-lint-gate as its trigger condition."
     )
-    assert "per-module-verify" in text and (
+    assert "node-verify" in text and (
         "nothing to check" in text or "never installs" in text or "does not install" in text
     ), (
-        "the coverage axis must explicitly state that a per-module-verify dispatch has nothing to "
+        "the coverage axis must explicitly state that a node-verify dispatch has nothing to "
         "check coverage on (it never installs the lint modules), not leave the boundary implicit."
     )
 
@@ -253,7 +257,7 @@ def test_pre_pr_lint_gate_containment_reacts_to_inconclusive_not_only_failure():
 
     Fails if the containment loop's trigger condition still reads as FAILURE-only.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**Containment for tail-only lint",
@@ -276,7 +280,7 @@ def test_pre_pr_lint_gate_declares_gate_role_still_intact():
     an earlier round) survives this change untouched - the new coverage axis composes with it, it
     does not replace or duplicate it.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**3 - Pre-PR lint-class gate",
@@ -295,7 +299,7 @@ def test_pre_pr_lint_gate_declares_gate_role_still_intact():
 # which would have made the guard's own blind spot the thing under test. The manual sweep across
 # the three in-scope files (run-tests Verdict contract, ensure-up/status exit-code check,
 # load-language activation-verify, init/update/create _install_confirmed marker logic, and the
-# wave-integration.md eslint tri-state reference) found exactly ONE counter-only gate with no
+# run-integration.md eslint tri-state reference) found exactly ONE counter-only gate with no
 # coverage signal at all: run-tests. The other five already require a positive confirmation signal
 # or already degrade to a non-pass (CANNOT-VERIFY / log-signal-not-live-verified) rather than
 # trusting exit 0 / a clean counter set alone - see the fix report for the full per-gate note).

@@ -2,8 +2,8 @@
 
 A multi-module documentation package (user-guide `doc/index.rst` + marketing landing
 `static/description/index.html`) is planned, not fanned out flat. Documenting a module while the
-modules that EXTEND it are also installed produces polluted, extension-contaminated screenshots; a
-flat one-instance-per-module fan-out re-installs shared base deps N times and never dedups. This
+modules that EXTEND it are also installed produces polluted
+screenshots; a flat one-instance-per-module fan-out re-installs shared deps N times, never deduping. This
 file is the single algorithm that turns an in-scope module set into a `doc-plan.yaml`: dependency
 CLUSTERS, instance allocation by DAG SHAPE, incremental leaf-first install order, cross-module
 dedup, and an inter-instance parallelism schedule.
@@ -16,9 +16,9 @@ dedup, and an inter-instance parallelism schedule.
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (OSM
 `module_inspect(name=..., method='dependencies', odoo_version=...)` primary, disk descriptor `depends` fallback,
 topological sort). This file only adds what to DO with that graph for documentation - the
-scheduling semantics are INVERTED versus code-build: code batches the DAG into parallel waves;
-doc runs SEQUENTIAL within a dependency path (incremental install on one instance) and PARALLEL
-across independent branches and clusters.
+scheduling semantics are INVERTED versus code-build: code dispatches independent DAG nodes in
+parallel, ordered only by `depends_on`; doc runs SEQUENTIAL within a dependency path (incremental
+install on one instance) and PARALLEL across independent branches and clusters.
 
 **Edge direction convention (same as `odoo-module-graph.md`).** "`X depends Y`" means X requires
 Y; Y is the deeper leaf-dependency and is installed FIRST. Leaf-dependency-first throughout.
@@ -28,7 +28,7 @@ Y; Y is the deeper leaf-dependency and is installed FIRST. Leaf-dependency-first
 ## Algorithm
 
 Input = the in-scope module set with per-module `depends_in_scope` (the subset of
-the descriptor `depends` that is also in scope) and `has_ondisk_doc`, either from the
+the descriptor `depends` in scope) and `has_ondisk_doc`, either from the
 `odoo-doc-scoper` scope block (doc-only standalone path) or from an approved design DAG
 (full-lifecycle path). Output = `doc-plan.yaml`.
 

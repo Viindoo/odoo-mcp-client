@@ -608,7 +608,7 @@ to create the intent file before proceeding to the coder.
 Dispatch Explore first if context is needed, then the `odoo-coding` skill via the Skill tool
 (mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`
 agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder`
-per-module coordinator), and synthesis):
+per-node coordinator), and synthesis):
 
 ```
 SKILL: odoo-coding
@@ -893,7 +893,7 @@ P9 for test failures) before re-presenting.
 ## P12 - Final review + PR
 
 Stage order inside this phase is the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail, its ONE
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
 owner): review -> push -> open PR. Do not reorder it locally.
 
 **Step 1 (FIRST) - final code review of the integration worktree, BEFORE any push or PR.**

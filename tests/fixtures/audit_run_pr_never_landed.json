@@ -8,9 +8,9 @@
   "budget": {"max_nodes": 12, "nodes_run": 1},
   "nodes": [
     {
-      "id": "wave-1",
+      "id": "code-mod-a",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "inputs": {},
       "depends_on": [],
       "gate_tier": "L1",
@@ -23,7 +23,7 @@
       "approach": "git-toolkit:git-ops",
       "approach_kind": "integrate",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["code-mod-a"],
       "gate_tier": "L1",
       "status": "BLOCKED",
       "produced": [],
@@ -37,7 +37,7 @@
   ],
   "dynamic_nodes": [],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+    {"node": "code-mod-a", "tier": "L1", "decision": "auto-pass"}
   ],
   "completion": {
     "status": "DONE",

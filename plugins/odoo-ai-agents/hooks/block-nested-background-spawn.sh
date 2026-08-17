@@ -21,7 +21,7 @@
 #
 # (c) IS THE SUBTLE ONE. Background is the spawn tool's DEFAULT ("Agents run in the background by
 # default ... Set to false to run this agent synchronously"), so an ABSENT flag means background,
-# and it is the COMMON shape, not the rare one. A hook keyed on an explicit `true` alone would wave
+# and it is the COMMON shape, not the rare one. A hook keyed on an explicit `true` alone would let
 # through the majority of the calls it exists to stop while looking perfectly green.
 #
 # NEVER DENIES THE ROOT. No agent-identity field = the root conversation, the one context that IS

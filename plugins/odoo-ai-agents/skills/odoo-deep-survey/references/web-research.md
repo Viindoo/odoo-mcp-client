@@ -36,7 +36,7 @@ unbounded fan-out:
 - **Targeted fetch:** each worker does `WebFetch` on at most the **top 3 reputable sources** for
   its sub-question - authoritative tier first, reputable tier only to fill gaps.
 - **No escalation loop.** One broad -> targeted pass per sub-question, then stop and record. A
-  still-open external question becomes an `open_questions` row, not another web wave.
+  still-open external question becomes an `open_questions` row, not another research round.
 
 ## Source-credibility ladder
 

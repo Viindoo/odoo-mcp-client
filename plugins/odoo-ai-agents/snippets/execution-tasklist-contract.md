@@ -7,7 +7,7 @@
 
 # Execution Task-List Contract (live, in-session progress checklist)
 
-When you begin executing a multi-step plan - waves, modules, phases, or work-items - create a
+When you begin executing a multi-step plan - nodes, phases, or work-items - create a
 live task list and keep it updated as execution progresses: one item per unit of work; mark an
 item in-progress when you start it, done when you finish it, and add newly-discovered work as a
 new item rather than folding it silently into an existing one.

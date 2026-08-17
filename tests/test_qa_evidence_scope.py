@@ -139,7 +139,7 @@ def test_modules_upgrade_threads_isolate_dir_to_ui_debugger():
         detail_text, "dispatch `odoo-backend-debugger` or `odoo-ui-debugger` with the traceback", span=400
     )
     assert "ISOLATE_DIR" in detail_window, (
-        "upg-phase-detail.md's P5 wave-failure dispatch must thread ISOLATE_DIR"
+        "upg-phase-detail.md's P5 dependency-level failure dispatch must thread ISOLATE_DIR"
     )
 
 

@@ -1,7 +1,7 @@
 ---
 name: odoo-backend-coder
 description: |
-  Use this agent when the main agent needs to write production-ready Python/XML Odoo backend code - computed fields, ORM overrides, constraints, migration scripts. It implements to a RED test the odoo-test-writer teammate already authored (it does NOT author tests). Dispatched by the odoo-coder per-module coordinator as the backend leg of ANY module; odoo-coding never dispatches it directly. A HARD LEAF, INSTANCE-FREE - writes code and runs its own bounded static (ORM-validation) gate; never launches another agent
+  Use this agent when the main agent needs to write production-ready Python/XML Odoo backend code - computed fields, ORM overrides, constraints, migration scripts. It implements to a RED test the odoo-test-writer teammate already authored (it does NOT author tests). Dispatched by the odoo-coder per-node coordinator as the backend leg of ANY node; odoo-coding never dispatches it directly. A HARD LEAF, INSTANCE-FREE - writes code and runs its own bounded static (ORM-validation) gate; never launches another agent
 model: sonnet
 color: cyan
 ---
@@ -146,7 +146,7 @@ Any `BROKEN`/`ERROR`/`MISMATCH` is a blocker - fix before presenting.
 
 **Backend code-quality gate.** The `/test_lint` (+ `/test_pylint` on v16+ Viindoo) CI-parity
 gate runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail) - not here.
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail) - not here.
 You remain INSTANCE-FREE for this gate; the ORM validation gate above and the inline review are still
 yours.
 

@@ -32,7 +32,7 @@ carve-out below (§ Migration carve-out).
 
 Planning is enforced at ADMISSION: the FRONT DOOR (`odoo-intake`, `odoo-brl`, or the
 `odoo-implement-feature` workflow) MUST establish an **approved plan artifact in scope** before it
-dispatches any executor (`odoo-coding`, its `odoo-coder` per-module coordinator (every module) - and
+dispatches any executor (`odoo-coding`, its `odoo-coder` node coordinator - and
 that coordinator's `odoo-backend-coder`/`odoo-frontend-coder` hard-leaf workers) for any code-writing work (trivial included - a trivial change still gets the minimal
 plan; only DESIGN, via `odoo-solution-design`, is reserved for non-trivial work). Checked ONCE, at the door. "Approved plan
 artifact in scope" is TRUE when ANY of the three signals in § Approved-plan-artifact detection is
@@ -49,8 +49,8 @@ runtime contradiction of a per-stage self-gate.
   the § Migration carve-out.
 - **The executor consumes the established signal** - once the front door has established a signal
   the plan already stands, and the executor proceeds on the plan-provided fast-path. The fast-path
-  is NOT re-gated (re-gating a signalled invocation would stall `run-harness`'s between-wave
-  sequential per-module loop); an executor invoked standalone (no signal) self-derives and proceeds - it never self-blocks
+  is NOT re-gated (re-gating a signalled invocation would stall the driver's sequential node loop);
+  an executor invoked standalone (no signal) self-derives and proceeds - it never self-blocks
   for "no plan".
 
 This is the SAME three-signal set `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` (its
@@ -69,10 +69,10 @@ artifact is in scope:
 
 1. **Active `run-<id>` blackboard** - dispatched under a named `run-<id>` (the `odoo-intake` Phase P
    -> `run-harness` chain). The `odoo-planning` ExitPlanMode approval already stands.
-2. **`WORKTREE_PATH`** - a pre-approved worktree path handed down by `run-harness` (the between-wave
-   integration path). The driver L2 gate already stands.
+2. **`WORKTREE_PATH`** - a pre-approved worktree path handed down by `run-harness` when it provisions
+   a node's worktree. The driver L2 gate already stands.
 3. **Plan-provided inter-module `inputs`** - the Continuation-Contract `inputs` carry the plan's
-   already-computed inter-module results: the target module set + the wave-batched module-DAG +
+   already-computed inter-module results: the target module set + the node DAG +
    the design pointers (`design_index`/`design_doc`/`design_docs`).
 
 ## Migration carve-out
@@ -150,9 +150,10 @@ through `odoo-planning`) routing.
 
 ## Execution adherence
 
-An executor (`odoo-coding`, or `run-harness`'s between-wave integration) that was handed an approved plan follows its **wave order**,
-**module set**, and **per-node skill** EXACTLY. On ANY drift FROM THAT APPROVED PLAN - a dependency
-discovered that the plan's module-DAG did not declare, a module missing from the plan, or a node
+An executor (`odoo-coding`, or `run-harness`) that was handed an approved plan follows its
+**`depends_on` order**, **module set**, and **per-node skill** EXACTLY. On ANY drift FROM THAT
+APPROVED PLAN - a dependency discovered that the plan's module-DAG did not declare, a module
+missing from the plan, or a node
 whose real work needs a different skill - the executor STOPS and routes back to `odoo-planning` to
 AMEND the plan (re-render the module-DAG dependency-graph from the corrected `dag_layers`). It NEVER
 improvises a new edge, module, or skill assignment. This is a plan-adherence property (drift from a

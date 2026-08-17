@@ -31,8 +31,8 @@ repo-key = sha256(realpath(git rev-parse --git-common-dir))[:12]   # same for ev
 wt-key   = sha256(realpath(git rev-parse --show-toplevel))[:12]    # distinct per worktree
 ```
 
-`--git-common-dir` always resolves to the ONE shared `.git` dir regardless of which linked
-worktree you are in, so the SHARE key converges; `--show-toplevel` diverges per worktree, so the
+`--git-common-dir` always resolves to the ONE shared `.git` dir regardless of the linked
+worktree, so the SHARE key converges; `--show-toplevel` diverges per worktree, so the
 ISOLATE key diverges too. Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
 `$ODOO_AI_WORKTREE_DIR` (ISOLATE) win when set. Outside any git repo, the resolver walks UP from
 the cwd to the nearest project marker: an explicit `.odoo-ai-root` sentinel has GLOBAL priority
@@ -93,7 +93,7 @@ trees named individually (never "...").
 |---|---|
 | `run-<id>.json` | the continuation hook needs exactly ONE active run per scope - two worktrees sharing this dir break the "one active thing" invariant |
 | `worklog/<run-or-slug>/` | per-run execution log; parallel runs must not interleave |
-| `wave/<slug>/` | run-harness's between-wave log, per active run |
+| `integration/<slug>/` | run-harness's integration log, per active run |
 | `brainstorm/state.json` | per-run/session active state |
 | `git-rebase/<slug>/` | branch-slug rebase working state; one-worktree-one-branch |
 | `forward-port/<slug>/` | branch/run-scoped, same reasoning as `git-rebase/` |

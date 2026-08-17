@@ -44,7 +44,13 @@ Invoke the `odoo-code-reviewer` agent when Odoo code needs review. Review scales
 | Work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff -> BLOCKED) |
 | Pasted block / single file_path, no git context | skip scoper (see above) |
 
-For a sibling git worktree (wave/forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
+For a sibling git worktree (a node's run-integration tree, or a forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
+
+**Node-scoped review (`files-in-scope`).** A caller driving a plan node's review MAY supply that
+node's `files-in-scope` globs directly. Once a node can cover PART of a module, a per-module review
+dispatch reviews a diff WIDER than the node that actually produced it - so when `files-in-scope` is
+supplied, scope the review (and the diff the scoper/reviewer reads) to those globs rather than the
+whole module.
 
 ## Phase 0 - Scope the review (git targets only)
 
@@ -111,7 +117,7 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet), passing the SAME `SHARE_DIR:`/
 
 ### Phase A - Per-module fan-out (parallel sonnet)
 
-Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch, each carrying the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Concurrency is bounded by the harness automatically - do NOT set a manual wave-cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `<ISOLATE_DIR>/reviews/<slug>-<date>/` using the passed literal, and returns a short summary + path.
+Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch, each carrying the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Concurrency is bounded by the harness automatically - do NOT set a manual concurrency cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `<ISOLATE_DIR>/reviews/<slug>-<date>/` using the passed literal, and returns a short summary + path.
 
 
 **When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime (delegated to Phase A.5's `odoo-ui-reviewer`). It still writes `<module>.md` (for a `candidate`, resolve view-binding via OSM and record `ui_review_required` there).
@@ -169,6 +175,19 @@ It reviews only what per-module legs cannot: override-chain conflicts, inheritan
 (The per-domain and final cross-domain passes use the two domain-synthesis brief templates in `references/agent-prompts.md`.)
 
 **`DESIGN_DOC` for synthesis:** In master-child mode, pass `DESIGN_DOC: null` to ALL synthesis passes (per-module §9 ACs verified in Phase A; synthesis checks §10 only via `MASTER_DESIGN_DOC`). In single mode, pass the flat TDD path as `DESIGN_DOC`.
+
+## Integration-branch review (scale-based escalation - OWNED here)
+
+When `odoo-planning` places a review NODE over a repo's run-integration branch's aggregate diff and
+wires it to this skill, THIS skill owns the scale-based escalation decision for that dispatch: apply
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Review Escalation in
+full - its size thresholds (changed lines + module count), its opus-inline-vs-escalated-subagent
+choice, and its human trade-off wording (confirm the escalation as a TRADEOFF, never by tier name,
+before spending it). Read the thresholds and wording from that section at dispatch time - do not
+restate its numbers here. This pass is SEPARATE from, and runs IN ADDITION TO, the per-module
+fan-out above (Phase A/B): the fan-out reviews each node/module's own diff at coding time; the
+integration-branch review is a later pass over the repo's aggregate landed diff (double-review, by
+design - neither replaces the other).
 
 ## Artifacts
 

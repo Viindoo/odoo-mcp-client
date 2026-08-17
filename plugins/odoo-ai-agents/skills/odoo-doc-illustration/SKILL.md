@@ -326,8 +326,8 @@ module's surface). Resolve the exact flags via OSM `cli_help` at runtime (versio
 hardcode flag names). The skill VERIFIES this precondition; if not met, it routes to `odoo-instance`
 (provision) and emits a WARNING rather than documenting a polluted UI.
 
-**Parallel capture (cap W + server-family isolation).** Browser-free waves (scoper, feature-map,
-walkthrough, icon, copy) fan out wide. The browser-bound wave is bounded: each writer uses ONE
+**Parallel capture (cap W + server-family isolation).** Browser-free phases (scoper, feature-map,
+walkthrough, icon, copy) fan out wide. The browser-bound group is bounded: each writer uses ONE
 browser MCP server family (`chrome-devtools` (default) / `playwright` (opt-in), plus headed families
 when `DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the
 same server family (shared server = race). `W = min(#(module x locale) browser-bound units,

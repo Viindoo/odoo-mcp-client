@@ -10,8 +10,8 @@ multi-agent run shares. It carries exactly:
 
 - `db_name` - the database the run operates against
 - `http_port` - the bound HTTP port (null for `--stop-after-init` runs)
-- `gevent_port` - the second (longpolling/gevent) port, when a prefork/`--workers>0` build
-  requested one via `--ports 2`; null when only one port was bound
+- `gevent_port` - the second (longpolling/gevent) port when a prefork/`--workers>0` build
+  requested one via `--ports 2`; null otherwise
 - `db_port` - the Postgres port the instance's cluster is bound to (empty when the catalog/lease
   omits it - never assume `5432`)
 - `addons_path` - the comma-separated addons path (Odoo's own `--addons-path`/`addons_path` format)
@@ -23,7 +23,7 @@ multi-agent run shares. It carries exactly:
 - `lease_token` - the allocator lease that owns the instance lifecycle
 - `run_id` - the run/session id that owns the lease, forwarded back at release as `--run-id`
 - `server_pid` (optional) - the server's process-group id under setsid, when forwarded; null for
-  `--stop-after-init` builds, which self-terminate
+  `--stop-after-init` builds (self-terminate)
 
 Field names are the producer's SSOT: `agents/odoo-instance-ops.md`'s canonical `instance-ops`
 output block. `skills/odoo-instance/SKILL.md` relays that block verbatim - do not rename a field
@@ -39,45 +39,46 @@ touches code or tests (coder, test-author, verify, debug).
 
 ## Downstream agents consume, never self-provision
 
-An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
+An agent receiving an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
 (confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
 `addons_path`. Going through `odoo-instance` does NOT by itself solve collision: `persist:
-shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only `persist:
+shared-running` is DELIBERATELY one shared db+port for many readers. Only `persist:
 exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
 `run_id`) prevents a collision outright; a `shared-running` instance MUST still be owner-stamped
-(`run_id`) so a foreign session cannot bare-drop it (see
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed,
+(`run_id`) so a foreign session cannot bare-drop it
+(`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed,
 the agent self-provisions by invoking `Skill(odoo-instance)` in its own context - `persist:
-ephemeral` (default) or `persist: exclusive-running` when the process must stay listening - which
-applies the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
+ephemeral` (default) or `persist: exclusive-running` when the process must stay listening -
+applying the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
 `cli_help` grounding) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance
-allocation - never a bare `allocator.py` call, which would bypass those rules. A provided handle
-always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons carve-out
-below.
+allocation - never a bare `allocator.py` call. A provided handle always wins (consume, never
+re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.
 
 **Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session
 owns. Give it a distinct port, database, config and log, and let it run.
 
 ### Worktree-addons carve-out (the ONE sanctioned self-provision under a handle)
 
-A verification instance must load the tree the work was written in. One lease carries ONE
-`addons_path`, so N module worktrees cannot share one handle. Exactly one rule releases the paragraph
-above, and it is DISPATCHER-declared, never receiver-inferred:
+A verification instance must load the tree the work was written in. The shared catalog lease carries
+ONE `addons_path`, pointed at the principal checkout by default, so it does not automatically cover a
+node's own worktree. Exactly one rule releases the paragraph above, DISPATCHER-declared, never
+receiver-inferred:
 
-- **Dispatcher, per-module coding fan-out.** When you dispatch a per-module coordinator against its
-  own worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
-  `SELF_PROVISION: worktree-addons`. Never send both - a brief carrying a handle AND the token is
-  malformed, and the receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
+- **Dispatcher, node coding fan-out.** When dispatching a node's coordinator against its own
+  worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
+  `SELF_PROVISION: worktree-addons`. A node gets ONE instance for its whole module set - never one
+  instance per module. Never send both: a brief carrying a handle AND the token is malformed, and
+  the receiver treats it as the handle case, returning `NEEDS_CONTEXT`.
 - **Dispatcher, every other receiver.** Acquire the shared lease with `--addons-path-override`
   covering the ONE target worktree and state the resulting value in the brief as
   `ADDONS_PATH: <comma-joined dirs>`.
 - **Receiver.** `SELF_PROVISION: worktree-addons` present (and no handle) -> self-provision as
   authorized. `INSTANCE_HANDLE` present -> use it, after the coverage assertion below.
   Never self-provision on your own judgment.
-- **The authorized self-provision runs `odoo-instance` INLINE, in your own context** - never by
-  launching the `odoo-instance-ops` agent. This is a MUST, not a preference: the SubagentStop
-  teardown gate correlates a live lease to YOUR dispatch by finding the `allocator.py acquire`
-  call in YOUR transcript, so provisioning through a sub-agent makes your own leak invisible to it
+- **The authorized self-provision runs `odoo-instance` INLINE, in your own context** - never via
+  the `odoo-instance-ops` agent. This is a MUST: the SubagentStop teardown gate correlates a live
+  lease to YOUR dispatch by finding the `allocator.py acquire` call in YOUR transcript, so
+  provisioning through a sub-agent makes your own leak invisible to it
   (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1). What you acquire here you
   release before your terminal status.
 
@@ -97,20 +98,19 @@ and MUST NOT self-provision to change the series, add a module, or because a han
 **Structural backstop (belt-and-braces, not the sole protection).** `scripts/lib/allocator.py`'s
 `_addons_path_worktree_mismatch` guard (`cmd_acquire`) independently REFUSES (exit 5) the common
 case - a linked-worktree cwd acquiring against a mismatched catalog `addons_path` entry with no
-`--addons-path-override` (`readonly` mode is exempt: it never builds). It never inspects an
-override's CONTENT, so once ANY override is present it trusts it unconditionally and never
-re-checks it against cwd. For that residual shape - a dispatcher passing a WRONG override, or
-dropping `SELF_PROVISION: worktree-addons` on one branch while still forwarding some override -
+`--addons-path-override` (`readonly` mode is exempt). It never inspects an override's CONTENT, so
+once ANY override is present it trusts it unconditionally. For that residual shape - a wrong
+override, or a dropped `SELF_PROVISION: worktree-addons` while still forwarding some override -
 this POLICY step is the SOLE protection. Do not restate the guard's mechanics elsewhere - point
 back here.
 
 ## Prefork (`--workers>0`) needs a second port
 
 The default THREADED mode (`workers=0`, what `odoo-instance` provisions unless told otherwise)
-multiplexes the longpolling/realtime bus over the single `http_port` - no second port is needed. Any
+multiplexes the longpolling/realtime bus over the single `http_port` - no second port needed. Any
 use of prefork (`--workers>0`) MUST also request `--ports 2` at acquire time and forward the resolved
 gevent/longpolling port + its conf key (`gevent_port`/`longpolling_port`, per OSM `cli_help`) to the
-spin-up step; gevent/prefork stays OPT-IN, never the default.
+spin-up step; gevent/prefork stays OPT-IN, never default.
 
 ## Lifecycle
 
