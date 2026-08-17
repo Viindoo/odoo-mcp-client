@@ -309,6 +309,89 @@ def test_harness_cannot_name_a_pid_it_did_not_spawn(harness, tmp_path):
     assert not (tmp_path / "nope").exists(), "a refused seed must write NOTHING"
 
 
+def test_the_command_line_rung_survives_an_80_column_ps(harness, alloc_home, tmp_path, capfd):
+    """REGRESSION - this is the CI failure, as a test.
+
+    `ps -o args=` prints `args` as a DISPLAY column and procps truncates it to the
+    screen width, defaulting to 80 characters wherever it cannot determine one -
+    which is what a GitHub runner and a plain container both do, while a developer
+    workstation does not. The tokens that corroborate a lease (`odoo-bin`,
+    `-d <db>`, the `<db>-<port>.conf` basename) sit at the END of a long command
+    line, so they were precisely the bytes cut off: the rung silently reported
+    "not proven", the allocator refused to signal, and a genuine runaway server
+    was never reclaimed - on CI only.
+
+    `COLUMNS=80` reproduces that environment deterministically. The rung must
+    still read the FULL argv (via `/proc/<pid>/cmdline`, or `ps -ww` off-Linux)
+    and still prove ownership."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_widthproof"
+    leader, child = harness.spawn(argv_tail=[
+        str(_fake_odoo_bin(tmp_path)), "-c", f"{tmp_path}/conf/{db}-8069.conf", "-d", db])
+    os.environ["COLUMNS"] = "80"  # restored in the finally below
+    try:
+        truncating = subprocess.run(["ps", "-o", "args=", "-p", str(leader)],
+                                    capture_output=True, text=True)
+        assert truncating.returncode == 0
+        if len(truncating.stdout.strip()) > 80:
+            pytest.skip("this host's ps ignores COLUMNS, so the truncation cannot be staged")
+        assert db not in truncating.stdout, (
+            "test setup: the truncated form must have lost the corroborating tokens, "
+            "otherwise this test proves nothing"
+        )
+        argv, how = alloc._pid_argv(leader)
+        assert argv, "the argv must still be readable when ps would truncate it"
+        assert alloc._argv_names_lease(argv, db), (
+            f"the command-line rung must survive an 80-column ps (read via {how}); the "
+            f"argv it saw was {argv!r}"
+        )
+        # The `ps` FALLBACK must itself be truncation-proof, or this whole class of
+        # failure just moves to macOS/BSD where /proc does not exist and no Linux CI
+        # would ever see it again.
+        assert alloc._argv_names_lease(alloc._ps_argv(leader), db), (
+            "the ps fallback must pass -ww (unlimited width); without it the same "
+            "80-column truncation returns on every host that has no /proc"
+        )
+        harness.seed_lease(alloc_home, leader, db_name=db)
+        assert alloc.cmd_gc({}) == 0
+        survivors = _wait_dead(harness, leader, child)
+        assert survivors == [], (
+            f"a runaway must still be reclaimed under an 80-column ps; {survivors} survived"
+        )
+        assert "ownership PROVEN by cmdline" in capfd.readouterr().err
+    finally:
+        os.environ.pop("COLUMNS", None)
+
+
+def test_the_port_rung_needs_no_external_binary(harness, monkeypatch):
+    """REGRESSION - the second gap CI's environment exposed: a minimal container
+    has NO lsof, ss or fuser (observed: all three absent on ubuntu:24.04), so a
+    binary-only port rung means a containerised runtime can never prove ownership
+    and therefore never reclaims a runaway. `/proc/net/tcp` + `/proc/<pid>/fd`
+    answer the same question with no binary at all."""
+    alloc = _import_allocator()
+    if alloc._proc_listening_inodes(0) is None:
+        pytest.skip("no readable /proc/net/tcp on this host")
+    port = _free_port()
+    leader, _ = harness.spawn(listen_port=port, argv_tail=["opaque-server-name"])
+    monkeypatch.setattr(alloc, "_which", lambda binary: None)  # no lsof/ss/fuser at all
+    monkeypatch.setattr(alloc, "_port_listener_pids", lambda port: None)
+
+    holder, how = alloc._port_holder_in_group(leader, port)
+    assert holder is not None, (
+        "with /proc available the port rung must still attribute the listening socket "
+        "to the lease's process group, with no external binary on PATH"
+    )
+    assert "/proc" in (how or ""), f"the answer must have come from /proc; got {how!r}"
+
+    other_holder, other_how = alloc._port_holder_in_group(leader, _free_port())
+    assert other_holder is None and other_how is not None, (
+        "a port the group does NOT hold must be a definite MEASURED 'no' (holder None, "
+        "how named), not an unmeasured (None, None) - only an unanswerable question may "
+        f"report unmeasured; got {(other_holder, other_how)!r}"
+    )
+
+
 def test_ss_queue_columns_are_never_read_as_listener_pids():
     """A parser detail that is load-bearing on a kill path: `ss` prints Recv-Q and
     Send-Q as bare integers beside the `pid=` field. Scanning its output for "any
@@ -379,22 +462,31 @@ def test_release_does_not_signal_a_live_unprovable_pid(harness, alloc_home, capf
 
 def test_an_unmeasurable_corroborating_signal_is_not_corroboration(
         harness, alloc_home, capfd, monkeypatch):
-    """A port-holder question that could not be ASKED (no lsof/ss/fuser on this
-    host) is "could not look", never "it is ours". The process survives and the
-    refusal says so."""
+    """A port-holder question that could not be ASKED - neither `/proc/net/tcp`
+    nor lsof/ss/fuser available - is "could not look", never "it is ours". The
+    process survives, and the refusal must NAME the rung it could not evaluate,
+    because "could not look" and "looked, no match" have different fixes."""
     alloc = _import_allocator()
     port = _free_port()
     leader, child = harness.spawn(listen_port=port, argv_tail=["bystander"])
+    # Blind BOTH halves of the rung: /proc is the primary and the binaries are
+    # the fallback, so removing only one leaves the question answerable.
     monkeypatch.setattr(alloc, "_which", lambda binary: None)
-    assert alloc._port_listener_pids(port) is None, (
-        "with no tool available the answer must be None (unknown), not an empty set"
+    monkeypatch.setattr(alloc, "_proc_listening_inodes", lambda port: None)
+    assert alloc._port_holder_in_group(leader, port) == (None, None), (
+        "with nothing able to answer, the rung must report UNMEASURED (None, None) - "
+        "never an empty measurement, which would read as a definite 'not held'"
     )
     harness.seed_lease(alloc_home, leader, ports=[port])
 
     assert alloc.cmd_gc({}) == 0
     time.sleep(1.0)
     assert harness.alive(leader) and harness.alive(child)
-    assert f"REFUSING to signal pid {leader}" in capfd.readouterr().err
+    err = capfd.readouterr().err
+    assert f"REFUSING to signal pid {leader}" in err
+    assert "UNEVALUATED" in err, (
+        f"the refusal must name the rung that went unevaluated; got: {err!r}"
+    )
 
 
 def test_a_fingerprint_mismatch_beats_every_corroborating_signal(
@@ -455,8 +547,12 @@ def test_gc_still_stops_a_runaway_server_proven_by_the_leases_own_port(
     alloc = _import_allocator()
     port = _free_port()
     leader, child = harness.spawn(listen_port=port, argv_tail=["opaque-server-name"])
-    if alloc._port_listener_pids(port) is None:
-        pytest.skip("no lsof/ss/fuser on this host: port ownership is unobservable")
+    # Skip ONLY where the rung is unavailable in BOTH forms (no readable
+    # /proc/net/tcp and no lsof/ss/fuser) - i.e. never on Linux. It used to skip
+    # whenever the binaries were missing, which silently excused a container from
+    # proving the reclaim path at all.
+    if alloc._port_holder_in_group(leader, port)[1] is None:
+        pytest.skip("no /proc/net/tcp and no lsof/ss/fuser: port ownership is unobservable")
     harness.seed_lease(alloc_home, leader, ports=[port])
 
     assert alloc.cmd_gc({}) == 0
@@ -503,7 +599,15 @@ def test_heartbeat_backfills_the_fingerprint_only_when_ownership_is_corroborated
                        heartbeat_at=int(time.time()))
 
     assert alloc.cmd_heartbeat({"token": "cc" * 16}) == 0
-    recorded = _leases(alloc_home)[0]["owner"]["pid_started"]
+    # `.get`, not `[...]`: when corroboration fails the key is simply absent, and a
+    # KeyError would report the symptom while hiding the cause. Assert the cause.
+    recorded = _leases(alloc_home)[0]["owner"].get("pid_started")
+    assert recorded is not None, (
+        "no fingerprint was backfilled at all, which means ownership was not "
+        "corroborated for a process that IS an odoo-bin invocation for this lease's "
+        "database - the corroboration rungs could not read this environment (see the "
+        "refusal on stderr for which rung went unevaluated)"
+    )
     assert recorded == alloc._pid_fingerprint(leader), (
         "a corroborated row must gain the fingerprint it never recorded, so later "
         "checks stop having to judge it by the pid number alone"
@@ -546,7 +650,8 @@ def test_a_foreign_host_lease_is_never_probed_or_signalled(harness, alloc_home):
     def _explode(*a, **k):  # pragma: no cover - must never be reached
         raise AssertionError("a foreign-host lease must not be inspected at all")
 
-    for name in ("_pid_alive", "_pid_cmdline", "_port_listener_pids", "_stop_group"):
+    for name in ("_pid_alive", "_pid_argv", "_proc_argv", "_ps_argv",
+                 "_port_holder_in_group", "_port_listener_pids", "_stop_group"):
         setattr(alloc, name, _explode)
     assert alloc._stop_owner_group_if_local(lease) is False
 
