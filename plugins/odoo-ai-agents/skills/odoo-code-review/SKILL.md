@@ -61,7 +61,7 @@ whole module.
 
 **Pre-resolution for `TARGET=pr:<N>` (before resolving state dirs or dispatching the scoper)** - resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill (delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 1. Invoke `git-toolkit:git-ops` to fetch PR metadata + changed-file list: `pr_meta = {number, title, head, base, repo}`, `pr_changed_files = [<path>, ...]`.
-2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`/tmp/pr-review-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
+2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`<repo-root>/.pr-worktrees/pr-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
 
 **Resolve the review's state dirs ONCE, against `review_root` (cross-worktree dispatch rule - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).** THIS skill is the dispatcher for the whole pipeline (scoper + every per-module reviewer + ui-reviewer + synthesis), so it resolves once here and threads the captured literals through every leg below - no leg re-resolves from its own inherited cwd, which would diverge from `review_root` for `worktree`/`pr` targets:
 ```

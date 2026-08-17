@@ -27,6 +27,11 @@ node_modules/
 # which make gen-check judges the whole tree by.
 .claude/worktrees/
 
+# PR-review worktrees (odoo-code-review isolated checkouts under .pr-worktrees/, beside the main
+# checkout instead of /tmp so they survive a /tmp wipe) - never commit; same git-status-porcelain
+# hazard as .claude/worktrees/ above.
+.pr-worktrees/
+
 # AI workflow runtime artifacts (run state, BRL jobs, brainstorm state) - never commit (may contain customer data)
 .odoo-ai/
 

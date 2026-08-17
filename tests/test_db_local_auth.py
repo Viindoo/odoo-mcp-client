@@ -31,6 +31,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import farm_path
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 STEP48 = PLUGIN / "scripts" / "setup-steps" / "48-db-local-auth.sh"
@@ -57,46 +59,19 @@ MANAGED_BEGIN = "# BEGIN odoo-ai-agents managed block - generated, do not edit b
 # --------------------------------------------------------------------------- #
 # PATH construction
 # --------------------------------------------------------------------------- #
-def _shadowed_path(tmp_path: Path, *stub_dirs: Path) -> str:
-    """A PATH with `docker`/`sudo` provably absent and everything else intact.
+# `_shadowed_path` used to build its own per-test symlink farm here. The farm is
+# a pure function of (ambient PATH, drop-set) - a session-level constant - so it
+# now comes from the shared, session-scoped `path_farm` fixture in conftest.py
+# (one farm per distinct drop-set for the whole run, not one per test). `Fixture`
+# is a plain harness class, not itself a fixture consumer, so it receives the
+# farm through `_bind_path_farm` below rather than building one.
+_PATH_FARM: dict = {}
 
-    Every ambient PATH entry is re-exposed through one symlink farm with the
-    shadowed names left out (first hit wins, so ambient precedence survives).
-    python3, bash, coreutils and `timeout` stay reachable and identical to a real
-    run - only the binaries a case is making a claim about are gone. A whitelist
-    instead would silently change WHICH code path runs the moment the script
-    starts using one more tool.
-    """
-    farm = tmp_path / "path-shadowed"
-    farm.mkdir(exist_ok=True)
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
-        if not entry:
-            continue
-        try:
-            names = os.listdir(entry)
-        except OSError:
-            continue
-        for name in names:
-            if name in _SHADOWED:
-                continue
-            link = farm / name
-            if link.is_symlink() or link.exists():
-                continue
-            src = Path(entry) / name
-            if src.is_dir() or not os.access(src, os.X_OK):
-                continue
-            try:
-                link.symlink_to(src)
-            except OSError:
-                continue
-    path = os.pathsep.join([*(str(d) for d in stub_dirs), str(farm)])
-    for name in _SHADOWED:
-        found = shutil.which(name, path=path)
-        if found and Path(found).parent not in [Path(d) for d in stub_dirs]:
-            raise AssertionError(
-                f"fixture is not hermetic: {name!r} still resolves to {found}")
-    assert shutil.which("python3", path=path), "python3 must stay reachable"
-    return path
+
+@pytest.fixture(autouse=True)
+def _bind_path_farm(path_farm):
+    """Bridge the session-scoped `path_farm` factory into `Fixture.env()`."""
+    _PATH_FARM["get"] = path_farm
 
 
 # --------------------------------------------------------------------------- #
@@ -360,7 +335,7 @@ class Fixture:
 
     def env(self, **extra):
         env = dict(os.environ)
-        env["PATH"] = _shadowed_path(self.tmp, self.bindir)
+        env["PATH"] = farm_path(_PATH_FARM["get"](drop=_SHADOWED), self.bindir)
         env["STUB_DOCKER_CONF"] = str(self.conf_path)
         env["STUB_DOCKER_LOG"] = str(self.log)
         env["ODOO_AI_INSTANCES"] = str(self.toml)

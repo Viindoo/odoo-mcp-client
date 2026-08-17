@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import farm_path
+
 ROOT = Path(__file__).resolve().parent.parent
 STEP45 = (
     ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "45-venv.sh"
@@ -59,64 +61,19 @@ _PG_CLIENT_BINS = (
 )
 
 
-def _client_free_path(tmp_path: Path, *stub_dirs: Path) -> str:
-    """A PATH that provably carries NO PostgreSQL client and no container runtime.
+# `_client_free_path` used to build its own per-test symlink farm here. The farm
+# is a pure function of (ambient PATH, drop-set) - a session-level constant - so
+# it now comes from the shared, session-scoped `path_farm` fixture in
+# conftest.py (one farm per distinct drop-set for the whole run, not one per
+# test). The builder functions below are plain functions, not fixture
+# consumers, so they receive the farm through `_bind_path_farm`'s bridge.
+_PATH_FARM: dict = {}
 
-    A test may NOT assert that a binary is absent from the host. `PATH =
-    "<stubs>:/usr/bin:/bin"` reads as "no client here", but that is a claim about
-    the RUNNER IMAGE, not about the test: a developer box without
-    postgresql-client and a CI image that preinstalls it then run two different
-    tests under one name, and the one that passes locally fails there - with the
-    product behaving exactly as documented.
 
-    So the absence is CONSTRUCTED rather than assumed: every ambient PATH entry
-    is re-exposed through a single directory of symlinks with the client names
-    left out (first occurrence wins, preserving PATH precedence). Everything the
-    script legitimately needs - bash, python3, coreutils, `timeout`, `ps` - stays
-    reachable and identical to a normal run; only the rung-selecting binaries are
-    gone. Whitelisting instead would silently change WHICH code path runs
-    whenever the script starts using one more tool.
-
-    `stub_dirs` are prepended, so a test's own stubs still shadow the ambient
-    ones. Returns the PATH string.
-    """
-    farm = tmp_path / "path-without-pg-clients"
-    farm.mkdir(exist_ok=True)
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
-        if not entry:
-            continue
-        try:
-            names = os.listdir(entry)
-        except OSError:
-            continue  # a PATH entry that does not exist or is unreadable
-        for name in names:
-            if name in _PG_CLIENT_BINS:
-                continue
-            link = farm / name
-            if link.is_symlink() or link.exists():
-                continue  # first hit wins - ambient PATH precedence is preserved
-            src = Path(entry) / name
-            if not os.access(src, os.X_OK) or src.is_dir():
-                continue
-            try:
-                link.symlink_to(src)
-            except OSError:
-                continue
-    path = os.pathsep.join([*(str(d) for d in stub_dirs), str(farm)])
-    # Self-validating: if this construction ever stops working the test must fail
-    # loudly here, not quietly go back to inheriting whatever the image ships.
-    for name in _PG_CLIENT_BINS:
-        found = shutil.which(name, path=path)
-        assert found is None, (
-            f"the constructed PATH must not reach a client surface, but "
-            f"{name!r} resolved to {found!r} - the absence this test needs is "
-            f"no longer guaranteed"
-        )
-    assert shutil.which("bash", path=path), (
-        "the constructed PATH dropped bash - it must keep everything the script "
-        "legitimately needs, or the test stops exercising the real code path"
-    )
-    return path
+@pytest.fixture(autouse=True)
+def _bind_path_farm(path_farm):
+    """Bridge the session-scoped `path_farm` factory into this file's builders."""
+    _PATH_FARM["get"] = path_farm
 
 
 def _link_real_timeout(bindir: Path) -> bool:
@@ -1327,9 +1284,9 @@ def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(tmp_path
         f"pre-leased instance, not the shared render target\nleases: {_leases_at(home)}"
     )
     # Conf must carry the overridden port under the agent-resolved key.
-    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
-    assert conf_lines, f"no 'Generated temp conf' line\n{out}"
-    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    conf_lines = [line for line in out.splitlines() if "Generated conf:" in line]
+    assert conf_lines, f"no 'Generated conf' line\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated conf:")[-1].strip())
     conf = conf_path.read_text(encoding="utf-8")
     assert "http_port = 18271" in conf, f"conf must bind the allocator-issued port\n{conf}"
 
@@ -1593,9 +1550,9 @@ def test_step50_gevent_port_and_key_together_writes_conf_line(tmp_path):
     out = res.stdout + res.stderr
     assert res.returncode == 0, out
     assert launch_log.exists(), f"odoo-bin must launch for a well-specified gevent pair\n{out}"
-    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
-    assert conf_lines, f"no 'Generated temp conf' line\n{out}"
-    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    conf_lines = [line for line in out.splitlines() if "Generated conf:" in line]
+    assert conf_lines, f"no 'Generated conf' line\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated conf:")[-1].strip())
     conf = conf_path.read_text(encoding="utf-8")
     assert "longpolling_port = 9069" in conf, (
         f"conf must carry the second listening port under the resolved key\n{conf}"
@@ -1761,12 +1718,12 @@ def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
         # Extract the conf path from output.
         conf_lines = [
             line for line in out.splitlines()
-            if "Generated temp conf:" in line
+            if "Generated conf:" in line
         ]
         assert conf_lines, (
-            f"No 'Generated temp conf' line for series={series}.\nout:\n{out}"
+            f"No 'Generated conf' line for series={series}.\nout:\n{out}"
         )
-        conf_path = conf_lines[0].split("Generated temp conf:")[-1].strip()
+        conf_path = conf_lines[0].split("Generated conf:")[-1].strip()
         assert Path(conf_path).exists(), (
             f"Conf file {conf_path} does not exist for series={series} "
             f"(should NOT be cleaned up when apply succeeds)"
@@ -2204,9 +2161,9 @@ def test_step05_venv_gate_passes_with_runnable_venv(tmp_path):
 # ---------------------------------------------------------------------------
 
 def _generated_conf_text(out: str) -> str:
-    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
-    assert conf_lines, f"no 'Generated temp conf:' line in output\n{out}"
-    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    conf_lines = [line for line in out.splitlines() if "Generated conf:" in line]
+    assert conf_lines, f"no 'Generated conf:' line in output\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated conf:")[-1].strip())
     return conf_path.read_text(encoding="utf-8")
 
 
@@ -2292,7 +2249,7 @@ def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
     # pg_isready EXISTS - a fact about the host, which no test may assume. The
     # absence is constructed here so the ladder provably falls to the interpreter
     # on every image, including one that ships postgresql-client.
-    env["PATH"] = _client_free_path(tmp_path, bind)
+    env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bind)
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     env["SPINUP_TIMEOUT"] = "3"
@@ -2904,9 +2861,10 @@ def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
     env = dict(os.environ)
     # Every client name is constructed absent, THEN the stub dir is prepended: the
     # only `docker` reachable is this fixture's, and no native client is reachable
-    # at all. `_client_free_path` validates the farm on its own (it may not be
-    # handed a stub dir that re-adds a client), so the prepend happens here.
-    env["PATH"] = os.pathsep.join([str(bind), _client_free_path(tmp_path)])
+    # at all. `path_farm` validates the farm on its own (it may not be handed a
+    # stub dir that re-adds a client), so the prepend happens here.
+    env["PATH"] = os.pathsep.join(
+        [str(bind), farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS))])
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     env["ODOO_AI_PG_PROBE_TIMEOUT"] = "10"

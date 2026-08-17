@@ -16,8 +16,10 @@ Four things must hold in `skills/odoo-intake/SKILL.md`:
      checkout named as never the target.
   2. The rule explicitly states it covers the ambiguous/unclassified/fast-path/inline path,
      not only the named multi-WI specialists.
-  3. Read-only work (analysis/review/brainstorm, `$ODOO_AI_HOME`/`/tmp`-only output) is named as
-     exempt - the rule must not overreach into work that never touches git.
+  3. Read-only work (analysis/review/brainstorm, and any output that lands outside the git work
+     tree) is named as exempt - the rule must not overreach into work that never touches git.
+     The exemption is asserted as a CRITERION, never as a list of destination literals; see
+     `test_intake_worktree_default_exempts_read_only_work` for the re-derivation.
   4. The concrete Plan Mode Procedure actually provisions the worktree BEFORE the
      Skill-tool dispatch step (ordering, not just a floating mention), and the mechanics are
      referenced from the existing SSOT (`snippets/git-delegation.md`) rather than restated -
@@ -30,12 +32,23 @@ underlying contract survives.
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+import pytest
+
+TESTS_DIR = Path(__file__).resolve().parent
+REPO_ROOT = TESTS_DIR.parent
 PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 INTAKE = PLUGIN / "skills" / "odoo-intake" / "SKILL.md"
 GIT_DELEGATION_SNIPPET = PLUGIN / "snippets" / "git-delegation.md"
+
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+# The `/tmp`-is-dead fact is OWNED by tests/test_no_tmp_scratch.py (GT3b Rule 1). Imported, not
+# re-derived, so the prose criterion below and the source fact it rests on can never disagree.
+from test_no_tmp_scratch import tmpdir_hits_in_tree  # noqa: E402
 
 
 def _text() -> str:
@@ -104,26 +117,195 @@ def test_intake_worktree_default_covers_ambiguous_and_fastpath_routes():
     )
 
 
-def test_intake_worktree_default_exempts_read_only_work():
-    """Premise re-derived for the ~/.odoo-ai/ two-axis convention (state-root-resolution.md):
-    Tier-2 ISOLATE is now the private per-worktree store and Tier-2 SHARE is deliberately
-    cross-worktree, so the exemption can no longer key on a project-relative `.odoo-ai/`
-    literal (that convention no longer exists). What the rule actually protects is unchanged -
-    worktree isolation exists to guard GIT-TRACKED files, so any deliverable confined to the
-    machine-global `$ODOO_AI_HOME` state root (either tier) or `/tmp` never needs a dedicated
-    worktree, because nothing there is git-tracked to begin with. The re-derived assertion keys
-    on `$ODOO_AI_HOME` (the SSOT env var for the state root) instead of the retired literal.
+# ---------------------------------------------------------------------------
+# The exemption clause: a CRITERION, not a destination list.
+#
+# Re-derivation (second time this assertion has been re-grounded, so the history matters):
+#
+#   Round 1 keyed on a project-relative `.odoo-ai/` literal. That convention was retired by the
+#   two-axis state root (`state-root-resolution.md`), so the assertion was re-keyed onto
+#   `$ODOO_AI_HOME` - the SSOT env var - PLUS a `/tmp` literal.
+#
+#   Round 2 (here) removes the `/tmp` half. The BEHAVIOUR being protected never changed:
+#   worktree isolation exists to guard GIT-TRACKED files, so a deliverable that lands nowhere
+#   git-tracked needs no dedicated worktree. `/tmp` was only ever ONE INSTANCE of "not
+#   git-tracked", used as a stand-in for the category - and the plugin now writes no artifact
+#   there at all, so naming it would re-legitimise a destination nothing uses (which is exactly
+#   how the fragment-write pattern got sanctioned in the first place).
+#
+# The replacement is strictly STRONGER than the token pair it replaces, on three axes:
+#   (a) it demands the CATEGORY (a git-tracking criterion, satisfied by any of a documented
+#       synonym set) rather than two literals, so it covers destinations no enumeration lists
+#       and survives a re-wording;
+#   (b) it FORBIDS `/tmp` and `$TMPDIR`, turning a preference into an assertion; and
+#   (c) that prohibition is underwritten by a SOURCE-DERIVED fact
+#       (`test_exemption_may_omit_tmp_because_no_plugin_code_writes_there`), so the prose is
+#       silent about `/tmp` because nothing writes there - not merely because prose was edited.
+# ---------------------------------------------------------------------------
+
+# Any ONE of these satisfies "expresses the git-tracking criterion". A synonym set, because the
+# guard being replaced was itself a one-phrasing guard, and this one must not repeat that.
+_GIT_TRACKING_CRITERION_SYNONYMS = (
+    "git-tracked",
+    "git tracked",
+    "work tree",
+    "working tree",
+    "under git",
+    "version-controlled",
+    "version controlled",
+)
+
+# Destinations the clause must NOT name: proven dead by GT3b, and naming a dead scratch
+# destination is what sanctioned the write pattern this whole change removes.
+_FORBIDDEN_DESTINATIONS = ("/tmp", "/var/tmp", "$TMPDIR", "TMPDIR")
+
+_EXEMPTION_RE = re.compile(r"\*\*Exempt:\*\*.*$", re.MULTILINE)
+
+
+def _exemption_clause(text: str) -> str:
+    """The `**Exempt:**` clause, located by content (never by line number)."""
+    m = _EXEMPTION_RE.search(text)
+    assert m, (
+        "Hard rule 6 must carry an explicit `**Exempt:**` clause - the rule must not overreach "
+        "into work that never touches git, and the carve-out has to be findable to be trusted."
+    )
+    return m.group(0)
+
+
+def exemption_findings(clause: str) -> list[str]:
+    """Every way `clause` fails the exemption contract. Empty list == compliant.
+
+    A pure function of the clause text so the probe corpus below can prove it goes red for
+    each distinct defect SHAPE without touching the real file.
     """
+    findings = []
+    if "$ODOO_AI_HOME" not in clause:
+        findings.append(
+            "does not name the $ODOO_AI_HOME state root - the canonical non-git-tracked "
+            "destination, and the one every dispatched skill resolves"
+        )
+    if not any(syn in clause.lower() for syn in _GIT_TRACKING_CRITERION_SYNONYMS):
+        findings.append(
+            "states no git-tracking CRITERION (none of "
+            f"{list(_GIT_TRACKING_CRITERION_SYNONYMS)}) - an enumeration of destinations is not "
+            "a criterion: it silently excludes every destination it forgot to list"
+        )
+    for dead in _FORBIDDEN_DESTINATIONS:
+        if dead in clause:
+            findings.append(
+                f"names the dead scratch destination {dead!r} - GT3b proves no plugin code "
+                f"writes there, and naming one is how the fragment-write pattern was sanctioned"
+            )
+    return findings
+
+
+def test_intake_worktree_default_exempts_read_only_work():
+    """Hard rule 6 must carve out work that never touches git - by criterion, not by literal."""
     text = _text()
     low = text.lower()
     assert "read-only work" in low or "exempt" in low, (
         "The worktree-isolation rule must explicitly exempt read-only work (analysis, review, "
         "brainstorming) - it must not overreach into work that never touches git."
     )
-    assert "$ODOO_AI_HOME" in text and "/tmp" in text, (
-        "The exemption must name the $ODOO_AI_HOME state root and /tmp scratch output as out of "
-        "scope for worktree isolation (nothing git-tracked to isolate) - under the new "
-        "SHARE/ISOLATE convention this is expressed via $ODOO_AI_HOME, not a bare .odoo-ai/ literal."
+    clause = _exemption_clause(text)
+    findings = exemption_findings(clause)
+    assert findings == [], (
+        "odoo-intake's Hard-rule-6 `**Exempt:**` clause must state the git-tracking CRITERION "
+        "and name $ODOO_AI_HOME, without naming any temp-dir destination. Findings:\n  - "
+        + "\n  - ".join(findings)
+        + f"\n\nClause read:\n{clause}"
+    )
+
+
+def test_exemption_may_omit_tmp_because_no_plugin_code_writes_there():
+    """The source-derived half: the clause's SILENCE about `/tmp` is a fact, not a preference.
+
+    Without this, dropping `/tmp` from the prose would be an unproven style change - and the
+    next author could argue it back in. `TMPDIR` occurring zero times under `plugins/` is what
+    makes the omission correct: there is no ambient temp destination left to exempt. The scan
+    itself is owned by tests/test_no_tmp_scratch.py (GT3b Rule 1) and imported here, so the two
+    halves of this contract cannot drift apart.
+    """
+    hits = tmpdir_hits_in_tree()
+    assert hits == [], (
+        "the exemption clause is allowed to stay silent about temp dirs ONLY while no plugin "
+        "code names one. TMPDIR is back under plugins/, so either remove it again or re-derive "
+        "this exemption honestly:\n" + "\n".join(hits)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Probe corpus for the exemption contract - the committed red-before-green proof.
+# MUST-CATCH shapes first, then the anti-brittleness controls that must stay green.
+# ---------------------------------------------------------------------------
+
+_EXEMPTION_MUST_CATCH = [
+    (
+        "re-adds `or /tmp`",
+        "**Exempt:** read-only work, and any deliverable whose write is not git-tracked - the "
+        "`$ODOO_AI_HOME` state root or `/tmp`.",
+    ),
+    (
+        "drops $ODOO_AI_HOME",
+        "**Exempt:** read-only work, and any deliverable that is not git-tracked.",
+    ),
+    (
+        "bare enumeration, no criterion",
+        "**Exempt:** read-only work, and deliverables confined to the `$ODOO_AI_HOME` state root.",
+    ),
+    (
+        "names $TMPDIR instead of /tmp",
+        "**Exempt:** read-only work, and any deliverable outside the working tree - the "
+        "`$ODOO_AI_HOME` state root or `$TMPDIR`.",
+    ),
+    (
+        "names /var/tmp as the workaround",
+        "**Exempt:** read-only work, and any deliverable outside the working tree - the "
+        "`$ODOO_AI_HOME` state root or `/var/tmp`.",
+    ),
+    (
+        "criterion and state root both dropped",
+        "**Exempt:** read-only work (recon, review, brainstorming).",
+    ),
+]
+
+_EXEMPTION_MUST_NOT_CATCH = [
+    (
+        "criterion phrased as version-controlled",
+        "**Exempt:** read-only work, and anything that is not version-controlled - the "
+        "`$ODOO_AI_HOME` state root is the canonical such location.",
+    ),
+    (
+        "criterion phrased as outside the working tree",
+        "**Exempt:** read-only work, and any path outside the working tree - the "
+        "`$ODOO_AI_HOME` state root is the canonical such location.",
+    ),
+    (
+        "criterion phrased as under git",
+        "**Exempt:** read-only work, and any deliverable with nothing under git to isolate; "
+        "`$ODOO_AI_HOME` is the canonical such destination.",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "shape,clause", _EXEMPTION_MUST_CATCH, ids=[s for s, _ in _EXEMPTION_MUST_CATCH]
+)
+def test_exemption_guard_catches_every_defect_shape(shape, clause):
+    assert exemption_findings(clause), (
+        f"the exemption guard accepted a {shape} clause: {clause!r}. The assertion it replaced "
+        f"was a two-token check; the replacement must be stronger on every axis, not just one."
+    )
+
+
+@pytest.mark.parametrize(
+    "shape,clause", _EXEMPTION_MUST_NOT_CATCH, ids=[s for s, _ in _EXEMPTION_MUST_NOT_CATCH]
+)
+def test_exemption_guard_accepts_every_compliant_rewording(shape, clause):
+    assert exemption_findings(clause) == [], (
+        f"the exemption guard rejected a compliant rewording ({shape}): {clause!r} -> "
+        f"{exemption_findings(clause)}. A criterion guard that only accepts today's sentence is "
+        f"just the old token guard with more steps."
     )
 
 

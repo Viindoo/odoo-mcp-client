@@ -32,6 +32,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import farm_path
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 LIB = PLUGIN / "scripts" / "lib"
@@ -65,55 +67,19 @@ _PG_CLIENT_BINS = ("pg_isready", "psql", "createdb", "dropdb", "pg_dump",
                    "pg_restore", "docker")
 
 
-def _hermetic_path(tmp_path, *stub_dirs, drop=_PG_CLIENT_BINS):
-    """A PATH that provably carries none of `drop`, and everything else unchanged.
+# `_hermetic_path` used to build its own per-test symlink farm here. The farm is
+# a pure function of (ambient PATH, drop-set) - a session-level constant - so it
+# now comes from the shared, session-scoped `path_farm` fixture in conftest.py
+# (one farm per distinct drop-set for the whole run, not one per test). The
+# builder functions below (`_step55_env` etc.) are plain functions, not fixture
+# consumers, so they receive the farm through `_bind_path_farm`'s bridge.
+_PATH_FARM: dict = {}
 
-    Constructed, never assumed: `PATH = "<stubs>:/usr/bin:/bin"` reads as "no
-    client here", but that is a claim about the RUNNER IMAGE - a CI image that
-    preinstalls a Postgres client and a developer box without one would then run
-    two different tests under one name. Every ambient entry is re-exposed through
-    one directory of symlinks with the named binaries left out (first hit wins, so
-    PATH precedence survives), so bash, coreutils, python3 and `timeout` stay
-    reachable and identical to a normal run.
-    """
-    farm = tmp_path / "path-farm"
-    farm.mkdir(parents=True, exist_ok=True)
-    for entry in os.environ.get("PATH", "").split(os.pathsep):
-        if not entry:
-            continue
-        try:
-            names = os.listdir(entry)
-        except OSError:
-            continue
-        for name in names:
-            if name in drop:
-                continue
-            link = farm / name
-            if link.is_symlink() or link.exists():
-                continue
-            src = Path(entry) / name
-            if src.is_dir() or not os.access(src, os.X_OK):
-                continue
-            try:
-                link.symlink_to(src)
-            except OSError:
-                continue
-    path = os.pathsep.join([*(str(d) for d in stub_dirs), str(farm)])
-    # Self-validating: a construction that silently stops working must fail HERE,
-    # not quietly go back to inheriting whatever the image ships.
-    # The farm is checked ALONE, on purpose: a stub_dir may legitimately provide one
-    # of these names (that is what a stub is for), but the farm must never leak the
-    # host's copy. Skipping the assertion when the farm DOES carry the name - as an
-    # earlier version did - skipped it in precisely the leaking case.
-    for name in drop:
-        found = shutil.which(name, path=str(farm))
-        assert found is None, (
-            "the constructed PATH still reaches {n!r} at {f!r} - the absence this "
-            "test needs is no longer guaranteed".format(n=name, f=found))
-    assert shutil.which("bash", path=path), (
-        "the constructed PATH dropped bash - it must keep everything the script "
-        "legitimately needs, or the test stops exercising the real code path")
-    return path
+
+@pytest.fixture(autouse=True)
+def _bind_path_farm(path_farm):
+    """Bridge the session-scoped `path_farm` factory into this file's builders."""
+    _PATH_FARM["get"] = path_farm
 
 
 # --------------------------------------------------------------------------- #
@@ -615,7 +581,7 @@ def _step55_env(tmp_path, *, preflight_rc, record_argv=None, record_env=None,
     py.chmod(0o755)
 
     env = dict(os.environ)
-    env["PATH"] = _hermetic_path(tmp_path, bindir)
+    env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bindir)
     env["ODOO_AI_HOME"] = str(tmp_path / "home")
     env.pop("ODOO_PG_PASSWORD", None)
     return env, py, addons, argv_log, env_log
@@ -803,7 +769,7 @@ def _step50_env(tmp_path, *, preflight_rc, pg_isready_rc=0):
     # `docker` comes from the stub dir (so the container rung IS selected); every
     # other client name is constructed absent, so the rung selection is decided by
     # this fixture and not by whatever the runner image ships.
-    env["PATH"] = _hermetic_path(tmp_path, bindir)
+    env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bindir)
     env["ODOO_AI_HOME"] = str(home)
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_BIN"] = str(odoo_bin)
@@ -984,7 +950,7 @@ def _step05_tcp_only_env(tmp_path, *, preflight_rc):
         db_run_mode = "tcp-only"
         """).format(addons=addons, py=py, root=tmp_path), encoding="utf-8")
     env = dict(os.environ)
-    env["PATH"] = _hermetic_path(tmp_path, bindir)
+    env["PATH"] = farm_path(_PATH_FARM["get"](drop=_PG_CLIENT_BINS), bindir)
     env["SETUP_FILTER"] = "instance"
     env["ODOO_AI_INSTANCES"] = str(toml)
     env["ODOO_AI_HOME"] = str(tmp_path / "home")

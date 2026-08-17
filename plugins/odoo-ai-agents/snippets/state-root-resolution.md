@@ -55,6 +55,7 @@ stays flat under `$ODOO_AI_HOME` regardless of what project or worktree the agen
 | `instances.toml` | the instance catalog; resolved via `scripts/lib/resolve_instances.sh` |
 | `runtime/` (`leases.json`, `registry.lock`) | the lease registry - namespacing it lets two worktrees allocate the same port/DB |
 | `logs/` | host-level operational logs |
+| `conf/` | generated per-instance `odoo.conf` for a listening server; keyed `<db>-<port>`, host-level for the same reason `runtime/` is |
 | `i18n.json` | cross-project translation glossary (distinct from the per-project `i18n/<slug>-<date>/` ISOLATE tree below) |
 | `.gitignore` | the defensive `*` gitignore at `$ODOO_AI_HOME` root (setup step `40-instance-profile.sh`) |
 
@@ -228,8 +229,7 @@ A scenario is not downgraded to UNVERIFIED for this reason alone when the observ
 
 The resolver above is shell + Python, but most consumers are **prose** - an agent using
 `Read`/`Write`/`Edit`, not `Bash`. Those tools take a **literal absolute path string** and run no
-shell, so `$ODOO_AI_PROJECT_DIR` inside one neither expands nor persists across calls. Putting a
-`$VAR` or a bare `.odoo-ai/...` literal into a Read/Write/Edit call is therefore always a bug.
+shell, so `$ODOO_AI_PROJECT_DIR` never expands or persists inside one (step 3 names the exact ban).
 Every skill/agent touching a Tier-2 subpath follows this THREE-STEP protocol:
 
 1. **Resolve ONCE, via Bash, and CAPTURE the printed absolute path(s).** Run one or both, as
