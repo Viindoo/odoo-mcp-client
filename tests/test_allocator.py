@@ -1501,13 +1501,20 @@ def _import_allocator():
     return mod
 
 
-def _spawn_orphan_group(pidfile: Path):
+def _spawn_orphan_group(pidfile: Path, extra_argv=()):
     """Spawn a REAL process GROUP - a `setsid` session/group leader that forks a
     child, both alive - that is NOT a child of the test process. Because it is
     orphaned (reparented to init), killing the group makes the members disappear
     for real (no zombie held open by pytest), so `_pid_alive` flips to False and
     the ordering assertions are deterministic. Returns (leader_pid, child_pid);
     os.getpgid(leader) == leader, so os.killpg(leader, ...) reaps both.
+
+    `extra_argv` is appended to the stand-in's command line verbatim. That is how
+    a test makes the stand-in look like the server a lease actually names: the
+    allocator will only signal a pid whose ownership it can PROVE, and a
+    production launch is `setsid <py> <...>/odoo-bin -c <conf> -d <db>` (see
+    allocator.py's `_ownership_proof`). A stand-in with no such command line and
+    no `pid_started` fingerprint is - correctly - left alone.
     """
     launcher = textwrap.dedent(
         f"""\
@@ -1528,7 +1535,8 @@ def _spawn_orphan_group(pidfile: Path):
         """
     )
     # check=True waits for the intermediary (exits 0); the leader is now orphaned.
-    subprocess.run([sys.executable, "-c", launcher], check=True, timeout=30)
+    subprocess.run([sys.executable, "-c", launcher, *[str(a) for a in extra_argv]],
+                   check=True, timeout=30)
     deadline = time.time() + 5
     while time.time() < deadline:
         if pidfile.exists() and pidfile.read_text().strip():
@@ -1582,11 +1590,19 @@ def test_release_stops_process_group_before_dropping(tmp_path, monkeypatch):
         assert alloc._pid_alive(leader) and alloc._pid_alive(child), "group must start alive"
         token = "ab" * 16
         now = int(time.time())
+        # The fingerprint `bind`/`acquire --pid` record for real (_pid_owner_fields):
+        # it is what PROVES this pid is still the process the lease named, which the
+        # allocator requires before it will signal anything. This test is about the
+        # teardown ORDER, so ownership is established the cheap way rather than by
+        # dressing the stand-in up as an odoo-bin invocation.
+        fingerprint = alloc._pid_fingerprint(leader)
+        assert fingerprint, "test setup: must be able to fingerprint the spawned process"
         _seed_registry({"ODOO_AI_HOME": str(home)}, [{
             "token": token, "mode": "exclusive", "db_name": "leakdb",
             "drop_on_release": True, "python": "", "db_host": "localhost",
             "db_user": "odoo", "ports": [],
             "owner": {"host": socket.gethostname(), "pid": leader,
+                      "pid_started": fingerprint,
                       "run_id": "run-A", "started_at": now},
             "ttl_s": 7200, "heartbeat_at": now,
         }])
@@ -1670,13 +1686,28 @@ def test_gc_reclaims_a_ttl_expired_orphan_with_unverifiable_liveness(tmp_path, m
     fix) cannot be PROVEN alive even though its recorded pid happens to still be
     running - liveness is unprovable, so it falls back to ttl exactly like a
     different-host lease, and a long-expired ttl reclaims it (stopping the group
-    first, per L1.2)."""
+    first, per L1.2).
+
+    The stand-in carries the command line a real spin-up launches
+    (`<py> <...>/odoo-bin -c <db>-<port>.conf -d <db>`), which is what lets the
+    allocator PROVE the pid is this lease's own server and stop it despite the
+    missing fingerprint - see allocator.py `_ownership_proof`. Without that proof
+    an alive pid is indistinguishable from a recycled bystander and is
+    deliberately left running (guarded in test_allocator_signal_ownership.py);
+    what this test protects is that a lease which HAS a provable runaway still
+    gets both the process and the row reclaimed on ttl expiry."""
     alloc = _import_allocator()
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("ODOO_AI_HOME", str(home))
 
-    leader, child = _spawn_orphan_group(tmp_path / "grp.pids")
+    odoo_bin = tmp_path / "src" / "odoo-bin"
+    odoo_bin.parent.mkdir(parents=True, exist_ok=True)
+    odoo_bin.write_text("#!/usr/bin/env python\n", encoding="utf-8")
+    leader, child = _spawn_orphan_group(
+        tmp_path / "grp.pids",
+        extra_argv=[odoo_bin, "-c", tmp_path / "orphan_db2-8069.conf", "-d", "orphan_db2"],
+    )
     try:
         assert alloc._pid_alive(leader) and alloc._pid_alive(child)
         token = "ce" * 16

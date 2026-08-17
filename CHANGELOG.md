@@ -82,6 +82,100 @@ ordering they always carried.
   tools, and the planner has already resolved every name it authored; the dispatched skill resolves
   them again where the grounding already is, and a BLOCKED return routes back to `odoo-planning`.
 
+- `odoo-ai-agents` - a stay-running Odoo spin-up no longer leaks its generated `odoo.conf`. It was
+  minted fresh per invocation under `$TMPDIR`, and only the poll-timeout failure path ever deleted
+  one, so a successful spin-up - the common case - left its file behind forever: `-c "$conf"` keeps
+  it open for the server's whole lifetime, and "delete after launch" was never available. Measured on
+  one long-running development machine, the pile passed 3,623 files, growing by roughly 360 a day.
+  The conf now lives at a deterministic path keyed by the instance identity the allocator already
+  treats as exclusive - `$ODOO_AI_HOME/conf/<db_name>-<port>.conf` - so re-spinning an instance
+  overwrites its own file instead of adding to the pile, reclaimed by the same 14-day, lease-guarded
+  sweep (`scripts/lib/state_reclaim.sh`) that already covered stale logs, now sourced by both
+  `50-instance-spinup.sh` and `55-instance-ops.sh`. The contract that specified this file's shape
+  (`docs/reference/INSTANCE-ALLOCATION.md` § 6.2) had mandated exactly the leaking shape, unguarded by
+  any test; it now forbids per-invocation uniqueness for it.
+
+- `odoo-ai-agents` - the test suite no longer rebuilds a session-level constant once per test. Three
+  files each grew their own PATH-symlink-farm helper anchored to the per-test `tmp_path` fixture
+  instead of something session-scoped, so a full run rebuilt the same farm from scratch dozens of
+  times - measured at roughly 192,268 inodes per run, about 94% of them symlinks. A single
+  session-scoped `path_farm` fixture in new `tests/conftest.py` now builds each distinct farm once per
+  run, and a new `pytest.ini` bounds retention so a passing run keeps almost nothing. Measured on the
+  three affected files: farm count fell from 74 to 2 per run, and total entries from 182,255 to 4,865.
+
+- `odoo-ai-agents` - a PR-review worktree is created beside the checkout, in `.pr-worktrees/pr-<N>`,
+  not under `/tmp`. A worktree under `/tmp` was silently orphaned by any `/tmp` wipe while its
+  `.git/worktrees` registration survived, and because the isolated-state key hashes the worktree's own
+  top-level path, every review also minted a fresh state-root tree nothing could ever reclaim.
+  Measured on one host: 47 orphaned state trees and one stale registration. The new location is
+  gitignored, so a review in progress can no longer make `make gen-check` judge the tree dirty.
+
+- `odoo-ai-agents` - the worktree-isolation exemption in `skills/odoo-intake/SKILL.md` no longer names
+  `/tmp` as an exempt destination; it states the criterion instead - nothing git-tracked to isolate. A
+  new guard proves `TMPDIR` occurs zero times anywhere under the plugin, closing off the same prose
+  pattern that let the conf leak's own contract stand unguarded for so long.
+
+- `odoo-ai-agents` - a design-required change with no approved design artifact could reach a plan,
+  and reach `run-harness`, because "design precedes planning" was asserted nowhere and enforced
+  nowhere. `skills/odoo-planning/SKILL.md` told the reader to route to `odoo-solution-design` first,
+  but its own Continuation Contract enumerated only two `next` values, neither of them design - the
+  route-back was unreachable prose - and its "No scope-preview gate" section listed a missing design
+  as something to ask about and then dispatched both planners regardless. The gap predates the
+  wave-layer removal above: that refactor left both passages untouched, and only newly exposed the
+  question by re-declaring the plan-node field set as exhaustive. The fix closes it on four surfaces,
+  and the four-ness is the point - a single-surface fix would have been another stated-but-unreached
+  rule: `odoo-planning` now evaluates a refusal predicate before either planner is dispatched - a
+  design-required change with no design present gets no plan authored and no planner dispatched - and
+  gained a third Continuation Contract branch (`status: BLOCKED`, `next: odoo-solution-design`, no
+  `plan:` key at all, the absent pointer itself being the contract);
+  `skills/odoo-intake/references/plan-mode-schema.md` now states design as an INPUT to a plan, never
+  a node of it, in any block or serialized form;
+  `skills/run-harness/references/run-integration.md` refuses a design node on both entry paths - a
+  static node stops BLOCKED and routes back to planning, a `next[]` suggestion naming it is never
+  materialized at any confidence; and `agents/odoo-planner.md` may not wire a node it writes to
+  design, returning `NEEDS_CONTEXT` on a design gap instead. The gate stays skippable for work that
+  does not need one - this closes a missing enforcement, it does not mandate that every change gets a
+  design. Guarded by `tests/test_design_precedes_planning.py`.
+
+- `odoo-ai-agents` - `odoo-coding` and `odoo-data-migration` both recommended a design hand-off with
+  `SUGGESTED_NEXT: odoo-solution-design` when standalone work arrived with no design, but
+  `hooks/parse-continuation.sh` only reads that back-compat line while the fenced block's `status` is
+  empty - and both skills always set one, so the recommendation was correct in direction and dead by
+  construction: nothing ever advanced it. Both now carry the hop as a reachable in-block `next:`
+  entry, a low-confidence advisory alongside the primary entry, which the Continuation Contract
+  already sanctions. The entry is suppressed whenever an approved-plan signal is in scope: under a
+  live run a missing design is plan drift that routes back to `odoo-planning`, not a design hop -
+  emitting one there would be exactly the inversion the design-precedes-planning fix above closes.
+  Guarded by `tests/test_design_route_channel_reachable.py`. Two sibling sites in
+  `skills/odoo-debug/SKILL.md` carry the same dead channel for a fix hand-off rather than design, and
+  are left as follow-up.
+
+- `odoo-ai-agents` - the allocator could SIGTERM an unrelated process GROUP and never say so.
+  `scripts/lib/allocator.py`'s `_stop_owner_group_if_local` signalled a lease's recorded pid once it
+  was confirmed alive and on the same host, and the recycled-pid guard comparing `owner.pid_started`
+  was opt-in: a lease row written before that fingerprint field existed - the registry is at schema
+  version 2 - skipped the check entirely and the signal went out unverified. This was hit for real
+  during this work: a seeded lease killed a live shell process group and an in-flight test run, with
+  no message of any kind. The fix requires independent corroboration before signalling, through a
+  three-rung ladder: a fingerprint match proves ownership, and a mismatch proves NON-ownership and
+  stops the ladder there; otherwise the process's command line must name both an Odoo launcher and
+  this lease's own database; otherwise a listener on one of the lease's own reserved ports must be
+  that pid or its process group. Nothing proven means no signal, and both outcomes - signal and
+  refusal - are now reported instead of silent; the lease row is reclaimed either way. Fingerprint
+  backfill on heartbeat is gated the same way, stamping `owner.pid_started` only when ownership
+  corroborates at that moment, so a recycled bystander can never be marked wrongly proven forever.
+  Two documentation contracts had licensed the defect: `docs/reference/INSTANCE-LIFECYCLE.md` claimed
+  a fingerprint mismatch causes the process to be stopped - the opposite of the rule - in two separate
+  places, and two `docs/reference/INSTANCE-ALLOCATION.md` API-table rows made "alive and same host"
+  the whole precondition for signalling. A runaway server launched by hand, with neither its database
+  on its command line nor a listening leased port, can no longer be proven ours and is now reported
+  rather than killed - a named process left running beats an unnamed process group destroyed, and the
+  message names the pid to inspect. Guarded by `tests/test_allocator_signal_ownership.py` in both
+  directions - a bystander must survive and a genuine runaway must still be reclaimed - and two
+  pre-existing tests that had required the blind kill were adapted to preserve their real intent
+  (teardown ordering; TTL still governing a fingerprint-less row) without loosening or skipping
+  either.
+
 ### Added
 
 - `odoo-ai-agents` - an anti-regrowth guard suite (`tests/test_wave_layer_regrowth.py`) that fails if

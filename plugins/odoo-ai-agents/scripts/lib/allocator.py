@@ -103,6 +103,9 @@ CLI:
                  # spin-up binds the launched pid) so release/gc can stop the
                  # whole process GROUP before dropping the DB.
     allocator.py heartbeat <token>
+                 # refresh the lease's heartbeat, and BACKFILL owner.pid_started
+                 # on an older row when - and only when - ownership of its pid is
+                 # corroborated right then (_backfill_pid_fingerprint).
     allocator.py gc [--instances <path>]
     allocator.py reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]
                  # lists (default) or drops (--yes) ephemeral-shaped databases
@@ -115,6 +118,17 @@ CLI:
                  # even stale - is release/gc's job, never this one's. Emits
                  # REAP_CANDIDATE / REAP_SKIPPED / REAP_DROPPED lines.
     allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
+
+Every process signal release/gc/acquire can send goes through ONE gate
+(`_stop_owner_group_if_local`): the pid must be on THIS host, alive, AND PROVEN
+to belong to the lease - by a matching `owner.pid_started` fingerprint, or by an
+independent corroborating observation (an Odoo command line naming this lease's
+own database, or the process group listening on a port this lease reserved). An
+unproven pid is NEVER signalled and the refusal is reported with its evidence:
+pids are recycled, so "alive" alone is equally true of an unrelated shell whose
+whole group a GROUP signal would take down. Refusing to signal never blocks
+reclamation - the lease row and its database are reclaimed exactly as before, so
+the worst case is a REPORTED process leak, never a lost lease.
 
 All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
 instances_io.py's INST_* convention. acquire prints ALLOC_*.
@@ -392,6 +406,294 @@ def _pid_owner_fields(pid):
     return {"pid": pid, "pid_started": _pid_fingerprint(pid)}
 
 
+# --------------------------------------------------------------------------- #
+# Ownership corroboration - PROVING a recorded pid is this lease's server
+#
+# The signal path (`_stop_owner_group_if_local` -> `_stop_group`) SIGTERMs a
+# whole process GROUP. A lease's `owner.pid` is only an integer, and the OS
+# hands the same integers out again: by the time `gc` or `release` reads one,
+# the process that recorded it may be long gone and something entirely
+# unrelated - a shell, a test runner, an editor - may hold that number. Signal
+# it then and nothing gets "cleaned up": a bystander is killed, and because the
+# signal goes to the GROUP it takes that bystander's whole session with it.
+#
+# `owner.pid_started` (see `_pid_owner_fields`) settles the question whenever it
+# is present AND re-measurable. Two populations are left over:
+#   (a) rows written before that field existed - `leases.json` is at
+#       schema_version 2 and readers stay deliberately lenient, so a row
+#       carrying `pid` and no `pid_started` is a legal, expected shape, not a
+#       corrupt one;
+#   (b) rows whose fingerprint cannot be re-measured this second (a `ps` that is
+#       missing, slow, or refused).
+# Neither may be signalled on the strength of "the pid is alive": that is the
+# one fact which is equally true of every bystander. Both used to reach an
+# unverified `_stop_group` - population (a) because the guard was written as
+# opt-in (`if expected_fp is not None`), population (b) because an unmeasurable
+# fingerprint was explicitly allowed to proceed "best effort".
+#
+# Refusing outright would only trade a rare wrong kill for a guaranteed leak: a
+# genuinely runaway Odoo server recorded on an old row would then never be
+# reclaimed, and reclaiming exactly that is why this allocator exists. So the
+# question is turned around and asked about the OBSERVED PROCESS instead of the
+# number: a recycled bystander is merely alive, whereas the leased server still
+# carries the lease's own coordinates. Two such coordinates are observable here
+# with no new dependency and no second registry:
+#   - CMDLINE: the process runs an Odoo launcher AND names THIS lease's
+#     database. `50-instance-spinup.sh` launches
+#     `setsid <py> <...>/odoo-bin -c <conf> -d <db_name>`, and its conf file is
+#     itself keyed `<db_name>-<http_port>.conf`, so the database name appears on
+#     the command line twice over. (The lease records no conf PATH of its own -
+#     hence the conf is corroborated through the same db-name token test, not
+#     through a field that does not exist.)
+#   - PORT: the process, or the process group it leads, is LISTENING on a port
+#     THIS lease reserved. `_port_bindable` can only say a port is taken;
+#     attributing it to a pid needs lsof/ss/fuser (see `_port_listener_pids`).
+# Either one is something a recycled bystander cannot accidentally satisfy,
+# because both are keyed to values only this lease knows.
+# --------------------------------------------------------------------------- #
+
+# argv[0]-style basenames Odoo has ever been launched under across the supported
+# series (`odoo.py`/`openerp-server` on the oldest, `odoo-bin` from 10.0, and the
+# `odoo` console script a pip install provides). Matched on the BASENAME of a
+# non-flag token so `/x/y/odoo-bin` counts and `--addons-path=/opt/odoo` does not.
+_ODOO_LAUNCHER_BASENAMES = ("odoo-bin", "odoo.py", "openerp-server", "odoo")
+# Flags whose VALUE is a database name (Odoo's own `-d`/`--database`, plus the
+# spelling this plugin's own tooling uses). A bare token that merely equals the
+# db name is NOT accepted: the value has to be attached to a database flag, or a
+# lease on a database called `odoo` would be corroborated by any command line
+# that happens to mention a directory of that name.
+_DB_NAME_FLAGS = ("-d", "--database", "--db-name", "--db_name")
+
+
+def _pid_cmdline(pid):
+    """The full argv of the process CURRENTLY at `pid`, as one string, or None
+    when it cannot be read (`ps` missing, refused, timed out, or the pid gone).
+
+    Same instrument and same portability reasoning as `_pid_fingerprint`: `ps`
+    answers on Linux/macOS/BSD where `/proc/<pid>/cmdline` is Linux-only. None
+    means "could not look", never "nothing there" - callers MUST NOT read it as
+    evidence either way. Bounded by the file's one probe bound so a wedged `ps`
+    can never hang a release."""
+    rc, out, _ = _run(["ps", "-o", "args=", "-p", str(pid)], timeout=_probe_timeout_s())
+    if rc != 0:
+        return None
+    out = out.strip()
+    return out or None
+
+
+def _cmdline_names_lease(cmdline, db_name):
+    """True when `cmdline` is an Odoo server invocation FOR `db_name` - both
+    halves required, because either alone is weak evidence: plenty of processes
+    mention a database name (`psql -d <db>`, a backup script), and plenty of
+    Odoo invocations serve a different database.
+
+    The database is accepted as: the value of a database flag (`-d <db>`,
+    `--database=<db>`), or a `<db_name>-*.conf` basename - the conf file
+    `50-instance-spinup.sh` generates per (database, port) and passes with `-c`.
+    """
+    if not cmdline or not db_name:
+        return False
+    tokens = cmdline.split()
+    launcher = names_db = False
+    for idx, tok in enumerate(tokens):
+        if not tok.startswith("-") and os.path.basename(tok.rstrip("/")) in _ODOO_LAUNCHER_BASENAMES:
+            launcher = True
+        if tok == db_name and idx and tokens[idx - 1] in _DB_NAME_FLAGS:
+            names_db = True
+        elif "=" in tok and tok.split("=", 1)[0] in _DB_NAME_FLAGS \
+                and tok.split("=", 1)[1] == db_name:
+            names_db = True
+        else:
+            base = os.path.basename(tok.rstrip("/"))
+            if base.startswith(f"{db_name}-") and base.endswith(".conf"):
+                names_db = True
+    return launcher and names_db
+
+
+def _pids_from_plain(text):
+    """Pids out of a pid-only listing (`lsof -t`, `fuser`)."""
+    return {int(tok) for tok in text.split() if tok.isdigit()}
+
+
+def _pids_from_ss(text):
+    """Pids out of `ss -p` output: ONLY the `pid=<n>` fields of
+    `users:(("odoo-bin",pid=41234,fd=7))`. Deliberately not a scan for any
+    integer - ss also prints Recv-Q/Send-Q columns, and reading those as pids
+    would let a small unrelated number corroborate a lease on a kill path."""
+    pids = set()
+    for raw in text.replace("(", " ").replace(")", " ").replace(",", " ").split():
+        if raw.startswith("pid=") and raw[4:].isdigit():
+            pids.add(int(raw[4:]))
+    return pids
+
+
+def _port_listener_pids(port):
+    """The pids LISTENING on TCP `port` on this host: a set (EMPTY when a tool
+    answered and nobody is listening), or None when no tool on this host could
+    answer at all.
+
+    The three-way return matters on a kill path: an empty set is the observation
+    "the port this lease reserved is NOT held by anyone", while None is "this
+    host cannot tell me" - and only a POSITIVE pid may ever corroborate
+    ownership. Ladder order is portability-first: `lsof` exists on
+    Linux/macOS/BSD, `ss` is Linux (iproute2), `fuser` is the last resort;
+    whichever is installed first and names a holder wins. Every call is bounded
+    (`lsof` in particular can block on a wedged mount), and a timeout or a
+    missing binary is "could not look", not "nobody".
+    """
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return None
+    answered = False
+    for binary, argv, parse in (
+        ("lsof", ["lsof", "-t", "-i", f"TCP:{port}", "-sTCP:LISTEN"], _pids_from_plain),
+        ("ss", ["ss", "-Hltnp", f"sport = :{port}"], _pids_from_ss),
+        ("fuser", ["fuser", "-n", "tcp", str(port)], _pids_from_plain),
+    ):
+        if not _which(binary):
+            continue
+        rc, out, _ = _run(argv, timeout=_probe_timeout_s())
+        if rc in (127, EXIT_PROBE_TIMEOUT):
+            continue
+        answered = True
+        pids = parse(out)
+        if pids:
+            return pids
+    return set() if answered else None
+
+
+def _pgid_of(pid):
+    """The process-group id of `pid`, or None when it cannot be read."""
+    try:
+        return os.getpgid(int(pid))
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def _clip(text, limit=160):
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _ownership_proof(lease, pid):
+    """(proof, detail) - whether `pid` is PROVABLY this lease's server process,
+    and the human-readable evidence either way.
+
+    `proof` is the name of the signal that proved it ("fingerprint", "cmdline"
+    or "port") or None when nothing did. `detail` is always populated: it is
+    what the caller prints, so that both a signal and a refusal say WHY.
+
+    Order is cheapest-and-strongest first. A fingerprint MISMATCH is a proof of
+    NON-ownership (the recorded owner exited - that is precisely how its pid
+    became free to reuse), so it stops the ladder instead of falling through to
+    corroboration: there is nothing of ours left at that pid to find.
+    """
+    owner = lease.get("owner", {}) or {}
+    db_name = lease.get("db_name", "") or ""
+    expected_fp = owner.get("pid_started")
+    if expected_fp is not None:
+        current_fp = _pid_fingerprint(pid)
+        if current_fp is not None:
+            if current_fp == expected_fp:
+                return "fingerprint", (
+                    "the process holding that pid still reports the start time recorded "
+                    "on the lease (owner.pid_started), so it is the very process the "
+                    "lease named"
+                )
+            return None, (
+                "the process holding that pid reports a DIFFERENT start time than the "
+                "lease recorded (owner.pid_started), which proves the pid was recycled "
+                "onto an unrelated process - this lease's own server already exited"
+            )
+        unprovable = (
+            "the lease's owner.pid_started fingerprint could not be re-measured just "
+            "now (`ps` gave no answer), so the pid cannot be matched to the recorded "
+            "process"
+        )
+    else:
+        unprovable = (
+            "the lease row carries no owner.pid_started fingerprint at all (it was "
+            "written before that field existed), so 'the pid is alive' says nothing "
+            "about WHOSE process holds it"
+        )
+
+    cmdline = _pid_cmdline(pid)
+    if _cmdline_names_lease(cmdline, db_name):
+        return "cmdline", (
+            f"the process holding that pid is an Odoo server invocation for this "
+            f"lease's own database {db_name!r} [{_clip(cmdline)}]"
+        )
+
+    ports = list(lease.get("ports") or [])
+    for port in ports:
+        holders = _port_listener_pids(port)
+        if not holders:
+            continue
+        for holder in sorted(holders):
+            if holder == pid or _pgid_of(holder) == pid:
+                return "port", (
+                    f"pid {holder} is LISTENING on port {port}, which this lease "
+                    f"reserved, and it belongs to the process group led by pid {pid}"
+                )
+
+    return None, (
+        f"{unprovable}; and nothing about the live process corroborates this lease "
+        f"either - it is not an Odoo server invocation for database {db_name!r}"
+        + (f" [it is: {_clip(cmdline)}]" if cmdline else " [its command line could not be read]")
+        + (f", and it does not hold any of this lease's reserved ports {ports}"
+           if ports else ", and this lease reserved no port to hold")
+    )
+
+
+def _backfill_pid_fingerprint(lease):
+    """Stamp the missing `owner.pid_started` onto an OLD lease row - but ONLY
+    when ownership has just been corroborated independently. Mutates `lease`
+    in place and returns True when it did; the caller owns the registry write.
+
+    Why gated on corroboration rather than done unconditionally: a naive
+    backfill is the same bug wearing a helpful face. Fingerprinting whatever
+    process happens to hold the pid would stamp a RECYCLED bystander's start
+    time onto the lease, turning an honestly-unprovable row into a wrongly-
+    PROVEN one - and every later check, including `_is_stale`'s protect arm and
+    the signal path, would then trust it. Stamping only a corroborated pid means
+    the value recorded is the leased server's own, which is what makes the cheap
+    fingerprint check usable on that row from then on and shrinks the unprovable
+    population instead of letting it persist forever.
+
+    Consequence worth naming: a row that gains a fingerprint also gains
+    `_is_stale`'s TTL immunity while that process lives - which is correct, and
+    exactly the protection an `acquire --pid`/`bind` row has had all along.
+    """
+    owner = lease.get("owner") or {}
+    if owner.get("pid_started") is not None or owner.get("host") != _host():
+        return False
+    pid = owner.get("pid")
+    if pid is None:
+        return False
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if not _pid_alive(pid):
+        return False
+    proof, detail = _ownership_proof(lease, pid)
+    if proof is None:
+        return False
+    fingerprint = _pid_fingerprint(pid)
+    if not fingerprint:
+        return False
+    owner["pid_started"] = fingerprint
+    lease["owner"] = owner
+    sys.stderr.write(
+        "allocator: recorded the missing owner.pid_started fingerprint for pid {pid} on "
+        "the lease for database {db!r} - ownership was corroborated by {proof} ({detail}), "
+        "so this row no longer has to be judged on the pid number alone.\n".format(
+            pid=pid, db=lease.get("db_name"), proof=proof, detail=detail)
+    )
+    return True
+
+
 def _stop_group(pid, timeout_s=10):
     """Stop the whole process GROUP led by `pid`: SIGTERM, a bounded wait, then a
     group SIGKILL escalation.
@@ -437,10 +739,31 @@ def _stop_group(pid, timeout_s=10):
 
 def _stop_owner_group_if_local(lease, timeout_s=10):
     """Stop the lease's recorded server process group IFF it is a live pid on THIS
-    host. Same-host guard mirrors `_is_stale`'s `owner.host` check - we NEVER
-    signal a pid recorded on another host (the integer would name an unrelated
-    local process). No-op when there is no pid, it is on another host, or it is
-    already dead. Returns True when a stop was attempted."""
+    host whose ownership by this lease is PROVEN. Returns True when a stop was
+    attempted, False when none was.
+
+    Three gates, in order, each of them a fact about the pid rather than a
+    default:
+      1. SAME HOST - mirrors `_is_stale`'s `owner.host` check. A pid integer
+         recorded on another host names an unrelated LOCAL process here.
+      2. ALIVE - a dead pid has nothing to stop (silent: it is the trivially
+         safe no-op, not a decision anyone needs to audit).
+      3. PROVEN OURS - `_ownership_proof`: a matching `pid_started`
+         fingerprint, or an independent corroborating observation (the process is
+         an Odoo invocation for THIS lease's database, or it leads the group
+         listening on a port THIS lease reserved). Nothing proven -> nothing
+         signalled.
+
+    NEITHER outcome is silent. Group-signalling on an unproven pid is how an
+    unrelated shell session gets killed with no trace at all, and "no trace" was
+    the worst property of that failure, worse than the kill: the run simply
+    stopped. A refusal names the pid, the lease and the evidence on stderr - the
+    same channel every other refusal in this file uses - so an un-reclaimed
+    process is a REPORTED leak rather than a mystery, and it can be finished by
+    hand. Reclamation of the lease ROW is the caller's business and is
+    deliberately unaffected: `_gc` still reclaims and still drops, so refusing
+    to signal leaks at most a process, never a lease or a database.
+    """
     owner = lease.get("owner", {})
     if owner.get("host") != _host():
         return False
@@ -453,18 +776,23 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
         return False
     if not _pid_alive(pid):
         return False
-    # Recycled-pid guard: when a fingerprint was recorded for this pid and the
-    # CURRENT process at that pid no longer matches it, the lease's real owner
-    # already exited (that is exactly how the pid became free to reuse) - there
-    # is nothing of OURS left to stop, and signalling this pid now would hit an
-    # unrelated bystander process instead of a runaway server. A fingerprint we
-    # cannot re-measure right now (`ps` hiccup) is NOT a mismatch - proceed as
-    # before (best effort), same as a lease that never recorded one at all.
-    expected_fp = owner.get("pid_started")
-    if expected_fp is not None:
-        current_fp = _pid_fingerprint(pid)
-        if current_fp is not None and current_fp != expected_fp:
-            return False
+    proof, detail = _ownership_proof(lease, pid)
+    if proof is None:
+        sys.stderr.write(
+            "allocator: REFUSING to signal pid {pid} for the lease on database {db!r} - "
+            "ownership is NOT proven: {detail}. NOTHING was signalled. A process-GROUP "
+            "SIGTERM on an unproven pid kills whatever session now holds that number "
+            "(its shell, its children, its test run), which is never the cheaper "
+            "mistake. If that pid really is a runaway server for this lease, stop it "
+            "by hand after checking it (`ps -o args= -p {pid}`).\n".format(
+                pid=pid, db=lease.get("db_name"), detail=detail)
+        )
+        return False
+    sys.stderr.write(
+        "allocator: stopping the process GROUP of pid {pid} for the lease on database "
+        "{db!r} - ownership PROVEN by {proof}: {detail}.\n".format(
+            pid=pid, db=lease.get("db_name"), proof=proof, detail=detail)
+    )
     _stop_group(pid, timeout_s=timeout_s)
     return True
 
@@ -1924,6 +2252,17 @@ def cmd_release(opts):
 
 
 def cmd_heartbeat(opts):
+    """Refresh a lease's heartbeat - and, while the row is open under the lock,
+    BACKFILL the `owner.pid_started` fingerprint it may be missing.
+
+    Heartbeat is the right (and only) home for the backfill: it is the periodic
+    touch by the owner itself, it already writes the registry, and it is the one
+    place where recording proof does not race a decision that is being taken
+    right now. `acquire --pid` and `bind` already capture the fingerprint at
+    record time; `gc`/`release` are deciding the lease's fate as they read it, so
+    stamping a row that is about to be removed would buy nothing. The backfill is
+    corroboration-gated - see `_backfill_pid_fingerprint` for why an ungated one
+    would manufacture false proof."""
     token = opts.get("token")
     if not token:
         sys.stderr.write("Usage: allocator.py heartbeat <token>\n")
@@ -1934,6 +2273,7 @@ def cmd_heartbeat(opts):
         for lease in reg["leases"]:
             if lease.get("token") == token:
                 lease["heartbeat_at"] = _now()
+                _backfill_pid_fingerprint(lease)
                 hit = True
         if hit:
             _write_registry(reg)
