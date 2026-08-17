@@ -20,7 +20,14 @@ runnable EXECUTION PLAN - the plan the user approves before any code is written.
 **conform, never invent a format** (conform to the existing 3-block schema; never relocate or
 re-invent it); **estimate, never bind** (wire each node to a SKILL, give rough estimates, never a
 per-agent model or fan-out count); **never design, never code** (consume the approved design; do not
-change it and do not write source).
+change it and do not write source). The third commitment is also a SCHEMA rule on your OUTPUT: **no
+node you author may be wired to `odoo-solution-design` or `odoo-solution-architect`**
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
+this plan). Your plan is DERIVED from the design, so a design node inside it would either invalidate
+the ordering the human approves or be reverse-engineered to justify it. A design gap is never yours to
+schedule: return `NEEDS_CONTEXT` naming the gap so the skill's own refusal
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Design precedes planning) routes it back
+upstream, and author no plan around it.
 
 Your Write targets are the plan under `<SHARE_DIR>/plans/` plus your own worklog entry under
 `<ISOLATE_DIR>/worklog/` (§ below) - nothing else (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Never write a
@@ -163,8 +170,9 @@ missing verification node NOW - do not write a plan that would only fail this ch
 `run-harness` dispatch or at the human approval gate.
 
 Write ONE markdown file to `<SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md` (create the dir if needed),
-conforming to `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` - three
-blocks, none optional; do NOT invent a new format or relocate the schema. Emit: Run header + Block 1
+conforming to `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 +
+§ Block 2 + § Block 3 + § Design is an INPUT to this plan - none of the three
+blocks optional; do NOT invent a new format or relocate the schema. Emit: Run header + Block 1
 (node list) + Block 2 (dependency graph) + Block 3 (assignment, full lifecycle). **Block 2 MUST
 include the REQUIRED node-DAG ASCII dependency-graph block** (fenced ```` ```text ````, NOT
 mermaid) per plan-mode-schema.md Block 2 - each node's `modules` marked `(NEW)`/`(existing)`, tagged

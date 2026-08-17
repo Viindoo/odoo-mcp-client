@@ -220,7 +220,7 @@ design doc / the request (coding *creates* the change, so there is no git diff t
 alone makes every module of a whole era read as non-existent (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`). Then partition that module set into
 NODES by the plan schema's two rules
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` Block 1 -
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 -
 same-landing-moment closure): modules that must reach the integration branch as ONE commit - a
 later change depends on one but not the other, or they are not independently revertable - form ONE
 node; modules that can land separately form separate nodes with DISJOINT `files-in-scope`. The
@@ -286,8 +286,10 @@ Constraints on the table:
   it on the deepest-reasoning setting? Costs about 2x. (approve / skip / cancel)`).
   On `approve` it fires; on `skip`, downgrade that row to **opus** before dispatch and record the downgrade
   in plan.md (`<n2>: opus (fable declined)`). If the work is fable-grade but NO
-  approved design doc exists, recommend `SUGGESTED_NEXT: odoo-solution-design`
-  first (Custom-XL work is design-first).
+  approved design doc exists, surface `odoo-solution-design` first (Custom-XL work is
+  design-first) as an **in-block `next:` entry** per § Continuation Contract below - NEVER as a
+  bare `SUGGESTED_NEXT:` line, which this skill's own `status` silently drops
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules, the back-compat bullet).
 - **Suppressed-gate auto-downgrade (no human is available to confirm).** When the Phase-0 gate is
   suppressed (an active `run-<id>` node, or the `WORKTREE_PATH` node-dispatch path - see Phase 0
   above), no inline human confirmation is possible: if step 5 resolves a node to **fable**,
@@ -755,3 +757,25 @@ add nothing the mandatory tail step does not already cover. `run-harness` always
 `odoo-coding` dispatch (Phase P engages the driver on any `writes-files` node -
 `docs/reference/workflow-harness.md` §8.3), so this hand-off is complete without a per-node echo
 here.
+
+**Design-first entry (STANDALONE invocations only - a SECOND `next:` entry, never a bare line).**
+When step 5's tier table resolved a node to fable and NO approved design doc exists (§ 5, the fable
+trade-off row), add a SECOND entry to the SAME fenced block's `next:` array: `skill:
+odoo-solution-design`, `reason: Custom-XL work is design-first`, `inputs: {odoo_version: <the
+resolved version>, modules: [<the node's modules>]}`, `confidence: 0.4` - advisory, so it never
+blocks your own `status`. `next:` is a LIST and a `DONE`/`NEEDS_NEXT` block may carry a
+low-confidence advisory entry alongside the review hand-off
+(`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules), so both entries ride the one
+block. A bare `SUGGESTED_NEXT:` line CANNOT carry this: the parser reads that line only while the
+fenced block's `status` is EMPTY, and this block always sets one - so the bare form is silently
+dropped and the recommendation reaches nobody. Never emit both channels.
+
+**Omit this entry entirely when a plan signal is in scope** - an active `run-<id>`, a
+`WORKTREE_PATH`, or plan-provided `inputs` (the three signals in
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Approved-plan-artifact detection).
+Under a plan, a missing design is PLAN DRIFT and never a next step: STOP and route back to
+`odoo-planning` to amend the plan (that snippet's § Execution adherence). Design must never follow
+the plan it was supposed to precede, and `run-harness` refuses to materialize a design node at ANY
+confidence
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier node classes),
+so emitting it under a run would be both the inverted order and a second dead channel.

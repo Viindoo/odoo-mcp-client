@@ -98,7 +98,9 @@ into every later state-root Read/Write/Edit - never the placeholder or a bare `.
 > **Design-gate (non-trivial migrations).** A model split/merge, a backfill/transform with more
 > than one viable mapping, or a migration where the pre/post split is itself a real decision is a
 > DESIGN choice. When no approved design doc exists (`<SHARE_DIR>/designs/<slug>-*.md` or a
-> `design_doc` input), recommend `odoo-solution-design` first (`SUGGESTED_NEXT: odoo-solution-design`).
+> `design_doc` input), recommend `odoo-solution-design` first as an **in-block `next:` entry**
+> (§ Continuation Contract below) - NEVER a bare `SUGGESTED_NEXT:` line, which this skill's own
+> `status` silently drops.
 > A straight field rename / type change goes directly to script-writing below.
 >
 > **Master-child mode (index-aware):** If the design lives in a master-child subdir, resolve
@@ -168,3 +170,24 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/examples.md` fo
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (status / produced / next) - additive run-harness output, changes nothing above.
+
+**Design-first entry (STANDALONE invocations only - an in-block entry, never a bare line).** When
+Round 1's Design-gate fired (a non-trivial migration with no approved design doc), carry that
+recommendation as an entry in the SAME fenced block's `next:` array: `skill:
+odoo-solution-design`, `reason: <which of the three design choices is open>`, `inputs:
+{odoo_version: <the resolved version>, module: <module>}`, `confidence: 0.4` - advisory, so it never
+blocks your own `status`. `next:` is a LIST, so this rides alongside any other entry
+(`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules). A bare `SUGGESTED_NEXT:` line
+CANNOT carry it: the parser reads that line only while the fenced block's `status` is EMPTY, and
+this block always sets one - so the bare form is silently dropped and the design-gate finding
+reaches nobody. Never emit both channels.
+
+**Omit this entry entirely when a plan signal is in scope** - an active `run-<id>`, a
+`WORKTREE_PATH`, or plan-provided `inputs` (the three signals in
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Approved-plan-artifact detection),
+which includes arriving through the § Migration carve-out (there a design already exists, so the
+gate cannot fire). Under a plan, a missing design is PLAN DRIFT and never a next step: STOP and
+route back to `odoo-planning` to amend the plan (that snippet's § Execution adherence). Design must
+never follow the plan it was supposed to precede, and `run-harness` refuses to materialize a design
+node at ANY confidence
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier node classes).

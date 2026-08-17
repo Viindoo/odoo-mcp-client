@@ -89,11 +89,41 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   absent since recon is cheap/mandatory-tier - Survey is opt-in/expensive, so its absence must be
   stated, not dropped).
 
-If a design artifact is absent and the change is design-required, route to `odoo-solution-design`
-FIRST (design precedes planning) - do not plan an ungrounded build order. Planning itself is
-mandatory for ALL work (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` §
-Mandatory-planning rule); it is the DESIGN gate that may be skipped for a one-approach change,
-never the plan.
+## Design precedes planning (a REFUSAL evaluated BEFORE either planner is dispatched)
+
+**A design may never be produced AFTER this plan.** The plan is DERIVED from the design, so a design
+authored afterwards either invalidates the ordering the human just approved or gets
+reverse-engineered to justify it. That makes the ordering one-way, and this section is the ONE place
+this skill can still honour it - once the planners have run there is no legal repair left.
+
+Evaluate this predicate BEFORE the § Agent invocation dispatches anything, and act on it - it is not
+a caution:
+
+```
+design_required  = the change is non-trivial per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md`
+                   § Design-first rule (Extension-L / Custom-XL, new module or model, a core ORM-hook
+                   override or >=3-override chain, a multi-strategy migration, a cross-model /
+                   multi-company computed chain, a full-stack feature, any refactor)
+design_present   = the Input port above resolved a DESIGN DAG pointer (index.yaml or a single-mode
+                   design doc) that EXISTS on disk
+
+if design_required and not design_present:  REFUSE - author no plan, dispatch no planner
+else:                                       proceed to § Agent invocation
+```
+
+On REFUSE: dispatch NEITHER planner, write NO plan file, do NOT enter Plan Mode, and hand back with
+`status: BLOCKED`, `produced: []`, and `next: odoo-solution-design` (§ Continuation Contract, third
+branch) naming what made the change design-required. Do NOT ask the human to waive it and do NOT
+"plan now, design later" - a plan authored here is exactly the artifact the ordering forbids.
+
+**This is directional, NOT "design always runs."** `design_required == false` is the common case and
+plans straight through with no design at all: planning is mandatory for ALL work
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule), while the
+DESIGN gate may be skipped for a one-approach change. Only the ORDER is fixed - design, if it runs
+at all, runs first. The same one-way rule is a schema constraint on the plan itself: no plan node may
+be wired to `odoo-solution-design` / `odoo-solution-architect`
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
+this plan).
 
 ## No scope-preview gate - go straight to the planners
 
@@ -102,8 +132,11 @@ already gated that same decision: the front door (`odoo-intake`) approved scope,
 expected output with the human before dispatching this skill, and a `return_to` caller classified
 scope itself. Asking again is friction, not safety.
 
-Ask only the genuine open questions the Input port could not resolve (a missing design artifact,
-an ambiguous module set) - in ONE short message - then dispatch both planners. The single
+Ask only the genuine open questions the Input port could not resolve (an ambiguous module set, an
+unresolved target series) - in ONE short message - then dispatch both planners. **A MISSING design
+artifact is NOT one of those questions:** on a design-required change it is a REFUSAL already decided
+above (§ Design precedes planning) without asking, because no answer a human can give here makes a
+plan authored ahead of its own design legal. The single
 approval checkpoint this skill owns is the § Plan-approval gate below, after both planners return.
 Same shape as the sibling self-driving front doors (`odoo-forward-port` P4, `odoo-git-rebase` P6,
 `odoo-modules-upgrade` P3): one plan, one gate.
@@ -147,7 +180,8 @@ RETURN_TO: [omit when absent; set to the caller skill name when return routing i
 
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): set_active_version('<version>'). Then
 read DESIGN_INDEX / GAP_MATRIX / QA_ORACLE / SURVEY by pointer and emit the plan CONFORMING to
-skills/odoo-intake/references/plan-mode-schema.md (3-block). Wire each node to a SKILL (never an
+skills/odoo-intake/references/plan-mode-schema.md - § Block 1 + § Block 2 + § Block 3, none
+optional, and § Design is an INPUT to this plan (no node may be a design node). Wire each node to a SKILL (never an
 agent, never the skill's internal coordination). Estimates only (effort + est_agents) - do NOT
 bind a per-agent model or fan-out count (Decision X). Do NOT serialize run-<id>.json (intake
 Phase P owns that). Do NOT write source files. Do NOT spawn subagents or invoke skills.
@@ -330,8 +364,16 @@ no artifact encodes.
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). The `next`
-is **gated on the human plan-approval above**. Choose `next` as follows:
+is **gated on the human plan-approval above**. Choose `next` as follows - the design-refusal branch
+is checked FIRST, since it is the one branch that never reaches the plan gate at all:
 
+- **§ Design precedes planning REFUSED (no plan was authored):** emit `status: BLOCKED`,
+  `produced: []`, and `next: odoo-solution-design` with
+  `inputs: {return_to: odoo-planning, scope: <the change>, why_design_required: <the trigger>}`.
+  There is NO `plan:` key on this branch, because no plan exists - that absence IS the contract, and
+  it is what makes the route-back reachable instead of a sentence nothing can act on. Never emit this
+  branch alongside a plan path, and never emit `next: odoo-solution-design` from either branch below:
+  a design named AFTER a plan artifact exists is the inverted order, not a follow-up step.
 - **`return_to` SET:** emit `next: <return_to>` with `inputs: {plan: <path>, doc_plan: <path>}`;
   hand control back.
 - **`return_to` UNSET (default):** emit `next: odoo-intake` with
