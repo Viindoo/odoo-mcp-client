@@ -447,9 +447,29 @@ def _pid_owner_fields(pid):
 #     through a field that does not exist.)
 #   - PORT: the process, or the process group it leads, is LISTENING on a port
 #     THIS lease reserved. `_port_bindable` can only say a port is taken;
-#     attributing it to a pid needs lsof/ss/fuser (see `_port_listener_pids`).
+#     attributing it to a pid needs `/proc` (or lsof/ss/fuser off-Linux).
 # Either one is something a recycled bystander cannot accidentally satisfy,
 # because both are keyed to values only this lease knows.
+#
+# BOTH rungs read `/proc` FIRST and fall back to an external binary, and that
+# order is load-bearing rather than a preference - each fallback was observed
+# failing where `/proc` cannot:
+#   - `ps -o args=` prints `args` as a DISPLAY COLUMN and procps TRUNCATES it to
+#     the screen width - 80 characters in any environment where it cannot
+#     determine one, which includes a CI runner and a plain container. The tokens
+#     that corroborate a lease (`odoo-bin`, `-d <db>`, the conf basename) sit at
+#     the END of a long command line, so they were the exact bytes cut off: the
+#     rung reported "not proven" for a genuine runaway server and the allocator
+#     refused to reclaim it. `-ww` (unlimited width) is now MANDATORY on that
+#     fallback, and `/proc/<pid>/cmdline` - the kernel's own NUL-separated copy,
+#     never formatted, never truncated, and split on NUL so a path containing a
+#     space cannot fake a token boundary - is preferred over it outright.
+#   - lsof/ss/fuser are absent in a minimal container (observed: all three), so
+#     an external-tool-only port rung means a containerised runtime can NEVER
+#     prove ownership and therefore NEVER reclaims a runaway. `/proc/net/tcp{,6}`
+#     plus `/proc/<pid>/fd` answer the same question with no binary at all.
+# `/proc` is Linux-only, which is why the binaries remain as the macOS/BSD path;
+# on Linux they are now only reached if `/proc` itself is unreadable.
 # --------------------------------------------------------------------------- #
 
 # argv[0]-style basenames Odoo has ever been launched under across the supported
@@ -465,35 +485,68 @@ _ODOO_LAUNCHER_BASENAMES = ("odoo-bin", "odoo.py", "openerp-server", "odoo")
 _DB_NAME_FLAGS = ("-d", "--database", "--db-name", "--db_name")
 
 
-def _pid_cmdline(pid):
-    """The full argv of the process CURRENTLY at `pid`, as one string, or None
-    when it cannot be read (`ps` missing, refused, timed out, or the pid gone).
+def _proc_argv(pid):
+    """The EXACT argument vector of `pid` from `/proc/<pid>/cmdline`, or None
+    when `/proc` cannot answer (not Linux, pid gone, permission).
 
-    Same instrument and same portability reasoning as `_pid_fingerprint`: `ps`
-    answers on Linux/macOS/BSD where `/proc/<pid>/cmdline` is Linux-only. None
-    means "could not look", never "nothing there" - callers MUST NOT read it as
-    evidence either way. Bounded by the file's one probe bound so a wedged `ps`
-    can never hang a release."""
-    rc, out, _ = _run(["ps", "-o", "args=", "-p", str(pid)], timeout=_probe_timeout_s())
+    The kernel stores argv NUL-separated, so this is the real vector: no display
+    width, no truncation, and no whitespace guessing - a path containing a space
+    stays ONE token instead of splitting into two that could fake a `-d <db>`
+    pair. An EMPTY read is also None: a kernel thread or a zombie has no argv,
+    which is "nothing to read", not "an argv that names nothing"."""
+    try:
+        with open(f"/proc/{int(pid)}/cmdline", "rb") as fh:
+            raw = fh.read()
+    except (OSError, ValueError, TypeError):
+        return None
+    tokens = [tok.decode("utf-8", "replace") for tok in raw.split(b"\0") if tok]
+    return tokens or None
+
+
+def _ps_argv(pid):
+    """`pid`'s argv via `ps`, for hosts with no `/proc` (macOS/BSD). None when
+    `ps` cannot answer (missing, refused, timed out, pid gone).
+
+    `-ww` is REQUIRED, not tidiness: `args` is a display column and procps
+    truncates it to the screen width - 80 characters wherever it cannot
+    determine one (a CI runner, a container) - which silently cut the
+    corroborating tokens off the end of a long command line and made a real
+    runaway server look unprovable. Splitting on whitespace is APPROXIMATE (a
+    path containing a space over-splits); that is acceptable only because this is
+    the fallback and both halves of `_argv_names_lease` must still match."""
+    rc, out, _ = _run(["ps", "-ww", "-o", "args=", "-p", str(pid)], timeout=_probe_timeout_s())
     if rc != 0:
         return None
-    out = out.strip()
-    return out or None
+    return out.split() or None
 
 
-def _cmdline_names_lease(cmdline, db_name):
-    """True when `cmdline` is an Odoo server invocation FOR `db_name` - both
-    halves required, because either alone is weak evidence: plenty of processes
-    mention a database name (`psql -d <db>`, a backup script), and plenty of
-    Odoo invocations serve a different database.
+def _pid_argv(pid):
+    """(argv, source) for the process CURRENTLY at `pid` - `/proc` first, `ps`
+    second - or (None, None) when neither could read it. None means "could not
+    look", never "nothing there": callers MUST NOT read it as evidence either
+    way."""
+    argv = _proc_argv(pid)
+    if argv:
+        return argv, "/proc/<pid>/cmdline"
+    argv = _ps_argv(pid)
+    if argv:
+        return argv, "ps -ww -o args="
+    return None, None
+
+
+def _argv_names_lease(argv, db_name):
+    """True when `argv` is an Odoo server invocation FOR `db_name` - both halves
+    required, because either alone is weak evidence: plenty of processes mention a
+    database name (`psql -d <db>`, a backup script), and plenty of Odoo
+    invocations serve a different database.
 
     The database is accepted as: the value of a database flag (`-d <db>`,
     `--database=<db>`), or a `<db_name>-*.conf` basename - the conf file
     `50-instance-spinup.sh` generates per (database, port) and passes with `-c`.
     """
-    if not cmdline or not db_name:
+    if not argv or not db_name:
         return False
-    tokens = cmdline.split()
+    tokens = list(argv)
     launcher = names_db = False
     for idx, tok in enumerate(tokens):
         if not tok.startswith("-") and os.path.basename(tok.rstrip("/")) in _ODOO_LAUNCHER_BASENAMES:
@@ -571,6 +624,115 @@ def _pgid_of(pid):
         return None
 
 
+# TCP state 0A == TCP_LISTEN in /proc/net/tcp's hex state column. Only a
+# LISTENING socket corroborates a server; an outbound connection to the same
+# port number proves nothing about who serves it.
+_PROC_TCP_LISTEN = "0A"
+
+
+def _proc_listening_inodes(port):
+    """Socket INODES listening on TCP `port`, read from `/proc/net/tcp{,6}`: a
+    set (EMPTY when /proc answered and nothing listens), or None when `/proc/net`
+    is not readable at all (not Linux).
+
+    Inodes rather than pids because `/proc/net/tcp` does not carry a pid - it
+    carries the socket inode, which `/proc/<pid>/fd` then attributes to a
+    process. That two-step is what makes the port rung work with NO external
+    binary, which matters because a minimal container has none of lsof/ss/fuser
+    and would otherwise be unable to prove ownership of anything, ever."""
+    try:
+        port = int(port)
+    except (TypeError, ValueError):
+        return None
+    inodes = set()
+    answered = False
+    for table in ("tcp", "tcp6"):
+        try:
+            with open(f"/proc/net/{table}", encoding="utf-8") as fh:
+                rows = fh.read().splitlines()[1:]  # drop the header row
+        except OSError:
+            continue
+        answered = True
+        for row in rows:
+            cols = row.split()
+            if len(cols) < 10 or cols[3] != _PROC_TCP_LISTEN:
+                continue
+            local = cols[1].rsplit(":", 1)
+            if len(local) != 2:
+                continue
+            try:
+                if int(local[1], 16) != port:
+                    continue
+            except ValueError:
+                continue
+            inodes.add(cols[9])
+    return inodes if answered else None
+
+
+def _proc_group_member_pids(pid):
+    """Every pid in the process group LED by `pid` (including `pid` itself), as
+    far as `/proc` can enumerate. Only group members are ever inspected - never
+    every process on the host - so this never reads an unrelated user's fds."""
+    members = {pid}
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return members
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        candidate = int(entry)
+        if candidate != pid and _pgid_of(candidate) == pid:
+            members.add(candidate)
+    return members
+
+
+def _proc_group_socket_holder(pid, inodes):
+    """The pid in `pid`'s process group that holds one of `inodes` as an open
+    socket, or None. Reads only `/proc/<member>/fd` symlinks (`socket:[<inode>]`);
+    an unreadable fd dir is skipped, never guessed at."""
+    for member in sorted(_proc_group_member_pids(pid)):
+        fd_dir = f"/proc/{member}/fd"
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                target = os.readlink(f"{fd_dir}/{fd}")
+            except OSError:
+                continue
+            if target.startswith("socket:[") and target[len("socket:["):-1] in inodes:
+                return member
+    return None
+
+
+def _port_holder_in_group(pid, port):
+    """(holder_pid, how) - is `port` held by the process group led by `pid`?
+
+    Tri-state, and the third state is the point on a kill path:
+      (int, how)   - a group member is LISTENING on it: ownership corroborated.
+      (None, how)  - measured, and the group does NOT hold it.
+      (None, None) - could NOT be measured on this host: not corroboration, and
+                     the refusal must say which rung went unevaluated.
+    `/proc` first (always present on Linux, needs no binary), then the external
+    tools for hosts without it."""
+    inodes = _proc_listening_inodes(port)
+    if inodes is not None:
+        how = "/proc/net/tcp + /proc/<pid>/fd"
+        if not inodes:
+            return None, how
+        holder = _proc_group_socket_holder(pid, inodes)
+        return holder, how
+    holders = _port_listener_pids(port)
+    if holders is None:
+        return None, None
+    for holder in sorted(holders):
+        if holder == pid or _pgid_of(holder) == pid:
+            return holder, "lsof/ss/fuser"
+    return None, "lsof/ss/fuser"
+
+
 def _clip(text, limit=160):
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[:limit] + "..."
@@ -618,32 +780,59 @@ def _ownership_proof(lease, pid):
             "about WHOSE process holds it"
         )
 
-    cmdline = _pid_cmdline(pid)
-    if _cmdline_names_lease(cmdline, db_name):
+    argv, argv_how = _pid_argv(pid)
+    if _argv_names_lease(argv, db_name):
         return "cmdline", (
             f"the process holding that pid is an Odoo server invocation for this "
-            f"lease's own database {db_name!r} [{_clip(cmdline)}]"
+            f"lease's own database {db_name!r}, read via {argv_how} "
+            f"[{_clip(' '.join(argv))}]"
+        )
+    if argv:
+        cmdline_status = (
+            f"its command line (read via {argv_how}) is not an Odoo server invocation for "
+            f"database {db_name!r} [it is: {_clip(' '.join(argv))}]"
+        )
+    else:
+        # NAME the unevaluated rung: "could not look" and "looked, no match" lead
+        # to different fixes, and a refusal that blurs them tells an operator
+        # nothing about whether this host can ever reclaim anything.
+        cmdline_status = (
+            "its command line could NOT be read at all (no /proc/<pid>/cmdline entry and "
+            "`ps -ww` gave no answer), so the command-line rung went UNEVALUATED"
         )
 
     ports = list(lease.get("ports") or [])
+    unmeasured_ports, measured_ports = [], []
     for port in ports:
-        holders = _port_listener_pids(port)
-        if not holders:
-            continue
-        for holder in sorted(holders):
-            if holder == pid or _pgid_of(holder) == pid:
-                return "port", (
-                    f"pid {holder} is LISTENING on port {port}, which this lease "
-                    f"reserved, and it belongs to the process group led by pid {pid}"
-                )
+        holder, how = _port_holder_in_group(pid, port)
+        if holder is not None:
+            return "port", (
+                f"pid {holder} is LISTENING on port {port}, which this lease reserved, "
+                f"and it belongs to the process group led by pid {pid} (observed via {how})"
+            )
+        (measured_ports if how else unmeasured_ports).append(port)
 
-    return None, (
-        f"{unprovable}; and nothing about the live process corroborates this lease "
-        f"either - it is not an Odoo server invocation for database {db_name!r}"
-        + (f" [it is: {_clip(cmdline)}]" if cmdline else " [its command line could not be read]")
-        + (f", and it does not hold any of this lease's reserved ports {ports}"
-           if ports else ", and this lease reserved no port to hold")
-    )
+    if not ports:
+        port_status = "this lease reserved no port, so there was no port rung to evaluate"
+    elif measured_ports and not unmeasured_ports:
+        port_status = (
+            f"none of this lease's reserved ports {measured_ports} is held by that pid's "
+            "process group"
+        )
+    elif unmeasured_ports and not measured_ports:
+        port_status = (
+            f"whether this lease's reserved ports {unmeasured_ports} are held could NOT be "
+            "measured on this host (no readable /proc/net/tcp and no lsof/ss/fuser), so the "
+            "port rung went UNEVALUATED"
+        )
+    else:
+        port_status = (
+            f"ports {measured_ports} are not held by that pid's process group, and ports "
+            f"{unmeasured_ports} could NOT be measured on this host, so the port rung went "
+            "PARTLY UNEVALUATED"
+        )
+
+    return None, f"{unprovable}; {cmdline_status}; and {port_status}"
 
 
 def _backfill_pid_fingerprint(lease):
@@ -784,7 +973,8 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
             "SIGTERM on an unproven pid kills whatever session now holds that number "
             "(its shell, its children, its test run), which is never the cheaper "
             "mistake. If that pid really is a runaway server for this lease, stop it "
-            "by hand after checking it (`ps -o args= -p {pid}`).\n".format(
+            "by hand after checking it (`ps -ww -o args= -p {pid}` - the `-ww` matters, "
+            "plain `ps` truncates the command line to 80 columns).\n".format(
                 pid=pid, db=lease.get("db_name"), detail=detail)
         )
         return False
