@@ -1,6 +1,6 @@
 {
   "run_id": "multi-repo-scoped-20260806-r5s6",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "land fleet-addons early while core-addons is still being built",
   "autonomy": "auto",
   "status": "NEEDS_NEXT",
@@ -30,9 +30,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -42,9 +43,10 @@
       "approach": "odoo-i18n",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/i18n/**"],
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L2",
       "status": "READY",
       "produced": [],
       "contract": {}
@@ -56,7 +58,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/3"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/3"], "next": []}
@@ -66,9 +67,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "core-addons",
+      "modules": ["viin_core_hook"],
+      "files_in_scope": ["viin_core_hook/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "RUNNING",
       "produced": [],
       "contract": {}
@@ -80,7 +82,6 @@
       "repo": "core-addons",
       "inputs": {},
       "depends_on": ["core-hook"],
-      "gate_tier": "L0",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -92,7 +93,6 @@
       "repo": "core-addons",
       "inputs": {},
       "depends_on": ["core-review"],
-      "gate_tier": "L1",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -104,7 +104,6 @@
       "repo": null,
       "inputs": {},
       "depends_on": ["fleet-land", "core-land"],
-      "gate_tier": "L0",
       "status": "PENDING",
       "produced": [],
       "contract": {}

@@ -1,6 +1,6 @@
 {
   "run_id": "multi-repo-clean-20260806-m1n2",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "add fleet billing in the addon repo and the matching core hook in the core repo",
   "autonomy": "auto",
   "status": "DONE",
@@ -30,9 +30,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -42,9 +43,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "core-addons",
+      "modules": ["viin_core_hook"],
+      "files_in_scope": ["viin_core_hook/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_core_hook/models/res_config.py"],
       "contract": {"status": "DONE", "produced": ["viin_core_hook/models/res_config.py"], "next": []}
@@ -56,7 +58,6 @@
       "repo": null,
       "inputs": {},
       "depends_on": ["fleet-billing", "core-hook"],
-      "gate_tier": "L0",
       "status": "DONE",
       "produced": [],
       "contract": {"status": "DONE", "produced": [], "next": []}
@@ -68,7 +69,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/1"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/1"], "next": []}
@@ -80,7 +80,6 @@
       "repo": "core-addons",
       "inputs": {},
       "depends_on": ["core-hook"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/core-addons/pull/7"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/core-addons/pull/7"], "next": []}
@@ -94,7 +93,6 @@
       "repo": "fleet-addons",
       "inputs": {"pr": "https://example.invalid/org/fleet-addons/pull/1"},
       "depends_on": ["fleet-land"],
-      "gate_tier": "L2",
       "status": "DONE",
       "produced": [],
       "contract": {"status": "DONE", "produced": [], "next": []}
@@ -106,7 +104,6 @@
       "repo": "core-addons",
       "inputs": {"pr": "https://example.invalid/org/core-addons/pull/7"},
       "depends_on": ["core-land"],
-      "gate_tier": "L2",
       "status": "DONE",
       "produced": [],
       "contract": {"status": "DONE", "produced": [], "next": []}

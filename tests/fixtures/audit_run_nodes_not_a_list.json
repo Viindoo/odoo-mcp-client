@@ -1,6 +1,6 @@
 {
   "run_id": "nodes-not-a-list-20260807-b9c0",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "serialize the DAG as a mapping keyed by node id instead of the documented array",
   "autonomy": "auto",
   "status": "DONE",
@@ -22,9 +22,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -34,9 +35,9 @@
       "approach": "odoo-acceptance",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L2",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -48,7 +49,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/41"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/41"], "next": []}
@@ -60,7 +60,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["integrate-a"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/42"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/42"], "next": []}

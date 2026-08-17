@@ -37,10 +37,17 @@ owner is now `run-integration.md` § Pre-PR tail - and its entry line is still a
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
+
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from test_terminal_stage_order_singularity import parse_canonical_stages  # noqa: E402
 
 RUN_HARNESS_SKILL = PLUGIN / "skills" / "run-harness" / "SKILL.md"
 RUN_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
@@ -201,15 +208,37 @@ def test_pre_pr_tail_entry_condition_is_a_green_verdict_not_a_done_status():
 
 
 def test_pre_pr_tail_orders_i18n_before_acceptance_before_lint_before_integrate():
-    """Behavior protected: the pre-PR tail's four stages appear in the mandated order. This is a
+    """Behavior protected: the pre-PR tail's stages appear in the mandated order. This is a
     real data dependency (i18n mutates rendered UI text; acceptance's evidence must reflect the
     FINAL translated state) matching the precedent already shipping in odoo-modules-upgrade
     (i18n before its Acceptance stage) and odoo-forward-port (i18n before its later Acceptance
     stage) - composing with both, not a third diverging order.
 
-    Fails if any stage is missing, or if the stages appear out of order.
+    Post-refactor, `review`/`i18n`/`acceptance`/`doc` are ORDINARY PLAN NODES with no
+    execution-detail stage BLOCK of their own - only the pre-PR lint-class gate and the terminal
+    PR are DRIVER steps and keep a numbered `**N -` block. So the ORDER is asserted two ways:
+    (a) against the Terminal stage order constant's own parsed canon (the SAME parser
+    `test_terminal_stage_order_singularity.parse_canonical_stages` uses - reused, not
+    re-derived), and (b) the two SURVIVING stage blocks, `**5 - Pre-PR lint-class gate` before
+    `**6 - Terminal land-tail PR`, with no stray block for a retired position.
+
+    Fails if any canonical stage is missing or out of order, if either surviving stage block is
+    missing or out of order, or if a stage block resurfaces for a position that is now a plain
+    plan node.
     """
     text = _read(RUN_INTEGRATION)
+
+    # (a) the canon itself, parsed from the constant's own fenced block.
+    canon = parse_canonical_stages(text)
+    for stage in ("review", "i18n", "acceptance", "doc", "lint", "pr"):
+        assert stage in canon, f"Terminal stage order canon is missing {stage!r}: {canon}"
+    order = {stage: i for i, stage in enumerate(canon)}
+    assert order["review"] < order["i18n"] < order["acceptance"] < order["doc"] < order["lint"] < order["pr"], (
+        f"Terminal stage order canon is out of order - R7b requires review before i18n before "
+        f"acceptance before doc before the lint-class gate before the terminal PR: {canon}"
+    )
+
+    # (b) the two surviving DRIVER stage blocks.
     start = text.find(
         "## Pre-PR tail (mandatory sequence, after the repo's last verification node closes GREEN)"
     )
@@ -217,10 +246,8 @@ def test_pre_pr_tail_orders_i18n_before_acceptance_before_lint_before_integrate(
     section = text[start:]
 
     markers = [
-        ("i18n reconcile", "**1 - i18n reconcile"),
-        ("acceptance", "**2 - Acceptance"),
-        ("lint-class gate", "**3 - Pre-PR lint-class gate"),
-        ("terminal integrate", "**4 - Terminal land-tail PR"),
+        ("lint-class gate", "**5 - Pre-PR lint-class gate"),
+        ("terminal integrate", "**6 - Terminal land-tail PR"),
     ]
     positions = []
     for label, marker in markers:
@@ -231,9 +258,14 @@ def test_pre_pr_tail_orders_i18n_before_acceptance_before_lint_before_integrate(
     ordered = [label for label, _ in sorted(positions, key=lambda t: t[1])]
     expected = [label for label, _ in markers]
     assert ordered == expected, (
-        f"Pre-PR tail stages are out of order - expected {expected}, found {ordered}. R7b requires "
-        "i18n before acceptance before the lint-class gate before the terminal PR."
+        f"Pre-PR tail stage blocks are out of order - expected {expected}, found {ordered}."
     )
+
+    for retired in ("**1 -", "**2 -", "**3 -", "**4 -"):
+        assert retired not in section, (
+            f"a stage block {retired!r} survives in the Pre-PR tail - review/i18n/acceptance/doc "
+            "are ordinary plan nodes now and carry no execution-detail stage block of their own."
+        )
 
 
 def test_acceptance_depends_on_verification_not_on_the_pr():
@@ -332,8 +364,8 @@ def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
     text = _read(RUN_INTEGRATION)
     section = _section(
         text,
-        "**3 - Pre-PR lint-class gate",
-        "**4 - Terminal land-tail PR",
+        "**5 - Pre-PR lint-class gate",
+        "**6 - Terminal land-tail PR",
     )
     norm = _norm_ws(section)
 
@@ -377,14 +409,16 @@ def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
 
     Fails if the containment section does not (a) disambiguate the fix's target worktree, (b)
     mandate a cherry-pick of the fix back onto run-integration via git-toolkit:git-ops (never a raw
-    git command), and (c) mandate re-running the lint-class suite against run-integration's OWN new
-    tip rather than trusting the coder's self-reported DONE.
+    git command), (c) mandate re-running the lint-class suite against run-integration's OWN new
+    tip rather than trusting the coder's self-reported DONE, or (d) state that a green lint suite
+    ALONE does not restore the suite verdict the readiness predicate needs (citing § Verdict
+    currency, the clause that actually owns that rule).
     """
     text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**Containment for tail-only lint",
-        "**4 - Terminal land-tail PR",
+        "**6 - Terminal land-tail PR",
     )
     norm = _norm_ws(section)
 
@@ -407,6 +441,14 @@ def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
     assert "never trust the coder's own" in norm or "does not prove" in norm, (
         "the fix-loop must explicitly refuse to trust the coder's bare DONE self-report as proof "
         "that run-integration (the tree that actually ships) is clean."
+    )
+    assert "lint alone does not" in norm, (
+        "the containment section must state that lint ALONE does not restore the suite verdict - "
+        "a green lint pass over a tree whose behavior suite predates the fix is not a green suite."
+    )
+    assert "verdict currency" in norm, (
+        "the containment section must cite § Verdict currency - the clause that actually owns the "
+        "'a mutation invalidates the prior verdict' rule this bullet is applying."
     )
 
 
@@ -841,8 +883,8 @@ def test_pre_pr_lint_gate_declares_its_own_gate_role():
     text = _read(RUN_INTEGRATION)
     section = _section(
         text,
-        "**3 - Pre-PR lint-class gate",
-        "**4 - Terminal land-tail PR",
+        "**5 - Pre-PR lint-class gate",
+        "**6 - Terminal land-tail PR",
     )
     norm = _norm_ws(section)
     assert "gate_role: pre-pr-lint-gate" in norm, (

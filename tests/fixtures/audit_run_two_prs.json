@@ -1,6 +1,6 @@
 {
   "run_id": "two-prs-20260806-c3d4",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "add a discount ceiling across two modules",
   "autonomy": "auto",
   "status": "DONE",
@@ -11,9 +11,10 @@
       "id": "code-mod-a",
       "approach": "odoo-coding",
       "approach_kind": "skill",
+      "modules": ["mod_a"],
+      "files_in_scope": ["mod_a/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["mod_a/models/a.py"],
       "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
@@ -24,7 +25,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["code-mod-a"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/1"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
@@ -33,9 +33,10 @@
       "id": "code-mod-b",
       "approach": "odoo-coding",
       "approach_kind": "skill",
+      "modules": ["mod_b"],
+      "files_in_scope": ["mod_b/models/**"],
       "inputs": {},
       "depends_on": ["land-mod-a"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["mod_b/models/b.py"],
       "contract": {"status": "DONE", "produced": ["mod_b/models/b.py"], "next": []}
@@ -46,7 +47,6 @@
       "approach_kind": "integrate",
       "inputs": {},
       "depends_on": ["code-mod-b"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/2"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/2"], "next": []}

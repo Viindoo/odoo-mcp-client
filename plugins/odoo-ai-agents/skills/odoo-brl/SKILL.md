@@ -542,6 +542,7 @@ BRL is a front-door admission gate: it NEVER hands a requirement straight to an 
 establishes the plan (`odoo-planning`, or `odoo-solution-design` first for L/XL) before any code.
 Planning is mandatory for all code-writing work, no size-based bypass
 (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule); even one
-small Standard/Config item gets the minimal `[code, review, integrate]` plan. BRL is terminal
+small Standard/Config item gets the minimal
+`[code, verify, review, integrate, monitor, merge]` plan. BRL is terminal
 (`status: DONE`, `next: []`) ONLY when every item is fully covered with zero custom dev
 (Available-in-Odoo-CE / -EE / -Viindoo, no Extension/Custom item).

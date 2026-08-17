@@ -1,6 +1,6 @@
 {
   "run_id": "chat-only-20260806-k1l2",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "compare the ORM API between two Odoo series",
   "autonomy": "auto",
   "status": "DONE",
@@ -13,7 +13,6 @@
       "approach_kind": "skill",
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L0",
       "status": "DONE",
       "produced": [],
       "contract": {"status": "DONE", "produced": [], "next": [], "blocked_reason": null}
@@ -24,7 +23,6 @@
       "approach_kind": "skill",
       "inputs": {},
       "depends_on": ["diff-1"],
-      "gate_tier": "L0",
       "status": "DONE",
       "produced": [],
       "contract": {"status": "DONE", "produced": [], "next": [], "blocked_reason": null}

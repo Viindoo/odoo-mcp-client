@@ -1,6 +1,6 @@
 {
   "run_id": "land-tail-substring-20260807-x5y6",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "open the PR while two ordinary pre-PR nodes whose ids merely CONTAIN a land-tail word are still unfinished",
   "autonomy": "auto",
   "status": "DONE",
@@ -22,9 +22,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -34,9 +35,10 @@
       "approach": "odoo-i18n",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/i18n/**"],
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "READY",
       "produced": [],
       "contract": {}
@@ -48,7 +50,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L0",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -60,7 +61,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/21"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/21"], "next": []}
@@ -74,7 +74,6 @@
       "repo": "fleet-addons",
       "inputs": {"pr": "https://example.invalid/org/fleet-addons/pull/21"},
       "depends_on": ["integrate"],
-      "gate_tier": "L2",
       "status": "PENDING",
       "produced": [],
       "contract": {}

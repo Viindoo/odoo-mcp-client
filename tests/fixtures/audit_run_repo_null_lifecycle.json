@@ -1,6 +1,6 @@
 {
   "run_id": "repo-null-lifecycle-20260807-z7a8",
-  "schema_version": "run/1.0",
+  "schema_version": "run/2.0",
   "intent": "open the PR while acceptance and doc sit at `repo: null` and have never run",
   "autonomy": "auto",
   "status": "DONE",
@@ -22,9 +22,10 @@
       "approach": "odoo-coding",
       "approach_kind": "skill",
       "repo": "fleet-addons",
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/models/**"],
       "inputs": {},
       "depends_on": [],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["viin_fleet_billing/models/fleet_vehicle.py"],
       "contract": {"status": "DONE", "produced": ["viin_fleet_billing/models/fleet_vehicle.py"], "next": []}
@@ -34,9 +35,9 @@
       "approach": "odoo-acceptance",
       "approach_kind": "skill",
       "repo": null,
+      "modules": ["viin_fleet_billing"],
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L2",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -46,9 +47,10 @@
       "approach": "odoo-doc-illustration",
       "approach_kind": "skill",
       "repo": null,
+      "modules": ["viin_fleet_billing"],
+      "files_in_scope": ["viin_fleet_billing/doc/**", "viin_fleet_billing/static/description/**"],
       "inputs": {},
       "depends_on": ["cluster-acceptance"],
-      "gate_tier": "L1",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -60,7 +62,6 @@
       "repo": null,
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L0",
       "status": "PENDING",
       "produced": [],
       "contract": {}
@@ -72,7 +73,6 @@
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": ["fleet-billing"],
-      "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/31"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/31"], "next": []}

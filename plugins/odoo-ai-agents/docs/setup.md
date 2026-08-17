@@ -28,7 +28,7 @@ These two steps are easy to confuse. Only the first is required:
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Without it, every `odoo-*` skill still resolves the Odoo series/profile/scope from the checkout the first time you invoke it in a new repo.
 
 > **Version gate - Claude Code >= 2.1.172.** The coding workflow uses NESTED subagent dispatch:
-> `odoo-coding` launches an `odoo-coder` coordinator per module (every module, not just full-stack),
+> `odoo-coding` launches an `odoo-coder` coordinator per NODE (every node, not just full-stack),
 > which itself launches its teammates - `odoo-test-writer` (RED test first), then `odoo-backend-coder`
 > and/or `odoo-frontend-coder` (one agent level deeper). Nested dispatch requires
 > Claude Code 2.1.172+ (the platform depth cap is 5). The `/odoo-ai-agents:odoo-setup` prereq check

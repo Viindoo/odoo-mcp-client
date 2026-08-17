@@ -10,6 +10,7 @@ final wording is reworded - re-pin the substrings when the SSOT prose changes in
 Plugin-root idiom reused from the sibling ``tests/test_git_delegation_boundary.py`` so this file
 stands alone.
 """
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -28,7 +29,18 @@ def test_coding_path_owns_a_commit():
         assert anti not in coding
     assert "always" in coding and "git-toolkit:git-ops" in coding
     assert "writes the source tree" in harness.lower() and "git-toolkit:git-ops" in harness
-    assert "review, integrate]" in intake  # the [code, review, integrate] land node exists in the micro-plan schema
+    # The minimal micro-plan must carry BOTH an `integrate` land node and the verification node
+    # `integrate` readiness requires - naming one without the other deadlocks the run. Assert the
+    # two nodes, not one exact rendering of the list.
+    minimal = re.findall(r"minimal[^.]{0,120}?\[([^\]]+)\]", intake)
+    assert minimal, "odoo-intake must state the minimal writes-files plan"
+    for stages in minimal:
+        members = {s.strip().strip("`") for s in stages.split(",")}
+        assert "integrate" in members, f"minimal plan {stages!r} has no integrate land node"
+        assert "verify" in members, (
+            f"minimal plan {stages!r} names no verification node - integrate readiness clause (ii) "
+            "would never be satisfied and the run would never land"
+        )
 
 
 def test_coder_coordinator_commits_module_and_coding_collects_sha():

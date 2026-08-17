@@ -240,6 +240,12 @@ Upstream/Downstream impact matrix (the Round-2 bidirectional result):
 ## 9. Acceptance Criteria
 MANDATORY: one module-level acceptance-criteria block PER AFFECTED MODULE - one block per row of the §1 per-module table, no exceptions - each covering expected behavior, scope of responsibility, integration points, and non-regression requirements. **Solution-level:** in addition, one summary of the conditions that make the overall solution successful from a business and technical perspective (a summary alongside the per-module blocks, never a substitute for them). The design is INCOMPLETE until every module listed in §1 has its own §9 block.
 
+Downstream ownership (do not resolve it here - just know it exists): at planning time, this
+solution-level (cross-module) summary is owned by the verification node whose `modules` cover every
+module the summary spans (`agents/odoo-planner.md` § Round 1; `skills/odoo-intake/references/plan-mode-schema.md`
+§ Cross-module acceptance-criterion ownership). Write the summary so it names WHICH modules it spans -
+that is what lets planning assign it an owner.
+
 **INDEPENDENCE GUARD.** Every `expected` value in a §9 block MUST be derived from the requirement / business rule - hand-computed when it is a calculation - and MUST NEVER be phrased from an OSM finding or a code-read result. This mirrors the `odoo-qa-planner` code-read ban (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`): §9 is the requirement-level acceptance criteria the downstream independent QA oracle is explicitly allowed to consume as a source of `expected`, and a §9 value grounded in code/OSM would poison that oracle's independence at the source, before the oracle is even authored. §7 Test strategy MAY cite OSM for base-class/coverage grounding (`test_base_classes`, `test_coverage_audit`) - that is structural test scaffolding, a different concern from the business `expected` values §9 owns.
 
 ## Grounding evidence

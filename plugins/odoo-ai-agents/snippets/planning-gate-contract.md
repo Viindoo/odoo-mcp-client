@@ -21,11 +21,9 @@ L1/L2 node gates, `odoo-planning`'s plan gate, workflow-chaining's soft-plan-gat
 these two sets verbatim and points here rather than restating them - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` for the cross-cutting index.
 
-Planning is MANDATORY for ALL work that writes code, and it is enforced ONCE at the ADMISSION point
-(the front door), never re-checked inside executors. There is NO trivial/size/module-count bypass
-that lets the front door admit code-writing work without a plan. A single-module change is not an
-exception - the front door flows it through `odoo-planning`, which emits the minimal
-`[code, review, integrate]` plan for it. The SOLE lone-design exception is the gated migration
+Planning is MANDATORY for ALL work that writes code, enforced ONCE at ADMISSION (the front door) -
+see § Mandatory-planning rule below for the full statement (no trivial/size/module-count bypass;
+trivial work still gets the minimal plan). The SOLE lone-design exception is the gated migration
 carve-out below (§ Migration carve-out).
 
 ## Mandatory-planning rule
@@ -44,9 +42,9 @@ runtime contradiction of a per-stage self-gate.
 - **Front door routes non-trivial work through `odoo-planning` first** - it does not dispatch a raw
   coder. A design-required change goes `odoo-solution-design` -> `odoo-planning` first; a
   one-approach change still flows through `odoo-planning` (which emits the minimal
-  `[code, review, integrate]` plan). Admission would otherwise let code be written with no plan, so
-  the front door HARD BLOCKS that path and routes to `odoo-planning`. The ONLY lone-design bypass is
-  the § Migration carve-out.
+  `[code, verify, review, integrate, monitor, merge]` plan). Admission would otherwise let code be
+  written with no plan, so the front door HARD BLOCKS that path and routes to `odoo-planning`. The
+  ONLY lone-design bypass is the § Migration carve-out.
 - **The executor consumes the established signal** - once the front door has established a signal
   the plan already stands, and the executor proceeds on the plan-provided fast-path. The fast-path
   is NOT re-gated (re-gating a signalled invocation would stall the driver's sequential node loop);

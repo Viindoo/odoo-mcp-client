@@ -276,7 +276,7 @@ installing it as an ordinary `-i` module is NOT equivalent - it misses the boot-
 
 Lint-class gating (`test_lint`, `test_pylint`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
 `run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
-§ Pre-PR tail stage 3) - never inside a node verification run. This HARD RULE is
+§ Pre-PR tail stage 5) - never inside a node verification run. This HARD RULE is
 therefore CONDITIONAL, gated on one explicit brief field, never on the operation name alone -
 `run-tests` for the pre-PR lint gate and `run-tests` for a node integrated verification are
 the SAME operation with DIFFERENT intent, and intent is what decides this union.
