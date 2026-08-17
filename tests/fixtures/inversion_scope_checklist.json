@@ -4,10 +4,10 @@
     {
       "id": 1,
       "file": "snippets/module-coordination-ledger.md",
-      "lines": "194-196",
+      "lines": "192-193",
       "hazard": "HANG (infinite re-queue) - without the failed-sibling exclusion, decision-table case 2 re-queues a dependent forever",
       "sentences": [
-        "it will never complete, so a re-queue would loop forever; it falls"
+        "it will never complete, so re-queuing would loop forever) - falls through to case 5"
       ]
     },
     {
@@ -22,11 +22,11 @@
     {
       "id": 3,
       "file": "snippets/module-coordination-ledger.md",
-      "lines": "118-129",
+      "lines": "143-145",
       "hazard": "MUTUAL EXCLUSION DESTROYED - the obvious simplification (mkdir -p everywhere) defeats the atomic-mkdir lock",
       "sentences": [
-        "NEVER `mkdir -p` on the per-module dir - `-p` succeeds on",
-        "an already-existing dir and would defeat the mutual exclusion"
+        "the per-module claim is the BARE atomic `mkdir` (never",
+        "`mkdir -p`, which would succeed on an existing dir and destroy the mutual exclusion)"
       ]
     },
     {

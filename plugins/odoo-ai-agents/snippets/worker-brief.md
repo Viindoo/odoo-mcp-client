@@ -15,14 +15,14 @@ See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) y
 against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` - this file covers only your
 worker-side behavior once dispatched, not how the caller composed your brief.
 
-**The `odoo-coder` per-module coordinator is NOT a leaf and does NOT carry this brief.** It is a
-sanctioned nested spawner (one agent level below `odoo-coding`, launched for EVERY module) that
+**The `odoo-coder` node coordinator is NOT a leaf and does NOT carry this brief.** It is a
+sanctioned nested spawner (one agent level below `odoo-coding`, launched once per work node) that
 launches the three hard-leaf teammates - `odoo-test-writer` (RED test, first), `odoo-backend-coder`
 and/or `odoo-frontend-coder` (code to green) - per R0
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: its own launch capability exposes a
 blocking switch (`run_in_background: false`), so it blocks on each teammate it needs an answer from),
-tests the integrated module via `Skill(odoo-instance)` inline, and - once the integrated test is
-green - COMMITS its module by invoking `git-toolkit:git-ops` via the Skill tool, then
+tests the integrated node via `Skill(odoo-instance)` inline, and - once the integrated test is
+green - COMMITS its node by invoking `git-toolkit:git-ops` via the Skill tool, then
 returns the SHA to `odoo-coding` (which collects it and no longer re-commits). See
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 

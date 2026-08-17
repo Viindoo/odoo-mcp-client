@@ -6,6 +6,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-08-17
+
+A plan used to be a batch of batches. `odoo-planner` grouped modules into waves, `run-harness` ran a
+between-wave integration procedure with its own gate and its own cadence, and `odoo-coding` cut every
+change into one dispatch per module. Nothing in Odoo asked for any of it: `-i`/`-u` take a
+comma-separated module list in every series from 8.0 to 19.0, so a work unit spanning three modules
+costs one database and one suite pass, not three. The grouping layer bought nothing and cost a
+concept at every layer it touched. It is gone, and the plan's own `depends_on` edges carry the
+ordering they always carried.
+
+### Changed
+
+- **BREAKING** `odoo-ai-agents` - the wave is gone. A plan is now a flat DAG of work NODES with
+  `depends_on`, and `run-harness` takes any node whose dependencies are satisfied. The grouping layer
+  between the plan and the node is deleted, not renamed: `approach_kind: wave`, the five-value wave
+  `topology` enum, the Block 2W worktree dependency graph, the per-wave `cumulative_modules` field,
+  the between-wave integration procedure, the between-wave auto-advance gate, and the wave-only L1
+  tier carve-out are all removed. Dependency ORDER is unchanged everywhere it was real - Odoo cannot
+  load a module before its declared dependencies in any series from 8.0 to 19.0 - and is expressed
+  directly as `depends_on` edges and dependency-ordered install lists. `odoo-modules-upgrade`'s
+  bottom-up install and `odoo-deep-survey`'s closure walk keep their behaviour and lose the word; the
+  `n <= 1` single-unit collapse both pipelines rely on survives as its own section.
+
+- **BREAKING** `odoo-ai-agents` - integration and regression verification are ordinary plan nodes.
+  The planner decides where they sit and which modules each one runs; the driver keeps no
+  between-node logic and no cadence. "Never open a PR on red" is now enforced by the driver, not by
+  prose: `integrate` for a repository is READY only when a DONE `odoo-instance` node on its
+  dependency path ran the suites of every module that repository's coding nodes touched, and a
+  SKIPPED verification never satisfies it.
+
+- **BREAKING** `odoo-ai-agents` - the plan leads and `run-harness` follows, checkably. The driver may
+  compute only pure functions of plan fields and facts that exist only at runtime (worktree paths,
+  SHAs, remote state, budget); where a computation disagrees with the plan it STOPS BLOCKED and
+  routes back to `odoo-planning` instead of substituting its own value. `verify_plan_agreement` runs
+  five such checks before every dispatch, each ending in that same route-back. The three-way
+  `gate_tier` ownership gap is closed by deleting the field: a node's tier is a total function of the
+  registry default for its skill, whether the node was in the approved plan, and whether the driver
+  itself composed a fresh-database brief - the ephemeral ceiling that keeps unattended regression
+  runs from becoming human gates. `odoo-planner` no longer authors a tier and intake Phase P no
+  longer computes one.
+
+- **BREAKING** `odoo-ai-agents` - `odoo-coding` dispatches ONE `odoo-coder` per work NODE, not per
+  module. A node may span several modules or cover only part of one; the module is now a property of
+  a node (its install, test-selection and dependency axis), not a unit of work. `odoo-coder`
+  provisions ONE instance for the node's whole module set, runs ONE integrated test, and makes ONE
+  commit. A test asserting on behaviour a later module in the node contributes must be tagged
+  `post_install` on 12.0+, or use `@common.post_install(True)` with `@common.at_install(False)` on
+  8.0-11.0, because every test class is `at_install` by default and fires as soon as its own module
+  installs - a default test in module A cannot see module B. The module-coordination ledger keeps its
+  per-module claim key and now claims a node's whole module list in ascending technical-name order,
+  waiting rather than releasing on contention.
+
+- `odoo-ai-agents` - renamed `skills/run-harness/references/wave-integration.md` to
+  `references/run-integration.md`, `skills/_shared/cumulative-test-scope.md` to
+  `regression-scope.md`, the ISOLATE directory `wave/<slug>/` to `integration/<slug>/`, the
+  `GATE_ROLE` value `per-module-verify` to `node-verify`, and `odoo-modules-upgrade`'s
+  `checkpoint.json` keys `waves:`/`wave:` to `levels:`/`level:`. Both state renames are migrated:
+  `migrate_project_state.sh` moves a legacy `wave/` tree, and the upgrade skill reads a legacy
+  `wave:` checkpoint key for one release. A `run-<id>.json` serialized before this release does not
+  drive under it - the driver reports `NEEDS_CONTEXT` and asks for a re-plan rather than guessing.
+
+- `odoo-ai-agents` - `run-harness/SKILL.md` is smaller than it was before the wave layer existed
+  (28841B against 28851B), and the driver plus its reference shrank 7.6% together, because the
+  procedures the deleted section carried moved into the on-demand reference while the decisions
+  stayed in the always-loaded skill.
+
+### Fixed
+
+- `odoo-ai-agents` - a brief that names an external `WORKTREE_PATH` now also hands down the resolved
+  `SHARE_DIR`/`ISOLATE_DIR`. The verification brief named a worktree without them, so a leaf
+  re-resolving from its own cwd would have written its worklog into the wrong worktree.
+
+- `odoo-ai-agents` - `run-harness` no longer resolves module names itself. The driver declares no MCP
+  tools, and the planner has already resolved every name it authored; the dispatched skill resolves
+  them again where the grounding already is, and a BLOCKED return routes back to `odoo-planning`.
+
+### Added
+
+- `odoo-ai-agents` - an anti-regrowth guard suite (`tests/test_wave_layer_regrowth.py`) that fails if
+  the grouping layer returns in any shape: the word itself outside a data allowlist with a named
+  sense per entry, a new grouping-shaped field added to one side of the node schema only, a
+  `gate_tier` written onto a node, a per-module `odoo-coder` dispatch claim anywhere in the tree, a
+  purge that deletes the dependency-order mechanism along with the word, or a tier function that
+  stops being total. Every guard normalises whitespace, strips markdown emphasis and fenced blocks,
+  carries an explicit inversion-rejection clause, and was proven to fail against the pre-change text.
+
 ## [4.26.0] - 2026-08-16
 
 Every session that ended printed `SessionEnd hook [...session-end-gc.sh] failed: Hook cancelled`. The

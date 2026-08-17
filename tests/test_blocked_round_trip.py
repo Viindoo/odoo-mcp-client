@@ -82,7 +82,7 @@ WORKTREE_DISPATCH_SITES = [
     SKILLS / "odoo-git-rebase" / "references" / "rb-phase-detail.md",
     SKILLS / "odoo-forward-port" / "references" / "fp-phase-detail.md",
     SKILLS / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md",
-    SKILLS / "run-harness" / "references" / "wave-integration.md",
+    SKILLS / "run-harness" / "references" / "run-integration.md",
 ]
 
 # Leaves that `cd` into the dispatched worktree before they touch a Tier-2 path - exactly the

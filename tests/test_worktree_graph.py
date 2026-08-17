@@ -1,18 +1,20 @@
-"""Behavior guards for the planned-worktree-graph refactor (decision R, CORE step).
+"""Behavior guards for the worktree LINEAGE and the plan/runtime ownership split.
 
-Protects the CONTRACT (not a wording snapshot) of the worktree dependency graph:
+The plan is a FLAT DAG of work nodes with `depends_on`; nothing groups nodes. The worktree
+lineage is therefore no longer a second projection authored INSIDE the plan (the retired
+`Block 2W`) - it is a runtime invariant owned by the driver. What this file protects:
 
-(a) Block 2W - the symbolic worktree dependency graph - lives in plan-mode-schema.md as a SECOND
-    projection alongside the Block-2 module-DAG, carries SYMBOLIC topology/lifecycle only (never ref
-    STATE: SHAs/tips/paths/leases), and encodes the fork-from-integrated-parent edge
-    `worktree(m)@wave-N ==> run-integration` - every wave's worktrees fork from the ONE
-    run-integration branch, which already carries all prior waves. odoo-planner authors it and its
-    plan-ref line is relaxed to allow symbolic topology while still forbidding concrete ref state.
-(b) The odoo-coder coordinator COMMITS its module via Skill(git-toolkit:git-ops) - request-only, no
+(a) `run-harness/SKILL.md` § Run start states ALL THREE lineage invariants, per NODE:
+    ONE `run-integration` branch per repo forked ONCE; every source-writing node's worktree forks
+    THAT branch; every returned commit cherry-picks back onto it as a saga, and that branch is
+    what the terminal `integrate` node squashes.
+(b) The PLAN carries no concrete ref STATE - no SHA, no branch tip, no resolved worktree
+    filesystem path, no lease token - and no symbolic worktree-graph edge either. Those are
+    runtime-only facts the driver owns (`agents/odoo-planner.md` states this from its own side).
+(c) The odoo-coder coordinator COMMITS its node via Skill(git-toolkit:git-ops) - request-only, no
     direct git leaf agent, no raw git (see also test_coder_coordinator_topology.py).
-(c) run-harness carries the between-wave integration (fork-worktrees-from-run-integration + cherry-pick
-    in module-DAG order + saga + integrated review + cumulative close-gate + AUTO-ADVANCE with NO
-    per-wave PR, then ONE run-level PR via the terminal `integrate` land-tail), consuming Block 2W.
+(d) The `approach_kind` enum has ONE value set, declared identically at every declaration site,
+    and every count word referring to it agrees with the actual enumerated value count.
 
 Red-before-green: each assertion fails if its clause is dropped or inverted.
 """
@@ -29,122 +31,191 @@ CODER = PLUGIN / "agents" / "odoo-coder.md"
 RUN_HARNESS = PLUGIN / "skills" / "run-harness" / "SKILL.md"
 LEDGER = PLUGIN / "snippets" / "module-coordination-ledger.md"
 INTEGRATION_LOOP = PLUGIN / "skills" / "_shared" / "integration-loop.md"
-WAVE_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "wave-integration.md"
+RUN_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
 PLAN_MODE_SCHEMA = SCHEMA
 WORKFLOW_HARNESS = PLUGIN / "docs" / "reference" / "workflow-harness.md"
-PHASE_P_RUN_DAG = PLUGIN / "skills" / "odoo-intake" / "references" / "phase-p-run-dag.md"
-UPG_PHASE_DETAIL = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
-FORWARD_PORT_SKILL = PLUGIN / "skills" / "odoo-forward-port" / "SKILL.md"
+AUDIT_RUN = ROOT / "scripts" / "audit-run.py"
 
 
 def _text(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
-def _block_2w_section() -> str:
-    """The '**Block 2W ...**' spec, up to the next '**Block 3'."""
-    text = _text(SCHEMA)
-    start = text.find("**Block 2W")
-    assert start != -1, (
-        "plan-mode-schema.md must carry a '**Block 2W - Worktree dependency graph ...**' section "
-        "(the second projection alongside the Block-2 module-DAG)."
+def _normalize_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", text)
+
+
+def _run_start_section() -> str:
+    """The body of run-harness/SKILL.md's `## Run start` section, whitespace-normalized.
+
+    Scoping to the SECTION (not the whole file) is deliberate and is what makes this guard
+    red-before-green: before the grouping layer was removed, these three invariants lived inside
+    the retired between-groups integration section, as a step of a nested driver loop that ran for
+    ONE node kind and phrased every invariant over the group rather than the node. `## Run start`
+    as a top-level section of the driver, stated per NODE, is the post-change shape.
+    """
+    text = _text(RUN_HARNESS)
+    m = re.search(r"^##\s+Run start\s*$", text, re.MULTILINE)
+    assert m, (
+        "run-harness/SKILL.md must carry a top-level `## Run start` section - the ONE place the "
+        "run-integration branch is created and the three lineage invariants are stated."
     )
-    end = text.find("**Block 3", start)
-    return text[start: end if end != -1 else len(text)]
+    rest = text[m.end():]
+    nxt = re.search(r"^##\s+", rest, re.MULTILINE)
+    return _normalize_ws(rest[: nxt.start()] if nxt else rest)
 
 
 # ---------------------------------------------------------------------------
-# (a) Block 2W in the plan schema
+# (a) The three lineage invariants live in run-harness § Run start, per NODE
 # ---------------------------------------------------------------------------
 
-def test_schema_has_block_2w_with_symbolic_nodes():
-    sec = _block_2w_section()
-    for node in ("base", "run-integration", "worktree(m)@wave-N"):
-        assert node in sec, f"Block 2W must declare the symbolic node `{node}`"
-    low = sec.lower()
-    assert "parallel" in low, (
-        "Block 2W must state it is authored IN PARALLEL with the Block-2 module-DAG"
+def test_run_start_states_invariant_1_one_integration_branch_per_repo():
+    """Invariant 1: ONE run-integration branch per repo, forked ONCE, never re-forked, and NO
+    per-node/per-stage integration branch.
+
+    Fails if: the fork-once statement is dropped, or the text re-admits a second integration
+    branch below the repo (a per-node/per-level/per-stage branch), which is what would let two
+    nodes integrate against different parents and silently lose a commit.
+    """
+    sec = _run_start_section()
+    assert re.search(r"(?i)ONE run-integration branch per repo, forked ONCE", sec), (
+        "§ Run start must state ONE run-integration branch per repo, forked ONCE."
     )
-    assert "second projection" in low or "re-projected" in low or "projection" in low, (
-        "Block 2W must be a SECOND projection of the wave grouping (not a second DAG source)"
+    assert re.search(r"(?i)no per-node[^.]{0,80}integration branch", sec), (
+        "§ Run start must REJECT a per-node (or per-level/per-stage) integration branch - the "
+        "lineage is one branch per repo, not one per unit of work."
+    )
+    assert re.search(r"(?i)never re-forked", sec), (
+        "§ Run start must state the branch is never re-forked mid-run."
     )
 
 
-def test_block_2w_is_symbolic_topology_never_ref_state():
-    """Block 2W carries topology/lifecycle but NEVER concrete ref state (SHAs/tips/paths/leases)."""
-    sec = _block_2w_section()
-    low = sec.lower()
-    assert "symbolic" in low, "Block 2W must declare it is SYMBOLIC"
-    assert "topology" in low and "lifecycle" in low, (
-        "Block 2W must carry worktree TOPOLOGY + LIFECYCLE"
+def test_run_start_states_invariant_2_every_node_worktree_forks_that_branch():
+    """Invariant 2: every SOURCE-WRITING NODE's worktree forks that repo's run-integration branch -
+    never `base`/principal, never another repo's.
+
+    Fails if: the fork parent is dropped or inverted to base/principal (which would make a node
+    blind to its dependencies' committed source), or if the unit reverts from the NODE to a
+    grouping/module unit.
+    """
+    sec = _run_start_section()
+    assert re.search(r"(?i)every source-writing node'?s worktree forks", sec), (
+        "§ Run start must state EVERY SOURCE-WRITING NODE's worktree forks that branch - the "
+        "unit is the node, not a module or any grouping of nodes."
     )
-    # The ref-state exclusions must be spelled out (never SHAs/tips/paths/leases).
-    assert "sha" in low, "Block 2W must forbid concrete SHAs (ref state stays runtime)"
-    assert "lease" in low, "Block 2W must forbid lease tokens (ref state stays runtime)"
-    assert "path" in low, "Block 2W must forbid resolved worktree filesystem paths (ref state)"
+    assert re.search(r"(?i)never\s+`?base`?/principal", sec), (
+        "§ Run start must state a node's worktree is NEVER forked from base/principal - forking "
+        "from base is exactly the inversion that loses every prior node's commit."
+    )
+    assert re.search(r"(?i)never another repo'?s", sec), (
+        "§ Run start must state a node's worktree is never forked from ANOTHER repo's branch."
+    )
 
 
-def test_block_2w_fork_from_integrated_parent_edge():
-    """The wave-threading property on ONE branch: every wave's worktrees fork from the single
-    run-integration branch (which already carries all prior waves), NOT from a per-wave branch."""
-    sec = _block_2w_section()
-    assert "worktree(m)@wave-N ==> run-integration" in sec, (
-        "Block 2W must carry the fork-from-integrated-parent edge "
-        "`worktree(m)@wave-N ==> run-integration` (every wave forks from the ONE run-integration branch)."
-    )
-    low = sec.lower()
-    assert "run-integration" in low, "Block 2W must name the single run-integration branch"
-    assert "no per-wave pr" in low, (
-        "Block 2W must state each wave auto-advances with NO per-wave PR (single-run-PR model)"
-    )
-    assert "cherry-pick" in low and "-->" in sec, (
-        "Block 2W must carry the cherry-pick-into edge (worktree -> run-integration, `-->`)"
-    )
-    assert "loop" in low, "Block 2W must describe the per-wave loop"
+def test_run_start_states_invariant_3_every_commit_cherry_picks_back_as_a_saga():
+    """Invariant 3: every commit a node returns cherry-picks back onto that same branch, as a
+    saga with per-node verify + checkpoint, and THAT branch is what the terminal `integrate` node
+    squashes and pushes.
 
-
-def test_block_2w_fenced_text_is_ascii_only():
-    """The Block 2W ```text``` render must be ASCII-only (ETHOS rule 0)."""
-    sec = _block_2w_section()
-    m = re.search(r"```text\n(.*?)\n```", sec, re.DOTALL)
-    assert m, "Block 2W must render the worktree graph as a fenced ```text``` block"
-    for ch in m.group(1):
-        assert ord(ch) < 128, f"Block 2W ASCII render found non-ASCII U+{ord(ch):04X} ({ch!r})"
-
-
-def test_planner_authors_block_2w_and_ref_relaxation():
-    """odoo-planner authors Block 2W AND its integration-loop bullet is relaxed: it carries the
-    symbolic worktree topology/lifecycle but still NO concrete ref state."""
-    text = _text(PLANNER)
-    low = text.lower()
-    assert "block 2w" in low, "odoo-planner must author Block 2W"
-    # Relaxation: topology/lifecycle now allowed ...
-    assert "topology/lifecycle" in low or ("topology" in low and "lifecycle" in low), (
-        "odoo-planner's plan-ref line must now allow the symbolic worktree TOPOLOGY/LIFECYCLE"
+    Fails if: the cherry-pick-back edge, the saga/checkpoint mechanism, or the
+    'this branch is what ships' closure is dropped - each of which lets a commit exist without
+    ever reaching the PR.
+    """
+    sec = _run_start_section()
+    assert re.search(r"(?i)every commit a node returns cherry-picks back", sec), (
+        "§ Run start must state every commit a node returns cherry-picks back onto that branch."
     )
-    # ... but concrete ref STATE still forbidden.
-    assert "no concrete ref state" in low or "no concrete ref" in low, (
-        "odoo-planner must still forbid concrete ref STATE (SHAs/tips/paths/leases stay runtime)"
+    assert re.search(r"(?i)saga", sec) and re.search(r"(?i)checkpoint", sec), (
+        "§ Run start must state the cherry-pick runs as a SAGA with a per-node verify + CHECKPOINT "
+        "(rollback contract: skills/_shared/integration-loop.md)."
     )
-    assert "run-integration" in low, (
-        "odoo-planner must name the single run-integration branch lineage it authors"
+    assert re.search(r"(?i)terminal\s+`?integrate`?\s+node\s+squashes", sec), (
+        "§ Run start must close the lineage: the repo's terminal `integrate` node squashes and "
+        "pushes THAT branch."
     )
-    # The old absolute forbid ('never worktree/ref state') must be gone.
-    assert "never worktree/ref state" not in low, (
-        "odoo-planner must no longer say the plan carries 'never worktree/ref state' - the "
-        "symbolic topology is now carried; only concrete ref STATE is forbidden."
+    assert re.search(r"(?i)never reaches it never ships", sec), (
+        "§ Run start must state the consequence - a commit that never reaches the integration "
+        "branch never ships - so the invariant reads as a safety property, not bookkeeping."
     )
 
 
 # ---------------------------------------------------------------------------
-# (b) coder commits via Skill(git-toolkit:git-ops) - request-only
+# (b) The plan carries no concrete ref STATE, and no worktree-graph edge
+# ---------------------------------------------------------------------------
+
+# A hex literal of commit-SHA shape. Requires at least one DIGIT so ordinary all-[a-f] English
+# words ("defaced", "affected") are not mistaken for a SHA.
+_SHA_LITERAL_RE = re.compile(r"(?<![\w/-])(?=[0-9a-f]{7,40}(?![\w-]))(?=[0-9a-f]*\d)[0-9a-f]{7,40}")
+# A RESOLVED absolute filesystem path. `${CLAUDE_PLUGIN_ROOT}/...` and `<SHARE_DIR>/...` are
+# SYMBOLIC and stay legal - only a machine-rooted path is ref state.
+_ABS_PATH_RE = re.compile(r"(?<![\w$}>`])/(?:home|Users|var|opt|srv|etc|tmp|mnt)/")
+# The retired Block-2W edge shape: a symbolic worktree node in the PLAN.
+_WORKTREE_GRAPH_EDGE_RE = re.compile(r"worktree\s*\([^)]*\)|==>\s*run-integration")
+_LEASE_TOKEN_RE = re.compile(r"(?i)lease\s*token")
+_BRANCH_TIP_RE = re.compile(r"(?i)branch\s+tip|tip\s+SHA")
+
+
+def test_plan_schema_carries_no_concrete_ref_state():
+    """The plan is authored ONCE at approval time; a worktree path, a SHA, a branch tip and a
+    lease token do not exist yet and are runtime-only facts the driver owns. The schema must
+    therefore contain none of them - and no symbolic worktree-graph edge either (the retired
+    `worktree(m)@... ==> run-integration` projection, whose only purpose was to let the plan
+    describe a lineage the driver already owns).
+
+    Fails if: any of those leak back into `plan-mode-schema.md` - the shape that made the plan
+    an executor-shaped artifact instead of a decision record.
+    """
+    text = _text(PLAN_MODE_SCHEMA)
+    norm = _normalize_ws(text)
+    offenders = []
+    for label, pattern in (
+        ("SHA-shaped literal", _SHA_LITERAL_RE),
+        ("resolved absolute filesystem path", _ABS_PATH_RE),
+        ("worktree-graph node/edge", _WORKTREE_GRAPH_EDGE_RE),
+        ("lease token", _LEASE_TOKEN_RE),
+        ("branch tip", _BRANCH_TIP_RE),
+    ):
+        m = pattern.search(norm)
+        if m:
+            offenders.append(f"{label}: {m.group(0)!r}")
+    assert not offenders, (
+        "plan-mode-schema.md carries concrete ref STATE / an executor-shaped worktree graph - "
+        "these are runtime-only facts owned by run-harness (§ Run start), never plan fields:\n"
+        + "\n".join(offenders)
+    )
+
+
+def test_planner_states_the_plan_carries_no_ref_state():
+    """The producer side of the same contract: `odoo-planner` must be told the plan carries NO
+    worktree topology and NO concrete ref STATE, naming all four runtime-only classes.
+
+    Fails if: the planner's plan-ref line is relaxed to let a worktree topology or any concrete
+    ref back into the plan (the relaxation the retired Block 2W required).
+    """
+    norm = _normalize_ws(_text(PLANNER))
+    assert re.search(r"(?i)NO worktree topology", norm), (
+        "odoo-planner must state the plan carries NO worktree topology - not even a symbolic one."
+    )
+    assert re.search(r"(?i)NO concrete ref STATE", norm), (
+        "odoo-planner must still forbid concrete ref STATE in the plan."
+    )
+    for cls in (r"no SHAs", r"no branch tips", r"no resolved worktree filesystem paths",
+                r"no lease tokens"):
+        assert re.search(rf"(?i){cls}", norm), (
+            f"odoo-planner must name '{cls}' among the runtime-only facts the plan must not carry "
+            "- an unenumerated ban is the one a future author reads as 'only SHAs'."
+        )
+
+
+# ---------------------------------------------------------------------------
+# (c) coder commits via Skill(git-toolkit:git-ops) - request-only
 # ---------------------------------------------------------------------------
 
 def test_coder_commits_via_skill_git_ops_request_only():
     text = _text(CODER)
     low = text.lower()
     assert "git-toolkit:git-ops" in text and "commit" in low, (
-        "odoo-coder must COMMIT its module by invoking git-toolkit:git-ops"
+        "odoo-coder must COMMIT its node by invoking git-toolkit:git-ops"
     )
     # Request-only: no raw git, no direct git leaf-agent dispatch.
     assert "raw git" in low, "odoo-coder must state it never runs raw git (invokes git-ops instead)"
@@ -159,69 +230,33 @@ def test_coder_commits_via_skill_git_ops_request_only():
 
 
 # ---------------------------------------------------------------------------
-# (c) run-harness owns the between-wave integration (consumes Block 2W)
+# integration-loop.md: ONE owner of the integration loop
 # ---------------------------------------------------------------------------
 
-def test_run_harness_owns_between_wave_integration():
-    text = _text(RUN_HARNESS)
-    low = text.lower()
-    assert "between-wave integration" in low, (
-        "run-harness must carry a between-wave integration responsibility (consumes Block 2W)"
-    )
-    assert "block 2w" in low, "run-harness between-wave integration must CONSUME Block 2W"
-    assert "run-integration" in low and "fork" in low, (
-        "run-harness must fork each wave's module worktrees from the ONE run-integration branch "
-        "(fork-from-integrated-parent, now on a single branch)"
-    )
+def test_integration_loop_names_run_harness_as_the_sole_owner():
+    """`run-harness` is the canonical PER-NODE integration consumer and the SOLE owner - there is
+    no separate git-executor skill running a second, nested integration loop.
 
-
-# A bare `"one pr" in low` substring is satisfied by policy-INVERTING text such as "one PR per
-# wave" (asserts a per-wave cadence - the opposite of the single-run-PR rule), since "one pr" is a
-# literal substring of "one PR per wave" too. Anchor on the CARDINALITY claim and reject the
-# per-wave inversion explicitly (mirrors test_run_harness_wave_hardrules.py's fix for the same bug).
-_SINGLE_RUN_PR_RE = re.compile(r"(?i)(exactly\s+one\s+pr\b|single[\s-]run(?:-level)?\s+pr\b)")
-_PER_WAVE_PR_INVERSION_RE = re.compile(r"(?i)one\s+pr\s+per\s+wave")
-
-
-def test_run_harness_cumulative_close_gate_and_single_pr():
-    text = _text(RUN_HARNESS)
-    low = text.lower()
-    assert "cumulative regression close-gate" in low or "cumulative" in low and "close-gate" in low, (
-        "run-harness between-wave integration must run the cumulative regression close-gate"
-    )
-    assert "module-dag" in low and ("topo order" in low or "topo-order" in low or "order" in low), (
-        "run-harness must cherry-pick each module commit in module-DAG order"
-    )
-    assert "saga" in low, "run-harness cherry-pick must use saga rollback (integration-loop.md)"
-    # Single-run-PR model: NO per-wave PR; exactly ONE run-level PR via the terminal integrate land-tail.
-    assert "no per-wave pr" in low, "run-harness must state there is NO per-wave PR (waves auto-advance)"
-    assert _SINGLE_RUN_PR_RE.search(low) and "integrate" in low, (
-        "run-harness must open exactly ONE run-level PR via the terminal `integrate` land-tail - "
-        "not merely mention \"PR\" in passing"
-    )
-    assert not _PER_WAVE_PR_INVERSION_RE.search(low), (
-        "run-harness text asserts a PER-WAVE PR policy (\"one PR per wave\"), which INVERTS the "
-        "single-run-PR rule"
-    )
-    assert "l2-merge-gate" in low, (
-        "the outward MERGE of the single run PR stays odoo-pr-monitoring's (L2-merge-gate)"
-    )
-
-
-def test_integration_loop_names_run_harness_as_canonical_consumer():
+    Fails if: the sole-ownership statement is dropped, or a second git-executor owner bullet
+    reappears in the owner list (which is how a nested per-unit integration loop grows back).
+    """
     text = _text(INTEGRATION_LOOP)
-    low = text.lower()
-    assert "run-harness" in low and "canonical between-wave integration consumer" in low, (
-        "integration-loop.md must name run-harness as the canonical between-wave integration consumer"
+    norm = _normalize_ws(text)
+    assert re.search(r"(?i)canonical per-node integration consumer", norm), (
+        "integration-loop.md must name run-harness as the canonical PER-NODE integration consumer "
+        "- the unit is the node, not a batch of them."
     )
-    # After decision R, run-harness is the SOLE owner - there is no separate git-executor skill.
-    # The dead per-wave git-executor must NOT be listed as an owner anymore.
-    assert "sole owner" in low, (
-        "integration-loop.md must state run-harness is the SOLE owner of the per-wave integration "
-        "(the separate git-executor skill was removed)."
+    assert re.search(r"(?i)SOLE owner", norm), (
+        "integration-loop.md must state run-harness is the SOLE owner of the integration loop "
+        "(no separate git-executor skill)."
     )
-    assert re.search(r"^-\s*`?odoo-wave`?\b", text, re.MULTILINE) is None, (
-        "integration-loop.md must no longer list the retired per-wave git-executor as an owner bullet."
+    assert re.search(r"(?im)^-\s*`?[a-z0-9-]*git-executor", text) is None, (
+        "integration-loop.md must not list a separate git-executor as an owner bullet - a second "
+        "owner is a second, nested integration loop."
+    )
+    assert re.search(r"(?i)ordinary PLAN nodes", norm), (
+        "integration-loop.md must state review and regression verification are ordinary PLAN "
+        "nodes, not a driver-owned close step - the driver keeps no cadence of its own."
     )
 
 
@@ -239,13 +274,21 @@ def test_integration_loop_names_run_harness_as_canonical_consumer():
 
 def test_ledger_notes_intra_run_backstopped_by_policy_not_structure():
     text = _text(LEDGER)
-    low = text.lower()
-    assert "block 2w" in low, "the ledger must reference Block 2W's fork-from-integrated-parent lineage"
+    norm = _normalize_ws(text)
+    low = norm.lower()
+    assert re.search(
+        r"(?i)forks? from the ONE `?run-integration`? branch[^.]{0,80}"
+        r"run-harness/SKILL\.md.{0,20}Run start", norm
+    ), (
+        "the ledger must cite the lineage's ONE owner (run-harness/SKILL.md § Run start) for the "
+        "fork-from-the-one-run-integration-branch fact, rather than restating it or pointing at a "
+        "plan-side projection."
+    )
     assert "contains" in low and "addons-path" in low, (
         "the ledger must distinguish the worktree CONTAINING the dependency's source from that "
         "source being on the addons-path"
     )
-    assert "policy" in low, (
+    assert re.search(r"(?i)POLICY step", norm), (
         "the ledger must frame reaching the addons-path as a POLICY step (SELF_PROVISION: "
         "worktree-addons, set by odoo-coding), never a structural guarantee of the fork itself"
     )
@@ -260,24 +303,21 @@ def test_ledger_notes_intra_run_backstopped_by_policy_not_structure():
 
 
 # ---------------------------------------------------------------------------
-# CS-C2 - worktree-correct addons path: wave-integration.md fixes
+# The node invocation brief: state-root placeholders must be RESOLVED
 #
 # Every literal-absence assertion below normalizes whitespace first
 # (the prose is hard-wrapped, so a literal spanning a line-wrap would
 # otherwise false-negative).
 # ---------------------------------------------------------------------------
 
-def _normalize_ws(text: str) -> str:
-    return re.sub(r"\s+", " ", text)
-
-
-def _module_invocation_brief_fence() -> str:
-    """The fenced ``` ... ``` block under '## Per-module Invocation Brief Template'."""
-    text = _text(WAVE_INTEGRATION)
-    marker = "## Per-module Invocation Brief Template"
+def _node_invocation_brief_fence() -> str:
+    """The fenced ``` ... ``` block under '## Node Invocation Brief Template'."""
+    text = _text(RUN_INTEGRATION)
+    marker = "## Node Invocation Brief Template"
     start = text.find(marker)
     assert start != -1, (
-        "wave-integration.md must carry '## Per-module Invocation Brief Template'"
+        "run-integration.md must carry '## Node Invocation Brief Template' - the brief the driver "
+        "composes PER NODE (never per module)"
     )
     fence_start = text.find("```", start)
     assert fence_start != -1, "the brief template must be a fenced block"
@@ -286,12 +326,12 @@ def _module_invocation_brief_fence() -> str:
     return text[fence_start: fence_end + 3]
 
 
-def test_per_module_brief_has_no_unresolved_state_root_placeholder():
+def test_node_brief_has_no_unresolved_state_root_placeholder():
     """A (absence): inside the brief fence, no line may contain the literal
     `<SHARE_DIR>` or `<ISOLATE_DIR>` UNLESS that line is the `SHARE_DIR:` /
     `ISOLATE_DIR:` field itself (a resolved-path placeholder is fine there;
     an unresolved one leaking into another field, e.g. design_index, is not)."""
-    fence = _module_invocation_brief_fence()
+    fence = _node_invocation_brief_fence()
     for line in fence.splitlines():
         stripped = line.strip()
         if stripped.startswith("SHARE_DIR") or stripped.startswith("ISOLATE_DIR"):
@@ -302,15 +342,15 @@ def test_per_module_brief_has_no_unresolved_state_root_placeholder():
         )
 
 
-def test_per_module_brief_carries_share_and_isolate_fields():
-    """A (presence-of-field): the per-module brief fence declares both
+def test_node_brief_carries_share_and_isolate_fields():
+    """A (presence-of-field): the node brief fence declares both
     SHARE_DIR and ISOLATE_DIR as captured-literal fields."""
-    fence = _module_invocation_brief_fence()
+    fence = _node_invocation_brief_fence()
     assert re.search(r"^SHARE_DIR\s*:", fence, re.MULTILINE), (
-        "the per-module brief fence must carry a SHARE_DIR field"
+        "the node brief fence must carry a SHARE_DIR field"
     )
     assert re.search(r"^ISOLATE_DIR\s*:", fence, re.MULTILINE), (
-        "the per-module brief fence must carry an ISOLATE_DIR field"
+        "the node brief fence must carry an ISOLATE_DIR field"
     )
 
 
@@ -327,7 +367,7 @@ def test_no_file_anywhere_claims_worktree_structurally_solves_addons_path():
     """CLASS guard (widened from a single literal phrase scoped to ONE file).
 
     BEFORE: `"already carries the dependency on its addons-path" not in
-    <wave-integration.md's text alone>` - one file, one exact phrase.
+    <one file's text alone>` - one file, one exact phrase.
 
     AFTER: the same conflation - "a worktree CONTAINS the dependency's source
     (true, by git-fork lineage)" presented as "therefore that source is on the
@@ -340,15 +380,15 @@ def test_no_file_anywhere_claims_worktree_structurally_solves_addons_path():
     single-phrase check could not see: snippets/module-coordination-ledger.md
     (x2), skills/run-harness/SKILL.md, and
     skills/odoo-intake/references/plan-mode-schema.md. Scan the WHOLE plugin
-    tree (`_tree_texts()`, the same helper the topology-count guards below
-    use) for the whole pattern family, not one file for one sentence.
+    tree (`_tree_texts()`, the same helper the enum-count guards below use)
+    for the whole pattern family, not one file for one sentence.
     """
     offenders = []
     for path, text in _tree_texts():
         norm = _normalize_ws(text)
         for pattern in _ADDONS_STRUCTURAL_CLAIM_PATTERNS:
             if pattern.search(norm):
-                offenders.append(f"{path.relative_to(PLUGIN)}: matched {pattern.pattern!r}")
+                offenders.append(f"{_rel(path)}: matched {pattern.pattern!r}")
     assert not offenders, (
         "the following files conflate 'worktree contains the dependency's source' with 'source is "
         "on the addons-path' - see snippets/instance-handle-contract.md § Worktree-addons "
@@ -357,235 +397,161 @@ def test_no_file_anywhere_claims_worktree_structurally_solves_addons_path():
 
 
 # ---------------------------------------------------------------------------
-# CS-C6 - topology: single. The enum owner is wave-integration.md; every other
-# site restating the topology value list must become a pointer.
+# The `approach_kind` enum: ONE value set, declared identically everywhere.
+#
+# (Retargeted from the retired `topology` enum, which was a property of the
+# grouping layer and died with it. The BEHAVIOUR the topology guards protected - "an enum has
+# one value set and every restatement, including every count WORD, agrees with
+# it" - is unchanged; only the enum it applies to moved. `approach_kind` is
+# the surviving enum: five values, three declaration sites, one of them
+# executable (scripts/audit-run.py), so a partial update is a real defect that
+# makes the auditor disagree with the schema it audits against.)
 # ---------------------------------------------------------------------------
 
 def _tree_texts():
-    """Every text artifact under the plugin (md/yaml/json/txt/sh/py).
+    """Every text artifact under the plugin (md/yaml/json/txt/sh/py), PLUS the repo-root
+    `scripts/` executables, which carry an EXECUTABLE copy of the schema vocabulary.
 
     Same pattern as test_planning_ssot.py:34-39 - reused here rather than
     imported so this file stays independently runnable (repo convention: no
     cross-test-module imports).
     """
     exts = {".md", ".yaml", ".yml", ".json", ".txt", ".sh", ".py"}
-    for p in PLUGIN.rglob("*"):
-        if p.is_file() and p.suffix in exts:
-            yield p, p.read_text(encoding="utf-8")
+    for root in (PLUGIN, ROOT / "scripts"):
+        if not root.exists():
+            continue
+        for p in sorted(root.rglob("*")):
+            if p.is_file() and p.suffix in exts:
+                yield p, p.read_text(encoding="utf-8")
 
 
-_TOPOLOGY_ENUM_LINE = re.compile(r"independent\s*[/|]")
+def _rel(path: Path) -> str:
+    try:
+        return str(path.relative_to(PLUGIN))
+    except ValueError:
+        return str(path.relative_to(ROOT))
 
 
-def _is_topology_enum_line(line: str) -> bool:
-    """True when `line` restates the topology value list as a DELIMITED enumeration
-    (`independent / ...` or `independent | ...`) AND names `diamond`.
+# The canonical declaration sentence: `approach_kind` is one of `a | b | c` - <count> values.
+_ENUM_SENTENCE_RE = re.compile(
+    r"`approach_kind`\s+is\s+one\s+of\s+`([^`]+)`"
+)
+# The executable declaration in scripts/audit-run.py.
+_AUDIT_ENUM_RE = re.compile(r"APPROACH_KINDS\s*=\s*\(([^)]*)\)")
 
-    Requiring the pipe/slash delimiter (not just co-occurrence of the two words)
-    is deliberate: a bare `"independent" in line and "diamond" in line` check
-    false-positives on `skills/_shared/doc-cluster-plan.md:73` ("Deeper trees /
-    diamonds recurse: one instance per independent leaf-path...") - unrelated
-    doc-instance-topology prose that happens to share two common English words
-    with the wave-topology enum, not a restatement of its value list. Requiring
-    the enumeration-style delimiter keeps the loose 2-word intent (still catches
-    a surviving partial-value fork, not just an exact five-value match) while
-    excluding that homonym.
+_EXPECTED_APPROACH_KINDS = {"skill", "agent", "workflow", "inline", "integrate"}
+
+
+def _declared_kinds_in(text: str) -> set[str] | None:
+    """The `approach_kind` value SET a file declares, or None when it declares none."""
+    m = _ENUM_SENTENCE_RE.search(text)
+    if m:
+        return {v.strip().strip("`") for v in m.group(1).split("|") if v.strip()}
+    m = _AUDIT_ENUM_RE.search(text)
+    if m:
+        return {v.strip().strip("\"'") for v in m.group(1).split(",") if v.strip()}
+    return None
+
+
+def test_approach_kind_enum_declaration_sites_agree():
+    """A (one value set): every file that DECLARES the `approach_kind` value set must declare the
+    SAME set, and that set must be the five documented kinds. A sixth value added at one site
+    only - or a retired value left behind at one site - reddens here.
+
+    This is the assertion with teeth: the auditor (`scripts/audit-run.py`) refuses to audit a kind
+    outside its own tuple, so a schema that grew a kind the auditor never learned about silently
+    stops being audited.
     """
-    return bool(_TOPOLOGY_ENUM_LINE.search(line)) and "diamond" in line
-
-
-def test_topology_value_set_has_exactly_one_definer():
-    """A (count == 1): the topology enum's value LIST (independent/linear/mixed/diamond/single)
-    must be textually restated in exactly one file - wave-integration.md, the enum's SSOT owner.
-    Scans for any DELIMITED enumeration line carrying 'independent' and 'diamond' (not all five
-    values together), so it also catches a surviving FOUR-value fork - a scan for all five values
-    on one line would be blind to that fork, which is the exact defect this guards against."""
-    definer_files = set()
+    declarations = {}
     for path, text in _tree_texts():
-        for line in text.splitlines():
-            if _is_topology_enum_line(line):
-                definer_files.add(str(path.relative_to(PLUGIN)))
-    owner = "skills/run-harness/references/wave-integration.md"
-    assert definer_files == {owner}, (
-        f"the topology value list must be restated in exactly {{'{owner}'}}; "
-        f"found it also in: {sorted(definer_files - {owner})}"
+        kinds = _declared_kinds_in(text)
+        if kinds:
+            declarations[_rel(path)] = kinds
+    assert declarations, (
+        "no file declares the `approach_kind` value set - the enum must have a declaration site"
+    )
+    disagreeing = {k: sorted(v) for k, v in declarations.items()
+                   if v != _EXPECTED_APPROACH_KINDS}
+    assert not disagreeing, (
+        f"every `approach_kind` declaration must be exactly {sorted(_EXPECTED_APPROACH_KINDS)}; "
+        f"these disagree: {disagreeing}"
+    )
+    # The executable half must be one of them - a prose-only enum cannot keep the auditor honest.
+    assert str(AUDIT_RUN.relative_to(ROOT)) in declarations, (
+        "scripts/audit-run.py must declare the `approach_kind` enum (APPROACH_KINDS) so the "
+        "auditor and the schema cannot drift apart"
     )
 
 
-def test_owner_file_lists_single_in_every_value_enumeration():
-    """A (completeness): every line inside wave-integration.md (the owner) that restates the
-    topology value list (a delimited 'independent /|' enumeration naming 'diamond') must also
-    carry 'single' - guards against updating the heading/intro sentence but forgetting the
-    log-template (:145) or the per-module-brief (:294) copies of the same list."""
-    text = _text(WAVE_INTEGRATION)
-    offending = [
-        line for line in text.splitlines()
-        if _is_topology_enum_line(line) and "single" not in line
-    ]
-    assert not offending, (
-        f"wave-integration.md value-enumeration line(s) missing 'single': {offending}"
+def _approach_kind_value_count() -> int:
+    """N = the number of values in the canonical enumeration, computed from the text itself -
+    never hardcoded - so this stays correct when a sixth value is added."""
+    kinds = _declared_kinds_in(_text(WORKFLOW_HARNESS))
+    assert kinds, (
+        "workflow-harness.md § 8.3 must carry the canonical `approach_kind` declaration sentence "
+        "this count is computed from"
     )
+    return len(kinds)
 
-
-_TOPOLOGY_CONSUMERS = {
-    "plan-mode-schema.md": PLAN_MODE_SCHEMA,
-    "integration-loop.md": INTEGRATION_LOOP,
-    "phase-p-run-dag.md": PHASE_P_RUN_DAG,
-    "run-harness/SKILL.md": RUN_HARNESS,
-    "upg-phase-detail.md": UPG_PHASE_DETAIL,
-    "odoo-forward-port/SKILL.md": FORWARD_PORT_SKILL,
-    "odoo-planner.md": PLANNER,
-    "workflow-harness.md": WORKFLOW_HARNESS,
-}
-
-
-def test_consumers_point_at_the_topology_owner():
-    """A (glob) - a WEAK pointer-presence guard: it only proves each consumer NAMES the owner, not
-    that it stopped restating values (test_topology_value_set_has_exactly_one_definer above is the
-    test with real teeth - it reddens if the enum forks). Each of the eight consumer files must
-    contain the literal pointer 'wave-integration.md' somewhere in a context naming the owner's
-    '§ Topology values' section."""
-    for label, path in _TOPOLOGY_CONSUMERS.items():
-        text = _text(path)
-        assert "wave-integration.md" in text, (
-            f"{label} must point at wave-integration.md (the topology enum's ONE owner)"
-        )
-        assert "Topology values" in text, (
-            f"{label} must name the owner's '§ Topology values' section, not just the bare filename"
-        )
-
-
-# ---------------------------------------------------------------------------
-# CS-C6 follow-up: a stale "N topologies" count word is a SEPARATE defect from
-# the value-list restatement above - it can drift even in a file that has NO
-# copy of the value list at all (a bare prose reference to "the four
-# topologies"). Guard it by COMPUTING N from the owner's canonical enumeration
-# and asserting every count-word reference to it agrees, rather than
-# hardcoding "five" as a snapshot (ETHOS #8: protect the behavior/invariant -
-# "the count word must track the actual enumeration" - not today's number).
-# ---------------------------------------------------------------------------
 
 _NUMBER_WORDS = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
 }
 _NUMBER_WORD_ALTERNATION = "|".join(_NUMBER_WORDS)
-
-
-def _topology_value_count() -> int:
-    """N = the number of values in the owner's canonical enumeration (the intro sentence's
-    parenthetical list right under the '## Topology values' heading), computed from the text
-    itself - never hardcoded - so this stays correct when a sixth value is added."""
-    text = _text(WAVE_INTEGRATION)
-    m = re.search(r"Choose from the plan's Block-2 module-DAG \(([^)]+)\)", text)
-    assert m, (
-        "wave-integration.md must carry the canonical topology-values intro sentence "
-        "this count is computed from"
-    )
-    values = [v.strip() for v in m.group(1).split("/")]
-    assert values, "the canonical enumeration must not be empty"
-    return len(values)
+_COUNT_RE = re.compile(
+    rf"\b(\d{{1,2}}|{_NUMBER_WORD_ALTERNATION})\b((?:\s+[A-Za-z][A-Za-z-]*){{0,3}})\s+"
+    r"(?:values?|kinds?)\b",
+    re.IGNORECASE,
+)
+_ENUM_MENTION_RE = re.compile(r"(?i)approach[_ -]kind")
+_MENTION_WINDOW = 160  # chars either side of the count word that must mention the enum
 
 
 def _count_word_violations(text: str, n: int) -> list[str]:
-    """Every count-word reference to 'topolog(y|ies)' in `text` must numerically agree with `n`
-    (the ACTUAL enumerated value count) - UNLESS the reference is explicitly scoped to
-    'multi-module' (excluding the `single` collapse case, which has no internal module ordering
-    to describe), in which case it must agree with `n - 1`. Two directions are checked: the count
-    word BEFORE 'topolog' ("four multi-module topologies", "five topology values",
-    "the 4 wave-batch topologies") and the count word inside a "Topology values (<word>)"
-    heading-style parenthetical (topolog BEFORE the word).
+    """Every count-word reference to the `approach_kind` value set must numerically agree with
+    `n` (the ACTUAL enumerated value count).
 
-    Widened (was word-only: `\\b(one|two|...)\\b(\\s+multi-module)?\\s+topolog`, so it was blind to
-    a DIGIT count and to any filler word other than the literal "multi-module" between the count
-    and "topolog"): the count token now also accepts a bare digit (`4`, not just `four`), and up to
-    3 filler words of any kind may sit between the count and "topolog" (`wave-batch`,
-    `multi-module`, or a future adjective) - only "multi-module" (anywhere in that filler span)
-    still switches the expectation to `n - 1`. This is what makes
-    `skills/odoo-intake/references/maintainers.md`'s "the **4** wave-batch topologies" (a digit,
-    with the filler word "wave-batch" the old regex could not skip past) visible to this guard at
-    all. Returns violation messages (empty = no violations)."""
+    A count word is attributed to this enum only when `approach_kind` is mentioned within
+    `_MENTION_WINDOW` chars of it - otherwise "three coordination surfaces" and every other
+    unrelated count in the tree would be swept in. The count token accepts a bare digit (`5`) as
+    well as a spelled-out word, and tolerates up to 3 filler words between the count and
+    `values`/`kinds` ("five serialized values"), because a stale count survives a rewording.
+    Returns violation messages (empty = no violations)."""
+    norm = _normalize_ws(text)
     violations = []
-    for m in re.finditer(
-        rf"\b(\d{{1,2}}|{_NUMBER_WORD_ALTERNATION})\b((?:\s+[A-Za-z][A-Za-z-]*){{0,3}})\s+topolog",
-        text, re.IGNORECASE,
-    ):
+    for m in _COUNT_RE.finditer(norm):
+        window = norm[max(0, m.start() - _MENTION_WINDOW): m.end() + _MENTION_WINDOW]
+        if not _ENUM_MENTION_RE.search(window):
+            continue
         word = m.group(1).lower()
-        filler = (m.group(2) or "").lower()
-        scoped_to_multi_module = "multi-module" in filler
-        expected = (n - 1) if scoped_to_multi_module else n
         value = int(word) if word.isdigit() else _NUMBER_WORDS[word]
-        if value != expected:
+        if value != n:
             violations.append(
-                f"count token {word!r} ({'multi-module-scoped, ' if scoped_to_multi_module else ''}"
-                f"expected {expected}) disagrees with the enumerated value count N={n}: "
+                f"count token {word!r} disagrees with the enumerated value count N={n}: "
                 f"matched {m.group(0)!r}"
-            )
-    for m in re.finditer(r"[Tt]opology values\s*\((\w+)\)", text):
-        word = m.group(1).lower()
-        if word not in _NUMBER_WORDS or _NUMBER_WORDS[word] != n:
-            violations.append(
-                f"heading count word {word!r} disagrees with the enumerated value count N={n}"
             )
     return violations
 
 
-def test_owner_file_count_words_agree_with_the_enumerated_value_count():
-    """A stale 'the four topologies' sentence sitting right after a five-value enumeration is a
-    defect this PR exists to remove: a reader cannot tell whether it is stale prose or a
-    deliberate exclusion, and if excluded, which value. This computes N from the owner's own
-    enumeration and asserts every count-word reference to 'topolog...' in the owner file agrees
-    with N (or N - 1 when explicitly scoped to 'multi-module', i.e. excluding the `single`
-    collapse case, which has no internal ordering). Adding a sixth value and forgetting to update
-    one of these count words reddens this test instead of leaving a silent ambiguity for the next
-    reader to puzzle out."""
-    n = _topology_value_count()
-    violations = _count_word_violations(_text(WAVE_INTEGRATION), n)
-    assert not violations, "\n".join(violations)
+def test_every_file_stating_an_approach_kind_count_agrees_with_the_declaration():
+    """CLASS guard, whole tree: a stale "the four approach kinds" sentence sitting next to a
+    five-value enumeration is a defect - a reader cannot tell whether it is stale prose or a
+    deliberate exclusion, and if excluded, which value. This computes N from the canonical
+    declaration and asserts every count-word reference to the enum, in EVERY file of the plugin
+    plus the repo-root scripts, agrees with N.
 
-
-def test_run_harness_skill_count_word_agrees_with_the_enumerated_value_count():
-    """Same guard as above, applied to run-harness/SKILL.md's own 'Full templates (... topology
-    values ...)' cross-reference into the owner - a second site this same follow-up fixed, so it
-    gets the same protection against drifting stale again."""
-    n = _topology_value_count()
-    violations = _count_word_violations(_text(RUN_HARNESS), n)
-    assert not violations, "\n".join(violations)
-
-
-def test_every_file_stating_a_topology_count_agrees_with_the_owner():
-    """CLASS guard (widened from 2 hardcoded files to the WHOLE plugin tree).
-
-    BEFORE: the two tests above only ever read `WAVE_INTEGRATION` and
-    `RUN_HARNESS` - any THIRD file stating a topology count was invisible to
-    both, no matter how stale. `skills/odoo-intake/references/maintainers.md`
-    said "the 4 wave-batch topologies" (a DIGIT, with the filler word
-    "wave-batch") after the enum grew to 5 values, and neither test could see
-    it: it isn't one of the two files, and even if it were, the old regex
-    only matched a spelled-out number word immediately followed by
-    "multi-module" or "topolog" - not a digit, and not with an arbitrary
-    filler word in between.
-
-    AFTER: scan every text file in the plugin (`_tree_texts()`, the same
-    whole-tree helper `test_topology_value_set_has_exactly_one_definer` uses)
-    with the widened `_count_word_violations` (digit-or-word count token, up
-    to 3 filler words before "topolog").
-
-    Pre-fix finding count on this exact check (verified against
-    `git show HEAD:...maintainers.md`): exactly 1 -
-    `skills/odoo-intake/references/maintainers.md` ("the 4 wave-batch
-    topologies"). WAVE_INTEGRATION and RUN_HARNESS themselves are already
-    covered (and green) by the two dedicated tests above; this one exists to
-    catch every OTHER file, present or future.
+    Adding a sixth value and forgetting to update one of these count words reddens this test
+    instead of leaving a silent ambiguity for the next reader to puzzle out.
     """
-    n = _topology_value_count()
+    n = _approach_kind_value_count()
     offenders = []
     for path, text in _tree_texts():
         violations = _count_word_violations(text, n)
         if violations:
-            offenders.append(f"{path.relative_to(PLUGIN)}: " + "; ".join(violations))
+            offenders.append(f"{_rel(path)}: " + "; ".join(violations))
     assert not offenders, (
-        "the following files state a topology count that disagrees with the enumerated value "
-        f"count N={n} (owner: skills/run-harness/references/wave-integration.md):\n"
+        "the following files state an `approach_kind` count that disagrees with the enumerated "
+        f"value count N={n} (canonical declaration: docs/reference/workflow-harness.md § 8.3):\n"
         + "\n".join(offenders)
     )

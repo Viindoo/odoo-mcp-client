@@ -15,14 +15,17 @@ when changing intake's structure, the routing table, or the harness wiring.
   `effort` (S/M/L/XL) is a per-task property reasoned via the gap-analysis legend, also not
   registered.
 - **Plan Mode Content Schema**: a `writes-files` Approach requires 3 blocks in the Plan-Mode
-  plan - Module list (naturally disjoint files), Dependency graph (DAG edge-types + topology, or one of
-  the 5 wave-batch topologies for few modules), and Assignment (module → skill/agent + effort + est_agents
-  (advisory) + verify - model/count owned by the dispatched skill at runtime, never bound by the plan).
-  The work-item is `odoo-coder`'s INTERNAL intra-module unit and never a plan block.
+  plan - Node list (a node MAY span several modules, a module MAY be covered by several nodes,
+  disjoint `files-in-scope`), Dependency graph (`nodes` + `edges` with edge types + a
+  `topological_order` + `critical_path` + `cycles` - `depends_on` is the ONLY ordering statement a
+  plan makes; no field, header, or grouping construct may batch nodes together), and Assignment
+  (node → skill/agent + effort + est_agents (advisory) + verify - model/count owned by the dispatched
+  skill at runtime, never bound by the plan).
+  The work-item is `odoo-coder`'s INTERNAL intra-node unit and never a plan block.
   A chat-only Approach skips Plan Mode (decision tree at the top of § Plan Mode). Full schema:
   `references/plan-mode-schema.md`.
 - See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
-  schemas borrowed here (the wave-integration per-module brief, BRL DAG, wave-batch topologies, gap-analysis effort legend).
+  schemas borrowed here (the node invocation brief, BRL DAG, gap-analysis effort legend).
 - **Dispatch mechanism rationale** (why the Skill tool, not a direct agent launch - § Dispatch mechanism
   keeps only the rule + table): a skill is not an agentType, so launching an agent by a skill *name* fails;
   launching the bare underlying agent directly launches it but **bypasses the skill's own orchestration**
@@ -34,7 +37,7 @@ when changing intake's structure, the routing table, or the harness wiring.
 - Routing table currently lists 63 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
   rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel-WI delivery (row 40 -> `odoo-planning`;
-  the wave integration it plans for is internal to `run-harness`, never user-invoked); rows 41-49 =
+  the node loop it plans for is internal to `run-harness`, never user-invoked); rows 41-49 =
   solution-design, implement-feature, frontend-design, doc-illustration, git-rebase, modules-upgrade,
   acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-walkthrough,
   module-packaging, doc-illustration DOC LAYER:both; rows 55-63 = coverage rows so every user-facing

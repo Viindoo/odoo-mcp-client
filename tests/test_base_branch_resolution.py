@@ -1,6 +1,6 @@
 """Guard: base/work-base branch resolution never inherits the invoking checkout's HEAD.
 
-Business rule (R3, arbitration A-04): a worktree/branch created to receive new coding-wave,
+Business rule (R3, arbitration A-04): a worktree/branch created to receive new coding-node,
 upgrade, or self-provisioned work resolves its start point from the version-named series
 branch, never from whatever the invoking checkout's current branch/HEAD happens to be.
 Protects against the owner-reported defect: "if someone has already checked out to a
@@ -41,6 +41,7 @@ AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 SAFETY_CONTRACT = GIT_TOOLKIT / "snippets" / "git-safety-contract.md"
 GIT_DELEGATION = AGENTS_PLUGIN / "snippets" / "git-delegation.md"
 PLAN_SCHEMA = AGENTS_PLUGIN / "skills" / "odoo-intake" / "references" / "plan-mode-schema.md"
+RUN_INTEGRATION = AGENTS_PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
 
 
 def _text(p: Path) -> str:
@@ -118,12 +119,18 @@ def test_plan_schema_drops_the_root_cause_phrase():
     )
 
 
-def test_plan_schema_points_at_git_delegation_base_resolution():
-    text = _norm(_text(PLAN_SCHEMA))
+def test_repo_capability_card_points_at_git_delegation_base_resolution():
+    """Block 2W (and the `base` node definition it carried) is deleted along with the plan's
+    grouping layer - `base` is now a field on the Repo Capability Card Template, owned by
+    `run-harness/references/run-integration.md` (plan-mode-schema.md's Block 1 only tells the
+    author to fill one such card per repo; it does not restate the resolution algorithm). The
+    pointer to git-delegation.md's base-resolution algorithm must therefore live there instead -
+    SSOT, one definition, everywhere else a pointer."""
+    text = _norm(_text(RUN_INTEGRATION))
     assert "git-delegation.md" in text, (
-        "the Block 2W `base` node definition must point at snippets/git-delegation.md's "
-        "base-resolution algorithm rather than restating it (SSOT - one definition, "
-        "everywhere else a pointer)."
+        "the Repo Capability Card Template's `base` field must point at "
+        "snippets/git-delegation.md's base-resolution algorithm rather than restating it "
+        "(SSOT - one definition, everywhere else a pointer)."
     )
     assert "base-branch resolution" in text.lower(), (
         "the pointer must name the section it points at, not just the filename, so the "

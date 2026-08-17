@@ -1,0 +1,37 @@
+# per_module_dispatch_allowlist.txt - DATA for tests/test_wave_layer_regrowth.py
+# ============================================================================
+# The dispatch unit is the work NODE: `odoo-coding` launches ONE `odoo-coder`
+# COORDINATOR per node, whether that node touches one module, part of one, or
+# several. The module is a PROPERTY of a node (its install / test-selection /
+# dependency unit in Odoo), never a tier of decomposition and never the
+# dispatch cardinality.
+#
+# `test_the_dispatch_unit_is_the_node_across_the_whole_plugin` therefore
+# rejects, anywhere under `plugins/odoo-ai-agents/`:
+#     one <...> odoo-coder <...> per module      (resurrected cardinality)
+#     more than one <...> odoo-coder <...> per node   (inversion)
+#     per-module COORDINATOR | coordinator | dispatch | brief
+# with two carve-outs applied before this file is consulted:
+#   * an occurrence NEGATED in place ("never split a node into per-module
+#     dispatches") is not a claim, and
+#   * `tests/` is out of scope - this scan is over runtime prose only.
+#
+# FORMAT - one entry per line:  <repo-relative path>: (<reason>)
+#   - the path is split off at the FIRST colon;
+#   - the reason MUST name the out-of-scope pipeline AND why its per-module
+#     unit is an Odoo fact rather than a plugin convention;
+#   - a stale entry (file gone, or no longer matching) FAILS the test, so an
+#     exemption cannot outlive the text that earned it.
+#
+# WHY THIS FILE IS CURRENTLY EMPTY OF ENTRIES
+# The five pipelines section 9 of the design deliberately leaves per-module -
+# `odoo-forward-port` and `odoo-git-rebase` (unit = the COMMIT RANGE; the
+# per-module fan-out is context isolation, and neither dispatches `odoo-coder`
+# per module), `odoo-i18n` (`.pot`/`.po` are physically per-module artifacts in
+# every series), `odoo-code-review` (a diff maps naturally to modules) and the
+# design layer's per-module child TDDs - state their per-module unit WITHOUT
+# any of the banned phrasings, so none of them needs an exemption today. Add a
+# line here only if one of them later needs the literal wording; a hit in any
+# OTHER file is regrowth of the deleted per-module dispatch axis - fix the
+# text.
+# ============================================================================

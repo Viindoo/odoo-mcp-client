@@ -132,6 +132,31 @@ Write `<addon>/tests/test_<feature>.py` (or `<addon>/static/tests/test_<feature>
 
 **Expected-log contract for deny-path / guard tests (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).** When a test exercises a deny-path, guard, or constraint that legitimately emits a WARNING or ERROR, wrap per the contract BY DEFAULT - use `assertLogs` for deny-path tests (the WARNING is the observable behavior; assert it fired), `mute_logger` only for incidental noise already asserted elsewhere. For JS tests call `js_test_inspect(module=..., odoo_version=...)` to confirm the per-module framework before emitting any suppress/assert idiom - do not use a version-to-framework shorthand; modules can be hybrid (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).
 
+**Cross-module test staging (when this module is part of a multi-module node).** Every Odoo test
+class is `at_install` by default and runs RIGHT AFTER its OWN module installs - before any module
+later in the node's dependency order exists. A default test in module A therefore CANNOT see
+module B, even when both install in the same `-i` run. **A test that asserts on behaviour
+contributed by ANOTHER module in this node - one that installs after the test's own module, or one
+with no dependency edge to it at all - must be staged into the post-install phase, or it will run
+before that module exists.** Odoo runs tests in TWO phases on every series v8-v19: the at-install
+phase, right after each module installs, and the post-install phase, at the end of module loading
+with every module in the `-i` list present. A test class is in the at-install phase by default, so
+an unstaged class in the first module fires before the second is loaded. The post-install phase is
+the only moment the whole node is visible.
+- **Series 12.0 and later:** tag that class `@tagged('post_install', '-at_install')`. Leave every
+  single-module assertion at the default.
+- **Series 8.0 to 11.0:** `@tagged` does not exist yet - the phase decorators do. Decorate that
+  class `@common.post_install(True)` and `@common.at_install(False)`
+  (`odoo.tests.common` / `openerp.tests.common`; conformance suite: `base.TestPhaseInstall00/01/02`).
+  Placing the test in the LAST module to install also works, but ONLY when the node's modules are
+  totally ordered by `depends` - a node spanning modules with NO dependency edge between them has no
+  "last module", so use the decorators there.
+A cross-module assertion that fails with `KeyError`/`AttributeError` on a symbol you know exists is
+this bug, not a code defect: fix the staging, do not chase the symbol. When the caller (a coding
+node's `odoo-coder` coordinator, or `odoo-coding`'s own coverage pre-flight) names which target
+behaviours cross a module boundary, apply the decorator above at authoring time rather than waiting
+for the integrated test to fail (mirrored in `agents/odoo-coder.md` § Cross-module test staging).
+
 **One business rule per test.** Each `def test_*` covers exactly one invariant.
 
 **Each test must be able to fail - confirm RED (binding).** Core of `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`: in test-first mode the production code doesn't exist - state it's RED. In coverage mode confirm by reasoning (or intentionally removing the rule) that it would go red. Never weaken a test to make it pass; fix the code instead.
@@ -151,7 +176,7 @@ Write `<addon>/tests/test_<feature>.py` (or `<addon>/static/tests/test_<feature>
 Backend code-quality gate: the `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles)
 CI-parity gate runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s
 pre-PR tail - not appended per test-run here
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply on Viindoo Standard/Internal profiles. On later execution under `--test-enable` (FRESH DB `-i <module>`; already-installed DB `-u <module>`, since `-i` is then a no-op; confirm flags via `cli_help`, full rule `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`), resolve the interpreter (the instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply on Viindoo Standard/Internal profiles. On later execution under `--test-enable` (FRESH DB `-i <module>`; already-installed DB `-u <module>`, since `-i` is then a no-op; confirm flags via `cli_help`, full rule `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`), resolve the interpreter (the instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
 On newer series (17.0+ illustrative - confirm via `cli_help`) you MUST add `--skip-auto-install` to the install/init run (`-i <module> --test-enable`, or `-u <module>` on an installed DB) to avoid auto-installed-module noise.
 

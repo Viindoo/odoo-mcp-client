@@ -82,7 +82,7 @@ pointer back to this file - never the full skeleton table.
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only (the dispatcher's
-  per-module worktree-addons carve-out decision; never a separate field on the leaf coders' own
+  per-node worktree-addons carve-out decision; never a separate field on the leaf coders' own
   briefs - see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
   carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is malformed - the
   receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
@@ -168,7 +168,7 @@ pointer back to this file - never the full skeleton table.
 - The module list to init/update.
 - Demo-data + languages flags.
 - `addons_path`.
-- `GATE_ROLE` (`pre-pr-lint-gate` | `per-module-verify`) - REQUIRED on every `run-tests` dispatch
+- `GATE_ROLE` (`pre-pr-lint-gate` | `node-verify`) - REQUIRED on every `run-tests` dispatch
   (and any test-enable `init-modules`/`update-modules`); decides whether the lint-module union
   fires. A load-bearing field with NO safe default - absence is refused (`NEEDS_CONTEXT`), never
   guessed either way. Detailed rule owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md`
@@ -234,7 +234,7 @@ Replace `<family fields>` with the agent's own family-delta field list (e.g. the
 
 ### SPAWNER variant (`odoo-coder` only)
 
-`odoo-coder` is a per-module COORDINATOR, not a leaf - `worker-brief.md` explicitly exempts it. Its
+`odoo-coder` is a node COORDINATOR, not a leaf - `worker-brief.md` explicitly exempts it. Its
 `## Brief self-check` is framed for a spawner: it validates its OWN inbound brief, then RE-BRIEFS
 each leaf it dispatches by reading this file BY PATH. It must NOT contain the leaf-only "STOP and
 return NEEDS_CONTEXT" wording verbatim - that phrasing belongs to a leaf that has no one left to

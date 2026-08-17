@@ -5,7 +5,10 @@ Codex / Gemini) when it designs, codes, reviews, or debugs Odoo - NOT a snapshot
 of any wording. Each assertion guards one wiring that, if silently dropped, would
 take a guarantee with it: cross-agent decision logging, the three Odoo platform
 design principles, bidirectional impact analysis, dynamic demo data, the
-red-before-green test loop, and the consume-only between-wave integration (run-harness) module-DAG contract.
+red-before-green test loop, and the consume-only run-harness dispatch loop (D2: the driver owns
+only pure functions of plan fields + runtime-only facts, and never re-derives a decision the plan
+already made - the wave-layer-specific "between-wave integration" section this generalizes from is
+deleted).
 
 Red-before-green: deleting the corresponding reference makes exactly the matching
 assertion fail. stdlib only.
@@ -116,34 +119,70 @@ def test_architect_and_backend_coder_wire_demo_data():
         )
 
 
-def test_module_graph_is_shared_by_coding_and_run_harness():
-    """The module DAG is one SSOT, referenced by both consumers (no dup). (run-harness's
-    between-wave integration is the wave-side consumer.)"""
+def test_module_graph_is_the_single_producer_and_run_harness_is_consume_only():
+    """The module-dependency algorithm has exactly ONE implementation - `odoo-module-graph.md` - run
+    by its PRODUCER (`odoo-planning` authoring the plan, or `odoo-coding` self-deriving standalone).
+    D2 (ownership contract): `run-harness` no longer computes or duplicates that algorithm - the
+    whole `## Between-wave integration` section (and its module-DAG re-derivation) is deleted; the
+    driver is CONSUME-ONLY over the plan's already-resolved `depends_on` edges. So there is still
+    exactly one place the module-dependency FACT is computed (no duplicate algorithm) - the SSOT
+    file itself documents run-harness's consume-only role instead of run-harness citing the SSOT it
+    no longer calls into."""
     mg = "odoo-module-graph.md"
     assert mg in _read(SKILLS / "odoo-coding" / "SKILL.md"), (
-        "odoo-coding must reference the module-graph SSOT"
+        "odoo-coding must reference the module-graph SSOT (its standalone self-derive path)"
     )
-    assert mg in _read(SKILLS / "run-harness" / "SKILL.md"), (
-        "run-harness (between-wave integration) must reference the module-graph SSOT"
+    graph_text = _read(SHARED / "odoo-module-graph.md").lower()
+    assert "run-harness" in graph_text and "consume-only" in graph_text, (
+        "odoo-module-graph.md must itself state that run-harness is CONSUME-ONLY over the "
+        "already-resolved depends_on edges - the SSOT documents the consumer; run-harness does "
+        "not duplicate the algorithm"
+    )
+    assert "does not auto-infer" in graph_text, (
+        "odoo-module-graph.md must state run-harness does NOT auto-infer the dependency graph "
+        "itself"
+    )
+    # run-harness must not re-implement the module-dependency algorithm itself, and - now that the
+    # whole `## Between-wave integration` section (its one citation) is deleted - no longer needs
+    # to cite the SSOT filename at all.
+    rh_raw = _read(SKILLS / "run-harness" / "SKILL.md")
+    rh = rh_raw.lower()
+    assert "module_inspect" not in rh, (
+        "run-harness must NOT call the module-dependency algorithm's own tool (module_inspect) - "
+        "that is the producer's (odoo-planning's) job; run-harness only reads depends_on"
+    )
+    assert mg not in rh_raw, (
+        "run-harness/SKILL.md must NOT cite odoo-module-graph.md - it never calls into that "
+        "algorithm (consume-only over depends_on), so it has nothing to point at there anymore"
     )
 
 
-def test_run_harness_between_wave_consumes_module_dag_and_audits_ownership():
-    """The between-wave integration (run-harness) is consume-only - it CONSUMES the plan's
-    wave-batched module-DAG (it does not self-auto-infer dependencies) AND still runs the disjoint
-    file-ownership audit as a trust-but-verify safety check. Protects the behavior, not the wording.
-    (Behavior protected across the module-primary decomposition; the wave-side consumer is
-    run-harness's between-wave integration.)"""
+def test_run_harness_is_consume_only_and_never_rederives_plan_decisions():
+    """D2 ownership contract, generalized from the deleted 'between-wave integration is consume-only'
+    rule to the WHOLE dispatch loop: the harness owns only pure functions of plan fields plus
+    runtime-only facts; it never re-derives a decision the plan already made. Protects the
+    behavior the deleted `## Between-wave integration` section used to state for ONE node kind
+    (module-DAG cherry-pick order) - now the GENERAL rule for every node - and rejects any
+    substitution phrasing that would let the driver silently override a disagreeing plan field
+    instead of stopping BLOCKED and routing back to `odoo-planning`."""
     body = _read(SKILLS / "run-harness" / "SKILL.md")
     lower = body.lower()
-    # (a) consumes the plan's module-DAG (no self-derive)
-    assert "module-dag" in lower and "consume" in lower, (
-        "run-harness between-wave integration must CONSUME the plan's module-DAG (consume-only, no self-derive)"
+    # (a) the driver consumes depends_on verbatim - it computes nothing it does not already own.
+    assert "depends_on" in body, "run-harness must consume the plan's depends_on edges directly"
+    assert "pure function" in lower, (
+        "run-harness must state its own computations are PURE FUNCTIONS of plan fields (plus "
+        "runtime-only facts) - never a re-derivation of a plan-owned decision"
     )
-    assert "depends_on" in body, "run-harness must consume the plan's depends_on edges as cherry-pick order"
-    # (b) the disjoint file-ownership safety audit still runs (trust-but-verify)
-    assert "disjoint" in lower and ("ownership audit" in lower or "file-ownership" in lower), (
-        "run-harness must still run the disjoint file-ownership safety audit (trust-but-verify)"
+    # (b) on disagreement it stops BLOCKED and routes back - never substitutes its own answer.
+    assert "route back to `odoo-planning`" in lower or "route back to odoo-planning" in lower, (
+        "run-harness must route a disagreement back to odoo-planning, never silently substitute"
+    )
+    assert "never substitute" in lower, (
+        "run-harness must explicitly forbid substituting its own answer for a disagreeing plan field"
+    )
+    # (c) it must not claim to auto-infer/re-derive the dependency graph itself.
+    assert "auto-infer" not in lower, (
+        "run-harness must NOT claim to auto-infer the dependency graph - that is the producer's job"
     )
 
 

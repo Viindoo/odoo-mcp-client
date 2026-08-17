@@ -219,9 +219,9 @@ multi-company / branch (v17+) scoping: <where>   ·   demo data: <if any>   ·  
 ## 6. Sequencing (logical precedence only)
 LOGICAL build order + inter-item dependency edges - the precedence that makes a split safe. This is
 the design's logical truth and the ONLY sequencing this design owns. It does NOT own the
-parallel/integration schedule (wave batches + integration cadence) - that is `odoo-planning`'s
+parallel/integration schedule (node partitioning + verification placement) - that is `odoo-planning`'s
 output, derived FROM this precedence (and from §5's dep direction). State the build order and the
-inter-item edges; leave wave-batching and integration cadence to planning.
+inter-item edges; leave node partitioning and verification placement to planning.
 
 ## 7. Test strategy outline
 Business behaviors to cover (behavior-first, not code-snapshot) - feeds odoo-test-writing (durable tests) and the independent acceptance oracle (odoo-qa-planner, via odoo-acceptance); odoo-qa-suite consumes it only as a static release test-plan. For each behavior, name the WORKFLOW PATH that reaches it (the `action_*`/`button_*` method to call, `Form()` where onchange matters, `with_user()` for access) so the test drives the real transition, not a seeded terminal state (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
@@ -281,7 +281,7 @@ After writing the file, return:
 - Approach: <one line>
 - Artifact: <SHARE_DIR>/designs/<slug>-<date>.md
 - Top risk: <one line>
-- Next: (if RETURN_TO is SET) Return to: <RETURN_TO> (design approved; caller owns the code phase) | (if RETURN_TO is absent) design approved -> hand off to odoo-planning (it turns the approved design into the wave-batched execution plan before any code)
+- Next: (if RETURN_TO is SET) Return to: <RETURN_TO> (design approved; caller owns the code phase) | (if RETURN_TO is absent) design approved -> hand off to odoo-planning (it turns the approved design into the execution plan before any code)
 ```
 
 ## Continuation Contract
@@ -291,7 +291,7 @@ After writing the file, return:
 When you finish (single mode), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `status: NEEDS_NEXT`, `produced: [<SHARE_DIR>/designs/<slug>-<date>.md]`. Choose `next` based on whether the dispatch brief includes a `RETURN_TO:` line:
 
 - **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
-- **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-planning` (the planner turns the approved design into the wave-batched execution plan before any code; or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`. Single-module non-trivial work still goes through planning - do NOT point at a coder here. The orchestrating skill's own Continuation Contract (`odoo-solution-design` § Continuation Contract, default `next: odoo-planning`) is authoritative and supersedes this subagent CC.
+- **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-planning` (the planner turns the approved design into the execution plan before any code; or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`. Single-module non-trivial work still goes through planning - do NOT point at a coder here. The orchestrating skill's own Continuation Contract (`odoo-solution-design` § Continuation Contract, default `next: odoo-planning`) is authoritative and supersedes this subagent CC.
 
 ## You launch nothing
 

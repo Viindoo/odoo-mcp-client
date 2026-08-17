@@ -98,17 +98,25 @@ def _gate_block(text: str) -> str:
 
 
 def test_odoo_coding_gate_table_shows_depth_not_the_model_tier_name():
-    """CONTRACT CHANGE (not a weakened assertion): the gate table still has to carry the per-module
-    cost/depth signal - the user is approving how much reasoning each module gets, and that has a
+    """CONTRACT CHANGE (not a weakened assertion): the gate table still has to carry the per-node
+    cost/depth signal - the user is approving how much reasoning each node gets, and that has a
     real price - but it must express it the way the rest of the plugin already does at every other
     human-facing gate: as a plain-language TRADEOFF, never by tier name (see this same file's fable
-    trade-off line and run-harness's wave-close escalation). So the column is still asserted, the
-    tier-resolution table is still asserted intact, and one NEW assertion is added on top: no raw
-    tier name may appear inside the block that gets emitted to the user."""
+    trade-off line). So the column is still asserted (now `node | modules | stack | depth` - D4:
+    the wave layer is deleted and the dispatch unit is the node, which carries its own `modules`
+    list), the tier-resolution table is still asserted intact, one NEW assertion is added on top: no
+    raw tier name may appear inside the block that gets emitted to the user, and ANOTHER new
+    assertion requires the depth-inflation sentence (a node whose modules would earn different
+    depths pays the highest one for all of them) - D4 introduces a real cost the human must see."""
     text = _skill_text("odoo-coding")
-    assert re.search(r"\|\s*module\s*\|\s*stack\s*\|\s*wave\s*\|\s*depth\s*\|", text), (
-        "odoo-coding gate table must still carry the per-module cost/depth column - dropping it "
-        "hides a real cost decision from the human at the gate"
+    assert re.search(r"\|\s*node\s*\|\s*modules\s*\|\s*stack\s*\|\s*depth\s*\|", text), (
+        "odoo-coding gate table must still carry the node/modules/stack/depth columns - dropping "
+        "the depth column hides a real cost decision from the human at the gate"
+    )
+    low = " ".join(text.lower().split())
+    assert "applies to the whole node" in low and "pays the highest one" in low, (
+        "the gate table must state the depth-inflation rule: a node whose modules would earn "
+        "different depths pays the highest one for all of them (D4's real cost, named not hidden)"
     )
     gate = _gate_block(text)
     leaked = [tier for tier in DEPTH_BY_TIER if re.search(rf"\b{tier}\b", gate)]
@@ -122,10 +130,12 @@ def test_odoo_coding_gate_table_shows_depth_not_the_model_tier_name():
             f"the tier->depth rendering map must pin {tier} -> {depth}, else the gate's depth "
             f"word is improvised per run instead of resolved deterministically"
         )
-    # The example rows must exercise the mapping, not just declare it.
-    assert re.search(r"\|\s*<m\d>\s*\|[^|]*\|[^|]*\|\s*(quick|standard|deep|deepest)\s*\|", gate), (
-        "the gate block's example rows must show a depth word in the depth column"
-    )
+    # The example rows must exercise the mapping, not just declare it. Column order is now
+    # node | modules | stack | depth - <m1>/<m2>/<m3> sit in the SECOND (modules) column, one after
+    # the node-id cell.
+    assert re.search(
+        r"\|\s*n\d\s*\|[^|]*<m\d>[^|]*\|[^|]*\|\s*(quick|standard|deep|deepest)\s*\|", gate
+    ), "the gate block's example rows must show a depth word in the depth column"
 
 
 def test_odoo_coding_tier_table_still_resolves_all_four_tiers():

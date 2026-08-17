@@ -57,13 +57,13 @@ dag_layers:
 
 `dag_layers` and each entry's `depends_on` + `dag_layer` must be kept in sync - they are the
 design's LOGICAL layering (the design's truth). `odoo-planning` is the FIRST consumer of
-`dag_layers`: it turns this logical layering into the executable wave-batched module-DAG (the
+`dag_layers`: it turns this logical layering into the executable node DAG (the
 PLAN). When a plan exists, the coding phase and the git-executor consume that PLAN - not
 `dag_layers` directly; `odoo-coding` reads `dag_layers` itself only when running STANDALONE (no
-plan). Build order then follows the plan's wave order (standalone: it follows `dag_layers`
+plan). Build order then follows the plan's `depends_on` order (standalone: it follows `dag_layers`
 top-to-bottom).
 
-**Child-design dispatch is base-first (distinct from `odoo-planning`'s later wave-batching
+**Child-design dispatch is base-first (distinct from `odoo-planning`'s later node-batching
 above).** `odoo-solution-design` dispatches child architects using `dag_layer` as the ordering
 axis for the DESIGN step itself: same layer = parallel (Mode B budget), different layer = strict
 order - ALL layer-`k` children reach `status: designed` before ANY layer-`k+1` child is
@@ -177,7 +177,7 @@ mode: `none`.
 Continuation Contract in master-child mode - in this mode the **skill** (`odoo-solution-design`,
 Decompose branch step f), not the architect agent, owns and emits the CC. The pipeline is
 design -> planning -> code, so the default `next:` is `odoo-planning` (the planner consumes
-`index.yaml` `dag_layers` and wave-batches the modules before any code is written). When the skill
+`index.yaml` `dag_layers` and batches the modules into nodes before any code is written). When the skill
 was invoked with `return_to` set, it emits `next: <return_to>` instead and hands back to the caller:
 
 ```yaml

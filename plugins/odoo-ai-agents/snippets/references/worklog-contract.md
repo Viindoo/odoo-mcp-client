@@ -8,7 +8,7 @@
 ## Why the worklog exists (moved from the file's opening paragraph)
 
 A multi-phase Odoo run spans several agents (architect -> test-author -> coder -> reviewer ->
-debugger) and several waves of parallel workers. Each makes decisions the *next* one needs:
+debugger) and several rounds of parallel workers. Each makes decisions the *next* one needs:
 approach chosen vs rejected, scope added or dropped, model tier picked, cross-module impacts found
 and mitigated. The worklog is how that knowledge survives the handoff instead of being re-derived
 by every downstream phase.

@@ -182,7 +182,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 
   Each worker also runs the **dependency-closure drill** (`references/survey-lenses.md` §
   Dependency-closure): walk the hot-spot's `depends` graph DOWN from the nearest owner toward
-  `base`, PHASED one layer per wave (respect the Mode B budget), and ground each external symbol by
+  `base`, PHASED one dependency layer at a time (respect the Mode B budget), and ground each external symbol by
   REUSING `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md` § 2 + § 2.5 BY PATH (the
   orchestrator inlines those two sections into the brief - never copy them). Output a
   dependency-closure map (`nearest -> ... -> base`, layer + why + `grounded:`). Ground at the
@@ -222,7 +222,7 @@ synthesis - opus is the costly tier, 2 in-flight max under Mode B):
    owns the hook).
 2. **Cross-cutting unresolved** - a hot-spot's `impact_analysis` shows >=3 modules depending on it
    transitively that no worker fully traced, OR the Phase-2 dependency-closure drill left a branch
-   >=3 layers deep ungrounded to `base` (the closure exceeded one worker's wave budget).
+   >=3 layers deep ungrounded to `base` (the closure exceeded the worker budget).
 3. **Coverage gap** - an intent sub-question is still marked `UNRESOLVED` in the worklog after
    Phase 2.
 

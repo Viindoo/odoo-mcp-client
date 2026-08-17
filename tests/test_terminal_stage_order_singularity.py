@@ -1,8 +1,10 @@
 """Guard: the Terminal stage order constant is DECLARED once and CITED everywhere else.
 
-`skills/run-harness/references/wave-integration.md` § Pre-PR tail > "Terminal stage order"
+`skills/run-harness/references/run-integration.md` § Pre-PR tail > "Terminal stage order"
 is the constant's ONE owner and says so in its own words: "Cite this constant by name. Do NOT
-restate the order in another file, and do NOT reorder it locally."
+restate the order in another file, and do NOT reorder it locally." (The owner file was renamed
+from `wave-integration.md` when the wave grouping layer was removed - the owner-discovery logic
+below never hardcoded that path, so the rename alone did not break it.)
 
 Nothing enforced that. The order has now drifted twice, and each time the failure was the same
 shape: the rule was right in one file and wrong in another, and the executing agent read the wrong
@@ -25,6 +27,14 @@ WHAT THIS FILE CHECKS
   3. `test_naming_the_constant_carries_a_pointer_to_its_owner` - a file that invokes the constant
      BY NAME must point at where it lives (the owner file, or the owner skill) within
      CITATION_WINDOW chars, so a reader who meets the name can always reach the definition.
+
+  4. `test_every_references_pointer_resolves_to_a_real_file` - EVERY textual pointer anywhere in
+     the plugin (plus `scripts/audit-run.py`) of the shape `skills/<skill>/references/<file>.md`
+     (with or without the `${CLAUDE_PLUGIN_ROOT}/` prefix) must resolve to a file that actually
+     exists on disk. The `wave-integration.md` -> `run-integration.md` rename touched dozens of
+     citing sites across the plugin (27 plugin files + `scripts/audit-run.py`, per the design's
+     own count) - a single missed site is a dangling pointer, and that is exactly the defect class
+     this check exists to catch generically (not only for this one rename).
 
 WHAT THIS FILE DOES **NOT** CATCH - stated, not implied:
 
@@ -231,6 +241,64 @@ def test_naming_the_constant_carries_a_pointer_to_its_owner(owner: Path) -> None
         f"these sites name {CONSTANT_NAME!r} with no pointer to its owner "
         f"({owner_file_token} / the {owner_skill_token} skill) within {CITATION_WINDOW} chars:\n  "
         + "\n  ".join(offences)
+    )
+
+
+# --- References-pointer resolution (generalized dangling-pointer guard) -----------------------
+#
+# The wave-layer removal renamed `wave-integration.md` -> `run-integration.md` and touched dozens
+# of citing sites across the plugin (27 plugin files + `scripts/audit-run.py`, per the design's
+# own count - not the handful an earlier draft estimated). A guard scoped to ONE constant's name
+# cannot catch a stray, un-renamed pointer to the OLD filename sitting in unrelated prose, so this
+# check is deliberately generic: ANY `skills/<skill>/references/<file>.md` pointer, anywhere in
+# the plugin (plus scripts/audit-run.py, the one such citing site outside the plugin directory),
+# must resolve to a file that actually exists. This is not specific to the Terminal stage order
+# constant or to this one rename - a dangling `references/` pointer is exactly what this guard
+# exists to catch, whichever rename left it behind.
+
+AUDIT_RUN_PY = REPO_ROOT / "scripts" / "audit-run.py"
+
+REFERENCES_POINTER_RE = re.compile(
+    r"(?:\$\{CLAUDE_PLUGIN_ROOT\}/)?skills/([a-zA-Z0-9_-]+)/references/([a-zA-Z0-9_.-]+\.md)"
+)
+
+
+def _pointer_scanned_files() -> list[Path]:
+    """Every file whose text could hold a `skills/<skill>/references/<file>` pointer: the whole
+    plugin tree (every extension a pointer could live in) plus `scripts/audit-run.py`, the one
+    such citing site outside the plugin directory. No exclusions beyond dedup - a pointer is
+    either resolvable or it is a bug, in any file that names one."""
+    out: list[Path] = [AUDIT_RUN_PY]
+    for pattern in ("*.md", "*.py", "*.sh", "*.yaml", "*.yml", "*.json"):
+        out.extend(PLUGIN_ROOT.rglob(pattern))
+    return sorted(set(out))
+
+
+def test_every_references_pointer_resolves_to_a_real_file() -> None:
+    """Behavior protected: every `skills/<skill>/references/<file>.md` pointer (with or without
+    the `${CLAUDE_PLUGIN_ROOT}/` prefix) names a file that actually exists on disk. A rename this
+    size (dozens of citing sites) is exactly the shape of change that leaves ONE stray pointer at
+    the old name - and a dangling pointer sends the reading agent to a file that is not there.
+
+    Fails on every unresolvable pointer found (file, line, and the missing target), scanning the
+    whole plugin tree plus scripts/audit-run.py - not scoped to the Terminal stage order constant
+    or to any one rename.
+    """
+    offences: list[str] = []
+    for path in _pointer_scanned_files():
+        text = path.read_text(encoding="utf-8")
+        for m in REFERENCES_POINTER_RE.finditer(text):
+            skill, fname = m.group(1), m.group(2)
+            target = PLUGIN_ROOT / "skills" / skill / "references" / fname
+            if not target.exists():
+                line_no = text.count("\n", 0, m.start()) + 1
+                offences.append(
+                    f"{path.relative_to(REPO_ROOT)}:{line_no} -> "
+                    f"skills/{skill}/references/{fname} (does not exist)"
+                )
+    assert not offences, (
+        "these sites point at a skills/<skill>/references/<file> path that does not exist on "
+        "disk:\n  " + "\n  ".join(sorted(set(offences)))
     )
 
 

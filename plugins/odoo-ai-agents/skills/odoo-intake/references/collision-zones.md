@@ -129,12 +129,12 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 **Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
 
 - `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-WI PR with review +
-  squash" intent -> it produces the wave-batched EXECUTION PLAN. The git orchestration itself
-  (ONE run-integration branch, per-wave module worktrees, cherry-pick, per-wave review + cumulative
-  close-gate + auto-advance, then ONE run-level PR + squash after the FINAL wave, STOP at "PR opened")
-  is `run-harness`'s INTERNAL between-wave integration, which it drives from the approved plan (there
+  squash" intent -> it produces the node EXECUTION PLAN. The git orchestration itself
+  (ONE run-integration branch per repo, cherry-pick, the verification nodes the plan places, then
+  ONE PR per repo opened once every non-land-tail node in that repo is terminal, STOP at "PR opened")
+  is `run-harness`'s INTERNAL single node loop, which it drives from the approved plan (there
   is no separate git-executor skill); it never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the merge approval gate. The between-wave integration is internal to
+  `odoo-pr-monitoring` at the merge approval gate. The node loop is internal to
   `run-harness` - never route a user prompt to an executor.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
@@ -143,15 +143,15 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 
 **Discriminator**:
 - "parallelize" + "N changes" + "PR" + "squash" signal parallel multi-WI delivery ->
-  **Pick `odoo-planning`** (it plans it; `run-harness` then drives it via its internal between-wave integration).
+  **Pick `odoo-planning`** (it plans it; `run-harness` then drives it node by node via its internal single node loop).
 - "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
 - Single change, single feature, no git coordination needed -> **Pick `odoo-coding`.**
 
 If the user said "write a computed field for sale.order" -> `odoo-coding` (single, no orchestration).
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
 If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
--> `odoo-planning` (multiple disjoint changes; it plans the wave-batched delivery for `run-harness`'s
-between-wave integration).
+-> `odoo-planning` (multiple disjoint changes; it plans the node plan for `run-harness` to drive
+node by node onto ONE run-integration branch, then ONE PR).
 
 ## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
 
@@ -182,23 +182,24 @@ commits to replay and a few conflicts to resolve."
 - `odoo-forward-port`: handles "port a commit/PR to a HIGHER major version" -> single-commit
   cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
-  the wave-batched plan; the cherry-pick + squash of N independent changes that do NOT share a
-  continuous range is performed by `run-harness`'s INTERNAL between-wave integration (driven
-  from the approved plan), not by the user. It lands the whole run as ONE PR (opened once after the
-  final wave) and STOPS at "PR opened"; it never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the merge approval gate.
+  the node plan; the cherry-pick + squash of N independent changes that do NOT share a
+  continuous range is performed by `run-harness`'s INTERNAL single node loop (driven
+  from the approved plan), not by the user. It lands the whole run as ONE PR per repo (opened once
+  every non-land-tail node in that repo is terminal) and STOPS at "PR opened"; it never merges - the
+  merge is owned by the subsequent `odoo-pr-monitoring` at the merge approval gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
-disjoint changes to land together -> **Pick `odoo-planning`** (it plans the delivery; `run-harness`'s
-between-wave integration performs the cherry-pick + squash and opens the ONE run-level PR, STOPPING at
+disjoint changes to land together -> **Pick `odoo-planning`** (it plans the node plan; `run-harness`
+drives it node by node onto ONE run-integration branch, then ONE PR, STOPPING at
 "PR opened"; the merge is owned by `odoo-pr-monitoring`).
 
 If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
 whole range).
 If the user said "port this 16.0 fix to 17.0" -> `odoo-forward-port` (cross-major, single commit).
 If the user said "land the bugfix, the new field, and the docs update as one reviewed PR" ->
-`odoo-planning` (disjoint WIs, no range replay; planned for `run-harness`'s between-wave integration).
+`odoo-planning` (disjoint WIs, no range replay; planned for `run-harness` to drive node by node onto
+ONE run-integration branch, then ONE PR).
 
 ## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
 

@@ -8,9 +8,9 @@
   "budget": {"max_nodes": 12, "nodes_run": 4},
   "nodes": [
     {
-      "id": "wave-1",
+      "id": "code-discount-ceiling",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "inputs": {},
       "depends_on": [],
       "gate_tier": "L1",
@@ -28,7 +28,7 @@
       "approach": "odoo-code-review",
       "approach_kind": "skill",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["code-discount-ceiling"],
       "gate_tier": "L0",
       "status": "DONE",
       "produced": ["review/sale_discount_ceiling.md"],
@@ -93,13 +93,13 @@
     }
   ],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "code-discount-ceiling", "tier": "L1", "decision": "auto-pass"},
     {"node": "review-1", "tier": "L0", "decision": "auto-pass"},
     {"node": "monitor-1", "tier": "L2", "decision": "approve"}
   ],
   "completion": {
     "status": "DONE",
     "evidence": ["https://example.invalid/org/repo/pull/1"],
-    "summary": "one PR opened after the final wave closed green; merged after the L2 gate"
+    "summary": "one PR opened after the final node closed green; merged after the L2 gate"
   }
 }

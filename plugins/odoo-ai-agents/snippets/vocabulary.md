@@ -35,13 +35,12 @@ Two sets, no others - full statement + WHEN-to-use-which: `${CLAUDE_PLUGIN_ROOT}
 
 | Term | Normative meaning | Declared in |
 |---|---|---|
-| module | An Odoo addon. The OUTER unit of planning, of a wave, and of a RUN-DAG coding node | `skills/_shared/odoo-module-graph.md` |
-| work-item (WI) | The INNER unit: one disjoint file-set slice of ONE module's change. PRIVATE to `odoo-coder` | `skills/_shared/odoo-module-graph.md` |
-| wave | Modules with no unmet cross-wave dependency, integrated as ONE RUN-DAG node | `agents/odoo-planner.md` |
-| node | One entry in `run-<id>.json` `nodes[]`; a wave collapses N modules into ONE node | `docs/reference/workflow-harness.md` §8 |
+| module | An Odoo addon. The install, test-selection and dependency unit - a PROPERTY of a node, never a unit of planning | `skills/_shared/odoo-module-graph.md` |
+| work-item (WI) | The INNER unit: one disjoint file-set slice of ONE node's change. INTERNAL to `odoo-coder`, never surfaced to the plan or to any other node | `skills/_shared/odoo-module-graph.md` |
+| node | One entry in `run-<id>.json` `nodes[]`; the OUTER unit of planning and execution | `docs/reference/workflow-harness.md` §8 |
 | stage | A lifecycle position in the planner's Block-3 assignment | `agents/odoo-planner.md` |
 | phase | A numbered step INSIDE one skill's pipeline. ALWAYS qualified by owner (e.g. "odoo-brl Phase A", "run-harness §8.1"). A bare "phase" with no owner is a defect | this file |
-| cluster | A grouping INSIDE one skill, always qualified by owner (e.g. "review cluster", "doc-cluster"). Never a synonym for a wave | this file |
+| cluster | A grouping INSIDE one skill, always qualified by owner (e.g. "review cluster", "doc-cluster") | this file |
 | leaf | ALWAYS qualified: "agent-hierarchy leaf" (spawns nothing) / "module-graph leaf" (no unresolved `depends`) / "fan-out leaf" (a `context: fork` worker). A bare "leaf" with no qualifier is a defect | this file |
 
 Bare-term detection for `phase`/`cluster`/`leaf` is deliberately NOT linted - the false-positive

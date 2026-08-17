@@ -18,9 +18,9 @@
   ],
   "nodes": [
     {
-      "id": "wave-1",
+      "id": "fleet-billing",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": [],
@@ -32,10 +32,10 @@
     {
       "id": "land-step",
       "approach": "git-toolkit:git-ops",
-      "approach_kind": "land",
+      "approach_kind": "bogus-kind",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["fleet-billing"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["run-integration-fleet-addons squashed and pushed"],
@@ -56,11 +56,11 @@
   ],
   "dynamic_nodes": [],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"}
+    {"node": "fleet-billing", "tier": "L1", "decision": "auto-pass"}
   ],
   "completion": {
     "status": "DONE",
     "evidence": ["https://example.invalid/org/fleet-addons/pull/51"],
-    "summary": "`approach_kind: land` is outside the documented enum - the auditor cannot tell whether it opened a PR of its own"
+    "summary": "`approach_kind: bogus-kind` is outside the documented enum - the auditor cannot tell whether it opened a PR of its own"
   }
 }

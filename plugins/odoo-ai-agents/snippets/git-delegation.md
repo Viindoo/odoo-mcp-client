@@ -50,7 +50,7 @@ Anything beyond this union (full diff content, unbounded log range, blame, large
 ## Base-branch resolution (the version-named main branch)
 
 Per `git-toolkit`'s explicit-start-point rule (`git-safety-contract.md` S9 addendum), every
-worktree/branch created to receive new coding-wave, upgrade, or self-provisioned work resolves its
+worktree/branch created to receive new coding-node, upgrade, or self-provisioned work resolves its
 start point by RESOLVING the branch below - never by inheriting whatever the invoking checkout's
 HEAD/current branch happens to be. `git branch --show-current` (allowlisted above) stays legitimate
 for diagnostic reads and source-series INFERENCE (e.g. cross-checking what a human is currently on
@@ -99,8 +99,8 @@ leaf finishing work in a `WORKTREE_PATH` WRITES its files there and RETURNS the 
 touched; it never stages, commits, or stashes.
 
 The actor that COMMITS is the orchestrator OR a SPAWNER coordinator that owns the worktree, by
-INVOKING `git-toolkit:git-ops`. In particular the `odoo-coder` per-module COORDINATOR (a spawner -
-it can launch agents and launches the leaf coders, so it is NOT a leaf) COMMITS its module by
+INVOKING `git-toolkit:git-ops`. In particular the `odoo-coder` node COORDINATOR (a spawner -
+it can launch agents and launches the leaf coders, so it is NOT a leaf) COMMITS its node by
 invoking `git-toolkit:git-ops` via the Skill tool once its integrated test is green, and returns the
 SHA to `odoo-coding` (which collects it, no longer re-committing). The coordinator only REQUESTS the
 commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
@@ -130,10 +130,9 @@ git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not a
 
 These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT
 provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
-`odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (The per-wave coding worktrees are
-provisioned by `run-harness`'s own between-wave integration - each forked FROM the ONE
-`run-integration` branch per Block 2W, not by a dispatched specialist - see `run-harness` SKILL.md
-§ Between-wave integration.)
+`odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (Each source-writing node's worktree
+is provisioned by `run-harness` (Hard rule 6), forked from that repo's `run-integration` branch -
+not by a dispatched specialist - see `run-harness` SKILL.md § Run start.)
 
 ## Invocation contract
 
@@ -162,8 +161,8 @@ A HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writ
 `odoo-icon-designer`, ANY leaf domain subagent) NEVER invokes git-ops, not even via the Skill tool:
 it cannot launch agents and returns files for its orchestrator/coordinator to commit (SSOT:
 `worker-brief.md`). A SPAWNER coordinator that can launch agents - notably the `odoo-coder`
-per-module coordinator, and any SKILL/orchestrator context (main, a workflow phase, `run-harness`'s
-between-wave integration loop) - MAY invoke git-ops via the Skill tool, which runs INLINE in its
+node coordinator, and any SKILL/orchestrator context (main, a workflow phase, `run-harness`'s
+node loop) - MAY invoke git-ops via the Skill tool, which runs INLINE in its
 own context; git-ops then cold-spawns exactly ONE git leaf below it, and that leaf cannot launch
 anything further either. The discriminator is agent-launch capability, not "was I launched by an agent":
 `odoo-coder` was launched by an agent yet is itself a spawner, so it commits. Two-line test: "Can

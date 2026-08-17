@@ -53,10 +53,10 @@ When invoked, gather the following from the caller's request:
 | `persist` | `ephemeral` / `exclusive-running` / `shared-running` (default `ephemeral`) - the instance lifetime + isolation `create` needs: `ephemeral` = throwaway mutation build (`--stop-after-init`, unique db, no listening port); `exclusive-running` = a live, listening instance that is MINE (unique db + an allocator-issued pooled port + my `run_id` recorded as lease owner - use for mutating work that must stay up; never converges on `8069`); `shared-running` = attach to / register the SHARED read-only render target for this series (still owner-stamped with `run_id` so it cannot be foreign-bare-dropped) |
 | `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
 | `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
-| `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
+| `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here |
 | `demo` | `on` / `off` (default `off`) |
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
-| `GATE_ROLE` | `pre-pr-lint-gate` / `per-module-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions `test_lint`/`test_pylint` into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a per-module/per-wave integrated verification, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `per-module-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
+| `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions `test_lint`/`test_pylint` into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
 | `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
@@ -72,9 +72,9 @@ question covering all missing required parameters before dispatching.
 **`GATE_ROLE` resolution (mandatory, resolved by THIS skill before dispatch - never left for the
 agent to guess).** For any `run-tests` (or test-enable `init`/`update`) request: an explicit value
 already present in the caller's context (e.g. an orchestrating caller like `run-harness`'s pre-PR
-tail, or `odoo-coder`'s per-module coordinator, stating its own role) always wins - forward it
+tail, or `odoo-coder`'s node coordinator, stating its own role) always wins - forward it
 verbatim. For a direct/human-initiated invocation with no stated role ("run the tests for the
-account module", eval #2), default to `GATE_ROLE: per-module-verify` and state the assumption - an
+account module", eval #2), default to `GATE_ROLE: node-verify` and state the assumption - an
 ad-hoc human test run is NEVER the run's ONE designated pre-PR lint gate, so this default never
 risks silently reinstating the lint-class gate the pre-PR tail owns. Only forward
 `GATE_ROLE: pre-pr-lint-gate` when the caller explicitly identifies itself as that ONE gate - never
@@ -150,10 +150,10 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
   `to_base` above - it fires ONLY when this dispatch's `GATE_ROLE` (resolved above) is
   `pre-pr-lint-gate`. For that ONE role, the agent reuses the pinned profile to probe for
   `test_lint`/`test_pylint` and unions every present one into BOTH the `-i`/`-u` install list and
-  `--test-tags`. For `GATE_ROLE: per-module-verify` (every per-module/per-wave integrated
-  verification and every leaf self-provision), the agent does NOT probe, install, or tag either
+  `--test-tags`. For `GATE_ROLE: node-verify` (every node verification run
+  and every leaf self-provision), the agent does NOT probe, install, or tag either
   module at all - a `test_lint`/`test_pylint` violation in that dispatch's own module is caught
-  ONLY at the run's designated pre-PR gate, never as a per-module `tests-failed` blocker. A
+  ONLY at the run's designated pre-PR gate, never as a per-node `tests-failed` blocker. A
   `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved refuses with
   `NEEDS_CONTEXT` rather than guess either way. Full contract:
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY for the
@@ -188,7 +188,7 @@ PROFILE: <the NON-EMPTY profile name this skill already resolved before composin
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
-GATE_ROLE: <pre-pr-lint-gate|per-module-verify>   # REQUIRED for run-tests / test-enable init/update; resolved above - never omitted, never left for the agent to guess
+GATE_ROLE: <pre-pr-lint-gate|node-verify>   # REQUIRED for run-tests / test-enable init/update; resolved above - never omitted, never left for the agent to guess
 MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
 LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
 FRESH_VENV: <true|false>
@@ -310,7 +310,7 @@ them here):
    pre-pr-lint-gate` (same file, "Lint modules - installed ONLY for the designated pre-PR lint gate
    (HARD RULE)"). A HARD LEAF self-provisioning here (e.g. `odoo-test-writer` confirming RED via a
    live run) is never the run's designated pre-PR lint gate, so it always self-resolves
-   `GATE_ROLE: per-module-verify` per the resolution rule above before this step - it never installs
+   `GATE_ROLE: node-verify` per the resolution rule above before this step - it never installs
    or tags `test_lint`/`test_pylint`. Resolve + PIN the profile before any probe; never probe
    profile-less.
 4. **Run the operation** via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`

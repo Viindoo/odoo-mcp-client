@@ -320,15 +320,10 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
     """Derive the registry default_gate_tier for a SKILL. L2 = irreversible/outward → ALWAYS
     human gate (the dial can never lower it). L1 = writes internal files. L0 = read-only/chat.
 
-    NOTE - there is no `spawner-wave` branch anymore. run-harness's OWN between-wave integration
-    advance is L1 (autonomous drive-to-done: its instance touches are EPHEMERAL test DBs; each wave
-    auto-advances on a GREEN cumulative close-gate with NO per-wave PR, and the only irreversible
-    landing is the DOWNSTREAM outward merge - odoo-pr-monitoring's merge-to-principal - of the single
-    run-level PR the terminal integrate land-tail opens once after the final wave). That L1 is a
-    run-harness NODE tier applied by the driver (see run-harness SKILL.md § Gate-tier resolution +
-    workflow-harness.md §8.4), NOT a value derived from any skill's registry fields, so it is not
-    computed here. A DYNAMIC (unplanned) node (including a wave) stays L2 via run-harness's
-    all-dynamic-L2 rule. `outward` is checked first so an outward skill always derives L2."""
+    This derives a SKILL's registry default only. The per-NODE tier is a total function in
+    `run-harness` that also reads whether the node is dynamic and whether the driver itself
+    composed a fresh-database brief; it is not computed here. `outward` is checked first so an
+    outward skill always derives L2."""
     if outward:
         return "L2"
     if instance_touching:

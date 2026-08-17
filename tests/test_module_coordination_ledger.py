@@ -72,9 +72,10 @@ def test_ledger_root_via_git_common_dir():
     assert "common-dir" in low and ("shared" in low or "cross-run" in low), (
         "The snippet must explain WHY --git-common-dir gives cross-run/worktree visibility."
     )
-    # A run outside any git repo degrades to no-ledger per-run behavior and logs it.
-    assert "outside" in low and "log" in low, (
-        "The snippet must state a run outside any git repo degrades to per-run behavior with no "
+    # A run with no git repo (and no project marker) degrades to no-ledger per-run behavior and
+    # logs it - never fabricating a ledger location.
+    assert "no git repo" in low and "degrade" in low and "log" in low, (
+        "The snippet must state a run with no git repo degrades to per-run behavior with no "
         "ledger, and logs it."
     )
 
@@ -128,14 +129,84 @@ def test_all_six_decision_cases_present():
     table = text[idx:]
     for n in range(1, 7):
         assert re.search(rf"(?m)^\s*{n}\.", table), f"decision table must include case {n}."
-    # The distinguishing semantics of each case.
-    assert "in-set sibling" in low, "case 2 (in-set sibling not-yet-DONE) must be present."
-    assert "different" in low and ("run_id" in low or "run" in low), (
+    # The distinguishing semantics of each case. Whitespace-normalized before the substring check
+    # so a case's wording surviving a Markdown line-wrap (a newline instead of a space between two
+    # words) is not mistaken for a dropped case.
+    norm_low = " ".join(low.split())
+    assert "in-set sibling" in norm_low, "case 2 (in-set sibling not-yet-DONE) must be present."
+    assert "different" in norm_low and ("run_id" in norm_low or "run" in norm_low), (
         "case 3 (different run, fresh heartbeat -> WAIT) must be present."
     )
-    assert "integrate" in low or "rebase" in low, "case 4 (done elsewhere -> integrate/rebase) present."
-    assert "failed" in low, "case 5 (failed elsewhere) must be present."
-    assert "missing prerequisite" in low, "case 6 (absent/stale -> missing prerequisite) must be present."
+    assert "integrate" in norm_low or "rebase" in norm_low, (
+        "case 4 (done elsewhere -> integrate/rebase) present."
+    )
+    assert "failed" in norm_low, "case 5 (failed elsewhere) must be present."
+    assert "missing prerequisite" in norm_low, (
+        "case 6 (absent/stale -> missing prerequisite) must be present."
+    )
+
+
+def test_claimant_is_the_node_claiming_ascending_technical_name_order():
+    """D4/5.3 - the claim KEY stays the module technical name (a node id is run-local, so a
+    node-keyed ledger could never fire cross-run), but the CLAIMANT is now the node: it claims
+    every module in its `modules` list before dispatching its single coder. Claim order MUST be
+    ASCENDING TECHNICAL-NAME order, never dependency order - dependency order leaves independent
+    modules unordered, so two runs claiming the same pair as [m1, m2] and [m2, m1] could deadlock;
+    a total order independent of the plan is what lock acquisition needs.
+
+    Fails if: the claimant reverts to being keyed by node id (breaking cross-run collision
+    detection), or the claim order is left as dependency order / unspecified (reintroducing the
+    deadlock the total order was added to close)."""
+    text = _text()
+    low = " ".join(text.lower().split())
+    assert "the claimant is the node" in low or (
+        "claimant" in low and "node" in low
+    ), "the snippet must state the CLAIMANT is the node (the claim KEY stays the module name)."
+    assert "ascending technical-name order" in low, (
+        "the snippet must require claiming in ASCENDING TECHNICAL-NAME order."
+    )
+    assert "never dependency order" in low or (
+        "not dependency order" in low
+    ), "the snippet must explicitly forbid claiming in dependency order (a total order is required)."
+    assert "deadlock" in low, (
+        "the snippet must state WHY dependency order is wrong: two runs claiming an unordered "
+        "pair in opposite orders could deadlock."
+    )
+
+
+def test_no_release_or_unclaim_primitive_and_state_enum_is_closed():
+    """B6/5.3 - the ledger has NO release / un-claim / `rmdir` primitive, and none may be added:
+    `rmdir` would destroy the mutual-exclusion lock the directory's existence IS, and flipping a
+    held claim to `failed` on a lost sibling claim would falsely poison every other run watching
+    it. On EEXIST, the node keeps every claim it already won and re-queues behind the existing
+    bounded barrier - it never releases anything. The state machine stays closed over exactly
+    `claimed | building | done | failed` - no fifth value, no release transition.
+
+    Fails if: a release/un-claim/`rmdir` primitive is (re-)introduced, or a state value outside
+    the four-value enum appears (e.g. a `released`/`cancelled`/`unclaimed` status)."""
+    text = _text()
+    low = " ".join(text.lower().split())
+    assert "no release" in low or "do not release" in low, (
+        "the snippet must state there is NO release primitive - claims already won are kept as-is."
+    )
+    assert "un-claim" in low or "unclaim" in low, (
+        "the snippet must explicitly name and reject an un-claim primitive."
+    )
+    assert "rmdir" in low, (
+        "the snippet must name `rmdir` explicitly and state it would destroy the mutual-exclusion "
+        "lock the directory's existence IS."
+    )
+    assert "no fifth value" in low and "no release transition" in low, (
+        "the snippet must state the state machine is CLOSED: no fifth value, no release "
+        "transition beyond claimed -> building -> done | failed."
+    )
+    # No fifth status value anywhere (released/cancelled/unclaimed/aborted would all break the
+    # closed four-value enum the claim/status registry schema declares).
+    for bogus_status in ("released", "cancelled", "canceled", "unclaimed", "aborted"):
+        assert f'"{bogus_status}"' not in text and f"'{bogus_status}'" not in text, (
+            f"the ledger must NOT introduce a {bogus_status!r} status value outside "
+            "claimed|building|done|failed"
+        )
 
 
 def test_case_six_is_the_honest_fallback():

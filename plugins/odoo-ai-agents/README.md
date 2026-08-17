@@ -117,21 +117,22 @@ waits for your approval. From there:
   dives -> an optional deep pass and writes a synthesis
   under `<SHARE_DIR>/survey/` that re-informs a sharper Proposed Plan before any execution.
 - **Multi-step** -> for non-trivial multi-module work the approved plan is authored by
-  **`odoo-planning`** (via the `odoo-planner` agent) after `odoo-solution-design`: a wave-batched
-  module-DAG that wires each module/stage to a SKILL and spans the full lifecycle from code to
-  merge, in the Terminal stage order constant `run-harness` owns
-  (`skills/run-harness/references/wave-integration.md` § Pre-PR tail - the order's ONE owner).
+  **`odoo-planning`** (via the `odoo-planner` agent) after `odoo-solution-design`: a flat DAG of work
+  NODES (`depends_on` edges - no batch, layer, or grouping construct) that wires each node to a SKILL and spans the
+  full lifecycle from code to merge, in the Terminal stage order constant `run-harness` owns
+  (`skills/run-harness/references/run-integration.md` § Pre-PR tail - the order's ONE owner).
   `odoo-intake` serializes it to a run file (`<ISOLATE_DIR>/run-<id>.json`)
   and hands it to **`run-harness`** (the sequencer), which walks the
-  module nodes to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`: pick the next ready node -> check its gate tier
-  -> dispatch it (a leaf skill inline, a coding/review/UI **agent bundle**, a declarative **workflow**
-  via `workflow-chaining`, a coding wave-layer via `run-harness`'s own **between-wave integration**
-  (invokes `odoo-coding` per module, cherry-picks the result onto the one run-level integration
-  branch, and AUTO-ADVANCES to the next wave - no per-wave PR, no per-wave stop), or the terminal
-  **`integrate`** land node that every `writes-files` plan ends on, running ONCE after the FINAL
-  wave - `run-harness` invokes `git-toolkit:git-ops` to squash the integration branch, push it, and
-  open the run's ONE PR against the principal branch) -> read the step's **Continuation Contract**
-  -> advance. Once a PR is open the async
+  nodes to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`: pick the next node whose `depends_on` are all DONE
+  -> check its gate tier -> dispatch it (a leaf skill inline, a coding/review/UI **agent bundle**, a
+  declarative **workflow** via `workflow-chaining`, a coding node via **`odoo-coding`** - which
+  dispatches ONE `odoo-coder` coordinator for that node, whatever modules it touches, and
+  cherry-picks the returned commit onto the one run-level integration branch - or the terminal
+  **`integrate`** land node that every `writes-files` plan ends on, once per repo, when every other
+  node in that repo is terminal and a green verification node covers every module its coding nodes
+  touched - `run-harness` invokes `git-toolkit:git-ops` to squash the integration branch, push it,
+  and open the run's ONE PR against the principal branch) -> read the step's **Continuation
+  Contract** -> advance. Once a PR is open the async
   poller **`odoo-pr-monitoring`** drives it to merge (watches CI + review; any failure routes to
   `odoo-debug` with the re-push human-gated; the merge approval gate). A step can chain the next one
   (including across workflows via `on_complete`), so the run keeps moving without re-prompting.
@@ -170,10 +171,10 @@ flowchart TD
     PK -->|"L2 irreversible"| STOP["STOP - human gate"]
     STOP -->|"approve"| PK
     PK -->|"leaf / agent bundle / workflow"| DISP["dispatch node"]
-    PK -->|"coding wave-layer"| WAVE["TIER 4 - run-harness between-wave integration (internal)<br/>per MODULE: worktree -> INVOKE odoo-coding<br/>-> cherry-pick onto run-integration<br/>-> end-of-wave review -> close-gate GREEN<br/>-> AUTO-ADVANCE (no per-wave PR, no per-wave stop)"]
-    WAVE -->|"more waves"| PK
-    PK -->|"terminal: integrate node<br/>(land tail, ONCE after final wave)"| INT["run-harness invokes git-toolkit:git-ops<br/>squash + fresh push + open the run's ONE PR"]
-    PK -->|"after coding waves"| DOCPREP["doc content prep (parallel, browser-free)<br/>odoo-doc-feature-map + odoo-doc-walkthrough<br/>+ odoo-icon-design"]
+    PK -->|"coding node"| NODE["odoo-coding -> ONE odoo-coder<br/>per node (whatever modules it touches)<br/>-> cherry-pick commit onto run-integration"]
+    NODE --> PK
+    PK -->|"terminal: integrate node<br/>(land tail, once per repo)"| INT["run-harness invokes git-toolkit:git-ops<br/>squash + fresh push + open the run's ONE PR"]
+    PK -->|"after coding nodes"| DOCPREP["doc content prep (parallel, browser-free)<br/>odoo-doc-feature-map + odoo-doc-walkthrough<br/>+ odoo-icon-design"]
     DOCPREP --> DOC["odoo-doc-illustration (browser-serial)<br/>+ i18n (odoo-i18n)"]
 
     DISP -->|"UI/behavior blast-radius (opt-in L2)"| ACC["odoo-acceptance<br/>oracle -> live execute -> adjudicate"]
@@ -193,7 +194,7 @@ flowchart TD
     F1 --> I[("OSM MCP")]
     F2 --> I
     DISP --> I
-    WAVE --> I
+    NODE --> I
     FIX --> I
     MON --> I
     I --> Z([Answer or $ODOO_AI_HOME])
@@ -237,18 +238,19 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 
 ### Coding dispatch and model tiers
 
-When a coding job spans several modules, `odoo-coding` assigns each module a **deterministic model
+When a coding job spans several nodes, `odoo-coding` assigns each node a **deterministic model
 tier** at its Phase 0 gate - `haiku` (trivial boilerplate), `sonnet` (default, and the home of
 large-but-single-domain work: Sonnet's ~1M-token context holds a big module plus its surroundings),
 `opus` (reserved for multi-hard-domain changes entangled with many interacting modules - NOT chosen
 for size alone), or `fable` (rare Custom-XL cross-module inheritance change, ~2x opus price,
 design-doc-first) - recorded in the gate table and `plan.md`. It then dispatches **one `odoo-coder`
-COORDINATOR per module** (every module - backend-only, frontend-only, or full-stack) as a
-**subagent** in **model-weighted batches**: the coordinator splits its module into internal
+COORDINATOR per NODE** (whatever the node's stack tag - backend-only, frontend-only, or full-stack -
+and whatever modules it touches: one, part of one, or several) as a
+**subagent** in **model-weighted batches**: the coordinator splits its node into internal
 work-items and, per work-item, launches its THREE teammates - `odoo-test-writer` FIRST (authors the
 RED test, test-first), then `odoo-backend-coder` and/or `odoo-frontend-coder` to make it green (the
-backend leg before a dependent frontend leg; the coders no longer author tests), modules are ordered
-so each runs after its in-set dependencies, and each
+backend leg before a dependent frontend leg; the coders no longer author tests), nodes are ordered
+so each runs after its `depends_on`, and each
 round packs work up to a single model-weighted budget (the OOM envelope), whose SSOT is
 [`skills/_shared/concurrency-guard.md`](skills/_shared/concurrency-guard.md):
 WEIGHT `haiku=1 / sonnet=2 / opus=4 / fable=8`, at most **8 weight-units in flight** (so opus
@@ -269,7 +271,7 @@ flowchart TD
 
     BATCH --> BUDGET
 
-    subgraph PERMOD["Per module - ONE odoo-coder COORDINATOR"]
+    subgraph PERMOD["Per node - ONE odoo-coder COORDINATOR"]
         COORD["odoo-coder<br/>(coordinator)"] --> TW["odoo-test-writer<br/>(RED test first)"]
         COORD --> BE["odoo-backend-coder"]
         COORD --> FE["odoo-frontend-coder"]
@@ -442,7 +444,7 @@ flowchart TD
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
 | P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
-| P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the sibling run-harness Pre-PR tail - the Terminal stage order constant, `skills/run-harness/references/wave-integration.md` § Pre-PR tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
+| P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the sibling run-harness Pre-PR tail - the Terminal stage order constant, `skills/run-harness/references/run-integration.md` § Pre-PR tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
 | P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | - |
 
 ### Git-rebase pipeline (`/odoo-git-rebase`)
@@ -522,7 +524,7 @@ An 8-phase orchestration (P0-P7, with P1d, P2b, P4b, P5.7, and P5.8 sub-phases) 
 Odoo modules (v8-v19) across a major version jump using dependency-ordered absorption,
 scale-conditional design before Plan Mode, an in-pipeline per-module code-review-and-fix loop
 after adapt, and a final pre-merge dep-order PR review. Two human STOP-gates bound the
-automation; a third automated review gate (P4b) catches defects before the install/test wave.
+automation; a third automated review gate (P4b) catches defects before the install/test pass.
 
 ```mermaid
 flowchart TD
@@ -554,9 +556,9 @@ flowchart TD
         FX --> RV
     end
 
-    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave, demo=on)"]
-    P5 -->|"red wave -> debugger -> back to P4"| P4
-    P5 -->|"all waves green"| P57["P5.7 - i18n reconcile<br/>(MANDATORY, narrow escape only)"]
+    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, one dependency level at a time, demo=on)"]
+    P5 -->|"red level -> debugger -> back to P4"| P4
+    P5 -->|"all levels green"| P57["P5.7 - i18n reconcile<br/>(MANDATORY, narrow escape only)"]
     P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only"]
     P58 --> P6["P6 - Gate (STOP, human sign-off)"]
     P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
@@ -577,10 +579,10 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 | P3 Plan Mode gate | EnterPlanMode / ExitPlanMode; per-DELETE confirmation before any file deletion | - | STOP - human approve |
 | P4 Adapt | Per module in dep order; child worktrees; odoo-coding; P1d blockers[] prepended as preemptive fix list; manifest bump profile-gated | Serial per module | - |
 | P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
-| P5 Install + test gate | Ephemeral instance; wave-by-wave green with demo=on (no separate framework-validation phase); red wave loops back to P4 via debugger | Per wave | - |
+| P5 Install + test gate | Ephemeral instance; one dependency level at a time, green with demo=on (no separate framework-validation phase); red level loops back to P4 via debugger | Per level | - |
 | P5.7 i18n reconcile | MANDATORY for every surviving module, narrow escape only (not gated on content diff - the `.pot`/`.po` tooling changes across a major series regardless); load existing .po into a fresh instance + re-export + git-ops diff-review (never blind-regenerate) | - | - |
 | P5.8 Acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole cluster; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the P6 sign-off | - | L2 (human) - combined with P6 sign-off |
-| P6 Gate | Human sign-off after all waves green | - | STOP - human confirm |
+| P6 Gate | Human sign-off after all levels green | - | STOP - human confirm |
 | P7 PR + FINAL dep-order review | Open PR; Runbot parity gates + convention-compliance pass; mandatory final dep-order code-review; no cluster-squash (per-module consolidation to 1 clean commit per module allowed) | - | - |
 
 ### Module-packaging workflow (`module-packaging`)
@@ -836,7 +838,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A resume a child you launched, by the id its own launch returned / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-backend-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
 | `snippets/upg-conventions.md` | Viindoo upgrade + module-rename conventions (Viindoo Standard/Internal profile, OSM-gated): keeping the manifest `version` unchanged on a code-level upgrade; a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-backend-coder`, `odoo-code-reviewer`) |
-| `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`); `odoo-planning` is the canonical producer of the wave-batched result, which `odoo-coding` and `run-harness`'s between-wave integration consume so all dispatch in dependency order and respect module boundaries |
+| `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`); `odoo-planning` is the canonical producer of the node-partitioned result, which `odoo-coding` and `run-harness` consume so all dispatch follows `depends_on` order - the module boundary is a property of a node, not a tier of decomposition |
 
 The two-axis state root at a glance (full classification tables + the resolve-capture-substitute
 protocol: `snippets/state-root-resolution.md`):
@@ -848,7 +850,7 @@ flowchart TD
     HOME --> PROJ["projects/&lt;repo-key&gt;/"]
     PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>designs/, plans/,<br/>coordination/, survey/, brl/<br/>converges across a repo's worktrees"]
     PROJ --> WT["worktrees/&lt;wt-key&gt;/"]
-    WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, wave/,<br/>workflow output_dir/<br/>distinct per worktree"]
+    WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, integration/,<br/>workflow output_dir/<br/>distinct per worktree"]
 
     REPOKEY["repo-key = sha256(realpath(git-common-dir))[:12]"] -.-> PROJ
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
@@ -879,8 +881,8 @@ regardless of whether it has a dedicated guide.
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
 | `odoo-forward-port` | Engineer | Forward-port fixes/features from a lower Odoo series up to a higher one as an intent-first pipeline, grouped by MODULE first then by commit within it (module-first intent sweep -> 4-outcome classify -> installable probe -> SHA-preserving merge -> symbol-survival check -> test-first adapt -> verify-by-behavior -> PR); at most one agent instance per module across the whole run for intent extraction and (resumed rather than cold-spawned) code adapt; two human STOP-gates bound the automation |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code; supports master-child decomposition for large multi-module scope (slim, paired with agent bundle) |
-| `odoo-planning` | Architect / Coder | Turn an APPROVED design into the EXECUTION plan that ships it - a gate-able ONE-lifecycle plan (wave-batched module-DAG + integration cadence + each module/stage wired to a SKILL + the full lifecycle from code to merge in run-harness's Terminal stage order constant); dispatches BOTH `odoo-planner` (code plan, reuses design DAG) AND `odoo-doc-planner` (doc plan, branch-aware instance allocation) and stitches them into ONE plan with a single approval gate; emits estimates only (effort + `est_agents`, ADVISORY). Runs after `odoo-solution-design`, before `odoo-coding` (slim, paired with agent bundle) |
-| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches **one `odoo-coder` COORDINATOR per module** (every module) as a subagent in model-weighted batches - the coordinator splits its module into work-items and, per work-item, launches `odoo-test-writer` FIRST (the RED test) then `odoo-backend-coder` and/or `odoo-frontend-coder` to make it green (the coders no longer author tests); orders modules by the shared module DAG, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
+| `odoo-planning` | Architect / Coder | Turn an APPROVED design into the EXECUTION plan that ships it - a gate-able ONE-lifecycle plan (a flat DAG of work nodes - `depends_on` edges, no batch/layer/grouping-construct - each node wired to a SKILL, spanning the full lifecycle from code to merge in run-harness's Terminal stage order constant); dispatches BOTH `odoo-planner` (code plan, reuses design DAG) AND `odoo-doc-planner` (doc plan, branch-aware instance allocation) and stitches them into ONE plan with a single approval gate; emits estimates only (effort + `est_agents`, ADVISORY). Runs after `odoo-solution-design`, before `odoo-coding` (slim, paired with agent bundle) |
+| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per node (haiku/sonnet/opus/fable, sonnet default), and dispatches **one `odoo-coder` COORDINATOR per NODE** (whatever modules it touches - one, part of one, or several) as a subagent in model-weighted batches - the coordinator splits its node into work-items and, per work-item, launches `odoo-test-writer` FIRST (the RED test) then `odoo-backend-coder` and/or `odoo-frontend-coder` to make it green (the coders no longer author tests); orders nodes by `depends_on` (derived from the shared module DAG), and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; accepts `TARGET: local \| worktree:<path> \| pr:<number-or-url>` - Phase 0 dispatches `odoo-review-scoper` to resolve diffs and map modules, then `odoo-code-reviewer` agents for analysis (which self-escalate to `odoo-security-audit` / `odoo-perf-audit` / `odoo-deprecation-audit`, diff-scoped, per severity-triggering rule); emits a VERDICT (APPROVE/REQUEST_CHANGES) with SCORE 0-100 and findings grouped by severity; on a CRITICAL/HIGH finding drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior to the `odoo-test-writer` agent (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
@@ -899,7 +901,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-feature-highlights` | Marketer | Marketing-friendly feature highlights for a version |
 | `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
-| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, resolves the Odoo series/profile/scope from the declared instance or the checkout (inline version/profile menu when OSM is reachable but neither resolves, asks for the series + repo path otherwise), offers an opt-in deep survey on large jobs (the user asks for it with `refine: deep-survey`), and fast-paths review / PR-review and debug intents straight to the specialist (skipping Plan Mode); for multi-step work plans once then hands a `run-<id>.json` to `run-harness` to drive to done; always gates with a Proposed Plan before execution |
+| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, resolves the Odoo series/profile/scope from the declared instance or the checkout (inline version/profile menu when OSM is reachable but neither resolves, asks for the series + repo path otherwise), offers an opt-in deep survey on large jobs (the user asks for it with `refine: deep-survey`), and fast-paths review / PR-review and debug intents straight to the specialist (skipping Plan Mode); for multi-step work plans once then hands a `run-<id>.json` (a flat node DAG) to `run-harness` to drive to done; always gates with a Proposed Plan before execution |
 | `odoo-deep-survey` | Onboarding / Concierge (opt-in) | Multi-phase opt-in deep survey - invoked by `odoo-intake` after the user replies `refine: deep-survey` at the plan gate; fans out a broad quick sweep -> narrow standard-depth dives -> an optional deep pass, then writes a synthesis under `<SHARE_DIR>/survey/` that re-informs the plan (read-only; spawner-agent, requires orchestrating context) |
 | `odoo-ui-review` | Coder / Visual | Six-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance, design-system + theme fidelity); slim, paired with agent bundle |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI). On a CRITICAL/HIGH root cause it drives the fix autonomously - hands the proven cause to `odoo-coding`, which loops back through `odoo-code-review` to verify (bounded to 3 iterations, then escalates) |
@@ -911,23 +913,23 @@ regardless of whether it has a dedicated guide.
 | `odoo-doc-walkthrough` | Marketer | Produces happy-path usage walkthroughs for a module's key flows; dispatches `odoo-doc-scenarist`; standalone-first, browser capture optional. |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
 | `odoo-acceptance` | Coder / QA | End-to-end acceptance on a change AND its blast-radius - map the affected cluster, plan an INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with evidence; dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute) and chains tours/HttpCase via `odoo-instance` (needs a live instance + browser MCP) |
-| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - `run-harness`'s terminal `integrate` land node, the single land-tail every `writes-files` plan ends on (runs ONCE after the final wave) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the merge approval gate, merges, and runs post-merge cleanup |
+| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - `run-harness`'s terminal `integrate` land node, the single land-tail every `writes-files` plan ends on (runs ONCE per repo, once every other node in that repo is terminal and verified) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the merge approval gate, merges, and runs post-merge cleanup |
 | `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
-| `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each ready node, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent. Owns the per-wave **between-wave integration** directly (consumes Block 2W; per module invokes `odoo-coding`, cherry-picks the returned SHA onto the ONE run-level integration branch forked at run start, runs the cumulative close-gate, and AUTO-ADVANCES to the next wave with no per-wave PR); after the FINAL wave, the terminal `integrate` land-tail runs ONCE - squash + fresh non-force push + open the run's ONE PR against principal - and STOPS at "PR opened" (no merge) |
+| `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each ready node (every `depends_on` DONE), reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent. Forks ONE run-integration branch per repo at run start; a coding node dispatches `odoo-coding` (which dispatches ONE `odoo-coder` per node) and its returned commit is cherry-picked onto that branch; once every other node in a repo is terminal and a green verification node covers every module its coding nodes touched, the terminal `integrate` land-tail runs ONCE per repo - squash + fresh non-force push + open the run's ONE PR against principal - and STOPS at "PR opened" (no merge) |
 
 ### Agents (26)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
 | `odoo-review-scoper` | Sonnet | Phase 0 specialist dispatched by `odoo-code-review` - resolves the review TARGET (local diff, worktree path, or GitHub PR), maps touched modules, fetches PR metadata and diff when TARGET is a PR, and returns a structured scope record so downstream `odoo-code-reviewer` agents receive a clean, consistent input regardless of target type |
-| `odoo-coder` | Sonnet *(default; per-module tier from `odoo-coding` - haiku/sonnet/opus/fable)* | Per-module COORDINATOR dispatched by `odoo-coding` for EVERY module (a sanctioned nested spawner, not a code writer). Owns the module's INTERNAL work-item (WI) split: divides the module's changes into 1..N disjoint-file-set WIs, schedules independent WIs in parallel and dependent ones sequentially (backend before a frontend WI that binds it), launches its THREE teammates per WI - `odoo-test-writer` FIRST for the RED test, then `odoo-backend-coder` / `odoo-frontend-coder` to make it green (the coders no longer author tests) - tests the integrated module via `Skill(odoo-instance)` (inline, or by launching `odoo-instance-ops` - whichever fits), keeps a live task list of its WI work-items and actively reacts to a worker's pre-integration BLOCKED within a bounded loop, runs a bounded fix loop on the integrated test, and returns the aggregated files to `odoo-coding` for commit (it never commits). The work-item is its PRIVATE unit; planning/run-harness think in MODULES only. |
-| `odoo-test-writer` | Sonnet *(default; per-module tier - haiku/sonnet/opus/fable)* | Context-isolated test-authoring executor - the single actor that AUTHORS Odoo automation tests, by invoking the `odoo-test-writing` skill INLINE in its own context (a HARD LEAF that spawns nothing). Launched FIRST per work-item by the `odoo-coder` coordinator (test-first, before the coders), and by `odoo-acceptance` (durable tour/HttpCase), `odoo-code-review` (coverage gate), `odoo-forward-port` / `odoo-git-rebase` (adapt-mode translation). `odoo-qa-suite` does NOT launch this agent - its Phase 1 test-plan is static/non-executing and stays inline. Covers Python TransactionCase/Form/HttpCase, Python + JS tours, JS Hoot/QUnit, and performance/load; receives a self-contained brief (module, target behavior/oracle, test type(s), RED intent, INSTANCE_HANDLE when a run is needed) and returns the authored RED test paths. Writes no production code and never runs/adjudicates the suite. |
-| `odoo-backend-coder` | Sonnet *(default; per-module tier - haiku/sonnet/opus/fable)* | Hard-leaf agent for backend code writing (launched per backend work-item by the `odoo-coder` coordinator, for EVERY module - `odoo-coding` never dispatches it directly) - Python/XML: computed fields, ORM overrides, constraints, migration scripts. Reads the target version's coding guidelines BEFORE writing, runs an impact pre-flight, implements to the RED test the `odoo-test-writer` teammate authored (it does NOT author tests), and self-validates with its own bounded ORM-validation gate (INSTANCE-FREE - the `/test_lint`/`/test_pylint` lint-class gate runs once at `run-harness`'s pre-PR tail); the coordinator owns the INTEGRATED whole-module test. |
+| `odoo-coder` | Sonnet *(default; per-node tier from `odoo-coding` - haiku/sonnet/opus/fable)* | Per-NODE COORDINATOR dispatched by `odoo-coding` for EVERY work node (whatever modules it touches - one, part of one, or several; a sanctioned nested spawner, not a code writer). Owns the node's INTERNAL work-item (WI) split: divides the node's changes into 1..N disjoint-file-set WIs (a WI MAY span modules), schedules independent WIs in parallel and dependent ones sequentially (backend before a frontend WI that binds it, and across a module dependency edge the same way), launches its THREE teammates per WI - `odoo-test-writer` FIRST for the RED test, then `odoo-backend-coder` / `odoo-frontend-coder` to make it green (the coders no longer author tests) - tests the WHOLE NODE together on ONE instance via `Skill(odoo-instance)` (inline, or by launching `odoo-instance-ops` - whichever fits), keeps a live task list of its WI work-items and actively reacts to a worker's pre-integration BLOCKED within a bounded loop, runs a bounded fix loop on the integrated test, and commits the NODE once via `git-toolkit:git-ops`, returning the SHA to `odoo-coding`. The work-item is its PRIVATE unit; planning/run-harness think in NODES only. |
+| `odoo-test-writer` | Sonnet *(default; per-node tier - haiku/sonnet/opus/fable)* | Context-isolated test-authoring executor - the single actor that AUTHORS Odoo automation tests, by invoking the `odoo-test-writing` skill INLINE in its own context (a HARD LEAF that spawns nothing). Launched FIRST per work-item by the `odoo-coder` coordinator (test-first, before the coders), and by `odoo-acceptance` (durable tour/HttpCase), `odoo-code-review` (coverage gate), `odoo-forward-port` / `odoo-git-rebase` (adapt-mode translation). `odoo-qa-suite` does NOT launch this agent - its Phase 1 test-plan is static/non-executing and stays inline. Covers Python TransactionCase/Form/HttpCase, Python + JS tours, JS Hoot/QUnit, and performance/load; receives a self-contained brief (module, target behavior/oracle, test type(s), RED intent, INSTANCE_HANDLE when a run is needed) and returns the authored RED test paths. Writes no production code and never runs/adjudicates the suite. |
+| `odoo-backend-coder` | Sonnet *(default; per-node tier - haiku/sonnet/opus/fable)* | Hard-leaf agent for backend code writing (launched per backend work-item by the `odoo-coder` coordinator, for EVERY node - `odoo-coding` never dispatches it directly) - Python/XML: computed fields, ORM overrides, constraints, migration scripts. Reads the target version's coding guidelines BEFORE writing, runs an impact pre-flight, implements to the RED test the `odoo-test-writer` teammate authored (it does NOT author tests), and self-validates with its own bounded ORM-validation gate (INSTANCE-FREE - the `/test_lint`/`/test_pylint` lint-class gate runs once at `run-harness`'s pre-PR tail); the coordinator owns the INTEGRATED whole-module test. |
 | `odoo-solution-architect` | Opus *(default; fable for Custom-XL designs)* | Agent bundle for solution design (companion to `odoo-solution-design`) - produces a grounded Technical Design Document (approach / data model / override strategy / module structure / risks) before code; checks the three platform design principles, surveys bidirectional (upstream + downstream) impact, designs dynamic demo data, and authors the MANDATORY per-module §9 acceptance criteria (with the independence guard - `expected` values requirement-derived, never code/OSM-derived) plus the §7 per-module test-strategy scenarios; full odoo-semantic tool surface, read-only, writes only the design doc |
-| `odoo-planner` | Opus | Execution-plan author dispatched by `odoo-planning` - turns an APPROVED design (design DAG / `dag_layers` + dependency direction), the gap matrix, and (when already authored) the QA oracle into a gate-able 3-block plan: a wave-batched module-DAG, the integration cadence, each module/stage wired to a SKILL (never an agent), and the full lifecycle from code to merge in the Terminal stage order constant `run-harness` owns. The QA oracle is OPTIONAL and usually ABSENT at planning time - it is authored later at `odoo-acceptance` (after coding), so the plan RESERVES the acceptance stage against the design's per-module §9 acceptance criteria and wires the real oracle in only when one is already present; emits estimates only (effort + `est_agents`, ADVISORY - the dispatched skill owns the runtime model + count); read-only on source, writes the plan (SHARE) plus its own worklog entry (ISOLATE) - nothing else, serializes no `run-<id>.json` (intake Phase P owns that), spawns nothing |
+| `odoo-planner` | Opus | Execution-plan author dispatched by `odoo-planning` - turns an APPROVED design (design DAG / `dag_layers` + dependency direction), the gap matrix, and (when already authored) the QA oracle into a gate-able 3-block plan: a flat DAG of work NODES (`depends_on` edges, no batch/layer/grouping-construct), each node wired to a SKILL (never an agent), verification and integration nodes placed as ordinary nodes on the graph, and the full lifecycle from code to merge in the Terminal stage order constant `run-harness` owns. The QA oracle is OPTIONAL and usually ABSENT at planning time - it is authored later at `odoo-acceptance` (after coding), so the plan RESERVES the acceptance stage against the design's per-module §9 acceptance criteria and wires the real oracle in only when one is already present; emits estimates only (effort + `est_agents`, ADVISORY - the dispatched skill owns the runtime model + count); read-only on source, writes the plan (SHARE) plus its own worklog entry (ISOLATE) - nothing else, serializes no `run-<id>.json` (intake Phase P owns that), spawns nothing |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding; per-module and cross-module bidirectional impact, platform-principle checks, and a test-coverage gate that loops an uncovered behavior to the `odoo-test-writer` agent and CRITICAL/HIGH fixes back to `odoo-coding`; self-derives audit triggers from the diff and self-escalates (via the Skill tool, its one permitted HARD-LEAF exception) to `odoo-security-audit` / `odoo-perf-audit` / `odoo-deprecation-audit` diff-scoped, then merges findings back per the shared severity rubric's ownership-transfer rule |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a six-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
-| `odoo-frontend-coder` | Sonnet *(default; per-module tier - haiku/sonnet/opus/fable)* | Hard-leaf agent for frontend code writing (launched per frontend work-item by the `odoo-coder` coordinator) - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to the RED JS behavior test the `odoo-test-writer` teammate authored (it does NOT author tests; `test-behavior-contract`). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
+| `odoo-frontend-coder` | Sonnet *(default; per-node tier - haiku/sonnet/opus/fable)* | Hard-leaf agent for frontend code writing (launched per frontend work-item by the `odoo-coder` coordinator) - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to the RED JS behavior test the `odoo-test-writer` teammate authored (it does NOT author tests; `test-behavior-contract`). Dispatched at the node's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
 | `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist. `odoo-forward-port`'s P1 bulk sweep dispatches exactly ONE instance per touched MODULE (never per commit) - the instance reads that module's FULL ordered commit list in one context, extracting each commit's business intent and behavioral contract while catching a same-file double-touch or a later commit reverting an earlier one within the module, before any git merge or adapt work begins; at most one instance per module for the whole run. A single-SHA brief stays valid for a single-commit clarification or a disputed-outcome re-anchor. Also dispatched by `odoo-git-rebase` (P2, per commit in rebase MODE, batched by module above roughly 30 commits) |

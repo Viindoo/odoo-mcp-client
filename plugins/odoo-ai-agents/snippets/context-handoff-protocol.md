@@ -90,10 +90,10 @@ child by that id. A skill whose frontmatter declares a forked/background subagen
 launched as a real subagent instead; it still holds no address for its launcher - only the ids its
 own launches return.
 
-## Sanctioned nested spawner - the `odoo-coder` per-module coordinator
+## Sanctioned nested spawner - the `odoo-coder` node coordinator
 
-Being a subagent never bars you from launching your own subagents. `odoo-coder` (the per-module
-COORDINATOR launched by `odoo-coding` for EVERY module) is the sanctioned nested spawner: although it
+Being a subagent never bars you from launching your own subagents. `odoo-coder` (the node
+COORDINATOR launched by `odoo-coding` once per work node) is the sanctioned nested spawner: although it
 is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own three workers
 (`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits well
 within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`, 2 levels deep against a

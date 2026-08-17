@@ -1,8 +1,8 @@
 # Concurrency guard - the OOM envelope for agent fan-out (SSOT)
 
 Root failure log: `unbounded-opus-fanout-oom` - unbounded OPUS fan-out crashed the
-host. The guard has two modes; every skill that fans out agents references this
-file instead of restating the numbers.
+host. The guard has two modes; every fan-out skill references this file instead
+of restating the numbers.
 
 ## Choosing Mode A vs Mode B (decision rule for a NEW fan-out skill)
 
@@ -16,7 +16,7 @@ mode below are EXAMPLES of skills that already resolve to one side of the rule, 
 ## Mode A - subagent batching
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
-for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). None of Mode A's
+for more work, batch in groups of <=3 (fire <=3, wait, fire the next <=3). None of Mode A's
 current users fan out >1 worker writing a shared module/worktree.
 
 ## Mode B - model-weighted budget (rolling-window / weighted-batch skills)

@@ -9,7 +9,7 @@
 >
 > **Written FOR you, the execute-time reader.** The Output Contract at the bottom is not optional
 > decoration - filling every field is how you prove (to yourself and the caller) that you performed
-> each step. An empty or hand-waved field means that step was skipped - so the root cause is not
+> each step. An empty or vague field means that step was skipped - so the root cause is not
 > yet proven.
 
 ---

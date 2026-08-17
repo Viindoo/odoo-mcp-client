@@ -180,7 +180,9 @@ def test_planning_owns_the_only_enter_exit_pair():
 
 
 def test_module_graph_standalone_self_derive_is_normal_not_blocked():
-    low = MODULE_GRAPH.read_text(encoding="utf-8").lower()
+    # Whitespace-normalized: this prose wraps "dependency" and "pre-flight" onto separate source
+    # lines, and a raw .lower() would silently miss the phrase across that line break.
+    low = " ".join(MODULE_GRAPH.read_text(encoding="utf-8").lower().split())
     assert "hard block" not in low, (
         "odoo-module-graph.md must NOT HARD BLOCK a bare standalone self-derive - it is a normal "
         "path."

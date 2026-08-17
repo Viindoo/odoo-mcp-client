@@ -4,7 +4,7 @@
   "intent": "land fleet-addons early while core-addons is still being built",
   "autonomy": "auto",
   "status": "NEEDS_NEXT",
-  "cursor": "core-wave-1",
+  "cursor": "core-hook",
   "budget": {"max_nodes": 16, "nodes_run": 3},
   "repos": [
     {
@@ -26,9 +26,9 @@
   ],
   "nodes": [
     {
-      "id": "fleet-wave-1",
+      "id": "fleet-billing",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
       "depends_on": [],
@@ -43,7 +43,7 @@
       "approach_kind": "skill",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["fleet-wave-1"],
+      "depends_on": ["fleet-billing"],
       "gate_tier": "L2",
       "status": "READY",
       "produced": [],
@@ -55,16 +55,16 @@
       "approach_kind": "integrate",
       "repo": "fleet-addons",
       "inputs": {},
-      "depends_on": ["fleet-wave-1"],
+      "depends_on": ["fleet-billing"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/fleet-addons/pull/3"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/fleet-addons/pull/3"], "next": []}
     },
     {
-      "id": "core-wave-1",
+      "id": "core-hook",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "repo": "core-addons",
       "inputs": {},
       "depends_on": [],
@@ -79,7 +79,7 @@
       "approach_kind": "skill",
       "repo": "core-addons",
       "inputs": {},
-      "depends_on": ["core-wave-1"],
+      "depends_on": ["core-hook"],
       "gate_tier": "L0",
       "status": "PENDING",
       "produced": [],
@@ -112,7 +112,7 @@
   ],
   "dynamic_nodes": [],
   "gate_log": [
-    {"node": "fleet-wave-1", "tier": "L1", "decision": "auto-pass"},
+    {"node": "fleet-billing", "tier": "L1", "decision": "auto-pass"},
     {"node": "fleet-land", "tier": "L1", "decision": "auto-pass"}
   ],
   "completion": {

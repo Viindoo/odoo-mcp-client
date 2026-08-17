@@ -1,0 +1,66 @@
+# wave_allowlist.txt - DATA for tests/test_wave_layer_regrowth.py
+# ============================================================================
+# The `wave` GROUPING LAYER is deleted, not renamed: a plan is a flat DAG of
+# work NODES joined by `depends_on`, and NOTHING groups nodes. The guard
+# `test_the_word_wave_never_regrows_outside_the_allowlist` therefore fails on
+# the word-boundary token `wave` / `waves` (any case, hyphen and camelCase
+# compounds included) anywhere under `plugins/`, `tests/`, `docs/` and the
+# repo-root `*.md` files, except `CHANGELOG.md` and `ROADMAP.md` (release
+# history is a record of what happened and stays).
+#
+# FORMAT - one entry per line:   <repo-relative path>: (<sense>) <reason>
+#   - the path is split off at the FIRST colon;
+#   - `<sense>` is one or more of the five ALLOWED SENSE letters below, each
+#     parenthesised, e.g. `(a)` or `(d)(e)`;
+#   - an entry whose reason names no allowed sense FAILS the test;
+#   - an entry whose file no longer holds the token FAILS the test too, so a
+#     stale exemption cannot outlive the text that earned it.
+#
+# ALLOWED SENSES (SSOT for the letters: ALLOWED_SENSES in the test module)
+#   (a) development-milestone narration - "the M9 wave", "wave-13 files",
+#       "a prior wave renamed X": a delivery round, never a plan-node grouping.
+#   (b) the WMS domain term "wave picking" - a real Odoo warehouse feature.
+#   (c) the English idiom - "waved through", "hand-waved", "wave it through".
+#   (d) a legacy on-disk key or path that must still be READ for backward
+#       compatibility (a pre-rename state dir, a pre-rename ledger key).
+#   (e) guard subject - the token is the subject of an assertion that BANS it,
+#       or appears in that assertion's own rationale / scanned pattern.
+#
+# Anything else is regrowth. Fix the text; do not add a line here.
+# ============================================================================
+
+# --- plugins/odoo-ai-agents ------------------------------------------------
+plugins/odoo-ai-agents/generator/check_orchestration.py: (a) design notes for the M9 / wave-7 / wave-13 contract-inversion delivery rounds that produced the card-budget and grandfather rules; a delivery round, not a node grouping.
+plugins/odoo-ai-agents/scripts/lib/migrate_project_state.sh: (d) the one-time state-root migration must still classify a legacy on-disk `.odoo-ai/wave/` directory and copy it into the renamed `integration/` ISOLATE destination; deleting the case would strand a pre-rename project's evidence.
+plugins/odoo-ai-agents/skills/odoo-modules-upgrade/references/upg-phase-detail.md: (d) backward-compat read of the pre-rename checkpoint ledger keys `waves:` / `wave: <wave_number>`, mapped to `levels:` / `level: <n>` on resume for one release.
+plugins/odoo-ai-agents/skills/odoo-solution-design/evals/evals.json: (b) two eval prompts name Odoo WMS "wave picking" as a warehouse requirement to be designed against.
+
+# --- tests -----------------------------------------------------------------
+tests/fixtures/card_budget_grandfather.json: (a) the fixture comment dates the grandfathered budget entries to the M9 / wave-13 delivery round.
+tests/fixtures/inversion_scope_checklist.json: (a) the fixture comment dates the 14 measured checklist items to the PR7 / wave-7 delivery round.
+tests/test_advance_and_lint_placement.py: (e)(a) asserts the retired "final coding wave closes GREEN" pre-PR-tail entry condition never resurfaces, and dates the renames it guards to the wave-layer removal.
+tests/test_audit_run.py: (e) the docstring names the retired `wave` `approach_kind` value to state that repo-boundness no longer rests on it.
+tests/test_block_nested_background_spawn.py: (c) English idiom - a too-narrow hook "would wave through the majority of the very calls it exists to catch".
+tests/test_coder_coordinator_topology.py: (e) the one-coder-per-NODE and two-tier-axis guards name the deleted wave grouping layer as the thing whose regrowth they reject.
+tests/test_commit_request_shape.py: (a) records the `wave-integration.md` -> `run-integration.md` rename so the pre-labelled commit literal it checks stays traceable.
+tests/test_concurrency_guard_ssot.py: (e)(a) the gate-table guard names the deleted wave layer as the reason the cost column is now per node, and narrates the OOM fan-out history that produced Mode B.
+tests/test_context_budget.py: (a) the grandfather/wave-13 budget entries generated once at the start of that delivery round.
+tests/test_continuation_version_flow.py: (a) a comment dating run-harness's driver role to the between-wave integration it replaced.
+tests/test_counted_section_reference_agreement.py: (e) `wave` is one of the retired count-unit literals the `<N>-<unit>` scanner still polices, so a resurrected "3-wave" heading is caught in the plugin trees this file's word ban does not reach.
+tests/test_execute_agent_hardening.py: (e)(c) the consume-only guard names the deleted `## Between-wave integration` section it generalizes from, and the reviewer guard uses the idiom "not wave it through".
+tests/test_git_toolkit_independence.py: (a) a comment scheduling a file to a later delivery round ("that file belongs to a LATER wave").
+tests/test_instance_ops_hardening.py: (a) comments dating two behaviour changes to the delivery rounds that shipped them.
+tests/test_inversion_scope_preserved.py: (a) the M9 contract-inversion checklist guard, scoped to the PR7 / wave-7 delivery round.
+tests/test_isolate_gc_generalization.py: (d)(e) asserts the legacy `.odoo-ai/wave/` directory still has a migration case that lands in `integration/`, and rejects a `wave/` destination.
+tests/test_lint_checker_coverage_gate.py: (a) records the `wave-integration.md` -> `run-integration.md` rename and the per-module -> per-node GATE_ROLE rename the coverage axis is keyed on.
+tests/test_naming_consistency.py: (e) the retired-skill residue guard bans the literals `odoo-wave`, `/odoo-run-wave` and `/wave-run` across the plugin manifests this file's word ban does not scan.
+tests/test_odoo_intake_quote_sync.py: (e) `wave` is kept in the router's target alternation on purpose, so a stray reference to a non-existent wave skill FAILS the intake-quote sync check.
+tests/test_peer_messaging_absent.py: (e) "the other workers in the same wave" is a MUST-CATCH string for the peer-messaging ban pattern.
+tests/test_plan_mode_dep_graph.py: (e) asserts Block 2 carries no "Wave N" (or any wave-labelled) grouping header.
+tests/test_r12_residual_gaps.py: (a) cites the `61-r12-waves.md` review findings and the retired test filenames of that delivery round.
+tests/test_run_harness_gate.py: (e) asserts the `spawner-wave` spawn class is gone from the registry and that `_derive_gate_tier` regains no wave branch.
+tests/test_spawner_completion_contract.py: (a) names the "Wave-1 consumers" of the SSOT snippet - the delivery round that reconciled them.
+tests/test_state_migration.py: (d) end-to-end migration test that plants a legacy `.odoo-ai/wave/` directory on disk and asserts it migrates as ISOLATE.
+tests/test_terminal_stage_order_singularity.py: (a) records the `wave-integration.md` -> `run-integration.md` rename that moved the stage-order constant's owner file.
+tests/test_terminology_launch_agent.py: (a) comments dating the launch/dispatch terminology sweep to the delivery rounds that ran it.
+tests/test_wave_layer_regrowth.py: (e) this file IS the word ban - every occurrence is the subject of an assertion that rejects it, a MUST-CATCH probe string, or the scanner pattern itself.

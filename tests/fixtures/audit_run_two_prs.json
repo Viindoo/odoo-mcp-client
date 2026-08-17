@@ -8,9 +8,9 @@
   "budget": {"max_nodes": 12, "nodes_run": 4},
   "nodes": [
     {
-      "id": "wave-1",
+      "id": "code-mod-a",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "inputs": {},
       "depends_on": [],
       "gate_tier": "L1",
@@ -19,33 +19,33 @@
       "contract": {"status": "DONE", "produced": ["mod_a/models/a.py"], "next": []}
     },
     {
-      "id": "land-wave-1",
+      "id": "land-mod-a",
       "approach": "git-toolkit:git-ops",
       "approach_kind": "integrate",
       "inputs": {},
-      "depends_on": ["wave-1"],
+      "depends_on": ["code-mod-a"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/1"],
       "contract": {"status": "DONE", "produced": ["https://example.invalid/org/repo/pull/1"], "next": []}
     },
     {
-      "id": "wave-2",
+      "id": "code-mod-b",
       "approach": "odoo-coding",
-      "approach_kind": "wave",
+      "approach_kind": "skill",
       "inputs": {},
-      "depends_on": ["land-wave-1"],
+      "depends_on": ["land-mod-a"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["mod_b/models/b.py"],
       "contract": {"status": "DONE", "produced": ["mod_b/models/b.py"], "next": []}
     },
     {
-      "id": "land-wave-2",
+      "id": "land-mod-b",
       "approach": "git-toolkit:git-ops",
       "approach_kind": "integrate",
       "inputs": {},
-      "depends_on": ["wave-2"],
+      "depends_on": ["code-mod-b"],
       "gate_tier": "L1",
       "status": "DONE",
       "produced": ["https://example.invalid/org/repo/pull/2"],
@@ -54,8 +54,8 @@
   ],
   "dynamic_nodes": [],
   "gate_log": [
-    {"node": "wave-1", "tier": "L1", "decision": "auto-pass"},
-    {"node": "wave-2", "tier": "L1", "decision": "auto-pass"}
+    {"node": "code-mod-a", "tier": "L1", "decision": "auto-pass"},
+    {"node": "code-mod-b", "tier": "L1", "decision": "auto-pass"}
   ],
   "completion": {
     "status": "DONE",
@@ -63,6 +63,6 @@
       "https://example.invalid/org/repo/pull/1",
       "https://example.invalid/org/repo/pull/2"
     ],
-    "summary": "per-wave PR topology - the defect this audit exists to catch"
+    "summary": "landing twice for one repo - the defect this audit exists to catch"
   }
 }

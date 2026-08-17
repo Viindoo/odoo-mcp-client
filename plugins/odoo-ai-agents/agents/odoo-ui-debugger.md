@@ -100,7 +100,7 @@ Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concr
 ### Round 1 - Reproduce + collect runtime evidence (browser)
 
 **`<slug>` source.** Use the `SLUG:` value from your dispatch brief (a dispatcher such as
-`odoo-debug` or `odoo-modules-upgrade` generates one stable slug for the run/wave and passes it
+`odoo-debug` or `odoo-modules-upgrade` generates one stable slug for the run or the dependency level and passes it
 alongside `ISOLATE_DIR:`); substitute it literally wherever this file writes `<slug>`. Only on a
 standalone invocation with no `SLUG:` field, derive one stable value yourself (a short, filesystem-safe
 slug of the symptom text) and reuse that SAME value for every artifact path this round - never

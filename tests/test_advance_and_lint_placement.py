@@ -23,6 +23,16 @@ that pending, known-and-tracked gap rather than hiding it.
 
 These are CONTRACT / BEHAVIOR checks (a rule is present, decidable, and in the right place), not
 line-count snapshots.
+
+--- Post wave-layer-removal note (see /tmp/oaa-solution-final.md) ---
+
+The wave GROUPING layer (batches of nodes advanced together) is gone: a plan is a flat DAG of work
+NODES with `depends_on`, and the mechanics this file guards now speak in terms of NODES, not waves
+or modules. Renamed with the file: `wave-integration.md` -> `run-integration.md`;
+`GATE_ROLE: per-module-verify` -> `node-verify`. The Pre-PR tail SURVIVES UNCHANGED in substance -
+it still fires ONCE per run, in the order fixed by the Terminal stage order constant, whose ONE
+owner is now `run-integration.md` § Pre-PR tail - and its entry line is still a GREEN condition
+("the repo's last verification node closes GREEN"), never a DONE-only phrasing.
 """
 from __future__ import annotations
 
@@ -33,7 +43,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 RUN_HARNESS_SKILL = PLUGIN / "skills" / "run-harness" / "SKILL.md"
-WAVE_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "wave-integration.md"
+RUN_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
 WORKFLOW_HARNESS_DOC = PLUGIN / "docs" / "reference" / "workflow-harness.md"
 ODOO_CODING_SKILL = PLUGIN / "skills" / "odoo-coding" / "SKILL.md"
 
@@ -144,12 +154,49 @@ def test_workflow_harness_points_at_run_harness_instead_of_restating():
 
 def test_pre_pr_tail_section_exists_exactly_once():
     """Behavior protected: there is exactly ONE place that owns the pre-PR tail ordering (SSOT) -
-    not one copy in wave-integration.md and a second, possibly-drifted copy elsewhere."""
-    text = _read(WAVE_INTEGRATION)
-    heading = "## Pre-PR tail (mandatory sequence, after the final wave closes green)"
+    not one copy in run-integration.md and a second, possibly-drifted copy elsewhere.
+
+    The heading and its owning file were renamed by the wave-layer removal (the file was
+    `wave-integration.md`; the entry line read "after the final coding wave closes green") - the
+    SSOT-singularity behavior this test protects is unchanged, only its retired vocabulary is."""
+    text = _read(RUN_INTEGRATION)
+    heading = "## Pre-PR tail (mandatory sequence, after the repo's last verification node closes GREEN)"
     assert text.count(heading) == 1, (
-        f"wave-integration.md must carry the '{heading}' section exactly once (found "
+        f"run-integration.md must carry the '{heading}' section exactly once (found "
         f"{text.count(heading)})."
+    )
+
+
+def test_pre_pr_tail_entry_condition_is_a_green_verdict_not_a_done_status():
+    """Behavior protected: the Pre-PR tail's entry line gates on a SUITE VERDICT (the repo's last
+    verification node closing GREEN), never on a CONTRACT STATUS (every coding node reaching
+    DONE). A node's own contract status says nothing about whether the suite that proves it ran
+    clean - collapsing GREEN into DONE would let the tail (and the PR it leads to) fire on code
+    nobody ever verified. This is the SAME distinction the wave-removal design insists on
+    (`run-harness/SKILL.md` § integrate readiness clause (ii): SKIPPED never satisfies it either).
+
+    Fails if the heading does not name the renamed GREEN condition verbatim, if the retired
+    'final coding wave' subject resurfaces, or if the entry is ever phrased as every coding node
+    reaching DONE.
+    """
+    norm = _norm_ws(_read(RUN_INTEGRATION))
+    assert "the repo's last verification node closes green" in norm, (
+        "run-integration.md's Pre-PR tail heading must gate on 'the repo's last verification "
+        "node closes GREEN' - a suite verdict over the node that proves the repo's coding work - "
+        "not the retired 'final coding wave closes GREEN' phrasing."
+    )
+    assert "final coding wave" not in norm, (
+        "the retired 'final coding wave' subject must not resurface - a wave no longer exists to "
+        "close."
+    )
+    assert (
+        "every coding node is done" not in norm
+        and "every coding node closes done" not in norm
+        and "every coding node reaching done" not in norm
+    ), (
+        "the entry condition must never be phrased as every coding node reaching DONE - DONE is a "
+        "contract status, GREEN is a suite verdict, and collapsing the two would let the tail "
+        "fire on code nobody ever verified."
     )
 
 
@@ -162,8 +209,10 @@ def test_pre_pr_tail_orders_i18n_before_acceptance_before_lint_before_integrate(
 
     Fails if any stage is missing, or if the stages appear out of order.
     """
-    text = _read(WAVE_INTEGRATION)
-    start = text.find("## Pre-PR tail (mandatory sequence, after the final wave closes green)")
+    text = _read(RUN_INTEGRATION)
+    start = text.find(
+        "## Pre-PR tail (mandatory sequence, after the repo's last verification node closes GREEN)"
+    )
     assert start != -1, "Pre-PR tail section not found (see the previous test for detail)."
     section = text[start:]
 
@@ -187,14 +236,16 @@ def test_pre_pr_tail_orders_i18n_before_acceptance_before_lint_before_integrate(
     )
 
 
-def test_acceptance_depends_on_final_wave_not_on_the_pr():
+def test_acceptance_depends_on_verification_not_on_the_pr():
     """Behavior protected: R7b's literal requirement - acceptance runs BEFORE the PR opens, never
     depending on it. This was a REAL bug the Phase-2 survey found: the pre-fix text materialized
     the acceptance node 'depending on the run's PR', which is the exact inversion R7b forbids.
+    Post wave-removal, acceptance depends on the repo's last verification node (not on a "final
+    wave") - the ordering invariant this test protects is unchanged.
 
     Fails if the acceptance stage is ever wired to depend on the run's PR again.
     """
-    text = _norm_ws(_read(WAVE_INTEGRATION))
+    text = _norm_ws(_read(RUN_INTEGRATION))
     assert "depending on the run's pr" not in text, (
         "the acceptance hand-off must not depend on the run's PR (R7b: acceptance runs BEFORE "
         "the PR, not after it opens) - this exact phrase was the pre-fix bug."
@@ -207,21 +258,21 @@ def test_acceptance_depends_on_final_wave_not_on_the_pr():
 def test_i18n_mandate_is_wired_once_per_run_not_per_module():
     """Behavior protected: i18n reconcile is a MANDATORY, ONCE-per-run tail step (mirroring
     odoo-modules-upgrade / odoo-forward-port's existing i18n-mandate-contract.md callers) - not a
-    per-module, low-confidence advisory suggestion that a --auto run would never actually
+    per-node, low-confidence advisory suggestion that a --auto run would never actually
     materialize (confidence < 0.5 is never auto-materialized per run-harness's own driver rule).
 
-    Fails if wave-integration.md does not reference the shared i18n-mandate-contract.md, or if
-    odoo-coding/SKILL.md still tries to also suggest a per-module odoo-i18n hop (which would fire
-    once per module per wave for the same run-level obligation).
+    Fails if run-integration.md does not reference the shared i18n-mandate-contract.md, or if
+    odoo-coding/SKILL.md still tries to also suggest a per-node odoo-i18n hop (which would fire
+    once per node for the same run-level obligation).
     """
-    wave_text = _read(WAVE_INTEGRATION)
-    assert "i18n-mandate-contract.md" in wave_text, (
-        "wave-integration.md's Pre-PR tail must reuse snippets/i18n-mandate-contract.md as the "
+    run_text = _read(RUN_INTEGRATION)
+    assert "i18n-mandate-contract.md" in run_text, (
+        "run-integration.md's Pre-PR tail must reuse snippets/i18n-mandate-contract.md as the "
         "i18n mandate SSOT (not restate it)."
     )
     coding_text = _norm_ws(_read(ODOO_CODING_SKILL))
-    assert "do not also emit a per-module" in coding_text or "do not also emit" in coding_text, (
-        "odoo-coding/SKILL.md must explicitly stop suggesting a per-module odoo-i18n hop now that "
+    assert "do not also emit a per-node" in coding_text or "do not also emit" in coding_text, (
+        "odoo-coding/SKILL.md must explicitly stop suggesting a per-node odoo-i18n hop now that "
         "the tail owns the mandatory, once-per-run i18n step."
     )
 
@@ -234,9 +285,9 @@ def test_lint_class_gate_containment_prose_is_present():
     Fails if the containment paragraph, the bounded-iteration cap, or the teardown statement is
     missing from the Pre-PR tail section.
     """
-    text = _norm_ws(_read(WAVE_INTEGRATION))
+    text = _norm_ws(_read(RUN_INTEGRATION))
     assert "containment for tail-only lint" in text, (
-        "wave-integration.md must carry an explicit containment section for the tail-only lint "
+        "run-integration.md must carry an explicit containment section for the tail-only lint "
         "gate, not leave the trade-off unaddressed."
     )
     assert "bound the fix-loop to 3 iterations" in text, (
@@ -248,7 +299,7 @@ def test_lint_class_gate_containment_prose_is_present():
         "release before the integrate node's terminal signal) per the T0-T4 contract."
     )
     assert "does not orphan anything" in text, (
-        "wave-integration.md must explicitly answer the teardown question - confirm that removing "
+        "run-integration.md must explicitly answer the teardown question - confirm that removing "
         "the per-work-item lint self-checks does not leave any instance lease dangling."
     )
 
@@ -276,9 +327,9 @@ def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
     Fails if stage 3 ("Pre-PR lint-class gate") does not explicitly state WORKTREE_PATH (rooted on
     run-integration), the SELF_PROVISION: worktree-addons carve-out, and the addons-path-override
     mechanism that satisfies the allocator's mismatch guard - mirroring the SAME shape this file's
-    own Example 3 and § Per-module Invocation Brief Template already use.
+    own Example 3 and § Node Invocation Brief Template already use.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**3 - Pre-PR lint-class gate",
@@ -292,7 +343,7 @@ def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
     )
     assert "self_provision: worktree-addons" in norm, (
         "the pre-PR lint-class gate must carry SELF_PROVISION: worktree-addons for a dispatched "
-        "bounded subagent, the SAME field § Per-module Invocation Brief Template / Example 3 use."
+        "bounded subagent, the SAME field § Node Invocation Brief Template / Example 3 use."
     )
     assert "addons-path-override" in norm, (
         "the fix must explain that WORKTREE_PATH is what makes the acquire call carry "
@@ -329,7 +380,7 @@ def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
     git command), and (c) mandate re-running the lint-class suite against run-integration's OWN new
     tip rather than trusting the coder's self-reported DONE.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**Containment for tail-only lint",
@@ -338,13 +389,12 @@ def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
     norm = _norm_ws(section)
 
     assert "worktree slice" not in norm, (
-        "the undefined 'worktree slice' phrasing must be replaced with a decidable target "
-        "(the module's own per-wave worktree, named consistently with § Per-module Integration "
-        "Loop's `mod.worktree`)."
+        "the undefined 'worktree slice' phrasing must be replaced with a decidable target - the "
+        "node's own worktree, named consistently, never an undefined 'slice'."
     )
     assert "cherry-pick the fix back onto" in norm and "run-integration" in norm, (
         "the containment section must mandate cherry-picking the fix commit back onto "
-        "run-integration - a fix left on the module's own worktree branch never reaches the PR."
+        "run-integration - a fix left on the node's own worktree branch never reaches the PR."
     )
     assert "git-toolkit:git-ops" in section, (
         "the cherry-pick-back step must route through the git-toolkit:git-ops skill, never a raw "
@@ -362,21 +412,21 @@ def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
 
 def test_review_escalation_fix_reaches_run_integration_and_is_reverified_there():
     """Behavior protected: the SAME defect as the pre-PR lint-gate fix loop (see the previous
-    test), one section up. Review Escalation ("close-the-wave cross-cutting review") runs over
-    the whole `run-integration` worktree, but its fix-dispatch paragraph could re-invoke
-    `odoo-coding` against 'that module's worktree path' (the module's OWN per-wave worktree, a
-    SEPARATE tree from run-integration) with no stated cherry-pick-back step and no stated
-    re-verification target - the fix could land on the module's own branch and never reach
-    run-integration, or the loop could trust a bare DONE without re-checking run-integration
-    itself.
+    test), one section up. Review Escalation ("close-the-wave cross-cutting review", now an
+    ordinary review node the plan places over the integration branch) runs over the whole
+    `run-integration` worktree, but its fix-dispatch paragraph could re-invoke `odoo-coding`
+    against 'that module's worktree path' (a SEPARATE tree from run-integration) with no stated
+    cherry-pick-back step and no stated re-verification target - the fix could land on that node's
+    own branch and never reach run-integration, or the loop could trust a bare DONE without
+    re-checking run-integration itself.
 
     Fails if the paragraph does not (a) disambiguate the fix's target tree (run-integration
-    directly for the inline/subagent paths, the module's own worktree - named, not an undefined
-    "slice" - for the odoo-coding path), (b) mandate cherry-picking that third path's result back
-    onto run-integration via git-toolkit:git-ops (never a raw git command), and (c) mandate
-    re-verifying against run-integration's own tip specifically.
+    directly for the inline/subagent paths, the affected node's OWN worktree - named, not an
+    undefined "slice" - for the odoo-coding path), (b) mandate cherry-picking that third path's
+    result back onto run-integration via git-toolkit:git-ops (never a raw git command), and (c)
+    mandate re-verifying against run-integration's own tip specifically.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "## Review Escalation",
@@ -387,12 +437,11 @@ def test_review_escalation_fix_reaches_run_integration_and_is_reverified_there()
     assert "run-integration" in norm, (
         "the Review Escalation fix-dispatch paragraph must name run-integration explicitly - "
         "'the whole integration worktree' alone does not pin the SAME tree a re-invoked "
-        "odoo-coding dispatch (scoped to the module's own worktree) must return to."
+        "odoo-coding dispatch (scoped to the affected node's own worktree) must return to."
     )
     assert "cherry-picked back onto" in norm or "cherry-pick" in norm, (
-        "the paragraph must mandate cherry-picking a fix authored on the module's own worktree "
-        "back onto run-integration - the SAME step § Per-module Integration Loop already performs "
-        "for every module SHA."
+        "the paragraph must mandate cherry-picking a fix authored on the node's own worktree "
+        "back onto run-integration - the SAME step run-harness already performs for every node SHA."
     )
     assert "git-toolkit:git-ops" in section, (
         "the cherry-pick-back step must route through git-toolkit:git-ops, never a raw git command "
@@ -400,7 +449,7 @@ def test_review_escalation_fix_reaches_run_integration_and_is_reverified_there()
     )
     assert "re-run verify against" in norm and "run-integration" in norm, (
         "the paragraph must mandate re-running verify against run-integration's current tip "
-        "specifically, not the module's own worktree and not a bare worker DONE."
+        "specifically, not the node's own worktree and not a bare worker DONE."
     )
 
 
@@ -416,7 +465,7 @@ def test_conflict_resolver_names_the_worktree_it_edits_and_continues_against():
     Fails if the worker-brief sentence or the cherry-pick-continue sentence does not name
     run-integration (or its `<path>/run-integration` form) explicitly.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "## Conflict Resolver",
@@ -453,7 +502,7 @@ def test_run_harness_has_no_untargeted_reverify_reinvoke_instruction_whole_class
     Structural exclusion (not a per-file/per-site allowlist): the `## Examples` section is dropped
     entirely - it is a compressed, deliberately terse restatement of mechanics already defined
     earlier in the SAME file (see its own preamble: "these examples start from run-harness picking
-    a coding wave node..."), the same way Example 1 does not re-restate WORKTREE_PATH/
+    a node off the RUN-DAG..."), the same way Example 1 does not re-restate WORKTREE_PATH/
     SELF_PROVISION either. Any OTHER file added under run-harness/** in the future is included
     automatically (whole-tree glob, not a name list).
     """
@@ -484,7 +533,7 @@ def test_run_harness_has_no_untargeted_reverify_reinvoke_instruction_whole_class
 
 
 # ---------------------------------------------------------------------------
-# R7a - lint-class names are gone from per-module/per-wave gate sites, present ONLY at the
+# R7a - lint-class names are gone from per-node/per-module gate sites, present ONLY at the
 # designated pre-PR tail location. Whole-tree scan (structural exclusions only, never a
 # known-offender allowlist) so the guard catches every sibling name, not just `test_lint`.
 # ---------------------------------------------------------------------------
@@ -509,25 +558,25 @@ STRUCTURALLY_EXCLUDED_DIRS = (
     "skills/odoo-deploy-checklist",  # a different lifecycle stage (post-deploy smoke test)
     "skills/_shared",  # shared reference material (coding_guidelines, frontend-fidelity pitfall
                         # catalogue) consumed by many skills - same category as snippets/, not a
-                        # per-module execution body
+                        # per-node execution body
     "skills/odoo-debug/SKILL.md",  # diagnostic routing-table entry (which debugger owns a
                                    # `test_lint` FAILURE symptom) - mirrors
                                    # agents/odoo-backend-debugger.md, not an execution site
     "skills/odoo-deep-survey/SKILL.md",  # read-only analytical/recon lens listing framework-
                                          # validation test classes - not a gating decision
     "skills/odoo-test-writing/SKILL.md",  # generic, multi-caller test-AUTHORING skill (not
-                                          # specific to the wave/coding pipeline); its one mention
+                                          # specific to the run-harness pipeline); its one mention
                                           # is advisory tagging info for a LATER executor. Flagged
                                           # in the Phase-2 round-2 report as worth a follow-up
                                           # look, not silently resolved as clean.
-    "snippets",  # cross-cutting SSOT snippets describing WHO/WHAT, not per-module execution bodies
+    "snippets",  # cross-cutting SSOT snippets describing WHO/WHAT, not per-node execution bodies
     "agents/odoo-backend-debugger.md",  # diagnostic reference for interpreting a lint FAILURE message
     "agents/odoo-ui-debugger.md",  # grounding-doc pointer (read before diagnosing), not an execution site
     "agents/odoo-ui-reviewer.md",  # grounding-doc pointer, not an execution site
     "README.md",  # top-level repo overview / persona table - descriptive, not prescriptive
 )
 
-# The 4 sites the Phase-2 survey identified as the actual per-module/per-WI GATING execution
+# The 4 sites the Phase-2 survey identified as the actual per-node/per-WI GATING execution
 # sites - handed off to Group A in 44-handoff-E.md (Group E does not own agents/*.md).
 PENDING_HANDOFF_FILES = (
     "agents/odoo-backend-coder.md",
@@ -542,7 +591,7 @@ PENDING_HANDOFF_FILES = (
 # contract for `run-tests` contradicted - installing + tagging a lint module IS the gating
 # decision, because a tagged/installed lint test that fails is indistinguishable, in the returned
 # status, from any other failing test, and both fed the SAME BLOCKING `tests-failed` /
-# bounded-fix-loop machinery for EVERY per-module, per-wave dispatch. A blind name-presence scan
+# bounded-fix-loop machinery for EVERY per-node dispatch. A blind name-presence scan
 # cannot see that class of bug either way - the strings `test_lint`/`test_pylint` legitimately
 # belong in BOTH files (the agent is the ONE place that probes for and unions them; the skill is
 # the front door that resolves and threads the deciding field before dispatch), now CONDITIONALLY
@@ -579,7 +628,7 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
     not an arbitrarily wide ceiling):
       - TRUE offenders: any file outside every other bucket. This must be EMPTY - a true
         regression here is a real bug.
-      - PENDING (known, tracked): the 4 named per-module agent files. Their lint-class content is
+      - PENDING (known, tracked): the 4 named per-node agent files. Their lint-class content is
         REQUIRED to disappear too (see 44-handoff-E.md), but Group E does not own agents/*.md this
         round (arbitration A-06) - measured and reported, not silently hidden.
       - GATED MECHANISM (both fixed, both behaviorally covered): `agents/odoo-instance-ops.md` +
@@ -651,8 +700,13 @@ def test_lint_class_names_absent_outside_the_designated_sites_whole_tree_scan():
 # ---------------------------------------------------------------------------
 # R7a / R12 F1 BREAK - the lint-module union is CONDITIONAL on an explicit GATE_ROLE field, never
 # unconditional for "ANY run-tests op". This is the real fix the blind name-presence scan above
-# cannot express: the defect was in the REACHABILITY/CONSEQUENCE of the HARD RULE from a per-wave
+# cannot express: the defect was in the REACHABILITY/CONSEQUENCE of the HARD RULE from a per-node
 # call site, not in the mere presence of the strings `test_lint`/`test_pylint`.
+#
+# Wave-removal rename: `GATE_ROLE: per-module-verify` -> `GATE_ROLE: node-verify` (the lint-class
+# gate's OWN role, `pre-pr-lint-gate`, is unchanged). The behavior these tests protect - the union
+# is conditional, opts out by an explicit named value, and refuses rather than guesses when the
+# role is unresolved - is unchanged; only the non-lint value's name changed.
 # ---------------------------------------------------------------------------
 
 INSTANCE_OPS_AGENT = PLUGIN / "agents" / "odoo-instance-ops.md"
@@ -665,10 +719,10 @@ def test_odoo_instance_ops_lint_union_is_gated_by_gate_role():
     `agents/odoo-instance-ops.md` must be CONDITIONAL on an explicit `GATE_ROLE` field the
     dispatching caller states - never unconditional for "ANY run-tests op". Unconditional wiring is
     exactly what let a `test_lint`/`test_pylint` violation surface as a BLOCKING `tests-failed`
-    verdict inside `odoo-coder`'s own per-module, per-wave integrated verification (never the pre-PR
+    verdict inside `odoo-coder`'s own per-node integrated verification (never the pre-PR
     tail R7a intended).
 
-    Fails if the two decidable branches (`pre-pr-lint-gate` unions, `per-module-verify` does not),
+    Fails if the two decidable branches (`pre-pr-lint-gate` unions, `node-verify` does not),
     the NEEDS_CONTEXT refusal for an absent GATE_ROLE, or the still-unconditional old phrasing is
     missing/reintroduced.
     """
@@ -678,18 +732,18 @@ def test_odoo_instance_ops_lint_union_is_gated_by_gate_role():
         "agents/odoo-instance-ops.md must name GATE_ROLE as the field that decides the lint-module "
         "union - the union cannot be unconditional for every run-tests dispatch."
     )
-    assert "pre-pr-lint-gate" in text and "per-module-verify" in text, (
+    assert "pre-pr-lint-gate" in text and "node-verify" in text, (
         "agents/odoo-instance-ops.md must state BOTH GATE_ROLE values - pre-pr-lint-gate (unions "
-        "test_lint/test_pylint) and per-module-verify (does not) - so a per-module dispatch can "
+        "test_lint/test_pylint) and node-verify (does not) - so a node verification dispatch can "
         "opt out by name, not by omission."
     )
     assert "needs_context" in text, (
         "agents/odoo-instance-ops.md must refuse (NEEDS_CONTEXT) a run-tests/test-enable dispatch "
         "whose GATE_ROLE is unresolved - never silently default to installing (reinstates the "
-        "per-wave gate) or skipping (risks a false-green pre-PR gate)."
+        "per-node gate) or skipping (risks a false-green pre-PR gate)."
     )
     assert "do not probe for, install, or tag" in text or "do not install" in text, (
-        "agents/odoo-instance-ops.md must explicitly state that a per-module-verify dispatch skips "
+        "agents/odoo-instance-ops.md must explicitly state that a node-verify dispatch skips "
         "the lint probe/install/tag entirely, not merely 'also' union it."
     )
 
@@ -712,12 +766,12 @@ def test_odoo_instance_skill_resolves_and_forwards_gate_role():
         "skills/odoo-instance/SKILL.md must name GATE_ROLE as a dispatch parameter - the SAME field "
         "agents/odoo-instance-ops.md reads, not a differently-spelled parallel mechanism."
     )
-    assert "pre-pr-lint-gate" in text and "per-module-verify" in text, (
+    assert "pre-pr-lint-gate" in text and "node-verify" in text, (
         "skills/odoo-instance/SKILL.md must state BOTH GATE_ROLE values, matching "
         "agents/odoo-instance-ops.md's vocabulary exactly."
     )
-    assert "default to `gate_role: per-module-verify`" in text, (
-        "the skill must state a decidable default for an unstated role (per-module-verify - the "
+    assert "default to `gate_role: node-verify`" in text, (
+        "the skill must state a decidable default for an unstated role (node-verify - the "
         "never-escalates-to-lint choice) rather than silently guessing toward installing lint "
         "modules for an ad-hoc request."
     )
@@ -728,11 +782,35 @@ def test_odoo_instance_skill_resolves_and_forwards_gate_role():
     )
 
 
-def test_odoo_coder_opts_out_of_the_lint_gate_on_its_per_module_dispatch():
-    """Behavior protected (R12 F1, BREAK, caller side): `odoo-coder`'s own integrated-module
-    verification - the exact per-wave call site the review found colliding with the lint gate -
-    must explicitly declare `GATE_ROLE: per-module-verify` on every run-tests dispatch it makes, and
-    must no longer claim the lint-module union applies to it.
+def test_node_verify_gate_role_has_a_live_resolution_selector():
+    """Behavior protected (L4): renaming GATE_ROLE's non-lint value from `per-module-verify` to
+    `node-verify` is only correct if something actually SELECTS it by name - a bare enum value
+    with no trigger condition is a rename nobody can act on. `skills/odoo-instance/SKILL.md`'s
+    GATE_ROLE resolution prose must name the concrete trigger a caller matches against: "a node
+    verification run" (retired: "a per-module or per-wave integrated verification").
+
+    Fails if the skill still selects the value by the retired per-module/per-wave phrasing, or
+    names no trigger phrase at all - the renamed value would then be one nothing selects.
+    """
+    text = _norm_ws(_read(INSTANCE_SKILL_MD))
+    assert "a node verification run" in text or "every node verification run" in text, (
+        "skills/odoo-instance/SKILL.md must state 'a node verification run' as the trigger "
+        "condition that resolves to GATE_ROLE: node-verify - the renamed value needs a live "
+        "selector, not just an enum entry nothing chooses."
+    )
+    assert "per-module or per-wave integrated verification" not in text, (
+        "the retired trigger phrasing ('a per-module or per-wave integrated verification') must "
+        "not resurface now that the value is node-verify."
+    )
+
+
+def test_odoo_coder_opts_out_of_the_lint_gate_on_its_own_node_dispatch():
+    """Behavior protected (R12 F1, BREAK, caller side): `odoo-coder`'s own integrated-node
+    verification - the exact per-node call site the review found colliding with the lint gate -
+    must explicitly declare `GATE_ROLE: node-verify` on every run-tests dispatch it makes, and
+    must no longer claim the lint-module union applies to it. The opt-out behavior is unchanged by
+    the wave-layer removal; only its unit changed (one coordinator per NODE, which may span one or
+    several modules, not one coordinator per MODULE).
 
     Fails if `odoo-coder.md` still claims the `/test_lint`+`/test_pylint` install union is one of
     the instance HARD RULES applied to its own integrated test, or drops the explicit GATE_ROLE
@@ -741,26 +819,26 @@ def test_odoo_coder_opts_out_of_the_lint_gate_on_its_per_module_dispatch():
     raw = _read(ODOO_CODER_AGENT)
     text = _norm_ws(raw)
 
-    assert "gate_role: per-module-verify" in text, (
-        "odoo-coder.md must state GATE_ROLE: per-module-verify on its own integrated-module "
+    assert "gate_role: node-verify" in text, (
+        "odoo-coder.md must state GATE_ROLE: node-verify on its own integrated-node "
         "verification dispatch(es) - the caller-side half of the GATE_ROLE contract."
     )
     assert "the `/test_lint`+`/test_pylint` install union" not in raw, (
         "odoo-coder.md must no longer claim the lint-module install union is one of the "
-        "unconditional instance HARD RULES applied to its own per-module integrated test - that "
-        "claim is what let the per-wave lint collision survive."
+        "unconditional instance HARD RULES applied to its own integrated test - that "
+        "claim is what let the per-node lint collision survive."
     )
 
 
 def test_pre_pr_lint_gate_declares_its_own_gate_role():
     """Behavior protected (R12 F1, BREAK, the ONE authorized caller): the pre-PR lint-class gate in
-    `wave-integration.md` - the ONE dispatch authorized to trigger the lint-module union - must
+    `run-integration.md` - the ONE dispatch authorized to trigger the lint-module union - must
     explicitly state `GATE_ROLE: pre-pr-lint-gate` on its provisioning dispatch, the SAME way it
     already mandates `WORKTREE_PATH`/`SELF_PROVISION` explicitly rather than leaving them inferred.
 
     Fails if the Pre-PR lint-class gate section does not name GATE_ROLE explicitly.
     """
-    text = _read(WAVE_INTEGRATION)
+    text = _read(RUN_INTEGRATION)
     section = _section(
         text,
         "**3 - Pre-PR lint-class gate",
