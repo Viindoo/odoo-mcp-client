@@ -194,11 +194,17 @@ contract's ownership matrix or DONE-gate wording.**
   SIGKILL - reaping the HTTP master, workers, cron, the longpolling/gevent process, and any
   `--dev=reload` watchdog) and only THEN drops the DB for `drop_on_release` leases. Stopping the
   group first frees the DB connections that would otherwise block `DROP DATABASE`. The same order
-  applies inside `gc` whenever it reclaims a lease with a still-live local pid - a recycled-pid
-  condemn (the fingerprint no longer matches, so the process is stopped before the drop even
-  though the pid itself is alive), or the liveness-unprovable-past-TTL fallback case. A same-host
-  owner pid that is VERIFIED alive is never reached by this path at all (`_is_stale` never condemns
-  it - see §7). Full API rows (`bind`, `release`, `gc`): `INSTANCE-ALLOCATION.md` §6.
+  applies inside `gc` whenever it reclaims a lease whose still-live local pid it can PROVE is that
+  lease's own server. **An unproven pid is never signalled.** A positive `pid_started` mismatch
+  proves the OPPOSITE of ownership - the recorded owner already exited, which is exactly how its
+  pid became free to be reused - so the live process now holding that number is an unrelated
+  bystander and is NEVER signalled: the lease is still condemned and reclaimed, the process is
+  left alone, and the refusal is reported. What counts as proof (the fingerprint / command-line /
+  reserved-port rungs) is defined by `_stop_owner_group_if_local` + `_ownership_proof` in
+  `scripts/lib/allocator.py` - read the ladder there rather than trusting a paraphrase of it. A
+  same-host owner pid that is VERIFIED alive is never reached by this path at all (`_is_stale`
+  never condemns it - see §7). Full API rows (`bind`, `release`, `gc`):
+  `INSTANCE-ALLOCATION.md` §6.
 - **`server_pid` on the handle.** The instance handle a build hands back (and forwards downstream)
   now carries an optional `server_pid` - the server's process-group id under `setsid`, bound onto
   the lease via `allocator.py bind <token> --pid <pid>` at spin-up (`50-instance-spinup.sh`); null
@@ -217,8 +223,10 @@ contract's ownership matrix or DONE-gate wording.**
      are enforced differently".
   3. **`SessionEnd` crash backstop** (`hooks/session-end-gc.sh`) - runs `allocator.py gc`
      unconditionally when the session ends, silent and bounded, so a killed/OOM'd session (no DONE
-     claim, no hook 2 trigger) gets its orphaned server group-stopped and its ephemeral DB dropped
-     WHEN `_is_stale` says it may (dead pid; or unprovable liveness past TTL). The hook itself only
+     claim, no hook 2 trigger) gets its ephemeral DB dropped WHEN `_is_stale` says the lease may be
+     reclaimed (dead pid; or unprovable liveness past TTL). Its orphaned server group is stopped in
+     that same pass only when the pid is provably that lease's own server; an unproven pid is never
+     signalled (see the Mechanism bullet above). The hook itself only
      SPAWNS that reaping into a DETACHED session and returns at once - a SessionEnd hook is aborted
      (and its child killed mid-write) roughly a second after the batch's other hooks finish, no
      matter what `timeout` its registration declares, so anything slow left running under the hook
