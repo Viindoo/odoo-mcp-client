@@ -421,6 +421,25 @@ files only. The reply set is the PLAN gate set and
 Write the prose in the USER'S language, keeping node ids, module names, paths, skill names and the
 reply keywords verbatim (`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
+**Neither class may be a DESIGN node - there is no tier for one, because it never gets dispatched.**
+`odoo-solution-design` (and the `odoo-solution-architect` agent) is an INPUT to the plan, never a node
+of it; the plan schema forbids it outright
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
+this plan). The plan this run is executing was DERIVED from an already-approved design, so a design
+that ran DURING the run would either invalidate the ordering the human approved or be
+reverse-engineered to justify it. Enforce it on BOTH classes, at the two places a node can enter a run:
+
+- **STATIC node** (the plan named it): STOP the run BLOCKED with `blocked_reason` naming the node id
+  and its `approach`, and route back to `odoo-planning` to amend the plan - the same disagreement path
+  every § Plan agreement check takes. Never dispatch it and never re-tier it into legality.
+- **`next[]` / `on_complete` suggestion** naming it: NEVER materialize it, and never emit the preview
+  block above for it, at ANY `confidence`. Record it as a finding naming `odoo-planning` as the owner
+  who must amend the plan, then carry on with the remaining ready nodes - a design is not a step this
+  driver may insert into a plan it did not author.
+
+"Plan it, then design it" is the one ordering this driver may never run. The converse costs nothing and
+is the norm: a design that ran BEFORE the plan is simply the plan's input pointer.
+
 ---
 
 ## Node Invocation Brief Template
