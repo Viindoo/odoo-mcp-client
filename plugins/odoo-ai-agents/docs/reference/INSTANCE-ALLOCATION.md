@@ -410,8 +410,11 @@ mode immediately after `gc`, in the hook's DETACHED worker (the hook returns at 
 running under a SessionEnd hook is killed about a second after the batch's siblings finish, which
 used to leave this very log truncated to 0 bytes - see the hook's header), persisting the candidate
 list to
-`${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/reap-orphans-candidates.log` (never `/dev/null`, unlike
-`gc`'s own output, so the list is actually reviewable). This is the DISCOVERY half only: the hook
+`${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/reap-orphans-candidates.log` (never `/dev/null`, so the
+list is actually reviewable). `gc`'s own stderr is persisted the same way, to
+`${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/allocator-stderr.log` - the machine-global account both
+implicit reclaimers (this hook and 50-instance-spinup.sh's shared-lease registration) append to,
+carrying the RECLAIMED notice plus the refusal/failed-drop lines that have no JSONL counterpart. This is the DISCOVERY half only: the hook
 NEVER passes `--yes`. SessionEnd is silent and unattended by its own contract (no decision is ever
 emitted), so an automatic drop there would remove the one property `reap-orphans` was designed
 around - a visible, auditable read before anything destructive happens - and would let one

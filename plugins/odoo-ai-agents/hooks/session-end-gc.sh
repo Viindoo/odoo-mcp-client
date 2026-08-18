@@ -63,7 +63,12 @@
 #
 # CONTRACT (Claude Code SessionEnd):
 #   - Best-effort, SILENT, bounded. SessionEnd CANNOT block, so this hook NEVER
-#     emits a decision - it only spawns the reaper and exits 0.
+#     emits a decision - it only spawns the reaper and exits 0. SILENT means
+#     silent on the CALLER'S channels (this hook's own stdout/stderr, and the
+#     detached worker's, which the spawning Popen hands /dev/null). It has never
+#     meant "produce no record": the reap-orphans candidate list below is
+#     persisted for exactly that reason, and so, now, is the allocator's stderr
+#     (see ALLOC_DIAG_BASENAME).
 #   - The HOOK role must stay ~instant (one python3 spawn). Its hooks.json
 #     `timeout` now bounds only that spawn; it is NOT, and never was, a real
 #     budget for the reaping itself (see above) - so do not raise it hoping to
@@ -113,19 +118,91 @@ set -uo pipefail
 GC_TIMEOUT_S=300
 REAP_TIMEOUT_S=120
 
+# The durable target for the ALLOCATOR's stderr, appended under the Tier-1
+# `logs/` root (`odoo_ai_state_root`/logs - the same root allocator.py's own
+# evidence log uses; see RECLAIM_LOG_BASENAME there).
+#
+# WHY a file and not /dev/null, and why the JSONL evidence log does NOT already
+# cover it: allocator.py reports a reclamation on TWO channels (stderr notice +
+# `allocator-reclaimed.jsonl`), but only the RECLAIMED notice is on both. Three
+# classes of message reach stderr ONLY, and each is the sole record of something
+# that outlives the command:
+#   - `REFUSING to signal pid N ...` - ownership was not proven, so NOTHING was
+#     signalled and a live server process was LEAKED. The lease row is reclaimed
+#     regardless, so after this line the process is the only thing left, and
+#     nothing else on the machine records that it was knowingly left running.
+#   - `ERROR - ... drop of <db> FAILED; DB retained, lease kept for retry` - the
+#     database survived. `_gc` deliberately does NOT report such a lease as
+#     reclaimed, so there is no JSONL line for it at all.
+#   - `WARNING - could not append the reclaim record ... the stderr line above is
+#     now the ONLY record of that reclamation` - the JSONL write itself failed.
+#     Discarding stderr here is precisely the case that warning is about.
+# On this hook that is not a hypothetical: SessionEnd runs at the end of EVERY
+# session, so it is the plugin's largest single reclaimer, and its worker is
+# detached with stdout/stderr on /dev/null - there is no terminal for any of the
+# above to reach even in principle.
+#
+# Appended (never truncated): concurrent sessions and later sessions each add to
+# one machine-global account, and every write is a whole line to an O_APPEND fd
+# (python line-buffers stderr), so lines interleave but never tear. It grows ONLY
+# when the allocator had something to say - a quiet gc writes zero bytes - and,
+# unlike the JSONL, it is deliberately INSIDE `prune_stale_run_artifacts`' `*.log`
+# family (scripts/lib/state_reclaim.sh), so an idle machine reclaims it after the
+# retention window. That is the right policy HERE and the wrong one there: the
+# JSONL is the only surviving evidence of a DESTROYED database, while everything
+# in this file describes state that still exists and is re-observable (`ps`,
+# `allocator.py list`, the cluster itself) for as long as it matters.
+#
+# SSOT: this basename and the resolve-or-fall-back-to-/dev/null block in
+# `_run_worker` are mirrored by `scripts/setup-steps/50-instance-spinup.sh`
+# (`_register_shared`), the other caller that used to discard this stream. The
+# two are kept identical by tests/test_allocator_stderr_survives.py; fold both
+# into scripts/lib/state_reclaim.sh (which owns `odoo_ai_state_root` and the
+# `logs/` family) when that file is next open for change.
+ALLOC_DIAG_BASENAME="allocator-stderr.log"
+
 # --------------------------------------------------------------------------- #
 # Worker role - the actual reaping, running detached from the dying session.
 # --------------------------------------------------------------------------- #
 _run_worker() {
     local lib_dir="$1" alloc="$2"
 
-    # Silent by contract - stdout/stderr discarded, exit always 0.
-    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc >/dev/null 2>&1 || true
+    # Resolve the durable stderr target (see ALLOC_DIAG_BASENAME above). Every
+    # rung falls back to /dev/null - today's behavior - rather than failing:
+    # a missing lib, an unresolvable root, an uncreatable dir and an unwritable
+    # file are all "no record", never "no gc". The writability probe is not
+    # optional: `mkdir -p` succeeds on an EXISTING but unwritable dir, and a
+    # redirect that cannot open its target makes bash skip the command entirely,
+    # which would turn a lost log line into a lost reclamation.
+    local diag=/dev/null diag_log
+    if [[ -f "$lib_dir/state_reclaim.sh" ]]; then
+        # shellcheck source=../scripts/lib/state_reclaim.sh
+        source "$lib_dir/state_reclaim.sh" 2>/dev/null || true
+    fi
+    if command -v odoo_ai_state_root >/dev/null 2>&1; then
+        diag_log="$(odoo_ai_state_root)/logs/$ALLOC_DIAG_BASENAME"
+        if mkdir -p "${diag_log%/*}" 2>/dev/null && ( : >>"$diag_log" ) 2>/dev/null; then
+            diag="$diag_log"
+        fi
+    fi
+
+    # Silent on this worker's own channels, exit always 0 - but the allocator's
+    # stderr is APPENDED to the durable log, not discarded: it carries the
+    # RECLAIMED notice for every lease this sweep destroys plus the three
+    # stderr-only classes above. STDOUT stays /dev/null: `cmd_gc`'s stdout is a
+    # PROTOCOL (`ALLOC_RECLAIMED=<token>` lines + a count) whose every fact is a
+    # strict subset of the stderr record, so persisting it would duplicate, not
+    # add.
+    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc >/dev/null 2>>"$diag" || true
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can
-    # review it later - NEVER /dev/null'd, unlike gc above, because an unreachable
-    # result defeats the whole point of wiring this in (see header). Best-effort:
-    # a resolution failure or a write failure here must never fail this worker.
+    # review it later - NEVER /dev/null'd, because an unreachable result defeats
+    # the whole point of wiring this in (see header). Its own file, not the gc log
+    # above: this is a full LIST that is rewritten every session and read as a
+    # snapshot ("what is reapable right now"), while the gc log is an append-only
+    # incident record - truncating one into the other would destroy whichever
+    # semantics it did not get. Best-effort: a resolution failure or a write
+    # failure here must never fail this worker.
     if [[ -f "$lib_dir/resolve_instances.sh" ]]; then
         # shellcheck source=../scripts/lib/resolve_instances.sh
         source "$lib_dir/resolve_instances.sh" 2>/dev/null || true
