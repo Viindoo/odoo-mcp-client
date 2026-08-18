@@ -430,6 +430,14 @@ cmd_apply() {
     # given (P5.6); otherwise this is the declared/shared instance, unchanged.
     local port="${ARG_HTTP_PORT:-${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}}"
     local db_name="${ARG_DB_NAME:-${INST_DB_NAME:-odoo}}"
+    # Gate db_name BEFORE anything else touches it (no file written, no lease
+    # acquired, no database created past this point): it keys all THREE
+    # artifact-filename families this script and state_reclaim.sh's sweep
+    # share (the generated conf below, plus the log/.findings.md pair further
+    # down), and nothing downstream validates it. validate_db_name is the ONE
+    # gate (lib/state_reclaim.sh) - it prints its own "x BLOCKED: ..." refusal
+    # to stderr, so this just propagates the failure.
+    validate_db_name "$db_name" || return 1
 
     # persist: exclusive-running (--exclusive) NEVER falls back to the
     # declared/DEFAULT_HTTP_PORT port - the caller MUST have already acquired
