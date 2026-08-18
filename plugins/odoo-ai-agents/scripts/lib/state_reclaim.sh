@@ -28,6 +28,11 @@
 #
 # Public API:
 #   odoo_ai_state_root                        -> prints the Tier-1 state root
+#   validate_db_name <name>                   -> gate a db_name BEFORE it keys
+#                                                any of the three artifact
+#                                                families below; refuses
+#                                                (prints to stderr, returns 1)
+#                                                rather than sanitizing
 #   prune_stale_run_artifacts <dir> <glob>... -> sweep one dir, lease-guarded
 #   _prune_stale_logs <logs-dir>              -> the log-family wrapper (kept as
 #                                                a named alias for the existing
@@ -49,6 +54,108 @@
 # ---------------------------------------------------------------------------
 odoo_ai_state_root() {
     printf '%s\n' "${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}"
+}
+
+# ---------------------------------------------------------------------------
+# _DB_NAME_RE - the ONE spelling of the accepted db_name character class.
+#   It MIRRORS Odoo's own database-manager gate rather than inventing (or
+#   near-copying) a class of its own: addons/web/controllers/database.py
+#   DBNAME_PATTERN is the SOURCE of this rule, verified unchanged across
+#   v9-v19 - read the reasoning there, and copy any future change from there
+#   rather than re-deriving one here. Shape: the FIRST character must be
+#   alphanumeric, every later character may also be underscore, hyphen or
+#   dot, and a name under two characters is refused. (v8 ships no such gate -
+#   createdb-through-Odoo there accepts whatever a quoted Postgres identifier
+#   accepts - so v8 is, if anything, MORE permissive than this class, never
+#   less.) This is the SSOT both validate_db_name and
+#   prune_stale_run_artifacts read; do not re-spell the class anywhere else.
+#
+#   Why exactly this class: db_name comes from a CLI arg, instances.toml, or
+#   the literal default "odoo" (50-instance-spinup.sh, where it is resolved)
+#   - operator-supplied config, not attacker-controlled input - but nothing
+#   downstream validates it, and it keys THREE artifact-filename families
+#   (<db>-<UTC-ts>.log, <db>-<UTC-ts>.findings.md, <db>-<port>.conf, all
+#   `<db>-<discriminator>` with the db name being everything before the LAST
+#   hyphen in the basename - see prune_stale_run_artifacts below). A hyphen
+#   or an underscore inside db_name is therefore always SAFE - the split is
+#   on the LAST hyphen, so any number of internal hyphens/underscores still
+#   round-trips - and both must stay accepted or every existing instance
+#   using one would break. A dot is accepted for the same reason Odoo accepts
+#   one, and it is never the sweep's split character either. What Odoo's
+#   pattern refuses, this gate refuses too - a leading '-', '.' or '_', and
+#   any one-character name - because a name that clears this gate and then
+#   fails at database creation is a gate that only moved the failure later.
+#   Everything else is refused, in particular:
+#     '/'      - makes a `<conf_dir>/<db_name>-<port>.conf` path escape
+#                conf_dir entirely (a nested or `..`-relative path). The
+#                sweep only ever looks `-maxdepth 1` inside conf_dir, so an
+#                artifact that lands outside it is invisible to the sweep
+#                forever - permanently and unreclaimably leaked, the exact
+#                class of leak this file exists to close.
+#     newline  - `prune_stale_run_artifacts` recovers db_name from a real
+#                filename with a LINE-oriented `grep -Fxq`; a db_name
+#                carrying an embedded newline splits that fixed-string
+#                pattern into multiple OR'd whole-line alternatives, so the
+#                match against the lease list is no longer a match against
+#                the FULL name - it can miss a name that IS leased and let
+#                the sweep unlink a live instance's open conf.
+#     space / shell-glob chars (`*?[]` etc.) / anything else - no artifact
+#                family needs them, and each is one more way a downstream
+#                consumer (a glob, a shell word-split, a URL, an ini value)
+#                could misparse the name. Reject rather than guess which of
+#                those a given caller can tolerate.
+# ---------------------------------------------------------------------------
+_DB_NAME_RE='^[a-zA-Z0-9][a-zA-Z0-9_.-]+$'
+
+# ---------------------------------------------------------------------------
+# validate_db_name <name> - the ONE gate for db_name before it becomes part
+#   of any of the three artifact-filename families this file owns. Prints
+#   nothing and returns 0 on an acceptable name. On refusal it prints a
+#   multi-line explanation to stderr - matching 50-instance-spinup.sh's
+#   existing "x BLOCKED: ..." refusal idiom (see its --exclusive and
+#   --gevent-port gates) rather than inventing a new exit shape - and
+#   returns 1; the caller must return/exit immediately, before any file is
+#   written, any lease acquired, or any database created.
+#
+#   REJECTS, never sanitizes/slugs: slugging db_name to fit the class would
+#   make the artifact filename diverge from the REAL database name, and two
+#   distinct database names can slug to the SAME filename (e.g. a naive
+#   '/' -> '_' mapping collapses "a/b" and "a_b" onto one conf path) - the
+#   sweep would then delete one instance's artifact while attributing it to
+#   the other, or a live launch would silently overwrite a different live
+#   instance's conf. Trading an unreclaimable leak for a silent
+#   cross-instance collision is a regression, not a fix, so an unusable name
+#   is refused outright and the caller must supply a different one.
+# ---------------------------------------------------------------------------
+validate_db_name() {
+    local name="${1:-}"
+    if [[ -z "$name" ]]; then
+        echo "" >&2
+        echo "x BLOCKED: db_name is empty." >&2
+        echo "  Refusing to key a conf/log/findings filename on an empty name -" >&2
+        echo "  set db_name (--db-name, or db_name in instances.toml)." >&2
+        return 1
+    fi
+    if [[ ! "$name" =~ $_DB_NAME_RE ]]; then
+        echo "" >&2
+        echo "x BLOCKED: db_name '$name' is not an accepted database name: it" >&2
+        echo "  must start with a letter or digit, be at least two characters" >&2
+        echo "  long, and use only [A-Za-z0-9_.-] (letters, digits, underscore," >&2
+        echo "  hyphen, dot) after that - the same shape Odoo's own database" >&2
+        echo "  manager accepts (addons/web/controllers/database.py" >&2
+        echo "  DBNAME_PATTERN, v9-v19), so a name this refuses would fail at" >&2
+        echo "  database creation anyway." >&2
+        echo "  Refusing rather than sanitizing: a slugged name would diverge from" >&2
+        echo "  the real database name, and two distinct names could then slug to" >&2
+        echo "  the SAME artifact filename - a silent cross-instance collision is" >&2
+        echo "  worse than this refusal. In particular a '/' makes the generated" >&2
+        echo "  conf escape the state-root conf dir (an unreclaimable leak) and a" >&2
+        echo "  newline breaks the sweep's lease-name match (it can delete a live" >&2
+        echo "  instance's conf). Rename the database - or fix db_name in" >&2
+        echo "  instances.toml / --db-name - to match that shape and retry." >&2
+        return 1
+    fi
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -152,6 +259,20 @@ prune_stale_run_artifacts() {
         # carry their discriminator as the last hyphen-delimited field, so the
         # db name is everything before it.
         db="${base%-*}"
+        # validate_db_name (above) refuses a new db_name outside _DB_NAME_RE
+        # before any file is ever written, but a file already on disk from
+        # before that gate existed (or from any other write path) can still
+        # carry one - most dangerously an embedded newline, which would turn
+        # the `grep -Fxq` lease check below into a multi-line OR'd match
+        # against a FRAGMENT of the real name rather than the whole name, and
+        # could therefore misjudge a still-leased database as unleased. Skip
+        # rather than trust that comparison: the artifact just survives one
+        # more sweep cycle, which is the same "never touches a live file
+        # unless proven safe" posture the lease guard right below already
+        # applies to a name it CAN parse.
+        if [[ ! "$db" =~ $_DB_NAME_RE ]]; then
+            continue
+        fi
         if [[ -n "$leased" ]] && printf '%s\n' "$leased" | grep -Fxq -- "$db"; then
             continue
         fi
