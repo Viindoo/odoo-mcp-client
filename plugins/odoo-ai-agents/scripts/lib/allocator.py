@@ -2057,8 +2057,16 @@ def _resolve_instance(path, series, profile=None):
 def _resolve_addons_csv(inst, override):
     """Return (comma_joined_addons_path, error_or_None) for this acquire.
 
-    With no override the catalog value is returned unchanged (byte-identical to
-    the pre-override behavior), via the SSOT `instances_io.join_addons_path`.
+    This is the ONE place that reads the catalog's declared addons_path, so
+    there is a single spelling of that read to keep correct.
+
+    With no override the catalog value is flattened as declared, through the
+    SSOT pair `instances_io.addons_path_list` (which knows BOTH declared shapes
+    - a TOML array and a bare flattened string) and `join_addons_path`. Reading
+    the raw `inst["addons_path"]` here instead would join a STRING-shaped
+    declaration character by character, so `"/a,/b"` became `/,a,/,b` - a wrong
+    value, not a crash, written onto the lease row that `50-instance-spinup.sh
+    apply` now reads to pick which tree it serves.
     An override REPLACES it: accepted comma- OR colon-separated (tolerated by
     the SSOT `instances_io.split_addons_path`), always re-emitted COMMA-
     separated via `join_addons_path`, because Odoo's --addons-path parser
@@ -2069,7 +2077,7 @@ def _resolve_addons_csv(inst, override):
     instances_io SSOT, the same one every other producer/consumer uses.
     """
     if not override:
-        return instances_io.join_addons_path(inst.get("addons_path", [])), None
+        return instances_io.join_addons_path(instances_io.addons_path_list(inst)), None
     parts = instances_io.split_addons_path(override)
     if not parts:
         return None, "--addons-path-override is empty"
@@ -2141,13 +2149,23 @@ def _addons_path_worktree_mismatch(addons_entries):
     return None, None
 
 
-def _emit_instance_common(inst, addons_csv=None):
+def _emit_instance_common(inst, addons_csv):
+    """Emit the fields every acquire mode shares.
+
+    `addons_csv` is REQUIRED, not merely conventionally always passed. Every
+    call site lives in `cmd_acquire`, which resolves it via
+    `_resolve_addons_csv` up front and returns early on error - so by the time
+    any of the three call sites below is reached, a real value already exists.
+    A `None` default here was therefore unreachable: no live path could ever
+    exercise the fallback that used to re-derive the value through a second
+    copy of `_resolve_addons_csv`'s expression (the SAME copy that once joined
+    a STRING-shaped catalog addons_path character by character - see
+    `_resolve_addons_csv`, the ONE place that reads the catalog's declared
+    addons_path). Dropping the default turns a future omission into a loud
+    `TypeError` instead of silently taking a path nobody tested.
+    """
     _emit("ALLOC_PYTHON", inst.get("python", ""))
-    _emit(
-        "ALLOC_ADDONS_PATH",
-        addons_csv if addons_csv is not None
-        else instances_io.join_addons_path(inst.get("addons_path", [])),
-    )
+    _emit("ALLOC_ADDONS_PATH", addons_csv)
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
     # db_port is EMPTY when undeclared (never 5432); the handle forwards it so
