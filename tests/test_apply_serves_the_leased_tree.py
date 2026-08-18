@@ -38,6 +38,7 @@ real script deep enough to write the conf and launch the stand-in server).
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -127,15 +128,11 @@ def _use_array_form_addons_path(sandbox: Sandbox) -> None:
     """Declare the catalog's `addons_path` as a TOML ARRAY - the shape `40-instance-profile.sh`
     records in a real catalog.
 
-    Load-bearing for any test that compares a LEASE's recorded addons_path against the catalog
-    row: `allocator.py`'s `_resolve_addons_csv` runs the catalog value through
-    `instances_io.join_addons_path`, which comma-joins a LIST but iterates a bare STRING
-    character by character - so a scalar `addons_path = "/a/b"` is recorded on the lease as
-    `/,a,/,b`. `instances_io`'s own reader normalizes both shapes (`_addons_path_list`), so the
-    two producers disagree on the scalar shape only. That is a defect in `allocator.py`, not in
-    the script under test here; these tests pin the array shape so they measure the resolution,
-    and `test_a_lease_row_that_is_not_a_directory_list_falls_back_loudly` below covers what the
-    script does when it meets the scalar-shape damage.
+    Pinned so these tests measure the served-tree RESOLUTION against the declaration a real
+    catalog carries. The scalar/string declaration is equally legal and now resolves to the
+    identical value at every rung (`allocator.py` reads it through the SSOT
+    `instances_io.addons_path_list`); that equivalence is proved end to end in
+    `test_catalog_addons_path_shapes.py`, so it is not re-litigated here.
     """
     text = sandbox.toml.read_text(encoding="utf-8")
     replaced = text.replace(
@@ -143,6 +140,32 @@ def _use_array_form_addons_path(sandbox: Sandbox) -> None:
     )
     assert replaced != text, "the sandbox catalog no longer declares a scalar addons_path"
     sandbox.toml.write_text(replaced, encoding="utf-8")
+
+
+def _corrupt_lease_addons_path(sandbox: Sandbox, token: str, value: str) -> None:
+    """Overwrite ONE field - `addons_path` - on the lease `token` names, in place.
+
+    HARNESS SAFETY: this writes no pid and touches no `owner` field, so nothing here can widen
+    what the allocator may signal. `_acquire` runs with `--no-create` and passes no `--pid`, so
+    the row it minted carries no pid at all; that is asserted below rather than assumed, and a
+    row that ever starts carrying one must be re-examined before this helper is reused.
+
+    `value` must be a RELATIVE path list: `50-instance-spinup.sh::_addons_path_verdict` grades a
+    missing ABSOLUTE entry `missing` (a real tree that is not on this host -> BLOCKED) and a
+    relative one `malformed` (not a path list at all -> the fallback under test).
+    """
+    assert not any(p.startswith("/") for p in value.split(",")), (
+        f"{value!r} would be graded `missing`, not `malformed` - see _addons_path_verdict"
+    )
+    registry_path = sandbox.home / "runtime" / "leases.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    rows = [r for r in registry.get("leases") or [] if r.get("token") == token]
+    assert rows, f"no lease row for {token!r} in {registry_path}"
+    assert not (rows[0].get("owner") or {}).get("pid"), (
+        "this lease unexpectedly records a pid; do not seed rows that name one"
+    )
+    rows[0]["addons_path"] = value
+    registry_path.write_text(json.dumps(registry, indent=2), encoding="utf-8")
 
 
 def _apply_exclusive(sandbox: Sandbox, *extra: str) -> subprocess.CompletedProcess:
@@ -394,11 +417,15 @@ def test_a_lease_row_that_is_not_a_directory_list_falls_back_loudly(sandbox):
     stands, a warning says so, and SERVED_ADDONS_SOURCE reports `catalog` rather than claiming the
     caller got the lease's tree.
 
-    Reachable today because `allocator.py` records a SCALAR catalog `addons_path` character-joined
-    (see `_use_array_form_addons_path`); the point of this test is that the script degrades
-    truthfully whatever a producer wrote, not that the producer is correct.
+    The row is damaged HERE, on a lease a real `acquire` minted, rather than coaxed out of a
+    producer: `allocator.py` used to write this shape by itself (it joined a scalar catalog
+    `addons_path` character by character), and pinning the guard to that bug would have deleted
+    the guard the day the bug was fixed. `leases.json` is a lenient-reader registry, so a
+    hand-written or older-writer row of any shape is legal and must still degrade truthfully -
+    which is the claim under test, independently of what today's writer emits.
     """
-    token = _acquire(sandbox)  # scalar-form catalog left in place on purpose
+    token = _acquire(sandbox)
+    _corrupt_lease_addons_path(sandbox, token, "not/a/dir,also/not/one")
     res = _apply_exclusive(sandbox, "--alloc-token", token)
     out = res.stdout + res.stderr
     assert res.returncode == 0, f"an unusable lease row must not break the spin-up\n{out}"
