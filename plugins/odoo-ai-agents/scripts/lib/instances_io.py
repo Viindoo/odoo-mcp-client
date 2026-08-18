@@ -88,6 +88,16 @@ DEFAULT_HTTP_PORT = 8069
 # join_addons_path()/split_addons_path() (or the shell mirror
 # _addons_path_to_array() in resolve_instances.sh) instead of hand-rolling
 # ",".join(...)/":".join(...)/IFS=<literal>.
+#
+# A catalog's DECLARED addons_path has TWO legal shapes - a native TOML array
+# (canonical) and a bare flattened string (a hand-typed override) - so READING
+# one off an [[instance]] item is the third member of this SSOT family,
+# addons_path_list(), and never a bare item.get("addons_path", []). Handing that
+# raw value straight to join_addons_path() joins a STRING character by character
+# ("/a,/b" -> "/,a,/,b"): a wrong value rather than a crash, on the field that
+# decides which source tree a server serves. join_addons_path() therefore stays
+# strictly list -> string - a tolerant joiner would absorb exactly that mistake
+# at every call site instead of leaving it findable.
 ADDONS_PATH_SEP = ","
 
 
@@ -255,12 +265,18 @@ def select_instance(items, want=None, profile=None):
     return chosen, True
 
 
-def _addons_path_list(item):
+def addons_path_list(item):
     """Normalize one item's addons_path to list[str], whichever shape it
     parsed as: a native TOML array (the canonical form) or a bare/flattened
     string (a hand-typed override, e.g. "/a,/b"). Reuses split_addons_path
     for the string case instead of a second, hand-rolled splitter - the SSOT
-    the module docstring requires."""
+    the module docstring requires.
+
+    PUBLIC because it is the only sanctioned way to read a declared
+    addons_path: every caller outside this module that wants the entries, or
+    wants them flattened via join_addons_path(), must come through here (see
+    the ADDONS_PATH_SEP block above for why the raw value must never reach the
+    joiner)."""
     value = item.get("addons_path", [])
     if isinstance(value, list):
         return [str(p) for p in value]
@@ -295,7 +311,7 @@ def find_covering_instance(items, repo_path):
     best_len = -1
     best_series_key = None
     for item in items:
-        for raw in _addons_path_list(item):
+        for raw in addons_path_list(item):
             root_norm = _rstrip_slashes_locate(raw)
             if repo_norm != root_norm and not repo_norm.startswith(root_norm + "/"):
                 continue
