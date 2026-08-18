@@ -163,6 +163,30 @@ def _leases(home: Path):
     return json.loads(path.read_text(encoding="utf-8"))["leases"]
 
 
+def _wait_for_leases_reclaimed(home: Path, timeout_s: float = 30.0):
+    """Poll the registry until every lease is gone, or the timeout elapses.
+
+    This is a SEPARATE observation from the log line `_read_log` waits for:
+    `_gc` reports each reclamation (stderr notice + JSONL) per lease, INSIDE its
+    sweep loop, and only after that loop returns does the caller persist the
+    mutated registry (`_write_registry`) - see `_gc`'s own docstring for why that
+    order is deliberate (a crash between the two must leave a recoverable,
+    REPORTED lease, never a silently persisted one). Both writes happen inside
+    the same detached worker, but the log containing the token proves only that
+    the report half ran - never that the persist half has already reached disk
+    by the time a SEPARATE reading process (this test) looks. Polling this
+    exactly as `_read_log` polls the log is what makes the assertion below wait
+    for BOTH signals to have actually settled, instead of treating the first as
+    proof of the second.
+    """
+    deadline = time.monotonic() + timeout_s
+    leases = _leases(home)
+    while time.monotonic() < deadline and leases:
+        time.sleep(0.05)
+        leases = _leases(home)
+    return leases
+
+
 @pytest.fixture
 def harness(tmp_path):
     h = Harness(tmp_path)
@@ -213,7 +237,13 @@ def test_the_session_end_gc_persists_the_account_of_what_it_destroyed(harness, t
         "the notice must still name the database and the condemning arm - the "
         f"reason is the one fact no later reader can re-derive; got {text!r}"
     )
-    assert _leases(home) == [], "the lease itself must still have been reclaimed"
+    remaining = _wait_for_leases_reclaimed(home)
+    assert remaining == [], (
+        "the lease itself must still have been reclaimed - the RECLAIMED notice "
+        "landing in the log proves `_gc` reported it, never that the registry "
+        f"write which follows (see `_gc`'s docstring) has already reached disk; "
+        f"still present after waiting: {remaining}"
+    )
 
     # The JSONL evidence log is NOT what this test proves, but the two must agree:
     # a stderr record that contradicts the durable record would be worse than none.
@@ -228,14 +258,26 @@ def test_the_session_end_gc_still_runs_when_its_log_cannot_be_written(tmp_path):
     outright, so a naive redirect turns "no log line" into "no gc" - the backstop
     silently stops reclaiming. An unwritable log directory must degrade to
     today's behavior (no record) and never to a missed sweep.
+
+    The worker is DETACHED and, per the hook's own header ("ALSO: after gc, the
+    worker runs `reap-orphans` ..."), invokes the allocator TWICE - `gc` first,
+    then `reap-orphans` in its default list-only mode. The stub therefore
+    APPENDS one line per invocation instead of overwriting a single marker: an
+    overwriting stub makes what the test observes depend on whether the read
+    lands before or after the second write completes, which is exactly the
+    unobservable race that let a CI run see `reap-orphans` where a workstation
+    run saw `gc` for the SAME passing hook. Asserting `gc` is AMONG the recorded
+    invocations - never that it was the last (or only) one - is what the
+    "still runs" contract actually requires.
     """
     root = _fake_plugin_root(tmp_path)
     libdir = root / "scripts" / "lib"
     marker = libdir / "gc-called.txt"
     (libdir / "allocator.py").write_text(
         "import sys, pathlib\n"
-        "pathlib.Path(pathlib.Path(__file__).parent / 'gc-called.txt')"
-        ".write_text(' '.join(sys.argv[1:]))\n",
+        "marker = pathlib.Path(pathlib.Path(__file__).parent / 'gc-called.txt')\n"
+        "with marker.open('a', encoding='utf-8') as fh:\n"
+        "    fh.write(' '.join(sys.argv[1:]) + '\\n')\n",
         encoding="utf-8",
     )
     home = tmp_path / "home"
@@ -249,15 +291,39 @@ def test_the_session_end_gc_still_runs_when_its_log_cannot_be_written(tmp_path):
         proc = subprocess.run(["bash", str(GC_HOOK)], input="{}", capture_output=True,
                               text=True, timeout=30, env=env)
         assert proc.returncode == 0, f"stderr={proc.stderr!r}"
+
+        # Wait for BOTH invocations to have recorded themselves - not merely for
+        # the marker to exist, which the first write alone would already satisfy
+        # and would race the second exactly like the overwrite it replaces.
         deadline = time.monotonic() + 30.0
-        while time.monotonic() < deadline and not marker.is_file():
+        invocations = []
+        while time.monotonic() < deadline and len(invocations) < 2:
+            if marker.is_file():
+                invocations = [ln for ln in
+                                marker.read_text(encoding="utf-8").splitlines() if ln.strip()]
             time.sleep(0.05)
-        assert marker.is_file(), (
+
+        assert "gc" in invocations, (
             "gc must STILL be invoked when the durable log cannot be created - "
             "`mkdir -p` succeeds on an existing-but-unwritable dir, so without a "
-            "writability probe bash would refuse the redirect and skip the sweep"
+            "writability probe bash would refuse the redirect and skip the sweep; "
+            f"recorded invocations: {invocations!r}"
         )
-        assert marker.read_text(encoding="utf-8").strip() == "gc"
+        # Stronger, and free once every invocation is recorded rather than only
+        # the last: the hook's documented contract is that `reap-orphans` ALSO
+        # runs every session, in gc-then-reap-orphans order - not just when gc's
+        # own log happens to be writable. A hook that ran ONLY reap-orphans would
+        # satisfy a bare "gc must exist" check just as easily as a compliant one
+        # if the stub still overwrote; recording every call closes that gap too.
+        assert "reap-orphans" in invocations, (
+            "reap-orphans must ALSO still run, after gc, when the durable log "
+            "cannot be created - the hook's own header documents both as running "
+            f"every session; recorded invocations: {invocations!r}"
+        )
+        assert invocations.index("gc") < invocations.index("reap-orphans"), (
+            f"gc must run BEFORE reap-orphans, per the hook's documented order; "
+            f"recorded invocations: {invocations!r}"
+        )
         assert proc.stdout.strip() == "" and proc.stderr.strip() == "", (
             "and the failure to log must itself stay silent on the hook's own "
             f"channels; got stdout={proc.stdout!r} stderr={proc.stderr!r}"
