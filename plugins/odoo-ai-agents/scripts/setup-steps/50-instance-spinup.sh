@@ -47,6 +47,31 @@
 #              stays in place ONLY for the shared/declared path so existing
 #              callers are unaffected (P5.6).
 #
+#              WHICH TREE gets served is resolved, never assumed - highest
+#              precedence first: --addons-path <list> (the caller states the
+#              tree), then the BOUND LEASE named by --alloc-token (its
+#              `addons_path`, which is what an `allocator.py acquire
+#              --addons-path-override` recorded), then the instances.toml
+#              catalog row. The lease rung needs NO extra flag: a lease is
+#              acquired against a worktree precisely so the launch serves that
+#              worktree, and an override the caller has to remember to re-pass
+#              is an override that gets forgotten. When --alloc-token names a
+#              lease this run cannot read, or one whose addons_path names a real
+#              tree that is not on this host, apply BLOCKS instead of falling
+#              back to the catalog row - a loud refusal beats a silently wrong
+#              tree, which is the one failure direction that still goes green.
+#              (A lease row whose addons_path is not a directory list at all
+#              states no tree, so the catalog row stands and the reported
+#              SERVED_ADDONS_SOURCE says `catalog` - see _addons_path_verdict.)
+#              --load <modules> forwards a server-wide module set into the
+#              generated conf's `server_wide_modules` key (Odoo's --load dest,
+#              comma-separated on every indexed series); omitted -> the key is
+#              not written at all and Odoo's own default applies.
+#              apply prints the resolution as machine-readable stdout facts -
+#              SERVED_ADDONS_PATH / SERVED_ADDONS_SOURCE /
+#              SERVED_SERVER_WIDE_MODULES - so a caller can verify the served
+#              tree without parsing Odoo's own startup log.
+#
 # HARD RULES:
 #   - Never writes a password into the generated conf. A local developer cluster is
 #     reached with passwordless authentication (run /odoo-ai-agents:odoo-setup); a
@@ -131,8 +156,17 @@ ARG_GEVENT_PORT=""
 ARG_GEVENT_PORT_KEY=""
 # The allocator lease token for an --exclusive spin-up. The caller
 # (odoo-instance-ops) acquires the lease, then forwards its token here so this
-# script can bind the launched server pid onto that lease (see _bind_exclusive).
+# script can bind the launched server pid onto that lease (see _bind_exclusive)
+# AND so this script can read WHICH TREE that lease reserved (see
+# _lease_addons_path / the served-tree resolution in cmd_apply).
 ARG_ALLOC_TOKEN=""
+# Explicit served-tree override: the addons_path this launch must serve, when
+# the caller states it rather than leaving it to the lease/catalog. Highest
+# precedence of the three rungs.
+ARG_ADDONS_PATH=""
+# Server-wide module set (Odoo's --load / `server_wide_modules`). Empty ->
+# the conf key is not written and Odoo's own per-series default applies.
+ARG_LOAD=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)
@@ -169,6 +203,12 @@ while [[ $# -gt 0 ]]; do
         --alloc-token)
             [[ $# -ge 2 ]] || { echo "$(basename "$0") --alloc-token requires a value" >&2; exit 2; }
             ARG_ALLOC_TOKEN="$2"; shift 2 ;;
+        --addons-path)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --addons-path requires a value" >&2; exit 2; }
+            ARG_ADDONS_PATH="$2"; shift 2 ;;
+        --load)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --load requires a value" >&2; exit 2; }
+            ARG_LOAD="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -192,6 +232,124 @@ _read_instance() {
     # `eval` them even when a path contains spaces or shell metacharacters.
     [[ -f "$INSTANCES_TOML" ]] || return 1
     python3 "$INSTANCES_IO" read "$INSTANCES_TOML" "${1:-}" "${2:-}"
+}
+
+# ---------------------------------------------------------------------------
+# _addons_csv - canonicalize an addons_path string onto the SSOT separator:
+#   split with the SSOT splitter (_addons_path_to_array, resolve_instances.sh -
+#   tolerates a stray legacy colon) and rejoin on $ADDONS_PATH_SEP. This is the
+#   ONLY place THIS file joins an addons path; every consumer here calls it (the
+#   identity token, the lease-vs-catalog comparison, the value written into the
+#   generated conf), so the separator is never spelled twice inside one script.
+#   (55-instance-ops.sh has its own twin, _addons_csv_from - the two scripts do
+#   not source each other; the shared SSOT they both call is the splitter.)
+# ---------------------------------------------------------------------------
+_addons_csv() {
+    local -a _ac_arr=()
+    _addons_path_to_array _ac_arr "${1:-}"
+    (IFS="$ADDONS_PATH_SEP"; echo "${_ac_arr[*]:-}")
+}
+
+# Odoo's `--load` flag and its `server_wide_modules` conf key take a COMMA-
+# separated MODULE list on every indexed series (verified via OSM cli_help:
+# `--load`, "Comma-separated list of server-wide modules", stable 8.0-19.0).
+# Same delimiter CHARACTER as addons_path but a DIFFERENT fact - module names,
+# not directories - so it carries its own name instead of borrowing
+# $ADDONS_PATH_SEP from resolve_instances.sh.
+SERVER_WIDE_MODULES_SEP=','
+
+# ---------------------------------------------------------------------------
+# _module_list_csv - normalize a caller-supplied server-wide module list: trim
+#   each entry, drop empties, rejoin on $SERVER_WIDE_MODULES_SEP. So
+#   `--load "mod_a, mod_b,"` reaches the conf as `mod_a,mod_b` instead of asking
+#   Odoo to import a module named " mod_b". Prints the EMPTY string when the
+#   argument names no module at all - cmd_apply BLOCKs on that rather than
+#   writing a key that says nothing.
+# ---------------------------------------------------------------------------
+_module_list_csv() {
+    local -a _mlc_in=() _mlc_out=()
+    IFS="$SERVER_WIDE_MODULES_SEP" read -ra _mlc_in <<<"${1:-}"
+    local m
+    for m in "${_mlc_in[@]:-}"; do
+        # Trim leading/trailing whitespace (bash-only, no external tool).
+        m="${m#"${m%%[![:space:]]*}"}"
+        m="${m%"${m##*[![:space:]]}"}"
+        [[ -n "$m" ]] && _mlc_out+=("$m")
+    done
+    (IFS="$SERVER_WIDE_MODULES_SEP"; echo "${_mlc_out[*]:-}")
+}
+
+# ---------------------------------------------------------------------------
+# _addons_path_verdict - is this addons_path SERVABLE? Prints one line:
+#     ok                       every entry is an existing directory.
+#     missing <entries...>      every entry that is absent is an ABSOLUTE path,
+#                               so the value states a real tree that is not on
+#                               this host (a deleted/moved worktree).
+#     malformed <entries...>    at least one absent entry is not even an
+#                               absolute path, so the value is not a path list
+#                               at all - the signature of a producer that
+#                               joined a STRING character-by-character rather
+#                               than joining a list of directories.
+#   The two failure verdicts are deliberately DISTINCT because they deserve
+#   opposite treatment: a real-but-absent tree cannot be substituted (refuse),
+#   while a value that is not a path list makes no claim about any tree at all
+#   (fall back, loudly). Absoluteness is the discriminator because every
+#   addons_path this toolkit produces is absolute (40-instance-profile.sh
+#   records absolute checkout paths; allocator.py refuses an override entry
+#   that is not an existing directory).
+# ---------------------------------------------------------------------------
+_addons_path_verdict() {
+    local -a _apv=()
+    _addons_path_to_array _apv "${1:-}"
+    local p missing="" relative=0
+    for p in "${_apv[@]:-}"; do
+        [[ -n "$p" ]] || continue
+        [[ -d "$p" ]] && continue
+        missing+="${missing:+ }$p"
+        [[ "$p" == /* ]] || relative=1
+    done
+    if [[ -z "$missing" ]]; then
+        echo "ok"
+        return 0
+    fi
+    if (( relative )); then
+        echo "malformed $missing"
+    else
+        echo "missing $missing"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# _lease_addons_path - the addons_path RESERVED by an allocator lease.
+#   $1 = allocator.py path, $2 = lease token. Prints that lease row's
+#   `addons_path` (the allocator writes it comma-joined) and returns 0 when the
+#   token names a row in the registry; prints nothing and returns NON-ZERO when
+#   the registry cannot be read or holds no such token - which cmd_apply treats
+#   as "the tree to serve is unresolved" and BLOCKS on, never as "use the
+#   catalog row".
+#
+#   Read-only, and through the allocator's OWN command surface (`list
+#   --show-tokens`) rather than by reaching into leases.json: the registry path
+#   and schema stay the allocator's business, exactly as _register_shared /
+#   _bind_exclusive already do for the write side.
+# ---------------------------------------------------------------------------
+_lease_addons_path() {
+    local alloc="${1:-}" token="${2:-}" registry=""
+    [[ -n "$alloc" && -f "$alloc" && -n "$token" ]] || return 1
+    registry="$(python3 "$alloc" list --show-tokens 2>/dev/null)" || return 1
+    [[ -n "$registry" ]] || return 1
+    printf '%s' "$registry" | python3 -c '
+import json, sys
+try:
+    registry = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for lease in registry.get("leases") or []:
+    if lease.get("token") == sys.argv[1]:
+        print(lease.get("addons_path") or "")
+        sys.exit(0)
+sys.exit(1)
+' "$token"
 }
 
 # ---------------------------------------------------------------------------
@@ -280,8 +438,8 @@ _identity_marker_path() {
 
 _identity_token() {
     # $1 = addons_path (any separator format). CANONICALIZED before hashing via
-    # _addons_path_to_array (resolve_instances.sh - folds a stray legacy colon
-    # to the SSOT comma) and rejoined on the fixed $ADDONS_PATH_SEP: the SAME
+    # _addons_csv (this file's one join site - folds a stray legacy colon to the
+    # SSOT comma and rejoins on $ADDONS_PATH_SEP): the SAME
     # real path list always hashes to the SAME token no matter which separator
     # character produced the string. This is what makes identity
     # separator-INDEPENDENT for good - a future producer flipping the wire
@@ -292,9 +450,8 @@ _identity_token() {
     # from colon- to comma-joining silently changed every recorded token - see
     # _identity_token_legacy below for the one-time bridge that covers markers
     # already written under that raw-hash behavior.)
-    local _idtok_paths canon
-    _addons_path_to_array _idtok_paths "$1"
-    canon="$(IFS="$ADDONS_PATH_SEP"; echo "${_idtok_paths[*]}")"
+    local canon
+    canon="$(_addons_csv "$1")"
     python3 -c '
 import hashlib, sys
 print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])
@@ -503,7 +660,28 @@ cmd_apply() {
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             args+=(--pid "$1")
         fi
-        python3 "$alloc_py" "${args[@]}" >/dev/null 2>&1 || true
+        # This acquire runs the allocator's DESTRUCTIVE gc sweep as a side effect
+        # (cmd_acquire -> _gc over the whole shared registry), so it is one of the
+        # plugin's two largest reclaimers - and it used to discard the only
+        # account of what it destroyed. STDOUT stays /dev/null (acquire's stdout
+        # is the `eval $(allocator.py acquire ...)` PROTOCOL, and this call site
+        # evals nothing); STDERR is APPENDED to the Tier-1 log the SessionEnd hook
+        # writes too - hooks/session-end-gc.sh ALLOC_DIAG_BASENAME carries the
+        # full rationale, incl. why `allocator-reclaimed.jsonl` does not already
+        # cover it and why this stream must NOT be passed through to this
+        # script's own stderr (a best-effort registration's warning printed one
+        # line before `ok Odoo ... is up` reads as a spin-up failure to the agent
+        # parsing this output).
+        # /dev/null remains the fallback on every failure rung, and the writability
+        # probe is load-bearing: `mkdir -p` succeeds on an existing-but-unwritable
+        # dir, and a redirect bash cannot open makes it skip the command outright -
+        # which would trade a lost log line for a lost lease registration.
+        local _diag=/dev/null _diag_log
+        _diag_log="$(odoo_ai_state_root)/logs/allocator-stderr.log"
+        if mkdir -p "${_diag_log%/*}" 2>/dev/null && ( : >>"$_diag_log" ) 2>/dev/null; then
+            _diag="$_diag_log"
+        fi
+        python3 "$alloc_py" "${args[@]}" >/dev/null 2>>"$_diag" || true
     }
 
     _bind_exclusive() {
@@ -555,6 +733,175 @@ cmd_apply() {
             kill -KILL "$pid" 2>/dev/null || true
         fi
     }
+
+    # ---- WHICH TREE does this launch serve? ------------------------------
+    # The catalog row is a STATIC declaration of the PRINCIPAL checkout. A
+    # caller that acquired its lease with `allocator.py acquire
+    # --addons-path-override <worktree list>` is serving a DIFFERENT tree, and
+    # the LEASE is where that decision is recorded - so the lease outranks the
+    # catalog here. Getting it wrong is silent in the one direction that
+    # destroys the result: the server comes up, the port answers 200, and every
+    # test run, QA acceptance pass and visual check goes GREEN against code
+    # that is not the code under verification.
+    #
+    # Precedence, highest first:
+    #   1. --addons-path <list>  - the caller states the tree explicitly.
+    #   2. the BOUND LEASE named by --alloc-token (its `addons_path`). No extra
+    #      flag: a lease acquired against a worktree exists precisely so the
+    #      launch serves that worktree, and an override the caller must
+    #      remember to re-pass is an override that gets forgotten.
+    #   3. the catalog row (INST_ADDONS_PATH) - the declared/shared default;
+    #      with no lease and no argument this is byte-for-byte the old behavior.
+    # The resolved value REPLACES INST_ADDONS_PATH, so every downstream
+    # consumer - the instance-identity token, _find_odoo_bin, the generated
+    # conf - reads ONE resolved value and there is no second spelling to drift.
+    local _catalog_addons _served_addons _served_from="catalog"
+    _catalog_addons="$(_addons_csv "${INST_ADDONS_PATH:-}")"
+    _served_addons="$_catalog_addons"
+    if [[ -n "${ARG_ADDONS_PATH:-}" ]]; then
+        # An explicitly stated tree is checked before anything is launched: a
+        # mistyped path would otherwise start a server that finds no module
+        # there and reports the resulting emptiness as a code problem. Same rule
+        # allocator.py applies to --addons-path-override, applied at the other
+        # end of the same handoff.
+        local _arg_verdict
+        _arg_verdict="$(_addons_path_verdict "$ARG_ADDONS_PATH")"
+        if [[ "$_arg_verdict" != "ok" ]]; then
+            echo "" >&2
+            echo "x BLOCKED: --addons-path names entries that are not existing directories." >&2
+            echo "  Not found: ${_arg_verdict#* }" >&2
+            echo "  Given: ${ARG_ADDONS_PATH}" >&2
+            echo "  NOTHING was launched. Serving a tree that is not there produces a server" >&2
+            echo "  with no modules under it, which reads as broken code rather than as a" >&2
+            echo "  mistyped path." >&2
+            return 1
+        fi
+        _served_addons="$ARG_ADDONS_PATH"
+        _served_from="argument"
+    elif [[ -n "${ARG_ALLOC_TOKEN:-}" ]]; then
+        local _lease_addons="" _lease_rc=0
+        _lease_addons="$(_lease_addons_path "$alloc_py" "$ARG_ALLOC_TOKEN")" || _lease_rc=$?
+        if (( _lease_rc != 0 )); then
+            # The caller HOLDS a lease but this run cannot read which tree it
+            # reserved, so the two candidate trees cannot be told apart. A loud
+            # refusal is strictly better than a quiet wrong tree: nothing is
+            # launched, no conf is written, and the caller learns immediately.
+            echo "" >&2
+            echo "x BLOCKED: --alloc-token names a lease this run cannot read, so WHICH TREE" >&2
+            echo "  to serve is unresolved. NOTHING was launched." >&2
+            echo "  Token: ${ARG_ALLOC_TOKEN}" >&2
+            echo "  Probed with: python3 '${alloc_py}' list --show-tokens" >&2
+            echo "  A lease acquired with --addons-path-override reserves a DIFFERENT tree" >&2
+            echo "  than the instances.toml catalog row ('${_catalog_addons}'). Serving the" >&2
+            echo "  catalog row here would launch the WRONG checkout while every test, QA" >&2
+            echo "  pass and visual check still reported green - so this refuses instead of" >&2
+            echo "  guessing. Fix: re-acquire the lease and pass the token it printed, keep" >&2
+            echo "  \$ODOO_AI_HOME pointing at the state root that acquire used, or state the" >&2
+            echo "  tree explicitly with --addons-path <list>." >&2
+            return 1
+        fi
+        # A lease row that records NO addons_path (a pre-override or hand-written
+        # row) makes no statement about the tree - the catalog row stands, and
+        # SERVED_ADDONS_SOURCE below says so out loud.
+        if [[ -n "$_lease_addons" ]]; then
+            _lease_addons="$(_addons_csv "$_lease_addons")"
+            local _lease_verdict="ok"
+            # A lease that AGREES with the catalog row needs no check: the two
+            # rungs name the same tree, so honouring the lease cannot change
+            # what is served, and a check here would newly refuse catalogs that
+            # have always been allowed to name a not-yet-created directory.
+            if [[ "$_lease_addons" != "$_catalog_addons" ]]; then
+                _lease_verdict="$(_addons_path_verdict "$_lease_addons")"
+            fi
+            case "$_lease_verdict" in
+                ok)
+                    _served_addons="$_lease_addons"
+                    _served_from="lease"
+                    ;;
+                missing*)
+                    # The lease names a REAL tree that is not on this host. The
+                    # catalog row is NOT a substitute for it - that substitution
+                    # is exactly the wrong-tree green this resolution exists to
+                    # end - so refuse before launching anything.
+                    echo "" >&2
+                    echo "x BLOCKED: the lease reserves an addons_path that is not on this host, so" >&2
+                    echo "  WHICH TREE to serve is unresolved. NOTHING was launched." >&2
+                    echo "  Lease addons_path:   ${_lease_addons}" >&2
+                    echo "  Not found:           ${_lease_verdict#* }" >&2
+                    echo "  Catalog addons_path: ${_catalog_addons}" >&2
+                    echo "  The catalog row is NOT a substitute: serving it would launch a" >&2
+                    echo "  DIFFERENT checkout than the one this lease was acquired for, and every" >&2
+                    echo "  test, QA pass and visual check would still report green. Restore the" >&2
+                    echo "  tree the lease names, re-acquire the lease against a tree that exists," >&2
+                    echo "  or state the tree explicitly with --addons-path <list>." >&2
+                    return 1
+                    ;;
+                *)
+                    # malformed: the row is not a path list at all, so it makes
+                    # no claim about any tree and cannot be served. The catalog
+                    # row stands - and SERVED_ADDONS_SOURCE below reports
+                    # `catalog`, so no caller is told it got the lease's tree.
+                    echo "" >&2
+                    echo "  Warning: the lease's recorded addons_path is not a directory list, so it" >&2
+                    echo "  states no tree to serve; SERVING THE CATALOG ROW instead." >&2
+                    echo "  Lease addons_path:   ${_lease_addons}" >&2
+                    echo "  Not even paths:      ${_lease_verdict#* }" >&2
+                    echo "  Catalog addons_path: ${_catalog_addons}" >&2
+                    echo "  Verify the served tree from SERVED_ADDONS_PATH/SERVED_ADDONS_SOURCE" >&2
+                    echo "  below before trusting this instance, and pass --addons-path <list> to" >&2
+                    echo "  state the tree explicitly." >&2
+                    ;;
+            esac
+        fi
+    fi
+    INST_ADDONS_PATH="$(_addons_csv "$_served_addons")"
+
+    # Server-wide modules (Odoo's --load / `server_wide_modules`). Normalized
+    # once here; the conf line below is the only writer.
+    local _served_load=""
+    if [[ -n "${ARG_LOAD:-}" ]]; then
+        _served_load="$(_module_list_csv "$ARG_LOAD")"
+        if [[ -z "$_served_load" ]]; then
+            echo "" >&2
+            echo "x BLOCKED: --load names no module ('${ARG_LOAD}')." >&2
+            echo "  Refusing to launch with an EMPTY server-wide module set: a caller that" >&2
+            echo "  resolved a server-wide module and then silently got Odoo's default is" >&2
+            echo "  exactly the drop this passthrough exists to prevent. Pass a" >&2
+            echo "  comma-separated module list, or omit --load to accept Odoo's default." >&2
+            return 1
+        fi
+    fi
+
+    # run_mode=docker cannot honour EITHER of the two facts above: the conf this
+    # script generates is only handed to odoo-bin on the source path, so a
+    # compose-launched server serves whatever its own compose file mounts and
+    # loads. Claiming a served tree it does not serve would re-create the same
+    # silent wrong-tree green, so refuse before `docker compose up`.
+    if [[ "${INST_RUN_MODE:-source}" == "docker" ]] \
+            && { [[ "$INST_ADDONS_PATH" != "$_catalog_addons" ]] || [[ -n "$_served_load" ]]; }; then
+        echo "" >&2
+        echo "x BLOCKED: run_mode=docker cannot honour a served-tree override." >&2
+        echo "  Resolved addons_path ($_served_from): ${INST_ADDONS_PATH}" >&2
+        echo "  Catalog addons_path:                  ${_catalog_addons}" >&2
+        echo "  server_wide_modules requested:        ${_served_load:-<none>}" >&2
+        echo "  This step only generates an odoo.conf for the SOURCE run mode; a" >&2
+        echo "  compose-launched server serves whatever its compose file mounts, so" >&2
+        echo "  honouring the override here is impossible and reporting it would be a" >&2
+        echo "  lie. Declare the tree in the compose file, or run this instance in" >&2
+        echo "  run_mode=source." >&2
+        return 1
+    fi
+
+    # Make the served tree OBSERVABLE. Same stdout KEY=value channel this
+    # command already uses for LOG_PATH, so a caller verifies what was served
+    # without parsing Odoo's own `addons paths: [...]` startup log line.
+    # Emitted BEFORE the "already up" pre-check below, so it is present on every
+    # successful path - attach as well as fresh launch. An EMPTY
+    # SERVED_SERVER_WIDE_MODULES means no key is written and Odoo's own
+    # per-series default applies (nothing is fabricated here).
+    echo "SERVED_ADDONS_PATH=${INST_ADDONS_PATH}"
+    echo "SERVED_ADDONS_SOURCE=${_served_from}"
+    echo "SERVED_SERVER_WIDE_MODULES=${_served_load}"
 
     local _last_ready_status="" _last_ready_path=""
     # Instance-identity token this invocation EXPECTS to see recorded on
@@ -781,9 +1128,19 @@ cmd_apply() {
             conf="$_conf_dir/${db_name}-${port}.conf"
             {
                 echo "[options]"
-                # INST_ADDONS_PATH is already comma-joined (the SSOT separator -
-                # see resolve_instances.sh's ADDONS_PATH_SEP) - no conversion needed.
+                # The tree this launch SERVES: resolved once above (argument >
+                # bound lease > catalog row) and already canonicalized onto the
+                # SSOT separator by _addons_csv - no conversion here, and no
+                # second re-derivation from the catalog that could disagree with
+                # the SERVED_ADDONS_PATH fact printed above.
                 echo "addons_path = ${INST_ADDONS_PATH:-}"
+                # server_wide_modules is Odoo's --load dest (comma-separated on
+                # every indexed series). Written ONLY when the caller passed
+                # --load; omitted otherwise so Odoo's own per-series default
+                # applies rather than a default invented here.
+                if [[ -n "$_served_load" ]]; then
+                    echo "server_wide_modules = $_served_load"
+                fi
                 echo "$_port_key = $port"
                 # Second listening port (gevent/longpolling) - emitted when the
                 # agent passed both the port AND its resolved conf key (P5.6).
