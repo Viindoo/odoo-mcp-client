@@ -1,7 +1,5 @@
 <!-- SSOT snippet. Owned by odoo-planning. The single source of truth for the mandatory-planning
-     gate, enforced at ADMISSION: the FRONT DOOR (odoo-intake / odoo-brl / the odoo-implement-feature
-     workflow) establishes an approved plan artifact before it dispatches any executor; executors
-     TRUST that upstream governance happened and never self-block for "no plan". Referenced (not
+     gate - stated once in § Mandatory-planning rule below, never restated here. Referenced (not
      copy-pasted) by odoo-intake, odoo-coding, run-harness, odoo-solution-design, and the workflow
      YAML. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md. -->
@@ -21,30 +19,27 @@ L1/L2 node gates, `odoo-planning`'s plan gate, workflow-chaining's soft-plan-gat
 these two sets verbatim and points here rather than restating them - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` for the cross-cutting index.
 
-Planning is MANDATORY for ALL work that writes code, enforced ONCE at ADMISSION (the front door) -
-see § Mandatory-planning rule below for the full statement (no trivial/size/module-count bypass;
-trivial work still gets the minimal plan). The SOLE lone-design exception is the gated migration
-carve-out below (§ Migration carve-out).
-
 ## Mandatory-planning rule
 
 Planning is enforced at ADMISSION: the FRONT DOOR (`odoo-intake`, `odoo-brl`, or the
 `odoo-implement-feature` workflow) MUST establish an **approved plan artifact in scope** before it
-dispatches any executor (`odoo-coding`, its `odoo-coder` node coordinator - and
-that coordinator's `odoo-backend-coder`/`odoo-frontend-coder` hard-leaf workers) for any code-writing work (trivial included - a trivial change still gets the minimal
-plan; only DESIGN, via `odoo-solution-design`, is reserved for non-trivial work). Checked ONCE, at the door. "Approved plan
-artifact in scope" is TRUE when ANY of the three signals in § Approved-plan-artifact detection is
-present. The resulting invariant - no executor ever writes code without an approved plan artifact in
+dispatches any executor (`odoo-coding`, its `odoo-coder` node coordinator - and that coordinator's
+`odoo-backend-coder`/`odoo-frontend-coder` hard-leaf workers) for any code-writing work (trivial
+included - see the bullet below; only DESIGN, via `odoo-solution-design`, may be skipped -
+RECOMMENDED for non-trivial work, never required, and nothing downstream refuses a plan whose design
+was skipped). Checked ONCE, at the door. "Approved plan artifact in scope" is TRUE when ANY of the
+three signals in § Approved-plan-artifact detection is present. The resulting invariant - no executor ever writes code without an approved plan artifact in
 scope - is GUARANTEED by the front door's admission decision, NOT re-checked by each executor:
 executors TRUST that upstream governance happened, which keeps them composable and removes the
 runtime contradiction of a per-stage self-gate.
 
 - **Front door routes non-trivial work through `odoo-planning` first** - it does not dispatch a raw
-  coder. A design-required change goes `odoo-solution-design` -> `odoo-planning` first; a
-  one-approach change still flows through `odoo-planning` (which emits the minimal
-  `[code, verify, review, integrate, monitor, merge]` plan). Admission would otherwise let code be
-  written with no plan, so the front door HARD BLOCKS that path and routes to `odoo-planning`. The
-  ONLY lone-design bypass is the § Migration carve-out.
+  coder. Non-trivial work SHOULD go `odoo-solution-design` -> `odoo-planning` - a front-door
+  PREFERENCE, not a precondition; a one-approach change, or any change whose design was skipped,
+  still flows through `odoo-planning` (which emits the minimal
+  `[code, verify, review, integrate, monitor, merge]` plan). What the front door HARD BLOCKS is code
+  with no PLAN - a skipped design is not that. The ONLY lone-design bypass is the § Migration
+  carve-out.
 - **The executor consumes the established signal** - once the front door has established a signal
   the plan already stands, and the executor proceeds on the plan-provided fast-path. The fast-path
   is NOT re-gated (re-gating a signalled invocation would stall the driver's sequential node loop);
@@ -61,9 +56,8 @@ For cross-run/worktree NEW-module coordination, the same three defer to the sing
 ## Approved-plan-artifact detection
 
 The front door ESTABLISHES one of these three signals before it dispatches an executor; the executor
-merely CONSUMES the signal it is handed - it does NOT detect whether it was handed a plan and then
-block on its absence. The three signals - naming each ONCE - any of which means an approved plan
-artifact is in scope:
+merely CONSUMES the signal it is handed. The three signals - naming each ONCE - any of which means
+an approved plan artifact is in scope:
 
 1. **Active `run-<id>` blackboard** - dispatched under a named `run-<id>` (the `odoo-intake` Phase P
    -> `run-harness` chain). The `odoo-planning` ExitPlanMode approval already stands.
@@ -141,10 +135,13 @@ guard above - to run their OWN human-approval gate. They author their SPECIALIZE
 `odoo-planning`, and they are not plan nodes of it.
 
 **Design-then-planning ordering.** `odoo-planning` is DOWNSTREAM of `odoo-solution-design`: when a
-change is design-required it runs AFTER design and CONSUMES the approved design output - it is a
-downstream consumer, NOT a peer or alternative to design. See § Mandatory-planning rule above for
-the design-required (`odoo-solution-design` -> `odoo-planning`) vs trivial (skip design, still flow
-through `odoo-planning`) routing.
+design exists it runs AFTER that design and CONSUMES its approved output - a downstream consumer,
+NOT a peer or alternative to design. That ORDER is the whole rule: a design is only ever an INPUT to
+a plan, never a NODE of one, and no plan is ever withheld for a design nobody authored
+(§ Mandatory-planning rule above). DECLARED, enforcing nothing, at
+`skills/odoo-planning/SKILL.md` § Design precedes planning. ENFORCED (not merely declared) at
+`skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to this plan and
+`skills/run-harness/references/run-integration.md` § Gate-tier node classes.
 
 ## Execution adherence
 

@@ -65,10 +65,12 @@ Pairs with `odoo-solution-design` (consumes its design DAG, passed to both plann
 The plan is GROUNDED on three upstream artifacts; locate them and pass their paths to the planner
 (do NOT paste their contents, do NOT re-derive their facts):
 
-- **Design DAG** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` + dependency
-  direction) for a master-child design, or the single-mode `<SHARE_DIR>/designs/<slug>-<date>.md`.
-  This is the logical truth the plan turns into dependency-ordered nodes; the planner CONSUMES it,
-  never recomputes it.
+- **Design DAG (OPTIONAL at every complexity level - `none` when no design was authored)** -
+  `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` + dependency direction) for a
+  master-child design, or the single-mode `<SHARE_DIR>/designs/<slug>-<date>.md`. When one EXISTS it
+  is the logical truth the plan turns into dependency-ordered nodes; the planner CONSUMES it, never
+  recomputes it. When none exists the plan is derived from the development work itself and the field
+  is carried as an explicit `none` (§ Design precedes planning below) - it is never a gate.
 - **Gap matrix** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
   `<SHARE_DIR>/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
 - **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
@@ -89,41 +91,38 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   absent since recon is cheap/mandatory-tier - Survey is opt-in/expensive, so its absence must be
   stated, not dropped).
 
-## Design precedes planning (a REFUSAL evaluated BEFORE either planner is dispatched)
+## Design precedes planning (a DECLARATION of ORDER - never a refusal; ENFORCED elsewhere)
 
-**A design may never be produced AFTER this plan.** The plan is DERIVED from the design, so a design
-authored afterwards either invalidates the ordering the human just approved or gets
-reverse-engineered to justify it. That makes the ordering one-way, and this section is the ONE place
-this skill can still honour it - once the planners have run there is no legal repair left.
+**Planning is MANDATORY for ALL work, and is NEVER refused for a missing design**
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). A design is
+OPTIONAL at EVERY complexity level - non-trivial included - and is never a precondition to planning.
+Whatever the Input port resolved, proceed to § Agent invocation: an unresolved DESIGN DAG pointer is
+carried as `none` in the P1a brief and the development work itself is what gets planned. This skill
+evaluates NO design predicate and owns NO refusal branch.
 
-Evaluate this predicate BEFORE the § Agent invocation dispatches anything, and act on it - it is not
-a caution:
+**The ONE surviving rule is directional: a design may never be produced AFTER this plan.** The plan
+is DERIVED from the design, so a design authored afterwards either invalidates the ordering the human
+just approved or gets reverse-engineered to justify it. The load-bearing form of that rule: a design
+is only ever an INPUT to a plan, NEVER a node of one.
 
-```
-design_required  = the change is non-trivial per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md`
-                   § Design-first rule (Extension-L / Custom-XL, new module or model, a core ORM-hook
-                   override or >=3-override chain, a multi-strategy migration, a cross-model /
-                   multi-company computed chain, a full-stack feature, any refactor)
-design_present   = the Input port above resolved a DESIGN DAG pointer (index.yaml or a single-mode
-                   design doc) that EXISTS on disk
+**This is directional, NOT "design always runs" - and that is now the WHOLE rule, not a caveat to
+it.** No design at all is the common case: a one-approach change plans straight through, and so does
+a non-trivial change whose design was never authored. Only the ORDER is fixed - a design, IF one
+exists, precedes the plan.
 
-if design_required and not design_present:  REFUSE - author no plan, dispatch no planner
-else:                                       proceed to § Agent invocation
-```
+This skill DECLARES that order; it ENFORCES nothing. Enforcement lives at the three surfaces where a
+design could actually be authored into a plan or dispatched from one - go there to change the rule,
+not here:
 
-On REFUSE: dispatch NEITHER planner, write NO plan file, do NOT enter Plan Mode, and hand back with
-`status: BLOCKED`, `produced: []`, and `next: odoo-solution-design` (§ Continuation Contract, third
-branch) naming what made the change design-required. Do NOT ask the human to waive it and do NOT
-"plan now, design later" - a plan authored here is exactly the artifact the ordering forbids.
-
-**This is directional, NOT "design always runs."** `design_required == false` is the common case and
-plans straight through with no design at all: planning is mandatory for ALL work
-(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule), while the
-DESIGN gate may be skipped for a one-approach change. Only the ORDER is fixed - design, if it runs
-at all, runs first. The same one-way rule is a schema constraint on the plan itself: no plan node may
-be wired to `odoo-solution-design` / `odoo-solution-architect`
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
-this plan).
+- **schema** - no node's `approach` may be `odoo-solution-design` / `odoo-solution-architect`,
+  authored or materialized at runtime
+  (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
+  this plan).
+- **driver** - such a node gets no tier and is never dispatched, static or materialized, at any
+  confidence (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier
+  node classes).
+- **actor** - the plan author may wire no node it writes to that skill or agent
+  (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-planner.md`).
 
 ## No scope-preview gate - go straight to the planners
 
@@ -134,9 +133,10 @@ scope itself. Asking again is friction, not safety.
 
 Ask only the genuine open questions the Input port could not resolve (an ambiguous module set, an
 unresolved target series) - in ONE short message - then dispatch both planners. **A MISSING design
-artifact is NOT one of those questions:** on a design-required change it is a REFUSAL already decided
-above (§ Design precedes planning) without asking, because no answer a human can give here makes a
-plan authored ahead of its own design legal. The single
+artifact is NOT one of those questions:** a design is not a precondition to planning at any
+complexity level (§ Design precedes planning above), so an absent one is carried as `DESIGN_INDEX:
+none` and the plan is authored from the development work itself - never turned into a question, a
+block, or a wait. The single
 approval checkpoint this skill owns is the § Plan-approval gate below, after both planners return.
 Same shape as the sibling self-driving front doors (`odoo-forward-port` P4, `odoo-git-rebase` P6,
 `odoo-modules-upgrade` P3): one plan, one gate.
@@ -169,7 +169,8 @@ DISPATCH MODEL: opus
 You are the odoo-planner agent. Produce the 3-block EXECUTION PLAN (NOT code, NOT a design) for:
 
 REQUEST: [the change to ship, target Odoo version, any constraints]
-DESIGN_INDEX: [<SHARE_DIR>/designs/<master-slug>/index.yaml, or the single-mode design doc path]
+DESIGN_INDEX: [none | <SHARE_DIR>/designs/<master-slug>/index.yaml | the single-mode design doc
+path - explicit `none` when no design was authored, which is legal at any complexity level]
 GAP_MATRIX: [omit when absent; else the gap-matrix.jsonl / BRL RTM path]
 QA_ORACLE: [omit when absent - the common case at planning time, since the oracle is authored
 later at odoo-acceptance Phase 1; else the scenarios.md path]
@@ -364,16 +365,9 @@ no artifact encodes.
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). The `next`
-is **gated on the human plan-approval above**. Choose `next` as follows - the design-refusal branch
-is checked FIRST, since it is the one branch that never reaches the plan gate at all:
+is **gated on the human plan-approval above**. Both branches carry a plan pointer, because this
+skill always authors a plan - there is no design branch and no no-plan branch to check first:
 
-- **§ Design precedes planning REFUSED (no plan was authored):** emit `status: BLOCKED`,
-  `produced: []`, and `next: odoo-solution-design` with
-  `inputs: {return_to: odoo-planning, scope: <the change>, why_design_required: <the trigger>}`.
-  There is NO `plan:` key on this branch, because no plan exists - that absence IS the contract, and
-  it is what makes the route-back reachable instead of a sentence nothing can act on. Never emit this
-  branch alongside a plan path, and never emit `next: odoo-solution-design` from either branch below:
-  a design named AFTER a plan artifact exists is the inverted order, not a follow-up step.
 - **`return_to` SET:** emit `next: <return_to>` with `inputs: {plan: <path>, doc_plan: <path>}`;
   hand control back.
 - **`return_to` UNSET (default):** emit `next: odoo-intake` with
@@ -386,6 +380,11 @@ is checked FIRST, since it is the one branch that never reaches the plan gate at
   `run-<id>.json` and cannot ingest a plan `.md`, so handing the plan straight to it would strand
   every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase
   P's job; walking is run-harness's. Do NOT self-dispatch the executor.
+
+A design hand-off has no branch here: a plan always exists by the time this contract is emitted, so
+naming the design skill as `next` would schedule a design AFTER the plan derived from it - the
+inverted order (§ Design precedes planning above). A design gap is a design INPUT that was never
+authored, not a follow-up step.
 
 Note: the on-the-fly execution task list is owned by `run-harness`, NOT by this skill - run-harness
 creates and keeps it current per
