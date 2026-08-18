@@ -116,26 +116,43 @@ ordering they always carried.
   pattern that let the conf leak's own contract stand unguarded for so long.
 
 - `odoo-ai-agents` - a design-required change with no approved design artifact could reach a plan,
-  and reach `run-harness`, because "design precedes planning" was asserted nowhere and enforced
-  nowhere. `skills/odoo-planning/SKILL.md` told the reader to route to `odoo-solution-design` first,
-  but its own Continuation Contract enumerated only two `next` values, neither of them design - the
-  route-back was unreachable prose - and its "No scope-preview gate" section listed a missing design
-  as something to ask about and then dispatched both planners regardless. The gap predates the
-  wave-layer removal above: that refactor left both passages untouched, and only newly exposed the
-  question by re-declaring the plan-node field set as exhaustive. The fix closes it on four surfaces,
-  and the four-ness is the point - a single-surface fix would have been another stated-but-unreached
-  rule: `odoo-planning` now evaluates a refusal predicate before either planner is dispatched - a
-  design-required change with no design present gets no plan authored and no planner dispatched - and
-  gained a third Continuation Contract branch (`status: BLOCKED`, `next: odoo-solution-design`, no
-  `plan:` key at all, the absent pointer itself being the contract);
-  `skills/odoo-intake/references/plan-mode-schema.md` now states design as an INPUT to a plan, never
-  a node of it, in any block or serialized form;
-  `skills/run-harness/references/run-integration.md` refuses a design node on both entry paths - a
-  static node stops BLOCKED and routes back to planning, a `next[]` suggestion naming it is never
-  materialized at any confidence; and `agents/odoo-planner.md` may not wire a node it writes to
-  design, returning `NEEDS_CONTEXT` on a design gap instead. The gate stays skippable for work that
-  does not need one - this closes a missing enforcement, it does not mandate that every change gets a
-  design. Guarded by `tests/test_design_precedes_planning.py`.
+  and reach `run-harness`, because the ordering between design and planning was asserted nowhere and
+  enforced nowhere: `skills/odoo-planning/SKILL.md` told the reader to route to
+  `odoo-solution-design` first, but its own Continuation Contract enumerated no `next` value that
+  named it - the route-back was unreachable prose - and its "No scope-preview gate" section listed a
+  missing design as something to ask about, then dispatched both planners regardless. The shipped
+  rule is directional only: design is never a precondition of planning, at any complexity level -
+  planning is mandatory for all work and is never refused for a missing design; a design, if one
+  exists, precedes the plan, which means a design is an input to a plan and never a node of one.
+  `skills/odoo-planning/SKILL.md` § Design precedes planning now declares that order and enforces
+  nothing itself, pointing at the three surfaces that do: the plan schema
+  (`skills/odoo-intake/references/plan-mode-schema.md` - a node's `approach` may not be the design
+  skill or agent, authored or materialized), the driver
+  (`skills/run-harness/references/run-integration.md` - such a node gets no tier and is never
+  dispatched, static or materialized, at any confidence), and the plan author
+  (`agents/odoo-planner.md` - it may wire no node it writes to design). The mandatory-planning SSOT
+  (`snippets/planning-gate-contract.md`) now cites all three by file and section instead of restating
+  the rule, with room for the pointer found by cutting its own duplicated paragraphs rather than by
+  raising a budget.
+
+  Two related gaps in the driver's `next[]` admission surfaced while wiring that refusal in. An
+  absent `confidence` on a suggested hop had no defined meaning - a hop an emitter scored not at all
+  (`odoo-code-reviewer`'s `next: odoo-modules-upgrade` carried none) could be read as confident by
+  accident - so absent, null, and non-numeric values now resolve to `0.0`, below the admission bar,
+  and the hop always surfaces as a suggestion rather than auto-materializing into a plan no human
+  saw. And a skill that yields waiting to re-enter on a design hop - `odoo-modules-upgrade` P2b is
+  exactly this shape - would now wait forever, since the driver refuses that hop outright: such a
+  node is set `BLOCKED` instead, naming the refused hop and `odoo-planning` as the owner who must
+  amend the plan, while the rest of the run carries on. `odoo-code-reviewer`'s three previously
+  unscored `next` hops now carry explicit confidences to match: `0.8` on a proven CRITICAL/HIGH
+  finding, high enough that the driver materializes the fix as a real next node instead of only
+  noting it; `0.4` on a missing-test hop, left for a human; and `0.3` on the deferred-upgrade hop,
+  deliberately kept below the bar because that hop's own target yields on a design route-out and
+  would otherwise walk straight into the stall just described.
+
+  Guarded by `tests/test_design_precedes_planning.py`, `tests/test_ordering_enforcement_reachable.py`,
+  `tests/test_no_design_precondition_survives.py` (a tree-wide sweep for the retired claim surviving
+  anywhere else), and `tests/test_dynamic_node_admission.py`.
 
 - `odoo-ai-agents` - `odoo-coding` and `odoo-data-migration` both recommended a design hand-off with
   `SUGGESTED_NEXT: odoo-solution-design` when standalone work arrived with no design, but
@@ -146,9 +163,13 @@ ordering they always carried.
   already sanctions. The entry is suppressed whenever an approved-plan signal is in scope: under a
   live run a missing design is plan drift that routes back to `odoo-planning`, not a design hop -
   emitting one there would be exactly the inversion the design-precedes-planning fix above closes.
-  Guarded by `tests/test_design_route_channel_reachable.py`. Two sibling sites in
-  `skills/odoo-debug/SKILL.md` carry the same dead channel for a fix hand-off rather than design, and
-  are left as follow-up.
+  The same dead channel turned up in `skills/odoo-debug/SKILL.md`, offered there as an equal
+  alternative to the in-block entry for a fix hand-off rather than a design one, in exactly the case
+  where a status is always set; only the reachable channel is offered there now. Guarded by
+  `tests/test_design_route_channel_reachable.py`, whose sweep is now unfiltered across both plugin
+  trees instead of pre-filtered to files that mention the design skill - that filter was blind to the
+  identical defect aimed at a different hop, and the unfiltered sweep still reports zero legitimate
+  hits.
 
 - `odoo-ai-agents` - the allocator could SIGTERM an unrelated process GROUP and never say so.
   `scripts/lib/allocator.py`'s `_stop_owner_group_if_local` signalled a lease's recorded pid once it
@@ -170,11 +191,48 @@ ordering they always carried.
   the whole precondition for signalling. A runaway server launched by hand, with neither its database
   on its command line nor a listening leased port, can no longer be proven ours and is now reported
   rather than killed - a named process left running beats an unnamed process group destroyed, and the
-  message names the pid to inspect. Guarded by `tests/test_allocator_signal_ownership.py` in both
-  directions - a bystander must survive and a genuine runaway must still be reclaimed - and two
-  pre-existing tests that had required the blind kill were adapted to preserve their real intent
-  (teardown ordering; TTL still governing a fingerprint-less row) without loosening or skipping
-  either.
+  message names the pid to inspect.
+
+  CI then caught what a workstation could not: the command-line and port rungs above each read the
+  host through an instrument that fails differently in a CI runner or a plain container than on a
+  developer machine. `ps -o args=` renders argv as a display column, and procps truncates it to 80
+  characters wherever it cannot determine a screen width - a runner and a bare ubuntu container both
+  qualify, a workstation usually does not - and the tokens that corroborate a lease (the launcher
+  name, `-d <db>`, the conf basename) sit at the end of a long command line, so they were exactly the
+  bytes cut away: a genuine runaway leased server was refused instead of reclaimed. `lsof`, `ss` and
+  `fuser` are also absent from a plain ubuntu image, so the port rung could not even be evaluated
+  there. Both rungs now read the kernel directly and keep the external tool only as a fallback: argv
+  comes from `/proc/<pid>/cmdline`, split on NUL so a path containing a space cannot fake a `-d <db>`
+  token boundary; ports come from `/proc/net/tcp{,6}` listening inodes, attributed through
+  `/proc/<pid>/fd` scanned only across the recorded pid's own process group, so it never reads
+  another user's descriptors. The `ps` fallback now passes `-ww` (unlimited width), guarded by a test
+  that asserts the flag directly, because it is load-bearing only on a host with no `/proc` and a
+  later cleanup could otherwise drop it and stay green on Linux while breaking every macOS host. A
+  refusal now names the rung that went unevaluated rather than reporting a flat "not proven", since
+  being unable to look and having looked without a match call for different fixes.
+
+  Guarded by `tests/test_allocator_signal_ownership.py` in both directions - a bystander must survive
+  and a genuine runaway must still be reclaimed, including regression cases staged under an
+  80-column `ps` and a container with none of lsof/ss/fuser on PATH - and two pre-existing tests that
+  had required the blind kill were adapted to preserve their real intent (teardown ordering; TTL
+  still governing a fingerprint-less row) without loosening or skipping either.
+
+- `odoo-ai-agents` - `db_name` keys three artifact-filename families (`<db>-<UTC-ts>.log`,
+  `<db>-<UTC-ts>.findings.md`, `<db>-<port>.conf`) that `state_reclaim.sh`'s reclaim sweep and
+  `50-instance-spinup.sh`'s spin-up both write and read, and nothing validated it before this. A `/`
+  in the name put the generated conf outside the swept directory - the sweep only looks one level
+  deep - where the reclaim sweep could never see it again, and a newline broke the sweep's
+  line-oriented lease guard (a fixed-string match against a name with an embedded newline compares a
+  fragment of it, never the whole name), letting the sweep delete a live instance's open conf.
+  `50-instance-spinup.sh` now refuses an unusable `db_name` at the door, before any file is written,
+  lease acquired, or database created, mirroring Odoo's own database-manager pattern
+  (`addons/web/controllers/database.py` `DBNAME_PATTERN`, verified unchanged v9-v19) rather than
+  inventing a class of its own. It refuses rather than sanitizes: slugging the name would make the
+  artifact filename diverge from the real database name, and two distinct names could then slug to
+  the same filename - trading an unreclaimable leak for a silent cross-instance collision, which is a
+  regression, not a fix. `state_reclaim.sh`'s sweep also now skips any on-disk name outside that same
+  shape, so a bad filename written before this gate existed cannot revive the newline hazard either.
+  Guarded by `tests/test_db_name_validation.py`.
 
 ### Added
 
@@ -185,6 +243,12 @@ ordering they always carried.
   purge that deletes the dependency-order mechanism along with the word, or a tier function that
   stops being total. Every guard normalises whitespace, strips markdown emphasis and fenced blocks,
   carries an explicit inversion-rejection clause, and was proven to fail against the pre-change text.
+
+- `odoo-ai-agents` - `odoo-frontend-coder` gained an explicit view-design mandate: arrange fields,
+  sections and actions by the business workflow and the order a user thinks, reviews and enters data
+  - not by technical convenience or wherever an XPath happens to land - and, when extending a view,
+  judge the final rendered result rather than only the inherited fragment. A technically-correct
+  XPath that degrades usability is no longer treated as an acceptable outcome.
 
 ## [4.26.0] - 2026-08-16
 
