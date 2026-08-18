@@ -133,6 +133,16 @@ the worst case is a REPORTED process leak, never a lost lease.
 All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
 instances_io.py's INST_* convention. acquire prints ALLOC_*.
 
+RECLAMATION IS ALWAYS ON THE RECORD. `acquire` runs the same destructive sweep
+`gc` does (`_gc`: stop the owner's process group, drop the database, delete the
+row), so every command that reclaims a lease reports each one - which lease,
+whose run, which database, which owner pid, and WHICH ARM condemned it (see
+CONDEMN_REASONS) - on STDERR, plus an append-only JSONL record under
+`$ODOO_AI_HOME/logs/` (RECLAIM_LOG_BASENAME) that outlives the process. Never on
+stdout: that stream is a protocol for `eval $(allocator.py acquire ...)`. Read
+the GC section header for why the silent version of this was worse than the data
+loss it caused.
+
 acquire exit codes:
     0 acquired as requested (a lease is written)
     1 no instance for that series in the catalog
@@ -1751,9 +1761,79 @@ def _drop_through_odoo(lease, instances_path=None):
 
 # --------------------------------------------------------------------------- #
 # GC
+#
+# Reclaiming is DESTRUCTIVE and mostly IMPLICIT. For every condemned lease `_gc`
+# stops the owner's process GROUP and DROPS the database, then removes the row -
+# and the registry was the only place those coordinates existed. `gc` (the verb a
+# human deliberately types) reported what it took; the two `acquire` passes -
+# called by every build, every test run, every subagent dispatch - ran the same
+# destruction as a side effect and said NOTHING. That asymmetry is backwards, and
+# it is worse than a plain data loss: the victim does not see "something reclaimed
+# my lease", it sees a suite that suddenly cannot connect or a setUpClass failing
+# on a database the previous command created successfully. The natural inference
+# is a regression in the code under test, so an unattributable deletion does not
+# merely lose data - it MANUFACTURES A FALSE HYPOTHESIS and sends the debugging
+# somewhere else entirely. Reclamation is also cross-tenant by construction (`_gc`
+# walks the whole shared registry), so one run's `acquire` destroys another run's
+# state, and neither side could learn what happened.
+#
+# So every reclamation now leaves a RECORD, and `_gc` itself emits it (rather than
+# each call site being trusted to) - a future fourth call site cannot reintroduce
+# the silence, and `verb` is a REQUIRED argument so it cannot be added without
+# saying whose output the record belongs to. Two channels, both outliving the
+# registry row:
+#   - one line per reclaimed lease on STDERR, the same channel every other
+#     refusal in this file uses. NEVER stdout: `cmd_acquire`'s stdout is a
+#     PROTOCOL (`eval $(allocator.py acquire ...)`), so a prose line interleaved
+#     there would be executed by the caller's shell.
+#   - the same record appended to the evidence log (see RECLAIM_LOG_BASENAME),
+#     because a subagent's stderr is frequently not what the human ends up
+#     reading.
 # --------------------------------------------------------------------------- #
-def _is_stale(lease):
-    """Liveness is AUTHORITATIVE, not merely a condemn-only signal.
+
+# Condemn-reason vocabulary - the SSOT for WHY a lease was condemned: exactly one
+# string per condemn arm of `_condemn_reason` below, and the only values that ever
+# reach a notice, the evidence log, or an operator's grep. The reason is the part
+# of the record that CANNOT be reconstructed after the fact: a lease's token, db
+# and ports can still be recovered from the caller's earlier ALLOC_* block, but
+# once the row is gone nothing on the machine remembers which arm judged it.
+CONDEMN_PID_DEAD = "owner-pid-dead"
+CONDEMN_PID_RECYCLED = "owner-pid-recycled"
+CONDEMN_TTL_UNPROVABLE = "ttl-expired-liveness-unprovable"
+CONDEMN_REASONS = (CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED, CONDEMN_TTL_UNPROVABLE)
+
+# The evidence log, appended under `$ODOO_AI_HOME/logs/` (Tier-1: machine-global
+# flat, exactly like the registry it outlives - see snippets/state-root-resolution.md).
+# JSONL so a consumer parses it without a format of its own, and append-only so
+# concurrent allocators cannot lose each other's lines (one short line per O_APPEND
+# write, and `_gc` holds the registry flock anyway).
+#
+# ITS NAME IS DELIBERATELY OUTSIDE the run-artifact globs `prune_stale_run_artifacts`
+# (`scripts/lib/state_reclaim.sh`) sweeps - `*.log`, `*.findings.md`, `*.conf` - so
+# it is NOT swept, and that is a decision, not an oversight. That sweeper's
+# mtime-plus-lease-reachability policy is right for a per-run build log, and
+# precisely wrong here: this file is the ONLY surviving evidence that a database
+# was destroyed, so an mtime bound would delete exactly the record needed to
+# explain a deletion older than the bound - an evidence log that deletes itself
+# defeats its own purpose. Nothing else reclaims it either, which is affordable
+# because it grows ONLY when something was actually destroyed (one line per
+# reclaimed lease, a few hundred bytes), never per acquire.
+RECLAIM_LOG_BASENAME = "allocator-reclaimed.jsonl"
+
+# The record's fields, in the order the stderr notice prints them: identity first
+# (which lease, whose run, which database, which pid), then the verdict, then who
+# performed the reclamation - so a victim and a perpetrator can each recognise
+# themselves in the same line.
+_RECLAIM_NOTICE_FIELDS = (
+    "token", "run_id", "db_name", "mode", "series", "owner_pid", "owner_host",
+    "reason", "dropped_db", "by_verb", "by_pid", "by_run_id", "at_utc",
+)
+
+
+def _condemn_reason(lease):
+    """The ARM that condemns `lease`, or None when the lease is protected.
+
+    Liveness is AUTHORITATIVE, not merely a condemn-only signal.
 
     Direction matters (state it explicitly so a future edit does not invert
     it): for reaping, the safe default is to NOT reap when unsure - an
@@ -1779,6 +1859,12 @@ def _is_stale(lease):
         exactly as before this fix. TTL is now scoped to precisely this
         residual "cannot verify" case; see DEFAULT_TTL_S for why its value
         was reconsidered under that narrower scope.
+
+    Each condemn arm returns its OWN reason from CONDEMN_REASONS rather than a
+    bare True, because that verdict is the one fact about a reclaimed lease that
+    no later reader can re-derive - the row, the process and the database are all
+    gone by the time anyone asks. `_is_stale` is the boolean face of this
+    function for the callers that only need the predicate.
     """
     owner = lease.get("owner", {})
     if owner.get("host") == _host():
@@ -1786,14 +1872,16 @@ def _is_stale(lease):
         if pid is not None:
             pid = int(pid)
             if not _pid_alive(pid):
-                return True  # condemn arm: unambiguous, no fingerprint needed
+                # condemn arm: unambiguous, no fingerprint needed
+                return CONDEMN_PID_DEAD
             expected_fp = owner.get("pid_started")
             if expected_fp is not None:
                 current_fp = _pid_fingerprint(pid)
                 if current_fp is not None:
                     if current_fp == expected_fp:
-                        return False  # PROVEN alive: protected, TTL not consulted
-                    return True  # PROVEN recycled: owner is as gone as a dead pid
+                        return None  # PROVEN alive: protected, TTL not consulted
+                    # PROVEN recycled: owner is as gone as a dead pid
+                    return CONDEMN_PID_RECYCLED
                 # current_fp is None: could not re-measure right now - not a
                 # proven mismatch, so do not condemn on ambiguity; fall through.
             # else: no fingerprint was ever recorded for this lease (an older
@@ -1801,15 +1889,121 @@ def _is_stale(lease):
             # UNPROVABLE here; fall through to TTL, same as a different host.
     ttl = lease.get("ttl_s", DEFAULT_TTL_S)
     if _now() - lease.get("heartbeat_at", lease.get("owner", {}).get("started_at", 0)) > ttl:
-        return True
-    return False
+        return CONDEMN_TTL_UNPROVABLE
+    return None
 
 
-def _gc(reg, instances_path=None):
-    """Reclaim stale leases (drop their ephemeral DB via through-Odoo path). Mutates reg."""
+def _is_stale(lease):
+    """Boolean face of `_condemn_reason` - true when SOME arm condemns the lease.
+
+    Kept as its own name because most callers (`cmd_query`, `cmd_assert_droppable`)
+    only ask the yes/no question; only the reclaiming path needs to know WHICH arm
+    answered. One predicate, one implementation: a second copy of this judgment is
+    how the shell half and the python half drift apart.
+    """
+    return _condemn_reason(lease) is not None
+
+
+def _reclaim_record(lease, reason, verb, run_id=""):
+    """The full, self-contained account of ONE reclamation.
+
+    Self-contained is the whole point: it is read AFTER the registry row it
+    describes has been deleted, so every coordinate a reader might need - lease,
+    run, database, ports, owner - is copied out here rather than referenced.
+    `by_*` names the reclaimer, which is what makes a cross-tenant reclamation
+    attributable in both directions: the victim learns who took its lease, and the
+    caller learns it destroyed state it never asked about.
+    """
+    owner = lease.get("owner", {}) or {}
+    at = _now()
+    return {
+        "at": at,
+        "at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(at)),
+        "token": lease.get("token", ""),
+        "run_id": owner.get("run_id", ""),
+        "db_name": lease.get("db_name", ""),
+        "mode": lease.get("mode", ""),
+        "series": lease.get("series", ""),
+        "owner_pid": owner.get("pid"),
+        "owner_host": owner.get("host", ""),
+        "ports": lease.get("ports", []),
+        "reason": reason,
+        "dropped_db": bool(lease.get("drop_on_release") and lease.get("db_name")),
+        "by_verb": verb,
+        "by_pid": os.getpid(),
+        "by_run_id": run_id,
+    }
+
+
+def _notice_value(value):
+    """Render one field for the stderr notice. An absent value is the empty
+    string (never the word "None"), and a boolean is spelled as JSON spells it so
+    the line and the evidence log read identically."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _reclaim_notice(rec):
+    """One line, `key=value` with shell-quoted values: greppable by a human who
+    only has a scrollback, and parseable by anything else. The full token is
+    printed (not the 8-char fingerprint `cmd_list` redacts to) because a reclaimed
+    token is DEAD - it can no longer be handed to `release` - and matching it
+    against the caller's own earlier `ALLOC_TOKEN=` is how an operator identifies
+    which of their runs just lost its database. `cmd_gc`'s long-standing
+    `ALLOC_RECLAIMED=` emission already prints it in full for the same reason."""
+    fields = " ".join(
+        "{k}={v}".format(k=key, v=shlex.quote(_notice_value(rec.get(key))))
+        for key in _RECLAIM_NOTICE_FIELDS
+    )
+    return "allocator: RECLAIMED lease {fields}\n".format(fields=fields)
+
+
+def _reclaim_log_path():
+    return os.path.join(_home(), "logs", RECLAIM_LOG_BASENAME)
+
+
+def _append_reclaim_log(rec):
+    """Append one JSON record to the evidence log. Best-effort but never SILENT:
+    a record that cannot be persisted is itself reported on stderr, because the
+    one thing this whole path exists to prevent is a destruction nobody can
+    attribute. Never fatal - failing to write the account of a reclamation must
+    not fail the acquire that already performed it."""
+    path = _reclaim_log_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec, sort_keys=True) + "\n")
+    except OSError as exc:
+        sys.stderr.write(
+            "allocator: WARNING - could not append the reclaim record for lease "
+            "{token} to {path} ({exc}); the stderr line above is now the ONLY "
+            "record of that reclamation.\n".format(
+                token=rec.get("token", ""), path=path, exc=exc)
+        )
+
+
+def _report_reclaimed(rec):
+    """Both channels, one call - so neither can be added without the other."""
+    sys.stderr.write(_reclaim_notice(rec))
+    _append_reclaim_log(rec)
+
+
+def _gc(reg, verb, instances_path=None, run_id=""):
+    """Reclaim stale leases (drop their ephemeral DB via through-Odoo path),
+    REPORTING each one. Mutates reg; returns the reclaim records.
+
+    `verb` is required, and is the command whose output must carry the record
+    (`acquire`, `gc`, ...). It has no default on purpose: a new call site cannot
+    reintroduce the silent-destruction bug this reporting exists to close, because
+    it cannot call this function at all without naming itself.
+    """
     kept, reclaimed = [], []
     for lease in reg["leases"]:
-        if _is_stale(lease):
+        reason = _condemn_reason(lease)
+        if reason is not None:
             # Reap the ORPHAN before reclaiming: a lease can be stale by ttl while
             # its server process is STILL alive (the box did not crash, the owner
             # just went away). Stop that process group first so we free RAM AND so
@@ -1820,10 +2014,18 @@ def _gc(reg, instances_path=None):
                 drop_ok = _drop_through_odoo(lease, instances_path)
                 if not drop_ok:
                     # Genuine drop failure: retain the lease so a human / next gc
-                    # can retry.  Do not count it as reclaimed.
+                    # can retry.  Do not count it as reclaimed, and do not report
+                    # it as reclaimed either - the row and the database both still
+                    # exist, so a record here would be a false account.
                     kept.append(lease)
                     continue
-            reclaimed.append(lease)
+            record = _reclaim_record(lease, reason, verb, run_id)
+            reclaimed.append(record)
+            # Per lease, as it is reclaimed, NOT after the loop: if this process
+            # dies part-way through a sweep, every lease it already destroyed has
+            # already been accounted for, and the ones it has not reached are
+            # still in the registry (which is only written after this returns).
+            _report_reclaimed(record)
         else:
             kept.append(lease)
     reg["leases"] = kept
@@ -2030,7 +2232,10 @@ def cmd_acquire(opts):
         attached = 0
         with _locked():
             reg = _read_registry()
-            _gc(reg, path)
+            # Reports every lease it reclaims on stderr + the evidence log (see the
+            # GC section header); the return value is unused HERE only because this
+            # path writes the registry unconditionally below.
+            _gc(reg, "acquire", path, run_id)
             existing = next(
                 (lz for lz in reg["leases"]
                  if lz.get("mode") == "shared"
@@ -2204,7 +2409,9 @@ def cmd_acquire(opts):
 
     with _locked():
         reg = _read_registry()
-        if _gc(reg, path):
+        # Each reclaimed lease is reported (stderr + evidence log) by `_gc` itself;
+        # the records are truth-tested here only to decide the immediate persist.
+        if _gc(reg, "acquire", path, run_id):
             # PERSIST THE GC OUTCOME IMMEDIATELY. `_gc` has already DROPPED the
             # reclaimed leases' databases, and the paths below can still return
             # 3 (exclusive conflict) or 4 (port pool exhausted) before the single
@@ -2510,10 +2717,15 @@ def cmd_bind(opts):
 def cmd_gc(opts):
     with _locked():
         reg = _read_registry()
-        reclaimed = _gc(reg, opts.get("instances"))
+        reclaimed = _gc(reg, "gc", opts.get("instances"),
+                        opts.get("run_id") or opts.get("session", ""))
         _write_registry(reg)
-    for lease in reclaimed:
-        _emit("ALLOC_RECLAIMED", lease.get("token", ""))
+    # The explicit verb keeps its long-standing PROTOCOL output byte-for-byte (a
+    # consumer evals it): one ALLOC_RECLAIMED= line per lease plus the count. The
+    # per-lease account of WHY each one was condemned went to stderr + the evidence
+    # log as it happened, exactly as it now does for the implicit acquire passes.
+    for rec in reclaimed:
+        _emit("ALLOC_RECLAIMED", rec.get("token", ""))
     print(f"# reclaimed {len(reclaimed)} stale lease(s)")
     return 0
 

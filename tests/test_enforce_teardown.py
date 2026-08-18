@@ -707,8 +707,10 @@ def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_pa
     the mechanism was built and unreachable. This hook is now the discovery-half
     caller: it must invoke `reap-orphans` in its DEFAULT list-only mode (never
     `--yes` - that stays a human's explicit, separate action) and PERSIST the
-    output (unlike `gc` above, which is intentionally /dev/null'd) so the
-    candidate list is actually reviewable by someone."""
+    output so the candidate list is actually reviewable by someone. (`gc` above no
+    longer discards its own account either: its stderr is appended to
+    `logs/allocator-stderr.log` - see the hook's ALLOC_DIAG_BASENAME and
+    tests/test_allocator_stderr_survives.py.)"""
     libdir = tmp_path / "scripts" / "lib"
     libdir.mkdir(parents=True)
     runtime_dir = tmp_path / "odoo-ai-home" / "runtime"
@@ -756,8 +758,8 @@ def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_pa
                 break
         time.sleep(0.05)
     assert log_path.is_file(), (
-        "the reap-orphans discovery output must be PERSISTED (not /dev/null'd like gc) "
-        "so a human can actually review the candidate list later"
+        "the reap-orphans discovery output must be PERSISTED to its own candidate "
+        "log so a human can actually review the candidate list later"
     )
     assert "REAP_CANDIDATE" in log_text and "list-only" in log_text, (
         f"the candidate log must carry the FULL discovery output, not a truncated "
