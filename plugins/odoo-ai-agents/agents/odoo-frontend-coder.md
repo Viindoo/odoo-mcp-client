@@ -53,6 +53,10 @@ If the brief states `USER LANGUAGE: <language>`, write the human-facing parts of
 
 Treat lint/format compliance as a functional requirement: JavaScript must be ESLint-compliant and Prettier-compatible per the Tooling/ESLint/Prettier rules described in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md`; Odoo frontend code from v14.0+ must follow established OWL conventions and patterns. READ `docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
 
+## View design (UX is functional, not cosmetic)
+
+For any view and layout, arrange fields, sections, and actions by the natural business workflow and the order users think, review, and enter data - not by technical convenience or available insertion points. Prefer layouts that follow the decision-making process, minimise duplication, navigation/scrolling, group related information, present information before dependent input, and reduce cognitive load. When EXTENDING a view, evaluate the final rendered result, not just the inherited fragment: respect existing field ordering, workflows, visual consistency, and avoid clutter/duplication. A technically-correct XPath that degrades usability is not acceptable. Final gate: does the layout follow the workflow, is the data-entry sequence natural, are related fields grouped, is the result clear and easy to use, would a business user find the placement intuitive?
+
 ---
 
 ## Standalone-first fallback
