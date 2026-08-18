@@ -296,26 +296,37 @@ def test_the_design_hop_is_suppressed_under_a_plan(name):
 
 
 def test_no_design_route_anywhere_rides_the_dead_channel():
-    """Whole-tree sweep: no file may route to the design skill on the dropped channel.
+    """Whole-tree sweep: no file may route on the dropped channel.
 
-    Scope is both plugin trees, so a future skill/agent that reaches for the legacy spelling to
-    recommend a design is caught with zero edits here.
+    Scope is both plugin trees and EVERY prose/config artifact in them - no pre-filter. The sweep
+    used to skip any file not mentioning `odoo-solution-design`, which made it blind to the same
+    dead-channel defect aimed at any other target (and to a file that reaches the design skill
+    through an alias or a variable). Widening it was measured first, with this file's own detector:
+    the unfiltered sweep reports ZERO offending sites, so the filter was buying nothing and costing
+    the whole rest of the corpus.
     """
     offenders = []
     for path, text in _tree_texts():
-        if DESIGN_SKILL not in text:
-            continue
         for shape, hit in find_dead_channels(text):
             line = text[: text.index(hit)].count("\n") + 1 if hit in text else 0
             offenders.append(f"{path.relative_to(ROOT)}:{line} [{shape}] {hit[:110]!r}")
     assert not offenders, (
-        "These design routes ride a channel parse-continuation.sh drops once a status is set:\n  "
+        "These sites route on a channel parse-continuation.sh drops once a status is set:\n  "
         + "\n  ".join(offenders)
     )
 
 
 def test_the_sweep_has_a_corpus():
-    """Discovery floor - an empty corpus would make the sweep green for the wrong reason."""
+    """Discovery floor - an empty corpus would make the sweep green for the wrong reason.
+
+    Two floors, because the sweep above is no longer filtered to design-routing files: the whole
+    corpus it now walks, and (still) the design-routing subset that motivated it.
+    """
+    corpus = [p for p, _ in _tree_texts()]
+    assert len(corpus) >= 200, (
+        f"the unfiltered sweep walks only {len(corpus)} files - expected a substantial prose corpus "
+        f"across both plugin trees, so the sweep would pass vacuously"
+    )
     routers = [p for p, t in _tree_texts() if DESIGN_SKILL in t]
     assert len(routers) >= 10, (
         f"only {len(routers)} files mention {DESIGN_SKILL!r} - the sweep has nothing to judge"
