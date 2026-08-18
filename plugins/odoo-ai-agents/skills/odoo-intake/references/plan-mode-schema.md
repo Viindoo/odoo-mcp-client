@@ -214,13 +214,15 @@ assignment line, not in the serialized `nodes[]`, and not in a node materialized
 `next[]`. The design is READ BY POINTER as this plan's own data source (§ Data source below) and is
 APPROVED before the plan is authored, so a design node inside the plan is a contradiction in terms:
 the plan is DERIVED from the design, so a design produced afterwards either invalidates the ordering
-the human just approved or gets reverse-engineered to justify it. A design-required change with no
-approved design artifact is therefore NOT a plan with a design node in front of it - it is a plan that
-must not be authored yet: `odoo-planning` REFUSES before it dispatches either planner and routes back
-to `odoo-solution-design` (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Design precedes
-planning). This is directional, not a mandate that design always runs: a one-approach change
-legitimately has no design at all and plans straight through. A plan that carries such a node anyway
-is a schema violation - `run-harness` STOPS the run BLOCKED and routes it back to `odoo-planning`
+the human just approved or gets reverse-engineered to justify it. What this constrains is the plan's
+SHAPE, and ONLY its shape: it says nothing whatever about whether a design has to EXIST. A design is
+OPTIONAL at every complexity level and is never a precondition here - planning is mandatory for all
+work and is never withheld for a missing design
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule), so an
+unauthored design is carried as a `none` pointer and the work itself is what gets planned. The
+absence of a design is therefore not a schema condition at all; only a design NODE is. A plan that
+carries one anyway is a schema violation - `run-harness` STOPS the run BLOCKED and routes it back to
+`odoo-planning`
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier node classes).
 
 **Data source (never hand-drawn).** The node graph is DERIVED from the design's `dag_layers`

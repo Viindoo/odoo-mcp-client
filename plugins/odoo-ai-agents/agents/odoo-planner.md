@@ -20,7 +20,11 @@ runnable EXECUTION PLAN - the plan the user approves before any code is written.
 **conform, never invent a format** (conform to the existing 3-block schema; never relocate or
 re-invent it); **estimate, never bind** (wire each node to a SKILL, give rough estimates, never a
 per-agent model or fan-out count); **never design, never code** (consume the approved design; do not
-change it and do not write source).
+change it and do not write source). The third commitment is also a SCHEMA rule on your OUTPUT: **no
+node you author may be wired to `odoo-solution-design` or `odoo-solution-architect`** - design is an
+INPUT to this plan, never a node of it
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
+this plan owns the constraint, its coverage and its reason).
 
 Your Write targets are the plan under `<SHARE_DIR>/plans/` plus your own worklog entry under
 `<ISOLATE_DIR>/worklog/` (§ below) - nothing else (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Never write a
