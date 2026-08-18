@@ -112,6 +112,13 @@ class Harness:
         verbatim, which is how a test gives the process a production-shaped
         command line.
 
+        Returns `(leader, child)`. `fork_child=False` stages the OTHER real
+        shape - a process group with exactly one member, which is what a
+        `workers = 0` source-mode instance runs as - and reports `child` as 0:
+        the sentinel for "no second member", never a pid (see the interlock
+        below, and `_dead_same_host_pid` in the sibling module, which already
+        reads it that way).
+
         Double-fork on purpose (same reason as test_allocator.py's
         `_spawn_orphan_group`): the leader must NOT be a child of the test
         process, or a SIGKILL/SIGTERM leaves a zombie that pytest still holds
@@ -162,7 +169,28 @@ class Harness:
             "a spawned process must lead its OWN group, so a group signal cannot "
             "reach this test runner or its shell"
         )
-        assert leader not in _FORBIDDEN_PIDS and child not in _FORBIDDEN_PIDS
+        assert leader not in _FORBIDDEN_PIDS, (
+            f"harness safety: the spawned leader {leader} is this process, its group "
+            "or an ancestor"
+        )
+        # `child` is 0 under `fork_child=False`: the spawned script writes that as
+        # the SENTINEL for "no second member in this group", never as a pid. It
+        # must be vetted as a sentinel, because 0 IS in _FORBIDDEN_PIDS and
+        # belongs there - `os.kill(0, ...)` signals THIS process's whole group
+        # (the runner and its shell), which is the accident this module's
+        # interlocks exist to make impossible. Asserting the sentinel against that
+        # set instead made the branch unreachable: `fork_child=False` could only
+        # ever be entered by a caller who then tripped this very line, so a
+        # single-member process group - the shape a `workers = 0` dev instance
+        # actually runs (see test_gc_still_stops_a_runaway_whose_group_has_exactly
+        # _one_member) - could not be staged at all. The sentinel is a legal
+        # RESULT and never a legal TARGET: it is not added to `self.spawned`
+        # above, so `reap` never signals it, and `seed_lease` below refuses it
+        # like any other pid this module did not spawn.
+        assert not child or child not in _FORBIDDEN_PIDS, (
+            f"harness safety: the spawned child {child} is this process, its group "
+            "or an ancestor"
+        )
         return leader, child
 
     def alive(self, pid):
@@ -175,12 +203,31 @@ class Harness:
         return True
 
     def reap(self):
+        # INTERLOCK 1, re-asserted at TEARDOWN. Every pid in `self.spawned` is
+        # about to be SIGKILLed, and `os.kill(0, ...)` does not mean "pid 0" - it
+        # signals THIS process's entire group, i.e. the runner and its shell. The
+        # set is vetted when a pid enters it, but vetting the producer is not the
+        # same as vetting the syscall: a set that somehow holds a forbidden pid is
+        # a bug to REPORT, never one to execute. Measured while mutation-testing
+        # this module: letting the no-child sentinel 0 into the set killed the
+        # in-flight pytest run outright (exit 137) with no failure report at all -
+        # exactly the "no trace" failure this whole module exists to prevent. So
+        # drop them BEFORE the kill loop, reap the genuine children anyway (a
+        # teardown that bails early leaks the very processes it exists to remove),
+        # and fail loudly afterwards.
+        unsafe = sorted(self.spawned & _FORBIDDEN_PIDS)
+        self.spawned -= _FORBIDDEN_PIDS
         for pid in sorted(self.spawned):
             with contextlib.suppress(ProcessLookupError, OSError):
                 os.kill(pid, signal.SIGKILL)
         for pid in sorted(self.spawned):
             with contextlib.suppress(ChildProcessError, OSError):
                 os.waitpid(pid, os.WNOHANG)
+        assert not unsafe, (
+            f"harness safety: the reap set held {unsafe}, which name this process, "
+            "its group or an ancestor (0 signals the WHOLE group). They were NOT "
+            "signalled - fix whatever put them there"
+        )
 
     # -- the one way to write a lease row --------------------------------- #
     def seed_lease(self, home, pid, *, host=None, **fields):
@@ -307,6 +354,24 @@ def test_harness_cannot_name_a_pid_it_did_not_spawn(harness, tmp_path):
     with pytest.raises(AssertionError):
         harness.seed_lease(tmp_path / "nope", 424242)  # never spawned here
     assert not (tmp_path / "nope").exists(), "a refused seed must write NOTHING"
+
+    # The no-child SENTINEL is vetted as a sentinel, not as a pid. Both interlocks
+    # must survive that distinction, or `fork_child=False` becomes a hole in them
+    # rather than the branch it is meant to be.
+    solo_leader, solo_child = harness.spawn(fork_child=False)
+    assert solo_child == 0, (
+        "fork_child=False must report the no-child sentinel, not a pid"
+    )
+    assert 0 not in harness.spawned, (
+        "INTERLOCK 1: pid 0 must never enter the reap set - `os.kill(0, SIGKILL)` "
+        "signals THIS process's entire group, i.e. the test runner and its shell"
+    )
+    assert solo_leader not in _FORBIDDEN_PIDS and os.getpgid(solo_leader) == solo_leader, (
+        "a single-member group must still be a group of its OWN, disjoint from ours"
+    )
+    with pytest.raises(AssertionError):
+        harness.seed_lease(tmp_path / "nope-zero", 0)  # INTERLOCK 2 refuses the sentinel
+    assert not (tmp_path / "nope-zero").exists(), "a refused seed must write NOTHING"
 
 
 def test_the_command_line_rung_survives_an_80_column_ps(harness, alloc_home, tmp_path, capfd):
@@ -534,6 +599,45 @@ def test_gc_still_stops_a_runaway_server_proven_by_its_command_line(
         f"a runaway leased server must STILL be reclaimed; {survivors} survived. "
         "Requiring a fingerprint that old lease rows never recorded would leak "
         "every pre-fingerprint server forever"
+    )
+    assert "ownership PROVEN by cmdline" in capfd.readouterr().err
+    assert _leases(alloc_home) == []
+
+
+def test_gc_still_stops_a_runaway_whose_group_has_exactly_one_member(
+        harness, alloc_home, tmp_path, capfd):
+    """The single-process group - the shape a dev instance really runs as.
+
+    Every other reclaim test here spawns a leader WITH a forked child, so a group
+    stop is observable as two deaths. But Odoo forks HTTP workers only when
+    `workers` is configured, and 50-instance-spinup.sh launches `setsid <py>
+    <odoo-bin> -c <conf> -d <db>` with no such default - so on a developer machine
+    the leased server's process GROUP has exactly ONE member. That is the boundary
+    case for `_stop_group`, which signals the NEGATIVE pgid: a group of one is
+    where "signal the group" and "signal the pid" coincide, and where an
+    implementation that quietly resolved the wrong pgid (or fell back to the
+    single-pid path) would still look green everywhere else.
+
+    It went unprotected because the harness branch that stages it could not be
+    entered: `spawn(fork_child=False)` reports child 0, and the interlock asserted
+    that sentinel against `_FORBIDDEN_PIDS`, which contains 0.
+    """
+    alloc = _import_allocator()
+    db = "odoo_17_t_solorunaway"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, child = harness.spawn(
+        fork_child=False,
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    assert child == 0, "test setup: this test is about a group with NO second member"
+    assert os.getpgid(leader) == leader
+    harness.seed_lease(alloc_home, leader, db_name=db)
+
+    assert alloc.cmd_gc({}) == 0
+    survivors = _wait_dead(harness, leader)
+    assert survivors == [], (
+        f"a runaway whose group has exactly one member must still be reclaimed; "
+        f"{survivors} survived - a group stop that only works when the group has "
+        "children never reclaims a plain `workers = 0` instance"
     )
     assert "ownership PROVEN by cmdline" in capfd.readouterr().err
     assert _leases(alloc_home) == []
