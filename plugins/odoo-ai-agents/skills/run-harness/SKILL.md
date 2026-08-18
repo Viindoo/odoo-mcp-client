@@ -206,7 +206,7 @@ loop:
                         # Run start invariant 3 - saga + verify + checkpoint per
                         # references/run-integration.md § Run start procedure
     for nx in contract.next:    # SUGGEST -> CHAIN ; cross-workflow on_complete lands here too
-        if nx.confidence >= 0.5 and not duplicate(nx) and within_budget:
+        if (nx.confidence or 0) >= 0.5 and not duplicate(nx) and within_budget:
             RUN.dynamic_nodes.append(materialize(nx))
                         # new READY node, depends_on = node; the tier function returns L2 for ANY
                         # dynamic node - human-gated, never auto-approved (GATE E-4)

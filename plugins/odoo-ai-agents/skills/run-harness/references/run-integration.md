@@ -421,6 +421,22 @@ files only. The reply set is the PLAN gate set and
 Write the prose in the USER'S language, keeping node ids, module names, paths, skill names and the
 reply keywords verbatim (`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
+**`confidence` resolution - an ABSENT value is `0.0`, never a default of "confident".** Before the
+`next[]` admission test in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop compares
+anything, RESOLVE the field: a number stays itself; ABSENT, `null`, or a non-numeric value resolves to
+`0.0`. `(nx.confidence or 0)` on that line is that resolution in code for every shape an emitter
+actually produces. `0.0` is below the bar the same line sets, so an UNSCORED hop takes the
+`note_as_suggestion(nx)` branch: a human sees it, and it NEVER auto-materializes into a live node.
+Two reasons, both load-bearing. (1) An emitter that OMITS the field has expressed NO confidence at
+all, and `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` makes `confidence` the
+advisory-vs-auto-run lever, so an omitted value is not a default - unscored hops are what real
+emitters ship (`agents/odoo-code-reviewer.md` § Continuation Contract emits `next:
+odoo-modules-upgrade` carrying no `confidence` field at all). (2) Reading the absence as consent
+inserts a node the human never approved into a Plan-Mode-approved plan; reading it as `0.0` costs one
+suggestion a human glances at. A number PRESENT but outside `0.0..1.0` is a malformed entry, not a
+special case: nothing clamps it, so it still compares as written (`1.7` lands above the bar, `-0.2`
+below) - record the malformation as a finding on that entry, and never silently rewrite the value.
+
 **Neither class may be a DESIGN node - there is no tier for one, because it never gets dispatched.**
 `odoo-solution-design` (and the `odoo-solution-architect` agent) is an INPUT to the plan, never a node
 of it; the plan schema forbids it outright
@@ -433,9 +449,30 @@ reverse-engineered to justify it. Enforce it on BOTH classes, at the two places 
   and its `approach`, and route back to `odoo-planning` to amend the plan - the same disagreement path
   every § Plan agreement check takes. Never dispatch it and never re-tier it into legality.
 - **`next[]` / `on_complete` suggestion** naming it: NEVER materialize it, and never emit the preview
-  block above for it, at ANY `confidence`. Record it as a finding naming `odoo-planning` as the owner
+  block above for it, at ANY `confidence` (§ `confidence` resolution above changes nothing here - this
+  refusal is unconditional on the value). Record it as a finding naming `odoo-planning` as the owner
   who must amend the plan, then carry on with the remaining ready nodes - a design is not a step this
   driver may insert into a plan it did not author.
+
+**Refusing the hop must not leave its EMITTER hanging: a YIELDING emitter is `BLOCKED`, never `DONE`.**
+Refusal is the driver's call, so the stall it can cause is the driver's to close - here, once, for
+every skill shaped this way, not skill by skill. The shape: the node returned `NEEDS_NEXT`, the
+refused design hop was its ONLY forward move, and its own contract says it re-enters by reading the
+design artifact out of that hop's returned `inputs`
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P2b is exactly this - its mandatory
+route-out verdicts emit the Continuation Contract and YIELD, then expect `design_doc` back on
+re-entry). Such a node has nothing left to wait for, so `SKILL.md` § The loop's `NEEDS_NEXT -> DONE`
+mapping does NOT reach it: that mapping holds only for a node whose `next[]` actually materialized,
+and here nothing did. Calling it `DONE` and moving on parks it on a re-entry that can never arrive -
+a node that silently never finishes, the same silent stop this contract exists to prevent. Instead set
+THAT node to `BLOCKED` with `blocked_reason` naming (a) the node id, (b) the refused design hop, and
+(c) `odoo-planning` as the owner who must amend the plan; the three-part `blocked_reason` grounding
+rule in `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` ("waiting" is never a bare
+statement) applies verbatim. `BLOCKED` + `blocked_reason` are the EXISTING vocabulary - invent no
+fifth status and no new field for what the node was waiting on. Nothing else about the run changes:
+carry on with the remaining ready nodes exactly as in the bullet above, and BLOCK only the node that
+was waiting. A refused hop from a node that was NOT waiting on it (it returned `DONE`, or
+`NEEDS_NEXT` with another hop that did materialize) stays a finding and nothing more.
 
 "Plan it, then design it" is the one ordering this driver may never run. The converse costs nothing and
 is the norm: a design that ran BEFORE the plan is simply the plan's input pointer.
