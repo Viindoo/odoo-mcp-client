@@ -94,6 +94,22 @@ STATE_ROOT_FALLBACK_PREFIX = "${HOME:-"
 # Explicit, reasoned exceptions. Keyed by path RELATIVE TO plugins/ plus the literal text, so
 # an entry survives the file being re-ordered or re-wrapped (never a file:line pin).
 TMP_ALLOWLIST: dict[str, list[tuple[str, str]]] = {
+    "odoo-ai-agents/hooks/block-coordinator-code-write.sh": [
+        (
+            "^/tmp/",
+            "an EXCLUSION pattern, not a destination: the source-write gate refuses a "
+            "coordinator/spawner authoring module source, and a path under /tmp is scratch rather "
+            "than module source, so it is matched in order to be EXEMPTED. The hook writes "
+            "nothing anywhere - it only emits a permission decision - so this creates no artifact "
+            "to reclaim; deleting the pattern would make the gate deny scratch writes, not stop a "
+            "/tmp write from happening",
+        ),
+        (
+            "/tmp, .git, node_modules",
+            "the header sentence naming the same exclusion set, kept in lockstep with the "
+            "pattern above so the code and its stated contract cannot drift apart",
+        ),
+    ],
     "odoo-ai-agents/scripts/setup-steps/40-instance-profile.sh": [
         (
             "/tmp/profile.json",

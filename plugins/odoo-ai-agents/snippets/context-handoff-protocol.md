@@ -15,25 +15,27 @@ and Tier-B path below degrades silently to Tier C, so adopting CHP can never mak
 
 ## Tier A - resume a child you launched (by the id your launch returned)
 
-You may resume a child you launched YOURSELF instead of cold-spawning a replacement, when ALL THREE
-are true. Decide it locally, per child, per turn - there is no run-wide probe and no environment flag:
+You may resume a child you launched YOURSELF instead of cold-spawning a replacement, when BOTH ARE
+true. Decide it locally, per child, per turn - there is no run-wide probe and no environment flag:
 
-1. you hold the id that child's own launch call returned to you,
-2. a messaging tool is in your current toolset, and
-3. you are the ROOT conversation. A resume send has no synchronous return, so the only way to see
-   the result is to be resumed - and only the root ever is (§ Async park-and-be-resumed semantics).
-   Dispatched below the root, Tier A is not slower, it is unreachable: you would send, stop, and
-   never wake.
+1. you hold the id that child's own launch call returned to you, and
+2. a messaging tool is in your current toolset.
+
+Your own depth is NOT a condition. A resume send has no synchronous return, so the only way to see
+the result is to be woken with it - and you are woken whether you are the root or a dispatched
+agent, provided you END YOUR TURN after sending (§ Async park-and-be-resumed semantics).
 
 Send the new instructions to that id. Record the id per work-item in the skill's plan artifact
 (plan.md / plan.json) as you capture it, so the plan is the id registry. The resumed child keeps its
 full prior context - it is the mind that wrote the code, not a cold reader. Send semantics:
 § Async park-and-be-resumed semantics below.
 
-Any condition false, or the id no longer resolves (the runtime reports the target is not
-addressable, or a session `/resume` dropped it): cold-spawn (Tier C) and BLOCK on that launch
-(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0 move 2). Always correct, loses
-nothing - the worklog is current. Never surface a fallback to the user as an error.
+Either condition false, or the id no longer resolves (the runtime reports the target is not
+addressable, or a session `/resume` dropped it): cold-spawn (Tier C). Always correct at any depth,
+loses nothing - the worklog is current. Only when you hold no launch capability at all (the nesting
+cap) is there no tier left to take; then take the fallback your declared role assigns you
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0 § Which fallback is yours).
+Never surface a fallback to the user as an error.
 
 You never hold any other address: you cannot name a child at launch, you cannot look up a child you
 did not launch, and no child can address you
@@ -61,13 +63,12 @@ resumed is therefore the only way the result reaches you, so structure a Tier-A 
 park-and-be-resumed: send, stop, resume on completion. Scoped to a resume SEND: a blocking tool call
 that RETURNS a verdict inside the one call is not a park.
 
-**Only the ROOT conversation is ever resumed.** A background child's completion is re-addressed to
-the root, never to a launcher that is itself a dispatched agent
-(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 § Boundary). Below the root,
-sending and stopping is not a park, it is a permanent stall: the send reports success, the child
-finishes, its result goes somewhere else, and you are never woken. Which is why Tier A carries
-condition 3 above, and why every non-root dispatch uses Tier C on a BLOCKING launch (R0 move 2) -
-the launch call itself returns the result inside your own turn, and nothing has to wake you at all.
+**The wake is keyed on YOU having stopped, never on your depth.** You are woken with the child's
+result once it completes and you hold no other live child of your own - the root and a dispatched
+launcher alike (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 § Boundary).
+What breaks the exchange is sending and then continuing to work in the same turn: that leaves no
+point at which anything can be handed to you, and the result is never delivered. Send, then END
+YOUR TURN.
 
 ## The launcher holds the only address
 
@@ -98,8 +99,8 @@ is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own three
 (`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits well
 within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`, 2 levels deep against a
 default cap of 3; R0 move 1, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). It
-must not launch anything deeper than those three. Whether a given launch BLOCKS or must be async is a
-separate question, decided per R0 by inspecting your own launch capability's parameters.
+must not launch anything deeper than those three. Every one of those launches is asynchronous: it
+dispatches its workers, ENDS ITS TURN, and is woken with each worker's result (R0 move 3).
 
 ## Confidentiality guard
 

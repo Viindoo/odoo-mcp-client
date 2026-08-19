@@ -160,53 +160,77 @@ def test_r3_enumerates_the_targets_that_do_not_resolve():
 
 
 # ---------------------------------------------------------------------------
-# Fact 4 - the default is not to send at all; a synchronous launch's return
-# value already carries the result.
+# Fact 4 - there is no synchronous launch to return a result, so a SUBAGENT
+# never has a child result to read at all; its move is the role-conditioned
+# fallback, and nothing is ever sent.
 # ---------------------------------------------------------------------------
 
 
-def test_synchronous_launch_return_is_the_default_no_send_needed():
+def test_there_is_no_synchronous_launch_return_to_read():
+    """WHAT IT REQUIRED BEFORE (as `test_synchronous_launch_return_is_the_default_no_send_needed`):
+    that the contract call a synchronous/blocking launch "the default, preferred shape ... including
+    when you yourself are a subagent".
+
+    Measurement that retired it: the launch capability carries only {description, isolation, model,
+    prompt, subagent_type}; an undeclared key is stripped before the call is evaluated. There is no
+    synchronous return value for ANY launcher to read, so the old assertion forced the SSOT to
+    promise one.
+
+    WHAT IT REQUIRES NOW: R0 still exists, the absence is stated, and the no-launch-available
+    fallback is selected by the caller's declared role."""
     text = _read(SPAWNER_CONTRACT_MD)
     assert "R0 - Dispatch physics" in text, "sanity: R0 heading must still exist"
-    norm = _norm(SPAWNER_CONTRACT_MD)
-    low = norm.lower()
-    assert "is your own launch call's return value" in low, (
-        "R0 move 2 must state the child's result IS the launch call's own return value on the "
-        "blocking path"
+    low = _norm(SPAWNER_CONTRACT_MD).lower()
+    assert "no foreground or blocking parameter" in low, (
+        "R0 must state that no blocking/foreground launch parameter exists, or a reader keeps "
+        "looking for the synchronous return value this contract used to promise"
     )
-    assert "no `reply_to`, no `sendmessage`, no reply field needed" in low, (
-        "R0 move 2 must state no REPLY_TO / SendMessage / reply field is needed on that path"
+    assert "which fallback is yours" in low, (
+        "R0 must name the section that selects, by declared role, the move of a caller that holds "
+        "no launch capability at all"
     )
-    assert "default" in low and "preferred" in low, (
-        "R0 move 2 must state the synchronous-return path is the default, preferred shape"
+    assert "needs_next" in low, (
+        "the non-authoring branch's rung must be named in the SSOT itself"
     )
-    assert "including when you yourself are a subagent" in low, (
-        "must state the default holds even when the launcher itself is a subagent, not only main"
+    assert "never reassigns the work to you" in low, (
+        "the contract must say what a refused dispatch IS - a routing failure to report upward, "
+        "not a licence to absorb the work"
     )
 
 
 # ---------------------------------------------------------------------------
-# Fact 6 - a background child outlives a non-main launcher: its completion
-# is re-addressed to main, never resumed on the (finished) launcher.
+# Fact 6 - the wake that delivers a child's result is keyed on the LAUNCHER
+# having stopped, not on the launcher's depth.
 # ---------------------------------------------------------------------------
 
 
-def test_background_grandchild_boundary_documented():
-    norm = _norm(SPAWNER_CONTRACT_MD)
-    low = norm.lower()
-    assert "a background child outlives a non-`main` launcher" in low, (
-        "must name the boundary condition: a background child outlives a non-main launcher"
+def test_the_wake_boundary_is_stopping_not_depth():
+    """WHAT IT REQUIRED BEFORE (as `test_background_grandchild_boundary_documented`): that the
+    contract state "a background child outlives a non-`main` launcher", that its completion is
+    "re-addressed to `main`", and that it is "never resumed on you". Measured over the historical
+    transcript corpus, that is false - a nested launcher is woken by its own child, repeatedly and
+    at depth 3.
+
+    WHAT IT REQUIRES NOW: the boundary is stated as the true one. The wake fires when the launcher
+    has stopped; a launcher that keeps working in its launching turn is the shape that loses the
+    result, and no depth rule is involved."""
+    low = _norm(SPAWNER_CONTRACT_MD).lower()
+    assert "keyed on you having stopped" in low, (
+        "the boundary must name the real condition - the launcher having stopped"
     )
-    assert "re-addressed to `main`" in low, (
-        "must state the child's completion is re-addressed to main"
+    assert "not on your depth" in low, (
+        "the boundary must say explicitly that depth is not the condition, or the refuted rule "
+        "grows back the next time someone reads a stalled run as a nesting failure"
     )
-    assert "never resumed on you" in low, (
-        "must state the completion is never resumed on the (finished) launcher"
+    assert "a nested launcher is woken" in low, (
+        "the contract must state the positive fact a dispatching agent needs: a nested launcher IS "
+        "woken by its own child"
     )
-    assert "do not rely on a background grandchild" in low, (
-        "must state the actionable consequence: do not rely on a background grandchild's result "
-        "coming back to you"
-    )
+    for gone, why in (
+        ("re-addressed to `main`", "the refuted re-addressing claim must be deleted"),
+        ("never resumed on you", "the refuted never-resumed claim must be deleted"),
+    ):
+        assert gone not in low, why
 
 
 # ---------------------------------------------------------------------------

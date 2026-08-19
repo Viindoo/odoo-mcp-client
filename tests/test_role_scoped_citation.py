@@ -8,10 +8,14 @@ Between them the 25 leaf agents used to cite ~1MB of spawner-tier contract they 
 execute; M6 deletes those citations and replaces them with a one-line pointer to
 worker-brief.md/continuation-contract.md/dispatch-brief.md instead.
 
-The rule has two halves:
+The rule has three halves:
   (a) a `role: leaf` agent body may not cite any member of the spawner-tier set.
   (b) a `role: spawner|coordinator` agent body MUST cite spawner-completion-contract.md - it
       launches agents, so R3 (completion-report addressing) binds it directly.
+  (c) the SAME body must state, in prose the running agent can read, that it does not author the
+      source it dispatches. The frontmatter `description` is the launcher's routing listing and is
+      never part of the running agent's system prompt, so a prohibition kept only there is one the
+      agent was never given.
 
 Half (b)'s subject set (agents with role in {spawner, coordinator}) must never be allowed to pass
 vacuously when empty - an empty subject set would otherwise produce zero findings and look
@@ -158,6 +162,14 @@ def test_role_scope_is_strict_gating_and_clean_on_real_tree():
 # ---------------------------------------------------------------------------
 
 
+# What a compliant role=spawner|coordinator BODY must carry, both halves at once: the spawner-tier
+# citation (b) and a prohibition on authoring what it dispatches (c).
+_COMPLIANT_SPAWNER_BODY = (
+    "I launch agents. See spawner-completion-contract.md R3. "
+    "I never write the production source I dispatch."
+)
+
+
 def _write_registry(path: Path, agents: dict, extra: dict | None = None) -> None:
     data = {"agents": agents}
     if extra:
@@ -173,9 +185,7 @@ def test_role_scope_flags_leaf_citing_spawner_tier_file(tmp_path, monkeypatch):
     (agents_dir / "fake-leaf.md").write_text(
         "You are a leaf. Full rule: spawner-completion-contract.md R3.", encoding="utf-8"
     )
-    (agents_dir / "odoo-coder.md").write_text(
-        "I launch agents. See spawner-completion-contract.md R3.", encoding="utf-8"
-    )
+    (agents_dir / "odoo-coder.md").write_text(_COMPLIANT_SPAWNER_BODY, encoding="utf-8")
     deps_file = tmp_path / "deps.json"
     _write_registry(deps_file, {
         "fake-leaf": {"role": "leaf"},
@@ -201,7 +211,10 @@ def test_role_scope_flags_spawner_missing_the_citation(tmp_path, monkeypatch):
     spawner-completion-contract.md is flagged; adding the citation clears it."""
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
-    (agents_dir / "fake-spawner.md").write_text("I launch agents but cite nothing.", encoding="utf-8")
+    (agents_dir / "fake-spawner.md").write_text(
+        "I launch agents but cite nothing. I never write the production source I dispatch.",
+        encoding="utf-8",
+    )
     deps_file = tmp_path / "deps.json"
     _write_registry(deps_file, {"fake-spawner": {"role": "spawner"}})
     monkeypatch.setattr(co, "AGENTS_DIR", agents_dir)
@@ -209,10 +222,54 @@ def test_role_scope_flags_spawner_missing_the_citation(tmp_path, monkeypatch):
 
     findings = []
     co.check_role_scope(findings)
-    assert any("fake-spawner" in f for f in findings), f"RED case did not fire: {findings}"
+    assert any("fake-spawner" in f and "spawner-completion-contract.md" in f for f in findings), (
+        f"RED case did not fire: {findings}"
+    )
 
+    (agents_dir / "fake-spawner.md").write_text(_COMPLIANT_SPAWNER_BODY, encoding="utf-8")
+    findings2 = []
+    co.check_role_scope(findings2)
+    assert not any("fake-spawner" in f for f in findings2), f"GREEN case still fired: {findings2}"
+
+
+def test_role_scope_flags_a_spawner_whose_body_never_forbids_authoring(tmp_path, monkeypatch):
+    """RED->GREEN for half (c)(i) - THE guard that would have caught the observed breach.
+
+    `odoo-coder` carried "NOT a code writer and NOT a leaf" in its frontmatter `description`
+    ONLY. That string is the launcher's routing listing; it is never part of the running agent's
+    system prompt, so the agent had no prohibition to disobey. When its teammate dispatch was
+    refused, it edited a module's `__manifest__.py` itself.
+
+    Remaining false negative, stated: this is a LEXICAL claim check over the whitespace-normalized
+    body. A body that states the prohibition in a phrasing the regex cannot see fails here even
+    though it is correct prose; a body that states it and then contradicts it elsewhere passes.
+    It proves the claim is PRESENT for the agent to read, never that the agent obeys it -
+    `hooks/block-coordinator-code-write.sh` is the enforcing half."""
+    agents_dir = tmp_path / "agents"
+    agents_dir.mkdir()
+    deps_file = tmp_path / "deps.json"
+    _write_registry(deps_file, {"fake-spawner": {"role": "coordinator"}})
+    monkeypatch.setattr(co, "AGENTS_DIR", agents_dir)
+    monkeypatch.setattr(co, "DEPS_FILE", deps_file)
+
+    # RED: cites the contract, but never forbids authoring.
     (agents_dir / "fake-spawner.md").write_text(
-        "I launch agents. See spawner-completion-contract.md R3.", encoding="utf-8"
+        "I launch agents. See spawner-completion-contract.md R3. "
+        "I dispatch my teammates and end my turn.",
+        encoding="utf-8",
+    )
+    findings = []
+    co.check_role_scope(findings)
+    assert any("does not author the source it dispatches" in f for f in findings), (
+        f"RED case did not fire - a spawner with no authoring prohibition must be flagged: {findings}"
+    )
+
+    # GREEN: the same body, plus the prohibition, in a DIFFERENT phrasing from the fixture above -
+    # the rule protects the claim, not one sentence.
+    (agents_dir / "fake-spawner.md").write_text(
+        "I launch agents. See spawner-completion-contract.md R3. "
+        "I do not author production code myself.",
+        encoding="utf-8",
     )
     findings2 = []
     co.check_role_scope(findings2)

@@ -35,7 +35,7 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
 
 **No reply-address field exists.** Do not add one under any name. The agent you dispatch returns its
-report as its final message and you read it from your own launch call's return value - rule:
+report as its final message, and you are woken with it once you end that turn - rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per

@@ -2,18 +2,19 @@
 
 Protects the BEHAVIOR of the two-tier decomposition (not a wording snapshot).
 
-Ground truth (reverse-engineered from the installed Claude Code binary, corrected here after a
-prior pass pinned a FALSE premise): a subagent CAN launch a child and CAN receive its result via a
-blocking launch (`run_in_background: false`), or - when the Agent tool exposes no such parameter -
-launch async and END ITS TURN to be resumed by a wake router on completion; it is never simply
-killed. The real hazards are the silent nesting cap (no Agent tool at all -> do the work inline or
-return NEEDS_NEXT) and the non-interactive surface (where nothing resumes a parked turn, so never
-end a turn with uncommitted work). This is `spawner-completion-contract.md` R0. A PRIOR pass
-misread "a subagent may never be woken" out of an early, incomplete reading of the same evidence
-and retargeted this whole file to an "odoo-coder authors everything inline, launches nothing"
-topology. That premise is FALSE and has been retired in turn; the three-teammate topology below is
-RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blocking launches via
-`run_in_background: false`, never a passive/unbounded wait):
+Ground truth, on two independent measurements:
+
+  SCHEMA (live capture): no blocking or foreground launch parameter exists here. The launch
+  capability carries only {description, isolation, model, prompt, subagent_type}, and an undeclared
+  key is stripped before the call is evaluated. Every launch is asynchronous.
+
+  RETURN PATH (historical transcript corpus): a nested launcher IS woken with its own child's
+  result - repeatedly, including a depth-2 agent woken by a depth-3 child. The wake is keyed on the
+  launcher having ENDED ITS TURN, not on its depth. The one shape that loses a result is a launcher
+  that keeps working in the turn that launched.
+
+The three-teammate TOPOLOGY below is therefore both the repo owner's decision and an observed,
+working shape. It is what this file pins:
 
 - The OUTER unit is the NODE (D1/D4 - the wave grouping layer is deleted and one-coder-per-module
   goes with it). `odoo-coding` dispatches ONE `odoo-coder` COORDINATOR per node (EVERY node -
@@ -24,8 +25,9 @@ RESTORED (decided by the repo owner) and now runs on the CORRECT R0 physics (blo
   it divides its ONE node into 1..N disjoint-file-set WIs, schedules INDEPENDENT WIs in PARALLEL
   and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and per WI launches
   THREE teammates - `odoo-test-writer` FIRST (authors the RED test, test-first), then
-  `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests) -
-  blocking on each via R0 move 2 (`run_in_background: false`) when it needs the result. It tests
+  `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests),
+  ending its turn after each dispatch so the harness can hand it the result. It never authors that
+  source itself. It tests
   the integrated node via `Skill(odoo-instance)` (inline in its own context, or by launching
   `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its node by
   invoking `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and
@@ -120,12 +122,11 @@ def test_coordinator_assigns_wis_to_the_three_teammates_backend_first():
     """RESTORE of the topology this file originally pinned.
 
     A prior pass replaced this with "test_coordinator_authors_every_wi_itself_backend_before_frontend",
-    asserting the coordinator authors every WI inline and launches no agent - built on the false
-    premise that a subagent has no barrier to release a launched child with (R0). The corrected R0
-    (spawner-completion-contract.md) establishes the opposite: the Agent tool's own
-    `run_in_background: false` parameter IS a blocking-launch lever, so a coordinator well inside
-    the nesting cap can launch a teammate and block on its result. The repo owner has restored the
-    three-teammate topology on this corrected physics.
+    asserting the coordinator authors every WI inline and launches no agent. The repo owner restored
+    the three-teammate topology, and this assertion pins THAT decision - the coordinator delegates,
+    and never becomes the author of what it delegates. It rests on no claim about a blocking-launch
+    parameter: no such parameter exists (measured). The coordinator dispatches, ends its turn, and
+    is woken with the result (R0 move 3).
 
     RESTORED assertion: the odoo-coder COORDINATOR launches THREE teammates - odoo-test-writer
     (test-first) + odoo-backend-coder + odoo-frontend-coder per WI - and sequences the backend WI
@@ -150,10 +151,9 @@ def test_coordinator_launches_test_writer_first_and_coders_do_not_author():
     """RESTORE of the topology this file originally pinned.
 
     A prior pass replaced this with "test_coordinator_authors_red_test_first_inline_and_leaves_do_not_author",
-    asserting the coordinator authors the RED test itself via Skill(odoo-test-writing) inline. That
-    was built on the same false premise as the sibling test above (R0: no barrier to block on a
-    launched child) - now corrected: the coordinator DOES launch odoo-test-writer and blocks on it
-    via R0 move 2.
+    asserting the coordinator authors the RED test itself via Skill(odoo-test-writing) inline. The
+    owner restored test-first delegation: the coordinator DISPATCHES odoo-test-writer and never
+    authors the test itself.
 
     RESTORED assertion (test-first): the coordinator launches odoo-test-writer FIRST (the RED
     test), then the coder; the coders themselves still never author tests."""
@@ -182,18 +182,16 @@ def test_coordinator_owns_the_internal_wi_breakdown():
     """odoo-coder OWNS the internal WI split: 1..N disjoint WIs, parallel-vs-sequential schedule,
     per-WI worker assignment - and states the WI is its PRIVATE intra-module unit.
 
-    RESTORE note: a prior pass required the NEGATION 'no parallel launch' (independent WIs cannot
-    run in parallel because a subagent supposedly has no barrier to release a batch with). That
-    premise is false - R0 move 2 (`run_in_background: false`) is exactly the mechanical barrier
-    an independent batch releases on, per spawner-completion-contract.md R1. This restores the
-    positive claim: independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY."""
+    RESTORE note: a prior pass required the NEGATION 'no parallel launch'. The owner restored the
+    positive claim, which this pins: independent WIs run in PARALLEL, dependent WIs run
+    SEQUENTIALLY. The SCHEDULE is the claim - which WIs may overlap and which must not - never a
+    claim about a blocking-launch parameter, which does not exist here."""
     low = _norm(LEAD).lower()
     assert "work-item" in low or "wi" in low, "the coordinator must name the work-item unit"
     assert "disjoint" in low, "the WI split must be by DISJOINT file sets"
     assert "parallel" in low and "sequential" in low, (
-        "independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY (R0 move 2 supplies the "
-        "mechanical barrier for both - a blocking launch for the dependent chain, a held batch for "
-        "the parallel one)"
+        "independent WIs run in PARALLEL, dependent WIs run SEQUENTIALLY - the schedule is the "
+        "claim; a dependent WI launches only after its prerequisite returned a terminal status"
     )
     assert "1..n" in low or "1..N".lower() in low or "one or more" in low, (
         "one module -> 1..N WIs"
@@ -252,9 +250,13 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
     no teammates. That was the false-premise topology; the coordinator DOES launch three teammates
     and therefore IS a module lead that tracks them.
 
-    RESTORED assertion: the coordinator tracks its own dispatched WI workers on a live task
-    list, and reads each result from its own launch call's return value - it has no other channel
-    to them and they have none to it."""
+    RESTORED assertion: the coordinator tracks its own dispatched WI workers on a live task list,
+    and is WOKEN with each result once it has ended the turn that launched - it has no other
+    channel to them and they have none to it.
+
+    A later pass required the coordinator to "read each result from its own launch call's return
+    value". That was a blocking-launch return value, and no such thing exists here; the assertion
+    below pins the mechanism that does."""
     body = _norm(LEAD)
     assert "spawner-completion-contract.md" in body, (
         "the coordinator launches agents, so R1/R2/R3 bind it - it must cite the SSOT"
@@ -264,12 +266,13 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
     )
     assert "task list" in body.lower(), "the coordinator must monitor WI workers on a live task list"
     low = body.lower()
-    assert re.search(
-        r"read (?:each|its|the|every)[\w' ]*result from (?:your|its) own launch call's return "
-        r"value", low
-    ), (
-        "the coordinator must state the ONE channel it has to a teammate: its own launch call's "
-        "return value"
+    assert re.search(r"woken with each teammate's result", low), (
+        "the coordinator must state the ONE channel it has to a teammate: being woken with that "
+        "teammate's result"
+    )
+    assert re.search(r"end your turn", low), (
+        "the coordinator must be told to END ITS TURN after dispatching - the wake only fires for "
+        "a launcher that stopped, so a coordinator that keeps working never collects anything"
     )
     assert re.search(r"no teammate (?:messages|can message|ever messages) you", low), (
         "the coordinator must state that no teammate can message it - otherwise it waits for a "

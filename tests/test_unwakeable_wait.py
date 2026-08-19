@@ -1,27 +1,33 @@
-"""Whole-tree guard: nothing offers a dispatched context the wait that never ends, and the SSOT
+"""Whole-tree guard: nothing tells a dispatcher to keep working after it launches, and the SSOT
 states why a worker's apparent ways back up are not ways back up.
 
 Behavior protected - two halves of one stall:
 
-  COORDINATOR SIDE. Only the root conversation is resumed when a background child finishes. A
-  launcher that is itself dispatched is never woken by its own child, so "launch it in the
-  background and end your turn to wait" is not a slower shape below the root - it is a permanent
-  stop with no error, no output, and nothing for anyone to read. Prose that offers that shape
-  without saying it is root-only reads as a sanctioned alternative, and a coordinator that takes it
-  hangs until a human notices.
+  COORDINATOR SIDE. Every launch is asynchronous, and the launcher is woken with the child's result
+  when the child completes AND the launcher has ENDED ITS TURN. That wake is keyed on the launcher
+  having stopped, not on its depth - a nested launcher is woken by its own child exactly as the
+  root is. The one way the exchange breaks is the launcher never stopping: a turn that launches and
+  then carries on working offers no delivery point, so the child's report is never handed back.
+  Prose that tells a dispatcher to continue working, poll, sleep, or busy-wait in the launching
+  turn is therefore the defect, and this file is its whole-tree detector.
 
-  WORKER SIDE. The stranded worker then goes looking for its launcher, and everything it finds is a
-  trap: an inbound message shows a TYPE label where an address would be, no lookup exists to turn
-  any name into one, and the literal `main` does not fail - it is ACCEPTED and delivered to the root
-  conversation, which is not waiting, while the launcher that is waiting stays parked. A rule
-  phrased only as a prohibition loses to that success receipt, so the SSOT must state the
+  WORKER SIDE. A worker that goes looking for its launcher finds only traps: an inbound message
+  shows a TYPE label where an address would be, no lookup turns any name into one, and the literal
+  `main` does not fail - it is ACCEPTED and delivered to the root conversation, which is not
+  waiting, while the worker's own launcher still receives nothing but that worker's FINAL MESSAGE.
+  A rule phrased only as a prohibition loses to that success receipt, so the SSOT must state the
   consequence, not just the ban.
 
 Guards are SHAPE-based over the whole markdown tree with normalized whitespace, never a filename
-allowlist: a park instruction is a finding whenever its window promises resumption of a child and
-does NOT scope that promise to the root (or explicitly rule the shape out). Each absence guard is
-paired with a presence assertion on the single SSOT so "delete it everywhere" cannot pass, and with
-executable must-catch / must-not-catch probes so the shape cannot silently shrink to one spelling.
+allowlist and never line adjacency. Each absence guard is paired with a presence assertion on the
+single SSOT so "delete it everywhere" cannot pass, and with executable must-catch / must-not-catch
+probes so the shape cannot silently shrink to one spelling.
+
+RESIDUAL FALSE NEGATIVE, stated rather than hidden: the whole-tree half is a LEXICAL proximity
+check over two vocabularies (launch verbs, and keep-working verbs). A file that tells a dispatcher
+to carry on in a phrasing neither list anticipates - or that implies it structurally, by ordering
+steps after a dispatch without ever naming a wait - is not caught. It proves the harmful INSTRUCTION
+is absent from the prose an agent is handed; it can never prove an agent obeys the rule.
 
 Run: python -m pytest tests/test_unwakeable_wait.py -v
 """
@@ -76,118 +82,130 @@ def test_scan_corpus_discovered():
 
 
 # ---------------------------------------------------------------------------
-# 1. Whole tree - a park instruction must be scoped to the root, or ruled out.
+# 1. Whole tree - nothing tells a dispatcher to keep working after it launches.
+#    (The rule this enforces: R0 § END YOUR TURN after dispatching.)
 # ---------------------------------------------------------------------------
 
-# The instruction to stop the turn. Open on the possessive so "end your/its/the turn" all match.
-_PARK_VERB_RE = re.compile(
+# The act of dispatching. Deliberately narrow - the vocabulary this tree actually uses for an
+# agent launch, not every English verb meaning "start something".
+_LAUNCH_RE = re.compile(
+    r"\b(launch(?:es|ed|ing)?|dispatch(?:es|ed|ing)?|spawn(?:s|ed|ing)?|fan(?:s|ned|ning)? out)\b",
+    re.I,
+)
+# The harmful instruction: carry on inside the SAME turn instead of stopping. Two families -
+# an explicit busy-wait (poll/sleep/wait in place), and an explicit "meanwhile, do more work".
+_KEEP_WORKING_RE = re.compile(
+    # Polling is only this defect when what is polled is a dispatched actor - `poll the CI` is a
+    # different, legitimate loop, so the bare object form is spelled out rather than left open.
+    r"(poll(?:s|ing|ed)?\s+(?:for\b|until\b|"
+    r"the\s+(?:child|children|worker|workers|teammate|teammates|agents?|leaf|sub-?agent))|"
+    r"sleep\s+(?:until|while|for)|busy-?wait|"
+    r"in the meantime|meanwhile,?\s|while (?:you|it|they) wait|while waiting|"
+    r"(?:keep|carry on|continue|press on)\s+(?:working|going|on with)|"
+    # Only the turn-scoped negation - a bare "do not stop <doing X>" is ordinary emphasis.
+    r"(?:do not|don't) end (?:your|the|its) turn|without ending (?:your|the|its) turn)",
+    re.I,
+)
+# What makes the pairing legal: the same window either instructs the stop, or negates the harmful
+# shape outright. Both spellings matter - a rule stated as a prohibition is as good as one stated
+# as an instruction, and this guard must not force one house style onto the other.
+_END_TURN_RE = re.compile(
     r"(end(?:s|ing)? (?:your|its|his|her|their|the) turn|END YOUR TURN|END ITS TURN|END THE TURN|"
-    r"park(?:-and-be-resumed|ed|s|ing)?\b|wait to be resumed|send,? stop)",
+    r"park-and-be-resumed|stop(?:s|ping)? (?:your|its|the) turn|emit(?:s)? .{0,40}and stops?)",
     re.I,
 )
-# What makes the park a WAIT ON A CHILD rather than a wait on a human or on the next user turn: the
-# promise of being woken must be LINKED, inside one clause, to a dispatched actor. Requiring only
-# that both words appear somewhere nearby flags "emit options and END THE TURN - next turn resumes"
-# (a wait on the human) purely because an unrelated sentence 300 chars away said "agent".
-_WOKEN = r"resumed?|resumes|woken|wakes?|notified|notification"
-_ACTOR = (
-    r"child|children|worker|workers|teammate|subagent|sub-agent|coordinator|leaf|grandchild|"
-    r"agent|agents|launch|dispatch"
-)
-_CLAUSE = r"[^.;:!?]{0,140}?"
-_WOKEN_BY_CHILD_RE = re.compile(
-    rf"(?:{_WOKEN})\b{_CLAUSE}\b(?:{_ACTOR})"           # "resumed when the child completes"
-    rf"|\b(?:{_ACTOR})\b{_CLAUSE}(?:{_WOKEN}|completes|finishes)\b",  # "the worker completes"
+_NEGATED_RE = re.compile(
+    r"(never (?:poll|sleep|re-?launch|do a child|keep working|start doing)|"
+    r"do NOT (?:poll|sleep|re-?launch|keep working)|"
+    r"not (?:a poll|a park)|never a poll|"
+    r"\bis (?:the |a )?(?:one )?(?:defect|failure mode)|"
+    r"never correct|must not keep working|do not keep working)",
     re.I,
 )
-# The scoping that makes the promise TRUE - the park belongs to the root conversation only.
-_ROOT_SCOPE_RE = re.compile(
-    r"(root conversation|root-only|only the root|at the root|from the root|you are the root|"
-    r"you ARE the root|the root is resumed|`main` itself launched|main itself launched|"
-    r"an agent `main` itself)",
-    re.I,
-)
-# ... or wording that rules the shape out entirely rather than offering it.
-_PARK_RULED_OUT_RE = re.compile(
-    r"(never launch-and-park|do not launch-and-park|may never be woken|never woken|"
-    r"is never resumed|nothing resumes you|never resumed on you|permanent stall|"
-    r"unreachable|dead end|is not a park|never a park|not a poll|forbids|never wake|"
-    r"parks you forever|stays parked|never end(?:ing)? (?:its|your|the) turn)",
-    re.I,
-)
+# A negation sitting immediately in front of an end-turn phrase INVERTS it: "do not end your turn"
+# is the defect, not the remedy. Without this the exemption regex would launder the very
+# instruction it exists to catch.
+_NEG_BEFORE_STOP_RE = re.compile(r"(do not|don'?t|never|without|instead of|rather than)\s*$", re.I)
 
-# Tight TRIGGER window (the linkage must sit right by the park verb), broad EXEMPTION window (a
-# root-scoping or ruling-out sentence anywhere in the surrounding prose governs the instruction).
-_TRIGGER_WINDOW = 200
+
+def _end_turn_instructed(window: str) -> bool:
+    """True iff the window carries an end-turn instruction that is not itself negated."""
+    return any(
+        not _NEG_BEFORE_STOP_RE.search(window[max(0, m.start() - 24):m.start()])
+        for m in _END_TURN_RE.finditer(window)
+    )
+
+# The pairing has to be tight: a launch verb and a keep-working instruction in the SAME breath.
+# A launch verb three paragraphs from an unrelated "in the meantime" is not this defect.
+_PAIR_WINDOW = 160
+# The exemption reads wider - a stop instruction or a negation anywhere in the surrounding prose
+# governs the sentence.
 _EXEMPT_WINDOW = 400
 
 
-def _unscoped_park_offenders(text: str) -> list[str]:
-    """Windows that tell a context to stop its turn and be woken by a dispatched actor, without
-    scoping that promise to the root or ruling the shape out."""
+def _keep_working_offenders(text: str) -> list[str]:
+    """Windows that pair a dispatch with an instruction to keep working in the same turn, with no
+    stop instruction and no negation governing them."""
     found = []
-    for m in _PARK_VERB_RE.finditer(text):
-        trigger = text[max(0, m.start() - _TRIGGER_WINDOW): m.end() + _TRIGGER_WINDOW]
-        if not _WOKEN_BY_CHILD_RE.search(trigger):
-            continue  # a wait on a human / on the next user turn - not this defect
+    for m in _KEEP_WORKING_RE.finditer(text):
+        pair = text[max(0, m.start() - _PAIR_WINDOW): m.end() + _PAIR_WINDOW]
+        if not _LAUNCH_RE.search(pair):
+            continue  # a wait that has nothing to do with a dispatched child
         window = text[max(0, m.start() - _EXEMPT_WINDOW): m.end() + _EXEMPT_WINDOW]
-        if _ROOT_SCOPE_RE.search(window) or _PARK_RULED_OUT_RE.search(window):
+        if _end_turn_instructed(window) or _NEGATED_RE.search(window):
             continue
         found.append(window.strip()[:280])
     return found
 
 
-def test_no_file_offers_an_unscoped_park_on_a_dispatched_child():
+def test_no_file_tells_a_dispatcher_to_keep_working_after_it_launches():
     offenders = [
         f"{_rel(path)}: ...{w}..."
         for path, text in NORMALIZED.items()
-        for w in _unscoped_park_offenders(text)
+        for w in _keep_working_offenders(text)
     ]
     assert not offenders, (
-        "a park-and-be-resumed instruction is offered without scoping it to the root. Only the "
-        "root conversation is resumed when a background child finishes, so below the root this "
-        "shape stops the run silently (snippets/spawner-completion-contract.md R0 move 3 / R1 "
-        "Boundary):\n" + "\n".join(offenders)
+        "a dispatcher is told to keep working, poll, or busy-wait in the same turn as its launch. "
+        "The wake that delivers a child's result fires only when the LAUNCHER has stopped, so a "
+        "turn that launches and carries on has no delivery point at all and the result is never "
+        "handed back (snippets/spawner-completion-contract.md R0 § END YOUR TURN after "
+        "dispatching / R1 Boundary):\n" + "\n".join(offenders)
     )
 
 
-# The real pre-fix sentences from this tree, asserted as executable probes so the shape cannot
-# quietly shrink back to catching one spelling.
+# Executable probes so the shape cannot quietly shrink back to catching one spelling.
 _MUST_CATCH = (
-    "No such switch -> every launch is asynchronous: launch, then END YOUR TURN. You are parked "
-    "and resumed when the child completes.",
-    "A resume send is fire-and-forget. After sending, END your turn and wait to be resumed when "
-    "the child completes. This is legal for a subagent exactly as for main.",
-    "Structure the exchange as async park-and-be-resumed: send the failure output, end your turn, "
-    "and consume the worker's result when it completes.",
-    "PARK: end your turn here, do not await a synchronous return - you are notified when the "
-    "resumed worker completes.",
-    "When it does not, the launch is asynchronous: launch, then end your turn to be resumed by "
-    "the wake router - never poll, never re-launch.",
+    "Launch the worker agent, then keep working on the next node in the meantime.",
+    "After you dispatch the coder, poll for its result until it lands.",
+    "Dispatch the test-writer and carry on with the frontend work while you wait.",
+    "Spawn the four surveyors; meanwhile, read the manifests yourself.",
+    "Launch the teammate but do not end your turn - stay available for the next instruction.",
 )
 _MUST_NOT_CATCH = (
-    # The corrected rule, in each of the two legal shapes.
-    "Only the root conversation is resumed when a background child finishes. If you ARE the root: "
-    "launch, then END YOUR TURN.",
-    "If you are a SUBAGENT: nothing resumes you, so never launch-and-park - do the work inline.",
-    # Waits that are not on a dispatched child at all.
+    # The corrected rule, in each of its legal spellings.
+    "Launch the whole batch in ONE message, END YOUR TURN, and consume each result when you are "
+    "woken with it.",
+    "After you dispatch, END YOUR TURN. Never poll, never sleep, never re-launch.",
+    "Keep working in the launching turn instead and no delivery point ever exists - that is the "
+    "one failure mode of nested dispatch.",
+    # Waits that are not about a dispatched child at all.
     "Present the options and END THE TURN; the human answers on the next turn.",
-    "Emit the plan and end your turn so the human can approve it before anything is written.",
+    "In the meantime the user reviews the plan and answers on their own schedule.",
 )
 
 
 @pytest.mark.parametrize("phrasing", _MUST_CATCH)
-def test_guard_catches_every_known_unscoped_park_phrasing(phrasing):
-    assert _unscoped_park_offenders(" ".join(phrasing.split())), (
-        f"the unscoped-park guard does not catch {phrasing!r} - it is bound to one phrasing again"
+def test_guard_catches_every_known_keep_working_phrasing(phrasing):
+    assert _keep_working_offenders(" ".join(phrasing.split())), (
+        f"the keep-working guard does not catch {phrasing!r} - it is bound to one phrasing again"
     )
 
 
 @pytest.mark.parametrize("phrasing", _MUST_NOT_CATCH)
-def test_guard_allows_the_root_scoped_and_human_gated_waits(phrasing):
-    assert not _unscoped_park_offenders(" ".join(phrasing.split())), (
-        f"the unscoped-park guard flags {phrasing!r}. A root-scoped park and a wait on a human are "
-        "both legal; only an unscoped wait on a dispatched child is the defect"
+def test_guard_allows_the_end_the_turn_and_human_gated_shapes(phrasing):
+    assert not _keep_working_offenders(" ".join(phrasing.split())), (
+        f"the keep-working guard flags {phrasing!r}. Ending the turn after a dispatch, and a wait "
+        "on a human, are both legal; only carrying on inside the launching turn is the defect"
     )
 
 
@@ -196,40 +214,56 @@ def test_guard_allows_the_root_scoped_and_human_gated_waits(phrasing):
 # ---------------------------------------------------------------------------
 
 
-def test_r0_makes_a_blocking_launch_mandatory_for_a_subagent():
-    """R0 move 2 already calls blocking the preferred default. Preference is not enough: a
-    coordinator that needs a result and backgrounds the dispatch anyway cannot be recovered, so the
-    obligation and its consequence must both be stated."""
+def test_r0_states_there_is_no_blocking_launch_to_reach_for():
+    """WHAT IT REQUIRED BEFORE: that R0 declare a subagent's launch REFUSED at the call, so a
+    subagent may never dispatch at all. That premise is retired - nested dispatch works, and a
+    nested launcher is woken by its own child.
+
+    WHAT IT REQUIRES NOW: the one measured absence stays stated - there is no foreground/blocking
+    launch parameter - because a reader who is told nothing tries the parameter they half-remember
+    and falls through to whatever the next rung says. The retired branch must still be named as
+    retired, and a stale "launch it blocking" instruction met in another file must be explicitly
+    overridden."""
     low = _norm(R0R1R3_SSOT).lower()
-    assert re.search(r"for a subagent this is not a preference", low), (
-        "R0 move 2 must say, for a subagent, that blocking is not a preference"
+    assert re.search(r"no foreground or blocking parameter", low), (
+        "R0 must state outright that no foreground/blocking launch parameter exists"
     )
-    assert re.search(r"must block", low), (
-        "R0 move 2 must state the obligation: a dispatch whose result you need MUST block"
+    assert re.search(r"there is no move 2", low), (
+        "the retired branch must be named as retired, or every surviving 'R0 move 2' citation "
+        "elsewhere silently re-points at whatever now occupies that slot"
     )
-    assert re.search(r"nothing wakes you", low), (
-        "R0 move 2 must state the consequence that makes the obligation decidable - nothing wakes "
-        "you - not merely that blocking is nicer"
+    assert re.search(r"names a lever that does not exist", low), (
+        "R0 must tell a reader what to DO with a stale 'launch it blocking' instruction it meets "
+        "in another file - ignore it - not merely avoid emitting one itself"
     )
 
 
-def test_r0_scopes_the_async_park_to_the_root():
-    """R0 move 3's promise ('you are parked and resumed') holds only for the root. Left unscoped it
-    is the sentence a coordinator follows into a permanent stall."""
+def test_r0_makes_ending_the_turn_the_delivery_point_at_every_depth():
+    """WHAT IT REQUIRED BEFORE (as `test_r0_scopes_the_async_park_to_the_root`): that R0 scope
+    resumption to the ROOT conversation and tell a subagent "nothing resumes you". Both are
+    falsified - the wake is keyed on the LAUNCHER having stopped, not on its depth.
+
+    WHAT IT REQUIRES NOW: R0 states the depth-independence, names ending the turn as the delivery
+    point, and states the consequence of not stopping - because the launcher that keeps working is
+    the only shape that actually loses a result."""
     low = _norm(R0R1R3_SSOT).lower()
-    assert re.search(r"only the root conversation is resumed", low), (
-        "R0 move 3 must scope resumption to the root conversation"
+    assert re.search(r"this holds at every depth", low), (
+        "R0 move 3 must state that the launch-and-be-woken shape holds at EVERY depth - a scoping "
+        "to the root is the refuted claim"
     )
-    assert re.search(r"nothing resumes you", low) and re.search(r"never launch-and-park", low), (
-        "R0 move 3 must give the subagent branch its own decidable instruction: nothing resumes "
-        "you, so never launch-and-park"
+    assert re.search(r"a nested launcher is woken by its own child", low), (
+        "R0 must say plainly that a nested launcher IS woken by its own child"
     )
-    idx = low.find("if you are a subagent")
-    assert idx != -1, "R0 move 3 must address the subagent case explicitly"
-    window = low[idx:idx + 400]
-    assert "skill tool" in window or "needs_next" in window, (
-        "the subagent branch must name what to do INSTEAD (inline via the Skill tool, or "
-        "NEEDS_NEXT) - a bare prohibition leaves it with no legal move"
+    assert re.search(r"stopping is the delivery point", low), (
+        "R0 must name what actually delivers the result: the launcher stopping"
+    )
+    assert re.search(r"no delivery point ever exists", low), (
+        "R0 must state the consequence of carrying on in the launching turn - without it the rule "
+        "reads as a style preference"
+    )
+    assert not re.search(r"only the root conversation is resumed", low), (
+        "the refuted scoping must be gone, not softened - a surviving copy is what produced the "
+        "incident this rewrite reverses"
     )
 
 
@@ -326,23 +360,29 @@ def test_r3_states_that_a_send_to_main_succeeds_and_misroutes():
     )
 
 
-def test_chp_tier_a_is_gated_on_being_the_root():
-    """Tier A is a resume SEND with no synchronous return, so it pays off only where something
-    resumes the sender. Offering it to a dispatched context is offering a stall."""
+def test_chp_tier_a_is_gated_on_holding_the_id_not_on_depth():
+    """WHAT IT REQUIRED BEFORE (as `test_chp_tier_a_is_gated_on_being_the_root`): a THIRD Tier-A
+    precondition - "you are the ROOT conversation" - plus the sentence "only the root conversation
+    is ever resumed". Both encode the refuted claim that a nested launcher cannot be woken.
+
+    WHAT IT REQUIRES NOW: Tier A is gated on the two things that are actually true - you hold the
+    id your own launch returned, and you have a messaging tool - and the section states plainly
+    that depth is NOT a condition while ending the turn IS."""
     low = _norm(CHP_MD).lower()
     idx = low.find("## tier a")
     assert idx != -1, "context-handoff-protocol.md must still carry the Tier A section"
     window = low[idx:idx + 1400]
-    assert "all three" in window, (
-        "Tier A's precondition list must have grown to three conditions - two conditions is the "
-        "version that let a dispatched context take Tier A"
+    assert "both are" in window or "both conditions" in window, (
+        "Tier A's precondition list must be the two real ones - a third, depth-based condition is "
+        "the refuted claim"
     )
-    assert "root conversation" in window, (
-        "Tier A's third condition must be that the caller is the ROOT conversation"
+    assert "your own depth is not a condition" in window, (
+        "Tier A must say outright that depth does not gate it, or the deleted condition grows back"
     )
-    assert "unreachable" in window or "never wake" in window, (
-        "Tier A must state the consequence below the root - not slower, unreachable"
+    assert "end your turn" in window, (
+        "Tier A must name the one thing that IS required for the result to reach you: ending the "
+        "turn after the send"
     )
-    assert "only the root conversation is ever resumed" in low, (
-        "the async-park section must own the fact Tier A's third condition rests on"
+    assert "only the root conversation is ever resumed" not in low, (
+        "the refuted scoping sentence must be deleted from the CHP, not merely unreferenced"
     )

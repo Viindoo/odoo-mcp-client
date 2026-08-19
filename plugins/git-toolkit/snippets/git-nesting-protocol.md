@@ -12,14 +12,12 @@ spawn tool is unavailable.
 
 **Before launching, read your own toolset.** If agent-launch capability is absent, do the work
 yourself or return BLOCKED with the resumable state - never report a dispatch you could not make.
-When the launch capability exposes a background/foreground switch, launch in the blocking mode - the
-result returns inside your turn, so there is nothing to wait for afterwards: never poll, never
-re-launch. Because you are yourself a dispatched agent, blocking is not a preference but the only
-shape that works. A background child's completion is delivered to the root conversation, never back
-to a launcher that is itself dispatched, so a dispatched agent that backgrounds a child and ends its
-turn to wait may never be woken - no error, no output, nothing to read, and the run stops there.
-When no such switch exists, do not launch-and-park: do the work yourself, or return BLOCKED naming
-the dispatch you could not make. Never end a turn with uncommitted work.
+When you DO hold it, every launch is asynchronous: the call returns a receipt, not a result, and no
+foreground or blocking parameter exists to ask for one. LAUNCH, THEN END YOUR TURN - you are woken
+with that child's result when it completes, whether you are the top-level context or a dispatched
+agent yourself. Never poll, never sleep, never re-launch. The one failure mode is yours alone to
+prevent: launch and then keep working in the same turn and you never stop, so nothing is ever handed
+back to you and the child's result is lost. Never end a turn with uncommitted work.
 
 ## N1 - Cold-spawn handoff (the default handoff mode)
 

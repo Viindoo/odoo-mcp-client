@@ -1,21 +1,27 @@
 """Self-check for the [wait-scope] / [wait-mechanism] detectors (M1 guard, rules 9/10 in
 generator/check_orchestration.py).
 
-Ground truth these detectors protect (see R0, spawner-completion-contract.md): a subagent CAN launch
-a child and CAN block on its result via a blocking Agent-tool launch (`run_in_background: false`),
-and MUST whenever it needs that result. Only the ROOT conversation is resumed when a background
-child finishes - a launcher that is itself dispatched is never woken by its own child - so "launch
-async and END ITS TURN to be resumed" is a root-only branch, and a subagent that takes it stalls
-permanently with no error and no output. Neither detector keys on WHO is parking (they are proximity
-and citation checks, not semantic reads); what they catch is a park nobody can attribute to an R0
-branch, and work left uncommitted across the turn boundary. The hazards:
+Ground truth these detectors protect (see R0, spawner-completion-contract.md): no blocking or
+foreground launch parameter exists in this harness, so EVERY launch is asynchronous, and
+"launch, then END YOUR TURN and be woken with the child's result" is the ONE collection mechanism.
+It holds at every depth - a nested launcher is woken by its own child exactly as the root is - and
+its only precondition is the launcher's own: it must actually stop.
+
+Two retired premises this docstring has now outlived, both named so neither grows back:
+`run_in_background: false` is NOT a blocking lever (the citation regex below no longer accepts that
+token as R0-branch attribution), and "only the ROOT conversation is ever resumed" is NOT true (the
+transcript corpus shows nested launchers woken repeatedly, at depth 3).
+
+Neither detector keys on WHO is parking (they are proximity and citation checks, not semantic
+reads); what they catch is a park nobody can attribute to an R0 branch, and work left uncommitted
+across the turn boundary. The hazards:
 
   [wait-scope]  - a park/wait instruction whose section (a) names no R0 branch (no citation of
-                  which of the three R0 moves it exercises), or (b) shows file-writing language
+                  which R0 move it exercises), or (b) shows file-writing language
                   with no stated commit/checkpoint safeguard (risking uncommitted work surviving a
                   turn boundary - R0's own non-interactive-surface bound).
   [wait-mechanism] - (a) an instruction to poll/sleep while waiting for a child (never correct
-                  under any R0 branch - a blocking launch already blocks, an async launch parks),
+                  under any R0 branch - the launcher ends its turn and is woken instead),
                   excluding a sanctioned check of the agent's OWN task list; (b) a dispatch claim
                   (launch/dispatch/invoke the Agent tool) with no nearby capability-handling
                   language (R0 move 1 requires checking your own toolset FIRST).
@@ -59,9 +65,9 @@ from generator.check_orchestration import (  # noqa: E402
 
 def test_wait_scope_flags_a_park_instruction_that_names_no_r0_branch():
     """RED: a park-the-turn instruction near turn/child/worker/agent vocabulary, with no citation
-    of which R0 branch it belongs to (no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/
+    of which R0 branch it belongs to (no R0/move-N/NEEDS_NEXT/nesting-cap/
     spawner-completion-contract.md mention anywhere in its section), must be a finding - a reader
-    cannot tell whether this is a blocking launch, an async park, or the no-capability branch."""
+    cannot tell whether this is the async launch-and-be-woken branch or the no-capability one."""
     text = (
         "## Some ordinary section\n\n"
         "Once you have dispatched the worker agent, end the turn and wait to be resumed when it "
@@ -218,7 +224,7 @@ def test_pass_a_and_pass_b_run_clean_against_the_real_ssot_files_that_are_fully_
 
 def test_wait_mechanism_flags_poll_near_wait_for_a_child_vocabulary(tmp_path, monkeypatch):
     """RED: an instruction to poll while waiting for a dispatched child - never correct under any
-    R0 branch (a blocking launch already blocks the call; an async launch parks via end-of-turn)."""
+    R0 branch (the launcher ends its turn and the harness wakes it with the result)."""
     import generator.check_orchestration as co
 
     snippet_dir = tmp_path / "snippets"
