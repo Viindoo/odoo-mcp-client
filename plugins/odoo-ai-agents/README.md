@@ -469,7 +469,7 @@ flowchart TD
     IE2 --> P3
     P3 --> P4["P4 - Classify (record only)<br/>(assign one outcome a/b/c/d per commit)"]
 
-    P4 -->|"(c) do-now non-trivial,<br/>OR (b) field/sig/override-point change,<br/>OR (b) > 3 files / >= 2 modules,<br/>OR full-stack"| P5["P5 - Design (route-out to<br/>odoo-solution-design; returns)"]
+    P4 -->|"(c) do-now non-trivial,<br/>OR (b) field/sig/override-point change,<br/>OR (b) refactor per<br/>odoo-solution-design - When to invoke,<br/>OR full-stack"| P5["P5 - Design (route-out to<br/>odoo-solution-design; returns)"]
     P5 --> P6_gate
     P4 -->|"(a)/(d), OR trivial single-symbol (b)"| P6_gate["P6 - Plan Mode gate<br/>(EnterPlanMode / ExitPlanMode;<br/>decides adapt strategy BEFORE rebase)"]
     P6_gate -->|"STOP - human approve"| P7["P7 - Create integration worktree<br/>+ git rebase --onto (rebase starts)"]
@@ -908,7 +908,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-doc-illustration` | Marketer / Visual | Sole orchestrator for module documentation - scopes (via `odoo-doc-scoper`), schedules (via `odoo-doc-planner`), pre-fetches marketing copy, then dispatches `odoo-user-doc-writer` (end-user guide `doc/index.rst`) and `odoo-marketing-writer` (App-Store landing `static/description/index.html`) per DOC LAYER; browser-serial, multi-locale |
-| `odoo-icon-design` | Marketer / Visual | Generates icon.png (256x256) and icon.svg for Odoo v19 modules; reads module manifest, picks fitting symbols, produces static/description/icon.png + icon.svg, then verifies and commits the assets via `git-toolkit:git-ops` (self-provisioning a worktree first if dispatched standalone); dispatches `odoo-icon-designer`; standalone-first, no browser. |
+| `odoo-icon-design` | Marketer / Visual | Generates icon.png (256x256) plus the icon.svg source, in whichever asset formats the target series accepts (resolved by the agent, never assumed from a series here); reads module manifest, picks fitting symbols, produces static/description/icon.png + icon.svg, then verifies and commits the assets via `git-toolkit:git-ops` (self-provisioning a worktree first if dispatched standalone); dispatches `odoo-icon-designer`; standalone-first, no browser. |
 | `odoo-doc-feature-map` | Marketer | Builds feature-catalog.jsonl SSOT from module source; catalogues technical features into user-facing capability rows; dispatches `odoo-feature-cataloger`; standalone-first. |
 | `odoo-doc-walkthrough` | Marketer | Produces happy-path usage walkthroughs for a module's key flows; dispatches `odoo-doc-scenarist`; standalone-first, browser capture optional. |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |

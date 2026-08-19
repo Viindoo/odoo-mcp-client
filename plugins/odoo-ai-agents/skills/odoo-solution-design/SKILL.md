@@ -371,11 +371,14 @@ subagents, invoke skills, or write production code.
 
 When a caller (e.g. `odoo-forward-port`) supplies `return_to`, map its payload
 (`target_version` / `modules` / `classification` / `intent_records` / `design_slug_hint` /
-`return_to`) onto the P1 architect dispatch template per the field-by-field table in
+`return_to` / `design_proposals`) onto the P1 architect dispatch template per the field-by-field table in
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/return-to-payload.md` - do NOT
 improvise or drop a field, and never flatten `intent_records` into the classification summary
 (it carries the behavioral contract the design must honour, distinct from the structural
-classification). The default (no `return_to`) path skips this entirely.
+classification). Every `design_proposals` entry MUST come back adjudicated - the returned
+`design_doc` carries one `adopted`/`rejected` verdict per entry, because the caller applies such a
+change only on `adopted`; an unanswered proposal silently becomes "never happens". The default (no
+`return_to`) path skips this entirely.
 
 ## Standalone-first fallback
 

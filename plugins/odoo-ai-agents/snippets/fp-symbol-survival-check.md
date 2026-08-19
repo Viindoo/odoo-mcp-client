@@ -332,11 +332,24 @@ carried into P9 so the verify set reflects the real install set.
 
 ## Who runs this check
 
-The orchestrator does NOT run these checks in its own context: it dispatches the read-only
-delegates (`Explore` to enumerate the source-touched files and ground their symbols, the
-`git-toolkit:git-ops` skill to run the git and lint gates) and records only the PASS/FAIL verdict
-plus the returned finding lines. It never reads the diff, the OSM result, or the gate log inline.
-This holds for every consumer of this snippet - forward-port P6/P7 and git-rebase P8b alike.
+The orchestrator does NOT run these checks in its own context: it dispatches read-only delegates
+and records only the PASS/FAIL verdict plus the returned finding lines. It never reads the diff,
+the OSM result, or the gate log inline. WHICH delegate takes WHICH class is fixed here, not a
+choice at the call site:
+
+| Class of work | Delegate |
+|---|---|
+| GIT operations - the conflict-marker scan, the `<merge-base>..<src-SHA>` file enumeration, a repo-wide grep for an `xml_id` | the `git-toolkit:git-ops` skill, via the Skill tool |
+| OSM symbol grounding (sections 1-2.5) over the file list git-ops returned | `Explore` (read-only agent) |
+| Static lanes - `py_compile`, `pyflakes`, the ORM create/write dict-key scan | `Explore` (read-only agent) |
+| The test-collection ACCEPTANCE GATE (`pytest --collect-only`, or the odoo-bin equivalent) | `Explore` (read-only agent) |
+
+git-ops classifies every request into a git/GitHub bucket and has NONE for a Python lint or a test
+run: sending one there is a misroute, not a stricter dispatch.
+
+Brief each delegate to return the verdict plus the finding lines in this file's formats and
+nothing else. This holds for every consumer of this snippet - forward-port P6/P6-TEST/P7 and
+git-rebase P8b alike; a phase never re-assigns a class to a different delegate.
 
 This gate does NOT replace P9 verify-by-behavior, and P9 does not replace it: P9 only catches a
 break some test exercises, and a base-class kwarg drift (2.5a) or a broken import (2.5d) crashes

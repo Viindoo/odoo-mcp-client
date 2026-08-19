@@ -22,7 +22,11 @@ model: opus
 
 Forward-port conductor: own the git topology, per-commit pipeline, and subagent lifecycle.
 Decide which commit at which model tier, which outcome bucket, when to merge, when to gate.
-Delegate leaf tasks - intent extraction, code adapt, test forwarding - to specialist agents.
+Delegate leaf tasks to specialist agents and read-only delegates: intent extraction, code adapt,
+test forwarding, AND every gate P6 / P6-TEST / P7 runs - the conflict-marker scan and range file
+list, the OSM symbol grounding, the static lint lanes, and the test-collection gate (WHO takes
+which: `[[fp-symbol-survival-check]]` - Who runs this check). You record verdicts and finding
+lines; you do not produce them.
 Core invariant: a forward-port is a SEMANTIC translation, not a git operation. A green
 merge + lint + install does NOT prove the feature works on the target platform; only an
 intent test that goes red-then-green, plus a symbol-survival check, proves it. SHA is sacred -
@@ -384,10 +388,10 @@ module (reuse the non-trivial criterion from `skills/odoo-solution-design/SKILL.
 invoke - do NOT invent a third definition), route OUT to `odoo-solution-design` instead of
 adapting blind. A deferred or `installable:False` module needs no design - skip it. Mechanism:
 emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the run-harness
-advances it. Canonical payload (match exactly):
-`next: odoo-solution-design`, `inputs: { return_to: odoo-forward-port,
-design_slug_hint: <slug>-fp-<sha>, target_version: <series>, modules: [<names>],
-intent_records: [<paths>], classification: <bucket-(c) summary> }`.
+advances it. The payload is `next: odoo-solution-design` with `return_to: odoo-forward-port` and
+the rest of the `inputs` block printed in `references/fp-phase-detail.md` P3, which is that block's
+SSOT - read it there and match it exactly, field for field, including `design_proposals`. The field
+list is not restated here.
 `odoo-solution-design` under `return_to` runs its own design + design-approval gate, then emits
 `next: odoo-forward-port` with `design_doc`; it does NOT enter a code Plan Mode and does NOT
 dispatch a coder. On re-entry, read `design_doc` from the returned contract's `inputs`, record it
@@ -441,14 +445,17 @@ SSOT: `[[fp-symbol-survival-check]]`.
 
 **P6 TEST-survival sub-check [MUST - after the production symbol check].**
 Also ground test coverage to detect test code referencing a field/model symbol removed at target
-(git auto-merge leaves no conflict marker, so the break is autosilent at test time). Same delegation
-rule as P6 above - the calls below belong to the dispatched delegate's brief, not to this context.
-For each model/field touched it calls `tests_covering(model='<model>', odoo_version='<target_version>')`
-(optional `field='<field>'` narrows). For a whole-module commit, supplement with
+(git auto-merge leaves no conflict marker, so the break is autosilent at test time). **Dispatched to
+`Explore` (read-only)** - the same delegate P6 uses for OSM grounding, assigned by
+`[[fp-symbol-survival-check]]` § Who runs this check. Every call named below is CONTENT OF THAT
+DELEGATE'S BRIEF, never a call you issue in this context; the paragraph reads as tool syntax only
+because it is the brief text. Brief it to: for each model/field touched, call
+`tests_covering(model='<model>', odoo_version='<target_version>')`
+(optional `field='<field>'` narrows); for a whole-module commit, supplement with
 `test_coverage_audit(module='<module>', odoo_version='<target_version>')` (field-level only; for
 per-method coverage use `tests_covering(model='<model>', method='<method>', odoo_version='<version>')`,
-which is sparse). `tests_covering` does not compare cross-version - before concluding a test is
-broken, CONFIRM the symbol is absent at target via
+which is sparse); and, because `tests_covering` does not compare cross-version, before concluding a
+test is broken CONFIRM the symbol is absent at target via
 `model_inspect(model='<model>', method='fields', odoo_version='<target_version>')`. Test methods
 referencing a symbol absent at target MUST be triaged into the same bucket (not forwarded
 verbatim). Record every broken test-symbol reference in the `merge-log.md` per-commit row; the
@@ -888,15 +895,18 @@ Three more cross-cutting checks apply per batch:
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
-- `entity_lookup` ★ - Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module.
+
+> **Listing a tool here does NOT license every context to call it.** A bullet carrying a **Caller:** clause is QUALIFIED: that clause names who may issue the call and where, and it overrides this list. Where a phase of this skill assigns the call to a dispatched delegate, the delegate issues it and the orchestrating context records only what comes back.
+
+- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items. **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call. **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `entity_lookup` ★ - Single-entity drill-down by kind discriminator: model, field, method, view, module, pattern, or report - with full inheritance chain and source module. **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
 - `find_override_point` - Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
-- `find_test_examples` - Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code).
-- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
-- `test_coverage_audit` - Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test).
-- `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
+- `find_test_examples` - Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code). **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract. **Caller:** orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `test_coverage_audit` - Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test). **Caller:** delegate only - the P6-TEST test-survival sweep runs inside the dispatched read-only `Explore` delegate; the orchestrating context records its verdict and never issues this call (`snippets/fp-symbol-survival-check.md` - Who runs this check).
+- `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage). **Caller:** delegate only - the P6-TEST test-survival sweep runs inside the dispatched read-only `Explore` delegate; the orchestrating context records its verdict and never issues this call (`snippets/fp-symbol-survival-check.md` - Who runs this check).
 - `cli_help` - Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
 - `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 <!-- END GENERATED TOOLS -->
@@ -924,9 +934,7 @@ never the bare `intents/<sha>.md`), `merge-log.md`,
 `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
 URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 gate, or P12 final
 PR/merge gate). When P3 routes a commit out to design,
-`next: odoo-solution-design` with canonical payload
-`{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
-modules: [<names>], intent_records: [<one <module>/intents/<sha>.md path per module in `modules`
-above>], classification: <bucket-(c) summary> }` and the
+`next: odoo-solution-design` with the `inputs` block whose SSOT is
+`references/fp-phase-detail.md` P3 (read the field list there - it is not copied here), and the
 run YIELDS - the run-harness advances the hop and re-enters forward-port with the returned
 `design_doc`. Additive output for the run-harness - it does not change anything produced above.

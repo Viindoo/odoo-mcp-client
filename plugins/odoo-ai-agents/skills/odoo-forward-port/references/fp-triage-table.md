@@ -261,9 +261,14 @@ Folding a shipped `ir.ui.view` record into its base and deleting the record is a
 decision, and this pipeline already names one owner for that class: route it out through the P3
 design gate (`SKILL.md` § P3 - Design [conditional route-out]) to `odoo-solution-design`, which
 dispatches `odoo-solution-architect` and runs its own design-approval gate. Emit the finding line
-below as a PROPOSAL, carry it in the P3 payload, and apply it ONLY when the returned `design_doc`
-adopts it. The orchestrator never merges or deletes a view record on this predicate alone, and a
-`merge-into-base` line that no design adopted stays unapplied.
+below as a PROPOSAL and carry it VERBATIM as an entry of the P3 payload's `design_proposals` list
+(schema SSOT: `references/fp-phase-detail.md` P3 - that field exists for exactly this, and it also
+states how to raise a P3 hop when no bucket-(c) commit supplies one). Apply the merge ONLY when the
+returned `design_doc` adopts it; on re-entry, read the architect's verdict for that proposal out of
+`design_doc`, and record `VIEW-TOPOLOGY ... | design: adopted|rejected` on the `merge-log.md` row
+either way, so a dropped proposal is visible rather than silent. The orchestrator never merges or
+deletes a view record on this predicate alone, and a `merge-into-base` line that no design adopted
+stays unapplied.
 
 The proposed shape, for the architect to accept or reject: fold V's xpath-inserted content into B's
 arch directly (the same result the two records produce today, expressed in one view), then

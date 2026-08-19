@@ -196,8 +196,11 @@ The **Git** family delta (base ref + target ref; safety-gate for destructive rew
 ## Brief self-check
 
 Two reusable variants of the same clause. Copy the one matching the target agent's `spawn_class`
-verbatim into its body under the heading `## Brief self-check` (never `## When to invoke` - banned
-by `test_agent_body_convention.py`).
+into its body under the heading `## Brief self-check` (never `## When to invoke` - banned
+by `test_agent_body_convention.py`). The variant is a FLOOR: copy it verbatim, then APPEND any
+bullet your own family needs (e.g. `odoo-coder` adds an `ODOO VERSION` resolution rung). Never
+drop, reword or contradict a bullet already there - a shorter or altered copy is drift, a longer
+one is not.
 
 ### LEAF variant (every hard-leaf agent)
 

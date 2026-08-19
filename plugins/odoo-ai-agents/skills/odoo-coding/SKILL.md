@@ -248,15 +248,25 @@ answers - NEVER a silent default. When a plan/design fed `odoo_version` in the C
 `inputs`, consume it verbatim. Carry that one concrete value as `[resolved version]` / `<version>`
 through the rest of Phase 0 and into every dispatch brief (§ Dispatch loop).
 
-In short: call
-`module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` per target
-module (concrete version - the pin is per-session and racy under a shared session, see
-`skills/_shared/concurrency-guard.md` "OSM session-pin race"), build the sub-graph restricted to the
-target set, and topologically order it at the MODULE level. Then fold that order UP to the NODE
-level: node Y `depends_on` node X when any module in Y depends (directly or transitively) on any
-module in X. Two nodes with no such edge may dispatch in ANY order - there is no grouping label,
-only `depends_on`. The disk fallback (haiku reader of each module descriptor's `depends` - BOTH
-names - plus a `static/src` scan, labelled "graph from disk (OSM unavailable)") lives in that SSOT.
+**Dispatched, never run inline.** The N `module_inspect` calls and the topological sort are a
+read-only lookup job, not a routing decision: dispatch ONE `Explore` (read-only) delegate for the
+whole target module set and record the MODULE-level order it returns - do not issue the calls or
+build the graph in this context. Brief it with: the target module names, `odoo_version:
+[resolved version]` (a concrete value - the OSM version pin is per-session and racy under a shared
+session, see `skills/_shared/concurrency-guard.md` "OSM session-pin race"), the instruction to call
+`module_inspect(name=<m>, method='dependencies', odoo_version='<that version>')` per module, build
+the sub-graph restricted to the target set, topologically order it, and return ONLY that order plus
+the edges it rests on. The disk fallback (a reader of each module descriptor's `depends` - BOTH
+names - plus a `static/src` scan, labelled "graph from disk (OSM unavailable)") lives in that SSOT
+and is the same delegate's job when OSM is unreachable. This launch is a dispatch like any other
+(R0, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`): issue it, END YOUR TURN,
+and fold the returned order up when you are woken with the result. If you hold no agent-launch
+capability at all, take R0 move 1 - `NEEDS_NEXT` naming this lookup - never absorb it inline.
+
+Folding UP to the NODE level is yours, and needs no source read - it is a set comparison over the
+returned edges: node Y `depends_on` node X when any module in Y depends (directly or transitively)
+on any module in X. Two nodes with no such edge may dispatch in ANY order - there is no grouping
+label, only `depends_on`.
 
 **5. Assign a model tier per node (deterministic - no judgment call mid-flow).**
 Every dispatch in this skill passes an explicit `model`. Resolve the tier for each
@@ -486,10 +496,12 @@ what carries that id across the invocation boundary.
    `WORKER_AGENT_ID` resumes that id when it still resolves and cold-spawns otherwise - it still
    counts as this batch's ONE coordinator for that node either way.
 4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
-   in step 3, hold until every coordinator in the batch has returned one of the four terminal
-   Continuation Contract statuses - `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` - before
-   packing the next batch; mark each coordinator's task-list item terminal the instant it returns
-   any of the four. The barrier is mechanical per
+   in step 3, END YOUR TURN - write nothing further this turn beyond a one-line note of what you
+   are waiting for - and hold until every coordinator in the batch has returned one of the four
+   terminal Continuation Contract statuses - `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` -
+   before packing the next batch. You are woken with each coordinator's result; mark that
+   coordinator's task-list item terminal the instant it returns any of the four. Keeping the turn
+   alive to wait is the one move from which no result ever comes back. The barrier is mechanical per
    `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 (the release-vocabulary SSOT -
    do not gate this on a task-list tool's own native label, which is runtime-dependent and may not
    even expose a dedicated `blocked` state), not an assumption. A batch is done only when every

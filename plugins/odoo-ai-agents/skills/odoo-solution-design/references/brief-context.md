@@ -34,5 +34,11 @@ dispatched at different altitudes:
 - `MODE: child` - single-module altitude. Standard 8-section TDD for one module. Must cite
   master §10 for every cross-module symbol. Child = coder's primary spec (`DESIGN_DOC`).
 - `MODE: consistency` - reads CONTRACT SUBSET of each child (§1, §9, cross-module symbols)
-  + master §10; reconciles seams; emits conflict-list. Full brief template:
-  `agents/odoo-solution-architect.md`.
+  + master §10; reconciles seams; emits conflict-list. Sole applier of §10 / `index.yaml`.
+- `MODE: reconcile` - MANDATORY whenever `contested-symbols.md` carries a row: the only actor
+  that picks a winner between two child architects' competing contracts. Brief carries
+  `contested-symbols.md`, master TDD §10, and the contested sections of the two child TDDs in
+  dispute; returns one verdict row per symbol (`symbol | winner | loser(s) | evidence |
+  UNRESOLVED?`) and edits nothing. The skill applies the verdicts and re-dispatches only the
+  children whose proposal lost - it never settles a contested symbol itself.
+  Full brief template for every mode: `agents/odoo-solution-architect.md`.

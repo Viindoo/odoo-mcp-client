@@ -29,7 +29,9 @@ You may not emit `status: DONE` while:
 (a) a browser page, tab, context, recording, or trace that YOU opened this dispatch is still
     open or running, or
 (b) an Odoo instance that YOU self-provisioned this dispatch is still running under your lease -
-    i.e. you neither released it, nor PARKED it (T1 § The three exits), nor handed it off by name.
+    i.e. you neither released it, nor PARKED THE LEASE (T1 § The three exits, which names the
+    exact command - this is the instance-lease exit, not the same-spelled dispatch discipline in
+    `context-handoff-protocol.md`), nor handed it off by name.
 
 DONE claims two things at once: the goal is met AND the resources the work borrowed are
 returned. A finished report with a live leftover page or instance is NOT done - finish the
@@ -40,7 +42,7 @@ BLOCKED / NEEDS_CONTEXT / handoff).
 and instances are enforced differently" below):
 - **(b) Instance teardown is HARD-blocked.** The `SubagentStop` `enforce-teardown.sh` hook reads
   the allocator ledger and BLOCKS any turn end except `BLOCKED`/`NEEDS_CONTEXT` or a T4 named
-  handoff, while a live, self-provisioned, non-shared lease remains open. A PARKED lease is not a
+  handoff, while a live, self-provisioned, non-shared lease remains open. A parked lease is not a
   live lease to this gate: its ledger row carries `parked_at` and no owner pid because its server
   is already stopped, so parking clears the gate exactly as releasing does.
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
@@ -60,7 +62,7 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 | Instance you provisioned AND forwarded to children (you are the run-level owner) | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
 | `mode_hint: path-incremental` EXCLUSIVE lease | the owning skill, via release-lease (operation E) | at path completion - never between steps |
 | `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid, immediately; TTL, only when liveness cannot be verified at all - see `docs/reference/INSTANCE-ALLOCATION.md` §7) |
-| A lease you PARKED (`allocator.py park`) | YOU, or whoever resumes it | at your terminal status the park itself is the teardown; the lease is then reclaimed by its own `park_ttl_s` budget, or released after a `resume` |
+| A lease you parked (`allocator.py park`) | YOU, or whoever resumes it | at your terminal status the park itself is the teardown; the lease is then reclaimed by its own `park_ttl_s` budget, or released after a `resume` |
 
 ### The three exits
 

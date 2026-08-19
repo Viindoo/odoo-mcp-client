@@ -181,6 +181,13 @@ def tool_group_label(tool: dict) -> str:
 # assigned inside _load_skill_tool_deps() and referenced by gen_skill_tools_block().
 
 SKILL_TO_TOOLS: dict[str, list[str]] = {}
+# Optional per-skill CALLER axis: {skill: {tool_name: qualification}} loaded from
+# skill_tool_deps.json -> skills.<name>.mcp_tool_callers.  A tool listed in `mcp_tools`
+# with no entry here is callable by the skill itself with no qualification; an entry
+# renders as a **Caller:** clause on that tool's bullet and is the authority over the
+# bare listing.  Exists because a flat tool list silently licenses a call that a later
+# phase of the same skill assigns to a dispatched delegate.
+SKILL_TOOL_CALLERS: dict[str, dict[str, str]] = {}
 # Orchestration SSOT (spawn_class / spawns / stack / instance_touching)
 # per skill dir, loaded from skill_tool_deps.json -> "orchestration".
 ORCHESTRATION: dict[str, dict] = {}
@@ -200,6 +207,19 @@ def _load_skill_tool_deps() -> None:
 
     for skill_name, entry in data["skills"].items():
         SKILL_TO_TOOLS[skill_name] = list(entry["mcp_tools"])
+        callers = {
+            tool: qual
+            for tool, qual in entry.get("mcp_tool_callers", {}).items()
+            if not tool.startswith("_")
+        }
+        unknown = sorted(set(callers) - set(entry["mcp_tools"]))
+        if unknown:
+            raise SystemExit(
+                f"skill_tool_deps.json: {skill_name}.mcp_tool_callers names "
+                f"{unknown}, which is/are not in its mcp_tools list"
+            )
+        if callers:
+            SKILL_TOOL_CALLERS[skill_name] = callers
 
     for skill_name, entry in data.get("orchestration", {}).items():
         if skill_name.startswith("_"):
@@ -311,6 +331,7 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
 def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
     """Generate the ## MCP tools section body for one skill."""
     tool_names = SKILL_TO_TOOLS.get(skill_name, [])
+    callers = SKILL_TOOL_CALLERS.get(skill_name, {})
     tools_by_name = {t["name"]: t for t in surface["tools"]}
 
     lines = []
@@ -334,12 +355,26 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
 
     if work_tools:
         lines.append("**Primary tools:**")
+        if any(tn in callers for tn in work_tools):
+            lines.append("")
+            lines.append(
+                "> **Listing a tool here does NOT license every context to call it.** A bullet "
+                "carrying a **Caller:** clause is QUALIFIED: that clause names who may issue the "
+                "call and where, and it overrides this list. Where a phase of this skill assigns "
+                "the call to a dispatched delegate, the delegate issues it and the orchestrating "
+                "context records only what comes back."
+            )
+            lines.append("")
         for tn in work_tools:
             t = tools_by_name.get(tn)
             if t:
                 label = tool_group_label(t)
                 label_str = f" {label}" if label else ""
-                lines.append(f"- `{tn}`{label_str} - {_first_sentence(t['description'])}")
+                qual = callers.get(tn)
+                qual_str = f" **Caller:** {qual}." if qual else ""
+                lines.append(
+                    f"- `{tn}`{label_str} - {_first_sentence(t['description'])}{qual_str}"
+                )
         lines.append("")
 
     return "\n".join(lines).rstrip()

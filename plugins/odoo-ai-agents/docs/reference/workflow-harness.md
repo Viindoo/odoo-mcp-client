@@ -704,11 +704,13 @@ orchestrating context (main agent / run-harness / odoo-intake)
         └── named interior agent (odoo-coder coordinator, odoo-code-reviewer, …)
               └── may spawn its own subagents (depth cap 3, capability-branching - §R0)
                     └── odoo-coder is the NODE COORDINATOR (launched ONCE PER WORK
-                        NODE, whatever module(s) it touches): it launches
-                        odoo-backend-coder and/or odoo-frontend-coder (hard leaves)
-                        and tests the integrated node via Skill(odoo-instance) -
-                        inline in its own context, or by launching
-                        odoo-instance-ops - whichever fits
+                        NODE, whatever module(s) it touches): per work-item it
+                        launches odoo-test-writer FIRST, then - once that RED test
+                        is observed failing - odoo-backend-coder and/or
+                        odoo-frontend-coder to implement to it (all three are hard
+                        leaves), and tests the integrated node via
+                        Skill(odoo-instance) - inline in its own context, or by
+                        launching odoo-instance-ops - whichever fits
 ```
 
 ### Leaf vs spawn
@@ -725,14 +727,22 @@ or by an orchestrator like `run-harness`), never by launching an agent with its 
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ **ONE `odoo-coder` COORDINATOR PER NODE, launched once per node** - whatever
 the node's stack tag, whether it touches one module, part of one, or several - which itself
-launches `odoo-backend-coder` and/or `odoo-frontend-coder`; `odoo-coding` never dispatches a
-worker directly, never splits one node's dispatch module-by-module, and never merges two nodes
-into one dispatch), `odoo-debug`,
+launches `odoo-test-writer`, `odoo-backend-coder` and/or `odoo-frontend-coder`; `odoo-coding`
+never dispatches a worker directly, never splits one node's dispatch module-by-module, and never
+merges two nodes into one dispatch), `odoo-debug`,
 `odoo-solution-design`, `odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` /
 `odoo-qa-tester`). The `odoo-coder` coordinator is the sanctioned NESTED spawner (one AGENT
 level below `odoo-coding`, well under the depth cap - SSOT
-`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0); its `odoo-backend-coder` /
-`odoo-frontend-coder` workers are HARD LEAVES that launch nothing.
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0); its `odoo-test-writer`,
+`odoo-backend-coder` and `odoo-frontend-coder` workers are HARD LEAVES that launch nothing.
+
+Within a node the three teammates are ORDERED, not interchangeable. For every work-item
+`odoo-coder` launches `odoo-test-writer` first; that teammate authors the RED test and the failing
+state is observed before either coder writes production source. The test author is never the code
+author: the coders implement to the returned RED test path and never edit it. The only work-item
+exempt from the test-writer launch is one whose change cannot go red, declared through
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`. Ordering SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`.
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `odoo-intake` / `run-harness` / `workflow-chaining`

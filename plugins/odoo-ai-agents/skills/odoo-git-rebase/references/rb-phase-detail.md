@@ -702,18 +702,19 @@ This is the same check as `[[fp-symbol-survival-check]]`
 applies to SAME-SERIES rebases too: an import valid at the old base can have been removed within
 the series at the new base (e.g. `from odoo.tools import relativedelta`, valid in 17.0, removed in
 18.0 - the same class of within-series removal occurs between two same-series bases). Dispatch this
-as a read-only delegate (git-ops / Explore running `pyflakes`); the orchestrator records the
-PASS/FAIL verdict only.
+to `Explore` (read-only) - the delegate `[[fp-symbol-survival-check]]` § Who runs this check assigns
+to a static lint lane; the orchestrator records the PASS/FAIL verdict only.
 
 ```bash
 pyflakes <every-feature-touched-.py-from-the-Explore-list>   # any F821 = blocker
 ```
 
-### Collection acceptance gate (delegated to git-ops)
+### Collection acceptance gate (delegated to `Explore`)
 
-After all symbol-survival + import-resolvability blockers are resolved, invoke git-ops
-(read-only) to run the test-collection gate and return a compact PASS/FAIL; the orchestrator
-records the verdict only and never reads the diff or log inline:
+After all symbol-survival + import-resolvability blockers are resolved, dispatch `Explore`
+(read-only) - the delegate `[[fp-symbol-survival-check]]` § Who runs this check assigns to this
+class - to run the test-collection gate and return a compact PASS/FAIL plus one line per collection
+error; the orchestrator records the verdict only and never reads the diff or log inline:
 
 ```bash
 # Odoo test collection (replace with pytest --collect-only for non-Odoo test runners)
