@@ -2,8 +2,8 @@
 name: odoo-icon-design
 argument-hint: "[module] [version]"
 description: >
-  Design and generate the module identity icon (static/description/icon.png, plus icon.svg on
-  v19) - a version-correct SVG composed and rasterized to PNG 256x256. Dispatches
+  Design and generate the module identity icon (static/description/icon.png, plus the icon.svg
+  source) - a version-correct SVG composed and rasterized to PNG 256x256. Dispatches
   odoo-icon-designer. Standalone-first; no browser or instance required; OSM optional for
   module category and version grounding. Trigger on: 'design an app icon', 'make an icon for
   this module', 'create icon for addon', 'tạo icon module', 'thiết kế biểu tượng module',
@@ -112,7 +112,9 @@ fills, not with design-system token references.
 
 **Verify then commit.** Verify the `odoo-icon-designer` agent's returned artifacts against its
 Output block (files exist at the reported paths under the `WORKTREE_PATH` resolved above -
-`icon.png`, plus `icon.svg` and the `__manifest__.py` `icon` key on v19), then COMMIT
+`icon.png`, plus `icon.svg` and the `__manifest__.py` `icon` key whenever the run wrote them;
+which asset formats the target series accepts is resolved by the agent against OSM, never
+assumed from a series here), then COMMIT
 `icon.png`/`icon.svg`/the manifest `icon` key via git-toolkit `git-ops` (one-way git; the skill
 never runs raw git mutations) - never the principal checkout (S9). Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.

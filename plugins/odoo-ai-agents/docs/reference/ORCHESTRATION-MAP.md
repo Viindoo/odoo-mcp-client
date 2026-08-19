@@ -84,6 +84,5 @@ Full skill-collision policy with worked examples lives in `skills/odoo-intake/re
 ### `odoo-coding`: legacy JS widgets vs OWL (version-aware)
 
 - **No skill conflict:** A single skill - `odoo-coding` - owns all Odoo coding (backend Python/XML and front-end JS/OWL) and, for the front end, handles both paradigms internally via the `odoo-frontend-coder` agent.
-- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm by version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 is the grey zone (pre-OWL but post-legacy peak) - prefer the legacy widget system there since it is still dominant.
-- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` → legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` → OWL path. Both resolve to `odoo-coding` (frontend leg).
+- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm, and the paradigm boundary itself is owned by `snippets/odoo-era-boundaries.md` rows 1 and 1b - resolve it there. This map states no Odoo version fact of its own.
 

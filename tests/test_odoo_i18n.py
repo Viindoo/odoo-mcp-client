@@ -96,10 +96,15 @@ def test_recipe_requires_load_language():
 
 
 def test_recipe_covers_v19_subcommand():
-    """Recipe must cover the v19 `odoo-bin i18n` subcommand, not the v8-v18 server flag (KT2).
+    """Recipe must cover the v19 `odoo-bin i18n` subcommand alongside the server-flag form (KT2).
 
-    v8-v18 use server flags; v19 moves i18n onto a dedicated subcommand. A recipe that only
-    documents the server-flag form is wrong for v19.
+    Scope, corrected against the odoo-semantic index: what moved at v19 is EXPORT/IMPORT -
+    `cli_help(command='server', flag='--i18n-export', odoo_version='19.0')` reports the flag
+    absent, and `cli_help(command='i18n', ...)` reports the subcommand. Language ACTIVATION did
+    NOT move: `--load-language` is `Status: stable` on every indexed series, 8.0 through 19.0. A
+    recipe that documents only the server-flag export form is wrong for v19; a recipe that treats
+    the whole server-flag surface as gone drops the activation step and silently exports empty
+    msgstrs.
     """
     assert RECIPE.exists()
     text = RECIPE.read_text(encoding="utf-8")

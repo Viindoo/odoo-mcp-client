@@ -67,7 +67,13 @@ jobs:
     # and rule 8 agent-role) to fatal. All prior hardening PRs cleared this lint before it
     # was flipped from warn-first - a finding here means a real defect, not noise.
     steps:
+      # fetch-depth: 0 is REQUIRED, not tidiness: rule 18 [version-claim] is diff-scoped and
+      # computes its own input from `git merge-base <base> HEAD`. A depth-1 checkout has no
+      # merge base, so the rule would degrade to advisory and gate nothing - a mechanism
+      # described but never reached.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'

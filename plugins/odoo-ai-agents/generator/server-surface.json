@@ -612,7 +612,7 @@
       "name": "resolve_stylesheet",
       "version_added": "0.7.0",
       "version_removed": null,
-      "description": "Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain. LESS covers legacy v8-v11.",
+      "description": "Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.",
       "persona_tags": [
         "dev"
       ],
@@ -638,7 +638,7 @@
       "name": "find_style_override",
       "version_added": "0.7.0",
       "version_removed": null,
-      "description": "Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12).",
+      "description": "Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Covers CSS, SCSS, and LESS.",
       "persona_tags": [
         "dev",
         "consultant"

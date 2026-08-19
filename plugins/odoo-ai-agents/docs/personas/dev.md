@@ -48,8 +48,8 @@ The full **31-tool arsenal**, optimized for development workflows - understandin
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="<version>")` | Enumerate a module's CSS/SCSS/LESS stylesheet files - language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
-| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
+| `resolve_stylesheet(module, odoo_version="<version>")` | Enumerate a module's CSS/SCSS/LESS stylesheet files - language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. |
+| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS. |
 
 ### ORM-validation tools (server v0.8.0+)
 

@@ -40,8 +40,10 @@ _ALL_EIGHT_TEST_BASE_CLASSES = (
 )
 
 
-def _row(n: int) -> str:
-    """Return the raw markdown table row starting with '| n |' from the era-boundaries snippet."""
+def _row(n: int | str) -> str:
+    """Return the raw markdown table row starting with '| n |' from the era-boundaries snippet.
+
+    Accepts a string id so the sub-row `1b` is addressable the same way rows 1-7 are."""
     text = SNIPPET.read_text(encoding="utf-8")
     for line in text.splitlines():
         if line.startswith(f"| {n} |"):
@@ -262,3 +264,222 @@ def test_form_helper_window_is_v12_everywhere_not_v13():
         "odoo-test-writing/SKILL.md must cross-ref odoo-era-boundaries.md rather than restate "
         "the Form window inline"
     )
+
+
+def _count_normalized_repo(phrase: str) -> dict:
+    """`_count_normalized`'s repo-wide sibling: `.md` files under the whole repo, not just the
+    plugin tree. Needed because a wrong fact also gets restated in repo-root prose (CHANGELOG),
+    which the plugin-scoped sweep cannot see - and a deletion that survives one file is not a
+    deletion."""
+    needle = _WS.sub(" ", phrase)
+    hits = {}
+    for p in ROOT.rglob("*.md"):
+        if not p.is_file() or ".git" in p.parts or ".venv" in p.parts:
+            continue
+        n = _WS.sub(" ", p.read_text(encoding="utf-8")).count(needle)
+        if n:
+            hits[str(p.relative_to(ROOT))] = n
+    return hits
+
+
+# ---------------------------------------------------------------------------
+# Row 1 - frontend module system (and the narrative that must NOT come back)
+# ---------------------------------------------------------------------------
+
+def test_row1_states_the_module_system_boundary_and_the_compat_shim():
+    """Row 1 is the SSOT for the module-system era. Both halves are load-bearing: the boundary
+    itself (legacy AMD/Widget through v14, ES6 modules from v15), AND the fact that `odoo.define()`
+    stays LOADABLE past it - an adapt that deletes a working `odoo.define()` call on v16/v17
+    because "the legacy system was removed" is the concrete harm this row prevents."""
+    row1 = _row(1)
+    assert "v8-v14" in row1, "row 1 must state the legacy module-system window"
+    assert "v15+" in row1, "row 1 must state the modern ES6 module-system window"
+    assert "compat shim" in row1, "row 1 must state that odoo.define() survives via a compat shim"
+    assert "NOT removed at v16" in row1, (
+        "row 1 must state that the legacy module system is NOT removed at v16 - the claim an "
+        "agent will otherwise carry over from the pattern text it reads"
+    )
+
+
+def test_row1_carries_no_narrative_about_the_osm_server_being_wrong():
+    """A boundary row's evidence column cites CALLS AND RESULTS. It must not argue with the OSM
+    server, narrate a re-grounding session, or quote the wrong claim it is correcting: an executing
+    agent gains nothing from the argument, and a quoted wrong claim is a wrong claim the next
+    reader can lift out of context. Swept over the whole repo, not just this row, because the
+    narrative's whole failure mode is being copied elsewhere."""
+    for phrase in (
+        "REFUTED server-text inaccuracy",
+        "known wording bug in the SEPARATE OSM-server repo",
+        "Re-grounded this session",
+        "removed in v16",
+    ):
+        hits = _count_normalized_repo(phrase)
+        assert not hits, (
+            f"{phrase!r} must not survive in any committed markdown - it is narrative, or the "
+            f"very claim the row corrects, not an instruction; found: {hits}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Row 1b - OWL library major vs patch() arity (a DECOUPLED axis)
+# ---------------------------------------------------------------------------
+
+def test_row1b_keeps_owl_major_and_patch_arity_decoupled():
+    """The two facts on this row travel together and are routinely conflated: OWL 2.x lands at
+    v16, but `patch()` drops its `name` argument only at v17. Reading arity off the OWL major
+    produces a 2-arg call on a v16 target (broken) or a 3-arg call on v17 (equally broken)."""
+    row1b = _row("1b")
+    assert "DECOUPLED" in row1b, "row 1b must state that the two axes are decoupled"
+    assert "v16" in row1b, "row 1b must state where OWL 2.x lands"
+    assert "patch(proto, name, obj)" in row1b, "row 1b must show the 3-arg signature"
+    assert "patch(proto, obj)" in row1b, "row 1b must show the 2-arg signature"
+    assert "v17" in row1b, "row 1b must state the series where the arity changes"
+    assert "NOT a v16 marker" in row1b, (
+        "row 1b must state explicitly that a 2-arg patch() call is a v17 marker, not a v16 one"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Row 2 - JS test framework: DOMINANCE, not replacement
+# ---------------------------------------------------------------------------
+
+def test_row2_states_dominance_not_replacement():
+    """Row 2's rule is the one a JS test author, a log parser and a failure counter all read.
+    Stated as a REPLACEMENT it makes every one of them series-gate to a single framework and drop
+    real QUnit failures that still occur on v18/v19 (observed at runtime on both). Stated as
+    DOMINANCE it makes them read both vocabularies, which is the only correct behavior."""
+    row2 = _row(2)
+    assert "DOMINANT" in row2, "row 2 must state Hoot becomes DOMINANT, not that it replaces QUnit"
+    assert "does NOT replace QUnit" in row2, (
+        "row 2 must say outright that Hoot does NOT replace QUnit - the absolute this row corrects"
+    )
+    assert "v18.0" in row2, "row 2 must name the series where Hoot becomes dominant"
+    assert "still FAIL" in row2, (
+        "row 2 must state that a QUnit suite can still FAIL after that point - the reason a "
+        "counter may not skip it"
+    )
+    assert "NEVER series-gate" in row2, "row 2 must forbid series-gating a JS reader"
+    assert "js_test_inspect(" in row2, (
+        "row 2 must name the call that resolves the real per-module framework mix"
+    )
+
+
+def test_row2_evidence_shows_qunit_surviving_on_both_later_series():
+    """The evidence column must show QUnit files present at BOTH v18 and v19. An evidence column
+    that only proves Hoot's arrival is exactly what let the refuted absolute stand for so long -
+    the row's own evidence already contradicted its rule."""
+    row2 = _row(2)
+    assert "'18.0'" in row2 and "'19.0'" in row2, (
+        "row 2's evidence must cite the js_test_inspect calls for both later series"
+    )
+    assert "qunit 16" in row2 and "qunit 4" in row2, (
+        "row 2's evidence must carry the surviving QUnit file counts at v18 and v19"
+    )
+
+
+def test_the_replaced_qunit_absolute_does_not_regrow_anywhere():
+    """Whole-repo negative sweep for the refuted absolute, in every phrasing it shipped in."""
+    for phrase in (
+        "Hoot replaces QUnit",
+        "QUnit through v17.0",
+        "QUnit through v17",
+    ):
+        hits = _count_normalized_repo(phrase)
+        assert not hits, (
+            f"The refuted absolute {phrase!r} must not survive anywhere: QUnit still ships and "
+            f"still fails on v18/v19. Found: {hits}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Row 7 - core stylesheet language
+# ---------------------------------------------------------------------------
+
+def test_row7_states_the_stylesheet_language_boundary():
+    """Row 7 exists because no SSOT owned this axis, so eleven files each invented a window and
+    all eleven were wrong (core `web` ships ZERO `.less` files at v8 and ZERO at v12). The row
+    must carry the real windows AND the per-module resolution instruction, because the windows
+    describe core `web` only."""
+    row7 = _row(7)
+    assert "v8.0" in row7 and "CSS" in row7, "row 7 must state that v8.0 is plain CSS only"
+    assert "v9.0-v11.0" in row7, "row 7 must state the LESS window as v9.0-v11.0"
+    assert "v12.0 onward" in row7, "row 7 must state SCSS from v12.0 onward"
+    assert "resolve_stylesheet(" in row7, (
+        "row 7 must name the call that resolves a module's real stylesheet language"
+    )
+    assert "never infer" in row7.lower(), (
+        "row 7 must forbid inferring a module's stylesheet language from the series alone"
+    )
+
+
+def test_row7_evidence_proves_both_edges_of_the_less_window():
+    """Both edges, not one: the committed wrong windows (`v8-v11`, `~v8-v12`) were wrong at the
+    LOW end and the HIGH end respectively, so evidence for only one edge would have left half of
+    them looking defensible."""
+    row7 = _row(7)
+    assert "'8.0'" in row7 and "zero `.less`" in row7, (
+        "row 7's evidence must show v8.0 shipping zero .less files (the low edge)"
+    )
+    assert "'12.0'" in row7 and "63 `scss`" in row7, (
+        "row 7's evidence must show v12.0 already fully SCSS (the high edge)"
+    )
+
+
+def test_no_committed_file_states_a_stylesheet_language_window():
+    """Whole-repo sweep: with row 7 in place, no other file may restate a LESS/SCSS era window.
+
+    Every phrase below was committed somewhere in this repo and every one of them is refuted by
+    `resolve_stylesheet('web', <series>)`."""
+    for phrase in (
+        "LESS covers legacy v8-v11",
+        "LESS covers the legacy pre-SCSS era",
+        "LESS for the legacy pre-SCSS era",
+        "LESS targets legacy v8-v11 modules",
+        "LESS bao phủ kỷ nguyên cũ tiền-SCSS",
+        "LESS cho kỷ nguyên cũ tiền-SCSS",
+    ):
+        hits = _count_normalized_repo(phrase)
+        assert not hits, (
+            f"Stylesheet-era window {phrase!r} must live only in odoo-era-boundaries.md row 7; "
+            f"found: {hits}"
+        )
+    row7 = _row(7)
+    assert "less" in row7.lower(), "row 7 itself must still own the LESS window"
+
+
+# ---------------------------------------------------------------------------
+# The other corrected facts must not regrow either
+# ---------------------------------------------------------------------------
+
+def test_corrected_version_facts_do_not_regrow():
+    """One sweep per corrected fact, each phrase verified WRONG against the odoo-semantic index:
+
+    - `--load-language` is `Status: stable` on every indexed series, 8.0 through 19.0; only
+      `--i18n-export` is absent at 19.0, so "the server-flag form ... is GONE" is false.
+    - `.svg` is already in `_get_icon_image`'s accepted extension set well before v19 (and v13 has
+      no extension filter at all), so gating an SVG icon on v19 is false.
+    - the server registers `standard_viindoo_8` through `standard_viindoo_19`, so naming only
+      17/18 teaches an agent the family stops there.
+    - neither `odoo-forward-port` nor `odoo-solution-design` contains any file-count or
+      module-count threshold, so attributing one to them is a borrowed authority that does not
+      exist."""
+    for phrase, why in (
+        ("`--load-language`) is GONE",
+         "--load-language is stable on every indexed series"),
+        ("plus icon.svg on v19",
+         "SVG module icons predate v19"),
+        ("`icon` key on v19",
+         "the manifest icon key is read well before v19"),
+        ("`standard_viindoo_17/18`",
+         "the profile family spans every indexed series"),
+        ("> 3 files** OR **>= 2 modules",
+         "no named source defines that threshold"),
+        ("spans > 3 files or >= 2 modules",
+         "no named source defines that threshold"),
+        ("spans > 3 files / >= 2 modules",
+         "no named source defines that threshold"),
+        ("small/large boundary forward-port and solution-design already use",
+         "neither file contains the threshold it is attributed to"),
+    ):
+        hits = _count_normalized_repo(phrase)
+        assert not hits, f"{phrase!r} must not survive ({why}); found: {hits}"

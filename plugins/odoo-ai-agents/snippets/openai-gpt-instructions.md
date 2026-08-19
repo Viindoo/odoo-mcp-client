@@ -72,11 +72,11 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 **describe_module** - module architecture overview; module_inspect(name=<module>, method="summary", odoo_version='<version>') returns the same data plus extras
   WHEN: "what is module [X]", "what does module [X] do", "describe module [X]", "overview of [X]", "module [X] làm gì"
 
-**resolve_stylesheet** ✦ - enumerate a module's CSS/SCSS/LESS stylesheet files (language, selector/var/mixin/import counts, @import chain; LESS covers legacy v8-v11)
+**resolve_stylesheet** ✦ - enumerate a module's CSS/SCSS/LESS stylesheet files (language, selector/var/mixin/import counts, @import chain)
   WHEN: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in [X]", "@import chain for module [X]", "stylesheet inventory for [X]"
   ARGS: module (required), odoo_version (required; pass the concrete pinned version)
 
-**find_style_override** ✦ - find where a CSS selector / SCSS/LESS variable is first defined and which modules override it, with the full override chain (LESS for the legacy pre-SCSS era, ~v8-v12)
+**find_style_override** ✦ - find where a CSS selector / SCSS/LESS variable is first defined and which modules override it, with the full override chain
   WHEN: "where is selector [X] defined", "find SCSS variable $[X]", "find LESS variable @[X]", "which module overrides [selector]", "branding/theming override for [X]"
   ARGS: selector_or_variable (required), odoo_version (required; pass the concrete pinned version), limit (optional, default 5)
 

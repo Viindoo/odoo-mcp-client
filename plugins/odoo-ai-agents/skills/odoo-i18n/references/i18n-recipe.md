@@ -19,12 +19,14 @@ a live DB + registry. No no-DB workaround (babel/polib cannot walk the module's 
 the way Odoo's registry does). Missing instance is a BLOCK, not a fallback - acquire per
 `docs/reference/INSTANCE-LIFECYCLE.md`.
 
-Ground every odoo-bin flag for the target series before invoking - server flags v8-v18 vs the
-`i18n` subcommand v19+:
+Ground every odoo-bin flag for the target series before invoking - the EXPORT/IMPORT surface
+is the half that moved off the server flags onto an `i18n` subcommand; the language-ACTIVATION
+flag did not move. Resolve each one, never assume from the series:
 
 ```
-cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag)
-cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
+cli_help(command='i18n-export', odoo_version='<target>')            # export: server flag, where it still exists
+cli_help(command='i18n', odoo_version='<target>')                   # export/import/loadlang subcommand, where it exists
+cli_help(command='server', flag='--load-language', odoo_version='<target>')  # activation
 ```
 
 Examples below use `<lang>` as the target-language placeholder. There is no default target
@@ -46,7 +48,8 @@ Two distinct exports - pick the one you need:
 **KT1 - `--load-language` ACTIVATES the translation in the DB; `--language`/`-l` only SELECTS the
 export file.** Two different flags, both needed for a translated export:
 
-- `--load-language=<lang>` (v8-v18) / `odoo-bin i18n loadlang -l <lang>` (v19+) LOADS the language
+- `--load-language=<lang>` - or the `odoo-bin i18n loadlang -l <lang>` subcommand form where
+  `cli_help` reports it - LOADS the language
   INTO the DB so its `msgstr`s become active and exportable. Omit it -> empty `msgstr`s.
 - `--language=<lang>` (export flag, v8-v18) / `-l <lang>` (`i18n export`, v19+) SELECTS which
   language the export file targets. Does NOT load the translation; without the load step it emits
@@ -55,8 +58,8 @@ export file.** Two different flags, both needed for a translated export:
 **KT3 - `en_US` MUST ALWAYS be loaded/active alongside every target language.** `en_US` is Odoo's
 base/source language; the export baseline and the `-u` reload resolve correctly ONLY when it is
 active. Loading ONLY the target language (e.g. `--load-language=vi_VN`) is the #1 operational
-failure mode - ALWAYS include `en_US` in the activation set: `--load-language=en_US,<lang>` (v8-v18),
-or a preceding `odoo-bin i18n loadlang -d <db> -l en_US` call (v19+). `en_US` is an ACTIVATION
+failure mode - ALWAYS include `en_US` in the activation set: `--load-language=en_US,<lang>`, or a
+preceding `odoo-bin i18n loadlang -d <db> -l en_US` call in the subcommand form. `en_US` is an ACTIVATION
 requirement only - it is NEVER a translation deliverable (Odoo ships no `en_US.po`; do not export
 one).
 
@@ -110,12 +113,16 @@ odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
 are met installs alongside the target, injecting THEIR terms into the registry and polluting the
 `.pot`/`.po` with foreign `msgid`s.
 
-### v19+ (the `i18n` subcommand replaces the server flags)
+### The `odoo-bin i18n` subcommand era (EXPORT/IMPORT only - NOT language activation)
 
-v19 moves i18n onto a dedicated `odoo-bin i18n` subcommand (`loadlang` / `export` / `import`). The
-server-flag form (`--i18n-export`, `--load-language`) is GONE - do NOT carry the `>= 17` recipe
-into v19. Ground exact sub-subcommand flags via `cli_help(command='i18n', odoo_version='19.0')`
-before invoking:
+v19 moves i18n export/import onto a dedicated `odoo-bin i18n` subcommand (`loadlang` / `export` /
+`import`), and `--i18n-export` is no longer a server flag there -
+`cli_help(command='server', flag='--i18n-export', odoo_version='19.0')` -> not found on command
+'server'. `--load-language` is NOT part of that move: it is still a stable server flag there -
+`cli_help(command='server', flag='--load-language', odoo_version='19.0')` -> `Status: stable` -
+so never drop it when carrying an earlier recipe forward, and never assume the subcommand replaced
+it. Ground exact sub-subcommand flags via `cli_help(command='i18n', odoo_version='19.0')` before
+invoking:
 
 ```bash
 # install the module (still a server-flag concern) - memory-cap policy:
@@ -240,7 +247,7 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
 
    **Pre-condition - target language must be active in the DB (KT1).** Before `-u`, confirm the
    target language is LOADED (Settings > Translations > Activate a language, or `--load-language=<lang>`
-   on the install run for v8-v18 / `odoo-bin i18n loadlang -d <db> -l <lang>` for v19+ - see L1).
+   on the install run, or `odoo-bin i18n loadlang -d <db> -l <lang>` in the subcommand form - see L1).
    Absent language -> reload succeeds silently but translations do not load at runtime - false pass.
    **`en_US` must ALSO be active (KT3).** Confirm BOTH `en_US` (the base/source language) and each
    `<lang>` are loaded before the reload - not the target language alone.

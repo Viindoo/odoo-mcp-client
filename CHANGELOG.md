@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Seven wrong Odoo facts, each re-verified against the Odoo Semantic index before the
+  replacement was written.** `--load-language` is `Status: stable` on every indexed series, so the
+  "server-flag form is GONE at v19" split is deleted from the `odoo-i18n` recipe, skill and
+  translator agent (only `--i18n-export` moved onto the `odoo-bin i18n` subcommand). Core `web`
+  ships zero `.less` files at 8.0 and zero at 12.0, so all eleven committed LESS/SCSS era windows
+  are deleted along with the CHANGELOG parenthetical that restated one. `web` carries 16 OWL
+  components at 14.0 and none at 13.0, so the generator's "Odoo v14 is the grey zone (pre-OWL)"
+  claim is deleted. `.svg` is in the accepted module-icon extension set well before 19.0, so
+  `odoo-icon-design`'s v19 gate on `icon.svg` is deleted. The server registers
+  `standard_viindoo_8` through `standard_viindoo_19`, so `odoo-brl`'s "17/18" parenthetical is
+  deleted. Neither `odoo-forward-port` nor `odoo-solution-design` defines any file-count or
+  module-count threshold, so `odoo-git-rebase`'s invented "> 3 files OR >= 2 modules" rule and its
+  false attribution are deleted at all four sites.
+- **`snippets/odoo-era-boundaries.md` row 2 rewritten before it was guarded.** Hoot becomes the
+  DOMINANT JS test framework at 18.0; it does not replace QUnit, which keeps shipping (16 files at
+  18.0, 4 at 19.0) and can still fail. Never series-gate a JS reader to one framework.
+- **Row 1's argue-with-the-index narrative deleted.** A boundary row's evidence column cites calls
+  and results; it does not litigate a wording bug in the server repo, narrate a re-grounding
+  session, or quote verbatim the wrong claim it exists to correct - a quoted wrong claim is one the
+  next reader can lift back out of context.
+
+### Added
+
+- **`snippets/odoo-era-boundaries.md` row 7 - core stylesheet language.** The axis no SSOT owned,
+  which is why eleven files each invented a window and all eleven were wrong.
+- **Two lints in `check_orchestration.py`.** `[gen-prose]` runs the version trigger over the
+  generator's RENDERED output rather than its Python source (proven red on the real defect before
+  the delete that clears it). `[version-claim]` is diff-scoped: tree-wide the same trigger leaves
+  855 residual hits across 158 files, so it gates only the lines a change adds, and degrades to
+  advisory when no merge base resolves. `orchestration-check` CI now checks out with
+  `fetch-depth: 0` so that diff is computable.
+
+### Removed
+
+- The seven hand-written `Consumers:` blocks in `snippets/`, plus the stale one in
+  `odoo-era-boundaries.md`. A citer list is derivable, so storing it twice only let it drift - it
+  had, in both directions. Each is replaced by the one-line `grep -rl` that re-derives it.
+
 ## [5.0.0] - 2026-08-17
 
 A plan used to be a batch of batches. `odoo-planner` grouped modules into waves, `run-harness` ran a
@@ -4181,7 +4221,7 @@ Detailed orchestration log retained internally.
   arg descriptions for `model_inspect` and `module_inspect` across the routing matrix and all
   adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT).
 - **`.less` stylesheet coverage** - `resolve_stylesheet` and `find_style_override` now cover
-  CSS, SCSS, and LESS files (LESS targets legacy v8-v11 modules). Updated routing matrix §2
+  CSS, SCSS, and LESS files. Updated routing matrix §2
   tool entries, legend, dev persona, and all adapter snippets to read "CSS/SCSS/LESS".
 
 ### Added (v0.8 server surface)
