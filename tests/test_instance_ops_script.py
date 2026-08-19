@@ -9,6 +9,11 @@ Business contracts protected:
              python and propagates exit code; on exit 10 prints a clear
              venv-unavailable error (does NOT raw-dropdb).
   4. update - uses -u not -i.
+  5. unaccent - every DB-CREATING odoo-bin run (init/update/test) asks Odoo to
+             install the unaccent extension. Odoo reads --unaccent only in its
+             database-creation path, which never runs again for that database,
+             so a DB created without it silently loses accent-insensitive search
+             and its unaccent() trigram indexes - permanently.
 
 Offline: no PostgreSQL, no real Odoo, no network. All odoo-bin / odoo_db.py
 calls go to stub scripts on a synthetic PATH / --python.
@@ -2670,3 +2675,108 @@ def test_drop_omits_odoo_root_when_not_declared(tmp_path):
     res = _run("drop", "--db", "dropme", "--python", str(fake_py), env=_base_env(tmp_path))
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     assert "--odoo-root" not in log.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Contract 5: unaccent is requested on every DB-creating odoo-bin run
+#
+# Odoo consumes --unaccent ONLY in its database-CREATION path
+# (service/db.py _create_empty_database), which cli/server.py runs for EVERY
+# invocation naming a -d database that does not exist yet. Nothing re-runs that
+# path afterwards, so a database created without the flag can never be repaired
+# by a later run: Odoo probes the DB at registry build (modules/db.py
+# has_unaccent) and silently degrades - accent-insensitive search is dropped and
+# the trigram indexes that would have been built over unaccent() are not, with
+# no error raised. Whichever subcommand reaches a fresh DB first is its creator,
+# so init, update AND test must each carry the flag - covering only init would
+# leave the other two able to create an unaccent-less database.
+#
+# The flag is a stable `server` option across v8-v19, so these assertions carry
+# no series gate by design.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_asks_odoo_to_install_unaccent(tmp_path):
+    """init creates the database, so it must request unaccent while it still can."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init",
+        "--db", "unaccentdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"init failed:\nstdout={res.stdout}\nstderr={res.stderr}"
+
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--unaccent" in call_content, (
+        "init is the database-creating run: without --unaccent the new DB gets pg_trgm "
+        "but not unaccent, and no later run can add it back. "
+        f"odoo-bin was called as: {call_content}"
+    )
+
+
+@requires_bash
+def test_update_asks_odoo_to_install_unaccent(tmp_path):
+    """update creates the DB when it is the first to name a missing one."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update",
+        "--db", "unaccentupdatedb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"update failed:\nstdout={res.stdout}\nstderr={res.stderr}"
+
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--unaccent" in call_content, (
+        "update is inert on an existing DB but is the CREATOR when it is the first run to "
+        "name a missing one - the only moment unaccent can still be installed. "
+        f"odoo-bin was called as: {call_content}"
+    )
+
+
+@requires_bash
+def test_test_verb_asks_odoo_to_install_unaccent(tmp_path):
+    """test runs with -i on a fresh DB, so it creates databases too."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "unaccenttestdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--unaccent" in call_content, (
+        "the test verb installs into a throwaway DB it creates itself; a test database "
+        "whose search behaves differently from production is a false green. "
+        f"odoo-bin was called as: {call_content}"
+    )

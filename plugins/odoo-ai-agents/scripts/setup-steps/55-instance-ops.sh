@@ -16,7 +16,7 @@
 #   init    --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
-#                  --stop-after-init --log-level=info
+#                  --unaccent --stop-after-init --log-level=info
 #                  --log-handler=<ns>.modules.loading:INFO <extra>
 #             Persistent log + LOG_PATH= + STATUS= lines.
 #
@@ -1546,11 +1546,35 @@ cmd_init() {
         # loaded - the ABSENCE of a wrong path is the only signal otherwise).
         # This line makes the RESOLVED addons-path greppable in the log itself.
         echo "allocator: ADDONS_PATH_USED=$addons_csv"
+        # --unaccent is consumed ONLY by Odoo's database-CREATION path
+        # (service/db.py _create_empty_database), and cli/server.py runs that
+        # path for EVERY odoo-bin invocation naming a -d database that does not
+        # exist yet - so whichever subcommand reaches a fresh DB first is its
+        # creator. That is why init/update/test all carry the flag, not init
+        # alone.
+        # Without it a new DB gets pg_trgm but NOT unaccent, and the miss is
+        # PERMANENT: nothing re-runs the creation path afterwards. Odoo then
+        # probes the database at registry build (modules/db.py has_unaccent)
+        # and silently DEGRADES - accent-insensitive search is dropped and the
+        # trigram indexes that would have been built over unaccent() are not,
+        # with no error raised and nothing in the log to grep for. Odoo's own
+        # creation path also issues the ALTER FUNCTION unaccent(text) IMMUTABLE
+        # those indexes require (has_unaccent returns INDEXABLE only for
+        # provolatile='i'), so passing the flag is sufficient - no post-hoc SQL
+        # belongs here.
+        # Never fails a build: Odoo wraps its CREATE EXTENSION in try/except
+        # psycopg2.Error and only logs a warning, so a cluster whose role may
+        # not create extensions degrades instead of erroring (PG13+ marks
+        # unaccent `trusted`, where a plain DB owner suffices; PG12 and older
+        # need a superuser).
+        # Stable `server` option across v8-v19 - only its help text changed (at
+        # v10), never the flag - so unlike --dev=all this needs NO series gate.
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             -i "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            --unaccent \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
@@ -1639,11 +1663,17 @@ cmd_update() {
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
         echo "allocator: ADDONS_PATH_USED=$addons_csv"
+        # --unaccent - rationale in cmd_init above. Inert when the database
+        # already exists (DatabaseExists short-circuits Odoo's creation path);
+        # it earns its place when this subcommand is the first to name a
+        # not-yet-existing database, which is the only moment unaccent can
+        # still be installed.
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             -u "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            --unaccent \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
@@ -1747,11 +1777,17 @@ cmd_test() {
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
         echo "allocator: ADDONS_PATH_USED=$addons_csv"
+        # --unaccent - rationale in cmd_init above. Inert when the database
+        # already exists (DatabaseExists short-circuits Odoo's creation path);
+        # it earns its place when this subcommand is the first to name a
+        # not-yet-existing database, which is the only moment unaccent can
+        # still be installed.
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             "$mode_flag" "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            --unaccent \
             --test-enable \
             "${test_tags_args[@]}" \
             --stop-after-init \
