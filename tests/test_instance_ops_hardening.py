@@ -2396,3 +2396,77 @@ def test_the_never_sudo_rule_survives_and_still_covers_pg_hba():
         "the rule must keep both halves: advise only, and the user performs the "
         "privileged change"
     )
+
+
+# ---------------------------------------------------------------------------
+# The operation SET, not just the operation COUNT.
+#
+# `tests/test_counted_section_reference_agreement.py` proves the NUMBER in
+# `## Seven operations` agrees with every cross-file citation of that heading.
+# That is the single-syntax half, and on its own it is satisfied by a rename, a
+# swap, or two errors that cancel: seven headings and seven dispatch values can
+# disagree on every member and still both be seven. This is the other half - the
+# MEMBERSHIP check - and the two are deliberately kept as separate guards so a
+# failure names which kind of drift happened.
+#
+# The two sides are genuinely different vocabularies and the mapping between them
+# is stated here rather than assumed: the agent names its operations by their full
+# `<verb>-<object>` heading (`create-instance`, `init-modules`), while the skill's
+# dispatch table names the VERB a caller passes (`create`, `init`). One agent
+# heading legitimately covers two dispatch values (`ensure-up / status`).
+# ---------------------------------------------------------------------------
+_OPERATION_HEADING_RE = re.compile(r"^###\s+\d+\.\s+(.+?)\s*$", re.M)
+_OPERATION_OBJECT_SUFFIXES = ("-instance", "-modules")
+
+
+def _agent_operation_verbs() -> set[str]:
+    """The dispatch verbs the agent's numbered operation headings cover."""
+    text = AGENT_MD.read_text(encoding="utf-8")
+    start = text.index("## Seven operations")
+    end = text.find("\n## ", start)
+    section = text[start:] if end == -1 else text[start:end]
+    verbs = set()
+    for m in _OPERATION_HEADING_RE.finditer(section):
+        for part in m.group(1).split("/"):
+            name = part.strip()
+            for suffix in _OPERATION_OBJECT_SUFFIXES:
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)]
+                    break
+            verbs.add(name)
+    return verbs
+
+
+def _skill_dispatch_verbs() -> set[str]:
+    """The `operation` row of the skill's dispatch table, as a set."""
+    for line in SKILL_MD.read_text(encoding="utf-8").splitlines():
+        if line.startswith("| `operation`"):
+            cells = [c.strip() for c in line.split("|")]
+            return {v.strip(" `") for v in cells[2].split("/") if v.strip()}
+    raise AssertionError("the skill's dispatch table has no `operation` row any more")
+
+
+def test_the_operation_discovery_floors_hold():
+    """Both extractors must actually find something. A guard that compares two
+    empty sets is the failure mode this whole pair exists to avoid."""
+    assert len(_agent_operation_verbs()) >= 7, (
+        f"the agent's operation headings did not parse: {sorted(_agent_operation_verbs())}"
+    )
+    assert len(_skill_dispatch_verbs()) >= 7, (
+        f"the skill's dispatch row did not parse: {sorted(_skill_dispatch_verbs())}"
+    )
+
+
+def test_operation_set_matches_the_dispatch_table():
+    """Every operation the agent implements is dispatchable, and every value the
+    skill accepts is implemented.
+
+    A value in the skill that the agent never implements is a dispatch the agent
+    answers by improvising; an operation in the agent no skill value reaches is
+    this repo's signature defect - a correct mechanism nothing calls."""
+    agent, skill = _agent_operation_verbs(), _skill_dispatch_verbs()
+    assert agent == skill, (
+        "the agent's operations and the skill's dispatch values have drifted apart.\n"
+        f"  only in agents/odoo-instance-ops.md: {sorted(agent - skill)}\n"
+        f"  only in skills/odoo-instance/SKILL.md: {sorted(skill - agent)}"
+    )

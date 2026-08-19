@@ -113,7 +113,20 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
     "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
     "owner": { "host": "<hostname>", "pid": 41234, "pid_started": "<ps-lstart-fingerprint|absent>",
                "run_id": "<run-id>", "started_at": <epoch> },
-    "ttl_s": 3600, "heartbeat_at": <epoch> } ] }   // ttl_s default == DEFAULT_TTL_S in scripts/lib/allocator.py (SSOT)
+    "ttl_s": 3600, "heartbeat_at": <epoch>,
+    "parked_at": <epoch|absent>, "park_ttl_s": 86400, "parked_boot_id": "<kernel boot id|absent>" } ] }
+                                                   // ttl_s default == DEFAULT_TTL_S in scripts/lib/allocator.py (SSOT)
+
+The three `parked_*` keys are present TOGETHER or not at all, and their presence IS the PARKED
+state - there is no separate status field to drift from them. `park` writes them (and clears
+`owner.pid`/`owner.pid_started`); `resume` DELETES all three in the same locked write that records
+the new owner pid. `park_ttl_s` defaults to `DEFAULT_PARK_TTL_S` (24h) in `scripts/lib/allocator.py`
+(SSOT) - an order of magnitude looser than `ttl_s` because it budgets DISK, not RAM: park stopped
+the server's process group before it cleared the pid. `parked_boot_id` is this boot's kernel
+identity (`/proc/sys/kernel/random/boot_id`), compared at reclaim time so a budget that elapsed
+only because the host was OFF is not read as one that was consumed; it is absent wherever that file
+cannot be read (not Linux), and the comparison then degrades to the plain budget check. §7 states
+the arm.
 
 `owner.pid_started` is a recycling-resistant fingerprint of the process that occupied `pid` at
 the moment it was recorded (`ps -o lstart=` - the process's wall-clock start time; portable across
@@ -171,10 +184,11 @@ CLI flag carries each (an HTTP port, plus a longpoll/gevent port on series that 
 `cli_help` for the `<series>` at runtime - the allocator just hands out N version-agnostic free port numbers.
 This removes most port contention outright.
 
-**`persist:` (caller-facing concept, NOT a fifth allocator mode).** `skills/odoo-instance/SKILL.md`'s
-`persist` field (`ephemeral` | `exclusive-running` | `shared-running`) is the SKILL/AGENT-level
-lifecycle/isolation choice a caller makes; it maps onto the four allocator modes above rather than
-adding a fifth:
+**`persist:` - THE SSOT for this vocabulary.** This block is the ONE place the `persist` values are
+spelled out; every skill, agent and snippet that needs them points HERE instead of restating them
+(a second list is how one of them silently loses a value). `persist` is the SKILL/AGENT-level
+lifecycle/isolation vocabulary, NOT a fifth allocator mode: it maps onto the four allocator modes
+above. Four values:
 
 - `persist: ephemeral` -> allocator `ephemeral`, `--ports 0` (a throwaway `--stop-after-init` build).
 - `persist: exclusive-running` -> allocator `ephemeral`, `--ports 1` (or `2`) + `--run-id <id>` - the
@@ -182,8 +196,16 @@ adding a fifth:
   listening process (`50-instance-spinup.sh --exclusive`, `agents/odoo-instance-ops.md` operation 1)
   instead of `--stop-after-init`. This lease NEVER falls back to the declared/`8069` port - the port
   always comes from this acquire (P5 port-uniqueness gate, below).
+- `persist: exclusive-parked` -> the SAME lease as `exclusive-running` after `allocator.py park`:
+  the server's process group is stopped (so it holds no RAM) while the database, the filestore and
+  the pooled ports stay reserved, under `park_ttl_s` instead of the owner-pid arms. This is a STATE
+  a lease is put into and taken out of (`park` / `resume`), never a value a caller requests at
+  create time - which is exactly why it belongs in this vocabulary: without it, "the instance is
+  suspended but its database must survive" is unrepresentable, and the only exits left are destroy
+  it or leak it. `resume <token> --pid <new server pid>` returns it to `exclusive-running` in one
+  locked compare-and-set; `query --series <X.Y> --state parked` is how a later dispatch finds it.
 - `persist: shared-running` -> allocator `shared`, now REQUIRED to be owner-stamped via `--run-id`
-  (§6.3) so a foreign session can no longer bare-drop it.
+  (§6.3) so a foreign session can no longer bare-drop it. Never parkable - see the `park` row in §6.
 
 **P5 port-uniqueness gate.** `_pick_ports` (§6 `acquire`) excludes the instance's declared `http_port`
 from the pool outright - both by defaulting `http_port_base` to `declared_port + 1` when the catalog
@@ -249,9 +271,11 @@ existing reader, so shell consumers stay simple.
 | Command | Behavior |
 |---------|----------|
 | `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--run-id <id>] (alias --session)` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); for a mode that will build, gate on DB_AUTH then CREATEDB and REFUSE per §6.6 (exits 6/7/8/9, no lease written) - both asked of the CLUSTER as LIVE queries, never inferred from installed binaries, and BOUNDED by `$ODOO_AI_PG_PROBE_TIMEOUT`; print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER/ALLOC_DB_PORT/ALLOC_RUN_ID`. `--run-id` is the canonical ownership key (the intake Phase P run id); `--session` is kept only as a back-compat alias for the same slot. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
-| `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
+| `query --series <X.Y> [--state parked] [--run-id <id>] [--force-attach]` | read-only cross-session discovery. Default (no `--state`): the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none - unchanged, so no existing caller moves. `--state parked`: the resumable PARKED lease for the series instead (adds `ALLOC_PARKED_AT`), so a returning dispatch finds the instance an earlier one suspended rather than rebuilding it. A parked lease has no live owner by construction, so it is HOST-and-SERIES scoped: this run's own parked lease is returned silently; another run's parked lease ON THIS HOST is returned with `ALLOC_ATTACHED_FROM_RUN=<owning run>` so the attach is REPORTED rather than gated; a parked lease on a different host needs `--force-attach` (its database may live on another cluster). A lease its own budget has already condemned is skipped. Does not mutate the registry |
 | `bind <token> --pid <server_pid>` | under flock: verify the token, then UPSERT the live server pid onto that lease's `owner.pid` (the same slot the `shared` acquire path writes). Refuses an unknown token or a missing `--pid`. Used by the `exclusive-running` spin-up: the caller acquires the lease first (reserving db + ports), then binds the launched server pid so `release`/`gc` can stop the whole process GROUP before the drop. Also upgrades gc for exclusive leases from ttl-only to fast-path pid-dead reclaim, for free |
 | `release <token> [--run-id <id>] [--force] [--force-forget]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`. On success, ORDER IS MANDATORY: (1) if the lease carries an `owner.pid` on THIS host that is alive AND PROVEN to be this lease's own server (`_stop_owner_group_if_local` -> `_ownership_proof`; an unproven pid is reported and NEVER signalled), STOP the server's process GROUP first (`_stop_group`: SIGTERM -> bounded wait -> group SIGKILL - reaps master + HTTP workers + cron + gevent/longpolling + any `--dev=reload` watchdog); (2) THEN, if `drop_on_release`, drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`; raw `dropdb` as logged fallback when venv unavailable). Stopping the group first releases the DB connections that would otherwise block `DROP DATABASE`; `odoo_db.py`'s `pg_terminate_backend` remains as a second belt. A lease with no live local pid (legacy pre-setsid / shared / already-dead) skips the stop - no-op, always safe. A drop that did not happen is CLASSIFIED by whether the database exists before anything is named or released (§6.7) |
+| `park <token> [--park-ttl <s>]` | under flock: SUSPEND a RUNNING lease without destroying anything it reserved. Order is mandatory: (1) refuse a `shared` lease (exit 3 - the shared row is the single answer `query --series` gives, and a parked twin would make that lookup two-valued) and a lease with no `owner.pid` (exit 4 - not RUNNING: nothing to stop, and an already-parked lease lands here because park cleared its pid, so a second park cannot re-stamp a fresh budget onto an old one); (2) STOP the owner's process GROUP through the same `_stop_owner_group_if_local` gate `release`/`gc` use, so an unproven pid is still never signalled - park holds DISK, never MEMORY, and stopping BEFORE the pid is cleared is what keeps that group reachable; (3) clear `owner.pid`/`owner.pid_started` and stamp `parked_at`/`park_ttl_s`/`parked_boot_id`. `db_name`, `ports` and `drop_on_release` are untouched: the database, the filestore and the port reservation are exactly what parking a lease exists to keep |
+| `resume <token> --pid <server_pid>` | under flock, as ONE compare-and-set: the lease must already be a PARKED lease (exit 3 otherwise - which is what makes two agents racing to resume the same lease safe, and is the code `50-instance-spinup.sh`'s `_bind_exclusive` branches on to fall back to `bind`), its database must not have been dropped while the lease was parked (exit 5, naming `release` as the next step; "could not look" is not "absent" and does not refuse), and the named pid must be alive on this host AND corroborated as this lease's own server by `_ownership_proof` (exit 4). Only then does it DELETE `parked_at`/`park_ttl_s`/`parked_boot_id`, write `owner.pid`/`owner.pid_started` and refresh `heartbeat_at`. The DELETE is load-bearing: a resumed lease that kept its park keys would be governed by `park_ttl_s` alone, so `gc` would drop the database under a live server, and the SubagentStop teardown gate would exempt that live lease forever |
 | `heartbeat <token>` | bump `heartbeat_at` - matters ONLY for a lease whose liveness `_is_stale` cannot prove (a different host, or no `--pid` ever recorded); a same-host lease with a verified-alive pid is protected regardless of heartbeat freshness |
 | `gc` | under flock: reclaim leases per `_is_stale` (§7 - liveness is AUTHORITATIVE, not a condemn-only signal), stopping a condemned lease's process group before the reclaim - but ONLY when that pid is PROVEN to be the lease's own server (`_ownership_proof`); a proven-recycled or unprovable pid is reported and NEVER signalled, and the row is reclaimed either way. For each reclaimed `drop_on_release` lease: drop through the same ladder §6.1 defines |
 | `reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]` | DB-side sweep INDEPENDENT of the lease registry, for the class `gc` cannot reach: an ephemeral-shaped DB carrying NO lease reference at all. Predicate, outputs and the fail-closed age rule: §6.5. Default is list-only; `--yes` is required to drop |
@@ -404,6 +428,12 @@ enough; any leased db_name, even stale, is left to `gc`/`release`), and the defa
 `--yes` is required to actually drop anything, so a sweep is always a visible read before it is
 ever destructive.
 
+That second axis - "any leased db_name, live OR stale" - is also what keeps this second destructive
+reclaimer away from a PARKED lease, with no park-specific branch of its own: a parked lease is
+still a row in the registry naming its `db_name`, so its database can never even be LISTED as an
+orphan candidate. Stated here because a reader auditing what may destroy a parked instance must be
+able to rule this command out by reading the predicate, not by trusting that somebody checked.
+
 **Wired (discovery half only).** `hooks/session-end-gc.sh` - the SessionEnd crash backstop that
 already ran `gc` on every session's end - now ALSO runs `reap-orphans` in its default list-only
 mode immediately after `gc`, in the hook's DETACHED worker (the hook returns at once; work left
@@ -494,6 +524,16 @@ lease whose drop could only ever "fail", retried by gc forever.
 - Owner records `host`+`pid`+`pid_started`+`run_id`+`started_at` (a legacy lease may carry
   `session_id` instead of `run_id` - read as a fallback). **Liveness is authoritative, not a
   mere condemn signal.** `_is_stale` (`scripts/lib/allocator.py`):
+  - A PARKED lease (`parked_at` present) is judged FIRST, by its own budget and by nothing else,
+    and the arm's position ahead of the host/pid block is load-bearing: park CLEARS the owner pid
+    on purpose, so every arm below would read the row as "no pid recorded" and hand it to TTL -
+    reclaiming a deliberately suspended instance, and dropping its database, for the act of
+    suspending it. Past `park_ttl_s` the reason is `park-budget-expired`. If `parked_boot_id` and
+    this boot's id BOTH exist and DIFFER, the host rebooted under the park, so the budget was
+    never consumed: the row is protected and stays resumable. Either id absent (not Linux, or a
+    container reporting the host's) degrades to the plain budget comparison - never to a condemn
+    on ambiguity, and never to a permanent reprieve. `resume` deletes `parked_at`, which is what
+    returns the lease to the arms below.
   - A DEAD owner pid on THIS host is an unambiguous, TTL-independent condemn - the recorded owner
     is provably gone.
   - A LIVE owner pid on THIS host PROTECTS the lease REGARDLESS OF `ttl_s` - but only when the
@@ -527,6 +567,10 @@ lease whose drop could only ever "fail", retried by gc forever.
 | Postgres unreachable | `acquire` fails fast with a clear message; never silently shares a DB. |
 | `$ODOO_AI_HOME` on a network FS without working flock | documented requirement: registry must live on a local FS; setup checks and warns. |
 | Old `instances.toml` with no pool fields | derive pool from `http_port`; fully backward compatible. |
+| Host reboots while a lease is parked | `parked_boot_id` (§7) differs from the current boot id, so the park budget is treated as NOT started: the row is protected and stays resumable. A reboot means nobody consumed the park, and a perfectly resumable database must not be dropped because the machine restarted. `resume` re-stamps the current boot id. |
+| The parked lease's database was dropped externally | `resume` probes with `_db_present` BEFORE anything is launched. Provably absent -> refuse (exit 5) and name `release` as the next step, so no server is ever started against a database that is gone. `release` then handles that lease correctly on its own existing `present is False` branch (removes the filestore, reports `ALLOC_FORGOTTEN_DB`, §6.7). An UNDETERMINABLE probe does not refuse - stranding a resumable instance on an unanswered question is the worse error. |
+| Port collision on resume | The parked lease still holds its `ports` in the registry, so no allocator caller can take them; a non-allocator process still can. `resume` therefore runs BEFORE the launch, and `50-instance-spinup.sh`'s existing identity-marker/attach guard (`_write_identity_marker`/`_identity_ok`, §5 P6.2) then refuses to treat a foreign listener on that port as "my instance is up" - the resume blocks with the port named instead of attaching to a stranger's server. |
+| Two agents race to resume one parked lease | Resolved by construction: `resume` is a locked compare-and-set that REQUIRES `parked_at` to be present. The first caller clears it; the second finds the lease already RUNNING and is refused with exit 3. Neither reaches a launch on the other's port. |
 
 ## 9. TTL default
 

@@ -8,9 +8,12 @@
 ## Why collision is not solved merely by going through `odoo-instance`
 
 The shared/spinup path collides on the same declared/`8069` numbers even when every caller
-carries a handle - `persist: shared-running` intentionally shares one db+port across many readers.
-Only `persist: exclusive-running` (a unique db + an allocator-issued pooled port + an owned lease,
-keyed on `run_id`) prevents a collision outright.
+carries a handle - the shared render target intentionally shares one db+port across many readers.
+An ISOLATED lease (a unique db + an allocator-issued pooled port + an owned lease, keyed on
+`run_id`) is what prevents a collision outright. The `persist:` values that select between them,
+and the parked state a suspended isolated lease sits in, are spelled out only in
+`docs/reference/INSTANCE-ALLOCATION.md` §5 - restating them here is how a reference copy ends up
+naming three states for a vocabulary that has four.
 
 ## The structural backstop's exact scope (belt-and-braces detail)
 

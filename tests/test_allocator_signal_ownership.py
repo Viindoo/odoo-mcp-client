@@ -26,6 +26,12 @@ signal is not corroboration, every refusal is REPORTED, the lease row is
 reclaimed either way, and the `pid_started` backfill only ever stamps a pid whose
 ownership was corroborated at that moment.
 
+`park`/`resume` (the G4 section near the end) live here for the same reason:
+`park` is the THIRD call site that sends a process signal through this gate, and
+its whole promise - "park holds disk, never memory" - IS that stop. `resume` is
+the write path that hands the gate a pid for the future, so it is bound by the
+same corroboration rule.
+
 HARNESS SAFETY - read before editing. This module drives code that sends SIGTERM
 to process GROUPS. Two independent interlocks make it incapable of signalling
 anything it did not create:
@@ -772,6 +778,378 @@ def test_a_dead_pid_is_a_silent_no_op(harness, alloc_home, capfd):
     assert "REFUSING" not in capfd.readouterr().err, (
         "a dead pid is not a refusal to report - there is nothing to signal"
     )
+
+
+# --------------------------------------------------------------------------- #
+# G4 - PARK and RESUME: the suspended state, and the transition back out of it
+#
+# `park` is the THIRD process-signalling call site in allocator.py (after
+# `release` and `_gc`), which is why these live in this module rather than beside
+# the plain gc tests: it stops the owner's process GROUP through the very gate
+# every test above protects, and only then clears the pid. Its whole promise -
+# "park holds DISK, never MEMORY" - is that stop; without it park would be a
+# teardown loophole that reopens the RAM leak the SubagentStop gate exists to
+# close, while LOOKING like a safe suspension.
+#
+# `resume` is the transition back. The assertion these tests exist for is
+# assertion 3 below: a RESUMED lease must be judged by the PID arms again. A
+# resume that left `parked_at` behind would leave a live, healthy server governed
+# by a park budget alone - `_gc` would drop its database out from under it when
+# that budget lapsed, and the teardown gate's parked exemption would exempt that
+# live lease forever. One missing key, both harms.
+#
+# HARNESS SAFETY (the same two interlocks, re-stated because these tests are the
+# ones that hand a pid to a WRITE path): a parked lease has no pid BY
+# CONSTRUCTION, and every live pid named below comes from `harness.spawn` and is
+# seeded through `harness.seed_lease`, which REFUSES any pid this module did not
+# spawn. `resume --pid` is never given a raw pid, and never `os.getpid()`.
+# --------------------------------------------------------------------------- #
+def _parked_lease(alloc, home, harness, *, db="odoo_17_t_parked", age_s=0,
+                  ttl_s=100, boot_id="__current__", drop=False, ports=(),
+                  run_id="run-A", host=None):
+    """A PARKED registry row: no pid, `parked_at` `age_s` seconds in the past.
+
+    Written through `harness.seed_lease` (pid None) so the module's own interlock
+    still vets it, then stamped with the park keys the way `cmd_park` stamps them.
+    """
+    harness.seed_lease(home, None, db_name=db, drop_on_release=drop,
+                       ports=list(ports), run_id=run_id,
+                       **({"host": host} if host is not None else {}))
+    path = Path(home) / "runtime" / "leases.json"
+    reg = json.loads(path.read_text(encoding="utf-8"))
+    lease = reg["leases"][0]
+    lease["owner"]["run_id"] = run_id
+    lease["parked_at"] = alloc._now() - age_s
+    lease["park_ttl_s"] = ttl_s
+    if boot_id == "__current__":
+        current = alloc._boot_id()
+        if current:
+            lease["parked_boot_id"] = current
+    elif boot_id is not None:
+        lease["parked_boot_id"] = boot_id
+    path.write_text(json.dumps(reg), encoding="utf-8")
+    return lease
+
+
+def test_a_parked_lease_survives_gc_until_its_own_budget_lapses(harness, alloc_home):
+    """G4.1 - a parked lease (fresh `parked_at`, NO pid) survives `gc`: the row is
+    kept, no drop is attempted, and no reclaim record is emitted.
+
+    The pre-park allocator had no way to express this at all: a pid-less row with
+    an elapsed TTL is exactly what every parked lease looks like, so `gc` would
+    condemn it and drop the database the caller deliberately preserved. The
+    seeded row's ttl_s/heartbeat_at are DELIBERATELY expired (that is what
+    `seed_lease` writes) - proving the park arm, not a fresh heartbeat, is what
+    protects it."""
+    alloc = _import_allocator()
+    lease = _parked_lease(alloc, alloc_home, harness, age_s=0, ttl_s=100)
+    assert alloc._now() - lease["heartbeat_at"] > lease["ttl_s"], (
+        "test setup: the ordinary TTL must already be expired, or this proves nothing"
+    )
+    dropped = []
+    alloc._drop_through_odoo = lambda lz, path=None: dropped.append(lz.get("db_name")) or True
+
+    reg = {"leases": [dict(lease)]}
+    records = alloc._gc(reg, "gc")
+
+    assert records == [], "a parked lease within its budget must produce NO reclaim record"
+    assert dropped == [], "a parked lease's database must never be dropped while it is parked"
+    assert len(reg["leases"]) == 1, "the parked row must survive gc"
+
+
+def test_an_expired_park_is_condemned_as_park_expired_and_drops_the_db(harness, alloc_home):
+    """G4.2 - past `park_ttl_s`, gc reports EXACTLY `park-budget-expired` (not a
+    TTL or pid reason - the arm that judged it is the one fact no later reader can
+    re-derive) and the drop happens for a `drop_on_release` lease."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_parkgone"
+    lease = _parked_lease(alloc, alloc_home, harness, db=db, age_s=500, ttl_s=100, drop=True)
+    dropped = []
+    alloc._drop_through_odoo = lambda lz, path=None: dropped.append(lz.get("db_name")) or True
+
+    reg = {"leases": [dict(lease)]}
+    records = alloc._gc(reg, "gc")
+
+    assert [r["reason"] for r in records] == [alloc.CONDEMN_PARK_EXPIRED], (
+        f"an elapsed park budget must be reported as its own arm, got {records}"
+    )
+    assert dropped == [db], "an expired park must actually drop the database it was holding"
+    assert reg["leases"] == [], "the expired parked row must be reclaimed"
+
+
+def test_a_park_budget_that_only_elapsed_across_a_reboot_is_not_condemned(
+        harness, alloc_home):
+    """G4 edge case 1 - the host rebooted under the park. Wall-clock says the
+    budget lapsed; the boot id says nobody was there to consume it. Protect the
+    row: a reboot must not destroy a perfectly resumable database."""
+    alloc = _import_allocator()
+    lease = _parked_lease(alloc, alloc_home, harness, age_s=10_000, ttl_s=100,
+                          boot_id="a-boot-that-is-not-this-one")
+    if alloc._boot_id() is None:
+        pytest.skip("no readable kernel boot id on this host: the arm degrades to plain TTL")
+    assert alloc._condemn_reason(lease) is None, (
+        "a park budget that elapsed only across a reboot must NOT be condemned - the "
+        "park was never consumed"
+    )
+
+
+def test_an_unreadable_boot_id_degrades_to_the_plain_budget_never_to_a_reprieve(
+        harness, alloc_home, monkeypatch):
+    """The other half of edge case 1, and the one that would rot silently: where
+    the boot id cannot be read at all (not Linux, or a container reporting the
+    HOST's id), the arm must fall back to the plain budget comparison - not to a
+    permanent reprieve that leaks the database forever, and not to a condemn on
+    ambiguity."""
+    alloc = _import_allocator()
+    lease = _parked_lease(alloc, alloc_home, harness, age_s=500, ttl_s=100, boot_id=None)
+    monkeypatch.setattr(alloc, "_boot_id", lambda: None)
+    assert alloc._condemn_reason(lease) == alloc.CONDEMN_PARK_EXPIRED, (
+        "with no boot id available on either side, an elapsed park budget must still expire"
+    )
+
+
+def test_park_stops_the_owner_group_before_it_clears_the_pid(
+        harness, alloc_home, tmp_path, capfd):
+    """Park holds DISK, never MEMORY. The stop is the whole reason park may
+    satisfy the teardown gate at all: if park merely cleared the pid, the server
+    would keep running with nothing left in the ledger able to name it, and park
+    would be a hole in the RAM-leak fix wearing the face of a feature."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_parkstop"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    harness.seed_lease(alloc_home, leader, db_name=db, ports=[])
+    token = _leases(alloc_home)[0]["token"]
+
+    assert alloc.cmd_park({"token": token}) == 0
+
+    survivors = _wait_dead(harness, leader, child)
+    assert survivors == [], (
+        f"park must stop the whole owner process GROUP; {survivors} survived - a park "
+        "that leaves the server running frees no RAM and is a teardown loophole"
+    )
+    assert "ownership PROVEN by cmdline" in capfd.readouterr().err
+    row = _leases(alloc_home)[0]
+    assert row["owner"]["pid"] is None and row["owner"]["pid_started"] is None
+    assert row["parked_at"] is not None and row["db_name"] == db, (
+        "park keeps the database and stamps the park keys"
+    )
+
+
+def test_park_refuses_a_shared_lease_and_a_lease_with_no_server(harness, alloc_home):
+    """The two refusals, each with its OWN exit code, because the remedies differ:
+    a shared render target must be released when the server is finished with (3),
+    and a lease with no bound pid has no server to stop and nothing to resume
+    into (4) - which is also what makes a SECOND park on an already-parked lease
+    a refusal instead of a silently re-stamped budget."""
+    alloc = _import_allocator()
+    harness.seed_lease(alloc_home, None, db_name="odoo_17_0", mode="shared")
+    token = _leases(alloc_home)[0]["token"]
+    assert alloc.cmd_park({"token": token}) == 3, "a shared lease is never parkable"
+
+    harness.seed_lease(alloc_home, None, db_name="odoo_17_t_nopid")
+    token = _leases(alloc_home)[0]["token"]
+    assert alloc.cmd_park({"token": token}) == 4, "a lease with no owner pid is not RUNNING"
+
+    lease = _parked_lease(alloc, alloc_home, harness)
+    assert alloc.cmd_park({"token": lease["token"]}) == 4, (
+        "an already-parked lease must be refused, not given a fresh budget"
+    )
+
+
+def test_a_resumed_lease_is_judged_by_the_pid_arms_again(
+        harness, alloc_home, tmp_path, monkeypatch):
+    """G4.3 - THE assertion this whole feature turns on (the review's C3).
+
+    Seed a fresh park, resume it onto a live server, then advance the clock past
+    `park_ttl_s`: the row must NOT be condemned while that pid is alive. Then kill
+    the pid: it must be condemned as `owner-pid-dead`, NOT `park-budget-expired`.
+    A resume that failed to DELETE the park keys passes neither half - it would
+    drop a live server's database on budget expiry, and the SubagentStop teardown
+    gate would exempt that live lease forever."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_resumed"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    _parked_lease(alloc, alloc_home, harness, db=db, age_s=0, ttl_s=100)
+    token = _leases(alloc_home)[0]["token"]
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
+
+    assert alloc.cmd_resume({"token": token, "pid": leader}) == 0
+
+    row = _leases(alloc_home)[0]
+    for key in ("parked_at", "park_ttl_s", "parked_boot_id"):
+        assert key not in row, (
+            f"resume must DELETE {key!r}; a survivor re-governs a LIVE lease by a park "
+            "budget, which is exactly the harm park exists to prevent"
+        )
+    assert row["owner"]["pid"] == leader and row["owner"]["pid_started"], (
+        "resume must record the new owner pid AND its recycling-resistant fingerprint"
+    )
+
+    # Past what WOULD have been the park budget, and past the ordinary TTL too.
+    row["heartbeat_at"] = alloc._now() - 100_000
+    row["ttl_s"] = 1
+    assert alloc._condemn_reason(row) is None, (
+        "a resumed, verified-alive owner must be protected by the PID arms - not "
+        "condemned by a park budget that no longer applies"
+    )
+
+    for pid in (child, leader):
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.kill(pid, signal.SIGKILL)
+    assert _wait_dead(harness, leader) == []
+    assert alloc._condemn_reason(row) == alloc.CONDEMN_PID_DEAD, (
+        "once the resumed server dies the lease is condemned by the PID arm, and the "
+        "reason must name that arm - never the park arm it left behind"
+    )
+
+
+def test_two_agents_racing_to_resume_the_same_lease_cannot_both_win(
+        harness, alloc_home, tmp_path, monkeypatch):
+    """G4 edge case 4 - resolved BY CONSTRUCTION, not by timing. `resume` requires
+    `parked_at` to be present; the first caller clears it, so the second is
+    refused with a distinct exit code and never reaches a launch on the same
+    port."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_race"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    _parked_lease(alloc, alloc_home, harness, db=db)
+    token = _leases(alloc_home)[0]["token"]
+    leader, _ = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    second, _ = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
+
+    assert alloc.cmd_resume({"token": token, "pid": leader}) == 0
+    assert alloc.cmd_resume({"token": token, "pid": second}) == 3, (
+        "the loser of a resume race must be refused with the NOT-PARKED code, so its "
+        "caller does not launch a second server on the first one's port"
+    )
+    assert _leases(alloc_home)[0]["owner"]["pid"] == leader, (
+        "the winner's pid must survive the loser's attempt"
+    )
+
+
+def test_resume_refuses_when_the_database_was_dropped_while_parked(
+        harness, alloc_home, tmp_path, monkeypatch, capfd):
+    """G4 edge case 2 - the database went away under the park. Refuse with its own
+    exit code and NAME `release` as the next step; never launch a server against a
+    database that no longer exists. An UNDETERMINABLE probe is deliberately not a
+    refusal (tested by the sibling above, which resumes on a True probe): failing
+    to look is not the same as looking and finding nothing."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_gonedb"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    _parked_lease(alloc, alloc_home, harness, db=db)
+    token = _leases(alloc_home)[0]["token"]
+    leader, _ = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: False)
+
+    assert alloc.cmd_resume({"token": token, "pid": leader}) == 5
+    assert "release" in capfd.readouterr().err, (
+        "the refusal must name the verb that cleans this lease up, or the caller is stuck"
+    )
+    assert _leases(alloc_home)[0]["parked_at"] is not None, (
+        "a refused resume must leave the lease PARKED - a half-transitioned row is the "
+        "state the compare-and-set exists to make impossible"
+    )
+
+
+def test_resume_refuses_a_pid_whose_ownership_it_cannot_corroborate(
+        harness, alloc_home, monkeypatch, capfd):
+    """Park cleared `owner.pid_started`, so resume's proof can only come from an
+    independent observation - in practice the `/proc/<pid>/cmdline` rung. A pid
+    that corroborates nothing must be refused: resume WRITES that pid onto the
+    lease, so release/gc would later group-signal it, and naming a pid the lease
+    did not spawn is how an unrelated session gets killed."""
+    alloc = _import_allocator()
+    _parked_lease(alloc, alloc_home, harness, db="odoo_17_t_stranger")
+    token = _leases(alloc_home)[0]["token"]
+    stranger, _ = harness.spawn(argv_tail=["not-an-odoo-server-at-all"])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
+
+    assert alloc.cmd_resume({"token": token, "pid": stranger}) == 4
+    assert "ownership is NOT proven" in capfd.readouterr().err
+    assert _leases(alloc_home)[0]["parked_at"] is not None, (
+        "a refused resume must leave the lease parked and pid-less"
+    )
+
+
+def test_query_state_parked_finds_the_lease_and_reports_a_cross_run_attach(
+        harness, alloc_home, capfd):
+    """The DISCOVERY half. A mechanism nothing can reach is this plugin's
+    signature defect, so the rung a returning agent actually calls is asserted
+    here: `query --state parked` must find this run's own parked lease silently,
+    and must REPORT (never silently swallow) an attach to another run's parked
+    lease on this host."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_discover"
+    _parked_lease(alloc, alloc_home, harness, db=db, ports=[8170], run_id="run-A")
+
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-A"}) == 0
+    out = capfd.readouterr().out
+    assert "ALLOC_DB_NAME=" in out and db in out and "ALLOC_PARKED_AT=" in out
+    assert "ALLOC_ATTACHED_FROM_RUN" not in out, (
+        "resuming your OWN parked lease inherits nothing - there is nothing to report"
+    )
+
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-B"}) == 0
+    out = capfd.readouterr().out
+    assert "ALLOC_ATTACHED_FROM_RUN=run-A" in out, (
+        "inheriting another run's parked instance carries its data state - report the "
+        "attach rather than gate it"
+    )
+
+    assert alloc.cmd_query({"series": "18.0", "state": "parked", "run_id": "run-A"}) == 1
+    assert alloc.cmd_query({"series": "17.0"}) == 1, (
+        "the DEFAULT query is shared-only and must be unchanged by any of this"
+    )
+
+
+def test_a_parked_lease_on_another_host_stays_gated_behind_force_attach(
+        harness, alloc_home):
+    """The one case that stays a gate rather than a report: off-host, the lease's
+    database may live on a cluster this host cannot reach at all."""
+    alloc = _import_allocator()
+    _parked_lease(alloc, alloc_home, harness, db="odoo_17_t_offhost", host=FOREIGN_HOST)
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-A"}) == 1
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "force_attach": True}) == 0
+
+
+def test_an_expired_park_is_never_offered_as_resumable(harness, alloc_home):
+    """Discovery must not hand a caller a database that gc is about to destroy."""
+    alloc = _import_allocator()
+    _parked_lease(alloc, alloc_home, harness, db="odoo_17_t_expired",
+                  age_s=500, ttl_s=100)
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-A"}) == 1
+
+
+def test_reap_orphans_can_never_list_a_parked_leases_database(harness, alloc_home):
+    """The SECOND destructive reclaimer, verified rather than assumed. It skips
+    any db_name referenced by ANY lease - live or stale - so a parked lease is
+    already safe by a predicate that predates park. Asserted here because
+    'somebody checked' is not evidence."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_deadbeef"
+    _parked_lease(alloc, alloc_home, harness, db=db, age_s=10_000, ttl_s=1)
+    leased = {lz.get("db_name") for lz in alloc._read_registry()["leases"]}
+    assert db in leased
+    candidates, skipped = alloc._reap_candidates(
+        [{"name": db, "age_s": 10_000.0}], leased, ["odoo_17"], 0)
+    assert candidates == [] and skipped == [], (
+        "a parked lease's database must never even be LISTED as an orphan candidate - "
+        "not as a candidate, and not as a skip: it is simply not this command's business"
+    )
+    # Falsification: the SAME database with no lease reference IS a candidate, so
+    # the assertion above is proving the lease reference, not an inert predicate.
+    unleased, _ = alloc._reap_candidates(
+        [{"name": db, "age_s": 10_000.0}], set(), ["odoo_17"], 0)
+    assert [c["name"] for c in unleased] == [db]
 
 
 # --------------------------------------------------------------------------- #

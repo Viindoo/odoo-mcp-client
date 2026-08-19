@@ -23,6 +23,16 @@
 # `release`, a human's `allocator.py gc`/`list` triage, or the process dying on
 # its own.
 #
+# AND: a PARKED lease (one an agent suspended with `allocator.py park` - its server
+# process group already stopped, its database, filestore and ports deliberately kept)
+# is NOT an orphan and is NOT reclaimed here on the dead-pid or TTL arms. It carries
+# its own budget (`park_ttl_s`, default 24h, stamped with the boot id it was parked
+# under) and the only arm that can ever take it is `park-budget-expired`, once that
+# budget lapses on the SAME boot. Parking is precisely the answer to the tradeoff two
+# paragraphs up: it frees the RAM this hook exists to recover WITHOUT destroying the
+# database the next session wants to resume, so a crash between park and resume costs
+# nothing but disk, for a bounded time.
+#
 # ALSO: after gc, the worker runs `reap-orphans` in its DEFAULT list-only mode -
 # see "Discovery half" below. gc and reap-orphans are deliberately DIFFERENT,
 # non-overlapping mechanisms (allocator.py's own header comment plus the

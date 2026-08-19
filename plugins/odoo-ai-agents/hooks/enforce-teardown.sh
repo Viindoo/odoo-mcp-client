@@ -13,7 +13,11 @@
 #     END - a completion claim, `NEEDS_NEXT` with no handle forwarded, an out-of-enum
 #     status, or NO `continuation` status at all - is a HARD BLOCK (SubagentStop only)
 #     with a deterministic release cmd. Only a stopped-run report (BLOCKED /
-#     NEEDS_CONTEXT) or a T4 named handoff passes.
+#     NEEDS_CONTEXT) or a T4 named handoff passes. A lease the caller PARKED is not a
+#     live lease at all for this purpose: park already stopped its process group, so it
+#     leaks no RAM, and it carries `parked_at` - the ledger fact the ledger scan below
+#     filters on. Its three exits (release / park / forwarded INSTANCE_HANDLE) are the
+#     ones the block message names.
 #   - BROWSER pages die WITH the session's MCP server process - a bounded, self-
 #     healing leak. Their count is only inferable from the transcript (open/close
 #     calls), which is fuzzy. So browser findings are ADVISORY ONLY (systemMessage,
@@ -211,7 +215,16 @@ _instance_block_reason() {
   [[ -n "$rids_json" && "$rids_json" != "null" ]] || return 1
   now="$(date +%s 2>/dev/null || echo 0)"
 
-  # EVERY LIVE, non-shared lease owned by one of our run_ids. LIVE-ness mirrors
+  # EVERY LIVE, non-shared, NON-PARKED lease owned by one of our run_ids. A PARKED lease
+  # (`parked_at` present) is skipped, and skipping it is the point rather than a hole: park already
+  # DID the RAM half of teardown - it stops the owner's whole process group BEFORE clearing the pid
+  # - and what survives is disk (the database, the filestore, the port reservation) under the
+  # allocator's own park budget. Without this the gate would read a parked lease as "no pid, fresh
+  # ttl" and hard-block the very subagent that parked it, telling it to release the instance it
+  # deliberately preserved - i.e. it would refuse the exit it is meant to permit. The exemption
+  # cannot outlive the park because `allocator.py resume` DELETES `parked_at` as part of the same
+  # locked compare-and-set that writes the new owner pid: a resumed lease is a pid-carrying lease
+  # again and is gated here again. LIVE-ness mirrors
   # allocator's `_is_stale`: a recorded pid on THIS host is
   # AUTHORITATIVE - alive protects the lease regardless of ttl, dead condemns
   # it regardless of ttl. Only when liveness cannot be checked here at all (a
@@ -244,6 +257,7 @@ _instance_block_reason() {
     --argjson rids "$rids_json" --argjson now "$now" '
       .leases[]?
       | select((.mode // "") != "shared")
+      | select(has("parked_at") | not)
       | ((.owner.run_id // .owner.session_id // "")) as $o
       | select($o != "" and ($rids | index($o)))
       | [(.token // ""), $o, (.owner.pid | tostring), (.owner.host | tostring),
@@ -268,7 +282,7 @@ _instance_block_reason() {
     fi
     [[ "$live" == "1" ]] || continue
     n=$(( n + 1 ))
-    lines="$lines"$'\n'"  lease token $token (owner run $rid) -> python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token --run-id $rid"
+    lines="$lines"$'\n'"  lease token $token (owner run $rid) -> release: python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token --run-id $rid   |   park instead: python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" park $token"
   done <<< "$rows"
 
   [[ "$n" -gt 0 ]] || return 1   # nothing live to block on (dead-pid rows and expired-unprovable rows skipped)
@@ -282,7 +296,13 @@ _instance_block_reason() {
     claim='ended its dispatch with NO `status` in a closed `continuation` block (a SubagentStop IS the end of your dispatch - not a pause, and nothing runs later on your behalf)'
   fi
 
-  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Release EACH before your terminal status:%s\n(Release now stops the whole server process group, then drops the DB.) If a lease is a deliberate handoff, forward INSTANCE_HANDLE in your continuation `next.inputs` instead of releasing it. Then report a `continuation` block whose `status` is one of the contract values.' \
+  # THREE exits satisfy this gate, and all three are named here on purpose. The set is the one
+  # declared in snippets/resource-teardown-contract.md T1 § "The three exits" (SSOT); this is a
+  # SECOND COPY of it, exactly like the `// 3600` DEFAULT_TTL_S copy above, kept in lockstep by
+  # tests/test_enforce_teardown.py rather than rendered from the markdown at hook time. Naming only
+  # `release` would tell an agent that preserving a just-built database is impossible, which is how
+  # instances got destroyed and rebuilt every dispatch.
+  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values.' \
     "$claim" "$n" "$lines"
   return 0
 }

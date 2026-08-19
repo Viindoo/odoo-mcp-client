@@ -98,24 +98,27 @@
     RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not just tag
     them).
 13. **`persist` + `run_id` on any build that must stay running.** A build that must remain a live,
-    listening process (never `--stop-after-init`) declares `persist: exclusive-running` (an isolated,
-    owner-stamped instance - unique db + an allocator-issued pooled port, never the declared/`8069`
-    port) or `persist: shared-running` (the shared render target, now ALSO owner-stamped via
-    `run_id` so a foreign session cannot bare-drop it) - never a bare port/db reuse with no owner.
-    Owned by `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
-    `agents/odoo-instance-ops.md` (operation 1, create-instance). Full contract:
-    `INSTANCE-ALLOCATION.md` §5 + §6.3. Whichever mode you declare here also decides who tears it
-    down and when - see the Teardown section below, not a restatement of it.
+    listening process (never `--stop-after-init`) declares a listening `persist:` value - an
+    isolated, owner-stamped instance on an allocator-issued pooled port (never the declared/`8069`
+    port), or the shared render target, now ALSO owner-stamped via `run_id` so a foreign session
+    cannot bare-drop it - never a bare port/db reuse with no owner. The values themselves, and the
+    parked state a suspended instance sits in, are spelled out in ONE place and are NOT restated
+    here: `INSTANCE-ALLOCATION.md` §5 (+ §6.3 for the ownership guard). Owned by
+    `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
+    `agents/odoo-instance-ops.md` (operation 1, create-instance). Whichever value you declare here
+    also decides who tears it down and when - see the Teardown section below, not a restatement
+    of it.
 14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
     signals apply, one per job shape:
     - **Install/update job** (`-i`/`-u` with `--stop-after-init`, NO `--test-enable` - the
-      ephemeral build AND the build leg of `persist: exclusive-running`): the job ALWAYS exits
+      throwaway build AND the build leg of an isolated listening instance): the job ALWAYS exits
       (that is what `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log
       read. The build
       additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation as a
       FLOOR, so the `"Modules loaded."` completion line survives ANY caller-supplied level - `<ns>`
-      is version-resolved: `openerp` for series < 10 (v8-v9), `odoo` for v10+ (the namespace
-      renamed at the v9->v10 boundary). **Exit code 0
+      is the core package name for the target series, and the row that owns that flip is
+      `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` § Core package directory; read it
+      there rather than from a copy here. **Exit code 0
       alone is NOT proof of install** - three source-confirmed silent-skip paths stay exit 0: a
       misspelled/nonexistent module name (logged, ignored), an unresolved dependency, and a
       demo-data failure downgraded to a warning. SUCCESS therefore requires exit 0 AND the
@@ -138,12 +141,14 @@
       only markers terminal BEFORE the run publishes its own verdict are the hard aborts that
       prove odoo-bin died and never will: `CRITICAL`, `Failed to load registry`, `psycopg2.`,
       `ParseError`, plus the silent-skip markers above.
-    - **Listening instance** (`persist: exclusive-running`/`shared-running`, no `--stop-after-init`
-      - the process serves after load instead of exiting): READY is a BOUNDED-timeout HTTP poll of
-      the port - primary `GET /web/database/selector` (auth=none, no DB required, reliable
-      v8-v19), fallback `/web/login` for a series/build where the selector route is unavailable.
-      On timeout -> BLOCKED with the last probe error; it never waits forever and never falls back
-      to a log tail.
+    - **Listening instance** (any listening `persist:` value - `INSTANCE-ALLOCATION.md` §5 - with
+      no `--stop-after-init`, so the process serves after load instead of exiting): READY is a
+      BOUNDED-timeout HTTP poll of the port - primary `GET /web/database/selector` (auth=none, no
+      DB required, reliable v8-v19), fallback `/web/login` for a series/build where the selector
+      route is unavailable. On timeout -> BLOCKED with the last probe error; it never waits forever
+      and never falls back to a log tail. A RESUMED instance takes this same path and nothing
+      extra: the spin-up's launch line carries no `-i` and no `-u`, so re-launching against the
+      database a park preserved re-installs nothing and READY means what it always meant.
     Owned by `scripts/setup-steps/55-instance-ops.sh` (install/update job) and
     `scripts/setup-steps/50-instance-spinup.sh` (listening readiness); the runtime contract for an
     executing agent is `agents/odoo-instance-ops.md`'s "Active-wait on long builds" section, relayed
@@ -151,19 +156,24 @@
 15. **Memory/time resource limits apply on every launch - a version-general cap, not a version-branch.**
     Every install/update/test build (`--stop-after-init`, driven by `55-instance-ops.sh`) wraps the
     odoo-bin invocation in a shell `ulimit -Sv` PLUS a `--limit-memory-hard` flag, both derived from
-    ONE resolved value: `ulimit -Sv` is the ONLY protection on v8-v11 (Odoo applies no memory cap of
-    its own on this path before v12.0 - an uncapped install there risks a kernel OOM-kill instead of
-    a clean error); `--limit-memory-hard` is REQUIRED on v12+ because Odoo's own `setrlimit` would
-    otherwise clamp the process back down to its 2.5 GiB stock default even when a shell `ulimit`
-    already raised it. Both mechanisms fire unconditionally on every build - each is a no-op on the
-    version range the other one covers. The resolved default is `floor(MemTotal * 0.5)` floored at
+    ONE resolved value. Each mechanism is load-bearing on exactly the series range the other does
+    not cover, and the enforcement boundary that decides which is which is spelled out in ONE place
+    and NOT restated here: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` § The v12.0
+    enforcement boundary. Both fire unconditionally on every build - each is a no-op wherever the
+    other already covers the range - so no prose version-branch is needed at this site. The resolved default is `floor(MemTotal * 0.5)` floored at
     4 GiB, overridable via `ODOO_AI_LIMIT_MEMORY_HARD` (set to `""`/`0` for the deliberate uncapped
-    escape hatch). A long-running listener (`persist: exclusive-running` / `shared-running`, the
-    generated conf in `50-instance-spinup.sh`) additionally carries `limit_memory_soft` and
-    `limit_time_real` conf keys - both are structurally unreachable on the `--stop-after-init` build
-    path (they live in `ThreadedServer.process_limit()`, past the `if stop: return rc` short-circuit
-    that `--stop-after-init` always takes), so the build path correctly omits them rather than
-    passing a flag that looks like protection but is silently never evaluated. Full policy - the
+    escape hatch). A long-running listener (any listening `persist:` value -
+    `INSTANCE-ALLOCATION.md` §5 - through the generated conf in `50-instance-spinup.sh`)
+    additionally carries `limit_memory_soft` and `limit_time_real` conf keys - both are structurally
+    unreachable on the `--stop-after-init` build path (they live in
+    `ThreadedServer.process_limit()`, past the `if stop: return rc` short-circuit that
+    `--stop-after-init` always takes), so the build path correctly omits them rather than passing a
+    flag that looks like protection but is silently never evaluated. A PARKED lease is the third
+    state and carries no resource limit at all: park stopped the owner's process group, so there is
+    no listening process left for any cap to bind - parking a lease holds DISK (database, filestore,
+    port reservation), never memory (`INSTANCE-ALLOCATION.md` §5). The caps re-arm the moment `resume`
+    re-launches through that same generated conf from the same resolved value, so a resumed instance
+    runs under the identical cap, never a weaker one. Full policy - the
     v12.0 enforcement boundary, the exact resolution formula, the uncapped escape hatch, and the
     `RLIMIT_AS`-is-virtual-not-physical caveat - lives in ONE place, not restated here:
     `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` (SSOT). Owned by
@@ -182,10 +192,12 @@ contract's ownership matrix or DONE-gate wording.**
 - **T0 DONE-gate.** An agent may not claim `status: DONE` while an instance it self-provisioned
   this dispatch is still leased or listening. A finished report with a live leftover server is not
   done - release first, then claim DONE. Full wording: `resource-teardown-contract.md` T0.
-- **T1 ownership (who releases).** Self-provisioned `ephemeral`/`exclusive-running` -> the agent
-  that acquired it releases before its own terminal status. A forwarded `INSTANCE_HANDLE` -> the
+- **T1 ownership (who releases).** A self-provisioned instance (any `persist:` value the agent
+  acquired for itself - `INSTANCE-ALLOCATION.md` §5) -> that agent clears it before its own
+  terminal status, by one of T1's three exits: release it, PARK it (server stopped, database and
+  ports kept for a later `resume`), or hand it off by name. A forwarded `INSTANCE_HANDLE` -> the
   receiving agent NEVER releases it; only the provisioning orchestrator does, at run end.
-  `persist: shared-running` -> no single consumer ever releases it; only allocator GC reclaims it -
+  The shared render target -> no single consumer ever releases it; only allocator GC reclaims it -
   immediately on a dead owner pid, or (when that pid's liveness cannot be verified at all - a
   different host, or no pid recorded) on an expired TTL. A verified-alive owner pid is NEVER
   TTL-reclaimed (see `INSTANCE-ALLOCATION.md` §7). Full matrix (incl. the run-level-owner and
