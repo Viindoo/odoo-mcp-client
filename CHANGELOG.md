@@ -6,6 +6,106 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.0] - 2026-08-19
+
+4.25.2 banned a coordinator from launching a worker and ending its turn to wait for it, on the
+reasoning that only the root conversation is ever resumed. That reasoning was never measured. It
+has been now, and it is wrong: nested dispatch works at every depth. The ban is lifted, the
+topology it flattened is restored, and a hook refusing what that ban was actually aimed at - a
+coordinator authoring the source it should have routed - takes its place. The same correction runs
+through the rest of the release: seven Odoo technical claims taken from memory instead of from the
+index, a browser suite whose failures no counter had ever counted, and a just-built database
+destroyed at every teardown because the exit that preserves one had not been built.
+
+### Added
+
+- `odoo-ai-agents` - **an instance can be PARKED and resumed instead of rebuilt.** An agent finished
+  with a server but not with the DATABASE it had just spent minutes building had two exits and both
+  destroyed work: `release` stops the server AND drops the database, while holding the lease leaks
+  RAM and is hard-blocked by the teardown gate, so every dispatch rebuilt what the previous one had
+  already built. `allocator.py park <token>` is the third exit - it stops the owner's process group
+  through the same ownership gate `release` and `gc` use and only then clears the pid, so the memory
+  is freed without ever stranding an unreclaimable server, while the database, filestore and port
+  reservation are kept under a disk-scoped budget (`park_ttl_s`, default 24h) instead of the
+  RAM-scoped lease TTL. `allocator.py resume <token> --pid <pid>` is the atomic compare-and-set back
+  and refuses a lease that is not parked, so two agents racing to resume one instance cannot both
+  win; `query --state parked` is how a returning agent finds what an earlier run suspended. The park
+  stamp records the boot id, so a budget that merely elapsed while the host was off does not count as
+  consumed - nobody resumes across a reboot, and a resumable database must survive one.
+- `odoo-ai-agents` - `park-instance` and `resume-instance`: `odoo-instance` and `odoo-instance-ops`
+  go from seven operations to nine, and a resume-before-you-build probe now runs FIRST for every
+  listening `persist:` value, so a dispatch inherits the instance an earlier one suspended instead of
+  building a second copy of it.
+- `odoo-ai-agents` - `persist: exclusive-parked`, a fourth value in the `persist:` enum
+  (`docs/reference/INSTANCE-ALLOCATION.md`), naming the same lease as `exclusive-running` after a
+  park. A lease now has THREE teardown-satisfying exits - release, park, or a forwarded handle -
+  and the teardown gate names all three, so an agent is no longer told that preserving a just-built
+  database is impossible. The gate and the SessionEnd reaper both skip a lease carrying `parked_at`:
+  its server is already stopped, so parking clears the gate exactly as releasing does.
+- `odoo-ai-agents` - `hooks/block-coordinator-code-write.sh`. It denies a production-source write by
+  an agent whose role in the agent-role SSOT is coordinator or spawner, reading the role from that
+  data so a newly declared coordinator is covered with no edit to the hook, and it covers
+  Bash-mediated writes - redirects, `tee`, `sed -i`, `git apply`, interpreter one-liners - because a
+  gate that skipped Bash would look enforcing while the breach walked past it. A leaf writer is never
+  touched, and a non-source artifact - worklog, findings, plan, design doc - passes for every role.
+- `odoo-ai-agents` - `evals/frontdoor-boundary/`: a CI-exercised transcript grader that fails the
+  build when an orchestrating context performs specialist work in its own turn. It is the detective
+  half of a pair. The source-write deny above is preventive but resolves a role from a populated
+  agent type, so it can only act on a dispatched agent; the grader covers what that hook structurally
+  cannot reach - a front-door skill running in the MAIN context, where there is no agent type to key
+  on at all, plus a dispatched coordinator's own inline breach. The graders are deterministic and run
+  against hand-authored transcripts with no live model; each case is a RED/GREEN pair by construction,
+  and the forbidden tool classes are read from each eval definition's own SSOT rather than restated in
+  the test, so a definition and its guard cannot drift apart.
+- `odoo-ai-agents` - `generator/skill_tool_deps.json` gained an `mcp_tool_callers` axis, and
+  `gen_surface.py` renders it as a **Caller:** clause on the tool's bullet in the generated
+  `## MCP tools` block. Without it that block - the section an agent re-reads mid-run to recall what
+  it may call - licenses exactly the inline call a phase forbids. Naming a tool absent from
+  `mcp_tools` is a hard generator error.
+- `odoo-ai-agents` - `MODE: reconcile` on `odoo-solution-architect`: in master-child design, a
+  contested symbol is now settled by a mandatory architect call that picks the winner, instead of by
+  the orchestrating front door.
+- **`snippets/odoo-era-boundaries.md` row 7 - core stylesheet language.** The axis no SSOT owned,
+  which is why eleven files each invented a window and all eleven were wrong.
+- **Two lints in `check_orchestration.py`.** `[gen-prose]` runs the version trigger over the
+  generator's RENDERED output rather than its Python source (proven red on the real defect before
+  the delete that clears it). `[version-claim]` is diff-scoped: tree-wide the same trigger leaves
+  855 residual hits across 158 files, so it gates only the lines a change adds, and degrades to
+  advisory when no merge base resolves. `orchestration-check` CI now checks out with
+  `fetch-depth: 0` so that diff is computable.
+
+### Changed
+
+- `odoo-ai-agents`, `git-toolkit` - **nested agent dispatch is restored, and this entry SUPERSEDES
+  three statements in [4.25.2] below.** That release stated (a) that a coordinator may no longer
+  launch a worker and end its turn to wait for it, (b) that only the root conversation is ever
+  resumed, and (c) that a PreToolUse hook now denies the spawn tool outright when the caller is
+  itself a subagent. All three are withdrawn. What is true instead: a dispatched agent MAY launch its
+  own children at any depth within the cap, the launcher IS woken with each child's result once it
+  ends its turn, and parking to wait is correct at ANY depth - not only in the root conversation -
+  provided the launcher really does stop and emits nothing after the send. Measured over an
+  instrumented corpus of real runs: 295 nested launches, 211 resumed with the child's result, 0
+  orphans. The ban rested on an inference nobody had measured; the deny hook that enforced it is
+  deleted, `block-coordinator-code-write.sh` refuses the real risk instead, and the flattened
+  topology - `odoo-coding` to `odoo-coder` to its teammates - is restored. The [4.25.2] section
+  below is left exactly as written: it is a truthful record of what shipped, not of what is now
+  correct.
+- `odoo-ai-agents` - **eight front doors now dispatch the specialist decision instead of making it.**
+  `odoo-forward-port` ran a conflict scan, raw OSM grounding and a pytest collection gate inline;
+  `odoo-solution-design` settled contested symbols itself rather than dispatching the reconcile pass;
+  `odoo-debug` screened an AccessError for leak or privilege escalation before deciding where it
+  went. Each spent the orchestrator's context on work it does not own and returned a judgement from
+  the context least equipped to make it. Every one of those steps now dispatches the agent that owns
+  the verdict, and the front door keeps only what a router is for: scoping the request, choosing the
+  leg, and recording what came back. Where the routing turns on a fact the report does not state, the
+  skill asks the reporter rather than inferring it from a traceback.
+- `odoo-ai-agents` - the spawner batch barrier states what it gates. It gates every step that
+  CONSUMES THE BATCH AS A WHOLE - composing or returning a result, an integrated test, a commit, any
+  synthesis over the batch. It does NOT gate reading each arrival to mark it terminal, and it does
+  NOT gate launching a further child whose OWN prerequisites have already returned: holding a ready
+  dependent launch back until an unrelated sibling finishes serializes work the barrier never asked
+  to be serialized.
+
 ### Fixed
 
 - **Seven wrong Odoo facts, each re-verified against the Odoo Semantic index before the
@@ -28,23 +128,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and results; it does not litigate a wording bug in the server repo, narrate a re-grounding
   session, or quote verbatim the wrong claim it exists to correct - a quoted wrong claim is one the
   next reader can lift back out of context.
-
-### Added
-
-- **`snippets/odoo-era-boundaries.md` row 7 - core stylesheet language.** The axis no SSOT owned,
-  which is why eleven files each invented a window and all eleven were wrong.
-- **Two lints in `check_orchestration.py`.** `[gen-prose]` runs the version trigger over the
-  generator's RENDERED output rather than its Python source (proven red on the real defect before
-  the delete that clears it). `[version-claim]` is diff-scoped: tree-wide the same trigger leaves
-  855 residual hits across 158 files, so it gates only the lines a change adds, and degrades to
-  advisory when no merge base resolves. `orchestration-check` CI now checks out with
-  `fetch-depth: 0` so that diff is computable.
+- `odoo-ai-agents` - **a build's browser-test failures are counted.** A `--test-enable` build runs a
+  Python suite AND one or more browser suites, but the run verdict only ever counted the Python one,
+  so a build that failed hundreds of Hoot or QUnit tests reported `failed: 1` behind a single Python
+  wrapper failure - and the fix loop, reading that, sent the backend worker after a frontend defect.
+  Counting is per LOGGER SCOPE rather than per file, because one build routinely drives several
+  browser suites (desktop, mobile, any module shipping its own) and each publishes its own verdict.
+  The figures stay in four separate fields - `JS_RUNS`, `JS_SCOPE`, `JS_FAILED_REPORTED`,
+  `JS_FAILED_TESTS` - rather than folded into the Python counters, because the units genuinely
+  differ: QUnit publishes failed ASSERTIONS while Hoot publishes failed TESTS, so a sum would be a
+  number that means nothing. `JS_FAILED_REPORTED` keeps each run's own published figure and
+  `JS_FAILED_TESTS` counts distinct failing test NAMES; neither derives from the other, so both are
+  reported. Two traps are handled in the script rather than left to a reader's grep: Odoo prints the
+  failing `browser_js(...)` source line inside its own traceback, so a run that FAILED contains the
+  success string verbatim, and even a correctly prefixed success marker speaks only for its OWN
+  scope. Absence stays distinct from zero throughout - a log with no scope line is `unscoped` with
+  per-test names declared unavailable, and all four fields arrive EMPTY together when the log holds
+  no JS marker, forwarded as null and never as 0.
+- `odoo-ai-agents` - the module-icon manifest instruction no longer tells agents to refuse a key the
+  server honours. It ordered them to decline the manifest `icon` key outside v19 on the grounds that
+  icon lookup is PNG-hardcoded; Odoo in fact reads a module's own `icon` value first and
+  auto-discovers the conventional PNG only when that value is empty. Both assets are now always
+  emitted, the key is set only when the brief or a non-conventional asset path calls for it, and the
+  series boundary is resolved from the indexed source at the single row that owns it instead of being
+  restated as a version gate.
+- `odoo-ai-agents` - **a resume race can no longer strand a server, and a discovery probe no longer
+  offers a database that is gone.** `resume` returned one exit code for two opposite remedies: a
+  lease that is not parked because it was never parked is the ordinary first launch (fall back to
+  `bind`), while a lease that is not parked because a LIVE same-host server already holds it is the
+  race the first caller won - and binding there takes the lease off the server that actually holds
+  the database and port. The two now split, exit 3 and exit 6, and exit 6 tells its caller to STOP
+  the server it just launched rather than bind over the winner. `query --state parked` additionally
+  runs the pre-launch database probe, which is the only place it can run - `resume` needs a live pid
+  to corroborate ownership, so it necessarily runs AFTER a launch - and skips a lease whose database
+  is PROVABLY gone, naming `release`. "Could not look" is not "absent" and is still offered.
+  Guarded by `tests/test_resume_never_strands_a_server.py`.
+- `odoo-ai-agents` - the teardown contract's park exit no longer collides with the same-spelled
+  dispatch discipline. "Park" names two different things in this plugin - parking a LEASE and a
+  launcher parking to wait for a child - so the instance-lease exit now names its exact command and
+  points at `context-handoff-protocol.md` for the other.
+- `odoo-ai-agents` - `docs/reference/workflow-harness.md` listed only two of `odoo-coder`'s three
+  workers. The topology block and the leaf-vs-spawn prose named `odoo-backend-coder` and
+  `odoo-frontend-coder` and omitted `odoo-test-writer`, which contradicted both the restored topology
+  and test-author independence. All three are named, and the ordering is explicit: the test writer is
+  launched FIRST, its RED test is observed failing before either coder writes production source, and
+  the test author is never the code author.
+- `odoo-ai-agents` - a bounded-read allowlist hit is no longer read as permission to skip a dispatch
+  a phase requires. `snippets/git-delegation.md` now states that a phase-specific narrower
+  instruction beats the general inline permission - forward-port P6 routes the conflict-marker scan
+  and the file list through git-ops in ONE dispatch, so `git diff --check` is not inline-OK there -
+  and that a tree-recursive conflict-marker grep is on no allowlist in any phase.
+- `odoo-ai-agents` - `odoo-test-writing`'s reported `Framework:` line no longer series-gates the JS
+  framework. It is resolved from what `js_test_inspect` actually reports for the module, never from
+  the series alone, because both frameworks ship and both run on the same series.
 
 ### Removed
 
 - The seven hand-written `Consumers:` blocks in `snippets/`, plus the stale one in
   `odoo-era-boundaries.md`. A citer list is derivable, so storing it twice only let it drift - it
   had, in both directions. Each is replaced by the one-line `grep -rl` that re-derives it.
+- `odoo-ai-agents` - `hooks/block-nested-background-spawn.sh` and its test, deleted with the ban they
+  enforced (see the supersede note above).
 
 ## [5.0.0] - 2026-08-17
 
