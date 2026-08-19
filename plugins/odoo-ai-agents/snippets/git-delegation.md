@@ -47,6 +47,15 @@ The full inline-OK set for odoo-ai-agents is the UNION of both lists above:
 
 Anything beyond this union (full diff content, unbounded log range, blame, large range) -> route through git-ops.
 
+**A phase-specific NARROWER instruction beats this general permission.** This union grants
+permission to run a bounded read inline; it never overrides a skill or phase that assigns that same
+read to a delegate. Where a phase says the read is dispatched, dispatch it even though the command
+is on the union - e.g. forward-port P6 routes the conflict-marker scan AND the
+`<merge-base>..<src-SHA>` file list through git-ops in ONE dispatch, so `git diff --check` is NOT
+inline-OK there. Read a bare allowlist hit as "no dispatch required by default", never as "no
+dispatch may be required of me". Separately, a tree-recursive conflict-marker grep
+(`grep -rn '^<<<<<<<' .`) is on NO allowlist, in any phase.
+
 ## Base-branch resolution (the version-named main branch)
 
 Per `git-toolkit`'s explicit-start-point rule (`git-safety-contract.md` S9 addendum), every

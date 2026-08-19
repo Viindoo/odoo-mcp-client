@@ -124,15 +124,39 @@ def test_retired_transport_snippet_is_cited_by_no_agent_body():
     assert citers == [], f"expected no agent body to cite the retired snippet, found {citers}"
 
 
-def test_concurrency_guard_cited_by_no_agent_body():
-    """concurrency-guard.md is cited by NO agent body today (neither the coordinator nor any
-    leaf) - the leaf-facing clauses that used to restate its content now live in
-    worker-brief.md/doc-cluster-plan.md/resource-teardown-contract.md instead (M6 relocation)."""
-    citers = sorted(
+def test_concurrency_guard_is_cited_only_by_a_spawner_tier_body():
+    """concurrency-guard.md is a SPAWNER-TIER file (co.SPAWNER_TIER_FILES): it binds a body that
+    FANS OUT and does not bind one that launches nothing. The rule this protects is therefore
+    half (a) - no `role: leaf` body may cite it - NOT "no body may cite it".
+
+    A blanket zero-citer assertion is what left `odoo-coder`'s intra-node WI fan-out uncapped: it
+    launches N same-worktree-writing workers, which is precisely the Mode B trigger the guard
+    defines, yet no agent body was permitted to carry the cap. Assert the role boundary instead."""
+    offenders = sorted(
         p.stem for p in AGENTS_DIR.glob("*.md")
         if "concurrency-guard.md" in p.read_text(encoding="utf-8")
+        and ROLES.get(p.stem) not in ("spawner", "coordinator")
     )
-    assert citers == [], f"expected no agent body to cite concurrency-guard.md, found {citers}"
+    assert offenders == [], (
+        f"only a role=spawner|coordinator body may cite concurrency-guard.md; these do not "
+        f"launch anything yet cite it: {offenders}"
+    )
+
+
+def test_the_fanning_out_coordinator_actually_carries_the_concurrency_cap():
+    """The positive half: a body that fans out MUST cite the cap, or its fan-out is unbounded.
+    Without this, the boundary test above passes vacuously the moment the citation is deleted."""
+    fanning_out = sorted(n for n, r in ROLES.items() if r in ("spawner", "coordinator"))
+    assert fanning_out, "subject set is empty - the assertion below would pass vacuously"
+    missing = [
+        n for n in fanning_out
+        if (AGENTS_DIR / f"{n}.md").exists()
+        and "concurrency-guard.md" not in (AGENTS_DIR / f"{n}.md").read_text(encoding="utf-8")
+    ]
+    assert missing == [], (
+        f"these bodies fan out but state no concurrency cap: {missing} - cite "
+        "skills/_shared/concurrency-guard.md rather than launching an unbounded batch"
+    )
 
 
 def test_role_scope_is_strict_gating_and_clean_on_real_tree():

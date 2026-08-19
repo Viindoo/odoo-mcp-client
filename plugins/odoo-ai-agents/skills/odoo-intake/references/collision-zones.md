@@ -296,8 +296,10 @@ If the user said "design the architecture for the new purchase approval flow bef
 **Prompt**: "icon", "image for the module", "glyph", "create the module icon".
 
 - `odoo-icon-design`: DESIGN and GENERATE the module's `icon.png` (256x256 App Store de-facto)
-  via SVG code-gen + rasterizer; brand-aware, version-gated (PNG-only v8-v18; +icon.svg +
-  manifest key on v19); standalone-first, browser-free.
+  via SVG code-gen + rasterizer; brand-aware; which asset formats and manifest keys the target
+  series accepts is resolved by the agent against `docs/odoo-ui-knowledge.md` § Documentation
+  screenshots > Layout, row "Manifest `icon` key" - never assumed from a series here;
+  standalone-first, browser-free.
 - `odoo-doc-illustration` (screenshot crop): captures a live Odoo screen at a viewport crop -
   used as a fallback illustration in docs, NOT a designed icon; output is a screenshot, not
   an SVG-derived asset file.

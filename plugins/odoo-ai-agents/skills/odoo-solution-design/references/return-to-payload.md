@@ -16,6 +16,7 @@ dispatch template as follows - do NOT improvise or drop any field:
 | `intent_records` | `REQUEST` body | Write "Intent records (read these FIRST for the OSM-grounded behavioral contract): <paths>" as a dedicated line in `REQUEST`; the architect MUST Read each path before designing - this is the behavioral contract the forward-port must preserve |
 | `design_slug_hint` | `DESIGN_SLUG_HINT` line | Copy verbatim; the architect uses it as `<slug>` when naming `<SHARE_DIR>/designs/<slug>-<date>.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
 | `return_to` | `RETURN_TO` line | Copy verbatim; routes the architect's Continuation Contract back to the caller |
+| `design_proposals` | `REQUEST` body, own section | Structural changes the CALLER may propose but must never decide alone (e.g. forward-port proposing that a same-module inherit view be folded into its base and deleted). The caller owns the finding format - copy each entry as it arrives, never reformat it. Paste each entry verbatim under a `PROPOSALS TO ADJUDICATE (accept or reject each - do not silently ignore one):` heading. The architect MUST return a verdict line per entry in the TDD - `adopted` (with the design section that implements it) or `rejected` (with the reason) - because the caller applies such a change ONLY on `adopted`. An empty list needs no section; the key being ABSENT is a malformed payload - ask the caller rather than assuming none |
 
 The assembled `REQUEST` therefore reads:
 ```
@@ -23,6 +24,8 @@ REQUEST: Target Odoo version: <target_version>
 Modules: <module names>
 Intent records (read these FIRST for the OSM-grounded behavioral contract): <intent_records paths>
 <classification - bucket-(c) summary>
+PROPOSALS TO ADJUDICATE (accept or reject each - do not silently ignore one):
+<one design_proposals entry per line, verbatim>
 ```
 
 Never flatten `intent_records` into the classification summary or omit it - it carries the

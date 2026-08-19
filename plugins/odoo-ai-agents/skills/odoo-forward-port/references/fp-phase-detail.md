@@ -223,6 +223,9 @@ deferred or `installable:False` module needs no design - skip it.
 Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-harness
 advances it):
 
+**This block is the SSOT for the P3 payload** - `SKILL.md` P3 and its Continuation Contract
+section both point here rather than restating it. Add a field only here.
+
 ```
 next: odoo-solution-design
 inputs:
@@ -234,7 +237,19 @@ inputs:
     # one entry per module in `modules` above (§ P1 write path - each module's own
     # intent perspective on this sha), never the bare run-slug intents/<sha>.md
   classification: <bucket-(c) summary>
+  design_proposals: [<verbatim finding line>, ...]
+    # every structural change this pipeline may PROPOSE but never decide, carried verbatim
+    # for the architect to accept or reject. Today exactly one producer: the P7 view-topology
+    # `VIEW-TOPOLOGY | ... | action: merge-into-base | ...` finding line (see P7 below).
+    # `[]` when there is none - the key is ALWAYS present, never omitted.
+    # A `NEEDS-HUMAN` view-topology line NEVER travels here: it goes to the P10 human gate.
 ```
+
+**Routing a proposal when no commit routes to P3.** A `merge-into-base` line can be raised on a
+bucket-(b) commit that needs no design of its own. It still may not be applied unapproved: when
+this batch emits no P3 hop, raise one whose `classification` reads
+`view-topology proposal only (no bucket-(c) design)` and whose `modules` is the proposing module -
+`design_proposals` is never dropped for want of a carrier.
 
 `<slug>` is the run slug (`<source-series>-to-<target-series>`); `<sha>` the short SHA of the
 routed commit. Together `design_slug_hint` gives the design agent a deterministic output path
@@ -395,8 +410,10 @@ cross-repo ports. From the returned list the delegate derives:
 - **Lane 1** - ALL merged-touched `.py` (production AND `tests/`): the `*.py` entries.
 - **Lane 2** - `tests/` only: the Lane-1 entries whose path contains `tests/`.
 
-Dispatch the gates as read-only delegates (`git-toolkit:git-ops` / `Explore`) and record only their
-verdict: Lane 1 gets classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
+Dispatch the gates as read-only delegates and record only their verdict. The delegate per class is
+assigned once in `[[fp-symbol-survival-check]]` § Who runs this check - do not pick one here: the
+git-ops dispatch above enumerates the files, and `Explore` runs every static lane below. Lane 1
+gets classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
 dict-key scan) over ALL .py - production AND tests; Lane 2 additionally gets (a) (b) (c) (f). Treat
 F821 on a production file as a runtime NameError that would crash module load, not a nit; treat a
 (g) dead key on a production call site the same way - it raises `Invalid field` at load/run yet
@@ -409,8 +426,12 @@ append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 8a
 
 At P7 no instance DB has been acquired yet (allocator runs at P9), so the gate is a
 `pytest --collect-only` run over the merged test files - it needs no DB and catches ImportError /
-missing-fixture breaks for ordinary test modules. Dispatch it as a read-only delegate and record the
-PASS/FAIL verdict; never run it, or read its log, in the orchestrating context.
+missing-fixture breaks for ordinary test modules. Dispatch it to `Explore` (read-only), the delegate
+`[[fp-symbol-survival-check]]` § Who runs this check assigns to this class. Brief it with: the
+integration worktree path, the merged test file list Lane 2 produced, the exact command
+`python -m pytest --collect-only <those files>`, and the instruction to return ONLY `PASS`, or
+`FAIL` plus one line per collection error (`<file>::<node> | <error class> | <message>`) - never the
+raw log. Record that verdict; never run the command, or read its log, in the orchestrating context.
 
 **No ad hoc provisioning, in any phase** (SKILL.md P9's DELEGATE mandate is not scoped to P9 alone;
 a bare provisioning call from ANY non-leaf phase in this pipeline bypasses the SAME instance HARD

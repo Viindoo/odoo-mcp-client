@@ -73,8 +73,15 @@ this turn is still running.
 - DEPENDENT children (a later child needs an earlier one's output): launch the first child, END
   YOUR TURN, consume its result when you are woken, then launch the next the same way.
 - INDEPENDENT children (a parallel sibling batch): launch the whole batch in ONE message, END YOUR
-  TURN, and track each child's arrival on your task list until every one is terminal before you
-  read results or synthesize.
+  TURN, and track each child's arrival on your task list until every one is terminal. The barrier
+  gates every step that CONSUMES THE BATCH AS A WHOLE - composing or returning your own result, an
+  integrated/whole-scope test, a commit, any synthesis over the batch: none of those may start
+  while one member is still running. It does NOT gate reading each arrival to mark it terminal
+  (that read is REQUIRED - see the count rule below), and it does NOT gate launching a further
+  child whose OWN prerequisites have already returned terminal: launch it in the turn you are woken
+  with that prerequisite's result, END YOUR TURN again, and the outstanding siblings stay on the
+  list. Holding a ready dependent launch back until an unrelated sibling finishes serializes work
+  the barrier never asked you to serialize.
 
 Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-contract.md`) - one
 task per child at/before launch; the batch barrier clears ONLY when every child has returned ONE OF

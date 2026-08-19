@@ -2,6 +2,7 @@
   "schema_version": "1",
   "generated_at": "2026-06-19T00:00:00Z",
   "server_version_required": "0.13.1",
+  "_mcp_tool_callers_doc": "Optional per-skill CALLER axis. `skills.<name>.mcp_tool_callers` maps a tool already in that skill's `mcp_tools` list to a one-clause qualification of WHO may issue the call and WHERE. gen_surface.py renders it as a **Caller:** clause on that tool's bullet in the generated `## MCP tools` block, plus a header note stating the clause overrides the bare listing. Add an entry whenever a phase of the skill assigns a tool to a dispatched delegate: without it the generated block - the section an agent re-reads mid-run to recall what it may call - licenses exactly the inline call that phase forbids. A tool with no entry is unqualified. Naming a tool absent from `mcp_tools` is a hard generator error.",
   "skills": {
     "odoo-brl": {
       "mcp_tools": [
@@ -540,6 +541,16 @@
         "cli_help",
         "impact_analysis"
       ],
+      "mcp_tool_callers": {
+        "api_version_diff": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "model_inspect": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "module_inspect": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "entity_lookup": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "find_test_examples": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "test_base_classes": "orchestrator-inline ONLY where a phase explicitly assigns it (P2 classification, and the 8a/8b adapt-brief grounding); at P6 / P6-TEST / P7 the same call belongs to the dispatched read-only delegate, so never issue it in the orchestrating context there (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "test_coverage_audit": "delegate only - the P6-TEST test-survival sweep runs inside the dispatched read-only `Explore` delegate; the orchestrating context records its verdict and never issues this call (`snippets/fp-symbol-survival-check.md` - Who runs this check)",
+        "tests_covering": "delegate only - the P6-TEST test-survival sweep runs inside the dispatched read-only `Explore` delegate; the orchestrating context records its verdict and never issues this call (`snippets/fp-symbol-survival-check.md` - Who runs this check)"
+      },
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
       "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test verification at target version (PR #323, v0.15.0). cli_help grounds odoo-bin flags for the P9 per-batch odoo-instance dispatch; impact_analysis derives the P9 reverse-closure verify scope directly (no pre-built dependency DAG file the way odoo-modules-upgrade has). min_server 0.15.0 for test tools."
@@ -1045,7 +1056,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module.",
+      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; icon.png + icon.svg are always emitted (no version-gated PNG-only era - Odoo reads the manifest `icon` key first and only auto-discovers the conventional PNG when it is empty, per docs/odoo-ui-knowledge.md's boundary row), the manifest `icon` key is set only when the brief or a non-conventional asset path calls for it; style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "MODULE_PATH",
@@ -1486,7 +1497,7 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-solution-architect",
-        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword)"
+        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order, then MODE: consistency and, on any contested symbol, a MANDATORY MODE: reconcile architect call that picks the winner - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword)"
       ],
       "stack": "fullstack",
       "instance_touching": false,

@@ -253,3 +253,67 @@ def test_no_markers_inserts_new_block_under_mcp_heading(tmp_path):
     assert "INSERTED" in out
     assert out.count("<!-- BEGIN GENERATED TOOLS -->") == 1
     assert out.count("<!-- END GENERATED TOOLS -->") == 1
+
+
+# ---------------------------------------------------------------------------
+# Caller axis: a flat tool list in a generated `## MCP tools` block licenses
+# every context to call every tool it names - including the phases of the same
+# skill that assign that call to a dispatched delegate. The SSOT therefore
+# carries an optional per-tool CALLER qualification and the generator must
+# render it. These protect the BEHAVIOR (the qualification reaches the block an
+# agent re-reads mid-run), not the wording.
+# ---------------------------------------------------------------------------
+
+SKILL_TOOL_DEPS = SKILLS_PLUGIN / "generator" / "skill_tool_deps.json"
+SKILLS_DIR = SKILLS_PLUGIN / "skills"
+
+
+def _declared_callers() -> dict[str, dict[str, str]]:
+    data = json.loads(SKILL_TOOL_DEPS.read_text(encoding="utf-8"))
+    out = {}
+    for skill, entry in data["skills"].items():
+        callers = {t: q for t, q in entry.get("mcp_tool_callers", {}).items()
+                   if not t.startswith("_")}
+        if callers:
+            out[skill] = callers
+    return out
+
+
+def _generated_block(skill: str) -> str:
+    text = (SKILLS_DIR / skill / "SKILL.md").read_text(encoding="utf-8")
+    start = text.index("<!-- BEGIN GENERATED TOOLS -->")
+    return text[start:text.index("<!-- END GENERATED TOOLS -->", start)]
+
+
+def test_a_declared_caller_axis_exists_at_all():
+    """Discovery floor. With no skill declaring the axis the two assertions below
+    would iterate an empty set and pass forever while the false licence stands."""
+    assert _declared_callers(), (
+        "no skill declares mcp_tool_callers - either the axis was dropped from the SSOT, "
+        "or a phase that delegates a tool call never declared it"
+    )
+
+
+def test_every_declared_caller_qualification_reaches_the_generated_block():
+    for skill, callers in _declared_callers().items():
+        block = _generated_block(skill)
+        for tool in callers:
+            line = next((ln for ln in block.splitlines()
+                         if ln.startswith(f"- `{tool}`")), None)
+            assert line is not None, f"{skill}: no generated bullet for `{tool}`"
+            assert "**Caller:**" in line, (
+                f"{skill}: `{tool}` is declared as caller-qualified in the SSOT but its "
+                "generated bullet carries no **Caller:** clause - the block still licenses "
+                "the inline call the phase forbids. Run `make gen`."
+            )
+
+
+def test_a_qualified_block_says_the_clause_overrides_the_bare_listing():
+    """A per-bullet clause an agent reads as decoration changes nothing; the block
+    must state that the clause is the authority."""
+    for skill in _declared_callers():
+        block = _generated_block(skill)
+        assert "does NOT license every context to call it" in block, (
+            f"{skill}: the generated block carries Caller clauses but never says they "
+            "override the bare listing"
+        )
