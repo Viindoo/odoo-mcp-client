@@ -689,9 +689,12 @@ def test_no_procedural_field_values_in_instance_brief():
 # never spells this `dbname`) - and every producer field describing the ONE
 # live instance must be documented in the contract, and vice versa.
 # Data-driven both directions, scoped to the fields that describe the ONE
-# live instance (never the per-operation-only fields: op, series,
-# modules_installed, failed, errors, warnings, skipped, findings_path,
-# status, notes - those are not part of the handle abstraction).
+# live instance. The per-operation-only fields are NOT part of the handle
+# abstraction and are excluded in two ways: the envelope/verdict fields (op,
+# series, modules_installed, status, notes) are named below, and every field
+# the producer block itself annotates `# run-tests only` is read OUT OF THAT
+# BLOCK rather than re-listed here - a run's result fields are owned by the
+# producer, so adding one must not require editing this test to stay green.
 # ---------------------------------------------------------------------------
 
 INSTANCE_HANDLE_CONTRACT = (
@@ -699,15 +702,10 @@ INSTANCE_HANDLE_CONTRACT = (
 )
 ODOO_INSTANCE_OPS_AGENT = ODOO_AGENTS_DIR / "odoo-instance-ops.md"
 
-_OPERATION_SCOPED_PRODUCER_FIELDS = {
+_ENVELOPE_PRODUCER_FIELDS = {
     "op",
     "series",
     "modules_installed",
-    "failed",
-    "errors",
-    "warnings",
-    "skipped",
-    "findings_path",
     "status",
     "notes",
 }
@@ -718,20 +716,41 @@ def _contract_field_names(text):
     return set(re.findall(r"^-\s+`([a-z_]+)`", section, re.MULTILINE))
 
 
-def _producer_canonical_field_names(text):
+def _producer_canonical_block(text):
     match = re.search(r"```instance-ops\n(.*?)\n```", text, re.DOTALL)
     assert match, "agents/odoo-instance-ops.md: canonical `instance-ops` output block not found"
-    return set(re.findall(r"^(\w+):", match.group(1), re.MULTILINE))
+    return match.group(1)
+
+
+def _producer_canonical_field_names(text):
+    return set(re.findall(r"^(\w+):", _producer_canonical_block(text), re.MULTILINE))
+
+
+def _producer_run_scoped_field_names(text):
+    """Fields the producer block itself marks as belonging to ONE operation's
+    result rather than to the instance. Read from the block so the producer
+    stays the single source of truth for its own schema."""
+    return set(re.findall(
+        r"^(\w+):[^\n]*#[^\n]*run-tests only",
+        _producer_canonical_block(text),
+        re.MULTILINE,
+    ))
 
 
 def test_instance_handle_field_names_match_producers():
     contract_fields = _contract_field_names(
         INSTANCE_HANDLE_CONTRACT.read_text(encoding="utf-8")
     )
-    producer_fields = _producer_canonical_field_names(
-        ODOO_INSTANCE_OPS_AGENT.read_text(encoding="utf-8")
+    producer_text = ODOO_INSTANCE_OPS_AGENT.read_text(encoding="utf-8")
+    producer_fields = _producer_canonical_field_names(producer_text)
+    run_scoped = _producer_run_scoped_field_names(producer_text)
+    assert {"failed", "errors", "warnings", "skipped", "findings_path"} <= run_scoped, (
+        "the canonical output block must keep annotating its run-result fields "
+        "`# run-tests only` - that annotation is what tells this guard (and a "
+        "reader) which fields describe ONE run rather than the live instance; "
+        f"currently annotated: {sorted(run_scoped)}"
     )
-    handle_producer_fields = producer_fields - _OPERATION_SCOPED_PRODUCER_FIELDS
+    handle_producer_fields = producer_fields - _ENVELOPE_PRODUCER_FIELDS - run_scoped
 
     missing_from_producer = contract_fields - producer_fields
     assert not missing_from_producer, (

@@ -2780,3 +2780,548 @@ def test_test_verb_asks_odoo_to_install_unaccent(tmp_path):
         "whose search behaves differently from production is a false green. "
         f"odoo-bin was called as: {call_content}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Contract 9: a --test-enable build runs TWO test frameworks, and the run's
+# failure MAGNITUDE and per-test EVIDENCE must survive both.
+#
+# Business rules protected here:
+#   (a) The run boundary is the LOGGER SCOPE, not the file. One log holds
+#       several browser suites; de-duplicating failing test names across the
+#       whole file merges runs that share names and destroys real failures.
+#   (b) QUnit publishes failed ASSERTIONS, Hoot publishes failed TESTS. Neither
+#       figure derives from the other, so BOTH are reported, under names that
+#       say which unit they carry.
+#   (c) A positive JS marker is a verdict for ITS OWN SCOPE ONLY. A real green
+#       marker for one run coexists with a red run in the same file, and the
+#       traceback echo of a `success_signal="..."` source line is not a marker
+#       at all.
+#   (d) Unmeasured is EMPTY, never 0 - the same rule the Python counts follow.
+#
+# Every fixture line below is a REDACTED excerpt of a real run log: the
+# database slug, host paths and non-core module names are replaced with generic
+# tokens, the wording is verbatim.
+# ---------------------------------------------------------------------------
+
+# Odoo 19.0 Hoot, scope WebSuite.test_unit_desktop.
+JS_HOOT_FAIL_A = (
+    "2026-01-01 00:00:01,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/action_swiper/render with the height of its content" failed:'
+)
+JS_HOOT_FAIL_B = (
+    "2026-01-01 00:00:02,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/autocomplete/close on escape" failed:'
+)
+# A ROOT suite trailer (no `/` in the name) and a NESTED one. Summing every
+# trailer would double count; summing only the roots cannot.
+JS_HOOT_ROOT = (
+    "2026-01-01 00:00:03,000 1 INFO testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] "@web" ended (passed: 5530 / failed: 3 / time: 200000 ms)'
+)
+JS_HOOT_NESTED = (
+    "2026-01-01 00:00:04,000 1 INFO testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] "@web/core/autocomplete" ended (passed: 22 / failed: 2 / time: 4212 ms)'
+)
+# The SAME test name failing in a second scope (desktop + mobile share names).
+JS_HOOT_FAIL_MOBILE = (
+    "2026-01-01 00:00:05,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.MobileWebSuite.test_unit_mobile.browser: "
+    '[HOOT] Test "@web/core/autocomplete/close on escape" failed:'
+)
+# A genuine, correctly-prefixed green marker for a DIFFERENT scope of the same run.
+JS_HOOT_GREEN_OTHER_SCOPE = (
+    "2026-01-01 00:00:06,000 1 INFO testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_hoot.browser: "
+    "[HOOT] Test suite succeeded"
+)
+# The traceback ECHO: Odoo prints the failing browser_js SOURCE line verbatim.
+# It is NOT a marker - it carries no logger prefix - and it appears in runs that
+# FAILED, which is what makes a bare positive-marker grep a false green.
+JS_ECHO_SOURCE_LINE = (
+    "    self.browser_js('/web/tests?headless&preset=desktop', \"\", \"\", login='admin', "
+    'timeout=1800, success_signal="[HOOT] Test suite succeeded", '
+    "error_checker=unit_test_error_checker)"
+)
+
+# Odoo 17.0 QUnit, scope WebSuite. Each failing test prints twice inside its own
+# scope (once ERROR, once INFO) and again with no scope at all.
+JS_QUNIT_FAIL_ERR = (
+    "2026-01-01 00:00:07,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: "
+    "QUnit test failed: mail > mobile > Edit message (mobile) :"
+)
+JS_QUNIT_FAIL_INFO = (
+    "2026-01-01 00:00:07,000 1 INFO testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: "
+    "QUnit test failed: mail > mobile > Edit message (mobile) :"
+)
+JS_QUNIT_FAIL_ERR_2 = (
+    "2026-01-01 00:00:08,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: "
+    "QUnit test failed: mail > mobile > Show send button in mobile :"
+)
+JS_QUNIT_FAIL_UNSCOPED = "QUnit test failed: mail > mobile > Edit message (mobile) :"
+# QUnit's own aggregate, printed twice in scope (the second time re-prefixed).
+JS_QUNIT_AGG_ERR = (
+    "2026-01-01 00:00:09,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: 8 / 422 tests failed. "
+)
+JS_QUNIT_AGG_INFO = (
+    "2026-01-01 00:00:09,000 1 INFO testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: "
+    "Error received after termination: 8 / 422 tests failed. "
+)
+# The same aggregate with NO logger prefix at all - the ONLY copy two real 17.0
+# logs published.
+JS_QUNIT_AGG_BARE = "19 / 37599 tests failed."
+
+
+def _make_fake_odoo_bin_lines(tmp_path: Path, *, exit_code: int, lines) -> Path:
+    """A fake odoo-bin that emits `lines` verbatim.
+
+    A quoted heredoc, not `echo "<line>"`: every real JS marker carries double
+    quotes, `$` and backticks, and an echo-based stub would mangle or execute
+    them - the fixture has to be byte-faithful to the corpus to be evidence."""
+    fake = tmp_path / "odoo-bin"
+    body = "cat <<'ODOO_LOG_FIXTURE'\n" + "\n".join(lines) + "\nODOO_LOG_FIXTURE\n"
+    body += f"exit {exit_code}\n"
+    _write_stub(fake, body)
+    return fake
+
+
+def _run_test_verb_lines(tmp_path: Path, db: str, lines, *, version: str = "17.0",
+                         exit_code: int = 1) -> subprocess.CompletedProcess:
+    fake_bin = _make_fake_odoo_bin_lines(tmp_path, exit_code=exit_code, lines=lines)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir(exist_ok=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    return _run("test", "--db", db, "--python", str(fake_py), "--addons", str(addons_dir),
+                "--modules", "web", "--version", version, env=env)
+
+
+def _field(res: subprocess.CompletedProcess, name: str) -> str:
+    hits = [l for l in res.stdout.splitlines() if l.startswith(f"{name}=")]
+    assert len(hits) == 1, f"expected exactly one {name}= line, got {hits}\n{res.stdout}"
+    return hits[0].split("=", 1)[1]
+
+
+def _findings_text(res: subprocess.CompletedProcess) -> str:
+    return Path(_field(res, "FINDINGS_PATH")).read_text(encoding="utf-8")
+
+
+@requires_bash
+def test_a_hoot_run_reports_the_root_suite_total_and_never_sums_nested_suites(tmp_path):
+    """Magnitude comes from the run's own root trailers, and nesting never inflates it.
+
+    Hoot prints a trailer for EVERY suite, and suites nest. Summing all of them
+    reports a multiple of the truth; taking only the top-level (`/`-free) suites
+    is exact, because nesting is a tree. The floor is the per-test line count,
+    so a run whose trailers were lost to a quieter log level still reports what
+    it named."""
+    res = _run_test_verb_lines(tmp_path, "hootroot", [
+        JS_HOOT_FAIL_A, JS_HOOT_FAIL_B, JS_HOOT_NESTED, JS_HOOT_ROOT,
+    ])
+    assert _field(res, "JS_SCOPE") == "scoped", res.stdout
+    assert _field(res, "JS_RUNS") == "1", res.stdout
+    assert _field(res, "JS_FAILED_REPORTED") == "3", (
+        "the root suite reported 3 failures; summing the nested trailer too would "
+        f"report 5 and taking only the per-test lines would report 2\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_TESTS") == "2", res.stdout
+
+
+@requires_bash
+def test_two_runs_sharing_a_test_name_are_counted_as_two_failures(tmp_path):
+    """THE de-duplication bug. The run boundary is the logger scope, not the file.
+
+    Desktop and mobile suites run the same test names, so a whole-file
+    `sort -u` of failing names merges them and reports one failure where there
+    are two. On the real corpus that single mistake loses 632 failures in one
+    log."""
+    res = _run_test_verb_lines(tmp_path, "twoscopes", [
+        JS_HOOT_FAIL_B, JS_HOOT_FAIL_MOBILE,
+    ])
+    assert _field(res, "JS_RUNS") == "2", res.stdout
+    assert _field(res, "JS_FAILED_TESTS") == "2", (
+        "the same test name failed in two DIFFERENT runs; collapsing them to 1 is "
+        f"the whole-file de-duplication defect\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_REPORTED") == "2", res.stdout
+
+
+@requires_bash
+def test_qunit_reports_its_own_assertion_aggregate_beside_the_test_names(tmp_path):
+    """Two quantities, two fields - because they are two UNITS.
+
+    QUnit's `<F> / <T> tests failed` counts failed ASSERTIONS: a real 17.0 scope
+    reports 8 for 4 distinct failing tests. Publishing only the aggregate claims
+    a test count the run never gave; publishing only the names discards the
+    run's own figure. Both, named for their unit, is the only answer that is not
+    a fabrication."""
+    res = _run_test_verb_lines(tmp_path, "qunitunits", [
+        JS_QUNIT_FAIL_ERR, JS_QUNIT_FAIL_UNSCOPED, JS_QUNIT_FAIL_INFO,
+        JS_QUNIT_FAIL_ERR_2, JS_QUNIT_AGG_ERR, JS_QUNIT_AGG_INFO,
+    ])
+    assert _field(res, "JS_SCOPE") == "scoped", res.stdout
+    assert _field(res, "JS_RUNS") == "1", res.stdout
+    assert _field(res, "JS_FAILED_REPORTED") == "8", (
+        "the aggregate is printed twice inside its scope; counting the LINES "
+        f"reports 16, and dropping it reports 2\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_TESTS") == "2", (
+        "each failing test prints twice in scope and again unscoped; the field "
+        f"counts distinct NAMES within the scope\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_an_aggregate_with_no_logger_scope_is_still_read(tmp_path):
+    """Two real 17.0 logs publish their only JS figure with no logger prefix.
+
+    A scope anchor is what separates a marker from the traceback echo, but
+    applied as a precondition it silently drops those runs to EMPTY. The
+    fallback cannot pick up the echo: the echo is a `success_signal="..."`
+    source line, never an aggregate. The mode is reported so a caller knows the
+    per-test names are unavailable rather than absent."""
+    res = _run_test_verb_lines(tmp_path, "unscopedagg", [JS_QUNIT_AGG_BARE])
+    assert _field(res, "JS_SCOPE") == "unscoped", res.stdout
+    assert _field(res, "JS_RUNS") == "1", res.stdout
+    assert _field(res, "JS_FAILED_REPORTED") == "19", (
+        f"the only figure this run published must not be discarded\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_TESTS") == "", (
+        "no per-test name is recoverable from a bare aggregate; a 0 here would "
+        f"claim a measurement that was never made\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_a_success_signal_echo_is_never_read_as_a_js_run(tmp_path):
+    """The false-green trap, and its mirror image.
+
+    Odoo prints the failing `browser_js(...)` source line inside its traceback,
+    so a FAILING run's log contains `success_signal="[HOOT] Test suite
+    succeeded"` verbatim. It must not be counted as a green run - and it must
+    not be counted as a measured ZERO either, which would tell a caller the JS
+    suite ran and passed."""
+    res = _run_test_verb_lines(tmp_path, "echoonly", [
+        JS_ECHO_SOURCE_LINE, FAIL_LINE_ALL_SERIES,
+    ])
+    assert _verdict(res) == "failed", res.stdout
+    for name in ("JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS"):
+        assert _field(res, name) == "", (
+            f"{name} must be EMPTY: the log's only JS text is a traceback echo, so "
+            f"nothing about the JS suite was measured\n{res.stdout}"
+        )
+
+
+@requires_bash
+def test_a_green_marker_in_one_scope_does_not_speak_for_a_failing_scope(tmp_path):
+    """A real green marker and a red run coexist in the same file.
+
+    Observed on a real 19.0 log: `WebSuite.test_hoot` genuinely succeeded while
+    `WebSuite.test_unit_desktop` failed 477 tests in the same run. So the logger
+    prefix separates a marker from an echo, but it does NOT make that marker a
+    verdict for the file - only for its own scope."""
+    res = _run_test_verb_lines(tmp_path, "mixedscopes", [
+        JS_HOOT_GREEN_OTHER_SCOPE, JS_HOOT_FAIL_A, JS_HOOT_FAIL_B,
+    ])
+    assert _verdict(res) == "failed", res.stdout
+    assert _field(res, "JS_RUNS") == "2", (
+        "the green scope is a run too - it is counted, not treated as the verdict "
+        f"for the file\n{res.stdout}"
+    )
+    assert _field(res, "JS_FAILED_TESTS") == "2", res.stdout
+    assert _field(res, "JS_FAILED_REPORTED") == "2", res.stdout
+
+
+@requires_bash
+def test_a_python_only_run_reports_the_js_fields_as_unmeasured(tmp_path):
+    """A module with no JS suite - and every series before 11.0 - measures nothing.
+
+    EMPTY, not 0: a fabricated zero says the browser suite ran and found nothing
+    wrong, which is a different claim from "no browser suite ran"."""
+    res = _run_test_verb_lines(tmp_path, "pythononly", [FAIL_LINE_V14_PLUS])
+    assert _verdict(res) == "failed", res.stdout
+    assert _field(res, "TEST_FAILED") == "3", res.stdout
+    for name in ("JS_RUNS", "JS_SCOPE", "JS_FAILED_REPORTED", "JS_FAILED_TESTS"):
+        assert _field(res, name) == "", res.stdout
+
+
+@requires_bash
+def test_a_js_only_failure_is_never_certified_green(tmp_path):
+    """A JS failure alone decides the run, on both count paths.
+
+    Today the Python wrapper method raises, so one `FAIL:` line survives. That
+    is an Odoo implementation detail, not a contract: if the wrapper ever stops
+    raising, a run with hundreds of browser failures and exit 0 would be
+    certified `passed`. The JS vocabulary is part of the failure union so it
+    cannot."""
+    res = _run_test_verb_lines(tmp_path, "jsonly", [
+        RAN_LINE_V14_PLUS, JS_HOOT_FAIL_A, JS_HOOT_FAIL_B,
+    ], exit_code=0)
+    assert _verdict(res) == "failed", (
+        "a run whose only failures are in the browser suite must not read as "
+        f"passed\n{res.stdout}"
+    )
+    assert "_No failing or errored tests detected in the log._" not in _findings_text(res), (
+        "the findings file must never answer 'no failing tests' for a run whose "
+        "browser suite named individual failures"
+    )
+
+
+@requires_bash
+def test_the_findings_file_names_every_failing_js_test_under_its_own_run(tmp_path):
+    """Evidence, not just a number: the caller routes THIS file to a debugger.
+
+    Each failing test is named under the run it failed in, so a fix loop can act
+    on it without re-grepping the log - and so the two scopes' identically named
+    tests stay distinguishable."""
+    res = _run_test_verb_lines(tmp_path, "jsfindings", [
+        JS_HOOT_FAIL_B, JS_HOOT_FAIL_MOBILE, JS_QUNIT_FAIL_ERR, JS_QUNIT_AGG_ERR,
+    ])
+    text = _findings_text(res)
+    assert "## JS test failures (Hoot/QUnit), per run" in text, text
+    assert "### WebSuite.test_unit_desktop" in text, text
+    assert "### MobileWebSuite.test_unit_mobile" in text, text
+    assert "### WebSuite" in text, text
+    assert "@web/core/autocomplete/close on escape" in text, text
+    assert "mail > mobile > Edit message (mobile)" in text, text
+    assert text.count("@web/core/autocomplete/close on escape") >= 2, (
+        "the same test failed in two runs and must be named under BOTH, not "
+        f"folded into one:\n{text}"
+    )
+
+
+def _js_corpus_dir() -> Path:
+    """The plugin's own state root, resolved the way the scripts resolve it."""
+    home = os.environ.get("ODOO_AI_HOME") or str(Path.home() / ".odoo-ai")
+    return Path(home) / "logs"
+
+
+@requires_bash
+@pytest.mark.skipif(
+    os.environ.get("ODOO_AI_JS_CORPUS_REPLAY") != "1",
+    reason="opt-in: replays the parser over the local real-run log corpus "
+           "(set ODOO_AI_JS_CORPUS_REPLAY=1)",
+)
+def test_js_counter_replayed_over_the_real_run_log_corpus(tmp_path):
+    """Synthetic logs never falsify a log-parsing design.
+
+    The fixtures above are corpus-SHAPED; this replays the parser over whatever
+    real run logs the machine actually has and asserts the properties that
+    define the fix, each derived from the log by an independent scan rather than
+    by re-running the parser's own arithmetic:
+      1. a log carrying a scope-anchored per-test failure never reports zero;
+      2. the distinct-failing-test count equals the number of distinct
+         (scope, name) PAIRS in the log - not the number of distinct names,
+         which is what whole-log de-duplication would produce;
+      3. no published aggregate is ever larger than the figure reported for the
+         run it belongs to;
+      4. a log with no JS marker of any kind reports all four fields EMPTY,
+         never 0.
+    Skipped, never failed, when no corpus is present - and skipped at the end
+    when the corpus happens to contain no log that exercises rule 2's
+    difference, so a weaker corpus cannot masquerade as a stronger proof."""
+    corpus = _js_corpus_dir()
+    logs = sorted(corpus.glob("*.log")) if corpus.is_dir() else []
+    if not logs:
+        pytest.skip(f"no run-log corpus at {corpus}")
+
+    # The script sources its siblings through ${BASH_SOURCE[0]}/../lib, so the
+    # dispatch-free copy has to keep that layout to be source-able.
+    steps_dir = tmp_path / "scripts" / "setup-steps"
+    steps_dir.mkdir(parents=True)
+    (tmp_path / "scripts" / "lib").symlink_to(STEP55.parent.parent / "lib")
+    lib = steps_dir / "step55_lib.sh"
+    src = STEP55.read_text(encoding="utf-8")
+    lib.write_text(src.split('SUBCMD="${1:-}"')[0], encoding="utf-8")
+
+    scope_re = re.compile(
+        r"(?:openerp|odoo)\.addons\.[A-Za-z0-9_.]*tests\.test_js\.([A-Za-z0-9_.]+)\.browser:")
+    hoot_fail_re = re.compile(r'\[HOOT\] Test "([^"]+)" failed:')
+    qunit_fail_re = re.compile(r"QUnit test failed: (.*)$")
+    agg_re = re.compile(r"([0-9]+) / ([0-9]+) tests failed")
+    # A scoped suite trailer or green marker proves a JS run happened even
+    # though it names no failure - a fully green suite emits nothing else.
+    ran_re = re.compile(
+        r'\[HOOT\] "[^"]+" ended \(passed: [0-9]+|\[HOOT\] Test suite succeeded'
+        r"|QUnit test suite done")
+
+    checked = 0
+    merge_evidence: list[str] = []
+    for log in logs:
+        text = log.read_text(encoding="utf-8", errors="replace")
+        scoped_names, aggregates, any_marker = set(), [], False
+        per_scope: dict[str, set] = {}
+        for line in text.splitlines():
+            sc = scope_re.search(line)
+            h, q, a = hoot_fail_re.search(line), qunit_fail_re.search(line), agg_re.search(line)
+            if sc and (h or q):
+                any_marker = True
+                name = (h or q).group(1).strip().rstrip(":").strip()
+                scoped_names.add(name)
+                per_scope.setdefault(sc.group(1), set()).add(name)
+            if sc and ran_re.search(line):
+                any_marker = True
+            if a:
+                any_marker = True
+                aggregates.append(int(a.group(1)))
+
+        out = subprocess.run(
+            ["bash", "-c", f'source "{lib}"; _js_fail_counts "{log}"'],
+            capture_output=True, text=True, timeout=120,
+        )
+        summary = [l for l in out.stdout.splitlines() if l.startswith("SUMMARY\t")]
+        if not any_marker:
+            assert not summary, (
+                f"{log.name}: no JS marker in the log, so every field must be EMPTY "
+                f"(unmeasured), never 0 - got {summary}"
+            )
+            continue
+        assert summary, f"{log.name}: carries a JS marker but the parser reported nothing"
+        _, mode, runs, reported, tests = summary[0].split("\t")
+        checked += 1
+        assert int(runs) >= 1, f"{log.name}: {summary[0]}"
+        if scoped_names:
+            assert int(reported) >= 1, (
+                f"{log.name}: the log names {len(scoped_names)} failing JS tests but "
+                f"reports {reported} failures"
+            )
+            assert mode == "scoped", f"{log.name}: {summary[0]}"
+            per_scope_total = sum(len(names) for names in per_scope.values())
+            assert int(tests) == per_scope_total, (
+                f"{log.name}: reported {tests} distinct failing tests; the log holds "
+                f"{per_scope_total} distinct (scope, name) pairs and only "
+                f"{len(scoped_names)} distinct names file-wide. A count matching the "
+                "file-wide figure is the whole-log de-duplication defect: two runs "
+                "that failed the same test are one failure each, not one between them"
+            )
+            if per_scope_total > len(scoped_names):
+                merge_evidence.append(log.name)
+        if aggregates:
+            assert int(reported) >= max(aggregates), (
+                f"{log.name}: the run published an aggregate of {max(aggregates)} and "
+                f"the parser reported {reported}"
+            )
+    assert checked, "the corpus holds no JS-bearing log - the replay proved nothing"
+    if not merge_evidence:
+        pytest.skip(
+            "no log in this corpus has two runs failing the same test name, so the "
+            "per-scope rule is exercised only by the fixtures above"
+        )
+
+
+def test_no_committed_file_claims_the_python_markers_are_the_whole_per_test_vocabulary():
+    """A `--test-enable` build has TWO per-test vocabularies, not one.
+
+    The counter was blind to Hoot/QUnit for as long as it was because the
+    committed prose said the Python `FAIL:`/`ERROR:` pair WAS the per-test
+    signal - normative text that describes the incomplete behavior as complete,
+    which is what an author reads before deciding nothing is missing. Any
+    totality claim about that pair must name the browser vocabulary in the same
+    breath or it is teaching the defect again.
+
+    Whole-tree scan on whitespace-normalized text: this prose is line-wrapped,
+    so an adjacency-bound check would miss most of it."""
+    offenders = []
+    skip_dirs = {"node_modules", "__pycache__"}
+    pair_re = re.compile(r"FAIL:.{0,40}?ERROR:|ERROR:.{0,40}?FAIL:")
+    totality_re = re.compile(
+        r"\beach failing test\b|\bevery failing test\b|\bloses nothing\b|"
+        r"\bare the failure\b|\bcome from the individual\b|\bare the per-test\b|"
+        r"\bis the per-test\b|\bthe only per-test\b|\bthe whole per-test\b",
+        re.IGNORECASE,
+    )
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix not in {".sh", ".md", ".py", ".json", ".yaml"}:
+            continue
+        rel = path.relative_to(ROOT)
+        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
+            continue
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        text = " ".join(path.read_text(encoding="utf-8", errors="ignore").split())
+        for m in pair_re.finditer(text):
+            window = text[max(0, m.start() - 250):m.end() + 250]
+            claim = totality_re.search(window)
+            if claim and "HOOT" not in window and "QUnit" not in window:
+                offenders.append(f"{rel}: ...{window[:200]}...")
+    assert not offenders, (
+        "a committed file states a TOTALITY claim about the Python "
+        "FAIL:/ERROR: markers without naming the Hoot/QUnit vocabulary that "
+        "shares the same run:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_a_js_success_marker_is_never_grepped_without_its_logger_anchor():
+    """A bare grep for a JS green marker is ALWAYS a false green.
+
+    Odoo prints the failing `browser_js(...)` source line - including its
+    `success_signal="[HOOT] Test suite succeeded"` argument - inside the
+    traceback of a run that FAILED. Only the logger prefix separates the real
+    marker from that echo, so no scan may look for one without the other."""
+    offenders = []
+    skip_dirs = {"node_modules", "__pycache__"}
+    green_tokens = ("Test suite succeeded", "QUnit test suite done")
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix not in {".sh", ".py"}:
+            continue
+        rel = path.relative_to(ROOT)
+        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
+            continue
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+            if not re.search(r"\bz?e?grep\b|\brg\b", line):
+                continue
+            if not any(tok in line for tok in green_tokens):
+                continue
+            if "browser:" in line or "_JS_SCOPE_RE" in line or "$_JS_SCOPE_RE" in line:
+                continue
+            offenders.append(f"{rel}:{lineno}: {line.strip()[:140]}")
+    assert not offenders, (
+        "a scan looks for a JS success marker without requiring the logger "
+        "prefix that separates it from the traceback echo:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_every_js_success_marker_mention_carries_its_per_scope_limit():
+    """An anchored green marker is a verdict for ITS OWN SCOPE, never for the file.
+
+    Measured on a real 19.0 log: one scope's `[HOOT] Test suite succeeded` is
+    genuine while another scope of the SAME file failed 477 tests. Prose that
+    names the marker without that limit teaches a reader to treat one run's
+    success as the run's success, which is the defect the logger anchor alone
+    does not prevent."""
+    offenders = []
+    skip_dirs = {"node_modules", "__pycache__"}
+    green_re = re.compile(r"Test suite succeeded|QUnit test suite done")
+    limit_re = re.compile(
+        r"its own scope|per scope|scope only|per run|logger scope|own logger",
+        re.IGNORECASE,
+    )
+    for path in sorted(ROOT.rglob("*")):
+        if not path.is_file() or path.suffix not in {".sh", ".md", ".py", ".json", ".yaml"}:
+            continue
+        rel = path.relative_to(ROOT)
+        if any(part.startswith(".") or part in skip_dirs for part in rel.parts):
+            continue
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        text = " ".join(path.read_text(encoding="utf-8", errors="ignore").split())
+        for m in green_re.finditer(text):
+            window = text[max(0, m.start() - 350):m.end() + 350]
+            if not limit_re.search(window):
+                offenders.append(f"{rel}: ...{window[:200]}...")
+    assert not offenders, (
+        "a committed file names a JS success marker without stating that it "
+        "speaks for its own logger scope only:\n  " + "\n  ".join(offenders)
+    )

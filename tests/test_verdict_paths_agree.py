@@ -591,7 +591,9 @@ def test_a_failing_test_is_still_failed_when_it_carries_a_traceback(tmp_path):
     Dropping the traceback from the test verdict must not lose a single genuinely
     failing run. It cannot: `odoo/tests/result.py` logs the `FAIL:`/`ERROR:`
     marker BEFORE the traceback body, so every failing test is still named by a
-    marker the verdict does rule on.
+    marker the verdict does rule on - every failing PYTHON test, that is; a
+    Hoot/QUnit failure never writes a traceback and is ruled on by its own
+    markers in the same union.
     """
     res, _log, _env_ = _run_verb(
         tmp_path, "test", db="tbfail", version="17.0",
@@ -1374,4 +1376,116 @@ def test_a_run_that_proved_no_pass_reads_inconclusive_on_both_paths(
     )
     assert _field(waited, "BUILD_PROGRESS"), (
         f"[{label}] no progress reading on an inconclusive poll\n{waited.stdout}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CONTRACT 5 - the browser suite is part of the same run, on BOTH paths
+#
+# A `--test-enable` build runs Python unittest AND a Hoot/QUnit browser suite.
+# The two publish unrelated wordings, so a marker set built from one of them
+# answers the other's question with silence. Today the Python wrapper method
+# raises, which leaves a single `FAIL:` line behind whatever the browser suite
+# actually did - an Odoo implementation detail, not a contract. These cases fix
+# the behavior that must hold when that detail changes, and they fix it on BOTH
+# verdict paths so the two can never disagree about one log.
+#
+# REDACTED excerpts of real 18.0/19.0 run logs; wording verbatim.
+# ---------------------------------------------------------------------------
+
+JS_HOOT_FAILURE_LINES = [
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/autocomplete/close on escape" failed:',
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.test_unit_desktop.browser: "
+    '[HOOT] Test "@web/core/action_swiper/render only its target" failed:',
+]
+JS_QUNIT_AGGREGATE_LINE = (
+    "2026-01-01 00:00:00,000 1 ERROR testdb "
+    "odoo.addons.web.tests.test_js.WebSuite.browser: 8 / 422 tests failed. "
+)
+# The traceback ECHO of the failing browser_js call: the success marker printed
+# verbatim as a SOURCE line, with no logger prefix, inside a run that FAILED.
+# A real one carries the prefix and speaks for its own scope only, never for
+# the file - this one speaks for nothing at all.
+JS_SUCCESS_SIGNAL_ECHO = (
+    "    self.browser_js('/web/tests?headless&preset=desktop', \"\", \"\", "
+    'login=\'admin\', timeout=1800, success_signal="[HOOT] Test suite succeeded", '
+    "error_checker=unit_test_error_checker)"
+)
+
+
+@requires_bash
+def test_a_js_only_failure_is_never_certified_as_a_successful_build(tmp_path):
+    """The background path must fail a run whose only failures are in the browser.
+
+    The completion marker is present and no Python failure wording is - exactly
+    the shape a polling caller would read as a finished, clean build. The JS
+    markers are part of the same failure union the foreground verdict uses, so
+    neither path can certify it.
+    """
+    log = _stamped_log(tmp_path, "js-only-failure.log", verb="test", series="19.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, *JS_HOOT_FAILURE_LINES])
+    waited = _wait(log, _env(tmp_path))
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "a run that failed two browser tests must never read as a successful "
+        f"build\nstdout:\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_a_qunit_aggregate_alone_is_never_certified_as_a_successful_build(tmp_path):
+    """The QUnit wording carries its count in a shape no Python pattern matches.
+
+    `8 / 422 tests failed` puts a word between the digit and `failed`, so the
+    numeric catch-all in the Python union never sees it. Without the JS
+    vocabulary this log is a completion marker and nothing else.
+    """
+    log = _stamped_log(tmp_path, "js-qunit-agg.log", verb="test", series="17.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, JS_QUNIT_AGGREGATE_LINE])
+    waited = _wait(log, _env(tmp_path))
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "a run whose browser suite reported 8 failed tests must never read as a "
+        f"successful build\nstdout:\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_a_success_signal_echo_never_certifies_a_build(tmp_path):
+    """The mirror image: the echo is not a verdict either.
+
+    Odoo prints the failing `browser_js(...)` source line - success_signal
+    argument and all - inside the traceback. A path that read that text as a
+    green marker would certify the failing run it appears in.
+    """
+    log = _stamped_log(tmp_path, "js-echo.log", verb="test", series="19.0",
+                       lines=[PROGRESS_LINE, LOADED_MARKER, JS_SUCCESS_SIGNAL_ECHO,
+                              *JS_HOOT_FAILURE_LINES])
+    waited = _wait(log, _env(tmp_path))
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "the success_signal echo appears in a FAILING run and must never "
+        f"certify it\nstdout:\n{waited.stdout}"
+    )
+
+
+@requires_bash
+def test_both_paths_agree_on_a_js_failing_run(tmp_path):
+    """The invariant this file exists for, applied to the browser suite.
+
+    The foreground verdict rules the run failed and the background scan must
+    not call the same log a success - one caller polling and another blocking
+    on the same build have to be told the same thing.
+    """
+    res, log, env = _run_verb(
+        tmp_path, "test", db="jsagree", version="19.0",
+        lines=[PROGRESS_LINE, LOADED_MARKER, *JS_HOOT_FAILURE_LINES])
+    assert _field(res, "TEST_RESULT") == "failed", res.stdout
+    assert _field(res, "JS_FAILED_TESTS") == "2", (
+        f"both browser failures must be named, not collapsed\n{res.stdout}"
+    )
+    waited = _wait(log, env)
+    assert _field(waited, "BUILD_RESULT") != "success", (
+        "the background path certified a build the foreground path failed\n"
+        f"{waited.stdout}"
     )
