@@ -1,8 +1,6 @@
 <!-- SSOT for "what tests guard what" methodology.
-     Consumers: odoo-coder (Round 2 test-protection pre-flight),
-                odoo-frontend-coder (Round 0 step 8 test-protection pre-flight),
-                odoo-deep-survey (Phase 2 L9 lens + synthesis tests_protecting section).
-     Never restate the tier definitions or tool names in consuming files - cross-ref this file. -->
+     Never restate the tier definitions or tool names in consuming files - cross-ref this file.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "test-protection-contract.md" plugins/odoo-ai-agents/`. -->
 
 # Test-Protection Contract
 

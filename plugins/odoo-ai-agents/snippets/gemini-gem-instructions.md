@@ -104,12 +104,12 @@ ARGS: name (module technical name), odoo_version, profile_name (optional)
 
 ### resolve_stylesheet ✦ (v0.7+ - enumerate a module's CSS/SCSS/LESS files)
 TRIGGER: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in module [X]", "@import chain for module [X]", "stylesheet inventory for [X]", "selector/variable counts for module [X]"
-PREFER: getting the full list of stylesheet files for a module - language (CSS/SCSS/LESS - LESS for the legacy pre-SCSS era, ~v8-v12), selector/variable/mixin/import counts, @import chain
+PREFER: getting the full list of stylesheet files for a module - language (CSS/SCSS/LESS), selector/variable/mixin/import counts, @import chain
 ARGS: module (module technical name), odoo_version (required; pass the concrete pinned version)
 
 ### find_style_override ✦ (v0.7+ - find where a CSS selector / SCSS/LESS variable is defined or overridden)
 TRIGGER: "where is CSS selector [X] defined", "find SCSS variable [X]", "find LESS variable [X]", "which module overrides [selector]", "branding override for [selector]", "where does $[variable] come from"
-PREFER: theming/branding analysis - locate the origin and all overrides of a selector or SCSS/LESS variable, with the full override chain; covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12)
+PREFER: theming/branding analysis - locate the origin and all overrides of a selector or SCSS/LESS variable, with the full override chain; covers CSS, SCSS, and LESS
 ARGS: selector_or_variable (required), odoo_version (required; pass the concrete pinned version), limit (optional, default 5)
 
 ### resolve_orm_chain ⊕ (v0.8+ - walk a dotted ORM field path to its terminal type)

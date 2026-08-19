@@ -159,11 +159,30 @@ is complete and that skills thread the shared contracts they are required to:
                     those rows today would ADD human gates the tree elsewhere says must not exist.
                     Half (b) makes that contradiction visible on every run; it flips to strict in
                     the change that stops tier policy keying `L2` off the bare fact.
+ 17. gen-prose     - LIVE and enforcing. Runs the shared Odoo-version trigger over the
+                    GENERATOR'S RENDERED OUTPUT (every `gen_*` entry point's return value), never
+                    over its Python source: no content rule in this file globs `.py`, and a
+                    hardcoded version claim inside `gen_surface.py` reaches an agent only through
+                    the artifact it emits. Scanning the artifact catches the same literal wherever
+                    a future helper moves it and needs no per-function registration. Exemptions 2,
+                    3 and 5 only - a generated map is not a place to resolve a version at runtime,
+                    so an OSM call shape beside a literal there is still a frozen claim.
+ 18. version-claim - DIFF-SCOPED, and ADVISORY (never strict-fail) when no merge base resolves.
+                    Fires on an Odoo version VALUE that THIS change writes into agent-facing prose.
+                    Measured: tree-wide the same trigger leaves 855 residual hits across 158 files
+                    against ~11 real defects, which trains an author to ignore it; scoped to added
+                    lines it is roughly one per commit. That residual is a BASELINE, not a
+                    backlog - nothing ratchets it, the diff gate only stops it growing. Five
+                    unit-scoped exemptions: an OSM call shape in the same unit, a boundary-SSOT
+                    pointer, a whole-span scope statement, a `workflows/` routing phrase, and the
+                    boundary SSOT files themselves. Both 17 and 18 scan WHITESPACE-NORMALIZED
+                    prose units, never raw lines: the claim this catches most often is one a
+                    formatter wrapped across two.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, 15, and 16a - flip that on
-once all skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) and 14a (ref-scope's citation-
-anchor half) are additionally WARN-ONLY FOR ONE RELEASE BY DESIGN, independent of --strict/
+(or set ORCH_STRICT=1) to exit 1 on any finding from rules 1-8, 11, 13, 14b, 15, 16a, 17 and
+18 - flip that on once all skills comply. Rules 9-10 ([wait-scope]/[wait-mechanism]) and 14a
+(ref-scope's citation-anchor half) are additionally WARN-ONLY FOR ONE RELEASE BY DESIGN, independent of --strict/
 ORCH_STRICT: they are new and proximity/citation-based (not a full semantic read, and - for 14a -
 measured against a real backlog this wave did not have time to individually verify site-by-site),
 so a false positive or a hastily-placed meaningless anchor is a real risk - they print but never
@@ -183,6 +202,8 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 REPO_ROOT = PLUGIN_ROOT.parent.parent
 DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
+SURFACE_FILE = Path(__file__).parent / "server-surface.json"
+GEN_SURFACE_FILE = Path(__file__).parent / "gen_surface.py"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
 AGENTS_DIR = PLUGIN_ROOT / "agents"
 SNIPPETS_DIR = PLUGIN_ROOT / "snippets"
@@ -1283,6 +1304,368 @@ def check_instance_truth(findings: list[str], warn_only_findings: list[str]) -> 
             )
 
 
+# --- Fact tiering: the shared Odoo-version trigger (rules 17-18) --------------------------------
+#
+# ONE trigger, two deployments. It fires on a written-down Odoo version VALUE, which is the shape
+# that drifts: the value ages out of true silently while the sentence around it still reads fine.
+# Four alternatives, each requiring a MANDATORY prefix so a bare integer can never match:
+#   `v17` / `v17.0`      - the prefixed literal
+#   `Odoo 14` / `Odoo v14`
+#   `version 12`
+#   `standard_viindoo_17` / `odoo_8` - the series-SUFFIXED identifier form
+#
+# Both rules scan WHITESPACE-NORMALIZED prose units (see `_prose_units`), never raw lines: the
+# defect this catches most often is a claim wrapped across two lines by a formatter, which every
+# line-scoped scan in this repo has historically missed.
+# `(?!0)` on every numeric alternative: Odoo has no major 0, so a `v0.7` token is a SERVER/tool
+# version, not an Odoo one - measured as the only false-positive family this trigger produced on
+# the corpus it was built against. The trailing `(?!\.?\d)(?!\w)` rejects a CONTINUING number
+# (`v1.2.3` is a semver, not a series) while still matching a token that ends a sentence - an
+# earlier `(?![\d.\w])` form silently missed every claim written as "... into v19."
+VERSION_CLAIM_RE = re.compile(
+    r"(?<![A-Za-z0-9_])[vV](?!0)\d{1,2}(?:\.\d{1,2})?(?!\.?\d)(?!\w)"
+    r"|(?<![A-Za-z0-9_])Odoo\s+v?(?!0)\d{1,2}(?:\.\d{1,2})?(?!\.?\d)(?!\w)"
+    r"|(?<![A-Za-z0-9_])version\s+(?!0)\d{1,2}(?:\.\d{1,2})?(?!\.?\d)(?!\w)"
+    r"|(?<![A-Za-z0-9])[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:[89]|1[0-9])(?![\d\w])"
+)
+
+# The files that ARE allowed to spell a boundary out - the SSOT rows every other file must point
+# at instead of restating. Naming one of them inside the unit is exemption 2; BEING one is
+# exemption 5.
+BOUNDARY_SSOT_FILES = (
+    "odoo-era-boundaries.md",
+    "odoo-version-pivots.md",
+    "odoo-frontend-fidelity.md",
+    "odoo-ui-knowledge.md",
+)
+
+# Exemption 3: a whole-indexed-span scope statement ("every indexed major v8.0-v19.0") is not a
+# boundary claim - it names the support envelope. Derived from the text, not from a hardcoded
+# floor/ceiling pair: a range covering >= this many majors cannot be a boundary.
+FULL_SPAN_MIN_MAJORS = 10
+_VERSION_RANGE_RE = re.compile(r"v?(\d{1,2})(?:\.\d)?\s*(?:-|to|through)\s*v?(\d{1,2})(?:\.\d)?")
+
+# A prose unit starts here: a markdown bullet, an ordered-list item, a heading, a table row, or a
+# fence. Everything else is a continuation of the unit above it, which is what rejoins a wrapped
+# claim before the trigger ever sees it.
+_UNIT_START_RE = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s|#{1,6}\s|\||```|<!--)")
+_UNIT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\s*\|\s*|\s*(?:\u2192|->)\s*")
+
+
+def _prose_units(text: str) -> list[tuple[str, set[int]]]:
+    """Whitespace-normalized prose units paired with the 1-based source lines each came from.
+
+    A unit is a sentence, a table cell, a bullet, or a heading - NEVER a raw line. Wrapped lines
+    are rejoined first, so a claim split across two lines is scanned as one string. The line set
+    is what lets a diff-scoped caller ask "did this change touch this unit" without ever falling
+    back to line adjacency."""
+    chunks: list[tuple[list[str], set[int]]] = []
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            chunks.append(([], set()))          # blank line ends the current unit
+            continue
+        if not chunks or _UNIT_START_RE.match(line) or not chunks[-1][0]:
+            chunks.append(([line], {lineno}))
+        else:
+            chunks[-1][0].append(line)
+            chunks[-1][1].add(lineno)
+    units: list[tuple[str, set[int]]] = []
+    for lines, linenos in chunks:
+        if not lines:
+            continue
+        flat = re.sub(r"\s+", " ", " ".join(lines)).strip()
+        for part in _UNIT_SPLIT_RE.split(flat):
+            part = part.strip()
+            if part:
+                units.append((part, linenos))
+    return units
+
+
+def _file_units(path: Path) -> list[tuple[str, set[int]]]:
+    """Prose units for a file, choosing the split by FORMAT rather than assuming prose.
+
+    A `.json` SSOT is record-structured: one line is one record, so a per-line unit keeps line
+    attribution exact and stops one record's tool-call shape from exempting a neighbour's frozen
+    claim (measured: it did, and it cost two of the seven known defects).
+    False negative: a JSON string value pretty-printed across several lines is split at the wrap."""
+    text = path.read_text(encoding="utf-8")
+    if path.suffix == ".json":
+        return [
+            (re.sub(r"\s+", " ", line).strip(), {n})
+            for n, line in enumerate(text.splitlines(), start=1)
+            if line.strip()
+        ]
+    return _prose_units(text)
+
+
+def _osm_tool_names() -> tuple[str, ...]:
+    """The live MCP tool names, read from the surface SSOT - never a hardcoded list, so a tool
+    added to the server becomes an exempting call shape with no edit here."""
+    if not SURFACE_FILE.is_file():
+        return ()
+    data = json.loads(SURFACE_FILE.read_text(encoding="utf-8"))
+    return tuple(t["name"] for t in data.get("tools", []) if t.get("name"))
+
+
+def _names_a_resolution_call(unit: str, tool_names: tuple[str, ...]) -> bool:
+    """Exemption 1: the unit carries an OSM tool CALL SHAPE (`cli_help(`), i.e. it hands the
+    reader the resolution instead of the frozen answer. A bare tool mention does not count."""
+    return any(re.search(rf"\b{re.escape(n)}\s*\(", unit) for n in tool_names)
+
+
+def _is_full_span_scope(unit: str) -> bool:
+    """Exemption 3 - see FULL_SPAN_MIN_MAJORS."""
+    return any(
+        abs(int(hi) - int(lo)) + 1 >= FULL_SPAN_MIN_MAJORS
+        for lo, hi in _VERSION_RANGE_RE.findall(unit)
+    )
+
+
+def _points_at_boundary_ssot(unit: str) -> bool:
+    """Exemption 2: the unit routes the reader to the row that owns the boundary."""
+    return any(name in unit for name in BOUNDARY_SSOT_FILES)
+
+
+def _version_claim_hits(
+    unit: str,
+    tool_names: tuple[str, ...],
+    *,
+    allow_call_exemption: bool = True,
+) -> list[str]:
+    """The matched version tokens in `unit`, or [] when any exemption applies."""
+    hits = [m.group(0) for m in VERSION_CLAIM_RE.finditer(unit)]
+    if not hits:
+        return []
+    if _points_at_boundary_ssot(unit) or _is_full_span_scope(unit):
+        return []
+    if allow_call_exemption and _names_a_resolution_call(unit, tool_names):
+        return []
+    return hits
+
+
+# --- 17. [gen-prose] ---------------------------------------------------------------------------
+
+def _load_gen_surface():
+    """Import the generator module by path so this lint reads the SAME code `make gen` runs."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("gen_surface_for_gen_prose", GEN_SURFACE_FILE)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _rendered_generator_outputs(module) -> dict[str, str]:
+    """Every `gen_*` entry point's RETURNED text, keyed by a caller label.
+
+    Data-driven: the argument for each parameter is resolved BY PARAMETER NAME, so a future
+    `gen_*` function is scanned automatically instead of needing a line here."""
+    import inspect
+
+    module._load_skill_tool_deps()
+    surface = module.load_surface()
+    rendered: dict[str, str] = {}
+    for name, fn in sorted(vars(module).items()):
+        if not name.startswith("gen_") or not callable(fn):
+            continue
+        params = inspect.signature(fn).parameters
+        required = [
+            p.name for p in params.values()
+            if p.default is inspect.Parameter.empty
+            and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+        ]
+        if required == ["surface"]:
+            rendered[f"{name}()"] = fn(surface)
+        elif required == ["orch"]:
+            rendered[f"{name}()"] = fn(module.ORCHESTRATION)
+        elif required == ["skill_name", "surface"]:
+            for skill in sorted(module.SKILL_TO_TOOLS):
+                rendered[f"{name}({skill})"] = fn(skill, surface)
+        else:
+            rendered[f"{name}:UNRENDERED"] = ""
+    return rendered
+
+
+def check_gen_prose(findings: list[str]) -> None:
+    """17. [gen-prose] - LIVE and enforcing. Runs the version trigger over the generator's
+    RENDERED OUTPUT, not over its Python source.
+
+    Why the rendered output: the version facts a generator emits reach an agent through
+    `docs/reference/ORCHESTRATION-MAP.md` and the IDE snippets, and no content rule in this file
+    globs `.py`. Scanning the source instead would need a `.py` prose parser and a new allowlist;
+    scanning the output catches the same literal, catches it wherever a future helper moves it,
+    and needs no per-function registration.
+
+    Exemptions 2, 3 and 5 only. Exemption 1 (an OSM call shape in the same unit) is deliberately
+    NOT granted here: a generated map is not a place to resolve a version at runtime, so a call
+    shape beside a version literal there is still a frozen claim.
+
+    False negative it still misses: a version fact spelled with no numeral at all ("the release
+    before OWL became the default path"), and any generator text not returned by a `gen_*` entry
+    point (a value written straight to disk by `main()` would not be seen)."""
+    try:
+        module = _load_gen_surface()
+        rendered = _rendered_generator_outputs(module)
+    except Exception as exc:  # a lint that cannot run must never report green
+        findings.append(
+            f"[gen-prose] could not render the generator output to scan it ({exc!r}) - the rule "
+            f"is inert until this is fixed"
+        )
+        return
+    tool_names = _osm_tool_names()
+    for label, text in sorted(rendered.items()):
+        if label.endswith(":UNRENDERED"):
+            findings.append(
+                f"[gen-prose] '{label.split(':')[0]}' has an argument shape this rule cannot "
+                f"supply, so its output is NOT scanned - teach _rendered_generator_outputs() its "
+                f"parameter names rather than leaving it unscanned"
+            )
+            continue
+        for unit, _lines in _prose_units(text):
+            hits = _version_claim_hits(unit, tool_names, allow_call_exemption=False)
+            if hits:
+                findings.append(
+                    f"[gen-prose] {label} emits a hardcoded Odoo version claim {sorted(set(hits))}"
+                    f": {unit[:160]!r} - delete it and point at the boundary row that owns it"
+                )
+
+
+# --- 18. [version-claim] -----------------------------------------------------------------------
+
+VERSION_CLAIM_DIFF_BASE_ENV = "VERSION_CLAIM_BASE"
+VERSION_CLAIM_BASE_CANDIDATES = ("origin/master", "master", "origin/main", "main")
+
+
+def _git(*args: str) -> str | None:
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), *args],
+            capture_output=True, text=True, timeout=60, check=False,
+        )
+    except (OSError, ValueError):
+        return None
+    return out.stdout if out.returncode == 0 else None
+
+
+def _merge_base() -> str | None:
+    """The commit this change branched from, or None when it cannot be resolved.
+
+    None is the ADVISORY trigger, never a pass and never a failure: a shallow checkout
+    (`fetch-depth: 1`), a fork with no upstream ref, or a detached local tree all land here, and
+    a lint that hard-failed on them would be unrunnable exactly where it is most needed. CI must
+    check out with `fetch-depth: 0` for this to resolve - see .github/workflows/validate.yml."""
+    for base in (os.environ.get(VERSION_CLAIM_DIFF_BASE_ENV), *VERSION_CLAIM_BASE_CANDIDATES):
+        if not base:
+            continue
+        if _git("rev-parse", "--verify", "--quiet", f"{base}^{{commit}}") is None:
+            continue
+        out = _git("merge-base", base, "HEAD")
+        if out and out.strip():
+            return out.strip()
+    return None
+
+
+_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+
+def _added_lines_since(base: str) -> dict[str, set[int]]:
+    """{repo-relative path: set of line numbers this change ADDED}, from a zero-context diff."""
+    diff = _git("diff", "--unified=0", "--no-color", f"{base}...HEAD")
+    if diff is None:
+        diff = _git("diff", "--unified=0", "--no-color", base) or ""
+    added: dict[str, set[int]] = {}
+    current: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            current = None if path == "/dev/null" else path[2:] if path.startswith("b/") else path
+        elif line.startswith("@@") and current:
+            m = _HUNK_RE.match(line)
+            if m:
+                start, count = int(m.group(1)), int(m.group(2) or 1)
+                added.setdefault(current, set()).update(range(start, start + count))
+    # uncommitted work counts too - an author must see the finding before the commit exists
+    worktree = _git("diff", "--unified=0", "--no-color", "HEAD") or ""
+    current = None
+    for line in worktree.splitlines():
+        if line.startswith("+++ "):
+            path = line[4:].strip()
+            current = None if path == "/dev/null" else path[2:] if path.startswith("b/") else path
+        elif line.startswith("@@") and current:
+            m = _HUNK_RE.match(line)
+            if m:
+                start, count = int(m.group(1)), int(m.group(2) or 1)
+                added.setdefault(current, set()).update(range(start, start + count))
+    return added
+
+
+def check_version_claim(findings: list[str], advisory_findings: list[str]) -> None:
+    """18. [version-claim] - DIFF-SCOPED, and advisory-only when the merge base is unresolvable.
+
+    Fires on a version VALUE written into agent-facing prose by THIS change. Tier R (resolve it at
+    runtime with the named tool) and Tier B (one boundary row owns it) are the two legitimate
+    homes for such a value; a third copy in a skill/agent/snippet is the drift this repo has
+    already shipped seven times.
+
+    DIFF-SCOPED IS NOT A CONVENIENCE - it is the measured deployment. Run tree-wide over the
+    agent-facing corpus the same trigger leaves 855 residual hits across 158 files (measured, after
+    all five exemptions) against ~11 real defects; a rule at that signal-to-noise trains an author
+    to ignore it. Scoped to the lines a change ADDS it is roughly one hit per commit. The tree-wide
+    residual is a BASELINE, not a backlog: nothing ratchets it, the diff gate only stops it
+    growing, and no exemption was added to make that number look better.
+
+    Five exemptions, each scoped to the unit (never to the file):
+      1. the unit carries an OSM tool CALL SHAPE - the value travels with its resolution;
+      2. the unit names a boundary SSOT file - it points instead of restating;
+      3. the unit states a whole-indexed-span scope, not a boundary (FULL_SPAN_MIN_MAJORS);
+      4. the file lives under `workflows/` - those version tokens are ROUTING trigger phrases;
+      5. the file IS a boundary SSOT - it is the one place a value belongs.
+
+    False negative it still misses: a version-dependent claim carrying NO version token at all -
+    "the legacy widget path is the right one for that series" - which no syntactic trigger can
+    see. That class is the majority, and it is the attribution/authority guards' job, not this
+    one's; this rule is a narrow, high-recall net over the sub-class that IS spellable."""
+    base = _merge_base()
+    sink = findings if base else advisory_findings
+    if base is None:
+        advisory_findings.append(
+            "[version-claim] no merge base could be resolved (shallow checkout or no upstream "
+            "ref) - the rule ran ADVISORY over uncommitted changes only and gated nothing; give "
+            "CI `fetch-depth: 0` to make it enforcing"
+        )
+        added = _added_lines_since("HEAD")
+    else:
+        added = _added_lines_since(base)
+    if not added:
+        return
+    tool_names = _osm_tool_names()
+    in_scope = {str(p.relative_to(REPO_ROOT)): p for p in agent_facing_files()}
+    for rel, linenos in sorted(added.items()):
+        path = in_scope.get(rel)
+        if path is None or not path.is_file():
+            continue
+        if path.name in BOUNDARY_SSOT_FILES:            # exemption 5
+            continue
+        try:
+            rel_to_plugin = path.relative_to(PLUGIN_ROOT)
+        except ValueError:
+            rel_to_plugin = None
+        if rel_to_plugin is not None and rel_to_plugin.parts[0] == "workflows":   # exemption 4
+            continue
+        for unit, unit_lines in _file_units(path):
+            if not (unit_lines & linenos):
+                continue
+            hits = _version_claim_hits(unit, tool_names)
+            if hits:
+                sink.append(
+                    f"[version-claim] {rel} adds an Odoo version value {sorted(set(hits))} in "
+                    f"prose: {unit[:160]!r} - resolve it at runtime (name the tool AND the "
+                    f"argument), or point at the boundary row that owns it"
+                )
+
+
 def main(argv: list[str]) -> int:
     strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
@@ -1431,6 +1814,16 @@ def main(argv: list[str]) -> int:
     instance_truth_warn_only_findings: list[str] = []
     check_instance_truth(findings, instance_truth_warn_only_findings)
 
+    # 17. [gen-prose] - LIVE and enforcing. Proven RED on the real defect before the delete that
+    # clears it landed, so this rule has been observed failing, not merely declared.
+    check_gen_prose(findings)
+
+    # 18. [version-claim] - diff-scoped. It gates --strict when a merge base resolves; when it
+    # cannot resolve one (shallow checkout, no upstream ref) it degrades to its OWN advisory list
+    # rather than passing silently or failing a tree it cannot see the diff of.
+    version_claim_advisory_findings: list[str] = []
+    check_version_claim(findings, version_claim_advisory_findings)
+
     # 9/10. [wait-scope] / [wait-mechanism] (M1 guard) - WARN-FIRST for one release: collected
     # into their OWN list, never gating the strict exit below, no matter how many fire (see the
     # module-level note above check_wait_scope/check_wait_mechanism for why and the flip plan).
@@ -1478,6 +1871,13 @@ def main(argv: list[str]) -> int:
         for fnd in permanent_warn_only_findings:
             print(f"  - {fnd}")
 
+    if version_claim_advisory_findings:
+        print(f"check_orchestration: {len(version_claim_advisory_findings)} advisory finding(s) "
+              f"([version-claim], no merge base resolvable - the diff-scoped rule could not "
+              f"compute its input, so it gated NOTHING; give the checkout `fetch-depth: 0`):")
+        for fnd in version_claim_advisory_findings:
+            print(f"  - {fnd}")
+
     if instance_truth_warn_only_findings:
         print(f"check_orchestration: {len(instance_truth_warn_only_findings)} warn-only finding(s) "
               f"([instance-truth] half (b), under-declaration - NEVER gates --strict while "
@@ -1490,7 +1890,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     if (not findings and not warn_only_findings and not ref_scope_warn_only_findings
-            and not permanent_warn_only_findings and not instance_truth_warn_only_findings):
+            and not permanent_warn_only_findings and not instance_truth_warn_only_findings
+            and not version_claim_advisory_findings):
         print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 

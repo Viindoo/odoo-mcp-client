@@ -1,6 +1,6 @@
 <!-- SSOT snippet. "Stored compute aggregating over a high-volume relation MUST use _read_group."
-     Consumers: odoo-coder.md (Round 4), odoo-code-reviewer.md (failure modes), odoo-solution-architect.md (§8 Risks).
-     Version-stable (applies v8+). Edit here only; consumers cross-ref, never restate. -->
+     Version-stable: the rule holds on every series this repo supports. Edit here only; consumers cross-ref, never restate.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "orm-performance.md" plugins/odoo-ai-agents/`. -->
 
 # ORM Performance - Stored Aggregate on High-Volume Relations
 

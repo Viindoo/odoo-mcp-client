@@ -45,7 +45,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - User wants views of a module → call module_inspect(name=<name>, method="views", odoo_version='<version>')
 
 ### Working with CSS/SCSS/LESS stylesheets
-- User wants to know what stylesheets a module ships (CSS, SCSS, or LESS - LESS covers legacy v8-v11)
+- User wants to know what stylesheets a module ships (CSS, SCSS, or LESS)
   → call resolve_stylesheet(module=<name>, odoo_version='<version>')
 - User asks where a CSS selector or SCSS/LESS variable is defined or overridden
   → call find_style_override(selector_or_variable=<selector_or_var>, odoo_version='<version>')

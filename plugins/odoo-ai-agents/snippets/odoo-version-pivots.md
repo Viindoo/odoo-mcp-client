@@ -1,7 +1,7 @@
 <!-- SSOT snippet. Ground-truth version-pivot table v8-v19, verified against on-disk codebase (D9).
      Every file that states a version-specific API fact MUST cross-ref here, NOT restate.
-     Consumers: era-reference.md, upg-conventions.md, runbot-parity-checklist.md, upg-phase-detail.md.
-     Last audited: 2026-06-26. Edit this file to correct a pivot; do not patch consumers. -->
+     Edit this file to correct a pivot; do not patch consumers.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "odoo-version-pivots.md" plugins/odoo-ai-agents/`. -->
 
 # Odoo Version Pivots - v8-v19 SSOT
 

@@ -48,8 +48,8 @@ Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hi
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="<version>")` | Liệt kê các file stylesheet CSS/SCSS/LESS của module - ngôn ngữ, số lượng selector/variable/mixin/import, chuỗi `@import`. Dùng để rà soát những gì một module ship trước khi viết theme override. LESS bao phủ kỷ nguyên cũ tiền-SCSS (~v8-v12). |
-| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Tìm nơi một CSS selector hoặc SCSS/LESS variable được định nghĩa lần đầu và những module nào override nó, kèm toàn bộ override chain. Thiết yếu cho công việc theming/branding. Bao phủ CSS, SCSS, và LESS (LESS cho kỷ nguyên cũ tiền-SCSS, ~v8-v12). |
+| `resolve_stylesheet(module, odoo_version="<version>")` | Liệt kê các file stylesheet CSS/SCSS/LESS của module - ngôn ngữ, số lượng selector/variable/mixin/import, chuỗi `@import`. Dùng để rà soát những gì một module ship trước khi viết theme override. |
+| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Tìm nơi một CSS selector hoặc SCSS/LESS variable được định nghĩa lần đầu và những module nào override nó, kèm toàn bộ override chain. Thiết yếu cho công việc theming/branding. Bao phủ CSS, SCSS, và LESS. |
 
 ### ORM-validation tools (server v0.8.0+)
 

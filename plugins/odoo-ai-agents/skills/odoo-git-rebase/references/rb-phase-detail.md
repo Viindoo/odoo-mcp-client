@@ -423,8 +423,8 @@ git-free leaf never lacks it.
 
 Fires when a commit matches the design-trigger table (`rb-triage-table.md` § Design-trigger
 table): bucket-(c) "do now" always; bucket-(b) adapt when it changes a field/method signature,
-an override point, spans > 3 files / >= 2 modules, or is full-stack / crosses the
-legacy<->OWL-2 boundary. Reuse the
+an override point, is a refactor in the sense `odoo-solution-design` § When to invoke defines
+one, or is full-stack / crosses the legacy<->OWL-2 boundary. Reuse the
 `odoo-solution-design` § When to invoke non-trivial criterion. Bucket (a)/(d) and trivial
 single-symbol (b) skip design.
 Continuation Contract payload (emit verbatim):

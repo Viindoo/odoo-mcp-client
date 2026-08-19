@@ -1,5 +1,5 @@
 <!-- SSOT snippet. "readonly=False does not guarantee value survival on stored computes."
-     Consumers: odoo-solution-architect.md, odoo-code-reviewer.md (WS3). Edit here only. -->
+     Edit here only; consumers cross-ref, never restate. Consumers are DERIVED, never listed here - re-derive with `grep -rl "stored-write-survival.md" plugins/odoo-ai-agents/`. -->
 
 # Stored Write Survival Contract
 

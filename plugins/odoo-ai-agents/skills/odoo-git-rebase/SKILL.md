@@ -252,8 +252,8 @@ Route a commit to `odoo-solution-design` when ANY design-trigger row matches (ev
 recorded here): bucket-(c) "do now" ALWAYS; bucket-(b) adapt when it touches a model
 field add/remove/type-change, changes a method signature, overrides or relocates an override
 point (`create`/`write`/`unlink` or a method whose `find_override_point` chain has >=3
-entries), spans > 3 files or >= 2 modules, or is full-stack / crosses the legacy<->OWL-2
-boundary. A single-file, single-symbol, signature-preserving bucket-(b) rename - and every
+entries), is a refactor in the sense `odoo-solution-design` § When to invoke defines one, or is
+full-stack / crosses the legacy<->OWL-2 boundary. A single-file, single-symbol, signature-preserving bucket-(b) rename - and every
 bucket-(a)/(d) commit - skips design. Reuse the non-trivial criterion from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a
 third definition. Full table: `references/rb-triage-table.md` § Design-trigger table. Emit Continuation Contract and YIELD. Canonical payload (match

@@ -135,12 +135,15 @@ match routes. Genuinely tiny/mechanical commits fall through and skip design.
 |---|---|---|---|
 | 1 | (c) "do now" | ALWAYS (unchanged from current P5) | YES |
 | 2 | (b) adapt | The adapt touches a model FIELD add/remove/type-change, OR changes a method signature, OR overrides/relocates an override point (`create`/`write`/`unlink` or a method whose `find_override_point` chain has >=3 entries) | YES |
-| 3 | (b) adapt | The adapt is a multi-file refactor: spans **> 3 files** OR **>= 2 modules** | YES |
+| 3 | (b) adapt | The adapt is a REFACTOR in the sense `odoo-solution-design` § When to invoke defines one (mixin extraction, module split/merge, inheritance-axis change) - not the same mechanical edit repeated across several files | YES |
 | 4 | (b) adapt | The adapt is a full-stack change (touches backend Python/XML AND frontend JS/OWL/SCSS for the same intent) OR moves an OWL component across the legacy<->OWL-2 boundary | YES |
 | 5 | (a) already-present / (d) no-longer-relevant | never (no adapt code is written) | NO |
 | 6 | (b) adapt | none of rows 2-4 match - a single-file, single-symbol, signature-preserving rename/move resolved to intent | NO (skip - trivial) |
 
-Threshold rationale (roundable): **> 3 files** and **>= 2 modules** are the small/large boundary
-forward-port and solution-design already use; a model-field or method-signature change is the
-"changes public model surface" line; the override-point/full-stack rows mirror solution-design
-§ When to invoke. Row 6 is the explicit "very small scale skips design".
+Where the row conditions come from: rows 2-4 mirror
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md` § When to invoke - READ the
+non-trivial criterion there and apply it as written. It is qualitative on purpose: do NOT
+invent a file-count or module-count threshold here, and do NOT restate the criterion inline -
+a third definition is exactly what this skill forbids. A model-field or method-signature
+change is the "changes public model surface" line. Row 6 is the explicit "very small scale
+skips design".

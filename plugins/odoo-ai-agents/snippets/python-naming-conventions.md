@@ -1,9 +1,6 @@
 <!-- SSOT snippet. Python variable naming rules for Odoo.
-     Consumers: odoo-coder.md, odoo-frontend-coder.md, odoo-code-reviewer.md,
-       odoo-backend-debugger.md, odoo-ui-debugger.md,
-       skills/odoo-qa-suite/SKILL.md, skills/odoo-test-writing/SKILL.md,
-       ${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<v>/INDEX.md (By-task "Naming" row, all versions).
-     Edit here only; consumers cross-ref, never restate. -->
+     Edit here only; consumers cross-ref, never restate.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "python-naming-conventions.md" plugins/odoo-ai-agents/`. -->
 
 # Python Variable Naming Conventions
 

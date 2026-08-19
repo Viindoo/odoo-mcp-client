@@ -233,8 +233,9 @@ leaf's own Round 4 self-check, not a replacement for it. Per language:
 run the git-ops diff-review adjudication on `<lang>.po` (BLOCK on any un-adjudicated or WRONG-ruled
 loss - that means an overwrite slipped through without the load step), the per-entry placeholder-integrity check,
 and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each language's reload: the
-target language must be LOADED in the DB first (`--load-language=<lang>` v8-v18 / `i18n loadlang
--l <lang>` v19+); an absent language makes the reload pass silently while translations stay inactive
+target language must be LOADED in the DB first (`--load-language=<lang>`, or `i18n loadlang
+-l <lang>` in the subcommand form); an absent language makes the reload pass silently while
+translations stay inactive
 - a false pass. `en_US` (the base language) MUST be active too (KT3) - confirm BOTH `en_US` and each
 `<lang>`, never the target language alone. Also verify the `.pot` consumed was re-exported THIS run
 (recipe gate 5), not a stale on-disk template. A clean reload with no translation error in the log is the pass signal per language.

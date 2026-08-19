@@ -1,7 +1,7 @@
 <!-- SSOT snippet. Two recon modes for ingesting a source document: faithful SSOT-extraction
-     vs interpretive summary. Consumers: odoo-intake (Phase R), odoo-brl (Phase 0 intake),
-     odoo-discovery-summary (Round 1). Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md. -->
+     vs interpretive summary. Edit here only; consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "ssot-extraction-contract.md" plugins/odoo-ai-agents/`. -->
 
 # SSOT-Extraction Contract (faithful vs interpretive recon)
 

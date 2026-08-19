@@ -1,8 +1,7 @@
 <!-- SSOT snippet. Access-group authoring rules for Odoo: ir.module.category XML id derivation +
-     implied_ids hierarchy. Consumers: agents/odoo-coder.md, agents/odoo-code-reviewer.md,
-     skills/odoo-security-audit/SKILL.md, ${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<v>/INDEX.md (By-task
-     "Security (groups, rules, access)" row, v14-19).
-     Edit here only; consumers cross-ref, never restate. -->
+     implied_ids hierarchy.
+     Edit here only; consumers cross-ref, never restate.
+     Consumers are DERIVED, never listed here - re-derive with `grep -rl "access-groups-conventions.md" plugins/odoo-ai-agents/`. -->
 
 # Access Groups Conventions - CORE (all distributions)
 

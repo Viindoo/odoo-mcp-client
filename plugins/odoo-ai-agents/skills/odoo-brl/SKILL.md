@@ -94,8 +94,8 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    - `set_active_version(odoo_version=<resolved series>)` -> pin for session
    - `set_active_profile(profile_name=<resolved profile>)` -> base profile. Use the resolved name
      verbatim, or confirm one against `list_available_profiles` when no rung supplied it - never
-     hard-code a hyphenated or unversioned name (the server registers `odoo_8..odoo_19`,
-     `standard_viindoo_17/18`, etc.).
+     hard-code a hyphenated or unversioned name, and never assume a profile family covers only
+     the series you have seen it on: that call is the only authority on which names exist.
    - `profile_inspect(method='summary', name=<resolved profile>, odoo_version=<resolved series>)`
      -> confirm the profile's composition before GATE 0. When no `[[instance]]` covers this repo,
      offer `/odoo-ai-agents:odoo-setup` to declare one - an offer, never a precondition; BRL proceeds
