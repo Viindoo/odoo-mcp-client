@@ -40,7 +40,6 @@ tests/fixtures/card_budget_grandfather.json: (a) the fixture comment dates the g
 tests/fixtures/inversion_scope_checklist.json: (a) the fixture comment dates the 14 measured checklist items to the PR7 / wave-7 delivery round.
 tests/test_advance_and_lint_placement.py: (e)(a) asserts the retired "final coding wave closes GREEN" pre-PR-tail entry condition never resurfaces, and dates the renames it guards to the wave-layer removal.
 tests/test_audit_run.py: (e) the docstring names the retired `wave` `approach_kind` value to state that repo-boundness no longer rests on it.
-tests/test_block_nested_background_spawn.py: (c) English idiom - a too-narrow hook "would wave through the majority of the very calls it exists to catch".
 tests/test_coder_coordinator_topology.py: (e) the one-coder-per-NODE and two-tier-axis guards name the deleted wave grouping layer as the thing whose regrowth they reject.
 tests/test_commit_request_shape.py: (a) records the `wave-integration.md` -> `run-integration.md` rename so the pre-labelled commit literal it checks stays traceable.
 tests/test_concurrency_guard_ssot.py: (e)(a) the gate-table guard names the deleted wave layer as the reason the cost column is now per node, and narrates the OOM fan-out history that produced Mode B.

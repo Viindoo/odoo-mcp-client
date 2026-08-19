@@ -28,23 +28,24 @@ is complete and that skills thread the shared contracts they are required to:
                     spawn language nor a positive git-mutation instruction. (Historically this
                     pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
   9. wait-scope   - WARN-ONLY (see below). Ground truth (see R0, spawner-completion-contract.md):
-                    a subagent CAN launch a child and block on it (a blocking Agent-tool launch),
-                    and MUST when it needs the result - only the root conversation is resumed when
-                    a background child finishes, so a subagent that parks instead never wakes at
-                    all. Async park is therefore a root-only branch. A park/wait instruction
+                    the Agent tool exposes NO blocking/foreground parameter here, so EVERY launch
+                    is asynchronous. A launcher at ANY depth is woken with its child's result once
+                    the child completes AND the launcher has ended its turn; a launcher that keeps
+                    working in the launching turn offers no delivery point and never gets the
+                    result. A park/wait instruction
                     (end turn / park / hold until / wait to be resumed / await) near turn/child/
                     worker/agent vocabulary, anywhere under skills/*/SKILL.md, agents/*.md,
                     snippets/*.md, is a finding when EITHER of two real hazards is present: (a) its
-                    section names no R0 branch (no R0/move-N/run_in_background/NEEDS_NEXT/
-                    nesting-cap/spawner-completion-contract.md citation) - an unattributed park
-                    instruction leaves a reader unable to tell which of the three R0 moves it is
-                    exercising; (b) its section shows file-writing language (write/author/edit) but
+                    section names no R0 branch (no R0/move-N/NEEDS_NEXT/nesting-cap/
+                    spawner-completion-contract.md citation) - an unattributed park instruction
+                    leaves a reader unable to tell which R0 move it is exercising; (b) its section
+                    shows file-writing language (write/author/edit) but
                     states no commit/checkpoint safeguard - the non-interactive-surface hazard R0
                     itself names: never end a turn with uncommitted work.
  10. wait-mechanism - WARN-ONLY (see below). Two real hazards, neither ever correct under any R0
-                    branch: (a) an instruction to POLL or SLEEP while waiting for a child - a
-                    blocking launch (`run_in_background: false`) already blocks the call itself,
-                    and an async launch parks via end-of-turn, so nothing ever legitimately polls
+                    branch: (a) an instruction to POLL or SLEEP while waiting for a child - an
+                    async launch is collected by ending the turn and being woken, so nothing ever
+                    legitimately polls
                     or sleeps FOR a child's completion (a periodic task-list status check is a
                     DIFFERENT, sanctioned pattern - tracking status, not busy-waiting - and is
                     excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
@@ -58,7 +59,11 @@ is complete and that skills thread the shared contracts they are required to:
                     `concurrency-guard.md`) - a leaf launches nothing, so those
                     contracts do not bind it (see `snippets/spawner-completion-contract.md`'s own
                     "vacuously compliant" sentence); (b) a `role: spawner|coordinator` agent body
-                    MUST cite `spawner-completion-contract.md`. Half (b)'s subject set (agents with
+                    MUST cite `spawner-completion-contract.md`; (c) the SAME body MUST also state,
+                    in prose the running agent can read, that it does not author the source it
+                    dispatches - the frontmatter `description` is the LAUNCHER's listing and never
+                    reaches the agent, so a prohibition that lives only there is a prohibition the
+                    agent was never given. Half (b)'s subject set (agents with
                     role in {spawner, coordinator}) is asserted NON-EMPTY before the check runs -
                     an empty subject set would let half (b) pass vacuously (zero agents checked,
                     zero findings), so an empty set is itself a finding unless the registry sets
@@ -527,14 +532,37 @@ SPAWNER_TIER_FILES = (
 )
 
 
+# Half (c): the prohibition a non-authoring dispatcher must carry IN ITS BODY. Matched
+# whitespace-normalized over the whole body (never line-adjacency, never one fixed phrasing): a
+# negation, an authoring verb within a few words, and the object it is being denied. The point is
+# the CLAIM, not the wording - reword freely and this still passes; delete the claim and it fails.
+NO_AUTHOR_CLAUSE_RE = re.compile(
+    # Both word orders: verb-then-object ("never author production source") and
+    # object-then-agent-noun ("NOT a code writer"). The second shape is the one the measured
+    # incident used, and a regex that only saw the first would have called that agent compliant.
+    r"(?:never|not|no|must not|does not|do not|don't)[^.]{0,45}?"
+    r"(?:"
+    r"\b(?:author|authors|authoring|write|writes|writing)\b[^.]{0,80}?"
+    r"\b(?:source|code|production)\b"
+    r"|"
+    r"\b(?:source|code|production)\b[^.]{0,20}?\b(?:writer|author)\b"
+    r")",
+    re.I,
+)
+
 def check_role_scope(findings: list[str]) -> None:
     """11. [role-scope] - data-driven from `agents.<name>.role` (V-01 SSOT), never a hardcoded
-    name list. Two halves:
+    name list. Three halves:
 
     (a) a `role: leaf` agent body may not cite any member of SPAWNER_TIER_FILES - it launches
         nothing, so the spawner-tier contracts do not bind it.
     (b) a `role: spawner|coordinator` agent body MUST cite `spawner-completion-contract.md` - it
         launches agents, so R3 (the completion-report addressing rule) binds it directly.
+    (c) the SAME body MUST also state that it does not author the source it dispatches. Root cause
+        this closes: a coordinator whose only "not a code writer" clause lived in its frontmatter
+        `description` - the LAUNCHER's routing listing, which is never part of the running agent's
+        system prompt - authored a module's `__manifest__.py` itself. It had not disobeyed a rule;
+        it had never been given one. The check reads the BODY only, for exactly that reason.
 
     Half (b)'s subject set (agents with role in {spawner, coordinator}) is asserted NON-EMPTY
     before the check runs, so the half can never pass vacuously (an empty subject set would
@@ -542,7 +570,11 @@ def check_role_scope(findings: list[str]) -> None:
     genuinely has no spawner/coordinator agent, set the top-level registry flag
     `_role_scope_no_spawners_expected: true` to make that an explicit, reviewable choice instead
     of a silent gap.
-    """
+
+    Known false negative, stated rather than hidden: (c) is a lexical claim check. A body that
+    states the prohibition in a phrasing this regex cannot see - or states it and then contradicts
+    it elsewhere - still passes. It proves the claim is PRESENT for the agent to read, never that
+    the agent obeys it; `hooks/block-coordinator-code-write.sh` is the enforcing half."""
     data = json.loads(DEPS_FILE.read_text(encoding="utf-8"))
     agents = data.get("agents", {})
     no_spawners_expected = bool(data.get("_role_scope_no_spawners_expected"))
@@ -587,6 +619,15 @@ def check_role_scope(findings: list[str]) -> None:
                 f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its body never "
                 f"cites spawner-completion-contract.md - a spawner/coordinator launches agents, so "
                 f"R3's completion-report addressing rule binds it directly"
+            )
+        # (c) the prohibition must be in the BODY, where the agent can read it.
+        flat = re.sub(r"\s+", " ", body)
+        if not NO_AUTHOR_CLAUSE_RE.search(flat):
+            findings.append(
+                f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its BODY never "
+                f"states that it does not author the source it dispatches. The frontmatter "
+                f"`description` is the launcher's routing listing and never reaches the running "
+                f"agent, so a prohibition kept only there is one the agent was never given"
             )
 
 
@@ -675,31 +716,29 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
 
 # --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
 #
-# Ground truth (R0, spawner-completion-contract.md): a subagent CAN launch a child and CAN block on
-# its result (a blocking Agent-tool launch, `run_in_background: false`), and MUST whenever it needs
-# that result. Only the ROOT conversation is resumed when a background child finishes - a launcher
-# that is itself dispatched is never woken by its own child - so "launch async and END ITS TURN to
-# be resumed" is a root-only branch, and taking it below the root is a permanent stall, not a
-# slower path. The hazards this pair detects are: an unattributed park instruction (a reader cannot
-# tell which R0 branch it exercises, so nothing reveals whether the park is even reachable there),
-# uncommitted work surviving a turn boundary, a poll/sleep loop standing in for the mechanical
-# barrier a blocking launch already provides, and a dispatch claim made with no visible check that
-# the launching capability exists in the first place.
+# Ground truth (R0, spawner-completion-contract.md): the Agent tool exposes NO blocking/foreground
+# parameter in this harness, so EVERY launch is asynchronous. "Launch, then END YOUR TURN and be
+# woken with the child's result" is the ONE collection mechanism, and it holds at every depth - a
+# nested launcher is woken by its own child exactly as the root is. It has one precondition, the
+# launcher's own: it must actually stop. The hazards this pair detects are: an unattributed park
+# instruction (a reader cannot tell which R0 branch it exercises), uncommitted work surviving a
+# turn boundary, a poll/sleep loop standing in for the end-of-turn collection, and a dispatch claim
+# made with no visible check that the launching capability exists in the first place.
 #
 # [wait-scope] (rule 9) - a park/wait instruction (end turn / park / hold until / wait to be
 # resumed / await) near turn/child/worker/agent vocabulary, anywhere under skills/*/SKILL.md,
 # agents/*.md, snippets/*.md, is a finding when its enclosing section:
-#   (a) names no R0 branch - no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/
-#       spawner-completion-contract.md citation - so a reader cannot tell whether this is a
-#       blocking launch, a root-only async park, or the no-capability branch; or
+#   (a) names no R0 branch - no R0/move-N/NEEDS_NEXT/nesting-cap/
+#       spawner-completion-contract.md citation - so a reader cannot tell whether this is the
+#       async launch-and-be-woken branch or the no-capability branch; or
 #   (b) shows file-writing language (write/author/edit) with no commit/checkpoint safeguard
 #       stated nearby - the non-interactive-surface bound R0 itself names: never end a turn with
 #       uncommitted work.
 #
 # [wait-mechanism] (rule 10) - two independent detectors, neither ever correct under any R0
 # branch:
-#   (a) an instruction to POLL or SLEEP while waiting for a child - a blocking launch already
-#       blocks the call itself, and a root-only async launch parks via end-of-turn; nothing
+#   (a) an instruction to POLL or SLEEP while waiting for a child - the launcher ends its turn and
+#       is woken with the result, so nothing
 #       legitimately polls or sleeps FOR a child's completion. A periodic task-list check is a
 #       DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
 #   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
@@ -724,10 +763,15 @@ H2_RE = re.compile(r"^##\s+(.*)$", re.M)
 LAUNCH_VERB_RE = re.compile(r"\b(launch|dispatch|spawn|Agent tool)\b", re.I)
 
 # R0-branch attribution: any citation proving the instruction states WHICH branch it belongs to
-# (move 1 no-capability / move 2 blocking-launch / move 3 async-park), or a pointer to the R0 SSOT
-# itself.
+# (move 1 no-capability / move 3 async launch-and-be-woken; move 2 is retired and its number is
+# deliberately not reused), or a pointer to the R0 SSOT itself.
+# `run_in_background` is deliberately ABSENT from this alternation. The Agent tool exposes no such
+# parameter in this harness, so citing it proved nothing about which R0 branch an instruction
+# belongs to - it let a park instruction attributed to a non-existent capability satisfy the lint.
+# Do not re-add it: `Bash`'s identically named flag is a different tool's parameter and is not an
+# R0 branch at all.
 R0_BRANCH_CITE_RE = re.compile(
-    r"\bR0\b|move\s*[123]\b|run_in_background|NEEDS_NEXT|nesting cap|"
+    r"\bR0\b|move\s*[123]\b|NEEDS_NEXT|nesting cap|"
     r"spawner-completion-contract\.md",
     re.I,
 )
@@ -801,7 +845,7 @@ def check_wait_scope(warn_only_findings: list[str]) -> None:
             if not R0_BRANCH_CITE_RE.search(section_text):
                 warn_only_findings.append(
                     f"[wait-scope] {rel}: {m.group()!r} park/wait instruction names no R0 branch "
-                    f"(no R0/move-N/run_in_background/NEEDS_NEXT/nesting-cap/"
+                    f"(no R0/move-N/NEEDS_NEXT/nesting-cap/"
                     f"spawner-completion-contract.md citation in its section, heading: {heading!r})"
                 )
             if WRITE_CONTEXT_RE.search(section_text) and not COMMIT_SAFEGUARD_RE.search(section_text):
@@ -834,8 +878,8 @@ def check_wait_mechanism(warn_only_findings: list[str]) -> None:
                     warn_only_findings.append(
                         f"[wait-mechanism] {rel}:{i + 1}: {m.group()!r} instructs polling/"
                         f"sleeping near wait-for-a-child vocabulary - never correct under any R0 "
-                        f"branch (a blocking launch already blocks; an async launch parks via "
-                        f"end-of-turn, never a poll/sleep loop)"
+                        f"branch (the launcher ends its turn and is woken with the result, never a "
+                        f"poll/sleep loop)"
                     )
 
         # (b) a dispatch claim with no nearby capability-handling language.
@@ -1337,6 +1381,12 @@ BOUNDARY_SSOT_FILES = (
     "odoo-version-pivots.md",
     "odoo-frontend-fidelity.md",
     "odoo-ui-knowledge.md",
+    # The odoo-bin memory/time resource-limit boundary (v8-v11 no in-Odoo cap vs v12+ setrlimit
+    # clamp) is OWNED here - `snippets/odoo-bin-resource-limits.md` § The v12.0 enforcement
+    # boundary is its only home, and `scripts/lib/resource_limits.sh` holds the numbers. It was
+    # missing from this tuple, so a correct edit that pointed at its real owner still tripped the
+    # rule and had nowhere legal to point: the row existed but no citer could reach it.
+    "odoo-bin-resource-limits.md",
 )
 
 # Exemption 3: a whole-indexed-span scope statement ("every indexed major v8.0-v19.0") is not a

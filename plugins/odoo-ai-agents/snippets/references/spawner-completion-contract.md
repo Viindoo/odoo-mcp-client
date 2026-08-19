@@ -15,9 +15,9 @@ repeated corrections.
 
 ## Why an inferred send target is worse than no send at all
 
-A guessed address either fails to resolve or silently misdelivers to a context that is not blocking
-on the sender (R1). The launch call's own return value already delivers the report to the one
-context that is waiting for it, so a send adds a failure mode and no capability.
+A guessed address either fails to resolve or silently misdelivers to a context that is not waiting
+on the sender (R1). The wake that follows a child's completion already delivers the report to the
+launcher that stopped for it, so a send adds a failure mode and no capability.
 
 ## Why the task-list tool's native status field is a mirror, not the authority
 

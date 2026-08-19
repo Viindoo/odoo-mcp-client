@@ -1,10 +1,10 @@
 """The BLOCKED round trip - what a refusing worker must leave behind for its replacement.
 
-A nested coordinator (`agents/odoo-coder.md`) cannot resume a worker: a resume is fire-and-forget
-and a nested parent that ends its turn to await one is never woken. Its only round trip is
-worker-returns-BLOCKED -> coordinator reads it from the blocking launch's return value ->
+A nested coordinator (`agents/odoo-coder.md`) dispatches a worker, ends its turn, and is woken with
+that worker's result. When the result is BLOCKED its round trip is worker-returns-BLOCKED ->
 coordinator COLD-SPAWNS a replacement. The replacement inherits exactly two things: whatever landed
-in the shared `WORKTREE_PATH`, and whatever landed in the run's worklog. Four contracts keep that
+in the shared `WORKTREE_PATH`, and whatever landed in the run's worklog - a resumed worker is an
+optimization (CHP Tier A), never something this round trip may depend on. Four contracts keep that
 inheritance real, and each has its own failure mode:
 
   1. **Resolved state dirs.** `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that

@@ -316,47 +316,40 @@ GIT_NESTING_PROTOCOL = TOOLKIT / "snippets" / "git-nesting-protocol.md"
 
 
 def test_nesting_protocol_states_subagent_dispatch_physics():
-    """M1b (corrected) - git-nesting-protocol.md must state the subagent DISPATCH PHYSICS
-    generically (no consumer, no domain, no odoo artifact), matching the corrected ground truth in
-    odoo-ai-agents' R0 (spawner-completion-contract.md): a subagent CAN launch a child and CAN
-    receive its result - via a blocking launch when the launch tool exposes a background/foreground
-    switch. What it CANNOT do is be woken by that child. A background child's completion is
-    delivered to the root conversation, never back to a launcher that is itself dispatched, and
-    every git-toolkit agent is dispatched - so "end the turn and be resumed" is not a slower
-    alternative here, it is a permanent stall with no error and no output. Blocking is therefore
-    mandatory, and the no-lever case falls back to doing the work inline or returning BLOCKED. The
-    other hazards remain the silent nesting cap (no launch capability at all) and the
-    non-interactive surface (never end a turn with uncommitted work).
+    """M1b - git-nesting-protocol.md must state the subagent DISPATCH PHYSICS generically (no
+    consumer, no domain, no odoo artifact), matching the ground truth in odoo-ai-agents' R0
+    (spawner-completion-contract.md): a subagent CAN launch a child and IS woken with its result.
+    Every launch is asynchronous - no foreground/blocking parameter exists - so the collection
+    mechanism is "launch, then END YOUR TURN", and the wake is keyed on the launcher having
+    stopped, not on its depth. The remaining hazards are the silent nesting cap (no launch
+    capability at all) and the non-interactive surface (never end a turn with uncommitted work).
 
-    This test previously required the OPPOSITE of its (3) assertion - that the file offer the
-    async-launch-and-park branch and NOT say a dispatched launcher may never be woken. That
-    requirement described the root conversation's physics and applied it to agents that are never
-    the root, which is the stall this contract exists to prevent, so it is inverted here.
+    WHAT THIS TEST REQUIRED BEFORE, twice over, and why both were retired:
+      - It first required the file to OFFER the async launch-and-park branch.
+      - A later pass INVERTED that, requiring the file to name a "background/foreground switch",
+        to say a blocking launch "returns inside your turn", to state a dispatched launcher "may
+        never be woken", and to forbid launch-and-park outright.
+    The second set is refuted on two independent measurements: the launch tool exposes no such
+    switch (schema capture), and nested launchers ARE woken by their own children (transcript
+    corpus, including at depth 3). Requiring that prose made every git-toolkit agent reach for a
+    lever that does not exist and then fall through to doing the work inline.
 
-    Business rule this protects: before this paragraph landed, git-toolkit's own leaf/lead agents
-    had no LOCAL statement of the dispatch-physics invariant - the only place it lived was
-    odoo-ai-agents' R0, and reaching into a CONSUMER'S snippet from a domain-agnostic PROVIDER
-    inverts the dependency direction this whole file guards. The fix states the physics inline,
-    generically, so it holds even if git-toolkit is ever consumed by a plugin other than
-    odoo-ai-agents.
+    Business rule this protects: git-toolkit's own leaf/lead agents need a LOCAL statement of the
+    dispatch-physics invariant - reaching into a CONSUMER'S snippet from a domain-agnostic
+    PROVIDER inverts the dependency direction this whole file guards. The physics is stated
+    inline, generically, so it holds for any consumer.
     """
     assert GIT_NESTING_PROTOCOL.is_file(), f"missing {GIT_NESTING_PROTOCOL}"
     text = GIT_NESTING_PROTOCOL.read_text(encoding="utf-8")
     low = " ".join(text.split()).lower()
 
-    # A dispatched agent CAN block on a child (the blocking-mode branch below asserts it). What it
-    # cannot do is be woken by one: a background child's completion is delivered to the root
-    # conversation, never back to a launcher that is itself dispatched. So the file must not offer
-    # the async park as an alternative shape - every git-toolkit agent is dispatched, so that
-    # branch is a permanent stall, not a slower path.
-    assert "do the work yourself" in low, (
-        "git-nesting-protocol.md must keep the no-launch-capability fallback (do the work "
-        "yourself), which is also where a caller lands when no blocking lever exists"
-    )
-
     # RULE, not a string: the capability branch must be expressed -
     # (1) cap-absent handling: read your own toolset before launching, and never report a
     #     dispatch that could not be made.
+    assert "do the work yourself" in low, (
+        "git-nesting-protocol.md must keep the no-launch-capability fallback (do the work "
+        "yourself)"
+    )
     assert "read your own toolset" in low or "own toolset" in low, (
         "git-nesting-protocol.md must instruct checking launch capability before dispatching"
     )
@@ -366,31 +359,37 @@ def test_nesting_protocol_states_subagent_dispatch_physics():
         "git-nesting-protocol.md must state what to do when launch capability is absent (do the "
         "work yourself / return BLOCKED) and never claim a dispatch that could not be made"
     )
-    # (2) the blocking-launch branch: a background/foreground switch, used in blocking mode when
-    #     the caller needs the result inside its own turn. Naming the switch ALONE is not enough -
-    #     a mutation that keeps "background/foreground switch" but drops the blocking-mode outcome
-    #     (e.g. "pick whichever mode you like") must still be caught, so both must be present.
-    assert "background/foreground switch" in low, (
-        "git-nesting-protocol.md must name the background/foreground switch capability probe"
+    # (2) the async branch, stated as a MECHANISM the reader can execute: every launch is
+    #     asynchronous, the launcher ends its turn, and it is woken with the result. Naming the
+    #     asynchrony alone is not enough - a mutation that drops the end-of-turn action leaves the
+    #     reader with a receipt and no way to collect, so both must be present.
+    assert "every launch is asynchronous" in low, (
+        "git-nesting-protocol.md must state that every launch is asynchronous"
     )
-    assert "blocking mode" in low and "returns inside your turn" in low, (
-        "git-nesting-protocol.md must state the blocking-launch branch's OUTCOME: use blocking "
-        "mode to get the result inside the caller's own turn - not merely name the switch"
+    assert "end your turn" in low and "woken with that child's result" in low, (
+        "git-nesting-protocol.md must state the collection MECHANISM - end your turn and be woken "
+        "with the child's result - not merely that the launch is async"
     )
-    # (3) the no-blocking-lever branch: there is NO async-park alternative for a dispatched agent.
-    #     The file must say so in consequence terms (a launcher that ends its turn to wait may
-    #     never be woken) and route that case to the same do-it-yourself / BLOCKED fallback.
-    assert "may never be woken" in low, (
-        "git-nesting-protocol.md must state the consequence that makes blocking mandatory: a "
-        "dispatched agent that backgrounds a child and ends its turn to wait may never be woken"
+    assert "whether you are the top-level context or a dispatched agent" in low, (
+        "the wake must be stated as depth-independent, or a git-toolkit agent (always dispatched) "
+        "reads the mechanism as not applying to it"
     )
-    assert "do not launch-and-park" in low, (
-        "git-nesting-protocol.md must forbid the launch-and-park shape outright for a dispatched "
-        "agent - offering it as an alternative is what strands a whole pipeline silently"
+    # (3) the one real failure mode, stated in consequence terms: a launcher that never stops has
+    #     no delivery point. Plus the poll/re-launch prohibition, which follows from it.
+    assert "you never stop" in low, (
+        "git-nesting-protocol.md must name the failure mode: a launcher that keeps working in the "
+        "launching turn never stops, so nothing is ever handed back"
     )
+    for gone, why in (
+        ("background/foreground switch", "the refuted blocking-lever probe must be deleted"),
+        ("blocking mode", "the refuted blocking-mode instruction must be deleted"),
+        ("may never be woken", "the refuted never-woken claim must be deleted"),
+        ("do not launch-and-park", "the refuted launch-and-park ban must be deleted"),
+    ):
+        assert gone not in low, why
     assert "never poll" in low and "never re-launch" in low, (
-        "git-nesting-protocol.md must forbid polling and re-launching - a blocking launch already "
-        "returns the result inside the turn, so there is never anything to poll for"
+        "git-nesting-protocol.md must forbid polling and re-launching - the result arrives on the "
+        "wake, so there is never anything to poll for"
     )
     # (4) the uncommitted-work bound: the non-interactive-surface mitigation.
     assert "never end a turn with uncommitted work" in low, (

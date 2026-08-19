@@ -16,9 +16,22 @@ drop the barrier language, allow an early DONE, or reintroduce a reply-address f
 corresponding assertion goes red.
 
 Where a marker IS asserted verbatim it is a deliberate load-bearing TOKEN - a rule id (`R0 move
-2`), a parameter name (`run_in_background`), a cross-referenced filename, or the declaring
-sentence other guards count to prove a single home - never a stylistic sentence. Rewording those
-tokens IS the change the assertion is meant to catch.
+3`), a status value (`NEEDS_NEXT`), a cross-referenced filename, or the declaring sentence other
+guards count to prove a single home - never a stylistic sentence. Rewording those tokens IS the
+change the assertion is meant to catch.
+
+TWO CORRECTIONS this file carries, and why each assertion was REPLACED rather than reworded:
+
+1. MEASURED - the Agent tool exposes NO foreground/blocking parameter. Its schema is
+   {description, isolation, model, prompt, subagent_type}, and an undeclared key is stripped before
+   the call is evaluated, so a call passing `run_in_background: false` behaves identically to one
+   that omits it. This file once REQUIRED the contract to name that parameter (R1) and to frame
+   every occurrence of it as "the Agent tool's own blocking-launch lever" (rule 16). Both demanded
+   a capability that does not exist. R0 move 2 is DELETED and its number retired.
+2. OBSERVED - nested dispatch works, and a nested launcher IS woken by its own child. A later pass
+   inferred from (1) that a subagent could never collect a child's result and scoped the R1 barrier
+   to the root; that inference is falsified. The barrier holds at every depth, and the only thing
+   that loses a result is a launcher that never ends its turn.
 
 Run: python -m pytest tests/test_spawner_completion_contract.py -v
 """
@@ -78,14 +91,24 @@ def test_contract_file_exists():
 
 
 def test_r1_barrier_is_mechanical_and_topology_aware():
-    """R1 must tie the barrier to the real Agent-tool lever (run_in_background) and cover both
-    dependent (sequential-blocking) and independent (parallel-batch) topologies, counted on the
-    always-on task list - never a passive hope."""
+    """R1 must hold at EVERY depth - every launch here is asynchronous and a nested launcher is
+    woken by its own child - and cover both dependent (sequential) and independent (parallel-batch)
+    shapes, counted on the always-on task list, never a passive hope.
+
+    WHAT IT REQUIRED BEFORE: first that R1 name `run_in_background` as "the real Agent-tool lever"
+    (no such parameter exists), then that R1 declare both topologies `root-only` (falsified - the
+    wake is keyed on the launcher having stopped, not on its depth). Both forced the SSOT to
+    document physics the runtime does not have."""
     text = _norm(CONTRACT_MD)
     low = text.lower()
     assert "r1" in low, "must have an R1 section"
-    assert "run_in_background" in text, (
-        "R1 must anchor the barrier to the real run_in_background lever"
+    assert "same at every depth" in low, (
+        "R1 must state the barrier is the same at every depth - a root-only scoping is the refuted "
+        "claim, and it is what deleted the nested-coordinator topology"
+    )
+    assert "root-only" not in low, (
+        "the refuted root-only scoping must be deleted, not softened - a surviving copy is exactly "
+        "what this repo's stale-restatement defect looks like"
     )
     assert "dependent" in low and "independent" in low, (
         "R1 must cover both dependent (sequential) and independent (parallel batch) child "
@@ -143,9 +166,9 @@ def test_r3_makes_the_final_message_the_only_return_path():
         "does not know its own",
     ):
         assert marker in low, f"R3 must state {marker!r}"
-    assert "r0 move 2" in low, (
-        "R3 must cross-reference R0 move 2 - the blocking launch's own return value IS the "
-        "delivery mechanism, so the two rules must be visibly the same rule"
+    assert "r0 move 3" in low, (
+        "R3 must cross-reference R0 move 3 - the asynchronous launch's delivery to the root IS the "
+        "mechanism, so the two rules must be visibly the same rule"
     )
 
 
@@ -380,63 +403,70 @@ def test_worker_brief_states_a_leaf_holds_no_send_target():
 
 
 # ---------------------------------------------------------------------------
-# 16. run_in_background is named only as the Agent tool's OWN blocking-launch lever (corrected)
+# 16. The contract states the ABSENCE of a blocking launch, and role-conditions the fallback
 # ---------------------------------------------------------------------------
 
-# A prior version of this test asserted the FALSE premise that `run_in_background` may only appear
-# inside framings that warn it away from an agent launch (treating it as an unrelated Bash
-# subprocess flag). The corrected R0 (spawner-completion-contract.md) establishes the opposite:
-# the Agent tool ITSELF exposes `run_in_background`, and `run_in_background: false` IS the
-# sanctioned blocking-launch mechanism (R0 move 2) - a subagent well inside the nesting cap uses it
-# to launch a child and block on the result. This test now asserts the ROLE every occurrence must
-# play - the Agent tool's own capability-probe / blocking-launch lever - never a bare mention and
-# never paired with a poll/sleep loop (which would misuse it as something to wait ON rather than
-# the parameter that makes the launch itself synchronous).
-_RUN_IN_BACKGROUND_ROLE_MARKERS = (
-    # R0 move 2's capability probe: the Agent tool HAS the parameter -> a blocking launch exists.
-    "a blocking launch is available",
-    # R0 move 3's capability probe: the Agent tool has NO parameter -> every launch is async.
-    "every launch is asynchronous",
-    # R1's synchronous-launch framing.
-    "launches it synchronously",
-    # R1's dependent-topology framing: the launch itself blocks.
-    "so the launch itself blocks",
-)
+# Replaces `test_run_in_background_named_only_as_the_agent_tools_own_blocking_launch_lever`, which
+# required every occurrence of `run_in_background` to sit in a window framing it as "the Agent
+# tool's own blocking-launch lever" - and required at least one occurrence to exist. Measurement:
+# the Agent tool's schema here is {description, isolation, model, prompt, subagent_type}; an
+# undeclared key is stripped before the call is evaluated, so a call carrying
+# `run_in_background: false` behaves identically to one that omits it. The old assertion pinned a
+# capability into the SSOT that no agent can use, and the "launch it blocking" rung it protected
+# was dead on arrival.
 
 
-def test_run_in_background_named_only_as_the_agent_tools_own_blocking_launch_lever():
-    """Every occurrence of `run_in_background` in the contract must sit inside a window that
-    frames it as the Agent tool's OWN parameter controlling whether a launch blocks - present means
-    a blocking launch is available (R0 move 2, `run_in_background: false`), absent means every
-    launch is asynchronous (R0 move 3) - never as an unrelated Bash flag, and never paired with an
-    instruction to poll or sleep against it (which would misuse it as a thing you wait ON rather
-    than the parameter that makes the launch call itself return synchronously).
-
-    What this proves: the text names the token only in its correct role everywhere it appears.
-    What it does NOT prove: that any agent actually reads or obeys it, or that the repo-wide
-    [wait-mechanism] lint (generator/check_orchestration.py, warn-only) is clean elsewhere - this
-    test is scoped to this one SSOT file only."""
+def test_contract_states_the_agent_tool_has_no_blocking_launch():
+    """The absence must be stated positively, not merely left unmentioned: a reader who is told
+    nothing will try the parameter they half-remember, get the same refusal, and fall through."""
     text = _norm(CONTRACT_MD)
     low = text.lower()
-    occurrences = [m.start() for m in re.finditer(r"run_in_background", low)]
-    assert occurrences, (
-        "sanity: run_in_background must appear in R0/R1 as the Agent tool's blocking-launch lever "
-        "- R0 move 2 REQUIRES it as the mechanism a spawner blocks a child launch with"
+    assert "run_in_background" not in low, (
+        "the contract must not name a parameter the Agent tool does not expose - naming it is what "
+        "produced an unexecutable first rung"
     )
-    # A wide window (e.g. 150 chars) can accidentally "borrow" a role marker that legitimately
-    # belongs to a DIFFERENT, nearby occurrence (e.g. R0 move 3's marker sitting just past a
-    # gutted move-2 paragraph) - a bare, unexplained mention would then falsely read as
-    # role-attributed. The real SSOT text's max token-to-marker span is ~63 chars (the marker
-    # phrase itself must fit fully inside the window); 70 gives a little headroom for prose
-    # rewording while staying well short of the ~100-char borrowed-marker leak a proven mutation
-    # exposed at radius 150.
-    for pos in occurrences:
-        window = low[max(0, pos - 70):pos + 70]
-        assert any(marker in window for marker in _RUN_IN_BACKGROUND_ROLE_MARKERS), (
-            "an occurrence of 'run_in_background' does not sit inside a window framing it as the "
-            f"Agent tool's own blocking-launch lever: ...{window}..."
-        )
-        assert "poll" not in window and "sleep" not in window, (
-            "run_in_background must never be framed as something you poll or sleep against - it "
-            f"is the Agent tool's own synchronous-launch parameter: ...{window}..."
-        )
+    assert "no foreground or blocking parameter" in low, (
+        "R0 must state outright that the Agent tool exposes no foreground/blocking parameter"
+    )
+    assert "there is no move 2" in low, (
+        "the retired branch must be named as retired. A silently renumbered ladder leaves every "
+        "surviving 'R0 move 2' citation elsewhere pointing at whatever now sits in that slot"
+    )
+    assert "names a lever that does not exist" in low, (
+        "the contract must tell a reader what to DO with a stale 'launch it blocking' instruction "
+        "it meets in some other file - ignore it - not merely avoid emitting one itself"
+    )
+
+
+def test_r0_fallback_is_conditioned_on_the_callers_declared_role_and_is_the_edge_case():
+    """The no-launch-available fallback must (a) be selected by the caller's DECLARED ROLE, and
+    (b) be scoped as the edge case it is, never the default path.
+
+    (a) closes a real breach: the old ladder offered "do the work inline via the Skill tool" to
+    every caller with no role condition at all, so a coordinator that must not author source read
+    it, took it, and edited a module's `__manifest__.py`. (b) is the correction to the pass that
+    made this ladder the PRIMARY move for every subagent - dispatch works, so move 3 is the
+    default and this section only governs the nesting cap."""
+    text = _norm(CONTRACT_MD)
+    low = text.lower()
+    assert "which fallback is yours" in low, (
+        "R0 must carry a named section that selects the fallback by role, so every other file can "
+        "point at ONE home for it instead of restating the ladder"
+    )
+    assert "an edge case, never the default" in low, (
+        "the fallback must be scoped as the edge case - promoting it to the default path is what "
+        "deleted the nested-dispatch topology"
+    )
+    assert "declared role decides" in low or "your declared role decides it" in low, (
+        "the selector must be the caller's DECLARED role, not convenience"
+    )
+    assert "needs_next" in low, "the non-authoring branch's rung must be named"
+    assert "must not produce that artifact yourself" in low, (
+        "the non-authoring branch must forbid authoring outright"
+    )
+    assert "there is no second option on this branch" in low, (
+        "an 'or do it inline' escape on the non-authoring branch is the exact defect being fixed"
+    )
+    assert "never reassigns the work to you" in low, (
+        "the contract must say what a refused dispatch IS - a routing failure to report upward"
+    )
