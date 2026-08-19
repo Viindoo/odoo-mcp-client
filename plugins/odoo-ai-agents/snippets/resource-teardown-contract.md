@@ -28,7 +28,8 @@ not forbid, and never excuses skipping, the browser CLOSE rules below.
 You may not emit `status: DONE` while:
 (a) a browser page, tab, context, recording, or trace that YOU opened this dispatch is still
     open or running, or
-(b) an Odoo instance that YOU self-provisioned this dispatch is still leased or listening.
+(b) an Odoo instance that YOU self-provisioned this dispatch is still running under your lease -
+    i.e. you neither released it, nor PARKED it (T1 § The three exits), nor handed it off by name.
 
 DONE claims two things at once: the goal is met AND the resources the work borrowed are
 returned. A finished report with a live leftover page or instance is NOT done - finish the
@@ -39,7 +40,9 @@ BLOCKED / NEEDS_CONTEXT / handoff).
 and instances are enforced differently" below):
 - **(b) Instance teardown is HARD-blocked.** The `SubagentStop` `enforce-teardown.sh` hook reads
   the allocator ledger and BLOCKS any turn end except `BLOCKED`/`NEEDS_CONTEXT` or a T4 named
-  handoff, while a live, self-provisioned, non-shared lease remains open.
+  handoff, while a live, self-provisioned, non-shared lease remains open. A PARKED lease is not a
+  live lease to this gate: its ledger row carries `parked_at` and no owner pid because its server
+  is already stopped, so parking clears the gate exactly as releasing does.
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
   on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
   when it infers an apparently-open page from the transcript. You remain contract-bound to close
@@ -52,11 +55,30 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 | How you hold it | Who tears it down | When |
 |---|---|---|
 | Browser page/context/recording you opened | YOU (close/stop it) | as you go + before your terminal status |
-| Instance you self-provisioned (no `INSTANCE_HANDLE` in your brief; `persist: ephemeral` or `exclusive-running`) | YOU (release the lease) | before your terminal status |
+| Instance you self-provisioned (no `INSTANCE_HANDLE` in your brief - whatever `persist:` value you asked for yourself; the values live in `docs/reference/INSTANCE-ALLOCATION.md` §5) | YOU (one of the three exits below) | before your terminal status |
 | `INSTANCE_HANDLE` forwarded in your brief | NEVER you | the provisioning orchestrator, at end of run |
 | Instance you provisioned AND forwarded to children (you are the run-level owner) | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
 | `mode_hint: path-incremental` EXCLUSIVE lease | the owning skill, via release-lease (operation E) | at path completion - never between steps |
 | `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid, immediately; TTL, only when liveness cannot be verified at all - see `docs/reference/INSTANCE-ALLOCATION.md` §7) |
+| A lease you PARKED (`allocator.py park`) | YOU, or whoever resumes it | at your terminal status the park itself is the teardown; the lease is then reclaimed by its own `park_ttl_s` budget, or released after a `resume` |
+
+### The three exits
+
+A live, self-provisioned, non-shared lease is cleared by exactly one of THREE exits.
+This list is the SSOT for that set: the `SubagentStop` hook names the same three in the block it
+emits, and a guard asserts the two sets are equal.
+
+- **`release`** - stops the server's whole process group, then drops the DB for `drop_on_release`
+  leases. Use it when the database is finished with.
+- **`park`** - stops the SAME process group, so it frees the RAM exactly as `release` does, but
+  KEEPS the database, filestore and ports under a park budget for a later `resume`. Use it when
+  the instance is done for now and the database is still wanted. NOT an exemption: park holds
+  DISK, never MEMORY, and a parked lease has no running process to leave behind.
+- **`handoff`** - forward `INSTANCE_HANDLE` to a NAMED catcher in your continuation `next.inputs`
+  (T4). The only exit that leaves the server RUNNING, and the only one needing a named owner.
+
+Choose on a fact about the DATABASE, not on convenience: still wanted -> park; finished with ->
+release; wanted by a named next step, still running -> handoff.
 
 An ephemeral `--stop-after-init` build self-terminates its process, but the LEASE (db + port
 reservation) is still yours - release it so `drop_on_release` reclaims the DB.
@@ -117,6 +139,10 @@ not an alternative - you still release; the net catches crashes, not laziness.
   your own task end. Forwarded handle -> hands off, never release. `shared-running` -> no
   consumer ever drops it. `path-incremental` -> the owning skill releases at path end via
   operation E, never between steps.
+- **Park is routed, never hand-rolled, exactly like release.** `allocator.py park <token>` (T1's
+  second exit); to come back, `Skill(odoo-instance)` finds it via `allocator.py query --series
+  <X.Y> --state parked` and resumes it. The shared render target is never parkable. Full rules:
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §7.
 
 ## T4 - Failure and handoff paths
 

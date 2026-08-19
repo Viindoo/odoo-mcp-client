@@ -652,6 +652,103 @@ def test_no_resource_tokens_passes(tmp_path):
     assert out is None
 
 
+def test_a_parked_lease_never_blocks_the_subagent_that_parked_it(tmp_path):
+    """G4/G6 - the make-or-break case. A PARKED lease is pid-less with a fresh
+    heartbeat, which is byte-for-byte the shape this gate reads as "live but
+    unprovable" and hard-blocks. Before the exemption, parking an instance
+    produced a block telling the agent to RELEASE the instance it had just
+    deliberately preserved - the gate refusing the exit it exists to permit, and
+    the whole park/resume feature stillborn at the hook.
+
+    The exemption is safe only because `resume` DELETES `parked_at`; the sibling
+    below is the half that proves it does not outlive the park."""
+    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    parked = _lease(run_id="run-abc", token="ef" * 16)
+    parked["parked_at"] = int(time.time())
+    parked["park_ttl_s"] = 86400
+    _, out = _run(tmp_path, lines, leases=[parked])
+    assert out is None or out.get("decision") != "block", (
+        "a parked lease has no server process at all - park already did the RAM half "
+        "of teardown, so the gate must let that turn end"
+    )
+
+
+def test_the_parked_exemption_dies_with_the_park_not_with_the_lease(tmp_path):
+    """The other direction, and the one that would silently reopen the RAM leak:
+    the SAME lease WITHOUT `parked_at` - i.e. after a resume - blocks again. If
+    the exemption keyed on anything more durable than the park keys (a mode, a
+    flag, the token), a resumed live server would be exempt forever."""
+    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    resumed = _lease(run_id="run-abc", token="ef" * 16)
+    resumed.pop("parked_at", None)
+    _, out = _run(tmp_path, lines, leases=[resumed])
+    assert out is not None and out.get("decision") == "block", (
+        "once the park keys are gone the lease is an ordinary live lease again and "
+        "must be gated again"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# G6 - the gate's EXIT SET is declared once and copied once, in lockstep.
+#
+# The hook cannot parse markdown at SubagentStop time, so the three exits are
+# written out in the hook AND in snippets/resource-teardown-contract.md T1. That
+# is a deliberate SECOND COPY, following the precedent the hook already sets for
+# `DEFAULT_TTL_S` ("keep them in lockstep") - and a second copy is only safe while
+# something asserts the two agree. This is that something: it compares the SET the
+# contract declares against the set the hook actually EMITS to a blocked agent
+# (the rendered message, not the source), so a contract that grows a fourth exit
+# nobody wired into the hook fails here instead of in production.
+# --------------------------------------------------------------------------- #
+TEARDOWN_CONTRACT = PLUGIN_ROOT / "snippets" / "resource-teardown-contract.md"
+_EXIT_BULLET_RE = re.compile(r"^-\s+\*\*`([a-z-]+)`\*\*", re.M)
+
+
+def _contract_exit_set():
+    """The exits declared under T1's `### The three exits` heading."""
+    text = TEARDOWN_CONTRACT.read_text(encoding="utf-8")
+    start = text.index("### The three exits")
+    end = text.find("\n## ", start)
+    section = text[start:] if end == -1 else text[start:end]
+    return {m.group(1) for m in _EXIT_BULLET_RE.finditer(section)}
+
+
+def test_the_contract_declares_exactly_three_exits():
+    """Discovery floor: a renamed heading or a reflowed list would make the
+    lockstep check below compare the empty set against the empty set and pass
+    forever."""
+    exits = _contract_exit_set()
+    assert exits == {"release", "park", "handoff"}, (
+        f"T1 must declare exactly the three exits; found {sorted(exits)} - if the set "
+        "legitimately changed, change the hook's message in the same commit"
+    )
+
+
+def test_the_hook_block_names_every_exit_the_contract_declares(tmp_path):
+    """Lockstep, asserted on the RENDERED block a blocked agent actually reads.
+
+    An agent that is told only about `release` concludes that preserving a
+    just-built database is impossible and destroys it - which is the behavior this
+    whole feature exists to end. Naming the exits in the contract while the hook
+    stays silent about them is therefore not a documentation gap; it is the defect
+    with a document in front of it."""
+    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="12" * 16)])
+    assert out is not None and out.get("decision") == "block", (
+        "test setup: this scenario must produce a block, or there is no message to check"
+    )
+    reason = out["reason"]
+    missing = sorted(name for name in _contract_exit_set() if name not in reason)
+    assert not missing, (
+        f"the block message does not name {missing} - the hook's exit set and "
+        f"{TEARDOWN_CONTRACT.name} T1's have drifted apart"
+    )
+    assert "allocator.py\" park" in reason or "allocator.py park" in reason, (
+        "naming `park` in prose is not enough - the block must give the runnable "
+        "command, exactly as it does for release"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # session-end-gc.sh - crash backstop (L1.3)
 # --------------------------------------------------------------------------- #

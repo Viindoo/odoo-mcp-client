@@ -165,8 +165,9 @@ guarantee completion two ways:
   marker. Confirm BOTH verdicts: `BUILD_RESULT=success` alone leaves the script's own `STATUS=`
   unread (they share the marker set above, so they can never disagree).
 
-Version nuance: this covers BUILD completion (job shape). A LISTENING instance
-(`persist: exclusive-running`/`shared-running`, no `--stop-after-init`) has a DIFFERENT readiness
+Version nuance: this covers BUILD completion (job shape). A LISTENING instance (any listening
+`persist:` value - `docs/reference/INSTANCE-ALLOCATION.md` §5 - with no `--stop-after-init`),
+including one brought back by a RESUME, has a DIFFERENT readiness
 signal: `50-instance-spinup.sh`'s BOUNDED-timeout HTTP poll of the port - primary
 `GET /web/database/selector` (auth=none, no DB required, reliable v8-v19), fallback `/web/login`
 where the selector route is unavailable. On timeout it reports `BLOCKED` with the last probe error;
@@ -338,7 +339,29 @@ cap, or to `""`/`"0"` to opt into the uncapped escape hatch) - never hardcode a 
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (`ephemeral` | `exclusive-running` | `shared-running`, default `ephemeral` - see `skills/odoo-instance/SKILL.md`'s dispatch table), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
+**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5 - read them there, never from a copy), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
+
+**Resume before you build (listening `persist:` values only - run this FIRST).** An earlier
+dispatch may have PARKED an instance for this series instead of destroying it: its database,
+filestore and ports are still reserved and only its server was stopped. Building a new one would
+waste that and leave a second lease holding a second database. So, before Step D's acquire:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" query --series <series> --state parked --run-id "<run_id>"
+```
+
+- Exit 0 - a resumable instance exists. Use its `ALLOC_TOKEN` / `ALLOC_DB_NAME` / `ALLOC_PORTS`
+  VERBATIM as the spin-up coordinates below (`--db-name`, `--http-port`, `--alloc-token`) and do
+  NOT acquire a new lease: `50-instance-spinup.sh` calls `allocator.py resume` on that token
+  itself, which is the atomic transition back to running. Do NOT pass `-i`/`-u` for the resumed
+  modules - the database already carries them. If the output includes
+  `ALLOC_ATTACHED_FROM_RUN=<run>`, you inherited another run's parked instance on this host: say so
+  in `notes` (its data state is that run's, not a fresh build's) - it is reported, not gated.
+- Exit 1 - nothing parked for this series. Proceed with the normal acquire below. This is the
+  ordinary case and is not a finding.
+
+Full ladder (rung 1b) and the cross-host rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
 
 **Mechanism - branch on `persist`.** This is ONE flow keyed on one field, not two independent
 paths to pick between:
@@ -427,7 +450,19 @@ Drop an existing Odoo database through Odoo (never raw dropdb).
 
 **Mechanism.** A MANAGED (leased) DB MUST be dropped by releasing its lease - release is
 ownership-checked and race-free, so it is the only safe path once an allocator lease tracks the DB.
-For a listening (`exclusive-running`/`shared-running`) lease, release is teardown-complete: the
+**Check first that a DROP is what the caller wants.** Release DESTROYS the database; `park` frees
+the same RAM (it stops the identical process group) while KEEPING the database, filestore and
+ports for a later `resume`. When the instance is finished with for now but its data is still
+wanted, park it instead - that is one of the three exits in
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1, and it is not a lesser
+teardown: a parked lease has no server process at all.
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park "$ALLOC_TOKEN"
+```
+
+Park REFUSES a shared lease and a lease with no bound server pid; report the refusal rather than
+falling back to a drop the caller did not ask for. For a genuine drop, continue below: the
 allocator STOPS THE SERVER'S PROCESS GROUP FIRST (SIGTERM, a bounded wait, then a group SIGKILL -
 covering HTTP workers, cron, the longpolling/gevent process, and any `--dev=reload` watchdog),
 using the `server_pid` bound onto the lease at create-instance (the `--alloc-token` wiring above),
@@ -607,7 +642,21 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh check --version 
 ```
 
 - Exit 0 - already up. Discover the actual bound port via `allocator.py query --series <series>` (captures `$ALLOC_PORTS` and `$ALLOC_TOKEN`) and emit the status block.
-- Exit 1 - not running. If spinup is requested, run Step B (pin version, ground CLI flags) then:
+- Exit 1 - not running. **Ask whether it is PARKED before you conclude it is gone** - the two look
+  identical from outside (no listener on the port), but a parked instance still owns its database
+  and can be resumed, while a gone one must be rebuilt:
+
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" query --series <series> --state parked --run-id "<run_id>"
+  ```
+
+  Exit 0 -> for a status-only request report `status: parked` with the token, db and ports it
+  emitted (never `down` - `down` tells the caller its data is gone). If spinup IS requested, hand
+  those coordinates to the spin-up as an exclusive re-launch (`--db-name`, `--http-port`,
+  `--alloc-token` from that output, no `-i`/`-u`); the script calls `allocator.py resume` on the
+  token itself, so the lease transitions atomically and nothing is rebuilt. Relay
+  `ALLOC_ATTACHED_FROM_RUN` in `notes` when present.
+  Exit 1 -> genuinely nothing for this series. If spinup is requested, run Step B (pin version, ground CLI flags) then:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh apply --version <series>
@@ -850,7 +899,7 @@ js_failed_reported: <n or null>      # run-tests only; from JS_FAILED_REPORTED= 
 js_failed_tests: <n or null>         # run-tests only; from JS_FAILED_TESTS= - distinct failing browser test NAMES; null when unmeasured, never 0
 findings_path: <path or null># run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
-status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-inconclusive | tests-failed | ready-for-doc | error
+status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-inconclusive | tests-failed | ready-for-doc | error | parked   # `parked` is NOT a flavour of `down`: the server is stopped but the lease still owns its database, filestore and ports, and a resume brings it back - reporting it as `down` tells the caller its data is gone
 notes: <one-line summary of any non-obvious decision or error; run-tests: ALWAYS carries the scope figures (modules actually loaded / tests actually run) and names any verdict decided by tests outside the module under verification>
 ```
 ````

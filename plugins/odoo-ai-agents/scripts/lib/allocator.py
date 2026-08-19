@@ -53,7 +53,20 @@ CLI:
                  # worktree gets silently verified against the principal checkout's
                  # (pre-fix) code instead. Pass --addons-path-override to state the
                  # tree explicitly (see _addons_path_worktree_mismatch).
-    allocator.py query --series <X.Y>     # the live shared render server for a series, if any
+    allocator.py query --series <X.Y> [--state parked] [--run-id <id>] [--force-attach]
+                 # DEFAULT (no --state): the live shared render server for a
+                 # series, if any - unchanged, so no existing caller moves.
+                 # --state parked: the resumable PARKED lease for that series
+                 # (ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS/
+                 # ALLOC_PARKED_AT), so a returning agent finds the instance it
+                 # (or an earlier run on this host) suspended instead of building
+                 # a new one. A parked lease has NO live owner by construction, so
+                 # it is HOST-and-SERIES scoped, not run-scoped: this run's own
+                 # parked lease is returned silently; another run's parked lease
+                 # on THIS host is returned WITH ALLOC_ATTACHED_FROM_RUN so the
+                 # attach is reported rather than gated; a parked lease on a
+                 # DIFFERENT host needs --force-attach (its database may live on
+                 # another cluster entirely).
     allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
                  # when undeterminable) and exit 0|6|7 - the SAME ladder and the SAME
@@ -102,6 +115,32 @@ CLI:
                  # exclusive-running path: acquire reserves the lease, the
                  # spin-up binds the launched pid) so release/gc can stop the
                  # whole process GROUP before dropping the DB.
+    allocator.py park <token> [--park-ttl <s>]
+                 # SUSPEND a RUNNING lease without destroying anything it holds.
+                 # Stops the owner's process GROUP first (park holds DISK, never
+                 # MEMORY), clears owner.pid/owner.pid_started, and stamps
+                 # parked_at + park_ttl_s + parked_boot_id. db_name, ports and
+                 # drop_on_release are left untouched, so the database, the
+                 # filestore and the port reservation all survive and the lease
+                 # can be resumed. Refuses a `shared` lease (exit 3 - the shared
+                 # row is already immune to the pid arms and is the ONE answer
+                 # `query --series` gives for a series; a parked twin would make
+                 # that rung two-valued) and a lease that is not RUNNING (exit 4 -
+                 # no owner pid recorded: nothing to stop, nothing to resume).
+    allocator.py resume <token> --pid <server_pid>
+                 # The atomic PARKED -> RUNNING compare-and-set, under ONE
+                 # registry hold: the lease must BE parked (exit 3 otherwise -
+                 # which is what makes two agents racing to resume one lease
+                 # safe: the first clears parked_at, the second is refused), its
+                 # database must not have been dropped underneath it (exit 5,
+                 # naming `release` as the next step), and the named pid must be
+                 # alive on this host AND corroborated as this lease's own server
+                 # by _ownership_proof (exit 4 otherwise). Only then does it
+                 # DELETE parked_at/park_ttl_s/parked_boot_id and write
+                 # owner.pid/owner.pid_started + a fresh heartbeat. Deleting the
+                 # park keys is what puts the resumed lease back under the pid
+                 # arms (and back under the SubagentStop teardown gate) instead
+                 # of leaving it governed by a park budget forever.
     allocator.py heartbeat <token>
                  # refresh the lease's heartbeat, and BACKFILL owner.pid_started
                  # on an older row when - and only when - ownership of its pid is
@@ -119,7 +158,7 @@ CLI:
                  # REAP_CANDIDATE / REAP_SKIPPED / REAP_DROPPED lines.
     allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
 
-Every process signal release/gc/acquire can send goes through ONE gate
+Every process signal release/gc/acquire/park can send goes through ONE gate
 (`_stop_owner_group_if_local`): the pid must be on THIS host, alive, AND PROVEN
 to belong to the lease - by a matching `owner.pid_started` fingerprint, or by an
 independent corroborating observation (an Odoo command line naming this lease's
@@ -213,6 +252,15 @@ DEFAULT_TTL_S = 3600
 # write still in flight) must never be mistaken for an abandoned orphan just
 # because a reap-orphans sweep happened to run at the wrong instant.
 DEFAULT_REAP_MIN_AGE_S = 24 * 3600
+# How long a PARKED lease keeps its database, filestore and ports with no owner
+# process at all. This is a DISK budget, not a RAM one, and that is why it is an
+# order of magnitude looser than DEFAULT_TTL_S: `park` stops the owner's process
+# group BEFORE it clears the pid, so a parked lease costs no memory - only the
+# database and the port reservation. It is deliberately the same 24h figure as
+# DEFAULT_REAP_MIN_AGE_S above, the file's other disk-scoped budget, so the two
+# "how long may abandoned disk survive" answers do not drift apart. Overridable
+# per lease with `park --park-ttl <s>`.
+DEFAULT_PARK_TTL_S = 24 * 3600
 # SSOT for the "no declared port" fallback (Odoo's own stock default). Also
 # referenced by instances_io.py's INST_HTTP_PORT fallback so both Python
 # consumers converge on one literal (P5.9 8069-fallback consolidation).
@@ -357,6 +405,35 @@ def _now():
 
 def _host():
     return socket.gethostname()
+
+
+_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+
+def _boot_id():
+    """This boot's kernel-issued identity, or None when it cannot be read.
+
+    Same idea as the `pid_started` fingerprint one rung down: a value that is
+    fixed for the whole life of a boot, so comparing it later answers "is this
+    still the same machine-uptime the fact was recorded under?". `park` stamps
+    it so `_condemn_reason` can tell a park budget that genuinely elapsed apart
+    from one whose wall-clock elapsed only because the host was OFF - nobody
+    consumed a park across a reboot, and a perfectly resumable database must not
+    be dropped because the machine restarted.
+
+    None is "could not look", NEVER a value: the file is Linux-only, so on
+    macOS/BSD there is nothing to read, and inside a container this file may
+    report the HOST's boot id and therefore NOT change when the container
+    restarts. Both cases degrade the same way and on purpose - the caller
+    compares only when BOTH sides have a value, so an unreadable (or
+    container-shared) boot id leaves the plain TTL comparison in charge instead
+    of manufacturing either a condemn or a permanent reprieve.
+    """
+    try:
+        with open(_BOOT_ID_PATH, "r", encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
 
 
 def _pid_alive(pid):
@@ -1800,7 +1877,10 @@ def _drop_through_odoo(lease, instances_path=None):
 CONDEMN_PID_DEAD = "owner-pid-dead"
 CONDEMN_PID_RECYCLED = "owner-pid-recycled"
 CONDEMN_TTL_UNPROVABLE = "ttl-expired-liveness-unprovable"
-CONDEMN_REASONS = (CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED, CONDEMN_TTL_UNPROVABLE)
+CONDEMN_PARK_EXPIRED = "park-budget-expired"
+CONDEMN_REASONS = (
+    CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED, CONDEMN_TTL_UNPROVABLE, CONDEMN_PARK_EXPIRED,
+)
 
 # The evidence log, appended under `$ODOO_AI_HOME/logs/` (Tier-1: machine-global
 # flat, exactly like the registry it outlives - see snippets/state-root-resolution.md).
@@ -1839,6 +1919,15 @@ def _condemn_reason(lease):
     it): for reaping, the safe default is to NOT reap when unsure - an
     un-reaped orphan only costs RAM, but a wrongly-reaped lease kills a live
     server and destroys the owner's in-progress work. So:
+      - A PARKED lease (`parked_at` present) is judged FIRST, by its own
+        budget, and by nothing else. Park CLEARS the owner pid on purpose after
+        stopping that process group, so every pid arm below would read the row
+        as "no pid recorded" and hand it straight to TTL - reclaiming a
+        deliberately suspended instance, and dropping its database, for the
+        very act of suspending it. `resume` DELETES `parked_at`, which is what
+        returns a resumed lease to the pid arms below (and to the SubagentStop
+        teardown gate) rather than leaving it governed by a park budget for the
+        rest of its life.
       - A DEAD pid on THIS host is an unambiguous, TTL-independent condemn:
         the recorded owner is provably gone: reclaim now (RAM matters, and
         there is nothing left to protect).
@@ -1866,6 +1955,31 @@ def _condemn_reason(lease):
     gone by the time anyone asks. `_is_stale` is the boolean face of this
     function for the callers that only need the predicate.
     """
+    parked_at = lease.get("parked_at")
+    if parked_at is not None:
+        # FIRST arm, before the host/pid block, and the position is load-bearing
+        # twice over. (a) A parked lease is pid-less by construction, so without
+        # this early return control would fall through to the TTL comparison and
+        # condemn every parked lease the moment its ORDINARY ttl_s lapsed.
+        # (b) Keeping it ahead of - rather than inside - the host/pid block is
+        # what leaves that block's behavior untouched for every NON-parked
+        # pid-less lease, which is the shape
+        # `test_is_stale_unprovable_liveness_still_governed_by_ttl` pins.
+        recorded_boot = lease.get("parked_boot_id")
+        current_boot = _boot_id()
+        if recorded_boot and current_boot and recorded_boot != current_boot:
+            # The host rebooted while this lease was parked, so the park budget
+            # was never CONSUMED - it only elapsed on a machine that was off.
+            # Treat it as not started: protect the row and let `resume`
+            # re-stamp the current boot id. Comparing only when BOTH sides have
+            # a value is deliberate - an absent or unreadable boot id (not
+            # Linux, or a container reporting the host's) degrades to the plain
+            # budget comparison below, never to a condemn on ambiguity and
+            # never to a permanent reprieve.
+            return None
+        if _now() - parked_at > int(lease.get("park_ttl_s", DEFAULT_PARK_TTL_S)):
+            return CONDEMN_PARK_EXPIRED
+        return None
     owner = lease.get("owner", {})
     if owner.get("host") == _host():
         pid = owner.get("pid")
@@ -2732,6 +2846,229 @@ def cmd_bind(opts):
     return 0
 
 
+def cmd_park(opts):
+    """SUSPEND a RUNNING lease: stop its server, keep everything it reserved.
+
+    The state this file was missing. Before `park` existed a caller that was
+    finished with an instance for NOW - but not finished with the DATABASE it
+    had just spent minutes building - had exactly two exits: `release` (which
+    stops the server AND drops the database) or leave the lease held (which
+    leaks RAM and is what the SubagentStop teardown gate hard-blocks). Both
+    answers destroy work: one destroys the database, the other is refused.
+
+    `park` is the third exit. Order inside the single lock, and it is the whole
+    safety argument:
+      1. REFUSE a `shared` lease (exit 3). The shared row is the ONE answer
+         `query --series` gives for a series; a parked twin would make that rung
+         two-valued, and the shared row is already immune to the pid arms
+         anyway, so parking it would buy nothing and cost the invariant.
+      2. REFUSE a lease that is not RUNNING (exit 4) - no `owner.pid` recorded.
+         That covers a still-RESERVED lease, an already-parked one (park cleared
+         its pid, so a second park is refused rather than silently re-stamping a
+         fresh budget onto an old park), and the `--stop-after-init` build shape
+         that never binds a pid at all: none of them has a process to stop or a
+         listening state worth preserving.
+      3. STOP THE OWNER'S PROCESS GROUP FIRST, through the same
+         `_stop_owner_group_if_local` gate `release` and `_gc` use - so an
+         unproven pid is still never signalled. Park holds DISK, never MEMORY.
+         Doing this before the pid is cleared is not an ordering nicety: the pid
+         IS the only handle on that process group, so clearing it first would
+         strand the server as an unreclaimable orphan and turn `park` into the
+         RAM leak this plugin already paid to close.
+      4. Only then clear `owner.pid`/`owner.pid_started` and stamp
+         `parked_at` + `park_ttl_s` + `parked_boot_id`.
+    `db_name`, `ports` and `drop_on_release` are deliberately untouched: the
+    database, the filestore and the port reservation are exactly what park
+    exists to keep, and the eventual fate of the database at final `release` is
+    not park's business to change.
+    """
+    token = opts.get("token")
+    if not token:
+        sys.stderr.write("Usage: allocator.py park <token> [--park-ttl <s>]\n")
+        return 2
+    try:
+        park_ttl = int(opts.get("park_ttl") or DEFAULT_PARK_TTL_S)
+    except (TypeError, ValueError):
+        sys.stderr.write("allocator: --park-ttl must be an integer number of seconds.\n")
+        return 2
+    with _locked():
+        reg = _read_registry()
+        target = None
+        for lease in reg["leases"]:
+            if lease.get("token") == token:
+                target = lease
+                break
+        if target is None:
+            sys.stderr.write(f"allocator: no lease with token {token!r} to park.\n")
+            return 1
+        if target.get("mode") == "shared":
+            sys.stderr.write(
+                "allocator: REFUSING to park the `shared` lease on database {db!r}. The shared "
+                "render target is the single answer `query --series {series}` gives for a series, "
+                "and it is already immune to the owner-pid arms - a parked twin would make that "
+                "lookup two-valued and protect nothing. Release it when the render server is "
+                "genuinely finished with.\n".format(
+                    db=target.get("db_name"), series=target.get("series"))
+            )
+            return 3
+        if (target.get("owner") or {}).get("pid") is None:
+            sys.stderr.write(
+                "allocator: REFUSING to park the lease on database {db!r} - it records no owner "
+                "pid, so it is not RUNNING: there is no server process to stop and nothing to "
+                "resume into. (An already-parked lease lands here too, because park cleared its "
+                "pid; use `resume <token> --pid <server_pid>` to bring it back, or `release` to "
+                "finish with it.)\n".format(db=target.get("db_name"))
+            )
+            return 4
+        # Park holds DISK, never MEMORY - stop the group BEFORE the pid that
+        # names it is cleared.
+        _stop_owner_group_if_local(target)
+        owner = target.setdefault("owner", {})
+        owner["pid"] = None
+        owner["pid_started"] = None
+        target["parked_at"] = _now()
+        target["park_ttl_s"] = park_ttl
+        boot = _boot_id()
+        if boot:
+            target["parked_boot_id"] = boot
+        else:
+            # Absent, not empty: `_condemn_reason` compares only when BOTH sides
+            # carry a value, so an absent key degrades to the plain budget
+            # comparison instead of reading as a mismatch.
+            target.pop("parked_boot_id", None)
+        _write_registry(reg)
+    _emit("ALLOC_TOKEN", token)
+    _emit("ALLOC_PARKED_AT", target["parked_at"])
+    _emit("ALLOC_PARK_TTL_S", park_ttl)
+    _emit("ALLOC_DB_NAME", target.get("db_name", ""))
+    _emit("ALLOC_PORTS", target.get("ports", []))
+    return 0
+
+
+def cmd_resume(opts):
+    """The atomic PARKED -> RUNNING compare-and-set. One lock, one decision.
+
+    Every step below runs inside ONE `_locked()` registry hold, which is what
+    makes two agents racing to resume the same parked lease safe BY
+    CONSTRUCTION rather than by timing: the first caller finds `parked_at`
+    present and clears it; the second finds the lease already RUNNING and is
+    refused with exit 3. Neither reaches a launch on the other's port.
+
+      1. The lease must exist (exit 1) and must BE parked (exit 3). Refusing a
+         non-parked lease is not defensive tidiness - it is the compare half of
+         the compare-and-set, and `50-instance-spinup.sh`'s `_bind_exclusive`
+         branches on exactly this code to fall back to the ordinary `bind`.
+      2. The database must not have been dropped underneath the park (exit 5),
+         probed with the same `_db_present` helper `release` uses. PROVABLY
+         absent refuses and names `release` as the correct next step - resuming
+         would launch a server against a database that no longer exists. "Could
+         not look" (None) is NOT "absent" and does not refuse: stranding a
+         resumable instance on an unanswered probe would be the worse mistake,
+         and a wrong guess here is recoverable while a refusal is not.
+      3. The named pid must be alive on THIS host and CORROBORATED as this
+         lease's own server by `_ownership_proof` (exit 4). Park cleared
+         `owner.pid_started`, so that ladder's fingerprint rung has nothing to
+         match and the proof necessarily comes from an independent observation -
+         in practice the command-line rung, read from `/proc/<pid>/cmdline`
+         (never `ps -o args=`, which procps truncates to 80 columns wherever it
+         cannot determine a width - a CI runner, a container - silently cutting
+         the corroborating tokens off a long command line). This is what stops a
+         caller binding a pid it did not spawn onto a lease it does not own.
+      4. DELETE `parked_at`, `park_ttl_s` and `parked_boot_id`, then write
+         `owner.pid`/`owner.pid_started` and a fresh heartbeat.
+
+    Step 4's DELETE is the non-negotiable half. A resume that left `parked_at`
+    behind would hand a live, healthy server a park budget as its only
+    governor: `_condemn_reason`'s park arm would return CONDEMN_PARK_EXPIRED the
+    moment that budget lapsed, `_gc` would stop the group and drop the database
+    under a running instance, and the SubagentStop teardown gate's parked
+    exemption would go on exempting that live lease forever - reopening the RAM
+    leak. Both harms, from one missing `del`.
+    """
+    token = opts.get("token")
+    pid = opts.get("pid")
+    if not token or not pid:
+        sys.stderr.write("Usage: allocator.py resume <token> --pid <server_pid>\n")
+        return 2
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        sys.stderr.write("allocator: --pid must be an integer process id.\n")
+        return 2
+    with _locked():
+        reg = _read_registry()
+        target = None
+        for lease in reg["leases"]:
+            if lease.get("token") == token:
+                target = lease
+                break
+        if target is None:
+            sys.stderr.write(f"allocator: no lease with token {token!r} to resume.\n")
+            return 1
+        if target.get("parked_at") is None:
+            sys.stderr.write(
+                "allocator: REFUSING to resume the lease on database {db!r} - it is NOT parked. "
+                "Either it never was (bind the pid with `bind <token> --pid <server_pid>` "
+                "instead), or another caller resumed it first and is already running a server on "
+                "this lease's port - launching a second one would collide with it.\n".format(
+                    db=target.get("db_name"))
+            )
+            return 3
+        present = _db_present(target, opts.get("instances"))
+        if present is False:
+            sys.stderr.write(
+                "allocator: REFUSING to resume the lease on database {db!r} - that database is "
+                "provably GONE from its cluster (dropped outside the allocator while the lease "
+                "was parked). There is nothing left to resume into; `release {token}` cleans the "
+                "lease and its filestore up correctly.\n".format(
+                    db=target.get("db_name"), token=token)
+            )
+            return 5
+        owner_host = (target.get("owner") or {}).get("host", "")
+        if owner_host and owner_host != _host():
+            sys.stderr.write(
+                "allocator: REFUSING to resume the lease on database {db!r} - it was parked on "
+                "host {owner_host!r} and this is {here!r}. A pid integer means nothing off-host, "
+                "and that lease's database may live on another cluster entirely.\n".format(
+                    db=target.get("db_name"), owner_host=owner_host, here=_host())
+            )
+            return 4
+        if not _pid_alive(pid):
+            sys.stderr.write(
+                "allocator: REFUSING to resume the lease on database {db!r} with pid {pid} - that "
+                "pid is not a live process on this host, so it cannot be the server this lease is "
+                "resuming into.\n".format(db=target.get("db_name"), pid=pid)
+            )
+            return 4
+        proof, detail = _ownership_proof(target, pid)
+        if proof is None:
+            sys.stderr.write(
+                "allocator: REFUSING to resume the lease on database {db!r} with pid {pid} - "
+                "ownership is NOT proven: {detail}. A resume writes that pid onto the lease, so "
+                "release/gc would later signal its whole process GROUP; naming a pid this lease "
+                "did not spawn is how an unrelated session gets killed.\n".format(
+                    db=target.get("db_name"), pid=pid, detail=detail)
+            )
+            return 4
+        # The set half of the compare-and-set. The three park keys go together:
+        # a survivor of any one of them re-governs a live lease by a park budget.
+        target.pop("parked_at", None)
+        target.pop("park_ttl_s", None)
+        target.pop("parked_boot_id", None)
+        target.setdefault("owner", {}).update(_pid_owner_fields(pid))
+        target["heartbeat_at"] = _now()
+        _write_registry(reg)
+    sys.stderr.write(
+        "allocator: resumed the lease on database {db!r} onto pid {pid} - ownership PROVEN by "
+        "{proof}: {detail}. The park budget is cleared; this lease is judged by the owner-pid "
+        "arms again.\n".format(db=target.get("db_name"), pid=pid, proof=proof, detail=detail)
+    )
+    _emit("ALLOC_TOKEN", token)
+    _emit("ALLOC_DB_NAME", target.get("db_name", ""))
+    _emit("ALLOC_PORTS", target.get("ports", []))
+    return 0
+
+
 def cmd_gc(opts):
     with _locked():
         reg = _read_registry()
@@ -3085,13 +3422,92 @@ def cmd_can_createdb(opts):
     return 7
 
 
+def _emit_parked(lease, attached_from=""):
+    _emit("ALLOC_TOKEN", lease.get("token", ""))
+    _emit("ALLOC_MODE", lease.get("mode", ""))
+    _emit("ALLOC_DB_NAME", lease.get("db_name", ""))
+    _emit("ALLOC_PORTS", lease.get("ports", []))
+    _emit("ALLOC_PARKED_AT", lease.get("parked_at", ""))
+    if attached_from:
+        _emit("ALLOC_ATTACHED_FROM_RUN", attached_from)
+
+
+def _query_parked(reg, series, run_id, force_attach):
+    """Rung order for `query --state parked`, and the reasoning behind it.
+
+    A parked lease has NO live owner BY CONSTRUCTION - park stopped the process
+    group and cleared the pid - so the ownership objection that makes a RUNNING
+    lease private does not apply to it. That is why a parked lease is HOST-and-
+    SERIES scoped rather than run-scoped: gating the cross-session case behind a
+    flag would leave the very complaint park exists to answer (instances get
+    destroyed and rebuilt between sessions) half-answered.
+
+      1. This run's OWN parked lease -> return it silently. Nothing was
+         inherited; there is nothing to report.
+      2. Another run's parked lease ON THIS HOST -> return it WITH the owning
+         run named (ALLOC_ATTACHED_FROM_RUN), so the residual risk - inheriting
+         another run's data state - is SURFACED rather than gated. Naming the
+         owner in the output beats a flag a caller learns to pass reflexively.
+      3. A parked lease on a DIFFERENT host -> only with --force-attach. This is
+         the one genuinely unsafe case: the database may live on a cluster this
+         host cannot reach at all, so it is a decision, not a default.
+    A lease its own budget has already condemned is skipped - offering a row gc
+    is about to reclaim would hand the caller a database that is about to vanish.
+    """
+    parked = [
+        lz for lz in reg.get("leases", [])
+        if lz.get("parked_at") is not None
+        and lz.get("series") == series
+        and _condemn_reason(lz) is None
+    ]
+    here = _host()
+    # SAME HOST gates rungs 1 and 2 alike - `run_id` only decides SILENT vs
+    # REPORTED, it never overrides the host check. A row recorded on another host
+    # names a database on another cluster whatever run owns it, so an own-run
+    # match off-host is still the --force-attach case below.
+    local = [lz for lz in parked if (lz.get("owner") or {}).get("host") == here]
+    for lease in local:
+        if run_id and (lease.get("owner") or {}).get("run_id") == run_id:
+            _emit_parked(lease)
+            return 0
+    for lease in local:
+        _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
+        return 0
+    if force_attach:
+        for lease in parked:
+            _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
+            return 0
+    return 1
+
+
 def cmd_query(opts):
-    """Read-only cross-session discovery: emit the live `shared` lease for a
-    series (the running render server's actual port + db), or exit 1 if none.
-    Does not mutate the registry; a stale row is simply skipped (gc reclaims it).
+    """Read-only cross-session discovery.
+
+    DEFAULT (no `--state`): the live `shared` lease for a series (the running
+    render server's actual port + db), or exit 1 if none - byte-for-byte what it
+    always emitted, so no existing caller moves.
+
+    `--state parked`: the resumable PARKED lease for that series instead, so a
+    returning agent can find the instance an earlier dispatch suspended rather
+    than build a new one. See `_query_parked` for the rung order.
+
+    Does not mutate the registry; a condemned row is simply skipped (gc reclaims
+    it).
     """
     series = opts.get("series", "")
     reg = _read_registry()
+    state = (opts.get("state") or "").strip().lower()
+    if state == "parked":
+        return _query_parked(
+            reg, series, opts.get("run_id") or opts.get("session", ""),
+            bool(opts.get("force_attach")),
+        )
+    if state:
+        sys.stderr.write(
+            f"allocator: unknown --state {state!r}. The only value is `parked`; omit --state for "
+            "the default live-shared lookup.\n"
+        )
+        return 2
     for lease in reg["leases"]:
         if (lease.get("mode") == "shared"
                 and lease.get("series") == series
@@ -3189,10 +3605,11 @@ _FLAG_KEYS = {
     "--ttl": "ttl", "--run-id": "run_id", "--session": "session", "--db-name": "db_name",
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
     "--addons-path-override": "addons_path_override", "--min-age-s": "min_age_s",
+    "--park-ttl": "park_ttl", "--state": "state",
 }
 _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
-    "--yes": "yes", "--force-forget": "force_forget",
+    "--yes": "yes", "--force-forget": "force_forget", "--force-attach": "force_attach",
 }
 # Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
 # two conventional Unix forms. This is the SSOT the regression test derives its
@@ -3265,6 +3682,12 @@ def main(argv):
     if cmd == "bind":
         opts.setdefault("token", pos[0] if pos else None)
         return cmd_bind(opts)
+    if cmd == "park":
+        opts.setdefault("token", pos[0] if pos else None)
+        return cmd_park(opts)
+    if cmd == "resume":
+        opts.setdefault("token", pos[0] if pos else None)
+        return cmd_resume(opts)
     if cmd == "gc":
         return cmd_gc(opts)
     if cmd == "reap-orphans":
@@ -3281,8 +3704,8 @@ def main(argv):
         return cmd_assert_droppable(opts)
     sys.stderr.write(
         f"Unknown subcommand: {cmd!r}. "
-        "Use acquire|release|bind|heartbeat|gc|reap-orphans|list|query|assert-droppable|"
-        "can-createdb|db-preflight.\n"
+        "Use acquire|release|bind|park|resume|heartbeat|gc|reap-orphans|list|query|"
+        "assert-droppable|can-createdb|db-preflight.\n"
     )
     return 2
 

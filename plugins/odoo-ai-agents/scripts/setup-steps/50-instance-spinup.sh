@@ -643,6 +643,26 @@ cmd_apply() {
     # second, SHARED lease would be both redundant and wrong (shared leases are
     # never exclusive-DB, but this DB genuinely is).
     local alloc_py="${ODOO_AI_ALLOCATOR-$SCRIPT_DIR/../lib/allocator.py}"
+    _alloc_diag_target() {
+        # The ONE place this script resolves where an allocator call's STDERR is
+        # kept - the Tier-1 log the SessionEnd hook appends to too
+        # (hooks/session-end-gc.sh ALLOC_DIAG_BASENAME carries the full rationale,
+        # incl. why `allocator-reclaimed.jsonl` does not already cover it and why
+        # this stream must NOT be passed through to this script's own stderr: a
+        # best-effort warning printed one line before `ok Odoo ... is up` reads as
+        # a spin-up failure to the agent parsing this output).
+        # /dev/null is the fallback on every failure rung, and the writability
+        # probe is load-bearing: `mkdir -p` succeeds on an existing-but-unwritable
+        # dir, and a redirect bash cannot open makes it skip the command outright -
+        # which would trade a lost log line for a lost lease operation.
+        local _diag_log
+        _diag_log="$(odoo_ai_state_root)/logs/allocator-stderr.log"
+        if mkdir -p "${_diag_log%/*}" 2>/dev/null && ( : >>"$_diag_log" ) 2>/dev/null; then
+            printf '%s\n' "$_diag_log"
+        else
+            printf '%s\n' /dev/null
+        fi
+    }
     _register_shared() {
         # $1 = optional live server pid. The pid is recorded only when it is
         # still alive, so a concurrent loser (whose odoo-bin lost the port bind
@@ -666,21 +686,9 @@ cmd_apply() {
         # account of what it destroyed. STDOUT stays /dev/null (acquire's stdout
         # is the `eval $(allocator.py acquire ...)` PROTOCOL, and this call site
         # evals nothing); STDERR is APPENDED to the Tier-1 log the SessionEnd hook
-        # writes too - hooks/session-end-gc.sh ALLOC_DIAG_BASENAME carries the
-        # full rationale, incl. why `allocator-reclaimed.jsonl` does not already
-        # cover it and why this stream must NOT be passed through to this
-        # script's own stderr (a best-effort registration's warning printed one
-        # line before `ok Odoo ... is up` reads as a spin-up failure to the agent
-        # parsing this output).
-        # /dev/null remains the fallback on every failure rung, and the writability
-        # probe is load-bearing: `mkdir -p` succeeds on an existing-but-unwritable
-        # dir, and a redirect bash cannot open makes it skip the command outright -
-        # which would trade a lost log line for a lost lease registration.
-        local _diag=/dev/null _diag_log
-        _diag_log="$(odoo_ai_state_root)/logs/allocator-stderr.log"
-        if mkdir -p "${_diag_log%/*}" 2>/dev/null && ( : >>"$_diag_log" ) 2>/dev/null; then
-            _diag="$_diag_log"
-        fi
+        # writes too - see _alloc_diag_target above for where it goes and why.
+        local _diag
+        _diag="$(_alloc_diag_target)"
         python3 "$alloc_py" "${args[@]}" >/dev/null 2>>"$_diag" || true
     }
 
@@ -693,10 +701,33 @@ cmd_apply() {
         # the DB, instead of leaking a listening server against a dropped DB.
         # Same liveness guard as _register_shared: only record a pid that kill -0
         # confirms alive, so a fast-failing server never binds a dead pid.
+        # A PARKED lease takes `resume`, not `bind`: resume is the ATOMIC
+        # compare-and-set that also DELETES the park budget, so the revived
+        # instance is judged by the owner-pid arms again instead of staying
+        # governed by park_ttl_s (a live server whose only governor is a park
+        # budget gets its database dropped under it when that budget lapses).
+        # `resume` exits 3 - and ONLY 3 - for "this lease is not parked", which
+        # is the ordinary first spin-up, so that one code is the branch back to
+        # `bind`. Every OTHER non-zero is a real resume failure (the database
+        # was dropped while parked, the pid is not corroborated as this lease's
+        # server) and must NOT fall through: binding a pid onto a still-parked
+        # lease is exactly the half-transitioned state resume exists to prevent.
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
         [[ -n "${ARG_ALLOC_TOKEN:-}" ]] || return 0
+        # `resume`'s STDERR is KEPT, not discarded: its refusals are the only
+        # account of a lease that stayed PARKED while a server came up on its
+        # port - a state whose budget can still lapse and drop that database
+        # underneath the live server. Same target as _register_shared's.
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
-            python3 "$alloc_py" bind "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>&1 || true
+            local _resume_rc=0 _diag
+            _diag="$(_alloc_diag_target)"
+            python3 "$alloc_py" resume "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" \
+                || _resume_rc=$?
+            if [[ "$_resume_rc" -eq 3 ]]; then
+                python3 "$alloc_py" bind "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" || true
+            elif [[ "$_resume_rc" -ne 0 ]]; then
+                echo "x the allocator refused to resume this parked lease (exit $_resume_rc); the server is UP but the lease is still parked - see the allocator stderr log named by state-root-resolution.md" >&2
+            fi
         fi
     }
 

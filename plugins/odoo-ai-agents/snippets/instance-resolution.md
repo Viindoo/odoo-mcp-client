@@ -19,6 +19,25 @@ here).
    # emits ALLOC_PORTS (the actual bound port) + ALLOC_DB_NAME when a live shared server exists; rc=1 when none
    ```
    When present, use `instance_base_url = http://localhost:<ALLOC_PORTS>`.
+1b. **A PARKED lease for the series** - before concluding an instance must be BUILT, ask whether
+   one was merely SUSPENDED. A parked lease has had its server stopped but still owns its
+   database, filestore and ports, so resuming it costs a launch while rebuilding costs a full
+   install - and rebuilding silently strands the parked one until its budget lapses:
+   ```
+   python3 <plugin>/scripts/lib/allocator.py query --series <X.Y> --state parked --run-id <id>
+   # emits ALLOC_TOKEN / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PARKED_AT; rc=1 when none
+   ```
+   Resolution order, and it is host-and-series scoped rather than run-scoped because a parked
+   lease has NO live owner by construction: (a) a parked lease for this series owned by YOUR
+   `run_id` - resume it silently; (b) else a parked lease for this series on THIS host - resume it
+   and REPORT the attach (the call emits `ALLOC_ATTACHED_FROM_RUN=<owning run>`; its data state is
+   that run's, which is a fact to relay, not a reason to refuse); (c) a parked lease whose owner
+   host is a DIFFERENT host needs `--force-attach` and is the one case that stays gated - its
+   database may live on a cluster this host cannot reach.
+   Resuming is not a separate launch path: hand the emitted `ALLOC_DB_NAME` / `ALLOC_PORTS` /
+   `ALLOC_TOKEN` to the ordinary exclusive spin-up (`--db-name` / `--http-port` / `--alloc-token`,
+   no `-i`/`-u`), which calls `allocator.py resume <token> --pid <new pid>` itself - the atomic
+   transition that also clears the park budget.
 2. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
    already applies the machine-global SSOT with its internal override/fallback order
    (`$ODOO_AI_INSTANCES` explicit override -> machine-global `$ODOO_AI_HOME/instances.toml`
@@ -70,7 +89,9 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # emits ALLOC_SERIES / ALLOC_PROFILE / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PYTHON /
 # ALLOC_ADDONS_PATH / ALLOC_DB_HOST / ALLOC_DB_USER / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
 # ALLOC_RUN_ID echoes the --run-id you passed (the lease's ownership key).
-# release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done.
+# release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done - or
+# `allocator.py park <ALLOC_TOKEN>` when you are done for NOW but the database must
+# survive for a later resume (park stops the server, so it frees the same RAM).
 ```
 
 An acquire REFUSES with exit `6`, `7`, `8` or `9` - each writes no lease and never

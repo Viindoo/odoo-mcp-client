@@ -1,6 +1,28 @@
 """Mechanical guard for the P12 defect CLASS (Phase 3 runtime review, round 4.20.0): a cross-file
-reference that names a tier/step/phase/clause/round/wave COUNT must agree with the actual count in
-the section it cites.
+reference that names a tier/step/phase/clause/round/wave/operation COUNT must agree with the actual
+count in the section it cites.
+
+WHAT THIS GUARD STILL CANNOT SEE (stated here so nobody mistakes a green run for full coverage -
+each of these is a live false NEGATIVE, not a design nicety):
+
+- **A count written in any spelling this file does not enumerate.** `_WORD_NUMERALS` stops at
+  twelve, and nothing recognises `a dozen`, `half a dozen`, an ordinal-as-count (`the 7th and
+  final operation`), or a digit-with-separator (`1,024 steps`). A heading using one of those
+  declares nothing to this guard, so every citation of it is unchecked.
+- **A hyphenated word numeral, on purpose.** `two-tier` is an ordinary English compound adjective
+  (see `_COUNT_UNIT_RE`), so it is deliberately not matched - which means a GENUINE `two-step`
+  citation that drifted out of date is missed. Precision was chosen over recall there because the
+  measured false positives were real and the missed true positives are hypothetical.
+- **Any unit outside `_UNITS`.** A section counting `lenses`, `rungs`, `arms`, `gates` or `exits`
+  is invisible. The set is closed on purpose (an open unit list collides with prose), which makes
+  every uncounted vocabulary a blind spot by construction.
+- **A citation further than `_CITATION_WINDOW` from the path it cites**, and any citation that
+  names its target some other way than by path suffix (by skill name, by heading title, by "the
+  agent above").
+- **The MEMBERS behind a count.** This guard proves the NUMBER agrees; it cannot prove the two
+  lists hold the same items. `tests/test_instance_ops_hardening.py::
+  test_operation_set_matches_the_dispatch_table` is the companion that checks membership for the
+  one place both halves exist - a count guard alone would pass a rename that kept the total.
 
 Confirmed pre-fix defect (this round): `agents/odoo-doc-scoper.md` pointed at a
 non-existent "i18n.json/tier-6" in 4 sites (the agent's own role-intro parenthetical, the
@@ -24,9 +46,13 @@ Design (SCOPED to COUNTED cross-references, not every numbered cross-reference -
 below), no filename allowlist:
 
 1. **Registry pass.** Scan every heading line (`^#{1,4} ...`) in every `.md` file under both
-   plugin trees for an embedded `<N>-<unit>` token (tier/step/phase/clause/round/wave, case-
-   insensitive) - e.g. `## Language resolution (5-tier + disk-UNION, no default)`,
-   `## 4-tier routing`, `## Brainstorm (6-step)`. Each hit becomes a registry row: the OWNING
+   plugin trees for an embedded count token (tier/step/phase/clause/round/wave/operation, case-
+   insensitive), in EITHER spelling - `## Language resolution (4-tier + disk-UNION, no default)`,
+   `## 4-tier routing`, `## Brainstorm (6-step)`, `## Seven operations`, `## The three tiers`.
+   A count written in words is the majority spelling of a heading in this tree, so a
+   digits-only rule was blind to most of the sections it exists to protect - see `_COUNT_UNIT_RE`
+   for the one asymmetry between the two spellings and the measurement behind it. Each hit
+   becomes a registry row: the OWNING
    file's plugin-relative path (`skills/odoo-doc-illustration/SKILL.md`), the unit, and the
    TRUE count - always re-derived from the heading text itself, never hardcoded, so a future
    legitimate renumbering (5 -> 7, say) updates the guard's expectation automatically with zero
@@ -84,7 +110,42 @@ _GENERATED_BLOCK = re.compile(
     r"<!-- BEGIN GENERATED TOOLS -->.*?<!-- END GENERATED TOOLS -->", re.S
 )
 _HEADING_RE = re.compile(r"^#{1,4}\s+.*$", re.M)
-_COUNT_UNIT_RE = re.compile(r"\b(\d+)-(tier|step|phase|clause|round|wave)\b", re.IGNORECASE)
+# Spelled-out numerals, so `## Seven operations` is registered as a count and not
+# skipped for being written in words. English headings in this tree count in words
+# far more often than in digits, so a digits-only rule was not "narrow but sound" -
+# it was blind to the majority spelling of the very thing it checks.
+_WORD_NUMERALS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+}
+_UNITS = ("tier", "step", "phase", "clause", "round", "wave", "operation")
+_UNIT_ALT = "|".join(_UNITS)
+# ONE pattern, two spellings, and the asymmetry between them is MEASURED, not
+# stylistic:
+#   - a DIGIT may be joined by a hyphen or a space (`5-tier`, `5 tiers`);
+#   - a WORD numeral is accepted ONLY space-separated (`Seven operations`,
+#     `the three tiers`), never hyphenated.
+# Because a hyphenated word numeral is an ordinary English compound adjective
+# that usually names something else entirely. Measured on this tree the moment
+# the hyphenated form was allowed: `two-tier decomposition axis`
+# (skills/odoo-intake/references/phase-p-run-dag.md) and `no two-tier dance`
+# (skills/odoo-doc-illustration/references/capture-mechanics.md) both landed
+# within the citation window of an unrelated `state-root-resolution.md`
+# reference and were reported as disagreeing with its `## The three tiers`
+# heading - two false positives, zero true ones. The space-separated plural has
+# no such collision: it reads as a count of things, which is what this guard is
+# about.
+_COUNT_UNIT_RE = re.compile(
+    r"\b(?:(\d+)[-\s]|(" + "|".join(_WORD_NUMERALS) + r")\s)("
+    + _UNIT_ALT + r")s?\b",
+    re.IGNORECASE,
+)
+
+
+def _count_of(token: str) -> int:
+    """The numeral a match captured, digits or word."""
+    token = token.strip().lower()
+    return int(token) if token.isdigit() else _WORD_NUMERALS[token]
 _EXEMPT_DIR_SEGMENTS = ("/evals/", "/generator/")
 # A citation this close to the heading it matches is treated as that heading's own definition,
 # not a separate reference to it (covers a heading's own body paragraph restating its count).
@@ -136,8 +197,8 @@ def _build_registry() -> list[dict]:
                     {
                         "file": rel_full,
                         "path_suffix": rel_in_plugin,
-                        "unit": cu.group(2).lower(),
-                        "count": int(cu.group(1)),
+                        "unit": cu.group(3).lower(),
+                        "count": _count_of(cu.group(1) or cu.group(2)),
                         "heading": heading.strip(),
                         "heading_start": m.start(),
                     }
@@ -160,8 +221,8 @@ def _mismatched_citation_hits(registry: list[dict]) -> list[str]:
         rel = _rel(path)
         text = _blanked(path)
         for m in _COUNT_UNIT_RE.finditer(text):
-            cited_count = int(m.group(1))
-            unit = m.group(2).lower()
+            cited_count = _count_of(m.group(1) or m.group(2))
+            unit = m.group(3).lower()
 
             is_self_definition = any(
                 r["file"] == rel
@@ -189,9 +250,37 @@ def _mismatched_citation_hits(registry: list[dict]) -> list[str]:
     return hits
 
 
+def test_the_matcher_reads_both_spellings_and_refuses_the_ambiguous_one():
+    """Red-before-green for the widening itself: without this, the word-numeral
+    branch could silently stop matching (or start over-matching) and the sweep
+    below would go on printing "clean" for a registry it no longer builds."""
+    def _one(text):
+        m = _COUNT_UNIT_RE.search(text)
+        return None if not m else (_count_of(m.group(1) or m.group(2)), m.group(3).lower())
+
+    assert _one("## Seven operations") == (7, "operation")
+    assert _one("## The three tiers") == (3, "tier")
+    assert _one("## 4-tier routing") == (4, "tier")
+    assert _one("a 5 phase pipeline") == (5, "phase")
+    # Deliberately NOT matched - a hyphenated word numeral is a compound
+    # adjective, and matching it produced two measured false positives.
+    assert _one("no two-tier dance") is None
+    assert _one("Two-tier decomposition axis") is None
+    # Not a count at all: an ordinal names a POSITION, which this guard is
+    # explicitly scoped away from.
+    assert _one("see phase 4 below") is None
+
+
 def test_counted_cross_file_references_agree_with_the_target_heading():
     registry = _build_registry()
-    assert registry, "no counted (<N>-tier/step/phase/clause/round/wave) headings found at all - regex or tree drifted"
+    assert registry, (
+        "no counted (tier/step/phase/clause/round/wave/operation) headings found at all - "
+        "regex or tree drifted"
+    )
+    assert any(r["unit"] == "operation" for r in registry), (
+        "the `operation` unit must be discoverable, or the agent's operation count is "
+        "unguarded again - the exact gap this unit was added to close"
+    )
 
     hits = _mismatched_citation_hits(registry)
     assert not hits, (

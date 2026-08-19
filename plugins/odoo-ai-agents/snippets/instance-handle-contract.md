@@ -41,15 +41,17 @@ touches code or tests (coder, test-author, verify, debug).
 
 An agent receiving an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
 (confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
-`addons_path`. Going through `odoo-instance` does NOT by itself solve collision: `persist:
-shared-running` is DELIBERATELY one shared db+port for many readers. Only `persist:
-exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
-`run_id`) prevents a collision outright; a `shared-running` instance MUST still be owner-stamped
-(`run_id`) so a foreign session cannot bare-drop it
-(`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed,
-the agent self-provisions by invoking `Skill(odoo-instance)` in its own context - `persist:
-ephemeral` (default) or `persist: exclusive-running` when the process must stay listening -
-applying the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
+`addons_path`. Going through `odoo-instance` does NOT by itself solve collision: the SHARED render
+target is DELIBERATELY one db+port for many readers, so only an ISOLATED lease (its own db + an
+allocator-issued pooled port + an owned lease keyed on `run_id`) prevents a collision outright; a
+shared instance MUST still be owner-stamped (`run_id`) so a foreign session cannot bare-drop it.
+Which `persist:` value gives you which - and the parked state a suspended instance sits in - is
+spelled out in ONE place, never restated here:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 (+ §6.3 for the ownership guard).
+When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
+context, declaring the `persist:` value that matches its need per that SSOT (a throwaway build by
+default; a listening one when the process must stay up), applying the instance HARD RULES (`en_US`
+union, Viindoo `to_base`, lint-module install, per-version
 `cli_help` grounding) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance
 allocation - never a bare `allocator.py` call. A provided handle always wins (consume, never
 re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.
