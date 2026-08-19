@@ -66,7 +66,12 @@ CLI:
                  # on THIS host is returned WITH ALLOC_ATTACHED_FROM_RUN so the
                  # attach is reported rather than gated; a parked lease on a
                  # DIFFERENT host needs --force-attach (its database may live on
-                 # another cluster entirely).
+                 # another cluster entirely). A same-host row whose database is
+                 # PROVABLY gone is SKIPPED, not offered, and `release <token>` is
+                 # named - this is the PRE-LAUNCH probe, and the only one that can
+                 # be pre-launch (resume needs a live pid, so it necessarily runs
+                 # after the launch). "Could not look" is not "absent" and is
+                 # still offered.
     allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
                  # when undeterminable) and exit 0|6|7 - the SAME ladder and the SAME
@@ -129,13 +134,15 @@ CLI:
                  # no owner pid recorded: nothing to stop, nothing to resume).
     allocator.py resume <token> --pid <server_pid>
                  # The atomic PARKED -> RUNNING compare-and-set, under ONE
-                 # registry hold: the lease must BE parked (exit 3 otherwise -
-                 # which is what makes two agents racing to resume one lease
-                 # safe: the first clears parked_at, the second is refused), its
-                 # database must not have been dropped underneath it (exit 5,
-                 # naming `release` as the next step), and the named pid must be
-                 # alive on this host AND corroborated as this lease's own server
-                 # by _ownership_proof (exit 4 otherwise). Only then does it
+                 # registry hold: the lease must BE parked - NOT parked with no
+                 # live same-host owner is the ordinary first launch (exit 3, the
+                 # branch back to `bind`), while NOT parked because a LIVE
+                 # same-host server already holds it is the resume RACE the first
+                 # caller won (exit 6, never a bind: stop the server you just
+                 # launched) - its database must not have been dropped underneath
+                 # it (exit 5, naming `release` as the next step), and the named
+                 # pid must be alive on this host AND corroborated as this
+                 # lease's own server by _ownership_proof (exit 4). Only then does it
                  # DELETE parked_at/park_ttl_s/parked_boot_id and write
                  # owner.pid/owner.pid_started + a fresh heartbeat. Deleting the
                  # park keys is what puts the resumed lease back under the pid
@@ -2945,19 +2952,44 @@ def cmd_park(opts):
     return 0
 
 
+def _live_owner_pid(lease):
+    """The lease's own server pid when one is recorded, on THIS host, and alive.
+
+    None otherwise - which covers every shape that leaves the lease FREE for a
+    fresh pid: no pid recorded, a dead pid, a non-integer, or a pid recorded on
+    another host (an integer means nothing off-host, so it can never be read as
+    "somebody is running this lease here"). That asymmetry is the point: this
+    answers only the question "is a live server already holding this lease on
+    this host", and it must answer NO whenever it cannot answer YES with proof.
+    """
+    owner = lease.get("owner") or {}
+    host = owner.get("host", "")
+    if host and host != _host():
+        return None
+    try:
+        pid = int(owner.get("pid"))
+    except (TypeError, ValueError):
+        return None
+    return pid if _pid_alive(pid) else None
+
+
 def cmd_resume(opts):
     """The atomic PARKED -> RUNNING compare-and-set. One lock, one decision.
 
     Every step below runs inside ONE `_locked()` registry hold, which is what
     makes two agents racing to resume the same parked lease safe BY
     CONSTRUCTION rather than by timing: the first caller finds `parked_at`
-    present and clears it; the second finds the lease already RUNNING and is
-    refused with exit 3. Neither reaches a launch on the other's port.
+    present and clears it; the second finds the lease already RUNNING under the
+    winner's live pid and is refused with exit 6, which tells its caller to STOP
+    the server it just launched rather than bind over the winner.
 
-      1. The lease must exist (exit 1) and must BE parked (exit 3). Refusing a
-         non-parked lease is not defensive tidiness - it is the compare half of
-         the compare-and-set, and `50-instance-spinup.sh`'s `_bind_exclusive`
-         branches on exactly this code to fall back to the ordinary `bind`.
+      1. The lease must exist (exit 1) and must BE parked. A lease that is not
+         parked splits into two OPPOSITE remedies, and one exit code for both is
+         how a racing loser silently stole the winner's lease: NOT parked and no
+         live same-host owner pid is the ordinary first launch (exit 3, and
+         `50-instance-spinup.sh`'s `_bind_exclusive` branches on exactly that
+         code to fall back to `bind`); NOT parked because a LIVE same-host server
+         already holds it is the race case (exit 6, never a `bind`).
       2. The database must not have been dropped underneath the park (exit 5),
          probed with the same `_db_present` helper `release` uses. PROVABLY
          absent refuses and names `release` as the correct next step - resuming
@@ -3006,11 +3038,22 @@ def cmd_resume(opts):
             sys.stderr.write(f"allocator: no lease with token {token!r} to resume.\n")
             return 1
         if target.get("parked_at") is None:
+            holder = _live_owner_pid(target)
+            if holder is not None and holder != pid:
+                sys.stderr.write(
+                    "allocator: REFUSING to resume the lease on database {db!r} with pid {pid} - "
+                    "it is NOT parked and pid {holder} is ALREADY running as its server on this "
+                    "host. Another caller resumed it first; binding your pid here would take the "
+                    "lease off the server that actually holds this database and port. STOP the "
+                    "server you just launched - it is a second process on this lease's port - and "
+                    "attach to the running one instead.\n".format(
+                        db=target.get("db_name"), pid=pid, holder=holder)
+                )
+                return 6
             sys.stderr.write(
-                "allocator: REFUSING to resume the lease on database {db!r} - it is NOT parked. "
-                "Either it never was (bind the pid with `bind <token> --pid <server_pid>` "
-                "instead), or another caller resumed it first and is already running a server on "
-                "this lease's port - launching a second one would collide with it.\n".format(
+                "allocator: REFUSING to resume the lease on database {db!r} - it is NOT parked, "
+                "and no live server holds it either. This is the ordinary first launch: bind the "
+                "pid with `bind <token> --pid <server_pid>` instead.\n".format(
                     db=target.get("db_name"))
             )
             return 3
@@ -3432,7 +3475,7 @@ def _emit_parked(lease, attached_from=""):
         _emit("ALLOC_ATTACHED_FROM_RUN", attached_from)
 
 
-def _query_parked(reg, series, run_id, force_attach):
+def _query_parked(reg, series, run_id, force_attach, instances_path=None):
     """Rung order for `query --state parked`, and the reasoning behind it.
 
     A parked lease has NO live owner BY CONSTRUCTION - park stopped the process
@@ -3453,6 +3496,18 @@ def _query_parked(reg, series, run_id, force_attach):
          host cannot reach at all, so it is a decision, not a default.
     A lease its own budget has already condemned is skipped - offering a row gc
     is about to reclaim would hand the caller a database that is about to vanish.
+
+    THE PRE-LAUNCH DB PROBE lives here, on rungs 1 and 2, and this is the ONLY
+    place it can live: `resume` needs a live pid to corroborate ownership, so it
+    necessarily runs AFTER the server is launched, while THIS command runs before
+    the caller has coordinates to launch anything with. A lease whose database is
+    PROVABLY gone is therefore skipped here rather than offered - that is what
+    makes "no server is ever started against a database that is gone" true for
+    the discovery path. "Could not look" (None) is NOT "absent" and is offered:
+    stranding a resumable instance on an unanswered probe is the worse error, and
+    `resume`'s own probe is the second net under it. Rung 3 (--force-attach,
+    off-host) is offered UNPROBED on purpose: that database lives on another
+    host's cluster, so a probe run here would answer about the wrong cluster.
     """
     parked = [
         lz for lz in reg.get("leases", [])
@@ -3466,15 +3521,39 @@ def _query_parked(reg, series, run_id, force_attach):
     # names a database on another cluster whatever run owns it, so an own-run
     # match off-host is still the --force-attach case below.
     local = [lz for lz in parked if (lz.get("owner") or {}).get("host") == here]
+    gone = set()
+
+    def _offer(lease, attached_from=""):
+        """Emit this lease's coordinates unless its database is provably gone."""
+        token = lease.get("token", "")
+        if token in gone:
+            return False
+        if _db_present(lease, instances_path) is False:
+            gone.add(token)
+            sys.stderr.write(
+                "allocator: SKIPPING the parked lease on database {db!r} - that database is "
+                "provably GONE from its cluster (dropped outside the allocator while the lease "
+                "was parked), so there is nothing to resume into and NOTHING was launched. "
+                "`release {token}` cleans the lease and its filestore up correctly; then build a "
+                "fresh instance.\n".format(db=lease.get("db_name"), token=token)
+            )
+            return False
+        _emit_parked(lease, attached_from=attached_from)
+        return True
+
     for lease in local:
         if run_id and (lease.get("owner") or {}).get("run_id") == run_id:
-            _emit_parked(lease)
-            return 0
+            if _offer(lease):
+                return 0
     for lease in local:
-        _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
-        return 0
+        if _offer(lease, attached_from=(lease.get("owner") or {}).get("run_id", "")):
+            return 0
     if force_attach:
         for lease in parked:
+            # A local row already PROVEN gone stays skipped: --force-attach widens
+            # the HOST scope, it does not overrule a database that is not there.
+            if lease.get("token", "") in gone:
+                continue
             _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
             return 0
     return 1
@@ -3500,7 +3579,7 @@ def cmd_query(opts):
     if state == "parked":
         return _query_parked(
             reg, series, opts.get("run_id") or opts.get("session", ""),
-            bool(opts.get("force_attach")),
+            bool(opts.get("force_attach")), opts.get("instances"),
         )
     if state:
         sys.stderr.write(

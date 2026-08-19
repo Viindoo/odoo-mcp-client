@@ -333,7 +333,7 @@ Never strip or bypass this wrapper when hand-assembling an `odoo-bin` command ou
 The default is generous and OVERRIDABLE via `ODOO_AI_LIMIT_MEMORY_HARD` (set it to raise/lower the
 cap, or to `""`/`"0"` to opt into the uncapped escape hatch) - never hardcode a value in prose here.
 
-## Seven operations
+## Nine operations
 
 ### 1. create-instance
 
@@ -350,15 +350,12 @@ waste that and leave a second lease holding a second database. So, before Step D
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" query --series <series> --state parked --run-id "<run_id>"
 ```
 
-- Exit 0 - a resumable instance exists. Use its `ALLOC_TOKEN` / `ALLOC_DB_NAME` / `ALLOC_PORTS`
-  VERBATIM as the spin-up coordinates below (`--db-name`, `--http-port`, `--alloc-token`) and do
-  NOT acquire a new lease: `50-instance-spinup.sh` calls `allocator.py resume` on that token
-  itself, which is the atomic transition back to running. Do NOT pass `-i`/`-u` for the resumed
-  modules - the database already carries them. If the output includes
-  `ALLOC_ATTACHED_FROM_RUN=<run>`, you inherited another run's parked instance on this host: say so
-  in `notes` (its data state is that run's, not a fresh build's) - it is reported, not gated.
-- Exit 1 - nothing parked for this series. Proceed with the normal acquire below. This is the
-  ordinary case and is not a finding.
+- Exit 0 - a resumable instance exists. Hand its coordinates to operation 9, resume-instance, and
+  do NOT acquire a new lease.
+- Exit 1 - nothing parked for this series, OR the only parked lease's database is provably gone and
+  this command SKIPPED it (its stderr names that lease and `release <token>`). Proceed with the
+  normal acquire below. Both are ordinary cases and neither is a finding; when a skip was reported,
+  release that token first so the dead lease stops holding its ports.
 
 Full ladder (rung 1b) and the cross-host rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`.
@@ -450,19 +447,11 @@ Drop an existing Odoo database through Odoo (never raw dropdb).
 
 **Mechanism.** A MANAGED (leased) DB MUST be dropped by releasing its lease - release is
 ownership-checked and race-free, so it is the only safe path once an allocator lease tracks the DB.
-**Check first that a DROP is what the caller wants.** Release DESTROYS the database; `park` frees
-the same RAM (it stops the identical process group) while KEEPING the database, filestore and
-ports for a later `resume`. When the instance is finished with for now but its data is still
-wanted, park it instead - that is one of the three exits in
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1, and it is not a lesser
-teardown: a parked lease has no server process at all.
-
-```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park "$ALLOC_TOKEN"
-```
-
-Park REFUSES a shared lease and a lease with no bound server pid; report the refusal rather than
-falling back to a drop the caller did not ask for. For a genuine drop, continue below: the
+**Check first that a DROP is what the caller wants.** Release DESTROYS the database; parking the
+lease frees the same RAM (it stops the identical process group) while KEEPING the database,
+filestore and ports for a later resume. When the instance is finished with for now but its data is
+still wanted, run operation 8, park-instance, instead of this one - never a drop the caller did not
+ask for. For a genuine drop, continue below: the
 allocator STOPS THE SERVER'S PROCESS GROUP FIRST (SIGTERM, a bounded wait, then a group SIGKILL -
 covering HTTP workers, cron, the longpolling/gevent process, and any `--dev=reload` watchdog),
 using the `server_pid` bound onto the lease at create-instance (the `--alloc-token` wiring above),
@@ -608,8 +597,10 @@ noisy one. Make the scope VISIBLE instead. Read both figures from THIS run's own
 BOUNDED grep each (`grep -aE '<marker>' <log> | tail -n 5`):
 - **modules actually loaded** - the HIGHEST `<N>` across the log's `loading <N> modules...` lines
   (the widest registry this run built), reported next to how many `--modules` named;
-- **tests actually run** - `<T>` from the era-correct ran-marker the script's own parser uses:
-  `Ran <T> tests in ` (v8-v13) or `<F> failed, <E> error(s) of <T> tests` (v14+).
+- **tests actually run** - the ran-marker total. Which marker THIS series prints is the parser's
+  fact, not yours to restate: read the two spellings it greps for from the `ran-marker` block in
+  `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh` and match on BOTH, taking the
+  total from the marker's LAST integer. Never gate the grep on a series.
 
 State BOTH in the output block's `notes` field on EVERY `run-tests` dispatch. A figure THIS log does
 not carry is reported `unknown` - never estimated, never omitted. Then adjudicate SCOPE from
@@ -651,11 +642,8 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh check --version 
   ```
 
   Exit 0 -> for a status-only request report `status: parked` with the token, db and ports it
-  emitted (never `down` - `down` tells the caller its data is gone). If spinup IS requested, hand
-  those coordinates to the spin-up as an exclusive re-launch (`--db-name`, `--http-port`,
-  `--alloc-token` from that output, no `-i`/`-u`); the script calls `allocator.py resume` on the
-  token itself, so the lease transitions atomically and nothing is rebuilt. Relay
-  `ALLOC_ATTACHED_FROM_RUN` in `notes` when present.
+  emitted (never `down` - `down` tells the caller its data is gone). If spinup IS requested, run
+  operation 9, resume-instance, from this same query result - its refusal ladder applies here too.
   Exit 1 -> genuinely nothing for this series. If spinup is requested, run Step B (pin version, ground CLI flags) then:
 
 ```bash
@@ -714,6 +702,86 @@ locales. Never abort the entire run for one failing locale.
 
 **Output block:** include `languages_loaded: [<locales confirmed active>]`; include
 `languages_failed: [<locales that did not activate>]` when non-empty.
+
+### 8. park-instance
+
+SUSPEND a running instance: stop its server, keep its database, filestore and ports for a later
+resume. This is the third teardown exit (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+T1 § The three exits) and the state named `persist: exclusive-parked` in
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5. It frees the SAME RAM a release
+frees - a parked lease has no server process at all - and destroys nothing.
+
+**Inputs:** lease token (`$ALLOC_TOKEN`, or the `lease_token` from the `INSTANCE_HANDLE` you are
+finishing with), optional park budget in seconds.
+
+**Mechanism.** Run Step A only. No odoo-bin runs, so there are no per-version flags to ground
+(skip Step B) and no venv to resolve (skip Step C); this operates on an EXISTING lease, so there is
+nothing to acquire (skip Step D).
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park "$ALLOC_TOKEN" [--park-ttl <seconds>]
+```
+
+Report `status: parked` with the token, db name and ports the command echoed. The park budget is
+DISK-scoped, not RAM-scoped: past it the lease is reclaimed and the database IS dropped, so state
+the budget in `notes` whenever the caller did not name one.
+
+**Refusals - report them, never fall back to a drop the caller did not ask for.** Exit 3 - the
+lease is `shared`: a shared render target is released when the render server is finished with,
+never parked. Exit 4 - the lease records no owner pid, so it is not RUNNING: it is still only
+RESERVED, already parked, or was a `--stop-after-init` build that never bound a pid. Exit 1 - no
+lease carries that token. In every case the instance is left exactly as it was.
+
+### 9. resume-instance
+
+Bring a PARKED instance back to running on its own database, filestore and ports - no rebuild, no
+`-i`/`-u`, no second lease.
+
+**Inputs:** series, `run_id`. The coordinates come from the query below, never from the caller.
+
+**Mechanism.** Run Steps A-B (the spin-up still needs this series' port-flag name from `cli_help`,
+per the port-flag tie-break above). Skip Step D - a parked lease already exists and a second
+acquire would mint a second database. Discover first, launch second:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" query --series <series> --state parked --run-id "<run_id>"
+```
+
+- Exit 1 - nothing resumable for this series. Report `status: down`; a caller that wanted an
+  instance is routed to operation 1, create-instance. When this command's stderr says it SKIPPED a
+  parked lease whose database is provably gone, `release` that token before rebuilding.
+- Exit 0 - pass the emitted `ALLOC_DB_NAME` / first `ALLOC_PORTS` / `ALLOC_TOKEN` VERBATIM into the
+  spin-up, with `--exclusive` and NO `-i`/`-u` (the database already carries its modules):
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series> \
+  --exclusive \
+  --db-name "$ALLOC_DB_NAME" \
+  --http-port "<first ALLOC_PORTS>" --port-key "<http_port|xmlrpc_port, conf-key form>" \
+  --run-id "$ALLOC_RUN_ID" \
+  --alloc-token "$ALLOC_TOKEN"
+```
+
+The script calls `allocator.py resume` on that token itself - the atomic PARKED -> RUNNING
+transition. Relay `ALLOC_ATTACHED_FROM_RUN` in `notes` when the query emitted it: you inherited
+another run's parked instance on this host, so its data state is that run's, not a fresh build's.
+On success report `status: up`.
+
+**When the spin-up BLOCKS on a refused resume.** The script prints `BLOCKED: the allocator REFUSED
+to resume this parked lease (resume exit <N>)`. Read it as stated: the server it launched was
+already STOPPED, nothing is running, and the lease is UNCHANGED - still parked, still holding its
+database, filestore and ports. Never re-run the same spin-up hoping for a different answer. Act on
+`<N>`:
+
+- `5` - the database was dropped while the lease was parked. `release "$ALLOC_TOKEN" --run-id
+  "$ALLOC_RUN_ID"`, then build fresh via operation 1. Report the rebuild in `notes`.
+- `6` - another caller resumed this lease first and its server is running. Do NOT launch a second
+  one on that port: re-run the discovery query, and report `status: error` with the winning run
+  named if no instance is yours to drive.
+- `4` - the launched pid could not be corroborated as this lease's server, or the lease was parked
+  on another host. Report `status: error` and quote the allocator's refusal; do not retry.
+- `1` - `--alloc-token` names no lease. Re-read the token from the query output; if it still
+  refuses, report `status: error`.
 
 ### Doc-context provision (composite: --with-demo + --load-language + --skip-auto-install)
 
@@ -875,7 +943,7 @@ After every operation, emit a fenced `instance-ops` block. This is the machine-r
 
 ````
 ```instance-ops
-op: create-instance | drop-instance | init-modules | update-modules | run-tests | ensure-up | status | load-language
+op: create-instance | drop-instance | init-modules | update-modules | run-tests | ensure-up | status | load-language | park-instance | resume-instance
 series: <X.Y>
 db_name: <db_name>
 http_port: <port or null>
@@ -935,10 +1003,11 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] run-tests scope reported in `notes` on EVERY dispatch: modules actually loaded + tests actually run, read from THIS run's log (or `unknown`), and any verdict decided by tests outside the `--modules` scope named as such - never narrowed away with an unrequested `--test-tags`/skip-auto-install flag
 - [ ] `TEST_RESULT=` read on EVERY dispatch and honored over the counters; tests-passed claimed ONLY on `TEST_RESULT=passed`, never inferred from all-zero counters; every `TEST_RESULT=inconclusive` reported as tests-inconclusive (findings_path surfaced, not swallowed; no exit code forced by skips alone)
 - [ ] `GATE_ROLE: pre-pr-lint-gate` run-tests dispatches: checker-load coverage confirmed per-module from THIS run's own log (never a hardcoded phrase) before trusting any all-zero counter set as tests-passed; a confirmed shortfall or an unconfirmable log both reported as tests-inconclusive, NEVER swallowed into tests-passed (see "Checker-load coverage confirmation" above)
-- [ ] you release it UNLESS you forward the handle to a NAMED catcher in `next.inputs`
-      (`INSTANCE_HANDLE`) - an unforwarded live lease at any turn end but
-      BLOCKED/NEEDS_CONTEXT is a leak the SubagentStop gate hard-blocks (SSOT:
-      `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4)
+- [ ] every lease you took is cleared by ONE of the three exits - release, park the lease
+      (operation 8), or forward the handle to a NAMED catcher in `next.inputs`
+      (`INSTANCE_HANDLE`) - chosen on whether the DATABASE is still wanted; a lease left on none
+      of the three at any turn end but BLOCKED/NEEDS_CONTEXT is a leak the SubagentStop gate
+      hard-blocks (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active

@@ -1,54 +1,54 @@
 # Instance profile resolution (where `instances.toml` lives)
 
-`instances.toml` declares the local Odoo instances on THIS host - series,
-`http_port`, `db_port`, `db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`.
-It is **Tier-1 - flat under `$ODOO_AI_HOME`**, not project-scoped (every other `.odoo-ai/`
-artifact is Tier-2, project/worktree-scoped). Full Tier-1/SHARE/ISOLATE classification tables +
-the resolve-capture-substitute protocol every consumer follows:
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - do not restate the tables
-here).
+`instances.toml` declares the local Odoo instances on THIS host - series, `http_port`, `db_port`,
+`db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`. It is **Tier-1 - flat under
+`$ODOO_AI_HOME`**, not project-scoped (every other `.odoo-ai/` artifact is Tier-2,
+project/worktree-scoped). Full Tier-1/SHARE/ISOLATE classification tables + the
+resolve-capture-substitute protocol every consumer follows:
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - do not restate the tables here).
 
 ## Resolution order (stop at the first that yields a usable instance)
 
-1. **A live SHARED server in the allocator registry** - before deriving a URL from the
-   static catalog, ask whether a render server is already running for the series. Its
-   ACTUAL bound port may differ from the declared `http_port`, and it is visible across
-   sessions:
+1. **A live SHARED server in the allocator registry** - before deriving a URL from the static
+   catalog, ask whether a render server is already running for the series. Its ACTUAL bound port
+   may differ from the declared `http_port`, and it is visible across sessions:
    ```
    python3 <plugin>/scripts/lib/allocator.py query --series <X.Y>
    # emits ALLOC_PORTS (the actual bound port) + ALLOC_DB_NAME when a live shared server exists; rc=1 when none
    ```
    When present, use `instance_base_url = http://localhost:<ALLOC_PORTS>`.
 1b. **A PARKED lease for the series** - before concluding an instance must be BUILT, ask whether
-   one was merely SUSPENDED. A parked lease has had its server stopped but still owns its
-   database, filestore and ports, so resuming it costs a launch while rebuilding costs a full
-   install - and rebuilding silently strands the parked one until its budget lapses:
+   one was merely SUSPENDED. A parked lease still owns its database, filestore and ports:
+   resuming costs a launch, rebuilding costs a full install AND strands the parked one until its
+   budget lapses:
    ```
    python3 <plugin>/scripts/lib/allocator.py query --series <X.Y> --state parked --run-id <id>
    # emits ALLOC_TOKEN / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PARKED_AT; rc=1 when none
    ```
-   Resolution order, and it is host-and-series scoped rather than run-scoped because a parked
-   lease has NO live owner by construction: (a) a parked lease for this series owned by YOUR
-   `run_id` - resume it silently; (b) else a parked lease for this series on THIS host - resume it
-   and REPORT the attach (the call emits `ALLOC_ATTACHED_FROM_RUN=<owning run>`; its data state is
-   that run's, which is a fact to relay, not a reason to refuse); (c) a parked lease whose owner
-   host is a DIFFERENT host needs `--force-attach` and is the one case that stays gated - its
-   database may live on a cluster this host cannot reach.
+   It is also the PRE-LAUNCH DB check: a lease whose DB was dropped under the park is SKIPPED
+   (stderr names it and `release <token>`), so nothing launches against a gone DB - treat a skip
+   as rc=1, release that token, build fresh.
+   Order, host-and-series scoped rather than run-scoped because a parked lease has NO live owner
+   by construction: (a) one owned by YOUR `run_id` - resume silently; (b) else one on THIS host -
+   resume and REPORT the attach (`ALLOC_ATTACHED_FROM_RUN=<owning run>`; its data state is that
+   run's, a fact to relay, not a reason to refuse); (c) one on a DIFFERENT host needs
+   `--force-attach` and stays gated - its database may live on an unreachable cluster.
    Resuming is not a separate launch path: hand the emitted `ALLOC_DB_NAME` / `ALLOC_PORTS` /
    `ALLOC_TOKEN` to the ordinary exclusive spin-up (`--db-name` / `--http-port` / `--alloc-token`,
-   no `-i`/`-u`), which calls `allocator.py resume <token> --pid <new pid>` itself - the atomic
-   transition that also clears the park budget.
+   no `-i`/`-u`), which calls `allocator.py resume <token> --pid <new pid>` itself. A REFUSED
+   resume BLOCKs that spin-up, which has already stopped the server it launched and left the
+   lease parked: never re-run it - act on the exit code the refusal names
+   (`<plugin>/agents/odoo-instance-ops.md` operation 9).
 2. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
    already applies the machine-global SSOT with its internal override/fallback order
    (`$ODOO_AI_INSTANCES` explicit override -> machine-global `$ODOO_AI_HOME/instances.toml`
    written by `/odoo-ai-agents:odoo-setup` -> a transitional project-local copy only when no
    global file exists yet); consumers reference the resolver, not the individual paths.
 
-Each `[[instance]]` entry may include an optional `profile` field (a short name
-like `"community"` or `"enterprise"`) and an `instance_key` (a stable key
-`<series>:<profile>` with a colon, computed at read time from `series`+`profile`
-when not explicit). These allow multiple profiles on the same series to coexist
-without ambiguity. Note: the venv DIRECTORY uses a dash: `venvs/<series>-<profile>`.
+Each `[[instance]]` entry may include an optional `profile` field (a short name like
+`"community"`) and an `instance_key` (a stable `<series>:<profile>` key with a colon, computed at
+read time when not explicit), so several profiles on one series coexist without ambiguity. Note:
+the venv DIRECTORY uses a dash: `venvs/<series>-<profile>`.
 
 Read a profile with the shipped reader (it emits shell-eval-able `INST_*` lines):
 
@@ -57,26 +57,24 @@ python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> [seri
 # emits INST_PYTHON / INST_PROFILE / INST_KEY / INST_HTTP_PORT / ... for the matched instance
 ```
 
-The first `[[instance]]` whose `series` matches (and, when supplied, whose `profile`
-also matches) is the active instance. Omit `profile` to get the highest-priority
-match for the series. To select by WORKING REPO instead of by series - the
-direction a Round 0 needs - use `instances_io.py locate` per
+The first `[[instance]]` whose `series` matches (and, when supplied, whose `profile` also
+matches) is the active instance; omit `profile` for the highest-priority match on that series. To
+select by WORKING REPO instead - the direction a Round 0 needs - use `instances_io.py locate` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2.
 
 `instance_base_url = http://localhost:<http_port>` from the matched entry is the
 ONLY derivation of that URL - never invent a host or assume a port.
-If none of the sources above yields an instance, surface a single clarifying
-request for the instance URL rather than guessing.
+If no source yields an instance, surface a single clarifying request for the
+instance URL rather than guessing.
 
 ## Allocate, don't just resolve (concurrent mutation)
 
 **Agents: self-provision via `Skill(odoo-instance)`, not this recipe directly.** This section
 documents the low-level allocator mechanism `odoo-instance` (and any other in-plugin caller) uses
-INTERNALLY for the deterministic, concurrency-safe DB/port reservation. An agent that needs a live
-instance and was handed no `INSTANCE_HANDLE` should invoke `Skill(odoo-instance)` - which performs
-the acquire below AND applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union,
-lint-module install union, per-version `cli_help` grounding) - rather than calling
-`scripts/lib/allocator.py acquire` directly, which would skip those rules.
+INTERNALLY. An agent needing a live instance and handed no `INSTANCE_HANDLE` invokes
+`Skill(odoo-instance)` - which performs the acquire below AND applies the instance HARD RULES
+(`en_US` union, Viindoo `to_base` union, lint-module install union, per-version `cli_help`
+grounding) - never `scripts/lib/allocator.py acquire` directly, which skips those rules.
 
 The resolution above is for a **read-only** need (a URL to open / query a running
 server - many agents may share it). For any MUTATION - tests (`--test-enable`),
@@ -104,12 +102,10 @@ Remedies: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 6.6.
 `-i` run (Odoo create-on-init) and dropped through Odoo on release via
 `scripts/lib/odoo_db.py` (raw `dropdb` only as a fallback, refused when the declared
 `db_run_mode` names no client surface); `exclusive` holds the declared DB under a
-single-holder lease; `shared` registers a
-long-lived,
-NON-exclusive render server (the visual stack's live target) with its actual `--port`
-so other sessions discover it via `query` and gc reclaims it when its server pid dies -
-it never drops the declared DB; `readonly` is lease-free (use plain resolution above).
-The allocator returns version-agnostic port NUMBERS only -
-map each to the right CLI flag (`--http-port`, longpoll/gevent, ...) by querying
+single-holder lease; `shared` registers a long-lived, NON-exclusive render server (the visual
+stack's live target) with its actual `--port` so other sessions discover it via `query` and gc
+reclaims it when its server pid dies - it never drops the declared DB; `readonly` is lease-free
+(use plain resolution above). The allocator returns version-agnostic port NUMBERS only - map each
+to the right CLI flag (`--http-port`, longpoll/gevent, ...) by querying
 `cli_help` for the target series at runtime. Full contract + GC/stale rules:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.

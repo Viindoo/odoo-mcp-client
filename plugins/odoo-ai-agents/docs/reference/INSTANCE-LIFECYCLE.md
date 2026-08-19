@@ -191,11 +191,12 @@ contract's ownership matrix or DONE-gate wording.**
 
 - **T0 DONE-gate.** An agent may not claim `status: DONE` while an instance it self-provisioned
   this dispatch is still leased or listening. A finished report with a live leftover server is not
-  done - release first, then claim DONE. Full wording: `resource-teardown-contract.md` T0.
-- **T1 ownership (who releases).** A self-provisioned instance (any `persist:` value the agent
+  done - take one of T1's three exits first, then claim DONE. Full wording:
+  `resource-teardown-contract.md` T0.
+- **T1 ownership (who clears it).** A self-provisioned instance (any `persist:` value the agent
   acquired for itself - `INSTANCE-ALLOCATION.md` §5) -> that agent clears it before its own
-  terminal status, by one of T1's three exits: release it, PARK it (server stopped, database and
-  ports kept for a later `resume`), or hand it off by name. A forwarded `INSTANCE_HANDLE` -> the
+  terminal status, by one of T1's three exits: release it, park the lease (`allocator.py park` -
+  server stopped, database and ports kept for a later `resume`), or hand it off by name. A forwarded `INSTANCE_HANDLE` -> the
   receiving agent NEVER releases it; only the provisioning orchestrator does, at run end.
   The shared render target -> no single consumer ever releases it; only allocator GC reclaims it -
   immediately on a dead owner pid, or (when that pid's liveness cannot be verified at all - a

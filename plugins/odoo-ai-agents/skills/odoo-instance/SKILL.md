@@ -1,14 +1,15 @@
 ---
 name: odoo-instance
-argument-hint: "[create|drop|init|update|test|load-language] [version|db]"
+argument-hint: "[create|drop|park|resume|init|update|test|load-language] [version|db]"
 description: >-
-  Build, drop, or drive a live Odoo instance for any series from v8 onward - create a database
+  Build, drop, or drive a live Odoo instance for any indexed series - create a database
   through Odoo, init or update modules, run tests, ensure an instance is up, or report status.
   Front door for ALL Odoo instance lifecycle operations and the ONLY dispatcher of the odoo-instance-ops agent.
-  Fire on "create an Odoo instance", "spin up v17", "init these modules", "drop the test DB",
+  Fire on "create an Odoo instance", "spin up an instance", "init these modules", "drop the test DB",
   "run tests on this instance", "is the instance up", "rebuild from scratch",
+  "suspend this instance", "resume the parked instance",
   "activate a language", or any ask that needs a live Odoo process to be provisioned, updated,
-  or destroyed. Also fires on Vietnamese: "dựng instance Odoo", "cài module chạy test",
+  suspended, or destroyed. Also fires on Vietnamese: "dựng instance Odoo", "cài module chạy test",
   "tạo DB Odoo mới", "xoá instance", "khởi động lại server Odoo", "nạp ngôn ngữ". Route code authoring to odoo-coding, code review to odoo-code-review,
   runtime diagnosis to odoo-debug, solution design to odoo-solution-design - this skill only
   provisions and operates the instance those skills run against
@@ -17,7 +18,9 @@ description: >-
 ## Role
 
 Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
-drop, init, update, run-tests, ensure-up, status, load-language) for any Odoo series v8 onward.
+drop, park, resume, init, update, run-tests, ensure-up, status, load-language) for every Odoo
+series the index carries - resolve that set with `list_available_versions()`, never from a
+remembered floor.
 Keeps the caller's context clean by delegating shell-level work and relaying a structured result
 block. Programmatic twin of the interactive `/odoo-setup` command (the human declare-and-spinup
 wizard that writes `instances.toml`): use this skill when the caller already knows the operation
@@ -36,8 +39,11 @@ the way that fits the caller's context - run the ops steps INLINE in the caller'
 skill is the component that owns launching that agent. However the
 operation is carried out, the SAME HARD RULES apply - the inline path is not a bypass. A provided
 `INSTANCE_HANDLE` ALWAYS wins over self-provisioning either way (contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`), and neither path ever calls
-`scripts/lib/allocator.py` directly - that would skip the HARD RULES this skill enforces.
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). `scripts/lib/allocator.py` is never
+how a caller PROVISIONS an instance: both paths below reach it only after running the HARD RULES,
+so an acquire that routed around this skill is an acquire that skipped them. Tearing your OWN
+lease down at your terminal status - releasing or parking it - is not provisioning and is run
+directly, per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
 
 The `odoo-instance-ops` agent runs at a flat `sonnet` tier when launched - there is no
 per-operation model-tier table.
@@ -48,8 +54,10 @@ When invoked, gather the following from the caller's request:
 
 | Parameter | Values / notes |
 |-----------|----------------|
-| `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
-| `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
+| `operation` | `create` / `drop` / `park` / `resume` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
+| `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests/resume; optional for status |
+| `lease_token` | required for `park` - the token of the lease to suspend (the `lease_token` field of the `INSTANCE_HANDLE` being finished with). Not used by any other operation |
+| `park_ttl_s` | optional for `park` - how long the suspended database is kept before the allocator reclaims it. Omitted keeps the allocator's default; the budget is DISK-scoped, so state it in the relay when the caller did not name one |
 | `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. What each one means, plus the `exclusive-parked` state a suspended instance sits in (park keeps its db + ports; resume brings it back), is spelled out in ONE place - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5 - and is deliberately NOT restated here; read it there before choosing. The one consequence this dispatch table must state itself, because it decides whether a caller may safely run mutating work: an `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool), a `shared-running` one is shared by every reader on that series |
 | `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
 | `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
@@ -68,6 +76,13 @@ When invoked, gather the following from the caller's request:
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
+
+**`park` vs `drop` - decide on a fact about the DATABASE, never on convenience.** Both stop the
+same server process group and free the same RAM. `park` KEEPS the database, filestore and ports so
+a later `resume` picks the instance up where it was; `drop` destroys the database. A caller who is
+finished with the instance FOR NOW but still wants its data asks for `park` - never `drop`, and
+never a `drop` dispatch in the hope it will be declined. `resume` brings a parked instance back on
+its own coordinates, so it never rebuilds and never installs modules.
 
 **`GATE_ROLE` resolution (mandatory, resolved by THIS skill before dispatch - never left for the
 agent to guess).** For any `run-tests` (or test-enable `init`/`update`) request: an explicit value
@@ -171,7 +186,9 @@ two-path contract.
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching` - an L2 human
 gate applies before any mutation (create, drop, init, update, run-tests). If a run-harness is in the
 brief, do NOT bypass it; let the driver surface it. For a direct invocation, confirm the mutation
-with the human before launching the agent.
+with the human before launching the agent. `park` and `resume` are deliberately OUTSIDE that set:
+parking destroys nothing and is a teardown exit a dispatched worker must be able to take at its own
+terminal status, and resuming re-launches an instance the run already holds a lease on.
 
 **Brief shape:** Launch the `odoo-instance-ops` agent with a worker brief per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. When composing the dispatch prompt for any
@@ -182,8 +199,8 @@ family delta; never inline that file verbatim into a hard-leaf brief. The brief 
 ```
 OPERATION: <operation>
 SERIES: <series or 'unspecified'>
-PROFILE: <the NON-EMPTY profile name this skill already resolved before composing this brief, e.g.
-  "viindoo_17"; omit the field entirely when the resolved value is empty or no rung named one -
+PROFILE: <the NON-EMPTY profile name this skill already resolved before composing this brief;
+  omit the field entirely when the resolved value is empty or no rung named one -
   never emit PROFILE: '' and never forward a pointer for the agent to go re-resolve>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
@@ -193,6 +210,8 @@ MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTA
 LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
 FRESH_VENV: <true|false>
 PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - see the dispatch table above
+LEASE_TOKEN: <token of the lease to suspend>            # park only - REQUIRED there, omitted everywhere else
+PARK_TTL_S: <seconds or 'default'>                      # park only; 'default' keeps the allocator's own budget
 RUN_ID: <the caller's session/run id>                   # ALWAYS set - the lease-ownership identity; never omit
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'none' -> en_US alone>
@@ -236,7 +255,7 @@ overridable via `ODOO_AI_LIMIT_MEMORY_HARD`. Policy SSOT (do not restate it here
 **Relay the result:** Relay the agent's structured output block verbatim to the caller:
 
 ```instance-ops
-op: <create-instance|drop-instance|init-modules|update-modules|run-tests|ensure-up|status>
+op: <create-instance|drop-instance|park-instance|resume-instance|init-modules|update-modules|run-tests|ensure-up|status>
 series: <X.Y>
 db_name: <db_name>
 http_port: <port or null>
@@ -321,12 +340,13 @@ them here):
    (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
    contract above - background launch, then a FOREGROUND `wait-log --log "<LOG_PATH>"` as the very
    next tool call; never idle-stall, and report the same run-tests scope figures.
-5. **Release** the lease when done - you release it UNLESS you forward the handle to a NAMED
-   catcher in `next.inputs` (`INSTANCE_HANDLE`, naming the skill that needs the live state); an
-   unforwarded live lease at your terminal status is a leak, not a valid handoff. Full rule:
-   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T4. Either way, emit the
-   same `instance-ops` block used when the agent is launched instead, so the caller consumes an
-   identical handle either way.
+5. **Clear the lease** when done, by ONE of the three exits - release it, park it
+   (`allocator.py park <token>`) when the database is still wanted, or forward the handle to a
+   NAMED catcher in `next.inputs` (`INSTANCE_HANDLE`, naming the skill that needs the live state).
+   A lease left on none of the three at your terminal status is a leak, not a valid handoff. Full
+   rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T4. Whichever exit
+   you take, emit the same `instance-ops` block used when the agent is launched instead, so the
+   caller consumes an identical handle either way.
 
 The L2 human gate still applies to any mutation via this path (see "Human gate"): if a run-harness
 is present let the driver surface it, else confirm the mutation with the human first.
