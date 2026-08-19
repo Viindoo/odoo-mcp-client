@@ -5,12 +5,10 @@
 # Forward-Port Symbol Survival Check (P6)
 
 **When to run:** after git-ops has opened the no-commit merge window (P5), before any adapt work (P8).
-**Why this phase exists:** git auto-merge silently carries source-side lines that reference
-a symbol (field, method, model, view-id, external-id) that was REMOVED or RENAMED in the
-target version - no conflict marker appears because the target branch never touched that line.
-The result: lint + install may remain green, but the feature breaks at runtime when execution
-reaches that line. This is the most common silent correctness failure in forward-port work.
-Real example: `account.account.company_id` -> `company_ids` at v18 (PR #14070).
+**What it catches:** git auto-merge silently carries source-side lines that reference a symbol
+(field, method, model, view-id, external-id) REMOVED or RENAMED at the target version - no conflict
+marker appears, because the target branch never touched that line. Lint and install stay green; the
+feature breaks at runtime when execution reaches that line.
 
 ---
 
@@ -332,14 +330,14 @@ carried into P9 so the verify set reflects the real install set.
 
 ---
 
-## Why not defer this to P9 verify-by-behavior
+## Who runs this check
 
-P9 runs the test suite and catches failures where a test exercises the broken path.
-Symbol-survival catches broken references in code paths with **no test coverage** - runtime-rare
-paths, configuration-only code, XML view references, and `ir.model.fields` lookups that
-never appear in any test fixture. It also catches breaks that PREVENT P9 from running at
-all: a test base-class kwarg drift (2.5a) or a broken import (2.5d) crashes collection, so P9
-reports `0 failed, N error(s)` - the tests never ran, and a naive reading of the counts looks
-green. Principle #3 of the forward-port design ("no-conflict but feature dies") mandates
-grounding at the SYMBOL level here, not only at the behavior level in P9. Both gates are
-required; neither replaces the other.
+The orchestrator does NOT run these checks in its own context: it dispatches the read-only
+delegates (`Explore` to enumerate the source-touched files and ground their symbols, the
+`git-toolkit:git-ops` skill to run the git and lint gates) and records only the PASS/FAIL verdict
+plus the returned finding lines. It never reads the diff, the OSM result, or the gate log inline.
+This holds for every consumer of this snippet - forward-port P6/P7 and git-rebase P8b alike.
+
+This gate does NOT replace P9 verify-by-behavior, and P9 does not replace it: P9 only catches a
+break some test exercises, and a base-class kwarg drift (2.5a) or a broken import (2.5d) crashes
+collection so P9 never runs at all (`0 failed, N error(s)` is not a pass). Both gates are required.

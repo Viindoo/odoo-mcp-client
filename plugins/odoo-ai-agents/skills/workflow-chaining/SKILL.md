@@ -47,15 +47,12 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    the generator's `output_dir` must-start-with-`.odoo-ai/` assertion are intentionally
    UNCHANGED; only the runtime resolution moved off a bare project-relative path. Resolve
    series + profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-3. **Orphan sweep (do this every invocation, before the resume check below).** Nothing deletes a
-   prior run's `<output_dir>/<slug>-*` artifacts today, so every one of the 13 workflow
-   `output_dir` trees leaks one directory per run forever: `find <resolved ISOLATE
-   output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any sibling
-   `<slug>-*/` or `<slug>-state.json` untouched for over 30 days is presumed consumed; a
+3. **Orphan sweep (do this every invocation, before the resume check below).** Run `find <resolved
+   ISOLATE output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any
+   sibling `<slug>-*/` or `<slug>-state.json` untouched for over 30 days is presumed consumed; a
    still-active run keeps writing its own state file/phase artifacts, so its mtime never ages
-   past the threshold). This ONE step covers all 13 `output_dir` trees generically - each
-   workflow's own `output_dir` value is what gets swept, so no per-workflow sweep instruction is
-   needed. Full rule + bound rationale:
+   past the threshold). It sweeps whatever `output_dir` THIS workflow declares, so no
+   per-workflow sweep instruction exists. Full rule + bound:
    `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer:
    whoever invokes this runner next, unconditionally, every run - not a separate cleanup agent or
    cron.
@@ -114,8 +111,7 @@ to the user wrapped in the following boundary block:
 
 Use `DONE` when the phase completed without error; use `FAILED` when the specialist
 reported an error or produced no usable output. This wrapper is mandatory for every
-phase - including conditional phases that actually fired and fan-out aggregation - so
-phase boundaries remain clearly visible throughout a multi-phase run.
+phase - including conditional phases that actually fired and fan-out aggregation.
 
 ### Fan-out / Fan-in (parallel workers, ≤3 concurrent)
 
@@ -188,7 +184,7 @@ Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 
 **HARD RULE - EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill MUST NOT
 invoke a spawner - the run-harness dispatches it.
-If no `on_complete` is declared, or none matches, finish normally (back-compatible).
+If no `on_complete` is declared, or none matches, finish normally.
 
 **No driver above - degrade honestly.** If running WITHOUT an active run-harness (e.g. invoked
 directly, not through intake Phase P), emit the contract AND state plainly: "on_complete
@@ -220,12 +216,16 @@ paths, skill names, and the reply keywords verbatim - SSOT:
 
 ## Standalone-first fallback
 
-If the odoo-semantic-mcp server is unreachable:
-- For phases whose specialist requires OSM: append to the `nl_trigger`: "OSM is unavailable -
-  proceed in standalone mode using training knowledge and any local files available."
+If the odoo-semantic-mcp server is unreachable, the tier order in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` governs: Tier 2 is MANDATORY before
+Tier 3, and training memory IS Tier 3 - a last resort, never a co-equal option.
+- For phases whose specialist requires OSM, append to the `nl_trigger`: "OSM is unavailable -
+  ground on Tier 2 per disk-fallback-protocol.md; use training memory only where Tier 2 also
+  fails, and flag that part `ungrounded`."
 - Continue the workflow; each specialist declares its own standalone fallback.
 - If a phase's `fallback` field is `standalone`, apply this automatically.
-- Write a caveat in the final artifact noting which phases ran without OSM grounding.
+- Caveat the final artifact PER PHASE: a Tier-2-grounded phase is NOT `ungrounded`; only a
+  memory-only phase carries `OSM unavailable - ungrounded`.
 
 ## Continuation Contract
 

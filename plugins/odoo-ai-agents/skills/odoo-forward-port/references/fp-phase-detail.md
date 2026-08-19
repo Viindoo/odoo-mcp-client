@@ -338,30 +338,26 @@ zone through P9. Full protocol incl. absorption window order: `[[fp-merge-absorp
 
 ## P6 - Symbol-survival check (MUST, before adapt)
 
-```bash
-# files with conflict markers
-git diff --check ; grep -rn '^<<<<<<<' .
-```
+**Dispatched, never run inline.** WHO may run this gate is the shared SSOT
+`[[fp-symbol-survival-check]]` § Who runs this check; this phase only sequences the dispatches and
+records what comes back. Do NOT run the conflict scan, the file enumeration, or the OSM grounding
+in the orchestrating context.
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list files changed in range `<merge-base>..<src-SHA>` (--name-only;
-git-ops writes the file list, filtered to non-empty entries - these are the
-merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
-`repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
-source-remote add+fetch).
-
-For every Odoo symbol in those files (field / method / model / view ref / external-id /
-manifest depend / ORM chain), confirm existence + type at the TARGET version:
-
-```python
-model_inspect(model='account.account', method='fields', odoo_version='18.0')
-entity_lookup(kind='field', model='account.account', field='company_ids', odoo_version='18.0')
-api_version_diff(symbol='account.account.company_id', from_version='17.0', to_version='18.0')
-```
-
-Any absent/changed symbol FORCES bucket b/c/d and bans leaving the auto-merged line unchanged.
-Produce the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket | evidence` finding list (an
-empty list `SYMBOL-SURVIVAL: clean` is a valid, desirable result). A non-empty list BLOCKS
-P8 on those files. Full contract: `[[fp-symbol-survival-check]]`.
+1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the conflict-marker scan AND the
+   `<merge-base>..<src-SHA>` file list in ONE dispatch (--name-only; git-ops writes both to a
+   findings file, filtered to non-empty entries, and returns the path - those entries are the
+   merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
+   `repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
+   source-remote add+fetch).
+2. Dispatch `Explore` (read-only) over that returned file list to ground every Odoo symbol it
+   references (field / method / model / view ref / external-id / manifest depend / ORM chain)
+   against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. The OSM calls
+   belong to that delegate; the orchestrator never issues them here.
+3. Record only what the delegate returns: any absent/changed symbol FORCES bucket b/c/d and bans
+   leaving the auto-merged line unchanged; the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket |
+   evidence` finding list (an empty list `SYMBOL-SURVIVAL: clean` is a valid, desirable result); and
+   the PASS/FAIL verdict. A non-empty list BLOCKS P8 on those files. Full contract:
+   `[[fp-symbol-survival-check]]`.
 
 **Run on `tests/` files too** - test files auto-merge silently exactly like production code and
 crash at collection (base-class kwarg drift, broken import, dynamic `ref()`), never reaching
@@ -389,50 +385,43 @@ The two checks are COMPLEMENTARY: P6 catches symbol-graph breaks via OSM; P7 cat
 static grep / import / AST breaks and blocks entry to P8 when test collection itself would
 fail.
 
-**Enumerate scope - two lanes:**
+**Enumerate scope - two lanes. Dispatched, never run inline** (`[[fp-symbol-survival-check]]`
+§ Who runs this check):
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list files changed in range `<merge-base>..<src-SHA>` (--name-only;
 git-ops writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
-cross-repo ports. From that list:
+cross-repo ports. From the returned list the delegate derives:
 
-```bash
-# Lane 1 (from git-ops result): ALL merged-touched .py (production AND tests/)
-#   - filter the file list to *.py entries
+- **Lane 1** - ALL merged-touched `.py` (production AND `tests/`): the `*.py` entries.
+- **Lane 2** - `tests/` only: the Lane-1 entries whose path contains `tests/`.
 
-# Lane 2 (from git-ops result): tests/ only
-#   - from Lane 1, filter entries whose path contains tests/
-```
-
-For Lane 1 files apply classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
-dict-key scan) over ALL .py - production AND tests. Treat F821 on a production file as a runtime
-NameError that would crash module load, not a nit; treat a (g) dead key on a production call site
-the same way - it raises `Invalid field` at load/run yet pyflakes stays silent. For Lane 2 files
-additionally apply (a) (b) (c) (f).
+Dispatch the gates as read-only delegates (`git-toolkit:git-ops` / `Explore`) and record only their
+verdict: Lane 1 gets classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
+dict-key scan) over ALL .py - production AND tests; Lane 2 additionally gets (a) (b) (c) (f). Treat
+F821 on a production file as a runtime NameError that would crash module load, not a nit; treat a
+(g) dead key on a production call site the same way - it raises `Invalid field` at load/run yet
+pyflakes stays silent.
 
 Record findings as `SYMBOL-BROKEN | <symbol/path> | <file>:<line> | <class> | evidence` and
 append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 8a brief.
 
 **ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
 
-At P7 no instance DB has been acquired yet (allocator runs at P9) - use the `pytest --collect-only`
-path; it needs no DB and catches ImportError / missing-fixture breaks for ordinary test modules.
+At P7 no instance DB has been acquired yet (allocator runs at P9), so the gate is a
+`pytest --collect-only` run over the merged test files - it needs no DB and catches ImportError /
+missing-fixture breaks for ordinary test modules. Dispatch it as a read-only delegate and record the
+PASS/FAIL verdict; never run it, or read its log, in the orchestrating context.
 
-```bash
-# pytest collection smoke-test
-python -m pytest <test_files> --collect-only -q 2>&1 | tail -20
-```
-
-**DELEGATE here too - never a raw `odoo-bin`/`allocator.py` recipe to work around the "no DB yet"
-gap (SKILL.md P9's DELEGATE mandate is not scoped to P9 alone; a bare provisioning call from ANY
-non-leaf phase in this pipeline bypasses the SAME instance HARD RULES regardless of which phase
-issues it).** When a `setUpClass` performs DB-dependent work that `--collect-only` cannot exercise
-(a TestCase subclass that touches the ORM during class setup), do NOT acquire an ad hoc DB here to
-work around it - the ONLY provisioning path this pipeline uses is P9's `odoo-instance` dispatch
-(`## P9` below). Record the residual (a `setUpClass` `--collect-only` cannot verify) as an open
-ACCEPTANCE GATE item on that test file's `merge-log.md` row, and treat P9's own collection/run-tests
-result for that file as the gate's true confirmation once the P9 instance exists. The
-`pytest --collect-only` result above is still mandatory and still blocks P8 for every OTHER file it
-covers.
+**No ad hoc provisioning, in any phase** (SKILL.md P9's DELEGATE mandate is not scoped to P9 alone;
+a bare provisioning call from ANY non-leaf phase in this pipeline bypasses the SAME instance HARD
+RULES regardless of which phase issues it). When a `setUpClass` performs DB-dependent work that
+`--collect-only` cannot exercise (a TestCase subclass that touches the ORM during class setup), do
+NOT acquire an ad hoc DB here to work around it - the ONLY provisioning path this pipeline uses is
+P9's `odoo-instance` dispatch (`## P9` below). Record the residual (a `setUpClass`
+`--collect-only` cannot verify) as an open ACCEPTANCE GATE item on that test file's `merge-log.md`
+row, and treat P9's own collection/run-tests result for that file as the gate's true confirmation
+once the P9 instance exists. The `pytest --collect-only` verdict above is still mandatory and still
+blocks P8 for every OTHER file it covers.
 
 Memory-cap policy (applies at P9's instance dispatch, not here):
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
@@ -453,6 +442,8 @@ shape is identical to the canonical bucket-(c) defect) - at the same 8a/8b conve
 those legs already pass through) but IDENTICAL in SHAPE
 (a finding line triaged into `merge-log.md`, confirmed before the gate). Buckets (a)/(d) land no
 new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
+A HIT is a PROPOSAL only: the merge-and-delete outcome routes out through the P3 design gate to
+`odoo-solution-design` and is applied solely when the returned `design_doc` adopts it.
 Full predicate, the two
 non-defect exceptions, and the merge-unsafe escape: `references/fp-triage-table.md` § Bucket-(c)
 same-module inherit-view check.

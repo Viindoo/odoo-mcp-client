@@ -160,11 +160,12 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 | pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | Skill tool |
 | need a broad static sweep of code | `odoo-code-review` | Skill tool |
 
-**AccessError tie-break:** a routine `ir.model.access`/`ir.rule` misconfiguration is a
-`odoo-backend-debugger` symptom; only escalate to `odoo-security-audit` when the AccessError comes
-with a suspected leak, privilege escalation, or injection. When unsure which applies, default to
-`odoo-backend-debugger` first - it can hand off to `odoo-security-audit` via its own Continuation
-Contract once the access layer is confirmed.
+**AccessError routing:** dispatch `odoo-backend-debugger` for EVERY AccessError - it owns the
+`ir.model.access` vs `ir.rule` diagnosis and, once the access layer is confirmed, owns the hand-off
+to `odoo-security-audit` through its own Continuation Contract. Do NOT screen the symptom yourself
+for leak / privilege escalation / injection: that verdict belongs to `odoo-security-audit`. Add it
+as a PARALLEL leg only when the REPORT already states one of those; when the report is silent on it,
+ASK the reporter rather than inferring it from the traceback.
 
 Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents in the SAME MCP family at once (per-family single-flight; see `## Browser concurrency` above).
 

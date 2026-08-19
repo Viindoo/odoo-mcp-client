@@ -150,8 +150,9 @@ plan is approved.
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief. The brief carries no
-reply address: each planner returns its report as its final message and you read it from your own
-launch call's return value (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
+reply address: each planner returns its report as its final message, and you are woken with it
+once you have ended the turn that launched
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 
 When intent is confirmed, dispatch BOTH planners sequentially. Their outputs compose into one
 lifecycle plan presented at a single gate.
@@ -303,8 +304,12 @@ Approve plan? (approve / refine: [feedback] / cancel)
   no automated guard can reach - if any header, tier, or annotation batches nodes together, reject
   and `refine: [feedback]` rather than approving.
 - **Also before approving, confirm every repo the plan touches carries at least one `odoo-instance`
-  node on `integrate`'s `depends_on` path whose `modules` cover every module any coding node in that
-  repo touches.** Catching this HERE - not at `run-harness` dispatch, after every coding node in the
+  node on `integrate`'s `depends_on` path whose `modules` cover every module DECLARED in the
+  `modules` field of a coding node in that repo.** This is a set comparison between two declared
+  `modules` fields of the plan in front of you - never a dependency read of module source, and never
+  an inference about what a node will "really" touch. A coding node whose declared `modules` field
+  looks wrong is a `refine: [feedback]` back to the planner, never a field to correct at this gate.
+  Catching this HERE - not at `run-harness` dispatch, after every coding node in the
   repo has already run - is the whole point of checking it at this gate: reject and
   `refine: [feedback]` rather than approving a plan missing its verification node.
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.

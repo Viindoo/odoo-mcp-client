@@ -130,7 +130,7 @@ Cross-cluster sequencing (which `dag_layer` builds first) must match `dag_layers
 
 Same-layer child architects run concurrently and cannot message each other - no agent can address a
 sibling (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). Reconciliation is the
-LEAD's, after its R1 barrier clears:
+LEAD's to DRIVE, after its R1 barrier clears - but the DECISION itself is dispatched:
 
 - **Child.** When your design needs a shared symbol another module in this layer owns or touches and
   you cannot honor the master §10 contract as written, do NOT block and do NOT guess: record the
@@ -138,10 +138,14 @@ LEAD's, after its R1 barrier clears:
   `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`. Then finish your TDD on your own
   proposal and report DONE, naming the contested symbol in your report. Frame the row as shared
   design context, never "secret"/"private" (CHP confidentiality guard).
-- **Lead.** After every child in the layer has returned, read `contested-symbols.md`. Decide each
-  contested symbol against the master §10 contract, write the decision into the master TDD, and
-  re-dispatch ONLY the children whose proposal lost, with the decision in their brief. Bound this to
-  ONE reconciliation round per layer; unresolved after it -> the layer is BLOCKED for a human.
+- **Lead.** After every child in the layer has returned, read `contested-symbols.md` and DISPATCH
+  the decision - never make it. `odoo-solution-architect` `MODE: reconcile` is the actor that decides
+  each contested symbol against the master §10 contract and returns one verdict per symbol (winner,
+  loser, evidence). The lead writes those verdicts into the master TDD verbatim and re-dispatches
+  ONLY the children whose proposal lost, with the verdict in their brief; it never picks a winner
+  itself and never weighs the two proposals. Bound this to ONE reconciliation round per layer;
+  a symbol the reconcile pass returns `UNRESOLVED`, or a round that does not settle every symbol ->
+  the layer is BLOCKED for a human.
 
 Lower-layer children and the master have already terminated by fan-out time: a child never debates a
 live master or a lower layer - it honors the finished artifact (`MASTER_DESIGN_DOC`,
@@ -150,9 +154,9 @@ live master or a lower layer - it honors the finished artifact (`MASTER_DESIGN_D
 **Single-writer discipline.** NEITHER child edits `index.yaml`/§10 directly: the orchestrating skill
 and the `MODE: consistency` pass are the ONLY §10/`index.yaml` writers (a child never re-declares a
 §10 symbol - see § single-owner). The MANDATORY consistency pass CONSUMES the recorded proposals and
-the lead's decisions and APPLIES them to §10, verifying single-owner / dep-direction /
+the `MODE: reconcile` verdicts and APPLIES them to §10, verifying single-owner / dep-direction /
 no-circular-dep still hold before emitting `conflict-list.md`. A child NEVER changes a master §10
-constraint; the lead's decision is the only path a seam reaches the human gate.
+constraint; a reconcile verdict applied by the lead is the only path a seam reaches the human gate.
 
 ## Optional independent review (MODE: review)
 
@@ -208,12 +212,13 @@ lead, never resolved by the child.
 
 ## Conflict list
 
-The master-phase consistency pass CONSUMES the child TDDs plus `contested-symbols.md` and the lead's
-decisions on it (§ Contested-symbol reconciliation) and is the SOLE §10/
+The master-phase consistency pass CONSUMES the child TDDs plus `contested-symbols.md` and the
+`MODE: reconcile` verdicts on it (§ Contested-symbol reconciliation) and is the SOLE §10/
 `index.yaml` applier - children never write §10 themselves. It emits `conflict-list.md` at the
 artifact root - the same subdir as `index.yaml` (i.e.
 `<SHARE_DIR>/designs/<master-slug>/conflict-list.md`). `conflict-list.md` splits into
-LEAD-RESOLVED seams (the lead decided; informational, no decision needed) and ESCALATED seams (the
+LEAD-RESOLVED seams (a `MODE: reconcile` verdict settled it and the lead applied it; each is listed
+at the gate as symbol + winner + loser + evidence, never as a bare count) and ESCALATED seams (the
 one reconciliation round did not settle it, or a §10 HARD-rule conflict; need a human decision).
 This file is a MANDATORY
 INPUT to the batch coding gate: the gate reads it and resolves every listed ESCALATED conflict
@@ -233,15 +238,9 @@ decompose branch by construction - master-child output cannot reach `odoo-forwar
 `odoo-modules-upgrade` P2b via that route. Skills that consume master-child output must read
 `design_index:` from the Continuation Contract, not `design_doc:` (singular).
 
-**Documented seam (deliberately deferred, not silently dropped).** `return_to` callers enter
-SINGLE mode (one flat TDD, no children), so base-first child ordering and the opt-in
-`review-master` / `review-children` gate keywords above are N/A by construction - there is no
-child batch to order or review. A shared design-review hook on the `return_to` path (letting
-`odoo-forward-port` / `odoo-modules-upgrade` opt a single-mode design into `MODE: review`) COULD be
-offered later; it is explicitly OUT OF SCOPE today because those callers already enforce their own
-dependency order downstream through their own integration loops
-(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`). Flagged here so a future editor does
-not need to re-derive this decision.
+`return_to` callers therefore run SINGLE mode (one flat TDD, no children): base-first child
+ordering and the opt-in `review-master` / `review-children` gate keywords above are N/A on that
+path - there is no child batch to order or review.
 
 ## Worklog per child
 

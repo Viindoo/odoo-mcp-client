@@ -252,8 +252,11 @@ invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory re
 at P3 Plan Mode gate; commit message per § Git / PR conventions absorbed/obsolete-delete form);
 drop it from every depender's `depends` in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
-`transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
+`transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, ATTACH the breaking-change catalog's PATH
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`) to the
+`odoo-coding` brief - `odoo-coding`'s coder is the one that decides which catalog rows this
+module's code actually hits, because deciding that here would need the source read the First
+Principle above forbids; never pre-select or pre-apply rows -
 the per-module deprecation fix list from P1, and this module's DUE version-anchored
 deferred-work items from P2's `absorption/<module>.md` `deferred_work` block (executed NOW as
 REAL work-items in the SAME implement -> P4b review -> P5 test path, not a side note; DEFERRED
