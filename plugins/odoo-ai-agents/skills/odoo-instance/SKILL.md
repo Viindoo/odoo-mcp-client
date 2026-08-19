@@ -253,6 +253,10 @@ failed: <n or null>            # run-tests only; from TEST_FAILED=
 errors: <n or null>           # run-tests only; from TEST_ERROR=
 warnings: <n or null>         # run-tests only; from TEST_WARNING=
 skipped: <n or null>          # run-tests only; from TEST_SKIPPED=
+js_runs: <n or null>          # run-tests only; from JS_RUNS= (browser-suite logger scopes this build drove)
+js_scope: <scoped|unscoped or null>   # run-tests only; from JS_SCOPE=
+js_failed_reported: <n or null>       # run-tests only; from JS_FAILED_REPORTED= - never added to `failed`, it counts other units
+js_failed_tests: <n or null>          # run-tests only; from JS_FAILED_TESTS=
 findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
 status: <one value of the agent's own enum, relayed as-is - never a Continuation status>

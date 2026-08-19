@@ -165,6 +165,16 @@ After install:
 
 ## Triage: FP-delta vs pre-existing failure
 
+A `--test-enable` build runs a Python suite AND one or more browser (Hoot/QUnit) suites, and the
+`instance-ops` block reports them in separate fields for a reason: `failed`/`errors` cover the
+Python suite only, while `js_failed_reported`/`js_failed_tests` cover the browser suites. **Triage
+each JS RUN separately** - a run is one browser-suite logger scope (desktop, mobile, and any module
+shipping its own JS suite), the findings file lists the failing tests under the run they failed in,
+and one run can be a clean pre-existing failure while another is an FP-delta. Never fold the runs
+together, and never treat one run's green result as the build's: they are independent verdicts.
+A `js_failed_reported` that outruns `failed` by orders of magnitude is the normal shape of a broken
+browser suite, not a parsing artifact.
+
 When a test is red after the batch install:
 
 1. Run the same test against the target branch WITHOUT any absorption commits applied

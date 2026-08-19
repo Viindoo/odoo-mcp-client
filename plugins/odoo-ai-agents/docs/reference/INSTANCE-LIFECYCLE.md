@@ -132,7 +132,9 @@
       recent call last)` is NOT a failure marker here either: on a test run tracebacks come from
       logged exceptions the run recovers from, routing errors, and every HttpCase 500 a test
       asserts on, as well as from failing tests - so per-test `FAIL:`/`ERROR:` markers and the
-      per-module aggregate are the failure evidence, and they are MID-RUN, never completion. The
+      per-module aggregate are the failure evidence for the PYTHON suite, the Hoot/QUnit markers
+      are it for the browser suite (a JS failure writes no Python traceback at all), and all of
+      them are MID-RUN, never completion. The
       only markers terminal BEFORE the run publishes its own verdict are the hard aborts that
       prove odoo-bin died and never will: `CRITICAL`, `Failed to load registry`, `psycopg2.`,
       `ParseError`, plus the silent-skip markers above.

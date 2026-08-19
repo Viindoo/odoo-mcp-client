@@ -58,18 +58,23 @@
 #             `warn` is REFUSED (exit 2): it suppresses the pass summary, so every
 #             green run under it would parse as inconclusive.
 #             Parses result and emits TEST_RESULT=passed|failed|inconclusive plus the
-#             TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and FINDINGS_PATH
-#             (a file holding the failing-test names + traceback heads, the warning
-#             lines, and any skipped-test names). The counts and the findings file
-#             are resolved to AGREE with the verdict: a run whose only failure
-#             signal is an AGGREGATE line (the per-module "Module <m>: <F>
+#             TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts, the
+#             JS_RUNS/JS_SCOPE/JS_FAILED_REPORTED/JS_FAILED_TESTS counts, and
+#             FINDINGS_PATH (a file naming the failing tests it could resolve -
+#             Python markers with traceback heads, JS failures per run - plus the
+#             warning lines and any skipped-test names). A --test-enable build runs
+#             TWO test frameworks that publish two unrelated vocabularies, so the
+#             Python figures are never the run's whole failure count and the JS
+#             figures are never the Python one: read both. The counts and the
+#             findings file are resolved to AGREE with the verdict: a run whose only
+#             failure signal is an AGGREGATE line (the per-module "Module <m>: <F>
 #             failures, <E> errors[ of <T> tests]" wording, or v14+'s per-database
 #             "<F> failed, <E> error(s) of <T> tests") reports THAT line's
 #             figures, and the findings file names the line rather than answering
 #             "no failing tests" for a failed build. TEST_FAILED/TEST_ERROR are
 #             EMPTY when the log published no figure at all (e.g. the numberless
 #             "At least one test failed when loading the modules.") - unmeasured,
-#             never 0, the same rule the scope fields below follow.
+#             never 0, the same rule the JS and scope fields below follow.
 #             TEST_RESULT=failed also covers an
 #             INSTALL failure inside the build (no test could run). inconclusive fires
 #             when TEST_SKIPPED>0 and no failure occurred, AND whenever the log carries
@@ -209,10 +214,23 @@
 #               have run; NEVER reported as a bare `passed`)
 # TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n> TEST_SKIPPED=<n>
 #               (parseable; `test` verb only; from the log). TEST_FAILED/TEST_ERROR
-#               come from the individual FAIL:/ERROR: markers, falling back to the
-#               run's own aggregate figures when it named no individual test, and
-#               are EMPTY when the log published no figure at all - unmeasured,
-#               never 0, so they can never read `0` beside a `failed` verdict)
+#               count PYTHON unittest cases only - the browser suite has its own
+#               vocabulary and its own fields below; neither set is a subset of the
+#               other, so neither figure may be read as the run's whole failure
+#               count. They are EMPTY when the log published no figure at all -
+#               unmeasured, never 0, so they can never read `0` beside a `failed`
+#               verdict)
+# JS counts:    JS_RUNS=<n> JS_SCOPE=scoped|unscoped
+#               JS_FAILED_REPORTED=<n> JS_FAILED_TESTS=<n>
+#               (parseable; `test` verb only; the Hoot/QUnit half). A RUN is one
+#               browser-suite logger scope, not the file - one log holds several.
+#               JS_FAILED_REPORTED sums each run's OWN published figure (QUnit
+#               publishes failed ASSERTIONS, Hoot failed TESTS - mixed units, as
+#               reported); JS_FAILED_TESTS counts distinct failing test NAMES.
+#               Neither derives from the other. JS_SCOPE=unscoped means the log
+#               published only an aggregate with no logger prefix, so
+#               JS_FAILED_TESTS is unavailable. All four EMPTY together when the
+#               log carries no JS marker - unmeasured, never 0)
 # TEST scope:   MODULES_LOADED=<n> TESTS_RUN=<n>  (parseable; `test` verb only;
 #               EMPTY when the log carries no marker for it - unmeasured, not zero)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
@@ -450,6 +468,7 @@ _resolve_log_ns() {
 #     failure. On a --test-enable run it is NOT: odoo/tests/result.py logError()
 #     logs "<FAIL|ERROR>: <test>" followed by
 #     traceback.TracebackException.format(), so every failing test writes one -
+#     every failing PYTHON test, that is; a Hoot/QUnit failure writes none -
 #     but so does any logged exception the run recovers from, ir_http's routing
 #     errors, sql_db, and every HttpCase 500 the test asserts on. MEASURED
 #     across every real run log on disk: the traceback count matches the
@@ -462,7 +481,9 @@ _resolve_log_ns() {
 #     column. EVERY test-verb path below therefore rules on
 #     _TEST_FAIL_RE|_BUILD_ABORT_RE and never on _INSTALL_FAIL_RE; a genuinely
 #     failing test is still caught because result.py logs its FAIL:/ERROR:
-#     marker BEFORE the traceback, so the marker set loses nothing.
+#     marker BEFORE the traceback, so the marker set loses nothing - the set
+#     being _TEST_FAIL_RE, which carries the Hoot/QUnit vocabulary too, not the
+#     Python pair alone.
 #   _INSTALL_SUCCESS_MARKER - the completion line kept on the log by
 #     --log-handler=<ns>.modules.loading:INFO, a floor that survives any
 #     caller-supplied level.
@@ -482,6 +503,89 @@ _INSTALL_SUCCESS_MARKER='Modules loaded.'
 # AFTER this default (Odoo's parser takes the last occurrence).
 # ---------------------------------------------------------------------------
 _DEFAULT_LOG_LEVEL='info'
+
+# ---------------------------------------------------------------------------
+# JS test-outcome marker SSOT - the SECOND per-test vocabulary. A --test-enable
+#   build runs Python unittest AND a browser JS suite, and the two publish
+#   COMPLETELY DIFFERENT wordings. The Python set below matches none of these:
+#   the numeric catch-all `[1-9][0-9]* (failed|error)` fails on
+#   `1876 / 34338 tests failed` (a word sits between the digit and `failed`) and
+#   on `ended (passed: 5530 / failed: 481)` (a colon does). Without this block a
+#   JS run's failures are represented by the ONE `FAIL:` line the Python wrapper
+#   method raises, whatever the true magnitude.
+#
+#   THE RUN BOUNDARY IS THE LOGGER SCOPE, NOT THE FILE. One log file holds
+#   SEVERAL JS runs: Odoo logs each browser suite under its own
+#   `<ns>.addons.<module>.tests.test_js.<Suite>[.<method>].browser` logger, and
+#   one `test` verb can drive several. Every figure below is therefore read PER
+#   SCOPE and summed; de-duplicating across the whole file merges runs that
+#   share test names and destroys real failures.
+#
+#   _JS_SCOPE_RE - the run boundary AND the echo filter. Odoo prints the failing
+#     `browser_js(...)` SOURCE LINE inside its traceback, so the log contains
+#     `success_signal="[HOOT] Test suite succeeded"` verbatim in runs that
+#     FAILED. That echo carries no logger prefix; a real marker always does,
+#     and the prefix it carries is what binds it to one run - every marker
+#     below is read per scope only.
+#     The suite/method segment is deliberately unconstrained: the wrapper method
+#     is renamed three times across the supported series (`test_01_js`/
+#     `test_02_js` at v11-v12, `test_js` at v13-v17, `test_unit_desktop`/
+#     `test_hoot`/`test_qunit_desktop` at v18-v19 - read from
+#     web/tests/test_js.py per series), so keying on it would gate the counter
+#     to one era.
+#   _JS_HOOT_TEST_FAIL_RE - ONE failing Hoot test. Unit: TESTS.
+#   _JS_HOOT_SUITE_END_RE / _JS_HOOT_SUITE_FAILED_RE - a Hoot suite's own
+#     trailer. A suite name with no `/` is a ROOT suite; roots are disjoint by
+#     construction (nesting is a tree), so summing the roots' failed values
+#     cannot double count while summing every `ended` line would. A fully green
+#     suite omits the `/ failed:` half entirely, which is why the two forms are
+#     separate: the shorter one still proves a JS run happened.
+#   _JS_QUNIT_TEST_FAIL_RE - ONE failing QUnit test line. Echoed within its own
+#     scope, and also re-printed with no scope at all, so it is used for NAMES
+#     (de-duplicated) and never as a count.
+#   _JS_QUNIT_AGG_RE - QUnit's own published aggregate. Unit: failed
+#     ASSERTIONS, not tests - 4 distinct failing tests report `8 / 422`
+#     (measured on the real corpus). It is the only figure a QUnit run publishes
+#     for itself and it is NOT derivable from the test names, which is why both
+#     quantities are emitted under separate names rather than reconciled.
+#   _JS_GREEN_RE - the positive markers. Scope-anchored like every other one: a
+#     green marker is a verdict for ITS OWN SCOPE ONLY. A log can carry a
+#     genuine `[HOOT] Test suite succeeded` for one run and hundreds of failures
+#     in another run of the SAME file.
+#   _JS_FAIL_RE - "some JS test failed". Joined into _TEST_FAIL_RE below so a
+#     JS-only failure can never be certified green if Odoo ever stops raising in
+#     the Python wrapper. The aggregate alternative requires a NON-ZERO count
+#     here; the count-parsing form allows zero.
+#   _JS_MARKER_RE - "this log contains a JS run at all", failing or green. The
+#     union is what makes EMPTY (unmeasured) distinguishable from a measured 0.
+#
+#   Marker WORDING is corpus-verified on 17.0 / 18.0 / 19.0 only (the run logs
+#   that exist). For 11.0-16.0 OSM grounds the FRAMEWORK (QUnit only, no Hoot
+#   suite indexed before 18.0) and the wrapper method names, but not the browser
+#   console wording - so those series are covered by the same QUnit patterns
+#   without a runtime witness. 8.0-10.0 index no JS suite at all; there the
+#   fields are legitimately EMPTY, never 0.
+#
+#   LEVEL SENSITIVITY: the failing halves (`[HOOT] Test ... failed:`,
+#   `QUnit test failed:`, the QUnit aggregate) are logged at ERROR, so they
+#   survive any level this script emits. The Hoot suite trailers and both green
+#   markers are INFO. A caller who forces a level above INFO through --extra
+#   therefore loses the root-suite sum (the count falls back to the per-test
+#   line count, which is <= it) and loses green-run detection - never a false
+#   green, but a possible undercount. The shared default is `info` and `warn` is
+#   refused outright, so the default path is unaffected.
+# ---------------------------------------------------------------------------
+_JS_SCOPE_RE='(openerp|odoo)\.addons\.[A-Za-z0-9_.]*tests\.test_js\.[A-Za-z0-9_.]+\.browser:'
+_JS_HOOT_TEST_FAIL_RE='\[HOOT\] Test "[^"]+" failed:'
+_JS_HOOT_SUITE_END_RE='\[HOOT\] "[^"]+" ended \(passed: [0-9]+'
+_JS_HOOT_SUITE_FAILED_RE="${_JS_HOOT_SUITE_END_RE} / failed: [0-9]+"
+_JS_QUNIT_TEST_FAIL_RE='QUnit test failed: '
+_JS_QUNIT_AGG_TAIL=' / [0-9]+ tests failed'
+_JS_QUNIT_AGG_RE="[0-9]+${_JS_QUNIT_AGG_TAIL}"
+# Positive markers: a verdict for its own scope only, never for the file.
+_JS_GREEN_RE='\[HOOT\] Test suite succeeded|QUnit test suite done'
+_JS_FAIL_RE="${_JS_HOOT_TEST_FAIL_RE}|${_JS_QUNIT_TEST_FAIL_RE}|[1-9][0-9]*${_JS_QUNIT_AGG_TAIL}"
+_JS_MARKER_RE="${_JS_FAIL_RE}|${_JS_HOOT_SUITE_END_RE}|${_JS_QUNIT_AGG_RE}|${_JS_GREEN_RE}"
 
 # ---------------------------------------------------------------------------
 # Test-outcome marker SSOT (read from Odoo source, all 12 series v8.0-v19.0).
@@ -509,10 +613,17 @@ _DEFAULT_LOG_LEVEL='info'
 #     database %r". The run-level figure, so it WINS over the per-module lines
 #     when a count is being read (a v14+ run logs both wordings; summing across
 #     them would double-count).
+#   _TEST_FAIL_PY_RE - the PYTHON half of "this finished run failed". Named
+#     separately because the findings file quotes it as the aggregate/abort
+#     evidence a run left when it named no individual Python test; quoting the
+#     JS half there would duplicate the per-run JS section.
 #   _TEST_FAIL_RE - the union: "this finished run failed". _parse_test_result's
 #     verdict input, and the gate _scan_build_markers puts in front of a
 #     completion marker so a summary reporting its own non-zero counts can never
-#     be certified as a successful build.
+#     be certified as a successful build. It unions the Python wordings above
+#     with _JS_FAIL_RE (SSOT block immediately above): the per-test vocabulary
+#     of a --test-enable build is TWO vocabularies, and neither is a subset of
+#     the other.
 #   _TEST_RAN_*_RE - the POSITIVE "tests actually RAN" marker, and the ONLY
 #     era-SPLIT one: v8.0-v13.0 emit `Ran <N> test(s) in <X>s` (stdlib runner
 #     trailer, INFO), v14.0-v19.0 emit the _TEST_SUMMARY_RE wording. Both
@@ -549,7 +660,8 @@ _TEST_FAIL_PER_TEST_RE="${_TEST_FAIL_PER_TEST_FAIL_RE}|${_TEST_FAIL_PER_TEST_ERR
 _TEST_FAIL_MODULE_RE='Module [A-Za-z0-9_.]+: [0-9]+ failures?, [0-9]+ errors?'
 _TEST_FAIL_BLANKET_RE='At least one test failed when loading the modules'
 _TEST_SUMMARY_RE='[0-9]+ failed, [0-9]+ error\(s\) of [0-9]+ tests'
-_TEST_FAIL_RE="${_TEST_FAIL_PER_TEST_RE}|${_TEST_FAIL_MODULE_RE}|${_TEST_FAIL_BLANKET_RE}|[1-9][0-9]* (failed|error)"
+_TEST_FAIL_PY_RE="${_TEST_FAIL_PER_TEST_RE}|${_TEST_FAIL_MODULE_RE}|${_TEST_FAIL_BLANKET_RE}|[1-9][0-9]* (failed|error)"
+_TEST_FAIL_RE="${_TEST_FAIL_PY_RE}|${_JS_FAIL_RE}"
 _TEST_RAN_LEGACY_RE='Ran [1-9][0-9]* tests? in '
 _TEST_RAN_MODERN_RE='[0-9]+ failed, [0-9]+ error\(s\) of [1-9][0-9]* tests'
 _TEST_SKIP_RE='(^|[[:space:]])(openerp|odoo)\.[a-z0-9_.]*\.tests?[.:][a-z0-9_.]*:[[:space:]]*skip|(^|[[:space:]])test_[a-z0-9_]+[[:space:]]+\([a-z0-9_.]*\.tests?\.[a-z0-9_.]+\)[[:space:]]+\.\.\.[[:space:]]+skip'
@@ -746,6 +858,153 @@ _aggregate_fail_counts() {
 }
 
 # ---------------------------------------------------------------------------
+# _js_fail_counts <logf> - the JS (Hoot/QUnit) half of the per-test vocabulary,
+#   read PER LOGGER SCOPE. Prints a TAB-separated report, or NOTHING when the
+#   log carries no JS marker at all (unmeasured - the caller emits EMPTY, never
+#   0, exactly as it does for the Python counts):
+#
+#     SUMMARY <mode> <runs> <reported> <tests>
+#     RUN     <scope> <framework> <reported> <tests>
+#     TEST    <scope> <failing test name>
+#
+#   TWO count fields, because the two frameworks count DIFFERENT UNITS and
+#   neither derives from the other:
+#     <reported> = each run's OWN published figure summed over runs. QUnit's
+#       aggregate counts failed ASSERTIONS; Hoot's root trailers count failed
+#       TESTS. Mixed units on purpose - it is what the runs themselves said.
+#     <tests>    = distinct failing TEST NAMES, always the same unit, and the
+#       key the findings file is written on. EMPTY in `unscoped` mode, where no
+#       per-test name is recoverable.
+#   Reporting only one of them would either discard the run's own figure or
+#   claim a test count the run never published; on the real corpus the two
+#   differ by up to 2.18x within a single scope.
+#
+#   Per scope:
+#     hoot  = max(per-test failure lines, sum of ROOT suite trailers). The two
+#             disagree by ~1 percent on real logs; the max is the safe floor and
+#             the root sum is what recovers failures that ended without their
+#             own per-test line.
+#     qunit = sum over the DISTINCT (failed,total) aggregate pairs. Odoo prints
+#             each aggregate twice inside its scope (once at ERROR, once at INFO
+#             prefixed "Error received after termination"), so the pair set - not
+#             the line count - is the figure.
+#
+#   UNSCOPED FALLBACK: when the log carries NO scope line at all but does carry
+#   a bare `<F> / <T> tests failed` aggregate, that figure is taken and the mode
+#   is reported as `unscoped` so the caller knows per-test names are
+#   unavailable. Two real 17.0 logs publish their only aggregate that way; the
+#   scope anchor alone silently loses both. This cannot pick up the traceback
+#   echo: the echo is a `success_signal="..."` source line, never an aggregate.
+#   When any scope line exists the unscoped bucket is IGNORED - it holds
+#   duplicate copies of the scoped figures.
+# ---------------------------------------------------------------------------
+_js_fail_counts() {
+    local logf="$1"
+    [[ -r "$logf" ]] || return 0
+    JS_MARKER_RE="$_JS_MARKER_RE" \
+    JS_SCOPE_RE="$_JS_SCOPE_RE" \
+    JS_HOOT_FAIL_RE="$_JS_HOOT_TEST_FAIL_RE" \
+    JS_HOOT_END_RE="$_JS_HOOT_SUITE_END_RE" \
+    JS_HOOT_ENDF_RE="$_JS_HOOT_SUITE_FAILED_RE" \
+    JS_QUNIT_FAIL_RE="$_JS_QUNIT_TEST_FAIL_RE" \
+    JS_QUNIT_AGG_RE="$_JS_QUNIT_AGG_RE" \
+    JS_GREEN_RE="$_JS_GREEN_RE" \
+    awk '
+        # Regexes arrive through the environment, never through -v: awk expands
+        # backslash escapes in a -v assignment, which would eat every \[ and \(
+        # in the marker SSOT and silently change what is matched.
+        function firstnum(s,   n) { if (match(s, /[0-9]+/)) return substr(s, RSTART, RLENGTH) + 0; return 0 }
+        function lastnum(s,   n) { n = 0; while (match(s, /[0-9]+/)) { n = substr(s, RSTART, RLENGTH) + 0; s = substr(s, RSTART + RLENGTH) } return n }
+        # The first double-quoted run inside a matched marker is the entity it
+        # names - the test for a failure line, the suite for a trailer.
+        function quoted(s,   a, rest, b) {
+            a = index(s, "\""); if (a == 0) return ""
+            rest = substr(s, a + 1); b = index(rest, "\""); if (b == 0) return ""
+            return substr(rest, 1, b - 1)
+        }
+        function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t:]+$/, "", s); return s }
+        function note_scope(sc) { if (!(sc in seen_scope)) { seen_scope[sc] = 1; order[++nscope] = sc } }
+        BEGIN {
+            MARK   = ENVIRON["JS_MARKER_RE"];   SCOPE  = ENVIRON["JS_SCOPE_RE"]
+            HFAIL  = ENVIRON["JS_HOOT_FAIL_RE"]; HEND  = ENVIRON["JS_HOOT_END_RE"]
+            HENDF  = ENVIRON["JS_HOOT_ENDF_RE"]; QFAIL = ENVIRON["JS_QUNIT_FAIL_RE"]
+            QAGG   = ENVIRON["JS_QUNIT_AGG_RE"]; GREEN = ENVIRON["JS_GREEN_RE"]
+            nscope = 0; FS = "\n"; OFS = "\t"
+        }
+        $0 !~ MARK { next }
+        {
+            sc = ""
+            if (match($0, SCOPE)) {
+                tok = substr($0, RSTART, RLENGTH)
+                sub(/^.*test_js\./, "", tok); sub(/\.browser:$/, "", tok)
+                sc = tok
+            }
+            if (sc == "") {
+                # Only the aggregate survives without a scope; a bare per-test
+                # line or green marker here is an echo or a duplicate.
+                if (match($0, QAGG)) { span = substr($0, RSTART, RLENGTH); unscoped[firstnum(span) "/" lastnum(span)] = firstnum(span) }
+                next
+            }
+            note_scope(sc)
+            # A green marker is a verdict for THIS scope only - never for the
+            # file. The same log can carry one here and hundreds of failures in
+            # the next scope.
+            if (match($0, GREEN)) green[sc] = 1
+            if (match($0, HFAIL)) {
+                span = substr($0, RSTART, RLENGTH); nm = quoted(span)
+                hoot_raw[sc]++
+                if (nm != "" && !((sc SUBSEP nm) in seen_test)) { seen_test[sc SUBSEP nm] = 1; tests[sc, ++ntest[sc]] = nm; hoot_named[sc] = 1 }
+            }
+            if (match($0, HEND)) {
+                span = substr($0, RSTART, RLENGTH); suite = quoted(span)
+                hoot_named[sc] = 1
+                if (suite != "" && index(suite, "/") == 0 && !((sc SUBSEP suite) in seen_root)) {
+                    seen_root[sc SUBSEP suite] = 1
+                    if (match($0, HENDF)) root_sum[sc] += lastnum(substr($0, RSTART, RLENGTH))
+                }
+            }
+            if (match($0, QFAIL)) {
+                nm = trim(substr($0, RSTART + RLENGTH))
+                qunit_named[sc] = 1
+                if (nm != "" && !((sc SUBSEP nm) in seen_test)) { seen_test[sc SUBSEP nm] = 1; tests[sc, ++ntest[sc]] = nm }
+            }
+            if (match($0, QAGG)) {
+                span = substr($0, RSTART, RLENGTH); key = firstnum(span) "/" lastnum(span)
+                qunit_named[sc] = 1
+                if (!((sc SUBSEP key) in seen_agg)) { seen_agg[sc SUBSEP key] = 1; qunit[sc] += firstnum(span) }
+            }
+        }
+        END {
+            if (nscope == 0) {
+                npair = 0; urep = 0
+                for (k in unscoped) { npair++; urep += unscoped[k] }
+                if (npair == 0) exit 0
+                print "SUMMARY", "unscoped", 1, urep, ""
+                print "RUN", "unscoped", "qunit", urep, ""
+                exit 0
+            }
+            total_rep = 0; total_tests = 0
+            for (i = 1; i <= nscope; i++) {
+                sc = order[i]
+                h = hoot_raw[sc] + 0; if (root_sum[sc] + 0 > h) h = root_sum[sc] + 0
+                rep[sc] = h + (qunit[sc] + 0)
+                total_rep += rep[sc]; total_tests += ntest[sc] + 0
+                fw = ""
+                if (hoot_named[sc]) fw = "hoot"
+                if (qunit_named[sc]) fw = (fw == "" ? "qunit" : fw "+qunit")
+                if (fw == "" && green[sc]) fw = "passed"
+                if (fw == "") fw = "none"
+                frame[sc] = fw
+            }
+            print "SUMMARY", "scoped", nscope, total_rep, total_tests
+            for (i = 1; i <= nscope; i++) { sc = order[i]; print "RUN", sc, frame[sc], rep[sc], ntest[sc] + 0 }
+            for (i = 1; i <= nscope; i++) { sc = order[i]; for (j = 1; j <= ntest[sc]; j++) print "TEST", sc, tests[sc, j] }
+        }
+    ' "$logf" 2>/dev/null || true
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # _install_confirmed - single-pass positive-install check for a completed
 #   (--stop-after-init) install/update job. Returns 0 (confirmed) iff the
 #   "Modules loaded." completion marker is present - kept on the log at any
@@ -867,10 +1126,12 @@ _parse_test_result() {
     local exit_code="$1"
 
     # --- Counts (always; independent of the pass/fail verdict) --------------
-    # Odoo logs each failing test as a "FAIL:" line and each errored test as an
-    # "ERROR:" line (the message body, distinct from the " ERROR " log level);
-    # warning log lines carry the " WARNING " level token. Those per-test
-    # markers are the most precise signal, so they are read first.
+    # The PYTHON unittest half (the Hoot/QUnit half is counted separately below,
+    # under its own fields, and neither figure is the other's): Odoo logs each
+    # failing test as a "FAIL:" line and each errored test as an "ERROR:" line
+    # (the message body, distinct from the " ERROR " log level); warning log
+    # lines carry the " WARNING " level token. Those per-test markers are the
+    # most precise signal this suite publishes, so they are read first.
     local n_fail n_error n_warn
     n_fail="$(grep -acE "$_TEST_FAIL_PER_TEST_FAIL_RE" "$logf" 2>/dev/null || true)"
     n_error="$(grep -acE "$_TEST_FAIL_PER_TEST_ERROR_RE" "$logf" 2>/dev/null || true)"
@@ -904,6 +1165,22 @@ _parse_test_result() {
             n_fail=""
             n_error=""
         fi
+    fi
+
+    # --- JS (Hoot/QUnit) counts, per run ------------------------------------
+    # The SECOND per-test vocabulary (SSOT: the _JS_* block above). Kept in its
+    # own fields rather than folded into TEST_FAILED: the Python counter counts
+    # unittest cases, JS_FAILED_REPORTED mixes QUnit assertions with Hoot tests,
+    # and summing three units into one figure is how the run's magnitude got
+    # lost in the first place. All four fields are EMPTY - never 0 - when the
+    # log carries no JS marker at all, which is the honest answer for a series
+    # that ships no JS suite and for a run whose modules have none.
+    local js_report="" js_mode="" js_runs="" js_reported="" js_tests=""
+    js_report="$(_js_fail_counts "$logf")"
+    if [[ -n "$js_report" ]]; then
+        local _js_summary
+        _js_summary="$(printf '%s\n' "$js_report" | awk -F'\t' '$1=="SUMMARY"{print $2"\t"$3"\t"$4"\t"$5; exit}')"
+        IFS=$'\t' read -r js_mode js_runs js_reported js_tests <<<"$_js_summary"
     fi
 
     # --- Skip detection -----------------------------------------------------
@@ -1003,8 +1280,11 @@ _parse_test_result() {
     [[ -n "${arg_modules:-}" ]] && mod_regex="${arg_modules//,/|}"
     # The aggregate/abort line(s) that state a failure the log never attributed
     # to an individual test - the ONLY evidence a run like that leaves behind.
+    # The PYTHON half only: the JS failures have their own per-run section
+    # below, and repeating a thousand browser lines here would bury the one
+    # aggregate line this block exists to surface.
     local agg_evidence=""
-    agg_evidence="$(grep -aE "$_TEST_FAIL_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null \
+    agg_evidence="$(grep -aE "$_TEST_FAIL_PY_RE|$_BUILD_ABORT_RE" "$logf" 2>/dev/null \
                         | head -n "$warn_cap" || true)"
 
     {
@@ -1021,6 +1301,22 @@ _parse_test_result() {
             echo '```'
             grep -aE -A "$tb_head" "$_TEST_FAIL_PER_TEST_RE" "$logf" 2>/dev/null || true
             echo '```'
+        elif [[ -n "$js_reported" && "$js_reported" != "0" ]]; then
+            # Checked BEFORE the generic failed-run branch, because that branch's
+            # sentence ("named no individual test") is FALSE here: the browser
+            # suite named every one of them, under the other vocabulary. This is
+            # also the branch that stops "no failing tests" being printed for a
+            # run whose failures are all JS.
+            echo "No Python per-test marker was logged. The individual failures this run"
+            echo "recorded are JS (Hoot/QUnit) - named per run in the section below."
+            if [[ -n "$agg_evidence" ]]; then
+                echo
+                echo "The Python-side line(s) that also state a failure:"
+                echo
+                echo '```'
+                printf '%s\n' "$agg_evidence"
+                echo '```'
+            fi
         elif [[ "$verdict" == "failed" ]]; then
             # A failed run that named no individual test. Its failure is stated
             # by its own aggregate/abort line, or by odoo-bin's exit code alone;
@@ -1039,6 +1335,43 @@ _parse_test_result() {
             fi
         else
             echo "_No failing or errored tests detected in the log._"
+        fi
+        echo
+        echo "## JS test failures (Hoot/QUnit), per run"
+        echo
+        echo "One block per JS run. A run is one browser-suite logger scope, NOT the file:"
+        echo "a single log holds several, and merging them across the file loses failures"
+        echo "that share a test name."
+        echo
+        if [[ -z "$js_report" ]]; then
+            echo "_This log carries no JS test marker at all - no JS run was measured (not zero)._"
+        elif [[ "$js_mode" == "unscoped" ]]; then
+            echo "The only JS figure this log published is an aggregate with no logger scope,"
+            echo "so the individual failing test names are NOT recoverable from it."
+            echo
+            echo "- reported failures (QUnit assertions): $js_reported"
+        else
+            printf '%s\n' "$js_report" | awk -F'\t' '$1=="RUN"{printf "- run `%s` (%s): reported=%s distinct failing tests=%s\n", $2, $3, $4, $5}'
+            echo
+            if [[ "$js_reported" != "$js_tests" ]]; then
+                echo "Note: reported ($js_reported) and distinct failing tests ($js_tests) count DIFFERENT"
+                echo "units - QUnit publishes failed ASSERTIONS, Hoot publishes failed TESTS. Neither"
+                echo "is derivable from the other, so both are reported."
+                echo
+            fi
+            local _js_scope _js_prev=""
+            while IFS=$'\t' read -r _ _js_scope _js_name; do
+                [[ -n "$_js_scope" ]] || continue
+                if [[ "$_js_scope" != "$_js_prev" ]]; then
+                    [[ -n "$_js_prev" ]] && { echo '```'; echo; }
+                    echo "### $_js_scope"
+                    echo
+                    echo '```'
+                    _js_prev="$_js_scope"
+                fi
+                printf '%s\n' "$_js_name"
+            done < <(printf '%s\n' "$js_report" | awk -F'\t' '$1=="TEST"')
+            [[ -n "$_js_prev" ]] && echo '```'
         fi
         echo
         echo "## Skipped tests (capped at $warn_cap) - NOT a failure, but NOT proof the suite ran clean either"
@@ -1080,6 +1413,15 @@ _parse_test_result() {
     # fabricated fact rather than an absent one.
     echo "MODULES_LOADED=$(_modules_loaded_count "$logf")"
     echo "TESTS_RUN=$(_tests_run_count "$logf" "${arg_version:-}")"
+    # JS (Hoot/QUnit) scope + counts. JS_RUNS is the number of browser-suite
+    # logger scopes this log carries, failing or green - the file is NOT the run.
+    # JS_SCOPE=unscoped means the log published an aggregate with no logger
+    # prefix, so JS_FAILED_TESTS is unavailable rather than zero. All four are
+    # EMPTY together when no JS marker exists at all.
+    echo "JS_RUNS=$js_runs"
+    echo "JS_SCOPE=$js_mode"
+    echo "JS_FAILED_REPORTED=$js_reported"
+    echo "JS_FAILED_TESTS=$js_tests"
 
     # The verdict is resolved above, alongside the findings file it has to agree
     # with. Emitted LAST so it stays the final line of the summary block that
