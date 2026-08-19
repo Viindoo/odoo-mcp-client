@@ -11,6 +11,9 @@ Business rules protected:
     python whose `<py> <odoo-bin> --version` fails must produce a LOUD
     actionable error and exit non-zero WITHOUT spawning an Odoo process and
     WITHOUT entering the poll-until-HTTP-200 loop.
+  - step 50: the generated conf requests unaccent, so a database this launch
+    CREATES is born with the extension. Odoo's creation path never runs again
+    for that database, so a miss here is permanent and silent.
 
 All tests use stub binaries on a synthetic PATH - no network, no real postgres,
 no real Python venv, no real Odoo install required. Offline and deterministic.
@@ -2936,4 +2939,34 @@ def test_record_env_does_not_contradict_the_allocator_on_the_same_fixture(tmp_pa
         "the setup step and the allocator must produce the SAME verdict token; step "
         f"said {_auth(step.stdout)!r}, the allocator said {_auth(direct.stdout)!r}\n"
         f"step stdout={step.stdout!r}\nstep stderr={step.stderr!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# unaccent: the listening conf must REQUEST it, because this launch is the
+# database CREATOR whenever it is the first thing to name a declared-but-not-
+# yet-built DB (cli/server.py runs Odoo's _create_empty_database for every -d
+# that does not exist yet). A database created without unaccent can never be
+# repaired by a later launch - nothing re-runs the creation path - and Odoo then
+# silently drops accent-insensitive search and the trigram indexes it would have
+# built over unaccent().
+#
+# The key has NO runtime effect by design: from v8 to v19 Odoo decides whether
+# to USE unaccent by probing the database (modules/db.py has_unaccent), never by
+# reading this key. That is precisely why it must be present at CREATION time or
+# not at all - which is what makes this a conf-CONTENT contract rather than a
+# runtime one.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_conf_requests_unaccent_for_a_database_it_may_create(tmp_path):
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    conf = _generated_conf_text(out)
+    assert re.search(r"^unaccent = True$", conf, re.MULTILINE), (
+        "the spin-up conf must carry `unaccent = True`: this launch CREATES the database "
+        "whenever it is the first to name a missing one, and creation is the only moment "
+        f"unaccent can still be installed.\nconf:\n{conf}"
     )

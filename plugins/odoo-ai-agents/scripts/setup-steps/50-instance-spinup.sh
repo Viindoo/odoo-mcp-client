@@ -1169,6 +1169,18 @@ cmd_apply() {
                 if [[ -n "${INST_DB_PORT:-}" ]]; then
                     echo "db_port = ${INST_DB_PORT}"
                 fi
+                # unaccent is a database-CREATION option, not a runtime one:
+                # cli/server.py runs Odoo's _create_empty_database for every
+                # launch naming a -d database that does not exist yet, so this
+                # listener is the creator whenever it is the first thing to
+                # touch a declared-but-not-yet-built DB. Written here so that
+                # path yields the SAME database as 55-instance-ops.sh's build
+                # path - a DB created without unaccent can never be repaired by
+                # a later launch, because nothing re-runs the creation path.
+                # No runtime effect by design: from v8 to v19 Odoo decides
+                # whether to USE unaccent by probing the database
+                # (modules/db.py has_unaccent), never by reading this key.
+                echo "unaccent = True"
                 # NO db_password line, deliberately: `-c "$conf"` keeps this file
                 # alive for the server's whole lifetime, so a credential written
                 # here outlives every successful spin-up with no owner and no
