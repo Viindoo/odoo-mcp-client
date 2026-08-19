@@ -63,15 +63,19 @@ The architect writes ONLY the design doc under the machine-global `$ODOO_AI_HOME
 files, so nothing irreversible happens before that gate.
 
 Ask only genuine open questions, in ONE short message. There is exactly ONE such question, and
-only when the multi-module heuristic below fires - it decides something no upstream gate decided:
+only when the multi-module trigger below fires - it settles something no upstream gate settled:
 whether this scope is designed as one document or split per module.
 
-**Multi-module scope heuristic.** Check for these qualitative signals - a cluster of them means
-the split is worth offering:
-- Multiple independent modules each needing a new model or new inheritance axis.
-- Independent business domains where sub-designs are mostly orthogonal.
-- Several Custom-XL / Extension-L items (from `odoo-brl` / `odoo-gap-analysis`) referencing
-  different module entry points and sharing a non-trivial cross-module contract.
+**Multi-module scope trigger.** Do NOT assess module architecture yourself - whether modules need
+new models, new inheritance axes, or share a cross-module contract is `odoo-solution-architect`'s
+read, not this skill's. READ the trigger off the enumeration artifact instead; it fires only when
+BOTH declared facts hold:
+- The enumeration below resolves MORE THAN ONE module in scope.
+- The upstream classification (`odoo-brl` / `odoo-gap-analysis`) already carries a Custom-XL or
+  Extension-L item in at least two of those modules.
+
+Both are values already written in an artifact you have. When the artifact does not carry one, ASK
+for that fact in the same short message - never infer it from module names or from the request text.
 
 Module enumeration priority (first available): deep-survey `synthesis.md` → brl `dag.json`
 → modules-upgrade `graph.md` → fallback: scan each module descriptor (`__manifest__.py`, or
@@ -92,6 +96,13 @@ Default is `approve-single`.
 **`approve-single`:** MUST set `MODE: single` in the architect dispatch brief (P1
 template). Without this explicit field, the architect's decompose-bounce heuristic may re-evaluate
 scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
+
+**The architect owns the single-vs-master call when the trigger does NOT fire.** The P1 template
+carries no `MODE:` line, so a design dispatched without the scope question still passes through the
+decompose bounce (`agents/odoo-solution-architect.md` § Dispatch modes), which returns `NEEDS_NEXT`
+recommending master-child when the scope genuinely needs splitting. A trigger that stayed silent is
+therefore recoverable at the specialist - which is why this skill never has to pre-judge the
+architecture to protect against it.
 
 ---
 
@@ -130,11 +141,15 @@ before this clears. The approved master §10 is the hard constraint for all chil
   `UPSTREAM_CHILD_DESIGNS: [<abs path to each already-authored lower-layer child TDD it
   depends_on>]` ALONGSIDE `MASTER_DESIGN_DOC`. Child cites master §10 for every cross-module
   symbol it references.
-- Same-layer children cannot reach each other. After the whole layer returns, read
-  `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`, decide each contested symbol against
-  master §10, write the decision into the master TDD, and re-dispatch ONLY the children whose
-  proposal lost, with the decision in their brief. ONE reconciliation round per layer; unresolved
-  after it -> the layer is BLOCKED for a human. Full contract:
+- Same-layer children cannot reach each other, so reconciliation is DISPATCHED here, never decided
+  here. After the whole layer returns, read `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`
+  and dispatch `odoo-solution-architect` `MODE: reconcile` with that file, the master TDD, and the
+  contested sections of the two child TDDs in dispute. That pass is the actor that decides each
+  contested symbol against master §10 and returns one verdict row per symbol (winner, loser,
+  evidence, or `UNRESOLVED`). YOU do not pick the winner and do not weigh the proposals: write the
+  returned verdicts into the master TDD verbatim, and re-dispatch ONLY the children whose proposal
+  lost, with the verdict in their brief. ONE reconciliation round per layer; any `UNRESOLVED`
+  verdict, or a round that leaves a symbol open -> the layer is BLOCKED for a human. Full contract:
   `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation.
 - After each child subagent returns, YOU (the orchestrating main agent) write `status: designed`
   for that module to `index.yaml` (checkpoint for resume on interruption) - confirm every module
@@ -145,14 +160,16 @@ before this clears. The approved master §10 is the hard constraint for all chil
 §9 Acceptance Criteria - confirming each child carries its own MANDATORY module-level AC block with
 the INDEPENDENCE GUARD honored (expected values requirement-derived, never code/OSM-derived) -
 cross-module fields/models/deps - NOT full body) + master §10. CONSUMES the child TDDs plus
-`contested-symbols.md` and your decisions on it (`master-child-design-contract.md` § Contested-symbol
-reconciliation) and is the SOLE §10/`index.yaml` applier -
+`contested-symbols.md` and the `MODE: reconcile` verdicts on it (`master-child-design-contract.md`
+§ Contested-symbol reconciliation) and is the SOLE §10/`index.yaml` applier -
 children never write §10 themselves. Reconciles any remaining seams, emits `conflict-list.md`
 (split LEAD-RESOLVED vs ESCALATED) at the artifact root.
 
 **e. Batch gate (human, single gate for all children).** Present conflict-list split into ESCALATED
 seams (the human decides these - the only seams needing a decision; MANDATORY - state explicitly if
-none) and LEAD-RESOLVED seams (informational, state the count only) + per-child TDD summaries
+none) and LEAD-RESOLVED seams (already settled by a `MODE: reconcile` verdict the lead applied -
+list EVERY one as its own line: symbol, winning contract, whose proposal lost, and the evidence; a
+bare count hides a wrong verdict behind a number) + per-child TDD summaries
 (approach, top risk, data-model delta). Gate: `approve-all` (default) / `review-children` (opt-in -
 dispatch `odoo-solution-architect MODE: review` over the domain-close child clusters that sit on the
 same dependency chain, then re-present this gate with FINDINGS) / `refine:<module>: [feedback]` /

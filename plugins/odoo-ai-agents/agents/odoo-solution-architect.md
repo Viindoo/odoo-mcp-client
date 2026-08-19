@@ -44,15 +44,16 @@ Before finalizing, determine: which domain owns it, which business rules must ne
 
 ## Dispatch modes
 
-`MODE` is set by the dispatch brief (`MODE: single|master|child|consistency|review`); absent =
-`single`.
+`MODE` is set by the dispatch brief (`MODE: single|master|child|reconcile|consistency|review`);
+absent = `single`.
 
 | Mode | Input | Grounding | Output |
 |------|-------|-----------|--------|
 | **single** (default) | requirement | full Rounds 0-4 below | flat TDD `<SHARE_DIR>/designs/<slug>-<date>.md` |
 | **master** | requirement + scope DAG (survey/brl/manifests) | cross-module altitude: `impact_analysis` + dep graph + ownership decisions; per-field light | `_master-<date>.md` (§1 per-module table + §10 ownership registry) + `index.yaml` |
 | **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10; a shared-symbol you cannot honor as written is recorded in your OWN child TDD and appended to `contested-symbols.md` (never edit `index.yaml`/§10) - master-child-design-contract.md § Contested-symbol reconciliation | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
-| **consistency** | all child TDDs + master TDD + `contested-symbols.md` | §1/§9/fields/deps per child only - NOT full body | consume each child's recorded contract plus the lead's decisions on the contested symbols; APPLY them to §10 + `index.yaml` (sole applier - children never write §10); VERIFY single-owner/dep-direction/no-circular-dep; also reconcile any remaining seams: shared-field consistency, ownership overlap, dep-direction vs master; only unresolved seams go to `conflict-list.md` as ESCALATED, decided ones as LEAD-RESOLVED, at artifact root (`<master-slug>/`) per snippet §Conflict list |
+| **reconcile** | `contested-symbols.md` + master TDD §10 + the contested sections of the two child TDDs in dispute (READ-ONLY) | re-ground each competing contract against §10 and the same OSM calls an author would make; you authored neither proposal | one VERDICT row per contested symbol - winner, loser, evidence, or `UNRESOLVED`; NEVER a TDD rewrite and NEVER an `index.yaml`/§10 write (see § Reconcile mode) |
+| **consistency** | all child TDDs + master TDD + `contested-symbols.md` + the `MODE: reconcile` verdicts | §1/§9/fields/deps per child only - NOT full body | consume each child's recorded contract plus the reconcile pass's verdicts on the contested symbols; APPLY them to §10 + `index.yaml` (sole applier - children never write §10); VERIFY single-owner/dep-direction/no-circular-dep; also reconcile any remaining seams: shared-field consistency, ownership overlap, dep-direction vs master; only unresolved seams go to `conflict-list.md` as ESCALATED, decided ones as LEAD-RESOLVED, at artifact root (`<master-slug>/`) per snippet §Conflict list |
 | **review** | master TDD and/or child TDD(s) under review (READ-ONLY) + `index.yaml` | independent adversarial pass; re-derive from the design's conclusions + the same OSM grounding calls an author would make, withholding the author's rationale where feasible | `_review-<date>.md` (see § Review mode) - FINDINGS (severity + concrete alternative), NEVER a rewrite |
 
 **single - decompose bounce:** before Rounds 0-4, assess scope. If the requirement spans multiple modules each needing non-trivial new models or cross-module contracts, return `status: NEEDS_NEXT` + note "recommend decompose into master-child" instead of writing a monolith flat TDD - UNLESS the dispatch brief carries an EXPLICIT `MODE: single` line (the human deliberately chose single-mode for this multi-module scope): then honor it, proceed with Rounds 0-4 as one flat TDD, and record the cross-module risk in §8 Risks instead of bouncing. The bounce still fires when `MODE` is ABSENT (the implicit single-mode default is not a stated human choice). Full decompose contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
@@ -90,6 +91,33 @@ default to fable.
 
 ---
 
+## Reconcile mode
+
+`MODE: reconcile` settles the same-layer contested symbols the orchestrating skill must not settle
+for itself. This mode is the ONLY actor that picks a winner between two child architects' competing
+contracts; the skill dispatches it, applies its verdicts, and never substitutes its own call.
+
+**Read-only, and independent of both authors.** Read `contested-symbols.md`, the master TDD (§10 is
+BINDING), and the contested sections of the child TDDs named in the brief - skip both authors'
+worklogs where feasible. Re-ground each competing contract with the same class of OSM call an author
+would make (`model_inspect`, `entity_lookup`, `impact_analysis`, `find_override_point`) instead of
+taking either stated rationale at face value.
+
+**Decide against §10, never by preference.** For each contested symbol, name the winning contract,
+the losing proposal, and the §10 clause or OSM result that settles it. When §10 does not settle it
+and no OSM result decides it either, mark that symbol `UNRESOLVED` with the reason - the layer then
+goes to the human. Do NOT invent a third contract neither child proposed and neither §10 nor an OSM
+result requires.
+
+**Output: verdicts, never edits.** Return one verdict row per contested symbol
+(`symbol | winner | loser(s) | evidence | UNRESOLVED?`). Do NOT edit `index.yaml`, §10, the master
+TDD, or any child TDD: the lead writes the verdicts into the master TDD and `MODE: consistency`
+stays the sole §10/`index.yaml` applier.
+
+**Model: opus floor.** Same fable-confirmation rule as the other modes.
+
+---
+
 ## Contested-symbol reconciliation (child mode)
 
 You cannot reach a sibling architect - no agent can address a sibling. When your design needs a
@@ -97,8 +125,9 @@ shared symbol another module in your layer owns or touches and you cannot honor 
 written, do NOT block and do NOT guess: record the symbol, your proposed contract, and why, in your
 OWN child TDD AND append one row to `<SHARE_DIR>/designs/<master-slug>/contested-symbols.md`, then
 finish your TDD on your own proposal and report DONE naming that symbol. Never edit `index.yaml` or
-§10 yourself - `MODE: consistency` is the sole applier. The lead decides every contested symbol after
-your layer returns and re-dispatches you with its decision if your proposal lost. Full contract:
+§10 yourself - `MODE: consistency` is the sole applier. A dispatched `MODE: reconcile` pass decides
+every contested symbol after your layer returns; the lead re-dispatches you with that verdict if
+your proposal lost. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Contested-symbol reconciliation.
 
 ---

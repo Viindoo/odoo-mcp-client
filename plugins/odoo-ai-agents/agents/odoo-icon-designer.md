@@ -226,26 +226,32 @@ Cross-platform (Python):
 
 ---
 
-## Step 5 - Version-gated emit
+## Step 5 - Emit the assets, then decide the manifest `icon` key
 
-Apply the following rules based on `odoo_version`:
+**Always emit** `icon.png` (256x256) at `<MODULE_PATH>/static/description/icon.png` and keep
+`icon.svg` beside it in `static/description/` as the editable source. That conventional PNG path is
+what Odoo's auto-discovery resolves when the descriptor declares no `icon`, so a module shipping it
+needs no manifest key at all.
 
-**v8-v18 (PNG-only gate):**
-- Emit `icon.png` at `<MODULE_PATH>/static/description/icon.png`. DONE.
-- Keep `icon.svg` as a working file in `static/description/` (useful for future edits) but
-  do NOT instruct adding an `icon` key to `__manifest__.py` - the auto-discovery function
-  `get_module_icon_path()` is PNG-hardcoded in all versions v8-v18 and silently ignores the
-  manifest `icon` key.
-- Do NOT suggest `'icon': '...'` in the manifest for v8-v18.
+**The manifest `icon` key is READ by Odoo - it is NOT ignored, and you never refuse it on a version
+gate.** Odoo resolves a module's icon from the module's OWN `icon` value FIRST and only
+auto-discovers the conventional PNG when that value is empty. The row that OWNS this fact - which
+series it is verified on, which series the index cannot confirm, and the resolution call to run - is
+`docs/odoo-ui-knowledge.md` § Documentation screenshots > Layout, row "Manifest `icon` key". Read
+that row; never restate a version boundary in this file.
 
-**v19 (SVG-native gate):**
-- Emit both `icon.png` (256x256) and `icon.svg` at `static/description/`.
-- Merge `'icon': '<module_name>/static/description/icon.svg'` into `__manifest__.py`:
-  - READ `__manifest__.py` first (read-before-write invariant).
-  - If an `icon` key already exists: update its value in-place (targeted Edit).
-  - If absent: add it after the `name` or `summary` key (before `license`) using a targeted
-    Edit. Do NOT rewrite the entire file.
-- This allows Odoo v19 to serve the SVG directly at higher resolution.
+Set the key when EITHER trigger holds, and only then:
+- The brief asks for the SVG to be the served icon.
+- The icon asset is anywhere other than the conventional `static/description/icon.png` path.
+
+Before writing it, run the resolution call that boundary row names for the resolved series.
+- **Confirmed the series reads the key** -> merge `'icon': '<module_name>/static/description/icon.svg'`
+  into `<descriptor>`: READ `<descriptor>` first (read-before-write invariant); an existing `icon`
+  key is updated in place with a targeted Edit; an absent one is added after the `name` or `summary`
+  key (before `license`) with a targeted Edit. Do NOT rewrite the entire file.
+- **Not confirmed** (the index carries no compute body for that series) -> ship the conventional PNG
+  only, leave `<descriptor>` untouched, and name the unconfirmed call in your report. Never write a
+  key you could not verify, and never claim the key is ignored.
 
 **Git mutations:** You do NOT run git and do NOT invoke git-ops (leaf worker - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Make the `__manifest__.py` `icon` edit as an
@@ -263,8 +269,10 @@ them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) 
   real one declared.
 - **Brand-agnostic:** do NOT hardcode any vendor brand palette in the SVG or in this agent file.
   Resolve palette from brief -> `brand-tokens.json` -> category hue -> Odoo default.
-- **Version-gate:** never write an `icon` manifest key for v8-v18; never omit it for v19 when
-  the manifest exists.
+- **Manifest `icon` key:** never refuse it on a version gate and never call it ignored - Odoo reads
+  it (owner row: `docs/odoo-ui-knowledge.md` § Documentation screenshots > Layout). Write it only
+  when a Step 5 trigger fires AND the resolution call confirms the series reads it; otherwise ship
+  the conventional PNG and leave `<descriptor>` untouched.
 - **No `<i class>` in SVG:** glyph must be composed as a `<path>` element with FA vector path
   data, not as an HTML glyph element.
 - **Git -> return files; the `odoo-icon-design` skill commits via `git-toolkit:git-ops`** (you
@@ -277,14 +285,15 @@ them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) 
 Report the following at the end of your run:
 - Produced paths: `icon.svg`, `icon.png` (absolute paths)
 - PNG size confirmed: `256x256` (or status if rasterizer was absent)
-- Version-gate decision: `PNG-only (v8-v18)` or `PNG+SVG+manifest-key (v19)`
+- Icon-key decision: `conventional-PNG (no manifest key)` or `PNG+SVG+manifest-key`, naming the
+  resolution call run and its result
 - Rasterizer used (or NEEDS_CONTEXT if none found)
-- Any manifest edits made (v19 only)
+- Any `<descriptor>` edits made
 
 ## Continuation Contract
 
 Before finishing, append significant decisions (version resolved, palette source, glyph chosen,
-rasterizer used, version-gate applied, manifest edit made or skipped) to the run worklog
+rasterizer used, icon-key decision, manifest edit made or skipped) to the run worklog
 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 When you finish, append a Continuation Contract block per
@@ -306,8 +315,8 @@ Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; `MODULE_PATH` -
 the absolute module path; `BRIEF` palette hex values (`BG`/`FG`) when a brand differs from the
-category-hue default; `odoo_version` - drives the era-correct visual style and the PNG-only
-(v8-v18) vs PNG+SVG+manifest-key (v19) gate). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per
+category-hue default; `odoo_version` - drives the era-correct visual style and the manifest `icon`
+key resolution in Step 5). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.

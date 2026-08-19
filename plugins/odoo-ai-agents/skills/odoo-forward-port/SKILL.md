@@ -431,16 +431,19 @@ skill (via the Skill tool). Continuous: no-ff no-commit merge of `<src-SHA>`. On
 (shared git index). Do NOT commit yet - the working tree is now the absorption zone
 (P6 -> P8 -> P9 all happen before the commit). SSOT: `[[fp-merge-absorption]]`.
 
-**P6 - Symbol-survival check [MUST].** Before any adapt, OSM-ground every source-side symbol
-in conflicted AND merge-clean-but-source-touched files against the target surface. Any symbol
-absent/changed at target FORCES the commit into bucket b/c/d and BANS leaving the auto-merged
-line unchanged. This catches the autosilent field-break (no conflict marker, runtime crash).
+**P6 - Symbol-survival check [MUST].** Before any adapt, every source-side symbol in conflicted
+AND merge-clean-but-source-touched files is OSM-grounded against the target surface - by a
+DISPATCHED read-only delegate, never in this context; you record the verdict and the finding lines
+only (WHO runs it: `[[fp-symbol-survival-check]]` § Who runs this check). Any symbol absent/changed
+at target FORCES the commit into bucket b/c/d and BANS leaving the auto-merged line unchanged. This
+catches the autosilent field-break (no conflict marker, runtime crash).
 SSOT: `[[fp-symbol-survival-check]]`.
 
 **P6 TEST-survival sub-check [MUST - after the production symbol check].**
 Also ground test coverage to detect test code referencing a field/model symbol removed at target
-(git auto-merge leaves no conflict marker, so the break is autosilent at test time). For each
-model/field touched, call `tests_covering(model='<model>', odoo_version='<target_version>')`
+(git auto-merge leaves no conflict marker, so the break is autosilent at test time). Same delegation
+rule as P6 above - the calls below belong to the dispatched delegate's brief, not to this context.
+For each model/field touched it calls `tests_covering(model='<model>', odoo_version='<target_version>')`
 (optional `field='<field>'` narrows). For a whole-module commit, supplement with
 `test_coverage_audit(module='<module>', odoo_version='<target_version>')` (field-level only; for
 per-method coverage use `tests_covering(model='<model>', method='<method>', odoo_version='<version>')`,
@@ -457,9 +460,12 @@ grep / import / AST breaks via two lanes: classes (d)(e)(g) run over ALL merged-
 (production AND `tests/`) - (d)(e) catch runtime NameError and (g) catches an autosilent
 ORM Invalid-field key before P9; the remaining classes (a)(b)(c)(f) and the collection
 ACCEPTANCE GATE apply over `tests/` only.
-Enumerate every symbol, file path, import, and test-base-class the merged code touches (Lane 1
-production AND tests; Lane 2 tests only); triage each finding into a bucket (b adapt /
-c re-implement / d drop) - never leave an auto-merged line referencing a dead symbol.
+DISPATCH the two lanes as read-only delegates and record only their verdict - the enumeration,
+the `pyflakes`/`py_compile` runs and the collection gate never run in this context
+(`[[fp-symbol-survival-check]]` § Who runs this check). The delegate enumerates every symbol, file
+path, import, and test-base-class the merged code touches (Lane 1 production AND tests; Lane 2 tests
+only); you triage each returned finding into a bucket (b adapt / c re-implement / d drop) - never
+leave an auto-merged line referencing a dead symbol.
 **ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
 (`python -m pytest --collect-only` or `odoo-bin ... --test-enable` collection) before any
 red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from
@@ -476,6 +482,9 @@ view shape is identical to the canonical bucket-(c) defect) - confirm it is not 
 same-module inherit stack on its own base view - a re-implementation (or a clean-merged carryover)
 that carries the SOURCE module-split idiom forward instead of the target's. Buckets (a)/(d) land no
 new adapt content (Hard rule 7) and stay out of scope - only (b) and (c) can produce this shape.
+A HIT is a PROPOSAL, not a decision: it routes out through the P3 design gate above to
+`odoo-solution-design`, and is applied only if the returned `design_doc` adopts it - never merged
+or deleted on the predicate alone.
 Predicate, the two non-defect exceptions (different-module base;
 a conditional child via `mode="primary"` / `active=False` / `groups`), and the merge-unsafe
 escape: `references/fp-triage-table.md` § Bucket-(c) same-module inherit-view check.
@@ -519,12 +528,13 @@ changes across a resume (§ Git topology above). The worker keeps
 its full prior context (earlier commits' intent records, bucket history) - far
 cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
 its own whole picture across commits, not just within one commit's retry loop.
-A resume is only reachable from the ROOT conversation, which is the only context anything ever wakes
-(CHP § Tier A condition 3): at the root, structure the exchange as async park-and-be-resumed - send
-the P9 failure output (or the next commit's brief), end your turn, and consume the worker's result
-when it completes. Running anywhere BELOW the root, take the Tier-C retry path below instead and
-BLOCK on that fresh launch (R0 move 2, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`) -
-a send-and-stop there never wakes, and the whole run stops with the worker's answer undelivered. On
+A resume is reachable at ANY depth, and it is reachable on exactly one condition: you STOP after
+sending (CHP § Async park-and-be-resumed semantics). Structure the exchange as async
+park-and-be-resumed - send the P9 failure output (or the next commit's brief), END YOUR TURN, and
+consume the worker's result when you are woken with it. Emitting anything after the send, or carrying
+on with the next commit in the same turn, is what strands it: there is then no point at which the
+worker's answer can be handed back, and the run continues without it. If the worker's id no longer
+resolves, cold-spawn a replacement (CHP Tier C) rather than pressing on. On
 resume the worker MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
 a git worktree - cd on resume").
@@ -539,9 +549,7 @@ on the module's FIRST commit in this run, invoke the `odoo-coding` skill (via th
 without the field; it runs INLINE in your context, so the coordinator id that launch returns is
 yours to keep - record it for that module in `plan.md`; on every LATER commit touching this module, carry that recorded value as
 `WORKER_AGENT_ID: <id>` in the FP-ENRICHED brief. One registry, one field label, one shape for both
-legs - two differently-shaped fields for the same purpose is the exact class of drift this repo's
-PR history has already paid for once (two similarly-named addons-path variables with different
-separators, undetected for three fix attempts) - do not reintroduce it here.
+legs - never a second, differently-shaped field for the same purpose.
 
 **R2b is CLOSED at the 8b leg: `odoo-coding`'s brief-consumption contract (`skills/odoo-coding/SKILL.md`
 § Dispatch loop step 0/3) recognizes `WORKER_AGENT_ID` and resumes that id instead of cold-spawning

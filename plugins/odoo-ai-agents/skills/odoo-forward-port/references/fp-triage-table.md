@@ -256,14 +256,23 @@ both):**
   multi-sibling `priority`); merging one of these would change behavior, so it must survive
   stacked.
 
-**On a HIT (all six hold) - action: MERGE, unless unsafe (below).** Fold V's xpath-inserted content
-into B's arch directly (the same result the two records produce today, expressed in one view),
-then DELETE V's record. Never the reverse - never delete B (the PRIMARY/base view): actions,
-menus, and other modules' xpaths address it by its OWN `xml_id`, and it must stay addressable
-under that id whether or not V survives.
+**On a HIT (all six hold) - the predicate PROPOSES `merge-into-base`; it never decides it.**
+Folding a shipped `ir.ui.view` record into its base and deleting the record is a structural design
+decision, and this pipeline already names one owner for that class: route it out through the P3
+design gate (`SKILL.md` § P3 - Design [conditional route-out]) to `odoo-solution-design`, which
+dispatches `odoo-solution-architect` and runs its own design-approval gate. Emit the finding line
+below as a PROPOSAL, carry it in the P3 payload, and apply it ONLY when the returned `design_doc`
+adopts it. The orchestrator never merges or deletes a view record on this predicate alone, and a
+`merge-into-base` line that no design adopted stays unapplied.
 
-**Merge-unsafe guard - when either holds, do NOT auto-merge or auto-delete; instead KEEP the stack
-as-is and flag it for the human at the P10 gate:**
+The proposed shape, for the architect to accept or reject: fold V's xpath-inserted content into B's
+arch directly (the same result the two records produce today, expressed in one view), then
+DELETE V's record. Never the reverse - never delete B (the PRIMARY/base view): actions, menus, and other
+modules' xpaths address it by its OWN `xml_id`, and it must stay addressable under that id whether
+or not V survives.
+
+**Merge-unsafe guard - when either holds, do NOT auto-merge or auto-delete and do NOT even propose
+the merge at P3; instead KEEP the stack as-is and flag it for the human at the P10 gate:**
 
 - **External reference exists.** Confirm nothing outside V's own defining file references V's
   `xml_id`: (a) `entity_lookup(kind='view', xmlid='<xml_id of V>', odoo_version='<target>')` - a

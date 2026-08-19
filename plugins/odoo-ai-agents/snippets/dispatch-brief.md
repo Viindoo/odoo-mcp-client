@@ -154,8 +154,8 @@ pointer back to this file - never the full skeleton table.
 
 - `MODULE_PATH` - the absolute module path (never a bare module name).
 - `BRIEF` palette hex values (`BG`/`FG`) when a brand differs from the category-hue default.
-- `odoo_version` - drives the era-correct visual style and the PNG-only (v8-v18) vs
-  PNG+SVG+manifest-key (v19) gate.
+- `odoo_version` - drives the era-correct visual style and the manifest `icon` key
+  resolution (the agent's Step 5).
 - No locale/language list and no feature-catalog grounding - this agent is standalone (OSM +
   disk), not audience-facing prose.
 

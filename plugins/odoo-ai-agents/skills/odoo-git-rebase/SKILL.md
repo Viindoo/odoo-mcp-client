@@ -311,9 +311,8 @@ its 4-outcome bucket and re-stage before P9. Then run the import-resolvability g
 over every feature-touched `.py`; any F821 = a broken import to resolve before P9) and the
 collection ACCEPTANCE GATE: the replayed test files MUST import and collect cleanly;
 `0 failed, N error(s)` is NOT a pass - a setUpClass crash means the tests never ran. Reuse the
-same gate as forward-port P7. The orchestrator does NOT run these checks in its own context: it
-dispatches the read-only delegates (Explore to enumerate feature-touched files, git-ops to
-run the gates) and records only the PASS/FAIL verdict. Full brief incl. delegation contract +
+same gate as forward-port P7. WHO may run it is the shared SSOT `[[fp-symbol-survival-check]]`
+§ Who runs this check - do not restate that rule here. Full brief incl. delegation contract +
 import gate: `references/rb-phase-detail.md` P8b.
 
 **P9 - Test forward (per touched module, conditional) [odoo-test-writer adapt + odoo-coding - no gate].**
