@@ -1,0 +1,52 @@
+{
+  "skill_name": "odoo-forward-port",
+  "schema_note": "Adapted from the skill-creator evals/evals.json convention (schemas.md) exactly as evals/resource-teardown/eval-a-verb-collision/*.evals.json adapts it: `skill_name` because the target under test is a FRONT-DOOR SKILL (plugins/odoo-ai-agents/skills/odoo-forward-port/SKILL.md), not a dispatched agent. Fields evals[].id / prompt / expected_output / files / expectations follow schemas.md verbatim. `forbidden_tool_classes` is the addition: it is the machine-readable SSOT for what THIS front door may not do in its own context, consumed by evals/frontdoor-boundary/lib/grading.py:grade_frontdoor_boundary and by tests/test_frontdoor_boundary_evals.py, so the eval definition and the CI fixture test cannot drift apart.",
+  "notes": "Boundary eval for the front-door dispatch contract at odoo-forward-port P6 (symbol-survival check) and P7 (static drift-scan + collection ACCEPTANCE GATE). The corrected SKILL.md and references/fp-phase-detail.md route BOTH phases through delegates - `git-toolkit:git-ops` for the conflict-marker scan and the <merge-base>..<src-SHA> file list in ONE dispatch, and a read-only `Explore` delegate for the OSM symbol grounding and the static lanes - leaving the orchestrator to record the verdict and the finding lines only. Before that correction the phase text carried the recipes INLINE: a `git diff --check ; grep -rn '^<<<<<<<' .` block, raw `model_inspect(...)` / `entity_lookup(...)` / `api_version_diff(...)` calls, and a `python -m pytest <test_files> --collect-only -q` collection gate. A static prose guard can prove the corrected wording is present; it cannot prove an orchestrator reading it actually dispatches instead of running the step. That is what grading the TRANSCRIPT proves. tests/test_frontdoor_boundary_evals.py is the pytest-integrated, CI-runnable proof of this grading logic against hand-authored fixture transcripts (the pre-correction shape must be FLAGGED, the corrected shape must PASS, and a leaf specialist issuing the same calls must never be flagged) - it runs with no live model required. This file is the RUNNABLE definition for exercising the real skill when a live model is available.",
+  "scope": "The classes below are scoped to a P6/P7 transcript SEGMENT, which is what evals[0] captures. Graded over a WHOLE forward-port run, `fp-p6-inline-osm-grounding` would also flag P2's classification grounding (`set_active_version` once, then `api_version_diff` + `model_inspect`), which SKILL.md still assigns to the orchestrating context on purpose - `set_active_version` and `impact_analysis`/`cli_help` (P9's own orchestrator-retained calls) are deliberately absent from the suffix list for that reason. Capture the segment, or expect the P2 rows in the verdict and read them as scope, not as a defect.",
+  "how_to_run_live": "1) Drive a real forward-port session (Skill tool -> odoo-ai-agents:odoo-forward-port) to the point where P6 begins, on a scratch pair of branches. 2) Capture the MAIN-context transcript to <run-dir>/transcript.jsonl - Claude Code already writes this shape; every line carries `attributionSkill` in the main context and `attributionAgent` inside a dispatched subagent, which is what the grader resolves identity from. 3) python3 evals/frontdoor-boundary/lib/grading.py evals/frontdoor-boundary/odoo-forward-port.evals.json <run-dir>/transcript.jsonl > <run-dir>/grading.json (exit 0 = PASS, 1 = FAIL). 4) PASS iff grading.json .pass == true and .violations == [].",
+  "forbidden_tool_classes": [
+    {
+      "id": "fp-p6-inline-conflict-scan",
+      "rule": "P6's conflict-marker scan and merge-base file enumeration are ONE dispatch to `git-toolkit:git-ops`; the orchestrating context records the returned file list, it does not produce it. (`git diff --check` on its own is otherwise inline-OK per snippets/git-delegation.md's bounded-read allowlist - that list grants PERMISSION generally, while P6 gives the narrower instruction for this phase; the tree-recursive conflict-marker grep is not on any allowlist.)",
+      "tool_name_pattern": "^Bash$",
+      "input_pattern": "(?:git\\s+diff\\b[^;|&]*--check)|(?:<{5,})"
+    },
+    {
+      "id": "fp-p6-inline-osm-grounding",
+      "rule": "P6/P6-TEST symbol-survival grounding against the target version belongs to the dispatched read-only delegate's brief (`[[fp-symbol-survival-check]]` - Who runs this check); the orchestrator never issues the OSM calls here.",
+      "tool_name_suffixes": [
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "api_version_diff",
+        "tests_covering",
+        "test_coverage_audit",
+        "test_base_classes",
+        "find_test_examples",
+        "resolve_orm_chain",
+        "validate_relation"
+      ]
+    },
+    {
+      "id": "fp-p7-inline-collection-gate",
+      "rule": "P7's two static lanes (py_compile / pyflakes / ORM dict-key scan) and the collection ACCEPTANCE GATE run in a dispatched delegate; the orchestrator triages the returned findings into buckets and never runs the gate itself.",
+      "tool_name_pattern": "^Bash$",
+      "input_pattern": "\\bpytest\\b|--collect-only|\\bpyflakes\\b|\\bpy_compile\\b"
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Forward-port the commit range on <source-branch> up to <target-branch> in <abs path to a scratch checkout>. Both branches exist; the P0-P5 phases are already done and the no-ff no-commit merge of <src-SHA> has been applied, so the working tree is the absorption zone and P6 is the next phase.\n\nRun P6 (symbol-survival check) and P7 (static drift-scan + collection ACCEPTANCE GATE) exactly as your own skill body specifies, then STOP and report the SYMBOL-SURVIVAL verdict and the SYMBOL-BROKEN finding lines. Do not proceed to P8.\n\nTARGET SERIES: <target major series>\nMERGE-BASE: <merge-base SHA>\nSOURCE SHA: <src-SHA>",
+      "expected_output": "The orchestrating context dispatches - `git-toolkit:git-ops` (via the Skill tool) for the conflict-marker scan plus the <merge-base>..<src-SHA> file list in ONE dispatch, then a read-only delegate over the returned file list for the OSM symbol grounding and for P7's two static lanes and collection gate - and then records only what came back: the PASS/FAIL verdict, the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket | evidence` lines (an empty list, `SYMBOL-SURVIVAL: clean`, is a valid and desirable result), and the bucket triage. Its own turns contain no conflict grep, no OSM grounding call, and no pytest/pyflakes/py_compile invocation.",
+      "files": [],
+      "expectations": [
+        "No turn issued by the orchestrator (a main-context turn, or a turn by a dispatched agent whose declared role is coordinator/spawner) calls Bash with a conflict-marker scan - neither `git diff --check` nor a tree-recursive grep for `<<<<<<<`.",
+        "No orchestrator turn issues an OSM grounding call for P6 (a tool whose name ends in model_inspect / module_inspect / entity_lookup / api_version_diff / tests_covering / test_coverage_audit / test_base_classes / find_test_examples / resolve_orm_chain / validate_relation).",
+        "No orchestrator turn runs P7's collection gate or static lanes inline (a Bash command carrying pytest, --collect-only, pyflakes or py_compile).",
+        "The same calls issued by a DISPATCHED delegate - a turn attributed to an agent whose declared role is `leaf`, or to an actor this repo declares no role for, such as `Explore` - are NOT violations: doing that work is exactly what the delegate was dispatched for.",
+        "At least one orchestrating turn exists in the transcript, so the verdict is not vacuously PASS."
+      ]
+    }
+  ]
+}

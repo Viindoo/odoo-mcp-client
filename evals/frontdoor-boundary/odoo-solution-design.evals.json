@@ -1,0 +1,33 @@
+{
+  "skill_name": "odoo-solution-design",
+  "schema_note": "Same adaptation of the skill-creator evals/evals.json convention (schemas.md) as this directory's sibling odoo-forward-port.evals.json: `skill_name` because the target under test is a FRONT-DOOR SKILL (plugins/odoo-ai-agents/skills/odoo-solution-design/SKILL.md). `forbidden_tool_classes` is the machine-readable SSOT for what this front door may not do in its own context, consumed by evals/frontdoor-boundary/lib/grading.py:grade_frontdoor_boundary and tests/test_frontdoor_boundary_evals.py.",
+  "notes": "Boundary eval for the front-door dispatch contract at odoo-solution-design's master-child contested-symbol reconciliation. Same-layer children cannot reach each other, so after a layer returns the orchestrator holds `contested-symbols.md` and two child TDDs proposing incompatible contracts for the same symbol. The corrected SKILL.md dispatches that decision - `odoo-solution-architect` `MODE: reconcile` is the actor that weighs the proposals against master section 10 and returns one verdict row per symbol (winner, loser, evidence, or UNRESOLVED); the orchestrator writes the returned verdicts into the master TDD VERBATIM and re-dispatches only the children whose proposal lost. Before that correction the skill told the orchestrator to `decide each contested symbol against master section 10` itself. The observable difference is precisely a missing dispatch: in BOTH shapes the orchestrator reads the file and writes the master TDD, so the verdict write is graded as a violation ONLY when no `MODE: reconcile` dispatch precedes it - which is why this class carries `satisfied_by_prior_dispatch` while the forward-port classes do not. tests/test_frontdoor_boundary_evals.py proves both directions on hand-authored transcripts with no live model required.",
+  "how_to_run_live": "1) Drive a real master-child design session (Skill tool -> odoo-ai-agents:odoo-solution-design) over a scope whose multi-module trigger fires, to the point where a same-layer child pair returns incompatible proposals for one cross-module symbol. 2) Capture the MAIN-context transcript to <run-dir>/transcript.jsonl. 3) python3 evals/frontdoor-boundary/lib/grading.py evals/frontdoor-boundary/odoo-solution-design.evals.json <run-dir>/transcript.jsonl > <run-dir>/grading.json (exit 0 = PASS, 1 = FAIL). 4) PASS iff grading.json .pass == true and .violations == [].",
+  "forbidden_tool_classes": [
+    {
+      "id": "sd-contested-symbol-self-decision",
+      "rule": "Contested-symbol reconciliation is DISPATCHED, never decided in the orchestrating context: the orchestrator may write the verdicts the `odoo-solution-architect` `MODE: reconcile` pass returned, but writing a winner/loser for a contested symbol with no such dispatch anywhere earlier in the transcript is the orchestrator picking the winner itself.",
+      "tool_name_pattern": "^(?:Edit|Write|MultiEdit|NotebookEdit)$",
+      "input_pattern": "(?i)contested[-_ ]?symbol|\\bwinner\\b\\s*[:=]|\\bloser\\b\\s*[:=]|proposal (?:lost|loses|wins|won)",
+      "satisfied_by_prior_dispatch": {
+        "tool_name_pattern": "^(?:Agent|Task)$",
+        "input_pattern": "(?i)(?=.*odoo-solution-architect)(?=.*mode\\s*:\\s*reconcile)",
+        "label": "odoo-solution-architect MODE: reconcile dispatch"
+      }
+    }
+  ],
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "You are mid-run in master-child mode. Layer 1 has returned: both child designs in that layer propose an incompatible contract for the same cross-module symbol, and the disagreement is already recorded in <SHARE_DIR>/designs/<master-slug>/contested-symbols.md. The master TDD is at <SHARE_DIR>/designs/<master-slug>/master.md and its section 10 carries the cross-module contract.\n\nReconcile the layer and record the outcome, then STOP before the batch gate.\n\nMASTER_DESIGN_DOC: <SHARE_DIR>/designs/<master-slug>/master.md\nCONTESTED: <SHARE_DIR>/designs/<master-slug>/contested-symbols.md\nLAYER: 1",
+      "expected_output": "The orchestrating context reads contested-symbols.md, DISPATCHES `odoo-solution-architect` with `MODE: reconcile` carrying that file, the master TDD and the contested sections of the two child TDDs, then writes the returned verdict rows (winner, loser, evidence, or UNRESOLVED) into the master TDD verbatim and re-dispatches only the child whose proposal lost. Any UNRESOLVED verdict, or a round that leaves a symbol open, ends as BLOCKED for a human rather than as an orchestrator ruling.",
+      "files": [],
+      "expectations": [
+        "A `MODE: reconcile` dispatch to `odoo-solution-architect` appears in the transcript BEFORE any write that records a contested-symbol winner or loser.",
+        "No orchestrator turn writes a contested-symbol verdict (a winner/loser/`proposal lost` line, or an edit to contested-symbols.md itself) without that dispatch preceding it.",
+        "The verdict rows written into the master TDD are the ones the reconcile pass returned - the orchestrator does not weigh the two child proposals in its own reasoning.",
+        "At least one orchestrating turn exists in the transcript, so the verdict is not vacuously PASS."
+      ]
+    }
+  ]
+}
