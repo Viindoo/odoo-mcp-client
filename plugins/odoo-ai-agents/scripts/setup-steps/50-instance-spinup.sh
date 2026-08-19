@@ -706,18 +706,27 @@ cmd_apply() {
         # instance is judged by the owner-pid arms again instead of staying
         # governed by park_ttl_s (a live server whose only governor is a park
         # budget gets its database dropped under it when that budget lapses).
-        # `resume` exits 3 - and ONLY 3 - for "this lease is not parked", which
-        # is the ordinary first spin-up, so that one code is the branch back to
-        # `bind`. Every OTHER non-zero is a real resume failure (the database
-        # was dropped while parked, the pid is not corroborated as this lease's
-        # server) and must NOT fall through: binding a pid onto a still-parked
-        # lease is exactly the half-transitioned state resume exists to prevent.
+        # `resume` exits 3 - and ONLY 3 - for "not parked, and no live server
+        # holds this lease either", which is the ordinary first spin-up, so that
+        # one code is the branch back to `bind`.
+        #
+        # THE INVARIANT THIS FUNCTION OWNS: no path may end with a LIVE server
+        # the teardown gate cannot see. Every other non-zero resume code is a
+        # real refusal (the database was dropped while parked, the pid is not
+        # corroborated as this lease's server, another caller won the resume
+        # race) and leaves the lease carrying `parked_at` - which
+        # hooks/enforce-teardown.sh skips as "already parked, leaks no RAM". A
+        # server left running behind that row is therefore invisible to the ONE
+        # gate that blocks RAM leaks. So this function STOPS THE PROCESS GROUP IT
+        # WAS JUST HANDED and FAILS the spin-up: the lease stays exactly as it
+        # was (parked, holding its database, filestore and ports), nothing was
+        # consumed, and the caller gets a refusal instead of a false success.
+        # Never downgrade this to a warning that falls through.
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
         [[ -n "${ARG_ALLOC_TOKEN:-}" ]] || return 0
         # `resume`'s STDERR is KEPT, not discarded: its refusals are the only
-        # account of a lease that stayed PARKED while a server came up on its
-        # port - a state whose budget can still lapse and drop that database
-        # underneath the live server. Same target as _register_shared's.
+        # account of WHY a resume was refused, and the exit code alone does not
+        # name the database or the winning pid. Same target as _register_shared's.
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             local _resume_rc=0 _diag
             _diag="$(_alloc_diag_target)"
@@ -726,7 +735,23 @@ cmd_apply() {
             if [[ "$_resume_rc" -eq 3 ]]; then
                 python3 "$alloc_py" bind "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" || true
             elif [[ "$_resume_rc" -ne 0 ]]; then
-                echo "x the allocator refused to resume this parked lease (exit $_resume_rc); the server is UP but the lease is still parked - see the allocator stderr log named by state-root-resolution.md" >&2
+                echo "" >&2
+                echo "x BLOCKED: the allocator REFUSED to resume this parked lease (resume exit $_resume_rc)." >&2
+                echo "  The server this run just launched has been STOPPED (whole process group) and" >&2
+                echo "  NOTHING is left running: a live server behind a lease still marked \`parked_at\`" >&2
+                echo "  is invisible to the SubagentStop teardown gate, which skips parked rows." >&2
+                echo "  The lease is UNCHANGED - still parked, still holding its database, filestore" >&2
+                echo "  and ports. Read the allocator's refusal (stderr log named by" >&2
+                echo "  snippets/state-root-resolution.md), then act on the exit code:" >&2
+                echo "    5 - the database was dropped while the lease was parked: \`allocator.py" >&2
+                echo "        release <token>\` cleans the lease up, then build a fresh instance." >&2
+                echo "    6 - another caller already resumed this lease and its server is running:" >&2
+                echo "        attach to that instance; do NOT launch a second one on this port." >&2
+                echo "    4 - ownership of the launched pid could not be corroborated, or the lease" >&2
+                echo "        was parked on another host: report it, do not retry blindly." >&2
+                echo "    1 - --alloc-token names no lease: re-read the token from the acquire." >&2
+                _stop_group_local "$1"
+                return 1
             fi
         fi
     }
@@ -1287,7 +1312,14 @@ cmd_apply() {
             # slow/failed start still forks workers that would otherwise leak).
             # No-op for shared leases (their lease is registered only on success);
             # the kill -0 liveness guard lives inside _bind_exclusive.
-            [[ "$ARG_EXCLUSIVE" == "1" ]] && _bind_exclusive "$odoo_pid"
+            # A REFUSED resume returns non-zero here, having already stopped the
+            # process group it was handed. Failing the whole apply is the point:
+            # continuing to the readiness poll would print `ok Odoo ... is up`
+            # for a server that no longer exists, and the caller would record a
+            # handle to nothing.
+            if [[ "$ARG_EXCLUSIVE" == "1" ]] && ! _bind_exclusive "$odoo_pid"; then
+                return 1
+            fi
             ;;
         *)
             echo "x Unknown run_mode: ${INST_RUN_MODE}. Use 'source' or 'docker'." >&2

@@ -1011,8 +1011,15 @@ def test_two_agents_racing_to_resume_the_same_lease_cannot_both_win(
         harness, alloc_home, tmp_path, monkeypatch):
     """G4 edge case 4 - resolved BY CONSTRUCTION, not by timing. `resume` requires
     `parked_at` to be present; the first caller clears it, so the second is
-    refused with a distinct exit code and never reaches a launch on the same
-    port."""
+    refused.
+
+    What the refusal can and cannot promise is stated exactly, because the
+    comfortable version of this claim is false: BOTH racers already launched a
+    server before either could call `resume` (the call needs a live pid to
+    corroborate), so "neither reaches a launch on the other's port" was never
+    true. What IS true is that the loser is refused with a code that means STOP
+    THE SERVER YOU LAUNCHED - never the `bind` fallback code - and that the
+    winner's pid survives untouched."""
     alloc = _import_allocator()
     db = "odoo_17_t_race"
     conf = f"{tmp_path}/conf/{db}-8069.conf"
@@ -1025,9 +1032,11 @@ def test_two_agents_racing_to_resume_the_same_lease_cannot_both_win(
     monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
 
     assert alloc.cmd_resume({"token": token, "pid": leader}) == 0
-    assert alloc.cmd_resume({"token": token, "pid": second}) == 3, (
-        "the loser of a resume race must be refused with the NOT-PARKED code, so its "
-        "caller does not launch a second server on the first one's port"
+    assert alloc.cmd_resume({"token": token, "pid": second}) == 6, (
+        "the loser of a resume race must be refused with the code that means `another "
+        "live server already holds this lease` - never 3, which its caller reads as `this "
+        "was never parked, bind my pid instead` and would use to take the lease off the "
+        "winner"
     )
     assert _leases(alloc_home)[0]["owner"]["pid"] == leader, (
         "the winner's pid must survive the loser's attempt"
@@ -1127,6 +1136,105 @@ def test_an_expired_park_is_never_offered_as_resumable(harness, alloc_home):
     _parked_lease(alloc, alloc_home, harness, db="odoo_17_t_expired",
                   age_s=500, ttl_s=100)
     assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-A"}) == 1
+
+
+def test_query_state_parked_never_offers_a_lease_whose_database_is_gone(
+        harness, alloc_home, capfd, monkeypatch):
+    """The PRE-LAUNCH half of "no server is ever started against a database that
+    is gone", and the only rung that can carry it.
+
+    `resume` corroborates a pid, so it can only run AFTER a server exists - by
+    then a process is already up against the missing database. This command runs
+    BEFORE the caller has coordinates to launch anything with, so a lease whose
+    database is provably gone must be SKIPPED here, with `release` named, rather
+    than handed over as resumable."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_droppedunderpark"
+    _parked_lease(alloc, alloc_home, harness, db=db, ports=[8171], run_id="run-A")
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: False)
+
+    assert alloc.cmd_query({"series": "17.0", "state": "parked", "run_id": "run-A"}) == 1, (
+        "a parked lease with no database left is not resumable, so discovery must report "
+        "nothing to resume - not offer coordinates to launch against"
+    )
+    err = capfd.readouterr().err
+    assert db in err and "release" in err, (
+        f"the skip must NAME the lease and the verb that cleans it up, or the caller is left "
+        f"with a row nothing tells it to remove; got {err!r}"
+    )
+    assert alloc.cmd_query(
+        {"series": "17.0", "state": "parked", "run_id": "run-A", "force_attach": True}) == 1, (
+        "--force-attach widens the HOST scope; it may not overrule a database that is not there"
+    )
+
+
+@pytest.mark.parametrize("probe,expected", [(True, 0), (None, 0)])
+def test_only_a_PROVEN_absent_database_withholds_a_parked_lease(
+        harness, alloc_home, monkeypatch, probe, expected):
+    """The falsification of the test above, and the rule that keeps the skip from
+    becoming a new way to strand a resumable instance: PRESENT is offered, and so
+    is COULD-NOT-LOOK. `dropdb --if-exists` exits 0 for a database that never
+    existed, which is exactly why "we failed to look" may never be read as "it is
+    not there" - and a wrong guess here costs a rebuild that was not needed,
+    while `resume`'s own probe is still the second net under it."""
+    alloc = _import_allocator()
+    _parked_lease(alloc, alloc_home, harness, db="odoo_17_t_probe", run_id="run-A")
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: probe)
+    assert alloc.cmd_query(
+        {"series": "17.0", "state": "parked", "run_id": "run-A"}) == expected
+
+
+def test_resume_tells_a_first_launch_apart_from_a_lost_resume_race(
+        harness, alloc_home, tmp_path, monkeypatch, capfd):
+    """Two OPPOSITE remedies used to share exit 3, and the caller took the wrong
+    one for both.
+
+    `50-instance-spinup.sh::_bind_exclusive` treats exit 3 as "ordinary first
+    launch, fall back to `bind`". That is right when the lease was simply never
+    parked. It is catastrophic when the lease is not parked because ANOTHER agent
+    already resumed it and its server is running: binding there takes the lease
+    off the process that actually holds the database and port, so `release`/`gc`
+    would later stop the wrong group. The two cases are decidable - a live,
+    same-host owner pid - so they get their own codes."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_racecodes"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    harness.seed_lease(alloc_home, None, db_name=db)
+    token = _leases(alloc_home)[0]["token"]
+    mine, _ = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
+
+    assert alloc.cmd_resume({"token": token, "pid": mine}) == 3, (
+        "a lease that was never parked and holds no live server is the ordinary first "
+        "launch - the one case whose caller-side fallback to `bind` is correct"
+    )
+    assert "bind" in capfd.readouterr().err, (
+        "and the refusal must name that fallback, or the caller cannot take it"
+    )
+
+    # The winner of the race: its pid is now the lease's live owner.
+    assert alloc.cmd_bind({"token": token, "pid": mine}) == 0
+    loser, _ = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+
+    assert alloc.cmd_resume({"token": token, "pid": loser}) == 6, (
+        "a lease already held by a LIVE same-host server is the lost resume race, not a "
+        "first launch - it must NOT return the code that means `bind`"
+    )
+    err = capfd.readouterr().err
+    assert str(mine) in err and "STOP" in err, (
+        f"the refusal must name the pid that actually holds the lease and tell the loser to "
+        f"stop the server it just launched; got {err!r}"
+    )
+    assert _leases(alloc_home)[0]["owner"]["pid"] == mine, (
+        "the winner's pid must survive the loser's attempt"
+    )
+
+    for pid in (mine, loser):
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.kill(pid, signal.SIGKILL)
+    assert _wait_dead(harness, mine, loser) == []
 
 
 def test_reap_orphans_can_never_list_a_parked_leases_database(harness, alloc_home):

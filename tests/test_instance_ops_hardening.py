@@ -2417,12 +2417,18 @@ def test_the_never_sudo_rule_survives_and_still_covers_pg_hba():
 # ---------------------------------------------------------------------------
 _OPERATION_HEADING_RE = re.compile(r"^###\s+\d+\.\s+(.+?)\s*$", re.M)
 _OPERATION_OBJECT_SUFFIXES = ("-instance", "-modules")
+# The catalog heading is found by SHAPE, never by its current count word: the count is data
+# (`test_counted_section_reference_agreement.py` owns keeping it honest), so adding a ninth
+# operation must not also require editing this extractor to see it.
+_OPERATION_SECTION_RE = re.compile(r"^##\s+\w+\s+operations\s*$", re.M)
 
 
 def _agent_operation_verbs() -> set[str]:
     """The dispatch verbs the agent's numbered operation headings cover."""
     text = AGENT_MD.read_text(encoding="utf-8")
-    start = text.index("## Seven operations")
+    heading = _OPERATION_SECTION_RE.search(text)
+    assert heading, "agents/odoo-instance-ops.md no longer has a `## <count> operations` catalog"
+    start = heading.start()
     end = text.find("\n## ", start)
     section = text[start:] if end == -1 else text[start:end]
     verbs = set()
