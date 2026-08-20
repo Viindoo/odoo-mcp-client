@@ -213,7 +213,8 @@ exclusive` and run the remaining batches ONE AT A TIME, stating in your report t
 provided. For 8/9 (Odoo cannot authenticate / the cluster did not answer) `exclusive` is gated too -
 fix the cluster first; no mode gets past them.
 Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
-§ Allocate and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
+§ Allocate; the refusal codes and their remedies:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.6.
 
 ## Git topology - two-tier worktrees (summary)
 

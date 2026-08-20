@@ -1737,6 +1737,14 @@ def main(argv: list[str]) -> int:
     coding_guidelines_refs += [f"{CODING_GUIDELINES_ROOT}/{v}/INDEX.md" for v in CODING_GUIDELINES_VERSIONS]
     for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/worker-brief.md",
                 DESIGN_DOC_PATH, "docs/reference/INSTANCE-LIFECYCLE.md",
+                "docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md",
+                "docs/reference/INSTANCE-LIFECYCLE-TEARDOWN.md",
+                "docs/reference/INSTANCE-ALLOCATION.md",
+                "docs/reference/INSTANCE-ALLOCATION-REGISTRY.md",
+                "docs/reference/INSTANCE-ALLOCATION-MODES.md",
+                "docs/reference/INSTANCE-ALLOCATION-API.md",
+                "docs/reference/INSTANCE-ALLOCATION-GUARDS.md",
+                "docs/reference/INSTANCE-ALLOCATION-RECLAIM.md",
                 "docs/reference/ODOO-TESTING.md",
                 "snippets/context-handoff-protocol.md",
                 *coding_guidelines_refs):

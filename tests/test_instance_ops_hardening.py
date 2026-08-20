@@ -50,7 +50,7 @@ INSTANCE_RESOLUTION_MD = PLUGIN / "snippets" / "instance-resolution.md"
 HANDLE_CONTRACT = PLUGIN / "snippets" / "instance-handle-contract.md"
 WORKER_BRIEF = PLUGIN / "snippets" / "worker-brief.md"
 EVALS = PLUGIN / "skills" / "odoo-instance" / "evals" / "evals.json"
-LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE.md"
+LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE-BUILD-CONTRACT.md"
 INSTANCE_OPS_SH = PLUGIN / "scripts" / "setup-steps" / "55-instance-ops.sh"
 RESOURCE_LIMITS_SNIPPET = PLUGIN / "snippets" / "odoo-bin-resource-limits.md"
 
@@ -549,7 +549,7 @@ def test_evals_case_11_uses_neutral_self_provision_framing():
 # ---------------------------------------------------------------------------
 # P5 - instance port isolation (persist: field + owned lease + runtime cli_help
 # port-flag resolution, never a hardcoded flag). See docs/reference/
-# INSTANCE-ALLOCATION.md §5 and agents/odoo-instance-ops.md operation 1.
+# INSTANCE-ALLOCATION-MODES.md §5 and agents/odoo-instance-ops.md operation 1.
 # ---------------------------------------------------------------------------
 
 def test_skill_carries_persist_and_run_id_dispatch_fields():
@@ -637,7 +637,7 @@ def test_agent_exclusive_running_never_falls_back_to_8069():
 # exit + a REQUIRED completion marker + failure-marker scan; listening instance
 # -> bounded HTTP port poll. The --log-handler=<ns>.modules.loading:INFO flag is
 # the FLOOR that keeps the completion marker present at any level a caller may
-# pass in --extra. SSOT: docs/reference/INSTANCE-LIFECYCLE.md item 14.
+# pass in --extra. SSOT: docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14.
 # ---------------------------------------------------------------------------
 
 def test_agent_documents_log_handler_namespace_forcing():
@@ -757,7 +757,7 @@ def test_no_agent_or_doc_claims_a_quiet_or_empty_build_log():
 
 
 def test_lifecycle_doc_item14_documents_ready_detect_contract():
-    """docs/reference/INSTANCE-LIFECYCLE.md must carry item 14 - the
+    """docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md must carry item 14 - the
     readiness/completion detection contract - naming both signal shapes."""
     text = _norm(LIFECYCLE_DOC)
     assert "Readiness/completion detection is DETERMINISTIC" in text, (
@@ -1746,7 +1746,7 @@ def test_no_prose_claims_ephemeral_silently_degrades_to_exclusive():
 # into an output block whose enum has no such value.
 # ---------------------------------------------------------------------------
 SETUP_CMD_MD = PLUGIN / "commands" / "odoo-setup.md"
-ALLOCATION_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION.md"
+ALLOCATION_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION-API.md"
 
 # An exit-code ENUMERATION: a refusal/exit lead-in followed by two or more codes
 # joined by any separator this repo's prose actually uses. Shape, not phrasing -
@@ -1889,7 +1889,7 @@ def test_the_refusal_set_scan_reaches_every_restating_file():
     seen = {_rel(p) for p, _, _ in found}
     for expected in (
         "plugins/odoo-ai-agents/agents/odoo-instance-ops.md",
-        "plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION.md",
+        "plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md",
         "plugins/odoo-ai-agents/snippets/instance-resolution.md",
         "plugins/odoo-ai-agents/snippets/fp-merge-absorption.md",
         "plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md",

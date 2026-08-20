@@ -656,7 +656,7 @@ adjudicator of FP intent: RED-then-GREEN for the whole module + confirm-by-toggl
 only, triaging each red test as FP-delta vs pre-existing (re-run it on clean target tip via the same
 executor). Never relax an assertion to hide a pre-existing failure. Full per-batch protocol +
 § Ephemeral isolation: `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
-`docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
+`docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` and `docs/reference/ODOO-TESTING.md`.
 
 **P9.5 - i18n reconcile [MANDATORY, per batch, reuses the P9 instance].** For every module in this
 batch whose 8e record says `i18n_due: yes`, invoke the `odoo-i18n` skill (via the Skill tool) ONCE.

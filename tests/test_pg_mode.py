@@ -851,7 +851,7 @@ def test_stale_claim_corpus_covers_the_historical_blind_spots():
         PLUGIN / "hooks" / "enforce-teardown.sh",
         PLUGIN / "scripts" / "lib" / "allocator.py",
         PLUGIN / "scripts" / "lib" / "pg_mode.sh",
-        PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION.md",
+        PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION-API.md",
     ):
         assert required in corpus, f"{required.name} must be scanned"
     assert any(p.suffix == ".py" and p.parent.name == "tests" for p in corpus), (

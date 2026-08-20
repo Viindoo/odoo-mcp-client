@@ -39,7 +39,8 @@ for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 > create-on-init to build the DB; a `--stop-after-init` run binds no port), use `$ALLOC_DB_NAME` /
 > `$ALLOC_PYTHON` (and `$ALLOC_DB_PORT` when non-empty), then
 > `allocator.py release $ALLOC_TOKEN --run-id <id>` (drops through Odoo via `scripts/lib/odoo_db.py`).
-> See `snippets/instance-resolution.md` § Allocate and `docs/reference/INSTANCE-ALLOCATION.md`.
+> See `snippets/instance-resolution.md` § Allocate and
+> `docs/reference/INSTANCE-ALLOCATION-API.md` § 6 (the `acquire`/`release` rows).
 
 - `--test-enable` - enable running tests at `-i`/`-u`.
 - `--stop-after-init` - exit after load+test (CI-friendly).

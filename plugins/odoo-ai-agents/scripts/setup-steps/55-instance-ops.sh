@@ -21,7 +21,7 @@
 #             Persistent log + LOG_PATH= + STATUS= lines.
 #
 #             Deterministic completion contract (never a log-tail wait - see
-#             docs/reference/INSTANCE-LIFECYCLE.md item 14): the process ALWAYS
+#             docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14): the process ALWAYS
 #             runs with --stop-after-init, so completion is PROCESS EXIT, bounded
 #             by nothing more than the caller's own foreground timeout. --version
 #             resolves <ns> = 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+;
@@ -1013,7 +1013,7 @@ _js_fail_counts() {
 #   is NOT proof of install on its own: a misspelled/nonexistent module name,
 #   an unresolved dependency, or a demo-data failure can all leave the process
 #   at exit 0 while silently skipping the requested install (see
-#   docs/reference/INSTANCE-LIFECYCLE.md item 14). Never blocks - two grep
+#   docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14). Never blocks - two grep
 #   passes over the already-closed log file, no polling. Uses the shared
 #   _INSTALL_FAIL_RE / _INSTALL_SUCCESS_MARKER SSOT above - _scan_build_markers
 #   applies the SAME two constants so the background wait-log verdict can
@@ -1833,7 +1833,7 @@ cmd_init() {
     local DB_CONN_ARGS
     _build_db_conn_args
 
-    # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE.md
+    # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md
     # item 14): --log-handler=<ns>.modules.loading:INFO is a FLOOR, not a
     # workaround - it keeps the "Modules loaded." completion line on the log at
     # ANY level a caller may pass in --extra, including a quieter one, so the
@@ -1972,7 +1972,7 @@ cmd_update() {
     _build_db_conn_args
 
     # Deterministic completion contract - identical to cmd_init (see its
-    # comments above and docs/reference/INSTANCE-LIFECYCLE.md item 14):
+    # comments above and docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14):
     # --log-handler=<ns>.modules.loading:INFO is the FLOOR that keeps "Modules
     # loaded." on the log at any caller-chosen level; both flags precede
     # ${arg_extra} so a caller override still wins.

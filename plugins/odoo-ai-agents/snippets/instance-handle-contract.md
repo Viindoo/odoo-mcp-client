@@ -33,7 +33,7 @@ here without updating both.
 
 The orchestrator provisions ONE instance via the `odoo-instance` skill, which owns port allocation
 and leasing (the `ALLOC_*` outputs, incl. `ALLOC_DB_PORT`/`ALLOC_RUN_ID`; see
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`), captures its canonical `instance-ops`
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6), captures its canonical `instance-ops`
 output block ONCE, and forwards it as an `INSTANCE_HANDLE:` field in EVERY downstream brief that
 touches code or tests (coder, test-author, verify, debug).
 
@@ -47,7 +47,8 @@ allocator-issued pooled port + an owned lease keyed on `run_id`) prevents a coll
 shared instance MUST still be owner-stamped (`run_id`) so a foreign session cannot bare-drop it.
 Which `persist:` value gives you which - and the parked state a suspended instance sits in - is
 spelled out in ONE place, never restated here:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 (+ §6.3 for the ownership guard).
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` §5
+(+ `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-GUARDS.md` §6.3 for the ownership guard).
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context, declaring the `persist:` value that matches its need per that SSOT (a throwaway build by
 default; a listening one when the process must stay up), applying the instance HARD RULES (`en_US`

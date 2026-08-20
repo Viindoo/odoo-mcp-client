@@ -97,7 +97,7 @@ _odoo_ai_global_instances() {
 # Mirrors scripts/lib/allocator.py's _home()/_runtime_dir() so shell and Python
 # resolve the same directory (trailing slashes on $ODOO_AI_HOME fully
 # normalised on both sides - see `_odoo_ai_home_rstrip_slashes` above). See
-# docs/reference/INSTANCE-ALLOCATION.md.
+# docs/reference/INSTANCE-ALLOCATION-REGISTRY.md section 4.2.
 _odoo_ai_runtime_dir() {
     if [ -n "${ODOO_AI_HOME:-}" ]; then
         local h

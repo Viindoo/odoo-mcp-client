@@ -14,7 +14,8 @@
 > high-level interface for build/drop/init/update/test operations on a local instance. Persistent
 > operation logs live under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`. This
 > reference doc covers the underlying semantics those operations rely on - including, since the
-> lifecycle does not end at "server answers", the teardown half covered in the new section below.
+> lifecycle does not end at "server answers", the teardown half owned by
+> `INSTANCE-LIFECYCLE-TEARDOWN.md`.
 
 ## Decision tree - what did you change?
 
@@ -27,7 +28,7 @@
 | XML / view / data record changed | `-u <module>` | **TRAP:** records in `<data noupdate="1">` (or a noupdate file) are written once at `-i` and **never** rewritten by `-u`. Editing them has no effect - flip noupdate, migrate, or delete the `ir_model_data` row |
 | `store=True` computed field added / formula changed | `-u <module>` | `-u` should recompute the stored column; if recompute is skipped, force it (shell `env … recompute`, or null the column + `-u`). Verify the column, don't assume |
 | Removed a model / field / changed an XML id | `-u <module>` + watch for orphans | may leave stale columns / `ir_model_data` orphans; hard cleanup → reinstall |
-| Renamed module, changed a model `_name`, data corruption, demo mismatch | **REINSTALL**: drop DB + create fresh + `-i` | a leased (allocator-managed) DB is dropped by releasing its lease, never by bare name - see the ownership guard in `INSTANCE-ALLOCATION.md` §6.3 |
+| Renamed module, changed a model `_name`, data corruption, demo mismatch | **REINSTALL**: drop DB + create fresh + `-i` | a leased (allocator-managed) DB is dropped by releasing its lease, never by bare name - see the ownership guard in `INSTANCE-ALLOCATION-GUARDS.md` §6.3 |
 | Cross-version bump (e.g. 16 → 17) | OpenUpgrade / the upgrade path - **NOT a plain `-u`** | a version bump is a migration job, not a module update |
 
 ## `-i` vs `-u` semantics (confirm exact flags via `cli_help` for the target version)
@@ -54,210 +55,12 @@
    older versions - confirm the removal version via `api_version_diff` / `find_deprecated_usage`
    for the target before assuming it installs.
 
-## Instance lifecycle contract (checklist for any build/update/test)
+## Parts - what each file owns
 
-1. **Resolve the target version explicitly** - confirm it is indexed (`list_available_versions`)
-   and pin it (`set_active_version`). When multiple profiles exist for the same series,
-   also resolve the `profile` field from the matching `[[instance]]` in `instances.toml`
-   (via `instances_io.py read <toml> <series> [profile]`, emitting `INST_PROFILE`/`INST_KEY`).
-2. **Query the CLI for that version - never assume.** `cli_help(command, flag, odoo_version='<version>')` for every
-   non-trivial subcommand/flag (entry script, DB management, module management, port flags).
-   Do not hardcode one version's CLI for another.
-   **Venv probe gate:** verify the venv by running `odoo-bin --version` (not `import odoo`);
-   a bare `import odoo` fails on source-only checkouts and is unreliable on Odoo 19 namespace
-   packages. Step 45 records `python` on `[[instance]]` only after this gate passes, alongside
-   `odoo_root` (the checkout root that makes `import odoo` resolve) and the Postgres client
-   surface `db_run_mode` (+ `db_container` in docker mode).
-3. **Classify the change** (decision tree above) → choose `-i` / `-u` / restart-only /
-   drop+recreate, and state the classification before acting.
-4. **Generalize the environment** - read addons-path, port, DB name, data dir from the
-   project/config, not from any one machine's setup. Artifacts must be portable.
-5. **noupdate / asset awareness** - if the change touches noupdate data or JS/CSS assets,
-   flag that `-u` may not reload it and point at the era-correct asset location (verify).
-6. **`store=True` recompute** - ensure recompute happened; verify the column.
-7. **Tests** - see `ODOO-TESTING.md`; pick the test invocation supported by the target version.
-8. **Version bump ≠ `-u`** - migrations go through the upgrade path.
-9. **Read-only verification** - confirm `-d` target and addons-path; never run Odoo just to
-   "test a guess" - query OSM/source instead.
-10. **`en_US` always active on any first `-i` (create / init / fresh test-DB).** Odoo's base/source
-    language must be loaded in every DB this contract builds, regardless of whether translation is
-    in scope for the run - union `en_US` into any `--load-language` / `i18n loadlang` call and never
-    issue one that omits it. Owned by the `odoo-instance` skill / `odoo-instance-ops` agent (SSOT:
-    `skills/odoo-instance/SKILL.md`); `odoo-i18n` enforces the same invariant independently for the
-    raw `odoo-bin` calls it issues outside this dispatch (recipe KT3:
-    `skills/odoo-i18n/references/i18n-recipe.md`).
-11. **Viindoo `to_base` unioned into `--load` when the active profile carries it.** Server-wide
-    modules are resolved from a DATA-DRIVEN profile probe, never hardcoded, and `to_base` is
-    appended to the era default (never replacing it). Owned by `odoo-instance-ops` (SSOT:
-    `agents/odoo-instance-ops.md` § Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE));
-    the `odoo-instance` skill threads the resolved `PROFILE` through its dispatch brief.
-12. **Lint modules (`test_lint`/`test_pylint`) installed, not just tagged, on any test-run build.**
-    A `--test-enable` build must UNION the present lint module(s) into the `-i`/`-u` install list
-    from the same probe that appends their tag to `--test-tags`. Owned by `odoo-instance-ops`
-    (SSOT: `agents/odoo-instance-ops.md` § Lint modules - installed for test-run builds (HARD
-    RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not just tag
-    them).
-13. **`persist` + `run_id` on any build that must stay running.** A build that must remain a live,
-    listening process (never `--stop-after-init`) declares a listening `persist:` value - an
-    isolated, owner-stamped instance on an allocator-issued pooled port (never the declared/`8069`
-    port), or the shared render target, now ALSO owner-stamped via `run_id` so a foreign session
-    cannot bare-drop it - never a bare port/db reuse with no owner. The values themselves, and the
-    parked state a suspended instance sits in, are spelled out in ONE place and are NOT restated
-    here: `INSTANCE-ALLOCATION.md` §5 (+ §6.3 for the ownership guard). Owned by
-    `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
-    `agents/odoo-instance-ops.md` (operation 1, create-instance). Whichever value you declare here
-    also decides who tears it down and when - see the Teardown section below, not a restatement
-    of it.
-14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
-    signals apply, one per job shape:
-    - **Install/update job** (`-i`/`-u` with `--stop-after-init`, NO `--test-enable` - the
-      throwaway build AND the build leg of an isolated listening instance): the job ALWAYS exits
-      (that is what `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log
-      read. The build
-      additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation as a
-      FLOOR, so the `"Modules loaded."` completion line survives ANY caller-supplied level - `<ns>`
-      is the core package name for the target series, and the row that owns that flip is
-      `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` § Core package directory; read it
-      there rather than from a copy here. **Exit code 0
-      alone is NOT proof of install** - three source-confirmed silent-skip paths stay exit 0: a
-      misspelled/nonexistent module name (logged, ignored), an unresolved dependency, and a
-      demo-data failure downgraded to a warning. SUCCESS therefore requires exit 0 AND the
-      `"Modules loaded."` marker present AND none of these failure markers present: `CRITICAL`,
-      `Traceback (most recent call last)`, `invalid module names, ignored`, `Some modules are not
-      loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`. Any of those -> FAILURE, reported
-      with the log path preserved for diagnosis, never a hang. A traceback rules here because
-      under `-i`/`-u` no test runs, so nothing but the build itself can raise.
-    - **Test job** (`--test-enable`, also `--stop-after-init`): shares the install job's shape -
-      the process exits, and that exit is completion - but NOT its verdict rules, and the two must
-      never be merged. `"Modules loaded."` is only PROGRESS here: Odoo logs it BEFORE the
-      post-install suite starts, so it can never certify a tested build. SUCCESS is the run's OWN
-      `TEST_RESULT=` line, which the harness appends once odoo-bin exits. A lone `Traceback (most
-      recent call last)` is NOT a failure marker here either: on a test run tracebacks come from
-      logged exceptions the run recovers from, routing errors, and every HttpCase 500 a test
-      asserts on, as well as from failing tests - so per-test `FAIL:`/`ERROR:` markers and the
-      per-module aggregate are the failure evidence for the PYTHON suite, the Hoot/QUnit markers
-      are it for the browser suite (a JS failure writes no Python traceback at all), and all of
-      them are MID-RUN, never completion. The
-      only markers terminal BEFORE the run publishes its own verdict are the hard aborts that
-      prove odoo-bin died and never will: `CRITICAL`, `Failed to load registry`, `psycopg2.`,
-      `ParseError`, plus the silent-skip markers above.
-    - **Listening instance** (any listening `persist:` value - `INSTANCE-ALLOCATION.md` §5 - with
-      no `--stop-after-init`, so the process serves after load instead of exiting): READY is a
-      BOUNDED-timeout HTTP poll of the port - primary `GET /web/database/selector` (auth=none, no
-      DB required, reliable v8-v19), fallback `/web/login` for a series/build where the selector
-      route is unavailable. On timeout -> BLOCKED with the last probe error; it never waits forever
-      and never falls back to a log tail. A RESUMED instance takes this same path and nothing
-      extra: the spin-up's launch line carries no `-i` and no `-u`, so re-launching against the
-      database a park preserved re-installs nothing and READY means what it always meant.
-    Owned by `scripts/setup-steps/55-instance-ops.sh` (install/update job) and
-    `scripts/setup-steps/50-instance-spinup.sh` (listening readiness); the runtime contract for an
-    executing agent is `agents/odoo-instance-ops.md`'s "Active-wait on long builds" section, relayed
-    at dispatch level by `skills/odoo-instance/SKILL.md`.
-15. **Memory/time resource limits apply on every launch - a version-general cap, not a version-branch.**
-    Every install/update/test build (`--stop-after-init`, driven by `55-instance-ops.sh`) wraps the
-    odoo-bin invocation in a shell `ulimit -Sv` PLUS a `--limit-memory-hard` flag, both derived from
-    ONE resolved value. Each mechanism is load-bearing on exactly the series range the other does
-    not cover, and the enforcement boundary that decides which is which is spelled out in ONE place
-    and NOT restated here: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` § The v12.0
-    enforcement boundary. Both fire unconditionally on every build - each is a no-op wherever the
-    other already covers the range - so no prose version-branch is needed at this site. The resolved default is `floor(MemTotal * 0.5)` floored at
-    4 GiB, overridable via `ODOO_AI_LIMIT_MEMORY_HARD` (set to `""`/`0` for the deliberate uncapped
-    escape hatch). A long-running listener (any listening `persist:` value -
-    `INSTANCE-ALLOCATION.md` §5 - through the generated conf in `50-instance-spinup.sh`)
-    additionally carries `limit_memory_soft` and `limit_time_real` conf keys - both are structurally
-    unreachable on the `--stop-after-init` build path (they live in
-    `ThreadedServer.process_limit()`, past the `if stop: return rc` short-circuit that
-    `--stop-after-init` always takes), so the build path correctly omits them rather than passing a
-    flag that looks like protection but is silently never evaluated. A PARKED lease is the third
-    state and carries no resource limit at all: park stopped the owner's process group, so there is
-    no listening process left for any cap to bind - parking a lease holds DISK (database, filestore,
-    port reservation), never memory (`INSTANCE-ALLOCATION.md` §5). The caps re-arm the moment `resume`
-    re-launches through that same generated conf from the same resolved value, so a resumed instance
-    runs under the identical cap, never a weaker one. Full policy - the
-    v12.0 enforcement boundary, the exact resolution formula, the uncapped escape hatch, and the
-    `RLIMIT_AS`-is-virtual-not-physical caveat - lives in ONE place, not restated here:
-    `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` (SSOT). Owned by
-    `scripts/setup-steps/55-instance-ops.sh` (build path) and `scripts/setup-steps/50-instance-spinup.sh`
-    (listener conf); the resolution logic itself lives only in `scripts/lib/resource_limits.sh`.
+The decision tree, the `-i`/`-u` semantics and the traps above stay here. The two long halves
+live in part files; cite the PART that owns the fact you need.
 
-## Teardown - the lifecycle does not end at "server answers"
-
-The decision tree and checklist above cover the BUILD half of the lifecycle (what to run to get a
-correct, up-to-date instance). This section covers the other half: an instance you provisioned is
-not finished with until it is torn down. **The full normative rule lives in one place -
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` - this section only summarizes the
-instance-specific mechanics and points at where each piece is owned; it does not restate the
-contract's ownership matrix or DONE-gate wording.**
-
-- **T0 DONE-gate.** An agent may not claim `status: DONE` while an instance it self-provisioned
-  this dispatch is still leased or listening. A finished report with a live leftover server is not
-  done - take one of T1's three exits first, then claim DONE. Full wording:
-  `resource-teardown-contract.md` T0.
-- **T1 ownership (who clears it).** A self-provisioned instance (any `persist:` value the agent
-  acquired for itself - `INSTANCE-ALLOCATION.md` §5) -> that agent clears it before its own
-  terminal status, by one of T1's three exits: release it, park the lease (`allocator.py park` -
-  server stopped, database and ports kept for a later `resume`), or hand it off by name. A forwarded `INSTANCE_HANDLE` -> the
-  receiving agent NEVER releases it; only the provisioning orchestrator does, at run end.
-  The shared render target -> no single consumer ever releases it; only allocator GC reclaims it -
-  immediately on a dead owner pid, or (when that pid's liveness cannot be verified at all - a
-  different host, or no pid recorded) on an expired TTL. A verified-alive owner pid is NEVER
-  TTL-reclaimed (see `INSTANCE-ALLOCATION.md` §7). Full matrix (incl. the run-level-owner and
-  path-incremental rows): `resource-teardown-contract.md` T1.
-- **Mechanism: stop the process group, THEN drop the DB.** `release` is teardown-complete for a
-  listening instance, not just a DB drop: if the lease carries a live `server_pid` on this host,
-  the allocator stops that PID's process GROUP first (SIGTERM, a bounded wait, then a group
-  SIGKILL - reaping the HTTP master, workers, cron, the longpolling/gevent process, and any
-  `--dev=reload` watchdog) and only THEN drops the DB for `drop_on_release` leases. Stopping the
-  group first frees the DB connections that would otherwise block `DROP DATABASE`. The same order
-  applies inside `gc` whenever it reclaims a lease whose still-live local pid it can PROVE is that
-  lease's own server. **An unproven pid is never signalled.** A positive `pid_started` mismatch
-  proves the OPPOSITE of ownership - the recorded owner already exited, which is exactly how its
-  pid became free to be reused - so the live process now holding that number is an unrelated
-  bystander and is NEVER signalled: the lease is still condemned and reclaimed, the process is
-  left alone, and the refusal is reported. What counts as proof (the fingerprint / command-line /
-  reserved-port rungs) is defined by `_stop_owner_group_if_local` + `_ownership_proof` in
-  `scripts/lib/allocator.py` - read the ladder there rather than trusting a paraphrase of it. A
-  same-host owner pid that is VERIFIED alive is never reached by this path at all (`_is_stale`
-  never condemns it - see §7). Full API rows (`bind`, `release`, `gc`):
-  `INSTANCE-ALLOCATION.md` §6.
-- **`server_pid` on the handle.** The instance handle a build hands back (and forwards downstream)
-  now carries an optional `server_pid` - the server's process-group id under `setsid`, bound onto
-  the lease via `allocator.py bind <token> --pid <pid>` at spin-up (`50-instance-spinup.sh`); null
-  for a `--stop-after-init` build, which self-terminates. Field definition:
-  `snippets/instance-handle-contract.md`.
-- **Enforcement + crash-backstop chain.** Four layers, each catching what the one before it
-  missed:
-  1. **Prose release** - the agent releases its own lease as the normal, graceful path (this doc's
-     checklists + `resource-teardown-contract.md` T1/T3).
-  2. **`SubagentStop` hard block** (`hooks/enforce-teardown.sh`) - the one hard-blocking gate:
-     it fires only on a live, non-shared lease that the SUBAGENT ITSELF provisioned (correlated
-     from its own `acquire`/`bind`/`heartbeat` `--run-id`), at any turn end but a
-     `BLOCKED`/`NEEDS_CONTEXT` report or a T4 named handoff, refusing it until the lease is
-     released or handed off. Browser findings are ADVISORY only (never block) on both
-     `SubagentStop` and `Stop` - see `resource-teardown-contract.md` "Why browsers and instances
-     are enforced differently".
-  3. **`SessionEnd` crash backstop** (`hooks/session-end-gc.sh`) - runs `allocator.py gc`
-     unconditionally when the session ends, silent and bounded, so a killed/OOM'd session (no DONE
-     claim, no hook 2 trigger) gets its ephemeral DB dropped WHEN `_is_stale` says the lease may be
-     reclaimed (dead pid; or unprovable liveness past TTL). Its orphaned server group is stopped in
-     that same pass only when the pid is provably that lease's own server; an unproven pid is never
-     signalled (see the Mechanism bullet above). The hook itself only
-     SPAWNS that reaping into a DETACHED session and returns at once - a SessionEnd hook is aborted
-     (and its child killed mid-write) roughly a second after the batch's other hooks finish, no
-     matter what `timeout` its registration declares, so anything slow left running under the hook
-     is silently truncated instead of reaping; the measurement and the resulting two-role shape are
-     in the hook's own header, not restated here. Note: if the
-     `odoo-bin` child SURVIVED the session (a detached/setsid orphan that is still running), this
-     layer deliberately does NOT reclaim it while its pid stays verified-alive on this host - see
-     `hooks/session-end-gc.sh`'s header comment and `INSTANCE-ALLOCATION.md` §7 for the tradeoff.
-  4. **Next-acquire GC / TTL** - `gc` also runs opportunistically inside every `acquire`. Per
-     `_is_stale` (`INSTANCE-ALLOCATION.md` §7): a same-host owner pid that is DEAD is reclaimed
-     immediately; a same-host owner pid that is VERIFIED ALIVE is NEVER reclaimed, no matter how
-     long past `ttl_s` its heartbeat is; only the residual case liveness cannot be proven at all
-     (a different-host lease, or one that never recorded a pid) falls back to the allocator's TTL
-     (default `DEFAULT_TTL_S = 3600s` in `scripts/lib/allocator.py`, the SSOT for that number, sized
-     for exactly this narrower residual case). Long-lived holders whose lease falls in that residual
-     bucket call `heartbeat <token>` between phases so it is never reaped mid-flight; a holder with a
-     verified-alive, same-host pid no longer needs to for this purpose.
-  Wiring for both hooks (`SubagentStop`/`Stop`/`SessionEnd` registration) lives in `hooks/hooks.json`;
-  do not restate their internals here - this bullet is a map, not a copy.
+| File | Owns |
+|------|------|
+| `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` | the numbered build/update/test checklist (items 1-15), including item 14's deterministic readiness/completion contract and item 15's resource limits |
+| `INSTANCE-LIFECYCLE-TEARDOWN.md` | the teardown half: the T0 DONE-gate, T1 ownership, the stop-group-then-drop mechanism, `server_pid` on the handle, and the four-layer enforcement chain |

@@ -69,7 +69,7 @@ if str(PLUGIN) not in sys.path:
 from generator import check_orchestration as co  # noqa: E402
 
 # The dominance ceiling for the REAL tree: comfortably above today's next-highest legitimate
-# count (9, `docs/reference/INSTANCE-LIFECYCLE.md` / `agents/odoo-instance-ops.md`), far below the
+# count (4, `agents/odoo-code-reviewer.md`), far below the
 # magnitude of the regression this test exists to catch (66, `state-root-resolution.md`).
 REF_SCOPE_DOMINANCE_CITERS = 15
 

@@ -1152,7 +1152,7 @@ def test_step50_leaves_no_shared_lease_when_server_never_comes_up(tmp_path):
 
 # ---------------------------------------------------------------------------
 # Root-cause fix: the readiness signal is a BOUNDED HTTP-port poll of
-# /web/database/selector (primary, docs/reference/INSTANCE-LIFECYCLE.md item
+# /web/database/selector (primary, docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item
 # 14), fallback /web/login - never a log tail, never an unbounded wait.
 # ---------------------------------------------------------------------------
 

@@ -90,7 +90,7 @@ path produces an INCOMPLETE or WRONG result and must be refused.
 When no instance is available, BLOCK with status `NEEDS_CONTEXT` (Continuation Contract
 `blocked_reason`); do not improvise a partial export. Acquire an instance by invoking the `odoo-instance` skill
 (never the raw `odoo-instance-ops` agent) per
-`docs/reference/INSTANCE-LIFECYCLE.md` (allocator/lifecycle decision tree) and resume at P2.
+`docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree, and resume at P2.
 Ground the exact odoo-bin export/reload flags for the target series before invoking - the CLI
 surface differs per version (server flags v8-v18 vs the `i18n` subcommand v19+):
 
@@ -239,7 +239,7 @@ translations stay inactive
 - a false pass. `en_US` (the base language) MUST be active too (KT3) - confirm BOTH `en_US` and each
 `<lang>`, never the target language alone. Also verify the `.pot` consumed was re-exported THIS run
 (recipe gate 5), not a stale on-disk template. A clean reload with no translation error in the log is the pass signal per language.
-See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics. Each per-language `-u
+See `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics for the reload semantics. Each per-language `-u
 <module>` reload must run against the SAME lease as the P2/L1 `-i` install that created the DB
 via Odoo create-on-init, or `--mode exclusive` on a declared DB with the module pre-installed -
 never a fresh `ephemeral` lease (reserve-only = uncreated DB, `-u` will fail).

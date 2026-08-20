@@ -59,7 +59,8 @@ It REPLACES the catalog addons list for this lease only - `$ALLOC_ADDONS_PATH` a
 lease both carry the override, so every `--addons "$ALLOC_ADDONS_PATH"` below is already correct and
 needs no per-operation change. Build the value per `odoo-instance/SKILL.md` § WORKTREE_PATH
 substitution; never edit `instances.toml`, and never pass the flag on a setup-path spin-up (the
-instance IDENTITY token hashes the addons path - `docs/reference/INSTANCE-ALLOCATION.md:208-211`).
+instance IDENTITY token hashes the addons path -
+`docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5, P6 item 2).
 
 Pass `--run-id <run-id>` on EVERY acquire - never omit it, an unowned live lease is what lets
 another session drop yours. It echoes back as `$ALLOC_RUN_ID`;
@@ -76,7 +77,7 @@ Mode per operation:
 
 **Acquire refusals - `6`, `7`, `8` and `9`, the COMPLETE set; each has an ACTION, never a blind retry
 and never a silent continue in a mode you did not ask for** (SSOT:
-`docs/reference/INSTANCE-ALLOCATION.md` §6.6). Exit `6` - the role positively LACKS CREATEDB, so no
+`docs/reference/INSTANCE-ALLOCATION-API.md` §6.6). Exit `6` - the role positively LACKS CREATEDB, so no
 throwaway DB can be created: get CREATEDB granted, OR re-acquire with `--mode exclusive` and STATE in
 your output block's `notes` that isolation was NOT provided (the declared DB is shared, not a
 throwaway), OR pass `--no-create` when the target DB already exists. Exit `7` - CREATEDB is
@@ -117,7 +118,7 @@ the primitive writes a `BLOCKED - DB_AUTH=<state>` stderr block for EVERY non-`o
 included, so on `unknown` the EXIT CODE is authoritative and that string is not - a successful acquire
 (exit 0, lease written) can print it. Only a PROVEN `8` or `9` refuses.
 
-**Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
+**Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-GUARDS.md` §6.2 Config-file isolation for the full contract.
 
 ---
 
@@ -166,12 +167,12 @@ guarantee completion two ways:
   unread (they share the marker set above, so they can never disagree).
 
 Version nuance: this covers BUILD completion (job shape). A LISTENING instance (any listening
-`persist:` value - `docs/reference/INSTANCE-ALLOCATION.md` §5 - with no `--stop-after-init`),
+`persist:` value - `docs/reference/INSTANCE-ALLOCATION-MODES.md` §5 - with no `--stop-after-init`),
 including one brought back by a RESUME, has a DIFFERENT readiness
 signal: `50-instance-spinup.sh`'s BOUNDED-timeout HTTP poll of the port - primary
 `GET /web/database/selector` (auth=none, no DB required, reliable v8-v19), fallback `/web/login`
 where the selector route is unavailable. On timeout it reports `BLOCKED` with the last probe error;
-never a log tail. Full contract: `docs/reference/INSTANCE-LIFECYCLE.md` item 14.
+never a log tail. Full contract: `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 14.
 
 ---
 
@@ -339,7 +340,7 @@ cap, or to `""`/`"0"` to opt into the uncapped escape hatch) - never hardcode a 
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5 - read them there, never from a copy), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
+**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
 
 **Resume before you build (listening `persist:` values only - run this FIRST).** An earlier
 dispatch may have PARKED an instance for this series instead of destroying it: its database,
@@ -466,7 +467,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
 ```
 
 A release that could not drop has FOUR outcomes and `--force-forget` decides which are reachable -
-never report one as another (SSOT: `docs/reference/INSTANCE-ALLOCATION.md` §6.7). WITHOUT the flag: a
+never report one as another (SSOT: `docs/reference/INSTANCE-ALLOCATION-GUARDS.md` §6.7). WITHOUT the flag: a
 DB PROVED absent emits `ALLOC_FORGOTTEN_DB=<db>` and releases cleanly (exit 0, nothing left behind);
 a DB still present OR unverifiable emits NO key at all, KEEPS the lease and exits 1 - repair the drop
 surface (`45-venv.sh record-env`) and release again, never report that as a teardown. WITH
@@ -653,7 +654,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh apply --version 
 `50-instance-spinup.sh apply` handles allocator shared-lease registration internally, detects READY
 via a BOUNDED-timeout HTTP poll (primary `/web/database/selector`, fallback `/web/login` - never a
 log tail; see the "Deterministic completion contract" above and `docs/reference/
-INSTANCE-LIFECYCLE.md` item 14), and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=`
+INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 14), and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=`
 verbatim. Do NOT run Steps C-D (no separate ephemeral acquire for an ensure-up - the spinup script
 registers the shared lease itself). For status-only (no spinup requested), return the status in the
 output block with `status: down`.
@@ -708,7 +709,7 @@ locales. Never abort the entire run for one failing locale.
 SUSPEND a running instance: stop its server, keep its database, filestore and ports for a later
 resume. This is the third teardown exit (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
 T1 § The three exits) and the state named `persist: exclusive-parked` in
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5. It frees the SAME RAM a release
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5. It frees the SAME RAM a release
 frees - a parked lease has no server process at all - and destroys nothing.
 
 **Inputs:** lease token (`$ALLOC_TOKEN`, or the `lease_token` from the `INSTANCE_HANDLE` you are
@@ -888,7 +889,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
   acquires a second keep-alive lease.
 - Between successive B/C iterations (walking the path module-by-module), call
   `allocator.py heartbeat <token>` - cheap, and the only cover for the residual case the allocator
-  cannot verify owner-pid liveness for at all (`docs/reference/INSTANCE-ALLOCATION.md` §7).
+  cannot verify owner-pid liveness for at all (`docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7).
 - A NEW branch instance (independent branch) is provisioned via operation A with
   `CONTEXT: doc`, EXCLUSIVE lease, `--ports 1` on a freshly allocated DB.
 

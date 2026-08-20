@@ -1358,7 +1358,7 @@ _MUST_CATCH = {
 }
 
 _MUST_NOT_CATCH = {
-    # The corrected prose in INSTANCE-LIFECYCLE.md.
+    # The corrected prose in INSTANCE-LIFECYCLE-TEARDOWN.md.
     "corrected_mismatch_rule":
         "A positive `pid_started` mismatch proves the OPPOSITE of ownership - the recorded "
         "owner already exited, which is exactly how its pid became free to be reused - so "

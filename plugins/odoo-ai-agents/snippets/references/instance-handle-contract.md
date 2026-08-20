@@ -12,7 +12,7 @@ carries a handle - the shared render target intentionally shares one db+port acr
 An ISOLATED lease (a unique db + an allocator-issued pooled port + an owned lease, keyed on
 `run_id`) is what prevents a collision outright. The `persist:` values that select between them,
 and the parked state a suspended isolated lease sits in, are spelled out only in
-`docs/reference/INSTANCE-ALLOCATION.md` §5 - restating them here is how a reference copy ends up
+`docs/reference/INSTANCE-ALLOCATION-MODES.md` §5 - restating them here is how a reference copy ends up
 naming three states for a vocabulary that has four.
 
 ## The structural backstop's exact scope (belt-and-braces detail)

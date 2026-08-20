@@ -955,5 +955,5 @@ delegate another worktree review here - the final review above already cleared.
 - Worker brief format: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
 - Continuation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 - Disk fallback protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`
-- Instance lifecycle: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`
+- Instance lifecycle: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`
 - Odoo testing: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`

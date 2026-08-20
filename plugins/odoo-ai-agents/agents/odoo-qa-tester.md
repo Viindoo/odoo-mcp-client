@@ -134,7 +134,7 @@ BLOCKED/UNVERIFIED-driven early exit):
    with a verified-alive owner pid is never TTL-reaped regardless of heartbeat freshness; keep
    heartbeating anyway - it is cheap and is what protects you on the residual case the allocator
    cannot verify liveness for at all (a different host, or no pid recorded - see
-   `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §7).
+   `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7).
 
 Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 

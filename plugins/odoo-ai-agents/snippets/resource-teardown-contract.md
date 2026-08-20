@@ -57,11 +57,11 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 | How you hold it | Who tears it down | When |
 |---|---|---|
 | Browser page/context/recording you opened | YOU (close/stop it) | as you go + before your terminal status |
-| Instance you self-provisioned (no `INSTANCE_HANDLE` in your brief - whatever `persist:` value you asked for yourself; the values live in `docs/reference/INSTANCE-ALLOCATION.md` §5) | YOU (one of the three exits below) | before your terminal status |
+| Instance you self-provisioned (no `INSTANCE_HANDLE` in your brief - whatever `persist:` value you asked for yourself; the values live in `docs/reference/INSTANCE-ALLOCATION-MODES.md` §5) | YOU (one of the three exits below) | before your terminal status |
 | `INSTANCE_HANDLE` forwarded in your brief | NEVER you | the provisioning orchestrator, at end of run |
 | Instance you provisioned AND forwarded to children (you are the run-level owner) | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
 | `mode_hint: path-incremental` EXCLUSIVE lease | the owning skill, via release-lease (operation E) | at path completion - never between steps |
-| `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid, immediately; TTL, only when liveness cannot be verified at all - see `docs/reference/INSTANCE-ALLOCATION.md` §7) |
+| `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid, immediately; TTL, only when liveness cannot be verified at all - see `docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7) |
 | A lease you parked (`allocator.py park`) | YOU, or whoever resumes it | at your terminal status the park itself is the teardown; the lease is then reclaimed by its own `park_ttl_s` budget, or released after a `resume` |
 
 ### The three exits
@@ -144,7 +144,8 @@ not an alternative - you still release; the net catches crashes, not laziness.
 - **Park is routed, never hand-rolled, exactly like release.** `allocator.py park <token>` (T1's
   second exit); to come back, `Skill(odoo-instance)` finds it via `allocator.py query --series
   <X.Y> --state parked` and resumes it. The shared render target is never parkable. Full rules:
-  `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §7.
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` §5 +
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7.
 
 ## T4 - Failure and handoff paths
 
