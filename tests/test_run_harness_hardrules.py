@@ -5,15 +5,18 @@ Tests protect the business contract, NOT the code structure:
 - "never write/commit to the principal checkout"
 - "never auto-merge - the outward merge is human-gated (L2)"
 - "exactly ONE PR per REPO per run" (the cardinality kernel, inversion-guarded)
-- "the driver dispatches ONE node per iteration and never has two dispatches in flight"
+- "the driver co-dispatches only under the admission rule (default: one node), and everything
+  after dispatch - cherry-pick, verify, checkpoint - stays strictly serial"
 
 The last two are CONSOLIDATED kernels. The cardinality kernel previously had four separate
 inversion detectors for a per-GROUP PR cadence; the grouping layer is gone, so the phrase they
 hunted for cannot be written - but the property they protected (no PR cadence BELOW the repo)
 still can be violated, by a per-node or per-module cadence, so ONE inversion-guarded assertion
-keys on the actor relationship instead of on a retired noun. The dispatch kernel arrives from
-the retired topology-value guards, whose only surviving fact was that the driver dispatches
-sequentially.
+keys on the actor relationship instead of on a retired noun. The dispatch kernel used to assert
+the driver dispatched exactly one node per iteration. That is no longer the contract: the driver
+DERIVES a co-dispatch batch (§ Batch admission), whose default is still one node. What the kernel
+protects now is what makes a batch of >1 safe - the admission clauses that gate a second member,
+and the serial tail (cherry-pick, verify, checkpoint) that concurrency must never reach.
 
 Each assertion fails for exactly one reason: the corresponding rule was removed or inverted.
 
@@ -268,46 +271,76 @@ def test_one_pr_guard_excludes_negated_and_legitimate_mentions():
 
 
 # ---------------------------------------------------------------------------
-# Rule: ONE node per iteration - the driver never has two dispatches in flight.
+# Rule: a batch is DERIVED under the admission rule, and its default is ONE node.
 #
-# Consolidated kernel of the retired topology-value guards. Their whole subject (a value
-# describing how several units inside one group relate) died with the grouping layer, but the one
-# behavioural fact they carried - the driver dispatches SEQUENTIALLY, so "independent" never
-# meant concurrent - is a property of the driver itself and survives unchanged. It is also the
-# structural reason no grouping construct can be reintroduced through the back door: a field that
-# batches nodes is inert unless the driver's prose says it advances them together.
+# The driver may co-dispatch several nodes in one message, so "the loop dispatches one node" is
+# no longer the invariant. What replaces it is stricter than a slogan: a second member joins only
+# when it is READY on its own (never across a `depends_on` edge), writes SOURCE through a skill,
+# owns a DISJOINT file scope in its OWN worktree, auto-passes its gate, and fits BOTH bounds -
+# and everything after dispatch stays serial, because two cherry-picks onto one integration
+# branch race. Drop any of those and a batch stops being safe; claim "all parallel" anywhere and
+# the prose is describing a mechanism the driver does not have.
 # ---------------------------------------------------------------------------
 
 _PARALLEL_MISCLAIM_RE = re.compile(
     r"(?i)(all\s+parallel|maximum\s+parallelism|built\s+in\s+parallel)"
 )
 
+RUN_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "run-integration.md"
 
-def test_driver_dispatches_one_node_per_iteration_never_two_in_flight():
-    """The driver's dispatch is strictly sequential: ONE node per iteration, never two dispatches
-    in flight, and nothing batches or groups nodes to advance them together. Concurrency exists
-    only INSIDE a dispatched spawner skill, below the driver.
 
-    Fails if: the sequential-dispatch statement is dropped (which is what would let a batching
-    field or a "advance these nodes together" instruction become operative), or if any file claims
-    units are dispatched/built in parallel at the driver's level.
+def test_batch_admission_defaults_to_one_node_and_gates_every_extra_member():
+    """A co-dispatch batch is DERIVED, defaults to `[node]`, and admits a further member only
+    under the full clause set; the post-dispatch tail stays strictly serial.
+
+    Fails if: the default collapses (a batch of one stops being the baseline), any admission
+    clause is dropped (dependency edge, disjoint scope + own worktree, auto-passing tier, the two
+    bounds), the serial cherry-pick tail is softened, or any file claims units are dispatched or
+    built in parallel at the driver's level.
     """
-    norm = _norm(_skill_body())
-    assert re.search(r"(?i)ONE node per iteration", norm), (
-        "run-harness must state it dispatches ONE node per iteration."
+    skill = _norm(_skill_body())
+    ref = _norm(RUN_INTEGRATION.read_text(encoding="utf-8"))
+
+    assert re.search(r"(?i)DEFAULTS TO \[node\]", skill), (
+        "the loop must state that a derived batch DEFAULTS TO [node] - the default is what keeps "
+        "a single-node dispatch the baseline rather than a special case."
     )
-    assert re.search(r"(?i)NEVER has two dispatches in flight", norm), (
-        "run-harness must state the loop NEVER has two dispatches in flight - the fact that makes "
-        "any grouping field inert."
+    assert re.search(r"(?i)references/run-integration\.md . Batch admission", skill), (
+        "the loop must point at the admission rule's ONE owner "
+        "(references/run-integration.md § Batch admission)."
     )
-    assert re.search(
-        r"(?i)nothing here batches, groups, or advances nodes together", norm), (
-        "run-harness must explicitly reject batching/grouping nodes to advance them together - "
-        "without this sentence a 'batch of READY nodes' instruction is not contradicted anywhere."
+    assert re.search(r"(?i)a batch of one is always correct", ref), (
+        "§ Batch admission must state that a batch of one is always correct - without it, "
+        "'admit more' reads as an obligation."
     )
-    assert re.search(r"(?i)concurrency exists only INSIDE a dispatched spawner skill", norm), (
-        "run-harness must locate concurrency BELOW the driver (inside a dispatched spawner), so "
-        "'the coder runs work-items in parallel' is not read as licence to batch nodes."
+    for pattern, why in (
+        (r"(?i)NEVER crosses a `?depends_on`? edge",
+         "admission must never cross a dependency edge - a dependent's worktree has to fork an "
+         "integration branch that already carries its dependency's commit"),
+        (r"(?i)pairwise DISJOINT",
+         "members must own pairwise disjoint file scopes"),
+        (r"(?i)OWN worktree",
+         "each member must get its own worktree - two members in one tree is never admissible"),
+        (r"(?i)tier AUTO-PASSES",
+         "a member must auto-pass its gate tier; a gated node is dispatched alone"),
+        (r"(?i)MACHINE HEADROOM",
+         "the batch must be sized to MEASURED machine headroom, not just to agent weight"),
+        (r"(?i)CORRECTNESS bound",
+         "headroom must be stated as a correctness bound - an over-large batch destroys work "
+         "rather than merely running slower"),
+    ):
+        assert re.search(pattern, ref), f"§ Batch admission: {why}."
+
+    assert re.search(r"(?i)STRICTLY ONE MEMBER AT A TIME", skill), (
+        "the loop must walk the returned members one at a time - concurrency ends at dispatch."
+    )
+    assert re.search(r"(?i)Concurrency ENDS at dispatch", skill), (
+        "the loop must say concurrency ENDS at dispatch; everything after it mutates one shared "
+        "integration branch per repo."
+    )
+    assert re.search(r"(?i)never batch this step", skill), (
+        "cherry-picking a returned SHA onto run-integration must never be batched - two picks "
+        "onto ONE branch race."
     )
     offenders = []
     for path in sorted(PLUGIN.rglob("*.md")):

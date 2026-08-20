@@ -142,9 +142,64 @@ branch's prior commits stay clean and the step can abort to the pre-step SHA wit
 half-written sibling. That reason is INDEPENDENT of how the units are dispatched: it holds even
 where dispatch is strictly SEQUENTIAL and no race is possible, so never justify the child worktree as
 a concurrency race and never drop it because a given step happens to dispatch serially. Where units
-ARE dispatched together (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Batch admission),
+ARE dispatched together (§ Batch admission below),
 one-tree-per-unit is additionally what keeps them from colliding - a SECOND reason to keep the child
 worktree, never a replacement for the first.
+
+---
+
+## Batch admission
+
+`admit_batch` DERIVES a co-dispatch set at runtime; nothing ever authors one - the plan groups
+nothing (`depends_on` is its only ordering,
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`), so a batch is a driver
+MECHANISM leaving no trace in `run-<id>.json` beyond each member's own `status`.
+
+**The default is `[node]`, and a batch of one is always correct.** A second or later member joins
+ONLY when EVERY clause holds for THAT member on its own, `verify_plan_agreement`'s five checks
+included:
+
+1. **READY in its own right** - every `depends_on` DONE. Admission NEVER crosses a `depends_on` edge
+   nor re-orders `pick_ready`'s topological walk: those edges are real dependencies, and a
+   dependent node's worktree must fork a
+   `run-integration` that already carries its dependency's commit (§ Run start procedure invariant 2).
+2. **`approach_kind == "skill"` AND it writes SOURCE.** `integrate`, `workflow`, `inline` and
+   `approach: odoo-instance` nodes dispatch ALONE (list below).
+3. **`files-in-scope` pairwise DISJOINT from every other member's, plus its OWN worktree** - § Plan
+   agreement check 1 audits that disjointness plan-wide and `SKILL.md` Hard rule 6 gives each node its own tree;
+   together they are exactly what makes simultaneous writers safe. Two members in one tree: never.
+4. **Its tier AUTO-PASSES** under the current autonomy (`SKILL.md` § Gate-tier resolution). A gate is ONE node's
+   preview and ONE human decision, never a bundled approval for a set: a gated node is dispatched
+   ALONE after its own gate, `--step` collapses every batch to one, and a dynamic node (always L2)
+   never joins one.
+5. **It fits BOTH bounds**, and `RUN.budget.nodes_run + len(batch) <= RUN.budget.max_nodes`.
+
+**The bound is the SMALLER of two, and you MUST compute both.** (a) AGENT WEIGHT - Mode B, the
+model-weighted in-flight budget in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`; the
+weights and the cap live there, never copy a number into this file. (b) MACHINE HEADROOM, normally
+the binding one - an `odoo-coding` node self-provisions an EPHEMERAL Odoo instance for its integrated
+test (the shape `SKILL.md` § Verification dispatch names), so concurrent coding nodes are RAM-bound long before
+agent-weight-bound. MEASURE the host at admission - free memory, and the `odoo-bin` processes already
+live INCLUDING ones no run of yours owns - and SIZE THE BATCH TO WHAT IS ACTUALLY FREE. Never
+"dispatch everything READY"; headroom you did not measure admits ONE node, not a guess.
+
+**Headroom is a CORRECTNESS bound, not a performance one.** Under memory pressure an Odoo request
+stalls, a watchdog fires, the reload loses its environment and the lease reaper finishes the job: A
+DATABASE IS DROPPED out from under a suite that is still running, and the loss lands on a SIBLING,
+not on the over-eager batch. Per-run isolated leases (`concurrency-guard.md` § Odoo instance
+allocation) partition names and ports; they are NOT a memory allowance. An over-large batch does not run
+slower, it destroys work.
+
+**What stays one at a time - none of it incidental.** Cherry-picking node commits onto a repo's
+`run-integration` (two picks onto ONE branch race; the saga is per-node verify + checkpoint, Run
+start invariant 3 - serial whatever the batch was, which is why `SKILL.md` § The loop walks the
+returned members one at a time); the `integrate` land tail - lint gate, Existence precheck, squash/push - ONCE PER
+REPO; every L1 and L2 human gate, per clause 4; the terminal stages (`review`, `i18n`, `acceptance`,
+`doc`, `monitor`, `merge`), which carry NO `files-in-scope` PRECISELY BECAUSE they run after every
+cherry-pick over the aggregate diff on the integration worktree - clause 3 has no disjoint partition
+to find - and stay ordinary `pick_ready` nodes dispatched singly; and `approach: odoo-instance`
+verification, which holds a whole ephemeral database and whose verdict `SKILL.md` § integrate readiness clause
+(iii) VOIDS if anything lands on `run-integration` while it runs.
 
 ---
 
@@ -892,7 +947,7 @@ for the repo. Per node: verify plan agreement (disjoint file scopes), fork the n
 run-integration, INVOKE `odoo-coding` (which dispatches one `odoo-coder`, which commits the node and
 returns the SHA). The three carry no `depends_on` edges between one another and their file scopes are
 disjoint, so they are BATCH-ADMISSIBLE
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Batch admission): size the batch to MEASURED
+(§ Batch admission): size the batch to MEASURED
 machine headroom - each node self-provisions its own ephemeral instance - then launch the admitted
 members in ONE message and END THE TURN. Cherry-picking each returned SHA back onto run-integration
 stays STRICTLY one at a time, with per-node verify and checkpoint.
