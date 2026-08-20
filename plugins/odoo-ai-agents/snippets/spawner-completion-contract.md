@@ -1,6 +1,8 @@
 <!-- SSOT snippet. The single home for the completion discipline every dispatched agent obeys:
-     completion barrier, no-early-DONE, and the return path (R3 - your report IS your final
-     message). Always-on and unconditional: it holds identically for a Tier-C cold-spawn, for a
+     completion barrier, no-early-DONE, the return path (R3 - your report IS your final
+     message), and the same-turn rule for a background shell command (R0 § A background shell
+     command is a SAME-TURN result - the ONE home for that rule; never restate it elsewhere).
+     Always-on and unconditional: it holds identically for a Tier-C cold-spawn, for a
      resumed child, and at any nesting depth. R3 is the ONE place the message-direction rule is
      defined; every other file points here and never restates it. Distinct from
      continuation-contract.md's "never self-dispatch the next DAG step" (that forbids advancing the
@@ -26,8 +28,8 @@ Before launching any agent, read the launch capability you hold:
 undeclared key is stripped before the call is evaluated - so no parameter makes a launch hand its
 result back inside the turn that issued it. Any instruction citing `R0 move 2`, or telling you to
 "launch it blocking" or "launch it synchronously", names a lever that does not exist here: ignore it
-and take move 1 or move 3. (`Bash`'s own background flag is a DIFFERENT tool's real parameter,
-unrelated to agent dispatch.)
+and take move 1 or move 3. (`Bash`'s own background flag is a DIFFERENT tool's real parameter - it
+is governed by § A background shell command is a SAME-TURN result below, never by this ladder.)
 
 ### END YOUR TURN after dispatching - the whole discipline
 
@@ -42,6 +44,28 @@ So: commit or checkpoint what you have written, issue every launch this turn nee
 independent children in ONE message - then write nothing further except a one-line note of what you
 are waiting for, and END THE TURN. Never end a turn with uncommitted work, and never do a child's
 work while it runs. You resume with its result and continue from there.
+
+### A background shell command is a SAME-TURN result - nothing wakes you for one
+
+`Bash`'s own background flag is a DIFFERENT tool's real parameter, unrelated to agent dispatch, and
+the receipt it hands back says you will be notified when the command completes. That sentence is
+written for the ROOT conversation, where it is true. **It is not true for you.** A dispatched
+agent's turn end IS the end of its dispatch, so nothing resumes you for a background shell command
+and its result is reachable ONLY inside the turn that started it. Stop while one is still running
+and the result reaches nobody: your caller receives whatever text you left behind, and the command
+finishes alone.
+
+Backgrounding is not restricted - ONE shape is correct. Start the command, then stay in the SAME
+turn and drive it to a result with FOREGROUND tool calls: a call that blocks until the command is
+finished, then a read of its output file, repeating that foreground wait as many times as it takes.
+Every response you emit before you hold the result MUST carry a tool call; a text-only "still
+running" reply is the stall itself, never compliance with the receipt. If the result cannot be had
+inside this turn, kill the command, or report `status: BLOCKED` naming its output path - never a
+completion claim over output you never read.
+
+Never generalize either rule onto the other. An agent child DOES deliver to a launcher that stopped
+for it (move 3); a background shell command never does. A `SubagentStop` gate refuses a turn end
+that still holds one: `${CLAUDE_PLUGIN_ROOT}/hooks/enforce-background-wait.sh`.
 
 ### Which fallback is yours - your DECLARED ROLE decides it, never convenience
 
