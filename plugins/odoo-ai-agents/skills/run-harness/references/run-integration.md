@@ -139,9 +139,12 @@ is NOT a collapse - take the child-worktree path.
 **`n >= 2` keeps the child worktree, and the reason is POISON-CONTAINMENT, not an `index.lock`
 race.** A unit whose build fails leaves its partial edits in its own tree, so the integration
 branch's prior commits stay clean and the step can abort to the pre-step SHA without unpicking a
-half-written sibling. That reason holds even where dispatch is strictly SEQUENTIAL - never justify
-the child worktree as a concurrency race, because there is none when units are dispatched one at a
-time.
+half-written sibling. That reason is INDEPENDENT of how the units are dispatched: it holds even
+where dispatch is strictly SEQUENTIAL and no race is possible, so never justify the child worktree as
+a concurrency race and never drop it because a given step happens to dispatch serially. Where units
+ARE dispatched together (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Batch admission),
+one-tree-per-unit is additionally what keeps them from colliding - a SECOND reason to keep the child
+worktree, never a replacement for the first.
 
 ---
 
@@ -885,10 +888,15 @@ post-merge cleanup) is `odoo-pr-monitoring`'s, per the Terminal stage order cons
 The plan carries 3 independent coding nodes (each e.g. a computed field + its OWL widget + its unit
 tests), then a verification node, then the terminal chain.
 Action: at Run start, sweep stale integration dirs and fork ONE `run-integration` branch + worktree
-for the repo. Per node, in `depends_on` order: verify plan agreement (disjoint file scopes), fork the
-node's worktree FROM run-integration, INVOKE `odoo-coding` (which dispatches one `odoo-coder`, which
-commits the node and returns the SHA), cherry-pick that SHA onto run-integration, verify and
-checkpoint. Then the verification node runs the suites GREEN, the review node reviews the aggregate
+for the repo. Per node: verify plan agreement (disjoint file scopes), fork the node's worktree FROM
+run-integration, INVOKE `odoo-coding` (which dispatches one `odoo-coder`, which commits the node and
+returns the SHA). The three carry no `depends_on` edges between one another and their file scopes are
+disjoint, so they are BATCH-ADMISSIBLE
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Batch admission): size the batch to MEASURED
+machine headroom - each node self-provisions its own ephemeral instance - then launch the admitted
+members in ONE message and END THE TURN. Cherry-picking each returned SHA back onto run-integration
+stays STRICTLY one at a time, with per-node verify and checkpoint.
+Then the verification node runs the suites GREEN, the review node reviews the aggregate
 diff, and the terminal `integrate` node runs the pre-PR tail, its existence precheck, squashes
 run-integration, pushes, and opens ONE PR (tree-identity verified); STOP at "PR opened". No merge.
 

@@ -47,7 +47,11 @@ scheduler (never trap the main agent). SSOT for the mechanism: `docs/reference/w
    (c) NEEDS_CONTEXT; (d) the human issued an explicit
    stop/abort phrase (§ Circuit-breakers). Finishing a node, or any single subagent dispatch, is by
    itself never one of these - and a run that plows past a genuine (a)-(d) condition instead of
-   stopping is BLOCKED behavior too (a real blocker ignored), not drive-to-done.
+   stopping is BLOCKED behavior too (a real blocker ignored), not drive-to-done. **(a)-(d) enumerate
+   the reasons to end a turn AWAITING A HUMAN; they do not govern ending a turn to RECEIVE a
+   dispatched agent's report.** That stop is not a pause and needs no human: every agent launch is
+   asynchronous, so stopping is the ONLY point at which a result can reach you (§ The loop >
+   `dispatch`), and the run resumes on the child's own completion.
 3. **Writes to `run-<id>.json` after creation are run-harness's alone.** Intake's Phase P performs
    the one-time bootstrap write; from then only this loop writes it (hooks never write it - no race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
@@ -168,16 +172,29 @@ loop:
         emit_human_gate(node); wait
     # else (L0, or L1 under --auto within budget) -> auto-pass; append to gate_log
 
-    node.status = "RUNNING"; write(RUN)
-    provision_worktree_if_needed(node)  # Hard rule 6 + Run start invariant 2: SOURCE-writing, no
+    batch = admit_batch(RUN, node)  # DERIVED here, never authored - the plan carries no field that
+                        # groups nodes (`depends_on` is its only ordering). DEFAULTS TO [node];
+                        # § Batch admission below is the whole rule - the two bounds you MUST
+                        # compute, and every node kind that dispatches ALONE. Each extra member
+                        # clears verify_plan_agreement and gate_tier on its own before it joins.
+    for n in batch:
+        n.status = "RUNNING"
+        provision_worktree_if_needed(n)  # Hard rule 6 + Run start invariant 2: SOURCE-writing, no
                         # worktree, not self-provisioning -> git-ops forks one FROM this repo's
-                        # run-integration branch; inject into node.inputs; write(RUN)
-    dispatch(node):         # ONE node per iteration; this loop NEVER has two dispatches in flight.
-                        # Every branch below is a synchronous call in THIS context; nothing here
-                        # batches, groups, or advances nodes together - concurrency exists only
-                        # INSIDE a dispatched spawner skill. Compose EVERY brief from the caller-side
-                        # skeleton in ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md (read it by
-                        # path) plus the target agent's family delta - never inline it verbatim.
+                        # run-integration branch; inject into n.inputs. ONE worktree per node is
+                        # what makes a batch of >1 safe - never two members in one tree.
+    write(RUN)
+    dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN END YOUR TURN. A Skill-tool
+                        # call runs INLINE in this context, but every AGENT launch - yours, or one
+                        # made by a spawner skill running inline here - is ASYNCHRONOUS and returns
+                        # a receipt, not a result. No blocking or foreground launch parameter exists
+                        # at this depth or any other, and stopping IS the delivery point: keep
+                        # working in the launching turn and the report is never handed back. SSOT,
+                        # read it by path and never restate it:
+                        # ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md R0/R1.
+                        # Compose EVERY brief from the caller-side skeleton in
+                        # ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md (read it by path) plus
+                        # the target agent's family delta - never inline it verbatim.
         - skill (leaf)      -> Skill tool inline; NL-dispatch is the fallback
         - skill (spawner)   -> invoke the SKILL via Skill tool; the skill fans out its
                                own agent (e.g. odoo-code-reviewer) via launch subagent
@@ -187,32 +204,38 @@ loop:
         - integrate         -> the land tail, ONCE PER REPO: § `integrate` node dispatch (the land tail)
                                below - lint gate, THEN Existence precheck, THEN squash/push/open ONE PR
         - inline            -> do the small synth step yourself
-    # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
+    # END THE TURN here for any agent dispatch; the SubagentStop hook nudges resume. You are woken
+    # with each member's report, and the R1 barrier clears only when EVERY member is terminal.
 
-    contract = read_continuation_contract(node)
+    for n in batch:         # STRICTLY ONE MEMBER AT A TIME, in the batch's topo order, and only
+                        # once the R1 barrier has cleared. Concurrency ENDS at dispatch: everything
+                        # from here mutates ONE shared run-integration branch per repo.
+        contract = read_continuation_contract(n)
                         # SPAWNER node (skill invoked in `main`, owns its own workers you do not
                         # track): read its in-context AGGREGATE result inline. LEAF agent: read the
                         # contract from your own launch call's returned result, NEVER the `.output`
                         # transcript (snippets/spawner-completion-contract.md R3).
-    node.contract = contract
-    node.produced = contract.produced
-    node.status   = map(contract.status)
+        n.contract = contract
+        n.produced = contract.produced
+        n.status   = map(contract.status)
                         # DONE | NEEDS_NEXT->DONE (next[] already materialized into dynamic_nodes
                         # above) | FAILED->retry<3 else BLOCKED | BLOCKED | NEEDS_CONTEXT. NO
                         # parseable contract -> FAILED (counts toward the 3-strike cap); never mine
                         # the transcript for a status.
-    if node wrote source and returned a commit SHA:
-        cherry_pick(sha, into = repos[node.repo].run_integration)
+        if n wrote source and returned a commit SHA:
+            cherry_pick(sha, into = repos[n.repo].run_integration)
                         # Run start invariant 3 - saga + verify + checkpoint per
-                        # references/run-integration.md § Run start procedure
-    for nx in contract.next:    # SUGGEST -> CHAIN ; cross-workflow on_complete lands here too
-        if (nx.confidence or 0) >= 0.5 and not duplicate(nx) and within_budget:
-            RUN.dynamic_nodes.append(materialize(nx))
-                        # new READY node, depends_on = node; the tier function returns L2 for ANY
+                        # references/run-integration.md § Run start procedure. TWO CHERRY-PICKS ONTO
+                        # ONE BRANCH RACE: never overlap them and never batch this step, however
+                        # many nodes were dispatched together. A FAILED member picks nothing.
+        for nx in contract.next:    # SUGGEST -> CHAIN ; cross-workflow on_complete lands here too
+            if (nx.confidence or 0) >= 0.5 and not duplicate(nx) and within_budget:
+                RUN.dynamic_nodes.append(materialize(nx))
+                        # new READY node, depends_on = n; the tier function returns L2 for ANY
                         # dynamic node - human-gated, never auto-approved (GATE E-4)
-        else:
-            note_as_suggestion(nx)  # low-confidence / dup -> surface to human, do not auto-run
-    RUN.budget.nodes_run += 1
+            else:
+                note_as_suggestion(nx)  # low-confidence / dup -> surface to human, do not auto-run
+    RUN.budget.nodes_run += len(batch)
     RUN.status = rollup(RUN)    # NEEDS_NEXT while any reachable node is not DONE
     write(RUN)
 
@@ -220,6 +243,69 @@ loop:
 finalize: RUN.completion = {status, evidence: flatten(all produced), summary}; write(RUN)
 emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per claim
 ```
+
+## Batch admission
+
+`admit_batch` DERIVES a co-dispatch set at runtime; nothing ever authors one. The plan carries no
+field that groups, batches or layers nodes - `depends_on` is its only ordering
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`) - so a batch is a driver
+MECHANISM, never a plan concept, and it leaves no trace in `run-<id>.json` beyond each member's own
+`status`.
+
+**The default is `[node]`, and a batch of one is always correct.** A second or later member joins
+ONLY when EVERY clause below holds for THAT member on its own - including
+`verify_plan_agreement`'s five checks, which every admitted member clears in its own right:
+
+1. **READY in its own right** - every `depends_on` DONE. Admission NEVER crosses a `depends_on` edge
+   and never re-orders `pick_ready`'s topological walk: those edges are real dependencies, and a
+   dependent node's worktree must fork a `run-integration` that already carries its dependency's
+   commit (Run start invariant 2).
+2. **`approach_kind == "skill"` AND it writes SOURCE.** `integrate`, `workflow`, `inline` and
+   `approach: odoo-instance` nodes dispatch ALONE (§ What stays one at a time, below).
+3. **Its `files-in-scope` are pairwise DISJOINT from every other member's, and it gets its OWN
+   worktree.** § Plan agreement check 1 already audits that disjointness across the whole plan
+   before any worktree is created, and Hard rule 6 gives each node its own tree - together those are
+   exactly what make simultaneous writers safe. Two members in one tree is never admissible.
+4. **Its tier AUTO-PASSES** under the current autonomy (§ Gate-tier resolution). A node needing a
+   human gate is dispatched ALONE, after its own gate: a gate is ONE node's preview and ONE human
+   decision, never a bundled approval for a set. `--step` therefore collapses every batch to one,
+   and a dynamic node (always L2) never joins one.
+5. **It fits BOTH bounds below**, and `RUN.budget.nodes_run + len(batch) <= RUN.budget.max_nodes`.
+
+**The bound is the SMALLER of two, and you MUST compute both.**
+
+- **Agent weight** - Mode B, the model-weighted in-flight budget in
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. The weights and the cap live there;
+  never copy a number into this file.
+- **MACHINE HEADROOM, normally the binding one.** An `odoo-coding` node self-provisions an EPHEMERAL
+  Odoo instance for its integrated test (the same shape § Verification dispatch names), so
+  concurrent coding nodes are RAM-bound long before they are agent-weight-bound. MEASURE the host at
+  admission - free memory, and the `odoo-bin` processes already live, INCLUDING ones no run of yours
+  owns - and SIZE THE BATCH TO WHAT IS ACTUALLY FREE. Never "dispatch everything READY". Headroom
+  you did not measure admits ONE node, not a guess.
+
+**Headroom is a CORRECTNESS bound, not a performance one.** Under memory pressure an Odoo request
+goes slow, a watchdog fires, the reload loses its environment and the lease reaper finishes the job:
+A DATABASE IS DROPPED out from under a suite that is still running - and the loss lands on a
+sibling, not on the over-eager batch. Per-run isolated leases
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation) partition
+names and ports; they are NOT a memory allowance. An over-large batch does not run slower, it
+destroys work.
+
+**What stays one at a time, and why - none of these is incidental.**
+
+- **Cherry-picking node commits onto a repo's `run-integration`.** Two picks onto ONE branch race,
+  and the saga is per-node verify + checkpoint (Run start invariant 3). Serial whatever the batch
+  was - § The loop walks the returned members one at a time for exactly this reason.
+- **The `integrate` land tail** - lint gate, then Existence precheck, then squash/push - ONCE PER
+  REPO (§ `integrate` node dispatch).
+- **Every L1 and L2 human gate**, per clause 4 above.
+- **Terminal stages** (`review`, `i18n`, `acceptance`, `doc`, `monitor`, `merge`). They carry NO
+  `files-in-scope` PRECISELY BECAUSE they run after every cherry-pick, one at a time, over the
+  aggregate diff on the integration worktree - clause 3 has no disjoint partition to find because
+  there is nothing to partition. They stay ordinary `pick_ready` nodes, dispatched singly.
+- **`approach: odoo-instance` verification.** It holds a whole ephemeral database, and § integrate
+  readiness clause (iii) VOIDS its verdict if anything lands on `run-integration` while it runs.
 
 ## Plan agreement (`verify_plan_agreement`)
 

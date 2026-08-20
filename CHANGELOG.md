@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.1] - 2026-08-20
+
+### Added
+
+- `odoo-ai-agents` - **`run-harness` derives a co-dispatch batch instead of always dispatching one
+  node per iteration.** The loop gained `admit_batch`, plus a `Batch admission` section that is the
+  whole rule: the batch DEFAULTS to `[node]`, a batch of one is always correct, and a second member
+  joins only when it is READY in its own right (admission never crosses a `depends_on` edge), is a
+  SOURCE-writing `skill` node, has file scopes pairwise disjoint from every other member and its own
+  worktree, auto-passes its gate tier, and fits both bounds. Nothing authors a batch: the plan schema
+  carries no field that groups nodes, so this is a driver mechanism that leaves no trace in
+  `run-<id>.json` beyond each member's own `status`. The binding bound is normally MEASURED machine
+  headroom, not agent weight - a coding node self-provisions an ephemeral Odoo instance, so headroom
+  is a CORRECTNESS bound: under memory pressure a watchdog fires, the reload loses its environment
+  and the lease reaper drops a database out from under a suite that is still running, and the loss
+  lands on a sibling rather than on the over-eager batch. Per-run isolated leases partition names and
+  ports; they are not a memory allowance.
+
+### Changed
+
+- `odoo-ai-agents` - `run-harness` hard rule 2 now says what its `(a)-(d)` list governs. Those four
+  conditions enumerate the reasons to end a turn AWAITING A HUMAN; they never governed ending a turn
+  to RECEIVE a dispatched agent's report. That stop is not a pause and needs no human: every agent
+  launch is asynchronous, so stopping is the only point at which a result can reach the driver, and
+  the run resumes on the child's own completion.
+- `odoo-ai-agents` - concurrency now ENDS at dispatch, and the loop says so where it matters. The
+  admitted members launch in ONE message and the turn ends; the R1 barrier clears only when every
+  member is terminal; and everything after that - reading each contract, cherry-picking a returned
+  SHA onto the repo's `run-integration`, verify and checkpoint - walks the members STRICTLY one at a
+  time, because two picks onto one branch race. The `integrate` land tail, every L1/L2 human gate,
+  the terminal stages (which carry no `files-in-scope` precisely because they run over the aggregate
+  diff) and `approach: odoo-instance` verification all stay one at a time, each for its own stated
+  reason.
+- `odoo-ai-agents` - the child worktree in `references/run-integration.md` is justified by
+  poison-containment INDEPENDENTLY of how units are dispatched, so it is never dropped because a
+  step happens to dispatch serially; where units ARE dispatched together, one-tree-per-unit is a
+  SECOND reason to keep it, never a replacement for the first. The 3-coding-node worked example is
+  updated accordingly: the three are batch-admissible, sized to measured headroom, while the
+  cherry-picks back onto `run-integration` stay strictly serial.
+
 ## [5.1.0] - 2026-08-19
 
 4.25.2 banned a coordinator from launching a worker and ending its turn to wait for it, on the
