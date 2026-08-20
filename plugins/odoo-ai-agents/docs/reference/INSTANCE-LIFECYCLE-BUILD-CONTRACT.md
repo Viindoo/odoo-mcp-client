@@ -13,9 +13,10 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
 2. **Query the CLI for that version - never assume.** `cli_help(command, flag, odoo_version='<version>')` for every
    non-trivial subcommand/flag (entry script, DB management, module management, port flags).
    Do not hardcode one version's CLI for another.
-   **Venv probe gate:** verify the venv by running `odoo-bin --version` (not `import odoo`);
-   a bare `import odoo` fails on source-only checkouts and is unreliable on Odoo 19 namespace
-   packages. Step 45 records `python` on `[[instance]]` only after this gate passes, alongside
+   **Venv probe gate:** verify the venv by RUNNING Odoo (`odoo-bin --version`), never by a bare
+   `import odoo`. The probe shapes and the checkout layouts on which a bare import misreports a
+   healthy venv are owned by `commands/odoo-setup.md` § AI-4 - read them there, never restate
+   them here. Step 45 records `python` on `[[instance]]` only after this gate passes, alongside
    `odoo_root` (the checkout root that makes `import odoo` resolve) and the Postgres client
    surface `db_run_mode` (+ `db_container` in docker mode).
 3. **Classify the change** (decision tree above) → choose `-i` / `-u` / restart-only /

@@ -71,10 +71,11 @@ touch already-declared ports and does not by itself prevent the collision. Cover
 `test_allocator.py::test_maxed_out_pool_never_hands_out_a_sibling_instances_declared_port`.
 
 **P6 - bootstrap-race safety (two same-series projects racing to spin up first).** A `db_name`
-default derived from `series` alone (`odoo_17_0` for every v17.0 project) plus a declared port that
-also defaults identically at index 0 meant two never-migrated same-series projects could resolve to
-the SAME db_name and port before either had a chance to register distinctly - a bare `db_name`
-identity check could then pass against a foreign server. Three-part fix, all in `40-instance-profile.sh`
+default derived from `series` alone (`odoo_<series>`, identical for every project on that series)
+plus a declared port that also defaults identically at index 0 meant two never-migrated
+same-series projects could resolve to the SAME db_name and port before either had a chance to
+register distinctly - a bare `db_name` identity check could then pass against a foreign server.
+Three-part fix, all in `40-instance-profile.sh`
 / `50-instance-spinup.sh` (outside `allocator.py` itself, but part of this design's concurrency
 guarantee):
 1. **PRIMARY - eager catalog migration.** `40-instance-profile.sh` migrates a project's local
