@@ -128,7 +128,8 @@ every dispatch below (precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handl
 Provisioning and the test-run lifecycle are NOT owned here - `odoo-instance` (the
 `odoo-instance-ops` agent) owns create/init/run-tests/drop
 and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
-Lifecycle + test-invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`
+Lifecycle + test-invocation conventions:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`
 and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. This skill does NOT independently
 re-derive a worktree root: when the dispatching caller's brief carries a `worktree_path` /
 `WORKTREE_PATH` (e.g. `run-harness`'s pre-PR tail, `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`

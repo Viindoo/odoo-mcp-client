@@ -348,7 +348,7 @@ pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3
 no inline diff read. Full condition list: `references/rb-phase-detail.md` P10 § B3.
 When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
 `odoo_version=<series>`); instance lifecycle protocol:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`; test invocation conventions:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`; test invocation conventions:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 **P11 - Gate (STOP, human-confirm).**

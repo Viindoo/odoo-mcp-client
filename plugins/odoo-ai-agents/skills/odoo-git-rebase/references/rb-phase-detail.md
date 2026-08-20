@@ -875,8 +875,9 @@ The DISPATCHER owns addons provenance: whenever a brief names a `WORKTREE_PATH`,
 Contract, including the carve-out and the coverage assertion:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
-Instance lifecycle protocol: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`.
+Instance lifecycle protocol: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`.
 Test invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+
 Resolve odoo-bin flags for the target series via `cli_help` before invoking - flags differ
 per series (e.g. v19 namespace bootstrap); always pass `odoo_version=<series>` to `cli_help`.
 

@@ -125,8 +125,8 @@ Acquire an isolated lease: `scripts/lib/allocator.py acquire --mode ephemeral --
 lease on a declared DB); a read-only attach stays lease-free. The returned port NUMBERS are
 version-agnostic - map them to CLI flags via `cli_help`. Exit **6, 7, 8 or 9** is a
 REFUSAL, never a degrade: handle all four, and say so when you trade isolation away for
-`--mode exclusive` - which `8`/`9` gate too, so it is no way past them. Exit codes (§6.6), protocol, GC/stale rules:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` and
+`--mode exclusive` - which `8`/`9` gate too, so it is no way past them. Exit codes: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.6; GC/stale
+rules: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` § 7; protocol:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. Release the lease token before your
 terminal status - that imperative and the release mechanics belong to
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3, not to this file.

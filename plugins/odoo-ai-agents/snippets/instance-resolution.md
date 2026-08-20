@@ -96,7 +96,7 @@ An acquire REFUSES with exit `6`, `7`, `8` or `9` - each writes no lease and nev
 degrades to `exclusive`. `8`/`9` (Odoo cannot authenticate / the cluster did not answer)
 gate `exclusive` too, so no mode gets past them; re-dispatching `--mode exclusive` after
 `6`/`7` is the caller's own trade of isolation and must be stated in its report.
-Remedies: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 6.6.
+Remedies: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.6.
 
 `ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your
 `-i` run (Odoo create-on-init) and dropped through Odoo on release via
@@ -107,5 +107,6 @@ stack's live target) with its actual `--port` so other sessions discover it via 
 reclaims it when its server pid dies - it never drops the declared DB; `readonly` is lease-free
 (use plain resolution above). The allocator returns version-agnostic port NUMBERS only - map each
 to the right CLI flag (`--http-port`, longpoll/gevent, ...) by querying
-`cli_help` for the target series at runtime. Full contract + GC/stale rules:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
+`cli_help` for the target series at runtime. Full mode contract:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5; GC/stale rules:
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` § 7.

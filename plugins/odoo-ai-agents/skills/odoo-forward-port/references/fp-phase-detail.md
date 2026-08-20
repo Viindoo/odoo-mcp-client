@@ -656,7 +656,8 @@ topology). Mark `status=adapted`.
 Resolve odoo-bin flags for the TARGET series via `cli_help` before dispatching - the allocator
 returns version-agnostic ports; flags and bootstrap behavior differ per series (e.g. v19
 namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli_help`).
-Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
+
+Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
 **DELEGATE - never a raw `allocator.py`/`odoo-bin` recipe.** SKILL.md P9's rule is binding here

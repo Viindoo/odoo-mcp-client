@@ -18,7 +18,7 @@ PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 SKILL_MD = PLUGIN / "skills" / "odoo-instance" / "SKILL.md"
 AGENT_MD = PLUGIN / "agents" / "odoo-instance-ops.md"
-LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE.md"
+LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE-BUILD-CONTRACT.md"
 
 
 def test_skill_states_en_us_mandatory_on_build():
@@ -78,8 +78,8 @@ def test_agent_self_review_covers_en_us_build():
 
 
 def test_lifecycle_doc_cross_references_en_us_invariant():
-    """INSTANCE-LIFECYCLE.md contract must carry the en_US-always-on-build item."""
+    """INSTANCE-LIFECYCLE-BUILD-CONTRACT.md must carry the en_US-always-on-build item."""
     text = LIFECYCLE_DOC.read_text(encoding="utf-8")
     assert "en_US" in text and "always active on any first `-i`" in text, (
-        "INSTANCE-LIFECYCLE.md lifecycle contract must document the en_US-on-every-build rule"
+        "INSTANCE-LIFECYCLE-BUILD-CONTRACT.md must document the en_US-on-every-build rule"
     )

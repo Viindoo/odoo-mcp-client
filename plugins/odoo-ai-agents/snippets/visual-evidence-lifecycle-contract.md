@@ -338,5 +338,5 @@ Both are instead reclaimed by `prune_stale_run_artifacts` (`scripts/lib/state_re
 lease-registry reachability guard (`_leased_db_names`) - stale by age AND unreachable from any
 leased instance, never by age alone. Called from `55-instance-ops.sh` (`_open_log`, every build)
 and `50-instance-spinup.sh` (every listener spin-up); the conf contract itself is
-`docs/reference/INSTANCE-ALLOCATION.md` § 6.2, not restated here. This keeps § 3.1/§ 3.2's
+`docs/reference/INSTANCE-ALLOCATION-GUARDS.md` § 6.2, not restated here. This keeps § 3.1/§ 3.2's
 exhaustiveness claim true (exhaustive over the ISOLATE table, which `logs/`/`conf/` are not in).

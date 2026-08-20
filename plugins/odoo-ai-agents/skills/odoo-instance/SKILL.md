@@ -58,7 +58,7 @@ When invoked, gather the following from the caller's request:
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests/resume; optional for status |
 | `lease_token` | required for `park` - the token of the lease to suspend (the `lease_token` field of the `INSTANCE_HANDLE` being finished with). Not used by any other operation |
 | `park_ttl_s` | optional for `park` - how long the suspended database is kept before the allocator reclaims it. Omitted keeps the allocator's default; the budget is DISK-scoped, so state it in the relay when the caller did not name one |
-| `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. What each one means, plus the `exclusive-parked` state a suspended instance sits in (park keeps its db + ports; resume brings it back), is spelled out in ONE place - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` § 5 - and is deliberately NOT restated here; read it there before choosing. The one consequence this dispatch table must state itself, because it decides whether a caller may safely run mutating work: an `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool), a `shared-running` one is shared by every reader on that series |
+| `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. What each one means, plus the `exclusive-parked` state a suspended instance sits in (park keeps its db + ports; resume brings it back), is spelled out in ONE place - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - and is deliberately NOT restated here; read it there before choosing. The one consequence this dispatch table must state itself, because it decides whether a caller may safely run mutating work: an `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool), a `shared-running` one is shared by every reader on that series |
 | `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
 | `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here |
@@ -136,7 +136,7 @@ confirmed by exit 0 AND the forced `Modules loaded.` completion marker AND no fa
 can each exit 0 while silently skipping it). A LISTENING instance is READY on a BOUNDED-timeout HTTP
 port poll - primary `/web/database/selector`, fallback `/web/login` - never a log line. Full
 contract: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Deterministic completion contract"
-and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` item 14.
+and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 14.
 
 **`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
 base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate
@@ -180,8 +180,8 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
 
 **Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
 reads no config file, the generated-conf path is a unique temp file per run; see
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full
-two-path contract.
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-GUARDS.md` §6.2 Config-file isolation for
+the full two-path contract.
 
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching` - an L2 human
 gate applies before any mutation (create, drop, init, update, run-tests). If a run-harness is in the

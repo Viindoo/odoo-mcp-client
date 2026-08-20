@@ -72,7 +72,7 @@ If the index genuinely has nothing relevant, say so explicitly - then write.
   re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
 - **Instance / CLI:** before emitting any `odoo-bin` command, resolve the target version's
   real CLI with `cli_help` - do not assume one version's flags apply to another (see
-  `INSTANCE-LIFECYCLE.md`, `ODOO-TESTING.md`).
+  `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 2, `ODOO-TESTING.md`).
 
 ## 4. Standalone fallback: read the source, don't ask the human
 

@@ -8,7 +8,7 @@
 # NOT a temp file), launches Odoo (source via odoo-bin OR docker compose),
 # then detects READY with a BOUNDED-timeout HTTP poll of /web/database/selector
 # (fallback /web/login) - never a log-tail wait (docs/reference/
-# INSTANCE-LIFECYCLE.md item 14). /web/database/selector needs no DB and no
+# INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14). /web/database/selector needs no DB and no
 # auth and is reliable across v8-v19 (v18+ moved the backend root /web -> /odoo,
 # but this route and /web/login are unchanged); /web/login is kept as a
 # fallback for a series/build where the selector route is unavailable. On
@@ -365,7 +365,7 @@ _http_status() {
 
 # ---------------------------------------------------------------------------
 # _probe_ready - the deterministic READY signal (docs/reference/
-#   INSTANCE-LIFECYCLE.md item 14): the PRIMARY endpoint is
+#   INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14): the PRIMARY endpoint is
 #   /web/database/selector (auth=none, no DB required, reliable v8-v19). ONE
 #   curl call per invocation - the bounded retry loop (_poll_until_up) is what
 #   provides repeated attempts, so this function never blocks past a single
@@ -385,7 +385,7 @@ _probe_ready() {
 #   Used only as a last resort - see _poll_until_up - for a series/build where
 #   /web/database/selector is unavailable; never tried on every iteration
 #   (that would double the probe cost of every poll for no benefit, since the
-#   primary is reliable v8-v19 - docs/reference/INSTANCE-LIFECYCLE.md item 14).
+#   primary is reliable v8-v19 - docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14).
 # ---------------------------------------------------------------------------
 _probe_ready_fallback() {
     local port="$1"
@@ -539,7 +539,7 @@ _find_odoo_bin() {
 
 _poll_until_up() {
     # $1 = port. BOUNDED-timeout READY poll (docs/reference/
-    # INSTANCE-LIFECYCLE.md item 14): repeatedly probe the PRIMARY
+    # INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14): repeatedly probe the PRIMARY
     # /web/database/selector endpoint (one curl call per iteration) until it
     # answers 200 or the bound is reached. Only once the primary has exhausted
     # its whole timeout budget without ever answering 200 does this make ONE

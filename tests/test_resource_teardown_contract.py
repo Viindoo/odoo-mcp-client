@@ -437,7 +437,7 @@ def test_uncaveated_version_flag_predicate_can_fail():
 @pytest.mark.parametrize(
     "path",
     [f for f in ALL_SCANNED_FILES if _VERSION_FLAG_RE.search(_read(f))]
-    + [INSTANCE_OPS, SNIPPET, PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION.md",
+    + [INSTANCE_OPS, SNIPPET, PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION-MODES.md",
        PLUGIN / "skills" / "odoo-instance" / "SKILL.md"],
     ids=lambda p: _rel(p),
 )

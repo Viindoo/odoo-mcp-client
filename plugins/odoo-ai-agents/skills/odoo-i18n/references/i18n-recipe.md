@@ -17,7 +17,7 @@ entry as correct (term genuinely gone) or wrong (accidental loss) before commit.
 REQUIRES a running Odoo instance with the target module installed - export and validate both need
 a live DB + registry. No no-DB workaround (babel/polib cannot walk the module's translatable terms
 the way Odoo's registry does). Missing instance is a BLOCK, not a fallback - acquire per
-`docs/reference/INSTANCE-LIFECYCLE.md`.
+`docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`.
 
 Ground every odoo-bin flag for the target series before invoking - the EXPORT/IMPORT surface
 is the half that moved off the server flags onto an `i18n` subcommand; the language-ACTIVATION
@@ -233,7 +233,7 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
 
 3. **Load validation via Odoo, NOT msgfmt.** Reload the module (HARD RULE, never omit the
    `ulimit -Sv` guard; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`;
-   see `docs/reference/INSTANCE-LIFECYCLE.md`):
+   see `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics):
 
    ```bash
    [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
