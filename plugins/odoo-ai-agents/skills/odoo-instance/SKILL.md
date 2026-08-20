@@ -110,7 +110,10 @@ longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agen
 build in the background, capture `LOG_PATH`, then BLOCK in the FOREGROUND on
 `55-instance-ops.sh wait-log --log "<LOG_PATH>"` as its VERY NEXT tool call - never backgrounding
 that call, and never ending its turn on a text-only "waiting for the build" reply. The Bash tool's
-generic "you will be notified, do not poll" default is explicitly OVERRIDDEN for this one call: it
+generic "you will be notified, do not poll" default never holds for a dispatched agent ANYWHERE and
+is explicitly OVERRIDDEN here as everywhere (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` § A background shell command is a
+SAME-TURN result): it
 blocks and RETURNS `BUILD_RESULT=success|failure|inconclusive|timeout`, and no notification resumes
 a dispatched agent's ended turn. `timeout` is the ONLY one that means keep waiting -> re-invoke the
 same foreground call while `BUILD_PROGRESS` (the
