@@ -618,6 +618,134 @@ def test_agent_create_instance_is_one_persist_keyed_flow():
     )
 
 
+def _spinup_invocations(path: Path) -> list[str]:
+    """Every SHELL INVOCATION of 50-instance-spinup.sh in one file, as one
+    whitespace-collapsed string per invocation.
+
+    Line-continuation aware on purpose: these commands are written one flag per
+    line, so a check that only ever read the line naming the script would miss
+    every flag on it. Prose that merely MENTIONS the script (including a sentence
+    saying which flag it refuses) never lands here, because only the line that
+    carries the script path - plus its backslash continuations - is collected."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    calls, i = [], 0
+    while i < len(lines):
+        if "50-instance-spinup.sh" in lines[i]:
+            buf = [lines[i]]
+            while buf[-1].rstrip().endswith("\\") and i + 1 < len(lines):
+                i += 1
+                buf.append(lines[i])
+            calls.append(" ".join(" ".join(buf).split()))
+        i += 1
+    return calls
+
+
+def test_persist_ssot_names_the_acquire_mode_and_the_release_time_fate():
+    """`persist:` is SKILL/AGENT vocabulary that MAPS onto the four allocator
+    modes, and this file is the SSOT for that mapping. Both halves of the
+    `exclusive-running` row are load-bearing:
+
+    - the MODE the acquire must request, because the name suggests a fifth mode
+      that does not exist (`--mode exclusive-running` exits 2), and
+    - the RELEASE-TIME FATE, because the name promises persistence while the mode
+      it maps to carries `drop_on_release: true`. A reader who takes the name at
+      face value releases the lease and destroys a database it just built.
+
+    Naming the mapping without naming the fate is the gap that costs the database,
+    so this asserts both."""
+    modes_doc = PLUGIN / "docs" / "reference" / "INSTANCE-ALLOCATION-MODES.md"
+    text = _norm(modes_doc)
+    s = text.find("`persist: exclusive-running`")
+    assert s != -1, "the persist SSOT must declare the exclusive-running value"
+    e = text.find("`persist: exclusive-parked`", s + 1)
+    row = text[s: e if e != -1 else len(text)]
+
+    assert "allocator `ephemeral`" in row, (
+        "the row must name the allocator mode the acquire requests"
+    )
+    assert "exclusive-running` is not a mode" in row or "not a mode at all" in row, (
+        "the row must say that `--mode exclusive-running` is not a mode - the name is "
+        "the whole reason a caller reaches for it"
+    )
+    assert "drop_on_release" in row and "DROPS" in row.upper(), (
+        "the row must state that `release` DROPS this lease's database - the promise the "
+        "value's NAME makes is the opposite, and only this sentence corrects it"
+    )
+
+
+def test_no_documented_spinup_invocation_passes_run_id():
+    """50-instance-spinup.sh records ownership on NO path - the --exclusive
+    lease was owner-stamped by the caller's acquire, and the shared/declared path
+    reads INST_RUN_ID from the environment - so it REFUSES --run-id (exit 2).
+
+    A documented invocation carrying that flag therefore does not merely mislead:
+    it exits 2 before anything launches, which reads to an executing agent as a
+    broken provisioning step. Scanned tree-wide rather than at the two known
+    sites, because the same copy-paste lands anywhere a listening instance is
+    documented. tests/ is excluded: the executable guard for the refusal has to
+    PASS the banned flag in order to observe the exit code."""
+    offenders, seen = [], 0
+    for path in _stale_claim_corpus(include_tests=False):
+        for call in _spinup_invocations(path):
+            seen += 1
+            if "--run-id" in call:
+                offenders.append(f"{_rel(path)}: {call[:160]}")
+    # Discovery floor: a scan that finds no invocation at all proves nothing, and a
+    # reflowed command or a renamed script would silently make this vacuous.
+    assert seen >= 3, (
+        f"only {seen} spin-up invocation(s) found - the extractor stopped matching, so "
+        "this guard is asserting over an empty set"
+    )
+    assert not offenders, (
+        "50-instance-spinup.sh exits 2 on --run-id; these documented invocations would "
+        "fail before launch:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_agent_exclusive_running_is_two_legs_with_the_three_handoff_invariants():
+    """Nothing in this plugin installs modules AND leaves the server listening in
+    one call: 55-instance-ops.sh init builds and exits, 50-instance-spinup.sh
+    launches and installs nothing. So the isolated listening instance is TWO
+    LEGS, and the agent that owns operation 1 must say so and issue both.
+
+    It must also carry the three invariants of the handoff, because each fails
+    while the port still answers HTTP 200 - so no probe, log or exit code catches
+    any of them: WHICH allocator mode the acquire requests (and therefore whether
+    `release` destroys the database), that both legs name the SAME database, and
+    that the lease survives between the legs."""
+    text = _norm(AGENT_MD)
+    s = text.find("**`persist: exclusive-running`**")
+    assert s != -1, "the exclusive-running branch must exist"
+    e = text.find("**`persist: shared-running`**", s + 1)
+    section = text[s: e if e != -1 else len(text)]
+
+    assert "55-instance-ops.sh" in section and "50-instance-spinup.sh" in section, (
+        "the exclusive-running branch must issue BOTH legs - the build verb and the "
+        "listening verb - not the spin-up alone (which installs nothing)"
+    )
+    # Invariant 1: the mode, and the release-time consequence it decides.
+    assert "mode `ephemeral`" in section or "--mode ephemeral" in section, (
+        "the branch must NAME the allocator mode the acquire requests"
+    )
+    assert "drop_on_release" in section and "release" in section, (
+        "the branch must state that this lease's database is DROPPED at release - the "
+        "belief that `exclusive-running` means durable is what destroys a built database"
+    )
+    # Invariant 2: one database across both legs.
+    assert "$ALLOC_DB_NAME" in section, (
+        "both legs must be told to name the SAME acquired database"
+    )
+    # Invariant 3: the lease outlives the handoff.
+    assert "between the legs" in section or "between leg 1 and leg 2" in section, (
+        "the branch must forbid releasing/parking the lease between the two legs"
+    )
+    # The superseded instruction must be GONE, not left standing beside the new one.
+    assert "Do NOT ALSO run `55-instance-ops.sh init`" not in text, (
+        "the old single-leg instruction contradicts the two-leg contract and must be "
+        "deleted, not merely supplemented"
+    )
+
+
 def test_agent_exclusive_running_never_falls_back_to_8069():
     """The exclusive-running mechanism must state it never falls back to the
     declared/8069 port and BLOCKs instead when the allocator port is missing

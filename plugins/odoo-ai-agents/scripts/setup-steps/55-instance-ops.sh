@@ -1860,11 +1860,14 @@ cmd_init() {
 
     local rc=0
     # shellcheck disable=SC2086
-    # --stop-after-init is correct HERE by design: cmd_init is the EPHEMERAL
-    # mutation-build mechanism (persist: ephemeral) - a throwaway install/init
-    # that never listens. A LISTENING instance (persist: exclusive-running /
-    # shared-running) never routes through this verb - it goes through
-    # 50-instance-spinup.sh, the sole listening mechanism (P5.7). Do NOT try to
+    # --stop-after-init is correct HERE by design: cmd_init is the BUILD
+    # mechanism - it installs the module set and EXITS, it never listens.
+    # 50-instance-spinup.sh is the sole LISTENING mechanism (P5.7) and installs
+    # nothing (no -i/-u on its launch line), so an ISOLATED listening instance
+    # (persist: exclusive-running) is TWO LEGS: this verb builds the database,
+    # then that script launches the SAME database listening (the handoff
+    # invariants live in agents/odoo-instance-ops.md operation 1).
+    # persist: shared-running has no build leg here at all. Do NOT try to
     # make this verb long-running; add a new op instead if that is ever needed.
     # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
     # a log-tail wait; the log is consulted ONLY afterward, to CONFIRM the exit

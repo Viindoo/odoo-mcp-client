@@ -1295,6 +1295,108 @@ def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(tmp_path
 
 
 @requires_bash
+def test_step50_refuses_run_id_and_teaches_where_ownership_is_recorded(tmp_path):
+    """This script records ownership on NO path: the --exclusive lease was
+    already owner-stamped by the caller's acquire, and the shared/declared path
+    reads INST_RUN_ID from the environment. A caller that passes --run-id here
+    therefore set nothing.
+
+    The refusal must stay a refusal - accept-and-ignore would turn a loud
+    immediate failure into a silent no-op and leave the caller believing it
+    stamped an owner - and it must NAME the call that does record ownership,
+    because a bare "Unknown arg" leaves the caller guessing at a flag that looks
+    exactly right. A wholly unknown flag must still get the generic message, so
+    this teaches about one real confusion rather than blanket-explaining typos.
+    """
+    env, _home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up")
+    res = _run_step50_args(
+        env, "--exclusive", "--db-name", "odoo_17_0_t_deadbeef",
+        "--http-port", "18271", "--port-key", "http_port", "--run-id", "run-excl",
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 2, f"--run-id must be REFUSED, never accepted-and-ignored\n{out}"
+    assert "allocator.py acquire --run-id" in out, (
+        f"the refusal must name where ownership IS recorded, not just reject the flag\n{out}"
+    )
+    assert "INST_RUN_ID" in out, (
+        f"the refusal must also name the env door the shared/declared path uses\n{out}"
+    )
+    assert not launch_log.exists(), f"a refused arg parse must launch nothing\n{out}"
+
+    generic = _run_step50_args(env, "--not-a-real-flag")
+    gout = generic.stdout + generic.stderr
+    assert generic.returncode == 2 and "Unknown arg: --not-a-real-flag" in gout, (
+        f"an unrelated unknown flag must keep the generic refusal\n{gout}"
+    )
+    assert "allocator.py acquire --run-id" not in gout, (
+        "the self-teaching text belongs to --run-id only; blanket-attaching it to every "
+        f"typo makes it noise\n{gout}"
+    )
+
+
+@requires_bash
+def test_step50_refuses_a_db_name_that_disagrees_with_its_lease(tmp_path):
+    """ONE DATABASE, BOTH LEGS. An isolated listening instance is built in two
+    legs - `55-instance-ops.sh init` installs the module set into a database and
+    exits, then this script launches that SAME database listening. This script
+    carries no -i/-u, so launching a DIFFERENT name makes Odoo create that other
+    database EMPTY on the spot: the port answers HTTP 200 and every later test,
+    QA pass and visual check reports green against code nobody installed.
+
+    The lease named by --alloc-token records which database was reserved and
+    built, so the disagreement is DECIDABLE here - and must be refused before
+    anything is launched or written, because no later signal exists.
+    """
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    built_db = "odoo_17_0_t_builtleg"
+    acq = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "exclusive", "--db-name", built_db, "--run-id", "run-excl",
+         # --no-create keeps this a pure RESERVATION: it skips the allocator's own
+         # cluster preflight, which would otherwise invoke the declared (stubbed)
+         # python and write to the very launch log this test reads as "did the
+         # spin-up launch anything?".
+         "--no-create"],
+        capture_output=True, text=True, env=env,
+    )
+    assert acq.returncode == 0, acq.stderr
+    token = next(
+        line.split("=", 1)[1].strip().strip("'")
+        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
+    )
+    assert not launch_log.exists(), "test setup: the acquire must launch nothing"
+
+    res = _run_step50_args(
+        env, "--exclusive",
+        "--db-name", "odoo_17_0_t_someotherdb",   # NOT the database the lease holds
+        "--http-port", "18271", "--port-key", "http_port",
+        "--alloc-token", token,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a db-name that disagrees with the lease must BLOCK\n{out}"
+    assert "BLOCKED" in out and built_db in out, (
+        f"the refusal must name the database the lease actually reserved\n{out}"
+    )
+    assert not launch_log.exists(), (
+        f"NOTHING may launch - an empty database answering 200 is the failure\n{out}"
+    )
+    assert "Generated conf:" not in out, f"no conf may be written either\n{out}"
+
+    # The agreeing case is unaffected: the same lease, launched on its own database.
+    ok = _run_step50_args(
+        env, "--exclusive", "--db-name", built_db,
+        "--http-port", "18271", "--port-key", "http_port",
+        "--alloc-token", token,
+    )
+    okout = ok.stdout + ok.stderr
+    assert ok.returncode == 0, f"the matching db name must still spin up\n{okout}"
+    assert launch_log.exists(), f"odoo-bin must launch when both legs agree\n{okout}"
+    pid = [lz for lz in _leases_at(home) if lz.get("token") == token][0]["owner"]["pid"]
+    if pid and _alive(pid):
+        os.kill(int(pid), signal.SIGTERM)
+
+
+@requires_bash
 def test_step50_exclusive_binds_launched_pid_onto_the_caller_lease(tmp_path):
     """L1.1 (RAM-leak fix): an --exclusive spin-up must BIND the launched server
     pid onto the caller's PRE-ACQUIRED lease (via --alloc-token), so a later

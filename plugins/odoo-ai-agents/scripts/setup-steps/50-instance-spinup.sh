@@ -35,7 +35,17 @@
 #              OWN pre-leased instance (persist: exclusive-running - a unique db
 #              + an allocator-issued pooled port the caller already acquired via
 #              `allocator.py acquire --mode ephemeral --run-id <id>`, per
-#              agents/odoo-instance-ops.md operation 1). --exclusive SKIPS
+#              agents/odoo-instance-ops.md operation 1). This script INSTALLS
+#              NOTHING - its launch line carries no -i/-u - so an isolated
+#              listening instance is TWO LEGS: `55-instance-ops.sh init` builds
+#              the database with its module set and exits, then THIS script
+#              launches that SAME database listening. --db-name must therefore
+#              name the database the build leg used; a --db-name that disagrees
+#              with the --alloc-token lease's own db_name is REFUSED before
+#              launch (see "ONE DATABASE, BOTH LEGS" in cmd_apply). It also
+#              accepts NO --run-id on any path: ownership is recorded by
+#              allocator.py acquire, and INST_RUN_ID is the env door the
+#              shared/declared path uses. --exclusive SKIPS
 #              _register_shared entirely (the lease already exists and is
 #              already owned) and NEVER falls back to the declared/8069 port -
 #              --db-name/--http-port are REQUIRED with --exclusive; omitting
@@ -209,6 +219,18 @@ while [[ $# -gt 0 ]]; do
         --load)
             [[ $# -ge 2 ]] || { echo "$(basename "$0") --load requires a value" >&2; exit 2; }
             ARG_LOAD="$2"; shift 2 ;;
+        --run-id)
+            # REFUSED, never accepted-and-ignored. This script records ownership
+            # on NO path: the --exclusive path's lease was already owner-stamped
+            # by the caller's acquire, and the shared/declared path reads
+            # INST_RUN_ID from the environment (see the INST_RUN_ID row in this
+            # script's header). Swallowing the flag would let a caller believe it
+            # set ownership when it set nothing - the silent no-op class this
+            # script exists to refuse. Named explicitly so the refusal teaches
+            # the right call instead of the generic "Unknown arg".
+            echo "$(basename "$0") --run-id is not used with --exclusive; ownership is recorded by allocator.py acquire --run-id" >&2
+            echo "  On the shared/declared path, export INST_RUN_ID instead. This script accepts --run-id on no path." >&2
+            exit 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -333,9 +355,13 @@ _addons_path_verdict() {
 #   and schema stay the allocator's business, exactly as _register_shared /
 #   _bind_exclusive already do for the write side.
 # ---------------------------------------------------------------------------
-_lease_addons_path() {
-    local alloc="${1:-}" token="${2:-}" registry=""
-    [[ -n "$alloc" && -f "$alloc" && -n "$token" ]] || return 1
+_lease_field() {
+    # $1 = allocator path, $2 = token, $3 = lease field name. Prints the field's
+    # value (empty when the row records none); non-zero when the registry cannot
+    # be read or carries no such token, which callers must treat as UNRESOLVED
+    # and never as "the field is empty".
+    local alloc="${1:-}" token="${2:-}" field="${3:-}" registry=""
+    [[ -n "$alloc" && -f "$alloc" && -n "$token" && -n "$field" ]] || return 1
     registry="$(python3 "$alloc" list --show-tokens 2>/dev/null)" || return 1
     [[ -n "$registry" ]] || return 1
     printf '%s' "$registry" | python3 -c '
@@ -346,10 +372,14 @@ except Exception:
     sys.exit(1)
 for lease in registry.get("leases") or []:
     if lease.get("token") == sys.argv[1]:
-        print(lease.get("addons_path") or "")
+        print(lease.get(sys.argv[2]) or "")
         sys.exit(0)
 sys.exit(1)
-' "$token"
+' "$token" "$field"
+}
+
+_lease_addons_path() {
+    _lease_field "${1:-}" "${2:-}" addons_path
 }
 
 # ---------------------------------------------------------------------------
@@ -608,7 +638,7 @@ cmd_apply() {
             echo "  Refusing to fall back to the declared/\$DEFAULT_HTTP_PORT port for an" >&2
             echo "  exclusive-running spin-up - that would collide with the shared render target." >&2
             echo "  Acquire a pooled port first: allocator.py acquire --mode ephemeral --ports 1" >&2
-            echo "  [--ports 2] --run-id <run_id> (see agents/odoo-instance-ops.md operation 1," >&2
+            echo "  (--ports 2 only under prefork) --run-id <run_id> (see agents/odoo-instance-ops.md operation 1," >&2
             echo "  persist: exclusive-running)." >&2
             return 1
         fi
@@ -643,6 +673,36 @@ cmd_apply() {
     # second, SHARED lease would be both redundant and wrong (shared leases are
     # never exclusive-DB, but this DB genuinely is).
     local alloc_py="${ODOO_AI_ALLOCATOR-$SCRIPT_DIR/../lib/allocator.py}"
+
+    # ---- ONE DATABASE, BOTH LEGS -----------------------------------------
+    # An isolated listening instance is built in two legs: `55-instance-ops.sh
+    # init` installs the module set into a database and exits, then THIS script
+    # launches that SAME database listening. Launching a DIFFERENT name is the
+    # false-green shape of that handoff: this script carries no -i/-u, Odoo
+    # creates the missing database empty on the spot, the port answers HTTP 200,
+    # and every later test/QA/visual pass reports green against code nobody
+    # installed. The lease named by --alloc-token records which database was
+    # reserved and built, so a disagreement is decidable here - refuse before
+    # anything is launched or written. Only a POSITIVE read acts: an unreadable
+    # lease is already the served-tree resolution's refusal below (one cause,
+    # one message), and a row recording no db_name makes no claim to check.
+    if [[ -n "${ARG_ALLOC_TOKEN:-}" && -n "${ARG_DB_NAME:-}" ]]; then
+        local _lease_db=""
+        if _lease_db="$(_lease_field "$alloc_py" "$ARG_ALLOC_TOKEN" db_name)" \
+           && [[ -n "$_lease_db" && "$_lease_db" != "$ARG_DB_NAME" ]]; then
+            echo "" >&2
+            echo "x BLOCKED: --db-name does not match the database this lease reserved." >&2
+            echo "  --db-name:        ${ARG_DB_NAME}" >&2
+            echo "  lease db_name:    ${_lease_db}" >&2
+            echo "  Token:            ${ARG_ALLOC_TOKEN}" >&2
+            echo "  NOTHING was launched. This script installs no modules, so launching the" >&2
+            echo "  other name would serve a database Odoo creates EMPTY on the spot while the" >&2
+            echo "  port still answers HTTP 200 - green against code nobody installed. Pass the" >&2
+            echo "  db name the build leg used (the acquire's \$ALLOC_DB_NAME), or the token of" >&2
+            echo "  the lease that actually holds this database." >&2
+            return 1
+        fi
+    fi
     _alloc_diag_target() {
         # The ONE place this script resolves where an allocator call's STDERR is
         # kept - the Tier-1 log the SessionEnd hook appends to too

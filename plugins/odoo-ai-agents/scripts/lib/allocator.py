@@ -127,7 +127,12 @@ CLI:
                  # parked_at + park_ttl_s + parked_boot_id. db_name, ports and
                  # drop_on_release are left untouched, so the database, the
                  # filestore and the port reservation all survive and the lease
-                 # can be resumed. Refuses a `shared` lease (exit 3 - the shared
+                 # can be resumed. EMITS that untouched drop_on_release
+                 # (ALLOC_DROP_ON_RELEASE) and, when it is true, says on STDERR
+                 # that the final `release` still drops that database: park
+                 # DEFERS a throwaway, it never makes one durable, and the silent
+                 # version of that gap is how a caller parks to SAVE a database
+                 # and loses it later anyway. Refuses a `shared` lease (exit 3 - the shared
                  # row is already immune to the pid arms and is the ONE answer
                  # `query --series` gives for a series; a parked twin would make
                  # that rung two-valued) and a lease that is not RUNNING (exit 4 -
@@ -200,7 +205,20 @@ acquire exit codes:
     7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE
     8 REFUSED: Odoo cannot AUTHENTICATE to the cluster (`ephemeral`+`exclusive`)
     9 REFUSED: the cluster did not answer at all (`ephemeral`+`exclusive`)
-Every non-zero exit writes NO lease. 6 and 7 stay distinct because the remedy
+Every non-zero exit writes NO lease.
+`--mode` accepts ONLY the four values in "Modes" above. `exclusive-running` is a
+`persist:` value - the skill/agent lifecycle vocabulary, NOT a fifth mode - and
+it maps onto `--mode ephemeral` (docs/reference/INSTANCE-ALLOCATION-MODES.md
+section 5), so `--mode exclusive-running` exits 2 and writes nothing. The
+consequence is not cosmetic and must not be read as a downgrade: an `ephemeral`
+lease carries `drop_on_release: True`, so `release` (and `gc`) DROP its database
+by contract. `50-instance-spinup.sh --exclusive` is a SPIN-UP flag naming which
+instance to launch; it never sets, changes or upgrades the lease's mode or its
+`drop_on_release`. A database that must OUTLIVE its lease has to be acquired
+that way in the first place (`--mode exclusive` / `shared`, both
+`drop_on_release: False`) - no later command converts a throwaway into a durable
+one.
+6 and 7 stay distinct because the remedy
 differs: 6 is fixed by granting the role CREATEDB, 7 by declaring a working
 `python` + `odoo_root` (45-venv.sh record-env), by declaring a `db_run_mode`
 client surface (the route a compose-run instance takes - it declares no
@@ -2888,6 +2906,21 @@ def cmd_park(opts):
     database, the filestore and the port reservation are exactly what park
     exists to keep, and the eventual fate of the database at final `release` is
     not park's business to change.
+
+    But it IS park's business to REPORT that fate, which is why the emissions
+    below carry `ALLOC_DROP_ON_RELEASE` and a `drop_on_release=true` lease also
+    gets an explicit stderr line. Park DEFERS a throwaway database, it does not
+    make it durable: the drop still fires at the final `release` (and in `_gc`),
+    so a caller that parked in order to SAVE a database it spent minutes
+    building gets exactly what it asked for now and loses it later - with no
+    signal in between unless park emits one. `drop_on_release` is written ONCE,
+    by `cmd_acquire`, and no command mutates it afterwards, so there is no
+    "convert it to durable" step to point at either; naming the surviving value
+    here is the whole intervention. Do NOT trade this report for a mutation, and
+    do NOT turn it into a mode-gated refusal: the isolated running lease park
+    exists to suspend IS the `ephemeral` one (`persist: exclusive-running` maps
+    onto allocator `ephemeral` - docs/reference/INSTANCE-ALLOCATION-MODES.md
+    §5), so refusing that mode would refuse park's only intended client.
     """
     token = opts.get("token")
     if not token:
@@ -2949,6 +2982,21 @@ def cmd_park(opts):
     _emit("ALLOC_PARK_TTL_S", park_ttl)
     _emit("ALLOC_DB_NAME", target.get("db_name", ""))
     _emit("ALLOC_PORTS", target.get("ports", []))
+    # The fate park deliberately did NOT change, reported at the one moment a
+    # caller forms a belief about it (see the docstring).
+    parked_drops = bool(target.get("drop_on_release"))
+    _emit("ALLOC_DROP_ON_RELEASE", "true" if parked_drops else "false")
+    if parked_drops:
+        sys.stderr.write(
+            "allocator: PARKED, and this lease still carries drop_on_release=true - so "
+            "`release {token}` WILL DROP database {db!r}, and so will `gc` once the park "
+            "budget lapses. Park DEFERS that drop, it does not cancel it: the database, "
+            "the filestore and the ports survive the park itself. Nothing mutates "
+            "drop_on_release after acquire, so if this database must outlive its lease it "
+            "is the ACQUIRE that has to change (`--mode` decides the fate - see "
+            "docs/reference/INSTANCE-ALLOCATION-MODES.md section 5), not this park.\n".format(
+                token=token, db=target.get("db_name", ""))
+        )
     return 0
 
 
