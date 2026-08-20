@@ -18,10 +18,14 @@
 #       The script must run from INSIDE the target addon/Odoo repo (CWD anchors `git rev-parse`),
 #       with the changed JS files passed as args.
 #       The config is SERIES-SPECIFIC (15.0 pins an es2019 parser, 17.0 a later one), so the
-#       checkout it comes from is selected BY THE TARGET SERIES - resolved from ODOO_SERIES, the
-#       repo's own odoo/release.py, the nearest __manifest__.py version, or the checked-out
-#       branch - and each candidate checkout is identified by its OWN odoo/release.py, never by
-#       its directory name. No checkout for that series -> CANNOT-VERIFY; borrowing another
+#       checkout it comes from is selected BY THE TARGET SERIES - resolved from ODOO_SERIES or
+#       from scripts/lib/odoo_series.py, this repo's series-derivation SSOT, which resolves only
+#       from evidence that IS the series (the core's own release.py, a series-named branch). An
+#       addon's __manifest__.py `version` resolves NOTHING here: it is the ADDON's version, not
+#       the core's, so "0.3.1" is not series "0.3" - the SSOT surfaces it as an UNCONFIRMED hint
+#       and this gate quotes that hint in its CANNOT-VERIFY message instead of linting against
+#       it. Each candidate checkout is identified by its OWN odoo/release.py, never by its
+#       directory name. No checkout for that series -> CANNOT-VERIFY; borrowing another
 #       series' config would lint the sources against an oracle Runbot never runs and report
 #       failures that do not exist.
 #       Before running, the resolved prettier version is compared against the repo pin
@@ -42,9 +46,11 @@
 # ENV OVERRIDES:
 #   CLAUDE_PLUGIN_ROOT    plugin root (required for rules/ and fallback config)
 #   ODOO_GIT_BASE         where Odoo core checkouts live (default: ~/git)
-#   ODOO_SERIES           target Odoo series for the JS oracle (e.g. 17.0). Overrides the
-#                         manifest/branch inference; the escape hatch for a repo that declares
-#                         no series (tooling repo, bare JS package).
+#   ODOO_SERIES           target Odoo series for the JS oracle (e.g. 17.0). Wins over every
+#                         derived answer, and is the REMEDY the gate names whenever it reports
+#                         the series as unresolved - which is the expected outcome for a repo
+#                         that declares no series (a feature-branch name plus addon-versioned
+#                         manifests declare none between them).
 #   ODOO_INSTANCE_URL     live instance base URL for Tier-3 smoke (e.g. http://localhost:8069)
 #   VERIFY_FRONTEND_BASE  git diff base ref (default: HEAD)
 #
@@ -52,9 +58,15 @@
 #   0  RESULT: PASS (clean) | PASS (with N warning(s)) - eslint ran on the repo-pinned
 #      toolchain and found zero blocking issues
 #   1  RESULT: FAIL (N blocking issue(s) - fix before proceeding) - the gate fired
-#   2  RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass) - the
-#      gate could NOT run (toolchain absent / version-mismatched / v14 no-gate). NEVER a pass.
+#   2  RESULT: CANNOT-VERIFY (did NOT run: <gate list> - DO NOT treat as pass) - one or more
+#      gates could NOT run (series unresolved / toolchain absent / version-mismatched / v14
+#      no-gate). NEVER a pass, and the parenthetical NAMES the gates that did not run.
 #   Precedence: BLOCK>0 -> FAIL(1); elif CANNOT-VERIFY>0 -> CANNOT-VERIFY(2); else PASS(0).
+#
+# EVERY run prints a per-tier ledger in the Summary, whatever the RESULT. A tier that did not
+# run must be legible as such: the costly failure mode here is not a red gate, it is a gate
+# that skips itself while a sibling tier prints a clean scan, so the run reads as "nothing to
+# report" when the JS oracle never executed once.
 
 set -euo pipefail
 
@@ -93,6 +105,21 @@ _skip()  { echo "  [skip ] $*"; }
 # WARN_COUNT (a warning still permits a PASS); it forces exit 2 so an unrun gate can
 # never read as green.
 _cannot_verify() { echo "  [CANNOT-VERIFY] $*"; CANNOT_VERIFY_COUNT=$((CANNOT_VERIFY_COUNT + 1)); }
+
+# ---------------------------------------------------------------------------
+# Per-tier run ledger, printed in the Summary on EVERY run.
+# A gate that skipped itself is the expensive failure here, not a gate that went
+# red: an unrun tier prints nothing while its siblings print clean lines, and
+# the run as a whole reads as "no issues" to anyone skimming it. So each tier
+# starts as DID NOT RUN and is overwritten only where it actually executed - a
+# reader never has to infer a tier's participation from the absence of output.
+# Values starting with "DID NOT RUN" are the ones the RESULT line enumerates.
+# ---------------------------------------------------------------------------
+T1_PY_STATUS="DID NOT RUN (reason not recorded)"
+T1_JS_STATUS="DID NOT RUN (reason not recorded)"
+T2_STATUS="DID NOT RUN (reason not recorded)"
+T3_STATUS="DID NOT RUN (reason not recorded)"
+T4_STATUS="DID NOT RUN (reason not recorded)"
 
 # ---------------------------------------------------------------------------
 # MAIN_ROOT - the main worktree root (dirname of the common git dir).
@@ -164,67 +191,69 @@ _series_of_odoo_checkout() {
 }
 
 # ---------------------------------------------------------------------------
-# _series_from_manifest <path>
-# Walks UP from <path> to the nearest __manifest__.py and echoes the series its
-# `version` declares ("17.0" from "17.0.1.0.0"). A version without a series
-# prefix ("1.0.0") declares nothing about the core and is ignored.
-# ---------------------------------------------------------------------------
-_series_from_manifest() {
-    local dir="$1" ver
-    [[ -d "$dir" ]] || dir="$(dirname "$dir")"
-    while [[ -n "$dir" && "$dir" != "/" ]]; do
-        if [[ -f "$dir/__manifest__.py" ]]; then
-            ver="$(grep -m1 -E "['\"]version['\"][[:space:]]*:" "$dir/__manifest__.py" 2>/dev/null \
-                   | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1 || true)"
-            if [[ -n "$ver" ]]; then
-                printf '%s\n' "${ver%%.*}.$(printf '%s' "$ver" | cut -d. -f2)"
-                return 0
-            fi
-            return 1
-        fi
-        dir="$(dirname "$dir")"
-    done
-    return 1
-}
-
-# ---------------------------------------------------------------------------
 # _resolve_target_series
-# Echoes the series the CHANGED SOURCES are written against, and sets
-# TARGET_SERIES_SRC to where that answer came from. Order: explicit override,
-# the repo's own release.py (the target IS an Odoo core checkout), the nearest
-# addon manifest, the checked-out branch. Returns non-zero when nothing declares
-# it - the caller then reports CANNOT-VERIFY rather than guessing a checkout.
+# Echoes the series the CHANGED SOURCES are written against, sets
+# TARGET_SERIES_SRC to where that answer came from, and - when it resolves
+# nothing - sets TARGET_SERIES_WEAK to the weak evidence that WAS found but was
+# deliberately not promoted, so the CANNOT-VERIFY message can name a candidate
+# and a remedy instead of only saying no.
+#
+# Exactly two things resolve a series here:
+#   1. ODOO_SERIES          - the caller's explicit declaration.
+#   2. scripts/lib/odoo_series.py `detect` reporting SERIES_STATUS=OK - this
+#      repo's series-derivation SSOT. It resolves ONLY from evidence that IS the
+#      series by definition (the core's own release.py; a series-named branch),
+#      and documents at length why every weaker rung is a candidate, never a
+#      result. Delegating here also means this gate cannot drift away from the
+#      rule the rest of the plugin derives series with.
+#
+# An addon's manifest `version` resolves NOTHING, by design. It is the ADDON's
+# own version, not the core's: most modules in this ecosystem declare a short
+# form ("0.3.1") that names no series at all, and even a series-prefixed value
+# survives a code-level upgrade unbumped, so it can name an EARLIER series than
+# the checkout it sits in. Reading its first two components as a series is what
+# turned the manifest version "0.3.1" into the series "0.3" - a series no
+# checkout can ever declare, so no config resolved, the eslint oracle never ran
+# once, and the run still printed a clean Tier-2 scan underneath it. The SSOT
+# surfaces such a value as an UNCONFIRMED hint; this gate quotes the hint and
+# never lints against it.
 # ---------------------------------------------------------------------------
+# Sets TARGET_SERIES / TARGET_SERIES_SRC / TARGET_SERIES_WEAK as GLOBALS and
+# returns 0/1 - it does not print the series. A `$(...)` capture would run the
+# whole function in a subshell, where every global it set dies unread: that is
+# why the provenance and the weak-evidence note must travel as state, not as
+# stdout, or the run reports its series "from " nowhere at all.
+TARGET_SERIES=""
 TARGET_SERIES_SRC=""
+TARGET_SERIES_WEAK=""
 _resolve_target_series() {
-    local root s branch f
+    local root ssot out
+    TARGET_SERIES=""
+    TARGET_SERIES_SRC=""
+    TARGET_SERIES_WEAK=""
     if [[ -n "${ODOO_SERIES:-}" ]]; then
+        TARGET_SERIES="$ODOO_SERIES"
         TARGET_SERIES_SRC="ODOO_SERIES override"
-        printf '%s\n' "$ODOO_SERIES"
         return 0
     fi
-    for root in "$WORKTREE_TOP" "$MAIN_ROOT"; do
-        [[ -n "$root" ]] || continue
-        if s="$(_series_of_odoo_checkout "$root")"; then
-            TARGET_SERIES_SRC="$root/odoo/release.py"
-            printf '%s\n' "$s"
-            return 0
-        fi
-    done
-    for f in "${JS_FILES[@]:-}" "$PWD"; do
-        [[ -n "$f" ]] || continue
-        if s="$(_series_from_manifest "$f")"; then
-            TARGET_SERIES_SRC="__manifest__.py version near ${f}"
-            printf '%s\n' "$s"
-            return 0
-        fi
-    done
-    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-    if [[ "$branch" =~ ^(saas~)?([0-9]+\.[0-9]+) ]]; then
-        TARGET_SERIES_SRC="branch $branch"
-        printf '%s\n' "${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+    root="${WORKTREE_TOP:-$PWD}"
+    ssot="${CLAUDE_PLUGIN_ROOT}/scripts/lib/odoo_series.py"
+    [[ -d "$root" && -f "$ssot" ]] || return 1
+    _have python3 || return 1
+    # The SSOT prints shlex-quoted KEY=VALUE lines. Clear them first: a stale
+    # value from an earlier call must never be read as this call's answer.
+    SERIES_STATUS=""; SERIES=""; SERIES_STEP=""; SERIES_ERA=""; SERIES_EVIDENCE=""; SERIES_HINT=""
+    out="$(python3 "$ssot" detect "$root" 2>/dev/null || true)"
+    [[ -n "$out" ]] || return 1
+    eval "$out"
+    if [[ "${SERIES_STATUS:-}" == "OK" && -n "${SERIES:-}" ]]; then
+        TARGET_SERIES="$SERIES"
+        TARGET_SERIES_SRC="scripts/lib/odoo_series.py step ${SERIES_STEP:-?}${SERIES_EVIDENCE:+, evidence \"$SERIES_EVIDENCE\"}"
         return 0
     fi
+    # NEEDS_CONTEXT. Carry whatever the SSOT saw so the refusal is actionable.
+    TARGET_SERIES_WEAK="${SERIES_HINT:-}"
+    [[ -n "$TARGET_SERIES_WEAK" ]] || TARGET_SERIES_WEAK="${SERIES_ERA:+era ${SERIES_ERA} only}"
     return 1
 }
 
@@ -347,6 +376,7 @@ PY
 
         # Run ruff check (read-only; never ruff format).
         # Guard the array expansion: an empty array under `set -u` aborts on bash 3.2.
+        T1_PY_STATUS="RAN (ruff check, ${#PY_FILES[@]} file(s))"
         if ruff check ${RUFF_EXTRA_ARGS[@]+"${RUFF_EXTRA_ARGS[@]}"} "${PY_FILES[@]}" 2>&1; then
             _ok "ruff check passed"
         else
@@ -354,7 +384,10 @@ PY
         fi
     else
         _warn "ruff not found - skipping Python lint (install ruff to enable HARD check)"
+        T1_PY_STATUS="DID NOT RUN (ruff not installed)"
     fi
+else
+    T1_PY_STATUS="n/a (no .py files in scope)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -363,7 +396,9 @@ fi
 #          --resolve-plugins-relative-to <MAIN_ROOT> <files>
 # Absence / version-mismatch / v14-no-gate -> CANNOT-VERIFY (exit 2), never PASS.
 # ---------------------------------------------------------------------------
-if [[ ${#JS_FILES[@]} -gt 0 ]]; then
+if [[ ${#JS_FILES[@]} -eq 0 ]]; then
+    T1_JS_STATUS="n/a (no .js files in scope)"
+else
     echo
     echo "  JavaScript files (${#JS_FILES[@]}):"
 
@@ -398,9 +433,9 @@ if [[ ${#JS_FILES[@]} -gt 0 ]]; then
     TARGET_SERIES=""
     SERIES_SEEN=""
     if [[ -z "$ESLINTRC" ]]; then
-        TARGET_SERIES="$(_resolve_target_series || true)"
+        _resolve_target_series || true
         if [[ -n "$TARGET_SERIES" ]]; then
-            _info "target Odoo series: $TARGET_SERIES (from $TARGET_SERIES_SRC)"
+            _info "target Odoo series: $TARGET_SERIES [source: $TARGET_SERIES_SRC]"
             while IFS= read -r _odoo_dir; do
                 [[ -n "$_odoo_dir" ]] || continue
                 _cand_series="$(_series_of_odoo_checkout "$_odoo_dir" || true)"
@@ -424,13 +459,17 @@ if [[ ${#JS_FILES[@]} -gt 0 ]]; then
         # No usable eslintrc. Each branch names WHY, because the remedies differ: declare the
         # series, clone the matching checkout, or accept that this series ships no JS gate.
         if [[ -z "$TARGET_SERIES" ]]; then
-            _cannot_verify "cannot determine the target Odoo series (no ODOO_SERIES, no odoo/release.py in this repo, no series-prefixed __manifest__.py version, no series-named branch); the web/tooling eslint config is series-specific, so no checkout can be chosen - DO NOT treat as pass"
+            T1_JS_STATUS="DID NOT RUN (target Odoo series unresolved)"
+            _cannot_verify "the target Odoo series is unresolved${TARGET_SERIES_WEAK:+ (weak evidence only, NOT used: $TARGET_SERIES_WEAK)}; the web/tooling eslint config is series-specific, so no checkout can be chosen and the eslint oracle did NOT run. Pin it and re-run: ODOO_SERIES=<series> (e.g. ODOO_SERIES=17.0) - DO NOT treat as pass"
         elif [[ "$TOOLING_DIR_SEEN" == "true" ]]; then
-            _cannot_verify "the $TARGET_SERIES checkout has addons/web/tooling but no _eslintrc.json (pre-v17 / v14 layout has no JS lint gate); cannot run the eslint oracle - DO NOT treat as pass"
+            T1_JS_STATUS="DID NOT RUN ($TARGET_SERIES ships no _eslintrc.json)"
+            _cannot_verify "the $TARGET_SERIES checkout has addons/web/tooling but no _eslintrc.json (pre-v17 / v14 layout has no JS lint gate); the eslint oracle did NOT run - DO NOT treat as pass"
         elif [[ -n "$SERIES_SEEN" ]]; then
-            _cannot_verify "no Odoo checkout for series $TARGET_SERIES under $ODOO_GIT_BASE (checkouts found: ${SERIES_SEEN% }); another series' _eslintrc.json would run an oracle Runbot never runs - DO NOT treat as pass"
+            T1_JS_STATUS="DID NOT RUN (no $TARGET_SERIES checkout under $ODOO_GIT_BASE)"
+            _cannot_verify "no Odoo checkout for series $TARGET_SERIES under $ODOO_GIT_BASE (checkouts found: ${SERIES_SEEN% }); another series' _eslintrc.json would run an oracle Runbot never runs, so the eslint oracle did NOT run - DO NOT treat as pass"
         else
-            _cannot_verify "no eslint config found (repo root .eslintrc* / Odoo addons/web/tooling/_eslintrc.json); cannot run the JS lint oracle - DO NOT treat as pass"
+            T1_JS_STATUS="DID NOT RUN (no eslint config found)"
+            _cannot_verify "no eslint config found (repo root .eslintrc* / Odoo addons/web/tooling/_eslintrc.json); the JS lint oracle did NOT run - DO NOT treat as pass"
         fi
     else
         _info "JS eslint config: $ESLINTRC_SRC"
@@ -438,6 +477,7 @@ if [[ ${#JS_FILES[@]} -gt 0 ]]; then
         # --- Resolve eslint (repo-pinned; never global command -v) ----------
         ESLINT="$(_resolve_repo_bin eslint || true)"
         if [[ -z "$ESLINT" ]]; then
+            T1_JS_STATUS="DID NOT RUN (eslint binary not resolvable)"
             _cannot_verify "eslint not resolvable from ${WORKTREE_TOP:-<cwd>}/node_modules/.bin or main worktree ${MAIN_ROOT:-<none>}/node_modules/.bin; npx --no-install unavailable - DO NOT treat as pass"
         else
             # --- Prettier version-pin pre-check -----------------------------
@@ -467,6 +507,7 @@ PY
                 if [[ -n "$_PINNED_PRETTIER" && -n "$_RESOLVED_PRETTIER" \
                       && "$_PINNED_PRETTIER" != "$_RESOLVED_PRETTIER" ]]; then
                     _PIN_MISMATCH=true
+                    T1_JS_STATUS="DID NOT RUN (prettier version pin mismatch)"
                     _cannot_verify "prettier version mismatch: resolved major $_RESOLVED_PRETTIER vs repo pin $_PINNED_PRETTIER ($PKG_JSON); the eslint-plugin-prettier result would be unreliable - DO NOT treat as pass"
                 fi
             fi
@@ -475,6 +516,7 @@ PY
                 # --resolve-plugins-relative-to pins eslint-plugin-prettier + prettier to
                 # the repo's node_modules. MAIN_ROOT is the resolved main-worktree root.
                 _RESOLVE_ROOT="${MAIN_ROOT:-$WORKTREE_TOP}"
+                T1_JS_STATUS="RAN (eslint, config from $ESLINTRC_SRC)"
                 _info "running: eslint --no-eslintrc -c $ESLINTRC --resolve-plugins-relative-to $_RESOLVE_ROOT"
                 # shellcheck disable=SC2086
                 if $ESLINT --no-eslintrc \
@@ -497,6 +539,7 @@ echo
 echo "--- Tier 2: Static OWL/SCSS (always runs) ---"
 
 if [[ ! -f "$RULES_FILE" ]]; then
+    T2_STATUS="DID NOT RUN (rules file not found: $RULES_FILE)"
     _warn "rules file not found: $RULES_FILE - skipping Tier 2"
 else
     # Combine files by applicability
@@ -579,11 +622,28 @@ else
         done <<< "$matched_lines"
     }
 
-    # Parse rules file and apply each rule
-    ALL_SCAN_FILES=("${OWL_FILES[@]:-}" "${SCSS_FILES[@]:-}")
+    # Parse rules file and apply each rule. Build the list by APPEND, never by
+    # splicing `"${arr[@]:-}"`: that idiom contributes one EMPTY STRING per empty
+    # source array, so the list was never length 0 and a Python-only change took
+    # the scan branch, scanned nothing, and still printed a clean Tier-2 line.
+    ALL_SCAN_FILES=()
+    for _scan_candidate in "${OWL_FILES[@]:-}" "${SCSS_FILES[@]:-}"; do
+        if [[ -n "$_scan_candidate" && -f "$_scan_candidate" ]]; then
+            ALL_SCAN_FILES+=("$_scan_candidate")
+        fi
+    done
     if [[ ${#ALL_SCAN_FILES[@]} -eq 0 ]]; then
+        T2_STATUS="n/a (no .js/.xml/.html/.scss files in scope)"
         _skip "no .js/.xml/.html/.scss files - Tier 2 skipped"
     else
+        T2_STATUS="RAN (${#ALL_SCAN_FILES[@]} file(s) scanned)"
+        # Snapshot the counters so the clean line below speaks for TIER 2 ONLY.
+        # Reading the global counters made it a statement about the whole run: a
+        # single ruff warning in Tier 1 silenced it, and - worse the other way -
+        # its wording invited a reader to take it as the run's verdict while the
+        # JS oracle above may never have run at all.
+        _T2_BLOCK_BEFORE=$BLOCK_COUNT
+        _T2_WARN_BEFORE=$WARN_COUNT
         while IFS='|' read -r pattern severity message || [[ -n "$pattern" ]]; do
             # Skip comments and blank lines
             [[ -z "${pattern// }" || "${pattern:0:1}" == "#" ]] && continue
@@ -609,9 +669,9 @@ else
             done
         done < "$RULES_FILE"
 
-        # Report clean if no issues from Tier 2
-        if [[ $BLOCK_COUNT -eq 0 && $WARN_COUNT -eq 0 ]]; then
-            _ok "Tier 2 static scan: no issues"
+        # Report clean if no issues from Tier 2 - scoped to Tier 2's own delta.
+        if [[ $BLOCK_COUNT -eq $_T2_BLOCK_BEFORE && $WARN_COUNT -eq $_T2_WARN_BEFORE ]]; then
+            _ok "Tier 2 static scan: no issues (this line covers Tier 2 only - see the Summary ledger for the other tiers)"
         fi
     fi
 fi
@@ -622,16 +682,19 @@ fi
 echo
 echo "--- Tier 3: Runtime Smoke ---"
 if [[ -z "${ODOO_INSTANCE_URL:-}" ]]; then
+    T3_STATUS="not configured (optional - ODOO_INSTANCE_URL unset)"
     _skip "ODOO_INSTANCE_URL not set - runtime smoke skipped (not a blocking condition)"
 else
     _info "ODOO_INSTANCE_URL=$ODOO_INSTANCE_URL - checking /web/login reachability"
     if _have curl; then
+        T3_STATUS="RAN (smoke against $ODOO_INSTANCE_URL)"
         if curl -sf -o /dev/null --max-time 10 "${ODOO_INSTANCE_URL}/web/login" 2>/dev/null; then
             _ok "Instance reachable at ${ODOO_INSTANCE_URL}/web/login"
         else
             _warn "Instance not responding at ${ODOO_INSTANCE_URL}/web/login (non-blocking)"
         fi
     else
+        T3_STATUS="DID NOT RUN (curl not available)"
         _skip "curl not available - skipping runtime smoke"
     fi
 fi
@@ -660,12 +723,16 @@ _BRAND_SRC="$_SHARE_DIR/brand-tokens.json"
 COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
 _BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
 if [[ ! -f "$_BRAND_SRC" ]]; then
+    T4_STATUS="not configured (optional - no brand-tokens.json in $_SHARE_DIR)"
     _skip "no brand-tokens.json in $_SHARE_DIR - brand fidelity skipped (not a blocking condition)"
 elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then
+    T4_STATUS="DID NOT RUN (python3 / color_delta.py unavailable)"
     _skip "python3 / color_delta.py unavailable - brand fidelity skipped"
 elif [[ ${#SCSS_FILES[@]} -eq 0 ]]; then
+    T4_STATUS="n/a (no .scss/.css files in scope)"
     _skip "no .scss/.css files changed - brand fidelity skipped"
 else
+    T4_STATUS="RAN (${#SCSS_FILES[@]} file(s) vs $_BRAND_SRC)"
     _info "brand map: $_BRAND_SRC (near-token ΔE threshold $_BRAND_NEAR)"
     _BRAND_WARN_BEFORE=$WARN_COUNT
     # Iterate changed SCSS lines with a hardcoded hex; ΔE-compare to each brand color.
@@ -718,6 +785,35 @@ echo "============================================================"
 echo "  BLOCK issues        : $BLOCK_COUNT"
 echo "  WARN  issues        : $WARN_COUNT"
 echo "  CANNOT-VERIFY items : $CANNOT_VERIFY_COUNT"
+echo
+
+# ---------------------------------------------------------------------------
+# Gate ledger - printed on EVERY run, PASS included.
+# "Nothing was reported" and "the gate ran and found nothing" are different
+# claims, and only this table tells them apart. Without it a run where the JS
+# oracle never executed looks identical to a clean one, because the tiers that
+# DID run still print their clean lines underneath the silence.
+# ---------------------------------------------------------------------------
+echo "  Gate ledger (a gate that did NOT run can never be a pass):"
+echo "    Tier 1 Python (ruff)      : $T1_PY_STATUS"
+echo "    Tier 1 JS (eslint oracle) : $T1_JS_STATUS"
+echo "    Tier 2 static OWL/SCSS    : $T2_STATUS"
+echo "    Tier 3 runtime smoke      : $T3_STATUS"
+echo "    Tier 4 brand fidelity     : $T4_STATUS"
+
+# Name the gates that did not run, so the RESULT line carries WHICH one is
+# missing rather than a single generic cause that is often the wrong one.
+UNRUN_LIST=""
+_note_unrun() {
+    [[ "$1" == "DID NOT RUN"* ]] || return 0
+    UNRUN_LIST="${UNRUN_LIST:+$UNRUN_LIST, }$2"
+    return 0
+}
+_note_unrun "$T1_PY_STATUS" "Tier 1 Python ruff"
+_note_unrun "$T1_JS_STATUS" "Tier 1 JS eslint oracle"
+_note_unrun "$T2_STATUS"    "Tier 2 static scan"
+_note_unrun "$T3_STATUS"    "Tier 3 runtime smoke"
+_note_unrun "$T4_STATUS"    "Tier 4 brand fidelity"
 
 # Tri-state precedence:
 #   BLOCK>0          -> FAIL          (exit 1)  the gate ran and found real errors
@@ -730,9 +826,17 @@ if [[ $BLOCK_COUNT -gt 0 ]]; then
     exit 1
 elif [[ $CANNOT_VERIFY_COUNT -gt 0 ]]; then
     echo
-    echo "  RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass)"
+    echo "  RESULT: CANNOT-VERIFY (did NOT run: ${UNRUN_LIST:-see the [CANNOT-VERIFY] lines above} - DO NOT treat as pass)"
     exit 2
 else
+    # A gate can fail to run without raising CANNOT-VERIFY (ruff absent is a
+    # WARN by contract). That must still be stated on a PASS - a PASS whose
+    # ledger hides an unrun gate is the same false-green in a quieter costume.
+    if [[ -n "$UNRUN_LIST" ]]; then
+        echo
+        echo "  NOTE: gate(s) that did NOT run: $UNRUN_LIST"
+        echo "        (no CANNOT-VERIFY was raised for these, so they do not change the exit code)"
+    fi
     if [[ $WARN_COUNT -gt 0 ]]; then
         echo
         echo "  RESULT: PASS (with $WARN_COUNT warning(s))"

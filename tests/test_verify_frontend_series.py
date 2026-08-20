@@ -53,16 +53,29 @@ def _make_odoo_checkout(base: Path, name: str, major: int, minor: int, *, toolin
     return d
 
 
-def _make_target_repo(base: Path, series: str) -> Path:
-    """An addon repo whose manifest declares the target series - the same way every Odoo addon
-    declares which core it is written against."""
+def _make_target_repo(
+    base: Path, series: str, *, branch: str | None = None, version: str | None = None
+) -> Path:
+    """An addon repo checked out on a series-named branch - which is how an addons-only repo
+    declares which core it is written against.
+
+    The manifest `version` deliberately does NOT carry that meaning. It is the ADDON's own
+    version: this ecosystem ships short forms like `0.3.1` that name no series at all, and even
+    a series-prefixed value survives a code-level upgrade unbumped, so it can name an earlier
+    series than the checkout holding it. Callers override `version` to pin the exact shape a
+    case is about, and `branch` to take the series-named branch away.
+
+    The repo is COMMITTED, not just `git init`-ed: on an unborn HEAD `git rev-parse
+    --abbrev-ref HEAD` fails outright, so an uncommitted fixture would test the no-branch path
+    while looking like it tests the branch one.
+    """
     repo = base / "addons_repo"
     mod = repo / "my_module"
     (mod / "static" / "src").mkdir(parents=True)
     (mod / "__manifest__.py").write_text(
         "{\n"
         "    'name': 'My Module',\n"
-        f"    'version': '{series}.1.0.0',\n"
+        f"    'version': '{version if version is not None else series + '.1.0.0'}',\n"
         "    'depends': ['web'],\n"
         "}\n",
         encoding="utf-8",
@@ -71,7 +84,22 @@ def _make_target_repo(base: Path, series: str) -> Path:
     (mod / "static" / "src" / "widget.js").write_text(
         "/** @odoo-module **/\nexport const answer = 42;\n", encoding="utf-8"
     )
-    subprocess.run(["git", "init", "-q", "-b", series], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "init", "-q", "-b", branch if branch is not None else series],
+        cwd=repo,
+        check=True,
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c", "user.name=verify-frontend test",
+            "-c", "user.email=test@example.invalid",
+            "commit", "-q", "-m", "fixture",
+        ],
+        cwd=repo,
+        check=True,
+    )
     return repo
 
 
@@ -155,11 +183,12 @@ def test_no_checkout_for_the_target_series_is_cannot_verify_not_a_foreign_config
     )
 
 
-def test_explicit_series_override_wins_over_the_manifest(tree):
-    """Behaviour: `ODOO_SERIES` is the explicit escape hatch for a repo whose series cannot be
-    read from a manifest (a tooling repo, a bare JS package).
+def test_explicit_series_override_wins_over_every_derived_answer(tree):
+    """Behaviour: `ODOO_SERIES` is the explicit escape hatch, and it outranks every series the
+    gate could derive on its own (here, a repo sitting on the `17.0` branch).
 
-    Fails if the override is ignored - a caller that knows the series would have no way to say so.
+    Fails if the override is ignored - a caller that knows the series would have no way to say
+    so, which is precisely the remedy the gate prints when it cannot derive one.
     """
     git_base, repo, js = tree
     _make_odoo_checkout(git_base, "odoo_16.0", 16, 0)
@@ -172,5 +201,72 @@ def test_explicit_series_override_wins_over_the_manifest(tree):
         f"an explicit ODOO_SERIES=16.0 must select the 16.0 checkout. Output:\n{out}"
     )
     assert "odoo_17.0" not in out, (
-        f"the manifest must not override an explicit ODOO_SERIES. Output:\n{out}"
+        f"nothing derived may override an explicit ODOO_SERIES. Output:\n{out}"
+    )
+
+
+def test_a_short_manifest_version_is_never_read_as_a_series(tmp_path):
+    """Behaviour: a module declaring the SHORT version `0.3.1` is still linted against the series
+    its checkout really is - and the string `0.3` never becomes a series.
+
+    This is the regression that made the gate skip itself in silence. The old resolver took the
+    first two dotted components of any three-part manifest `version`, so `0.3.1` produced the
+    series `0.3` - a series no Odoo checkout can ever declare. No config resolved, the eslint
+    oracle never ran once, and the run exited CANNOT-VERIFY while Tier 2 printed a clean scan
+    underneath it, which reads as "nothing to report" to anyone skimming.
+
+    Fails if any series is derived from the addon's own version number.
+    """
+    git_base = tmp_path / "git"
+    git_base.mkdir()
+    _make_odoo_checkout(git_base, "odoo_18.0", 18, 0)
+    repo = _make_target_repo(tmp_path, "18.0", version="0.3.1")
+    js = repo / "my_module" / "static" / "src" / "widget.js"
+
+    res = _run(repo, git_base, js)
+    out = res.stdout + res.stderr
+
+    assert "0.3" not in out, (
+        "the addon's own version `0.3.1` must never be read as a series - `0.3` is a series no "
+        f"checkout can declare, so the gate resolves nothing and skips itself. Output:\n{out}"
+    )
+    assert "target Odoo series: 18.0" in out, (
+        "the series must come from evidence that IS the series (here the 18.0 branch), not from "
+        f"the manifest version. Output:\n{out}"
+    )
+    assert "odoo_18.0" in out, (
+        f"the 18.0 checkout must supply the eslint config. Output:\n{out}"
+    )
+
+
+def test_a_series_prefixed_manifest_alone_does_not_resolve_a_series(tmp_path):
+    """Behaviour: a manifest `version` of `17.0.1.0.0` is NOT accepted as the series when nothing
+    else declares one - the gate reports CANNOT-VERIFY and names the remedy.
+
+    A manifest version is the addon's own, and a code-level upgrade leaves it unbumped: a module
+    carrying `17.0.1.0.0` inside an 18.0 checkout is byte-identical on disk to one that really is
+    17.0. Linting on that basis would run 17.0's oracle over 18.0 sources and report failures the
+    real gate never raises - the same false FAIL a foreign checkout produces.
+
+    Fails if the manifest is promoted back into a resolved series.
+    """
+    git_base = tmp_path / "git"
+    git_base.mkdir()
+    _make_odoo_checkout(git_base, "odoo_17.0", 17, 0)
+    repo = _make_target_repo(tmp_path, "17.0", branch="feature/no-series-here")
+    js = repo / "my_module" / "static" / "src" / "widget.js"
+
+    res = _run(repo, git_base, js)
+    out = res.stdout + res.stderr
+
+    assert res.returncode == EXIT_CANNOT_VERIFY, (
+        "a series-prefixed manifest is weak evidence, not a resolution; with no branch or "
+        f"release.py declaring one the gate must refuse. Output:\n{out}"
+    )
+    assert "odoo_17.0/addons/web/tooling" not in out, (
+        f"the gate must not lint against a series the manifest merely hints at. Output:\n{out}"
+    )
+    assert "ODOO_SERIES" in out, (
+        "the refusal must name its remedy - pinning ODOO_SERIES is the one action that unblocks "
+        f"the caller. Output:\n{out}"
     )

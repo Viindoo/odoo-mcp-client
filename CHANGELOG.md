@@ -6,6 +6,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **`scripts/verify-frontend.sh` no longer derives the target Odoo series from an
+  addon's `__manifest__.py` `version`, which made the JS lint gate skip itself in silence.** The old
+  resolver took the first two dotted components of any three-part manifest version, so a module
+  declaring the short form `0.3.1` - the shape a large share of addons ship - produced the series
+  `0.3`. No checkout can declare that series, so no `_eslintrc.json` resolved and the eslint oracle
+  never executed. The run was neither a pass nor a fail: it printed `CANNOT-VERIFY`, blamed a
+  toolchain that was installed and fine, and printed `Tier 2 static scan: no issues` directly
+  underneath - a gate that had skipped itself while reading as clean. Series resolution now
+  delegates to `scripts/lib/odoo_series.py`, the repo's series-derivation SSOT, which resolves only
+  from evidence that IS the series (the core's own `release.py`, a series-named branch) and treats a
+  manifest version as an unconfirmed hint; the gate quotes that hint in its refusal and names
+  `ODOO_SERIES=<series>` as the remedy instead of linting against it.
+- `odoo-ai-agents` - `verify-frontend.sh` reported its series provenance as `(from )` on every run.
+  `TARGET_SERIES="$(_resolve_target_series)"` ran the resolver in a subshell, so every global it set
+  - the provenance and the weak-evidence note - died unread with that subshell. The resolver now
+  returns a status and assigns globals.
+- `odoo-ai-agents` - `verify-frontend.sh` Tier 2 claimed a clean scan over an empty file set. The
+  scan list was spliced as `("${OWL_FILES[@]:-}" "${SCSS_FILES[@]:-}")`, which contributes one empty
+  string per empty source array, so the list was never length 0 and a Python-only change took the
+  scan branch, scanned nothing, and reported itself clean. Its clean line was also gated on the
+  GLOBAL counters, so a Tier-1 warning silenced it; it is now scoped to Tier 2's own delta and says
+  so in its wording.
+
+### Changed
+
+- `odoo-ai-agents` - **`verify-frontend.sh` prints a per-tier gate ledger in every Summary**, PASS
+  included: one row per tier reading `RAN` / `DID NOT RUN` / `n/a` / `not configured`. A tier that
+  skips itself prints nothing while its siblings print their clean lines, so a skipped run reads as
+  a clean one; the ledger makes non-participation legible instead of something a reader has to infer
+  from silence. The `CANNOT-VERIFY` verdict now NAMES the gates that did not run
+  (`RESULT: CANNOT-VERIFY (did NOT run: Tier 1 JS eslint oracle - DO NOT treat as pass)`) rather
+  than asserting one fixed cause that is often not the real one, and a PASS that hides an unrun gate
+  says so above the RESULT line. Consumer prose (`docs/reference/odoo-code-quality.md`,
+  `skills/_shared/coding_guidelines/INDEX.md`, `snippets/read-before-write-contract.md`) updated in
+  lockstep: exit 2 means "eslint did not run", not "the toolchain is missing", and the remedies
+  differ.
+
 ## [5.1.1] - 2026-08-20
 
 ### Added
