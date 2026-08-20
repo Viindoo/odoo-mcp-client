@@ -89,7 +89,7 @@ destroyed at every teardown because the exit that preserves one had not been bui
   deleted, `block-coordinator-code-write.sh` refuses the real risk instead, and the flattened
   topology - `odoo-coding` to `odoo-coder` to its teammates - is restored. The [4.25.2] section
   below is left exactly as written: it is a truthful record of what shipped, not of what is now
-  correct.
+  correct. (`git-toolkit` 0.6.4 -> 0.6.5.)
 - `odoo-ai-agents` - **eight front doors now dispatch the specialist decision instead of making it.**
   `odoo-forward-port` ran a conflict scan, raw OSM grounding and a pytest collection gate inline;
   `odoo-solution-design` settled contested symbols itself rather than dispatching the reconcile pass;
