@@ -6,6 +6,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.3] - 2026-08-20
+
+### Fixed
+
+- `odoo-ai-agents` - **An isolated listening instance is now contracted as the TWO-LEG
+  build-then-listen sequence it actually is.** No mechanism installs modules AND leaves the server
+  listening: `55-instance-ops.sh init` always runs `--stop-after-init` (it builds the database and
+  exits) and `50-instance-spinup.sh apply` carries no `-i`/`-u` (it listens and installs nothing).
+  Nothing said so, so a caller that ran only the listening leg got a server on a database Odoo
+  created EMPTY on the spot - the port answered HTTP 200 and every later test, QA and visual pass
+  reported green against code nobody installed. `agents/odoo-instance-ops.md` operation 1 now owns
+  both legs and the three invariants that must hold across the handoff (which allocator mode the
+  acquire requests, that both legs name the SAME database, and that the lease survives between
+  them), each of which fails while the readiness poll still passes - so a green probe proves none of
+  them. `skills/odoo-acceptance` asks for that state in ONE dispatch instead of decomposing it, and
+  the reference docs point at the owner rather than restating the commands.
+- `odoo-ai-agents` - **`persist: exclusive-running` no longer reads as a promise of durability.**
+  The skill-level name suggested a lasting instance while the allocator mode it maps onto
+  (`ephemeral`) carries `drop_on_release: true`, so `release` - and `gc` - DROP that database by
+  contract rather than by accident. `--mode exclusive-running` is not an allocator mode at all and
+  exits 2 writing no lease, and `--exclusive` is a spin-up flag naming which instance to launch that
+  never changes the lease. The mode the acquire must request, the release-time fate it carries, and
+  the fact that no later command converts a throwaway into a durable database are now stated where a
+  caller chooses the value, not discoverable only from the allocator source.
+- `odoo-ai-agents` - **`allocator.py park` now REPORTS the release-time drop it deliberately does
+  not change.** Park keeps the database, filestore and ports but leaves `drop_on_release` untouched,
+  so a caller that parked in order to SAVE a database it had spent minutes building got exactly what
+  it asked for now and lost it at the final release, with no signal in between. Park emits
+  `ALLOC_DROP_ON_RELEASE` and, when it is true, says on stderr that `release` will still drop that
+  database and that only the ACQUIRE decides the fate. Park's behaviour is unchanged by design:
+  `drop_on_release` is written once, by `acquire`, and nothing mutates it afterwards, so naming the
+  surviving value is the whole remedy. The teardown gate's park guidance now says the same thing.
+- `odoo-ai-agents` - **`50-instance-spinup.sh` refuses a `--db-name` that disagrees with the
+  database its own lease reserved, before anything is launched.** The script installs nothing, so
+  launching a name the build leg never built makes Odoo create that database empty on the spot while
+  the port still answers HTTP 200 - the false-green shape of the two-leg handoff. The lease named by
+  `--alloc-token` records which database was reserved, so the disagreement is decidable there; only
+  a POSITIVE read acts, leaving an unreadable lease to the single refusal it already had. The script
+  also refuses `--run-id` on every path instead of accepting-and-ignoring it, with a message naming
+  where ownership is actually recorded (`allocator.py acquire --run-id`, or `INST_RUN_ID` on the
+  shared/declared path).
+- `odoo-ai-agents` - **A dispatched agent can no longer end its turn on a background command whose
+  result it never observed.** A dispatched agent is never woken for a background shell command, so
+  an agent that backgrounded a long build and then stopped reported an outcome it had not seen:
+  measured with the child's report reaching the root roughly 14 seconds BEFORE the backgrounded
+  command completed, carrying only the line it had printed before stopping. The generic "you will be
+  notified, do not poll" guidance never held for a dispatched agent, yet the runtime contracts
+  overrode it for a single call and left every other background launch on the discarding path. A
+  background result is now scoped to the turn that started it, and a `SubagentStop` gate refuses a
+  background launch that no same-turn wait accompanies, so ending a turn on unobserved work is
+  unreachable rather than discouraged. Agent children are deliberately untouched - they DO wake
+  their launcher.
+- `odoo-ai-agents` - **The diff-scoped lint no longer reports prose the change never touched.**
+  `_added_lines_since` unioned two diffs in DIFFERENT coordinate systems - `base...HEAD`, whose line
+  numbers are HEAD-relative, with `HEAD`, whose numbers are working-tree-relative - and the two
+  agree only while the tree is clean. Once an uncommitted edit shifted a file, every HEAD-relative
+  number kept pointing at its old position, which now held whatever content had moved down into it,
+  and `[version-claim]` reported that content as newly added: measured as two STRICT findings
+  against untouched, boundary-pointing prose on a branch whose pending edits were elsewhere in the
+  same file. A single `git diff <base>` already spans both the committed branch work and the
+  uncommitted edits, so nothing needs unioning; the committed range remains the fallback for an
+  unreachable base.
+- `odoo-ai-agents` - Two reference docs no longer carry a version fact they do not source, which let
+  a reader act on a stale copy while the owning file said otherwise. `INSTANCE-ALLOCATION-MODES.md`
+  illustrated the bootstrap-race `db_name` collision with one concrete series although the collision
+  holds on every series, and now shows the `odoo_<series>` derivation the same section already uses.
+  `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` restated which checkout layouts let a bare `import odoo`
+  misreport a healthy venv, and now points at `commands/odoo-setup.md`, which owns that set, keeping
+  only the requirement that the probe runs Odoo.
+
+### Changed
+
+- `odoo-ai-agents` - **`INSTANCE-ALLOCATION.md` and `INSTANCE-LIFECYCLE.md` are split into
+  subject-owning parts, so a citer loads only the fact it needs.** Both sat over the `[ref-scope]`
+  20480-byte threshold, so a citer that needed one fact paid to pull the whole file into context.
+  Allocation is now REGISTRY, MODES, API, GUARDS and RECLAIM; lifecycle is BUILD-CONTRACT and
+  TEARDOWN; each original stays behind as a short index over its parts, and every citer points at
+  the part that owns the fact it needs. Content is preserved: section numbers and heading text are
+  byte-identical to the originals and all 83 anchors resolve. Measured against this release's base:
+  `[ref-scope]` findings 86 -> 76 in total, and 10 -> 0 naming either monolith.
+
 ## [5.1.2] - 2026-08-20
 
 ### Fixed
