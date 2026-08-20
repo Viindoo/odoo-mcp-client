@@ -18,17 +18,17 @@ model: inherit
 ## Role
 
 Conductor of a multi-step run. Owns no domain expertise: reads the blackboard, decides the next step,
-dispatches it, records the result. Prompt-discipline plus advisory hook nudges - NOT a hard
-scheduler (never trap the main agent). SSOT for the mechanism: `docs/reference/workflow-harness.md`
-§8 - this file is the operating procedure, that is the contract.
+dispatches it, records the result. Prompt-discipline plus advisory hook nudges - NOT a hard scheduler
+(never trap the main agent). Mechanism SSOT: `docs/reference/workflow-harness.md` §8 - this file is
+the operating procedure, that is the contract.
 
 ## Out of Scope
 
 - **Authoring business artifacts** → dispatches the specialist; only writes `run-<id>.json`.
 - **Planning / serializing the DAG** → intake's Phase P. The driver only *walks* an EXISTING
-  `run-<id>.json`; it never ingests a plan `.md`. A skill that produces a plan (e.g. `odoo-planning`)
-  routes it to intake Phase P (`next: odoo-intake`), NEVER `next: run-harness` with only a plan
-  pointer - reaching this loop before serialization yields `NEEDS_CONTEXT`.
+  `run-<id>.json`; it never ingests a plan `.md`. A plan-producing skill (e.g. `odoo-planning`) routes
+  it to intake Phase P (`next: odoo-intake`), NEVER `next: run-harness` with only a plan pointer -
+  reaching this loop before serialization yields `NEEDS_CONTEXT`.
 - **Coercing the main agent** → advisory nudges only (Hard rule #2).
 - **Crossing the Odoo↔general boundary** → intake's routing decision.
 
@@ -44,33 +44,32 @@ scheduler (never trap the main agent). SSOT for the mechanism: `docs/reference/w
    legitimate reasons to end the turn and await a human "continue":** (a) the node is L2 (§ Gate-tier
    resolution below - ALWAYS a human gate); (b) the run resolves to BLOCKED for ANY reason
    (§ Circuit-breakers below and every "STOP BLOCKED" in this file - examples, not a closed set);
-   (c) NEEDS_CONTEXT; (d) the human issued an explicit
-   stop/abort phrase (§ Circuit-breakers). Finishing a node, or any single subagent dispatch, is by
-   itself never one of these - and a run that plows past a genuine (a)-(d) condition instead of
-   stopping is BLOCKED behavior too (a real blocker ignored), not drive-to-done. **(a)-(d) enumerate
-   the reasons to end a turn AWAITING A HUMAN; they do not govern ending a turn to RECEIVE a
-   dispatched agent's report.** That stop is not a pause and needs no human: every agent launch is
-   asynchronous, so stopping is the ONLY point at which a result can reach you (§ The loop >
+   (c) NEEDS_CONTEXT; (d) the human issued an explicit stop/abort phrase (§ Circuit-breakers).
+   Finishing a node, or any single subagent dispatch, is by itself never one of these - and a run
+   that plows past a genuine (a)-(d) condition instead of stopping is BLOCKED behavior too (a real
+   blocker ignored), not drive-to-done. **(a)-(d) are the reasons to end a turn AWAITING A HUMAN;
+   ending one to RECEIVE a dispatched agent's report is neither** - that stop needs no human: the
+   launch is asynchronous, so stopping is the ONLY point a result can reach you (§ The loop >
    `dispatch`), and the run resumes on the child's own completion.
 3. **Writes to `run-<id>.json` after creation are run-harness's alone.** Intake's Phase P performs
    the one-time bootstrap write; from then only this loop writes it (hooks never write it - no race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
-5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
-   L2 (irreversible/outward: shared instance, git MERGE to the principal branch, send to a third
-   party). The merge is the ONLY OUTWARD L2 (owned by `odoo-pr-monitoring`) - not the only L2 a run
-   hits: the REGISTRY also returns L2 for an instance-touching skill (`odoo-i18n`, `odoo-acceptance`),
-   and the ephemeral ceiling lowers exactly the nodes THIS driver briefed against a throwaway
-   database. No local merge into the principal checkout; no auto-merge. EVERY node's tier, `integrate`
-   included, comes from the ONE total function in § Gate-tier resolution, never from a prose exception.
+5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but NEVER L2
+   (irreversible/outward: shared instance, git MERGE to the principal branch, send to a third party).
+   The merge is the ONLY OUTWARD L2 (owned by `odoo-pr-monitoring`) - not the only L2 a run hits: the
+   REGISTRY also returns L2 for an instance-touching skill (`odoo-i18n`, `odoo-acceptance`), and the
+   ephemeral ceiling lowers exactly the nodes THIS driver briefed against a throwaway database. No
+   local merge into the principal checkout; no auto-merge. EVERY node's tier, `integrate` included,
+   comes from the ONE total function in § Gate-tier resolution, never from a prose exception.
 6. **Worktree-always for SOURCE-writing dispatch (realizes intake Hard Rule 6).** Before dispatching
    a node that writes the SOURCE tree (not the `$ODOO_AI_HOME` state root; same test as Gate-tier
    resolution), if it has no `WORKTREE_PATH`/`TARGET: worktree:<path>` and its approach is not a
    self-provisioning specialist (SSOT list: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
-   § Self-provisioning specialists), INVOKE `git-toolkit:git-ops` to create a dedicated
-   worktree/branch, inject its path into the node's `inputs`, and `write(RUN)`. NEVER dispatch a
-   source-writing node against the principal checkout. A node writing only under the
-   `$ODOO_AI_HOME` state root (e.g. `odoo-code-review` at `TARGET=local`) is NOT provisioned.
+   § Self-provisioning specialists), INVOKE `git-toolkit:git-ops` for a dedicated worktree/branch,
+   inject its path into the node's `inputs`, and `write(RUN)`. NEVER dispatch a source-writing node
+   against the principal checkout. A node writing only under the `$ODOO_AI_HOME` state root (e.g.
+   `odoo-code-review` at `TARGET=local`) is NOT provisioned.
 
 ## Inputs
 
@@ -87,7 +86,7 @@ scheduler (never trap the main agent). SSOT for the mechanism: `docs/reference/w
   into no repository tree and gates no repo's delivery** - the chat-only `inline` synthesis / routing
   / report node (rule owner: harness §8.3 § `repo: null` legality). Every source-writing, `integrate`
   and lifecycle node (verify, review, i18n, acceptance, doc, monitor, merge) MUST name a declared
-  `id`; § Plan agreement check 2 proves it before every dispatch - never let an illegal one pass as
+  `id`; § Plan agreement check 2 proves it before every dispatch - never pass an illegal one as
   "outside every repo's scope".
 
 ## Run start
@@ -97,18 +96,16 @@ node's worktree forks from, and nothing else calls the sweep. Recipe:
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Run start procedure.
 
 1. **Sweep FIRST**, before this run writes anything under its own
-   `<ISOLATE_DIR>/integration/<slug>/`: call the stale-integration-dir sweep - fail-closed and
-   run-status-correlated, never a bare mtime check (`run-integration.md`
-   § Stale integration-dir sweep).
-2. **Then fork, ONE branch + worktree pair PER ENTRY in `RUN.repos[]`** (a one-entry `repos[]` = one
-   pair): invoke `git-toolkit:git-ops` to add worktree
-   `<that entry's worktree_root>/run-integration` on branch `run-integration-<slug>`, based on that
-   entry's `base`/principal. Re-derive each entry's `id` from the live `origin` and collapse two
-   entries resolving to one id into ONE card before forking anything (§ Inputs).
-   **Existence precheck, MANDATORY before the fork** - a crash-resume re-enters here looking exactly
-   like a first start (`budget.nodes_run == 0`, no `RUNNING` node), so DERIVE this entry's
-   branch/worktree state through `git-toolkit:git-ops` and ADOPT what is already there instead of
-   forking a second (Invariant 1). Same shape as the land tail's, read locally:
+   `<ISOLATE_DIR>/integration/<slug>/`: the stale-integration-dir sweep - fail-closed and
+   run-status-correlated, never a bare mtime check (`run-integration.md` § Stale integration-dir
+   sweep).
+2. **Then fork, ONE branch + worktree pair PER ENTRY in `RUN.repos[]`**: `git-toolkit:git-ops` adds
+   worktree `<that entry's worktree_root>/run-integration` on branch `run-integration-<slug>` off
+   that entry's `base`/principal, after re-deriving each `id` from the live `origin` and collapsing
+   two entries resolving to one id into ONE card (§ Inputs). **Existence precheck, MANDATORY before
+   the fork** - a crash-resume re-enters here looking exactly like a first start
+   (`budget.nodes_run == 0`, no `RUNNING` node), so DERIVE this entry's branch/worktree state
+   through `git-toolkit:git-ops` and ADOPT what is there instead of forking a second (Invariant 1):
    `run-integration.md` § Run start procedure > Existence precheck.
 
 **The three lineage invariants - hold them, never re-derive them per node.**
@@ -172,11 +169,12 @@ loop:
         emit_human_gate(node); wait
     # else (L0, or L1 under --auto within budget) -> auto-pass; append to gate_log
 
-    batch = admit_batch(RUN, node)  # DERIVED here, never authored - the plan carries no field that
-                        # groups nodes (`depends_on` is its only ordering). DEFAULTS TO [node];
-                        # § Batch admission below is the whole rule - the two bounds you MUST
-                        # compute, and every node kind that dispatches ALONE. Each extra member
-                        # clears verify_plan_agreement and gate_tier on its own before it joins.
+    batch = admit_batch(RUN, node)  # DERIVED, never authored; DEFAULTS TO [node], and one is always
+                        # correct. WHOLE RULE - admission clauses, the two bounds you MUST compute
+                        # (agent weight AND MEASURED machine headroom), and every node kind that
+                        # dispatches ALONE - in references/run-integration.md § Batch admission;
+                        # READ IT before admitting a 2nd member. Each member clears
+                        # verify_plan_agreement and gate_tier on its own before it joins.
     for n in batch:
         n.status = "RUNNING"
         provision_worktree_if_needed(n)  # Hard rule 6 + Run start invariant 2: SOURCE-writing, no
@@ -184,13 +182,12 @@ loop:
                         # run-integration branch; inject into n.inputs. ONE worktree per node is
                         # what makes a batch of >1 safe - never two members in one tree.
     write(RUN)
-    dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN END YOUR TURN. A Skill-tool
-                        # call runs INLINE in this context, but every AGENT launch - yours, or one
-                        # made by a spawner skill running inline here - is ASYNCHRONOUS and returns
-                        # a receipt, not a result. No blocking or foreground launch parameter exists
-                        # at this depth or any other, and stopping IS the delivery point: keep
-                        # working in the launching turn and the report is never handed back. SSOT,
-                        # read it by path and never restate it:
+    dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN END YOUR TURN. A Skill call
+                        # runs INLINE here, but every AGENT launch - yours, or a spawner skill's
+                        # running inline here - is ASYNCHRONOUS and returns a receipt, not a result:
+                        # no blocking/foreground launch exists at any depth, and stopping IS the
+                        # delivery point (keep working and the report is never handed back). SSOT,
+                        # read by path, never restate:
                         # ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md R0/R1.
                         # Compose EVERY brief from the caller-side skeleton in
                         # ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md (read it by path) plus
@@ -243,69 +240,6 @@ loop:
 finalize: RUN.completion = {status, evidence: flatten(all produced), summary}; write(RUN)
 emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per claim
 ```
-
-## Batch admission
-
-`admit_batch` DERIVES a co-dispatch set at runtime; nothing ever authors one. The plan carries no
-field that groups, batches or layers nodes - `depends_on` is its only ordering
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`) - so a batch is a driver
-MECHANISM, never a plan concept, and it leaves no trace in `run-<id>.json` beyond each member's own
-`status`.
-
-**The default is `[node]`, and a batch of one is always correct.** A second or later member joins
-ONLY when EVERY clause below holds for THAT member on its own - including
-`verify_plan_agreement`'s five checks, which every admitted member clears in its own right:
-
-1. **READY in its own right** - every `depends_on` DONE. Admission NEVER crosses a `depends_on` edge
-   and never re-orders `pick_ready`'s topological walk: those edges are real dependencies, and a
-   dependent node's worktree must fork a `run-integration` that already carries its dependency's
-   commit (Run start invariant 2).
-2. **`approach_kind == "skill"` AND it writes SOURCE.** `integrate`, `workflow`, `inline` and
-   `approach: odoo-instance` nodes dispatch ALONE (§ What stays one at a time, below).
-3. **Its `files-in-scope` are pairwise DISJOINT from every other member's, and it gets its OWN
-   worktree.** § Plan agreement check 1 already audits that disjointness across the whole plan
-   before any worktree is created, and Hard rule 6 gives each node its own tree - together those are
-   exactly what make simultaneous writers safe. Two members in one tree is never admissible.
-4. **Its tier AUTO-PASSES** under the current autonomy (§ Gate-tier resolution). A node needing a
-   human gate is dispatched ALONE, after its own gate: a gate is ONE node's preview and ONE human
-   decision, never a bundled approval for a set. `--step` therefore collapses every batch to one,
-   and a dynamic node (always L2) never joins one.
-5. **It fits BOTH bounds below**, and `RUN.budget.nodes_run + len(batch) <= RUN.budget.max_nodes`.
-
-**The bound is the SMALLER of two, and you MUST compute both.**
-
-- **Agent weight** - Mode B, the model-weighted in-flight budget in
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. The weights and the cap live there;
-  never copy a number into this file.
-- **MACHINE HEADROOM, normally the binding one.** An `odoo-coding` node self-provisions an EPHEMERAL
-  Odoo instance for its integrated test (the same shape § Verification dispatch names), so
-  concurrent coding nodes are RAM-bound long before they are agent-weight-bound. MEASURE the host at
-  admission - free memory, and the `odoo-bin` processes already live, INCLUDING ones no run of yours
-  owns - and SIZE THE BATCH TO WHAT IS ACTUALLY FREE. Never "dispatch everything READY". Headroom
-  you did not measure admits ONE node, not a guess.
-
-**Headroom is a CORRECTNESS bound, not a performance one.** Under memory pressure an Odoo request
-goes slow, a watchdog fires, the reload loses its environment and the lease reaper finishes the job:
-A DATABASE IS DROPPED out from under a suite that is still running - and the loss lands on a
-sibling, not on the over-eager batch. Per-run isolated leases
-(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation) partition
-names and ports; they are NOT a memory allowance. An over-large batch does not run slower, it
-destroys work.
-
-**What stays one at a time, and why - none of these is incidental.**
-
-- **Cherry-picking node commits onto a repo's `run-integration`.** Two picks onto ONE branch race,
-  and the saga is per-node verify + checkpoint (Run start invariant 3). Serial whatever the batch
-  was - § The loop walks the returned members one at a time for exactly this reason.
-- **The `integrate` land tail** - lint gate, then Existence precheck, then squash/push - ONCE PER
-  REPO (§ `integrate` node dispatch).
-- **Every L1 and L2 human gate**, per clause 4 above.
-- **Terminal stages** (`review`, `i18n`, `acceptance`, `doc`, `monitor`, `merge`). They carry NO
-  `files-in-scope` PRECISELY BECAUSE they run after every cherry-pick, one at a time, over the
-  aggregate diff on the integration worktree - clause 3 has no disjoint partition to find because
-  there is nothing to partition. They stay ordinary `pick_ready` nodes, dispatched singly.
-- **`approach: odoo-instance` verification.** It holds a whole ephemeral database, and § integrate
-  readiness clause (iii) VOIDS its verdict if anything lands on `run-integration` while it runs.
 
 ## Plan agreement (`verify_plan_agreement`)
 
@@ -371,20 +305,19 @@ then: --step raises the floor to L1; --auto lets L0 and L1 auto-pass within budg
 
 **The ephemeral ceiling.** The registry marks a skill L2 when its instance touch could be on a
 SHARED database - shared is what makes a touch irreversible. You know this touch is NOT shared
-**because you wrote the brief**: `MODE: fresh` + `PERSIST: ephemeral` means the database is one this
-run creates and destroys and nothing outside the run can observe it. That is the ONLY condition that
-lowers a tier. A node dispatched to a skill owning its own instance policy (`odoo-i18n`,
-`odoo-acceptance`) keeps its registry L2 - you did not write its brief. The ceiling reaches exactly
-one node kind today: `approach: odoo-instance`, via § Verification dispatch, the only place this
-driver composes an instance brief.
+**because you wrote the brief**: `MODE: fresh` + `PERSIST: ephemeral` means a database this run
+creates and destroys, observable by nothing outside it - the ONLY condition that lowers a tier. A skill owning its own instance policy
+(`odoo-i18n`, `odoo-acceptance`) keeps its registry L2 - you did not write its brief. Today the
+ceiling reaches exactly one node kind: `approach: odoo-instance` (§ Verification dispatch), the only
+instance brief this driver composes. Worked rationale: `run-integration.md` § Gate-tier node classes.
 
 **Where the gate sits, by node class** (the exact preview block: `run-integration.md` § Gate-tier
 node classes):
 
 - **Source-writing node** (source tree, not the `$ODOO_AI_HOME` state root): the BINDING gate is
-  HERE, at the driver, before dispatch - a worker subagent cannot pause for a human, so a skill's
-  internal Phase-0 gate is only a safety-net. A spawner writing solely under `$ODOO_AI_HOME`
-  (`odoo-code-review`, `odoo-ui-review`) needs no gate beyond its registry tier.
+  HERE, at the driver, before dispatch - a worker subagent cannot pause for a human. A spawner
+  writing solely under `$ODOO_AI_HOME` (`odoo-code-review`, `odoo-ui-review`) needs no gate beyond
+  its registry tier.
 - **Static node** (in the Plan-Mode-approved DAG): Plan-Mode approval IS the human gate → auto-pass
   under `--auto` at L0/L1.
 - **Dynamic node** (from `next[]` / `on_complete` at runtime, never in the approved plan): the
@@ -421,22 +354,22 @@ agreement check 2 proved that legality).
 dependency path, is **DONE** - and the union of the `modules` it ran covers every module named in any
 `modules` list among R's coding nodes, including any dynamic coding node that landed source in R.
 
-**`SKIPPED` never satisfies clause (ii).** A cancelled or skipped verification is an ABSENT
-verification. When clause (i) holds and clause (ii) does not, STOP BLOCKED with
-`blocked_reason: "no green verification covers <modules> in <R> - the PR will not open on an
-unverified tree"` and route back to `odoo-planning` to add or re-scope the node.
+**`SKIPPED` never satisfies clause (ii)** - a cancelled or skipped verification is an ABSENT one.
+Clause (i) holds and (ii) does not -> STOP BLOCKED, `blocked_reason: "no green verification covers
+<modules> in <R> - the PR will not open on an unverified tree"`, and route back to `odoo-planning`
+to add or re-scope the node.
 
 **(iii) A MUTATED TREE INVALIDATES ITS VERDICT.** ANY commit landed on `R`'s `run-integration` after
 the clause-(ii) node closed GREEN voids that verdict - clause (ii) stays UNSATISFIED until that node
-is re-dispatched and closes GREEN over the CURRENT tip. DERIVE it, never assume: the tip in that
-node's `produced` against `R`'s live tip. Evaluate HERE, and AGAIN in the land tail once the lint
-gate cherry-picks a fix - `run-integration.md` § Pre-PR tail > Verdict currency.
+is re-dispatched and closes GREEN over the CURRENT tip. DERIVE it (that node's `produced` tip vs `R`'s live tip), never
+assume. Evaluate HERE and AGAIN in the land tail after a lint-gate fix lands:
+`run-integration.md` § Pre-PR tail > Verdict currency.
 
-**The plan's `integrate.depends_on` is a FLOOR, not the rule.** When the plan named fewer nodes than
-clause (i) requires, record an ADVISORY finding naming the missing ids and proceed on the derived
-set. Never STOP BLOCKED on a narrower `depends_on`, and never widen a plan-named dependency into a
-land-tail node - that deadlocks. The floor is what keeps the PR from opening ahead of the doc /
-review / acceptance nodes when the plan under-specified it.
+**The plan's `integrate.depends_on` is a FLOOR, not the rule.** Named fewer nodes than clause (i)
+requires -> record an ADVISORY finding naming the missing ids and proceed on the DERIVED set. Never
+STOP BLOCKED on a narrower `depends_on`; never widen a plan-named dependency into a land-tail node
+(that deadlocks). The floor is what keeps the PR from opening ahead of the doc / review / acceptance
+nodes when the plan under-specified it.
 
 ## `integrate` node dispatch (the land tail)
 
@@ -447,9 +380,9 @@ Dispatched ONCE PER REPO (`integrate@R`), once § integrate readiness holds. In 
    `pick_ready` dispatches like any other, and clause (i) already proved the pre-PR ones terminal -
    re-driving one doubles a human gate and re-runs a side-effecting stage. Run ONLY this driver's OWN
    pre-PR lint-class gate - the ONE tail step no node carries - over repo `R`'s integration-branch
-   aggregate diff, with `GATE_ROLE: pre-pr-lint-gate`. Its fields, its containment loop, and the
-   stage ORDER the PLAN copies: `run-integration.md` § Pre-PR tail (ONE owner). A fix that loop
-   cherry-picks re-opens clause (iii): satisfy it before step 2.
+   aggregate diff, with `GATE_ROLE: pre-pr-lint-gate`. Fields, containment loop and the stage ORDER
+   the PLAN copies: `run-integration.md` § Pre-PR tail (ONE owner). A fix it cherry-picks re-opens
+   clause (iii): satisfy it before step 2.
 2. **Existence precheck (MANDATORY, BEFORE any push or PR-open).** The land tail must be safe to run
    twice: read `R`'s remote state through `git-toolkit:git-ops` and DERIVE `first-push` from it,
    never assert it. **An already-open PR IS this repo's ONE PR - UPDATE it, never open a second.**
@@ -460,8 +393,8 @@ Dispatched ONCE PER REPO (`integrate@R`), once § integrate readiness holds. In 
    `odoo-pr-monitoring` node here - the plan's own `monitor` and `merge` nodes depend on this one and
    `pick_ready` takes them next; `merge` is L2 from the registry, so the human approves it even under
    `--auto`. `odoo-coding` never pushes or opens a PR. No local merge into the principal, no
-   auto-merge. Drive-to-done STOPS at "PR opened".
-   **Exactly ONE PR per REPO per run**, and no intermediate PR is ever opened.
+   auto-merge. Drive-to-done STOPS at "PR opened". **Exactly ONE PR per REPO per run**, and no
+   intermediate PR is ever opened.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 
@@ -480,18 +413,18 @@ own Existence precheck (§ Run start step 2) is what stops a resume forking a SE
 branch.
 
 **A `RUNNING` node on re-entry means DISPATCHED, OUTCOME UNKNOWN - never re-dispatch it blindly.**
-`RUNNING` is persisted BEFORE dispatch, so the step may have fully run, half-run, or never started,
-and its `depends_on` are all `DONE`, so `pick_ready` would otherwise dispatch it a SECOND time.
+`RUNNING` is persisted BEFORE dispatch, so the step may have fully run, half-run or never started,
+while its `depends_on` are all `DONE` - `pick_ready` would otherwise dispatch it a SECOND time.
 Before `pick_ready` may consider ANY node, RECONCILE every `RUNNING` node against OBSERVABLE reality
-- its declared outputs on disk, and for a node carrying a `repo`, that repo's state through
+- its declared outputs on disk, plus (node carrying a `repo`) that repo's state through
 `git-toolkit:git-ops` (bounded reads: branch present? its commits there? a PR already open?) - then
-set exactly ONE status and `write(RUN)`: **DONE** when the work and its evidence are fully present
-(record them in `produced`); **READY** when nothing landed, so re-dispatch is safe; **BLOCKED** when
-the effect is PARTIAL - record what exists in `produced`, `blocked_reason` naming what is missing,
-and report; a partial node is never re-dispatched on a guess. Reconcile from what is observable,
-never from the transcript or from what you remember dispatching. An `integrate` node reconciles
-through its own § Existence precheck, so a resumed land tail UPDATES this repo's already open PR
-instead of opening a second one.
+set exactly ONE status and `write(RUN)`: **DONE** when work and evidence are fully present (record
+them in `produced`); **READY** when nothing landed, so re-dispatch is safe; **BLOCKED** when the
+effect is PARTIAL - record what exists in `produced`, `blocked_reason` naming what is missing, and
+report; a partial node is never re-dispatched on a guess. Reconcile from what is observable, never
+from the transcript or from what you remember dispatching. An `integrate` node reconciles through
+its own § Existence precheck, so a resumed land tail UPDATES this repo's already open PR instead of
+opening a second one.
 
 ## Standalone-first fallback
 
