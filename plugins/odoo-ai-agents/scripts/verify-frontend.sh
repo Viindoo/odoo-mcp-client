@@ -17,6 +17,13 @@
 #         (d) none of the above resolvable -> CANNOT-VERIFY (exit 2), NEVER a pass.
 #       The script must run from INSIDE the target addon/Odoo repo (CWD anchors `git rev-parse`),
 #       with the changed JS files passed as args.
+#       The config is SERIES-SPECIFIC (15.0 pins an es2019 parser, 17.0 a later one), so the
+#       checkout it comes from is selected BY THE TARGET SERIES - resolved from ODOO_SERIES, the
+#       repo's own odoo/release.py, the nearest __manifest__.py version, or the checked-out
+#       branch - and each candidate checkout is identified by its OWN odoo/release.py, never by
+#       its directory name. No checkout for that series -> CANNOT-VERIFY; borrowing another
+#       series' config would lint the sources against an oracle Runbot never runs and report
+#       failures that do not exist.
 #       Before running, the resolved prettier version is compared against the repo pin
 #       (web/tooling/_package.json or repo-root package.json); a mismatch -> CANNOT-VERIFY.
 #       v14 (no web/tooling JS lint gate) -> CANNOT-VERIFY, never PASS.
@@ -35,6 +42,9 @@
 # ENV OVERRIDES:
 #   CLAUDE_PLUGIN_ROOT    plugin root (required for rules/ and fallback config)
 #   ODOO_GIT_BASE         where Odoo core checkouts live (default: ~/git)
+#   ODOO_SERIES           target Odoo series for the JS oracle (e.g. 17.0). Overrides the
+#                         manifest/branch inference; the escape hatch for a repo that declares
+#                         no series (tooling repo, bare JS package).
 #   ODOO_INSTANCE_URL     live instance base URL for Tier-3 smoke (e.g. http://localhost:8069)
 #   VERIFY_FRONTEND_BASE  git diff base ref (default: HEAD)
 #
@@ -128,6 +138,91 @@ _resolve_repo_bin() {
     # never downloads). Caller must still version-check.
     if command -v npx >/dev/null 2>&1 && npx --no-install "$bin" --version >/dev/null 2>&1; then
         printf 'npx --no-install %s\n' "$bin"
+        return 0
+    fi
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# _series_of_odoo_checkout <dir>
+# Echoes the series a checkout DECLARES ABOUT ITSELF ("17.0"), nothing when <dir>
+# is not an Odoo checkout. Reads odoo/release.py, never the directory name: on a
+# real machine the same series appears as odoo_17.0, odoo-17, 17.0-wt and a bare
+# `odoo`, and a name is not a declaration.
+# ---------------------------------------------------------------------------
+_series_of_odoo_checkout() {
+    local rel="$1/odoo/release.py" line nums major minor
+    [[ -f "$rel" ]] || return 1
+    line="$(grep -m1 -E '^[[:space:]]*version_info[[:space:]]*=' "$rel" 2>/dev/null || true)"
+    [[ -n "$line" ]] || return 1
+    nums="${line#*(}"
+    nums="${nums%%)*}"
+    major="$(printf '%s' "$nums" | cut -d, -f1 | tr -d " '\"")"
+    minor="$(printf '%s' "$nums" | cut -d, -f2 | tr -d " '\"")"
+    [[ -n "$major" && -n "$minor" ]] || return 1
+    printf '%s.%s\n' "$major" "$minor"
+}
+
+# ---------------------------------------------------------------------------
+# _series_from_manifest <path>
+# Walks UP from <path> to the nearest __manifest__.py and echoes the series its
+# `version` declares ("17.0" from "17.0.1.0.0"). A version without a series
+# prefix ("1.0.0") declares nothing about the core and is ignored.
+# ---------------------------------------------------------------------------
+_series_from_manifest() {
+    local dir="$1" ver
+    [[ -d "$dir" ]] || dir="$(dirname "$dir")"
+    while [[ -n "$dir" && "$dir" != "/" ]]; do
+        if [[ -f "$dir/__manifest__.py" ]]; then
+            ver="$(grep -m1 -E "['\"]version['\"][[:space:]]*:" "$dir/__manifest__.py" 2>/dev/null \
+                   | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" | head -1 || true)"
+            if [[ -n "$ver" ]]; then
+                printf '%s\n' "${ver%%.*}.$(printf '%s' "$ver" | cut -d. -f2)"
+                return 0
+            fi
+            return 1
+        fi
+        dir="$(dirname "$dir")"
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# _resolve_target_series
+# Echoes the series the CHANGED SOURCES are written against, and sets
+# TARGET_SERIES_SRC to where that answer came from. Order: explicit override,
+# the repo's own release.py (the target IS an Odoo core checkout), the nearest
+# addon manifest, the checked-out branch. Returns non-zero when nothing declares
+# it - the caller then reports CANNOT-VERIFY rather than guessing a checkout.
+# ---------------------------------------------------------------------------
+TARGET_SERIES_SRC=""
+_resolve_target_series() {
+    local root s branch f
+    if [[ -n "${ODOO_SERIES:-}" ]]; then
+        TARGET_SERIES_SRC="ODOO_SERIES override"
+        printf '%s\n' "$ODOO_SERIES"
+        return 0
+    fi
+    for root in "$WORKTREE_TOP" "$MAIN_ROOT"; do
+        [[ -n "$root" ]] || continue
+        if s="$(_series_of_odoo_checkout "$root")"; then
+            TARGET_SERIES_SRC="$root/odoo/release.py"
+            printf '%s\n' "$s"
+            return 0
+        fi
+    done
+    for f in "${JS_FILES[@]:-}" "$PWD"; do
+        [[ -n "$f" ]] || continue
+        if s="$(_series_from_manifest "$f")"; then
+            TARGET_SERIES_SRC="__manifest__.py version near ${f}"
+            printf '%s\n' "$s"
+            return 0
+        fi
+    done
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [[ "$branch" =~ ^(saas~)?([0-9]+\.[0-9]+) ]]; then
+        TARGET_SERIES_SRC="branch $branch"
+        printf '%s\n' "${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
         return 0
     fi
     return 1
@@ -295,26 +390,45 @@ if [[ ${#JS_FILES[@]} -gt 0 ]]; then
         fi
     done
 
-    # (2) Odoo checkout web/tooling/_eslintrc.json.
+    # (2) Odoo checkout web/tooling/_eslintrc.json - FROM THE TARGET SERIES' CHECKOUT.
+    # The config is series-specific, so "whichever checkout `find` returned first" is not a
+    # resolution: on any machine holding several checkouts it lints e.g. 17.0 sources with
+    # 15.0's es2019 oracle and reports failures the real gate never raises. Resolve the series
+    # the sources are written against, then take the checkout that DECLARES that series.
+    TARGET_SERIES=""
+    SERIES_SEEN=""
     if [[ -z "$ESLINTRC" ]]; then
-        while IFS= read -r _odoo_dir; do
-            _tooling="$_odoo_dir/addons/web/tooling"
-            [[ -d "$_tooling" ]] && TOOLING_DIR_SEEN=true
-            if [[ -f "$_tooling/_eslintrc.json" ]]; then
-                ESLINTRC="$_tooling/_eslintrc.json"
-                ESLINTRC_SRC="odoo checkout tooling: $ESLINTRC"
-                [[ -f "$_tooling/_package.json" ]] && PKG_JSON="$_tooling/_package.json"
-                break
-            fi
-        done < <(find "$ODOO_GIT_BASE" -maxdepth 2 -name "odoo-bin" 2>/dev/null \
-                 | xargs -I{} dirname {} 2>/dev/null | head -5)
+        TARGET_SERIES="$(_resolve_target_series || true)"
+        if [[ -n "$TARGET_SERIES" ]]; then
+            _info "target Odoo series: $TARGET_SERIES (from $TARGET_SERIES_SRC)"
+            while IFS= read -r _odoo_dir; do
+                [[ -n "$_odoo_dir" ]] || continue
+                _cand_series="$(_series_of_odoo_checkout "$_odoo_dir" || true)"
+                [[ -n "$_cand_series" ]] || continue
+                case " $SERIES_SEEN " in *" $_cand_series "*) ;; *) SERIES_SEEN="$SERIES_SEEN$_cand_series ";; esac
+                [[ "$_cand_series" == "$TARGET_SERIES" ]] || continue
+                _tooling="$_odoo_dir/addons/web/tooling"
+                [[ -d "$_tooling" ]] && TOOLING_DIR_SEEN=true
+                if [[ -f "$_tooling/_eslintrc.json" ]]; then
+                    ESLINTRC="$_tooling/_eslintrc.json"
+                    ESLINTRC_SRC="odoo $TARGET_SERIES checkout tooling: $ESLINTRC"
+                    [[ -f "$_tooling/_package.json" ]] && PKG_JSON="$_tooling/_package.json"
+                    break
+                fi
+            done < <(find "$ODOO_GIT_BASE" -maxdepth 2 -name "odoo-bin" 2>/dev/null \
+                     | xargs -I{} dirname {} 2>/dev/null | sort)
+        fi
     fi
 
     if [[ -z "$ESLINTRC" ]]; then
-        # No eslintrc anywhere. If we saw a web/tooling dir without _eslintrc.json this
-        # is a pre-v17 / v14-style layout; either way the real oracle is unreproducible.
-        if [[ "$TOOLING_DIR_SEEN" == "true" ]]; then
-            _cannot_verify "no addons/web/tooling/_eslintrc.json found (pre-v17 / v14 layout has no JS lint gate); cannot run the eslint oracle - DO NOT treat as pass"
+        # No usable eslintrc. Each branch names WHY, because the remedies differ: declare the
+        # series, clone the matching checkout, or accept that this series ships no JS gate.
+        if [[ -z "$TARGET_SERIES" ]]; then
+            _cannot_verify "cannot determine the target Odoo series (no ODOO_SERIES, no odoo/release.py in this repo, no series-prefixed __manifest__.py version, no series-named branch); the web/tooling eslint config is series-specific, so no checkout can be chosen - DO NOT treat as pass"
+        elif [[ "$TOOLING_DIR_SEEN" == "true" ]]; then
+            _cannot_verify "the $TARGET_SERIES checkout has addons/web/tooling but no _eslintrc.json (pre-v17 / v14 layout has no JS lint gate); cannot run the eslint oracle - DO NOT treat as pass"
+        elif [[ -n "$SERIES_SEEN" ]]; then
+            _cannot_verify "no Odoo checkout for series $TARGET_SERIES under $ODOO_GIT_BASE (checkouts found: ${SERIES_SEEN% }); another series' _eslintrc.json would run an oracle Runbot never runs - DO NOT treat as pass"
         else
             _cannot_verify "no eslint config found (repo root .eslintrc* / Odoo addons/web/tooling/_eslintrc.json); cannot run the JS lint oracle - DO NOT treat as pass"
         fi
