@@ -53,16 +53,18 @@ One file lives at the root of `coding_guidelines/` and is shared across all vers
 
 A subset of these rules that can be checked mechanically is enforced by two gates against changed
 files. The backend gate is Odoo's own lint test module: append `/test_lint` (and `/test_pylint` on
-v16+ Viindoo profiles) to `--test-tags` in the instance test run - same gate as Runbot (deprecated
+the Viindoo profiles that ship it) to `--test-tags` in the instance test run - same gate as Runbot (deprecated
 decorators, `cr.commit()`, ORM misuse, sql-injection, translation rules). See
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. `scripts/verify-frontend.sh` runs a
 three-tier check over changed `.js`/`.xml`/`.scss` files: JS lint/format via repo-pinned
 `eslint -c _eslintrc.json` (Tier 1 - the same oracle Runbot uses), static OWL/SCSS pattern scan
 via `scripts/rules/owl-pitfalls.txt` (Tier 2), and an optional runtime smoke check (Tier 3).
 The JS Tier-1 gate is tri-state: `RESULT: PASS` (exit 0) means eslint ran clean; `RESULT: FAIL`
-(exit 1) means eslint found errors; `RESULT: CANNOT-VERIFY` (exit 2) means the repo-pinned
-toolchain could not be resolved - exit 2 is NOT a pass, and the agent MUST NOT declare done on
-it. Both gates catch only the mechanical subset; the semantic rules (attribute ordering, naming
+(exit 1) means eslint found errors; `RESULT: CANNOT-VERIFY` (exit 2) means eslint did NOT run -
+exit 2 is NOT a pass, and the agent MUST NOT declare done on it. Read the printed cause rather
+than assuming the toolchain: an unresolved target Odoo series is a common one, and its remedy is
+`ODOO_SERIES=<series>`, not `npm install`. Every run prints a per-tier gate ledger in its
+Summary - check it before quoting any single tier's clean line as the run's verdict. Both gates catch only the mechanical subset; the semantic rules (attribute ordering, naming
 intent, structure, secure-coding patterns) are the responsibility of the agent reading these
 files up front.
 

@@ -39,11 +39,29 @@ The gate is tri-state:
 |---|---|---|
 | `RESULT: PASS (clean)` / `RESULT: PASS (with N warning(s))` | 0 | eslint ran on the repo-pinned toolchain and found zero errors |
 | `RESULT: FAIL (N blocking issue(s) - fix before proceeding)` | 1 | eslint found >=1 error |
-| `RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass)` | 2 | toolchain absent, version-mismatched, or v14 (no gate) - eslint did NOT run |
+| `RESULT: CANNOT-VERIFY (did NOT run: <gate list> - DO NOT treat as pass)` | 2 | eslint did NOT run - the parenthetical names which gate(s) and the `[CANNOT-VERIFY]` line above names why |
 
-Exit 2 is **not clean**. An agent MUST NOT declare done on `CANNOT-VERIFY`; it must resolve the
-toolchain (run `npm install` in the target repo) or escalate. Only exit 0 with `RESULT: PASS`
-counts as a green JS lint gate.
+Exit 2 is **not clean**. An agent MUST NOT declare done on `CANNOT-VERIFY`; it must clear the
+stated cause or escalate. Only exit 0 with `RESULT: PASS` counts as a green JS lint gate.
+
+**Read the cause, do not assume it.** `CANNOT-VERIFY` has several causes and they need different
+remedies: an unresolved toolchain (run `npm install` in the target repo), a prettier version-pin
+mismatch, a series whose checkout ships no JS gate - and an **unresolved target series**, where the
+toolchain is fine and nothing needs installing.
+
+**Target series resolution.** The `_eslintrc.json` is series-specific, so the gate must know which
+series the sources are written against. It resolves that from `ODOO_SERIES` or from
+`scripts/lib/odoo_series.py`, the repo's series-derivation SSOT, which resolves only from evidence
+that IS the series (the core's own `release.py`; a series-named branch). An addon's
+`__manifest__.py` `version` deliberately resolves **nothing**: it is the addon's own version, so
+`0.3.1` is not series `0.3`, and even a series-prefixed value survives a code-level upgrade
+unbumped. When nothing declares a series, the remedy the gate prints is the whole fix -
+`ODOO_SERIES=<series> verify-frontend.sh ...`.
+
+**Every run prints a gate ledger** in the Summary - one row per tier, `RAN` / `DID NOT RUN` /
+`n/a` / `not configured` - whatever the verdict. Read it before quoting any tier's clean line: a
+tier that skipped itself prints nothing, while the tiers that did run still print their clean
+lines, so "no issues" in isolation is not evidence that the gate ran.
 
 ## Section 4 - Brand fidelity (sibling, optional, brand-agnostic)
 

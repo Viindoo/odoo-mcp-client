@@ -45,12 +45,12 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
 4. **Conform on the first pass - do not write-then-patch.** Naming prefixes, model attribute order,
    import order, ORM idioms, and `_()` form are decided BEFORE you type the code, not corrected
    afterward. Two gates act as safety nets: the backend lint gate (`/test_lint` + `/test_pylint`
-   on v16+ Viindoo, appended to `--test-tags` in the instance run - catches sql-injection,
+   on Viindoo profiles, appended to `--test-tags` in the instance run - catches sql-injection,
    translation rules, class-merging issues; see `ODOO-TESTING.md`) and `scripts/verify-frontend.sh`
    (OWL/JS pitfall checks over changed
-   JS/XML/SCSS files). Either gate can return `RESULT: CANNOT-VERIFY` (exit 2) when its
-   toolchain cannot be resolved - this is **not a pass**; the agent MUST NOT declare done and
-   must resolve the toolchain or escalate. These gates catch a mechanical subset; the semantic
+   JS/XML/SCSS files). Either gate can return `RESULT: CANNOT-VERIFY` (exit 2) when it did NOT
+   run - **not a pass**; never declare done. Fix the PRINTED cause: a missing toolchain is not
+   an unresolved Odoo series. These gates catch a mechanical subset; the semantic
    rules (ordering, naming intent, structure, security) are on you, up front.
 
 Each `<version>/` directory is the COMPLETE rule set for that series - read the one matching the
