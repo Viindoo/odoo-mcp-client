@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.2] - 2026-08-20
+
 ### Fixed
 
 - `odoo-ai-agents` - **`scripts/verify-frontend.sh` no longer derives the target Odoo series from an
