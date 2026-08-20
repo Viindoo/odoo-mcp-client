@@ -92,18 +92,18 @@ the operating procedure, that is the contract.
 ## Run start
 
 Runs ONCE, before the first node, in this order. Nothing else creates the integration branch every
-node's worktree forks from, and nothing else calls the sweep. Recipe:
+node's worktree forks from, nor calls the sweep. Recipe:
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Run start procedure.
 
-1. **Sweep FIRST**, before this run writes anything under its own
+1. **Sweep FIRST**, before this run writes anything under
    `<ISOLATE_DIR>/integration/<slug>/`: the stale-integration-dir sweep - fail-closed and
    run-status-correlated, never a bare mtime check (`run-integration.md` § Stale integration-dir
    sweep).
-2. **Then fork, ONE branch + worktree pair PER ENTRY in `RUN.repos[]`**: `git-toolkit:git-ops` adds
-   worktree `<that entry's worktree_root>/run-integration` on branch `run-integration-<slug>` off
-   that entry's `base`/principal, after re-deriving each `id` from the live `origin` and collapsing
-   two entries resolving to one id into ONE card (§ Inputs). **Existence precheck, MANDATORY before
-   the fork** - a crash-resume re-enters here looking exactly like a first start
+2. **Then fork, ONE branch + worktree pair PER ENTRY in `RUN.repos[]`**:
+   invoke `git-toolkit:git-ops` to add worktree `<entry's worktree_root>/run-integration` on branch
+   `run-integration-<slug>` off that entry's own `base`/principal, re-deriving each `id` from the
+   live `origin` and collapsing two entries resolving to one id into ONE card first (§ Inputs). **Existence precheck, MANDATORY before
+   the fork** - a crash-resume re-enters looking exactly like a first start
    (`budget.nodes_run == 0`, no `RUNNING` node), so DERIVE this entry's branch/worktree state
    through `git-toolkit:git-ops` and ADOPT what is there instead of forking a second (Invariant 1):
    `run-integration.md` § Run start procedure > Existence precheck.
