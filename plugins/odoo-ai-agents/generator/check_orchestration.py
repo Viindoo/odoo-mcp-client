@@ -1621,25 +1621,28 @@ _HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def _added_lines_since(base: str) -> dict[str, set[int]]:
-    """{repo-relative path: set of line numbers this change ADDED}, from a zero-context diff."""
-    diff = _git("diff", "--unified=0", "--no-color", f"{base}...HEAD")
+    """{repo-relative path: set of line numbers this change ADDED}, from a zero-context diff.
+
+    ONE COORDINATE SYSTEM, and it is the WORKING TREE - because the working-tree file is what
+    every caller reads back when it maps a line number to the prose at that line. `git diff
+    <base>` (base -> working tree) already spans BOTH the committed branch work and the
+    uncommitted edits, so nothing needs unioning.
+
+    Unioning `base...HEAD` (HEAD-relative numbers) with `HEAD` (working-tree numbers) is how an
+    uncommitted edit that SHIFTS a file makes a diff-scoped rule report prose the change never
+    touched: the HEAD-relative numbers keep pointing at their old positions, which now hold
+    whatever content moved down into them. Measured: two false [version-claim] STRICT findings
+    against untouched, boundary-pointing prose, on a branch whose only pending edits were
+    elsewhere in the same file."""
+    diff = _git("diff", "--unified=0", "--no-color", base)
     if diff is None:
-        diff = _git("diff", "--unified=0", "--no-color", base) or ""
+        # `base` is unreachable (shallow clone, missing ref): fall back to the committed range,
+        # whose numbers are HEAD-relative. Accepting that skew is strictly better than reporting
+        # nothing, and it is the same tree the caller reads whenever the work is committed.
+        diff = _git("diff", "--unified=0", "--no-color", f"{base}...HEAD") or ""
     added: dict[str, set[int]] = {}
     current: str | None = None
     for line in diff.splitlines():
-        if line.startswith("+++ "):
-            path = line[4:].strip()
-            current = None if path == "/dev/null" else path[2:] if path.startswith("b/") else path
-        elif line.startswith("@@") and current:
-            m = _HUNK_RE.match(line)
-            if m:
-                start, count = int(m.group(1)), int(m.group(2) or 1)
-                added.setdefault(current, set()).update(range(start, start + count))
-    # uncommitted work counts too - an author must see the finding before the commit exists
-    worktree = _git("diff", "--unified=0", "--no-color", "HEAD") or ""
-    current = None
-    for line in worktree.splitlines():
         if line.startswith("+++ "):
             path = line[4:].strip()
             current = None if path == "/dev/null" else path[2:] if path.startswith("b/") else path

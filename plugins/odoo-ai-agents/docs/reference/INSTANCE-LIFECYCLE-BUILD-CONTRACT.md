@@ -60,6 +60,13 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `agents/odoo-instance-ops.md` (operation 1, create-instance). Whichever value you declare here
     also decides who tears it down and when - see `INSTANCE-LIFECYCLE-TEARDOWN.md`, not a
     restatement of it.
+    An ISOLATED listening instance is built in TWO LEGS, because no mechanism here installs modules
+    AND leaves the server listening: the `--stop-after-init` install leg (item 14's install/update
+    job) followed by the listening launch leg (item 14's listening instance). The commands and the
+    three invariants that must hold across that handoff - which lease mode the acquire requests,
+    that both legs name the SAME database, and that the lease survives between them - are owned by
+    `agents/odoo-instance-ops.md` operation 1 and are NOT restated here. All three can fail while
+    the port still answers HTTP 200, so the readiness poll in item 14 proves none of them.
 14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Two DIFFERENT
     signals apply, one per job shape:
     - **Install/update job** (`-i`/`-u` with `--stop-after-init`, NO `--test-enable` - the

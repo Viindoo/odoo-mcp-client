@@ -958,6 +958,82 @@ def test_park_refuses_a_shared_lease_and_a_lease_with_no_server(harness, alloc_h
     )
 
 
+def test_park_reports_the_release_time_fate_it_deliberately_did_not_change(
+        harness, alloc_home, tmp_path, capfd):
+    """Park keeps the database NOW; `drop_on_release` decides whether it survives
+    the FINAL release, and park never touches that flag - deliberately, because
+    that fate is the acquire's decision, not park's.
+
+    What that leaves is a caller parking IN ORDER TO SAVE a database it spent
+    minutes building: it gets exactly that now and loses it later, with nothing
+    said in between. So park must REPORT the surviving fate at the one moment the
+    belief is formed - the value on stdout beside the rest of the lease, plus an
+    explicit line naming the drop for a lease that still carries it. Two things
+    this must NOT become: a mutation (park would then own a decision it does not
+    own), or a mode-gated refusal (the isolated running lease park exists to
+    suspend IS the `ephemeral` one that `persist: exclusive-running` maps to, so
+    refusing that mode would refuse park's only real client).
+    """
+    alloc = _import_allocator()
+    db = "odoo_17_t_parkfate"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    harness.seed_lease(alloc_home, leader, db_name=db, ports=[8170],
+                       mode="ephemeral", drop_on_release=True)
+    token = _leases(alloc_home)[0]["token"]
+
+    assert alloc.cmd_park({"token": token}) == 0
+    captured = capfd.readouterr()
+    assert "ALLOC_DROP_ON_RELEASE=true" in captured.out, (
+        "park must EMIT the drop_on_release it left untouched: a caller that cannot read "
+        f"the fate off the park it just ran cannot know the database is still doomed\n{captured.out}"
+    )
+    assert "drop_on_release=true" in captured.err and db in captured.err, (
+        "a still-doomed database must be NAMED in the refusal-grade stderr line, not left "
+        f"encoded in a flag the caller may never parse\n{captured.err}"
+    )
+    row = _leases(alloc_home)[0]
+    assert row["drop_on_release"] is True, (
+        "park must NOT mutate drop_on_release - reporting the fate is the intervention; "
+        "changing it would move the decision out of the acquire that owns it"
+    )
+    assert row["db_name"] == db and row["parked_at"] is not None, (
+        "reporting the fate must not cost the park itself"
+    )
+    assert _wait_dead(harness, leader, child) == [], (
+        "the park must still stop the owner group - the report is additive, not a detour"
+    )
+
+
+def test_park_of_a_lease_whose_database_survives_raises_no_false_alarm(
+        harness, alloc_home, tmp_path, capfd):
+    """The other half, and the one that keeps the warning worth reading: an
+    `exclusive` lease's database SURVIVES release (`drop_on_release` false), so
+    its park must report `false` and print NO drop warning. Without this half an
+    unconditional warning would satisfy the test above while training every
+    reader to ignore the line."""
+    alloc = _import_allocator()
+    db = "odoo_17_0_durable"
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    harness.seed_lease(alloc_home, leader, db_name=db, ports=[],
+                       mode="exclusive", drop_on_release=False)
+    token = _leases(alloc_home)[0]["token"]
+
+    assert alloc.cmd_park({"token": token}) == 0
+    captured = capfd.readouterr()
+    assert "ALLOC_DROP_ON_RELEASE=false" in captured.out, (
+        f"a durable lease's park must report the surviving fate too\n{captured.out}"
+    )
+    assert "WILL DROP" not in captured.err, (
+        "a database that survives release must never be reported as doomed - a warning "
+        f"that fires on every park is a warning nobody reads\n{captured.err}"
+    )
+    _wait_dead(harness, leader, child)
+
+
 def test_a_resumed_lease_is_judged_by_the_pid_arms_again(
         harness, alloc_home, tmp_path, monkeypatch):
     """G4.3 - THE assertion this whole feature turns on (the review's C3).

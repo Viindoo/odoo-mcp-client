@@ -88,7 +88,7 @@ NEEDS_CONTEXT` naming which of the three. A PROVEN unreachable cluster is exit `
 they gate `ephemeral`, so trading isolation away is no way past either. Report `7`, `8` and `9` per
 "Refused before launch" below.
 
-Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--ports 1` (or `2` when gevent/longpolling is needed) when the server must listen.
+Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port, and `--ports 1` when the server must listen. A SECOND port is needed ONLY under prefork (`--workers>0`) - never because a browser will drive the instance; the threaded default multiplexes the longpolling/bus over the single http port. That rule and its `--gevent-port`/`--gevent-port-key` pairing live in ONE place: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Prefork (`--workers>0`) needs a second port.
 
 WHICH of these four to acquire for **create-instance** is keyed on the brief's `persist:` field
 (see operation 1 below, and `skills/odoo-instance/SKILL.md`'s dispatch table): `persist: ephemeral`
@@ -392,17 +392,34 @@ paths to pick between:
 
 - **`persist: exclusive-running`** (a LIVE, listening instance that is MINE - unique db + an
   allocator-issued pooled port + my `run_id` recorded as lease owner; NEVER converges on `8069`).
-  Run Steps A-D with mode `ephemeral`, `--ports 1` (or `2` when the series needs a gevent/longpolling
-  port too), `--run-id <run_id>` - this SAME acquire is what stamps `owner.run_id` on the lease, so
-  there is no separate registration step for this branch. Resolve the version-correct port flag
-  NAME(s) via `cli_help(command='server', odoo_version='<series>')`, applying the port-flag tie-break
-  above (PREFER `--http-port`/`--gevent-port` whenever `cli_help` lists them). Then delegate to the
-  spinup script, passing the ALLOCATOR-issued port(s) + resolved conf-key name(s) + `run_id` +
-  the lease token Step D's acquire returned (`$ALLOC_TOKEN`) explicitly - `--exclusive` tells the
+  **TWO LEGS, ONE lease.** No single call installs modules AND leaves the server listening:
+  `55-instance-ops.sh init` is the only BUILD mechanism (it always `--stop-after-init`, so it never
+  listens) and `50-instance-spinup.sh apply` is the only LISTENING mechanism (it carries no
+  `-i`/`-u`, so it installs nothing). Run BOTH, build leg first, against the SAME database. There is
+  no third path and no one-call shortcut - launching leg 2 alone yields a server on an EMPTY
+  database that still answers HTTP 200.
+
+  Run Steps A-D with mode `ephemeral` (the allocator mode this `persist` value maps onto),
+  `--ports 1` (`2` only under prefork - Step D's port rule decides it, and a browser-driven phase is
+  never the reason), and `--run-id <run_id>` - the SAME acquire that stamps `owner.run_id` on the
+  lease, so there is no separate registration step for this branch.
+
+  **Leg 1 - build.** Issue the `55-instance-ops.sh init` call from the `persist: ephemeral` branch
+  above unchanged, with `--db "$ALLOC_DB_NAME"` and the caller's FULL module set in ONE `--modules`
+  list (co-installed in a single build, never one module per call). Active-wait it to a terminal
+  `BUILD_RESULT` per the HARD RULE below; `STATUS=error` ends this branch - do NOT launch leg 2 on a
+  failed build.
+
+  **Leg 2 - listen.** Resolve the version-correct port flag NAME(s) via
+  `cli_help(command='server', odoo_version='<series>')`, applying the port-flag tie-break above
+  (PREFER `--http-port`/`--gevent-port` whenever `cli_help` lists them). Then delegate to the spinup
+  script, passing the ALLOCATOR-issued port(s) + resolved conf-key name(s) + the lease token Step
+  D's acquire returned (`$ALLOC_TOKEN`) explicitly - `--exclusive` tells the
   script this is YOUR OWN pre-leased instance (skip shared-lease registration; BLOCK rather than
   fall back to the declared/`8069` port if `--db-name`/`--http-port` were omitted); `--alloc-token`
   is what lets the script bind the just-launched server pid onto YOUR lease so a later
-  release/gc can stop the whole process group - never omit it:
+  release/gc can stop the whole process group - never omit it. The script takes NO `--run-id` (it
+  refuses one, exit 2): ownership was recorded by Step D's acquire.
 
   ```bash
   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series> \
@@ -410,15 +427,32 @@ paths to pick between:
     --db-name "$ALLOC_DB_NAME" \
     --http-port "<first ALLOC_PORTS>" --port-key "<http_port|xmlrpc_port, conf-key form>" \
     [--gevent-port "<second ALLOC_PORTS>" --gevent-port-key "<gevent_port|longpolling_port>"] \
-    --run-id "$ALLOC_RUN_ID" \
     --alloc-token "$ALLOC_TOKEN"
   ```
 
   The conf-key form is the odoo.conf option name (underscores, no leading `--`) that corresponds to
   the CLI flag `cli_help` resolved - e.g. `cli_help` says `--http-port` -> pass `--port-key
   http_port`; `cli_help` says `--xmlrpc-port` -> pass `--port-key xmlrpc_port`. The script polls HTTP
-  200 and emits `LOG_PATH=<path>`; capture it verbatim. Do NOT ALSO run `55-instance-ops.sh init`
-  for this branch - the spinup script IS the listening mechanism.
+  200 and emits `LOG_PATH=<path>`; capture it verbatim.
+
+  **HARD RULE - the three invariants across the leg-1/leg-2 handoff.** Each one fails while the port
+  still answers HTTP 200, so a green probe proves none of them:
+  1. **Which mode the acquire requests.** `--mode ephemeral`. `--mode exclusive-running` is not an
+     allocator mode and exits 2; `--exclusive` is a flag on leg 2 naming which instance to launch
+     and never changes the lease. So the lease stays `mode: ephemeral` with
+     `drop_on_release: true`: `release` DROPS this database, by contract, not by accident. Report the
+     instance to the caller as a throwaway on that basis, and across a gap you intend to return from
+     use operation 8 (park) then operation 9 (resume) - never `release`.
+  2. **One database, both legs.** Leg 2's `--db-name` MUST be the byte-identical `$ALLOC_DB_NAME`
+     leg 1 built. Forward the variable; never retype the name and never let leg 2 fall back to the
+     catalog `db_name`. A mismatch makes Odoo create that other database empty on the spot, and the
+     server then serves code nobody installed while every later phase reports green against it. When
+     `--alloc-token` is passed the script decides this and REFUSES a `--db-name` that disagrees with
+     the lease's own `db_name` before anything is launched - do not treat that refusal as a flaky
+     spin-up: it means the two legs named different databases.
+  3. **The lease survives between the legs.** Do NOT release, park or gc it between leg 1 and leg 2.
+     Leg 2 reads the lease named by `--alloc-token` to resolve WHICH TREE to serve and to bind the
+     launched pid; a lease it cannot read makes it BLOCK with nothing launched.
 
 - **`persist: shared-running`** (attach to / register the SHARED read-only render target for this
   series - still owner-stamped so it cannot be foreign-bare-dropped). Do NOT run an allocator acquire
@@ -759,10 +793,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" query --series <series>
   --exclusive \
   --db-name "$ALLOC_DB_NAME" \
   --http-port "<first ALLOC_PORTS>" --port-key "<http_port|xmlrpc_port, conf-key form>" \
-  --run-id "$ALLOC_RUN_ID" \
   --alloc-token "$ALLOC_TOKEN"
 ```
 
+The spinup script takes NO `--run-id` (it refuses one, exit 2): the parked lease is already
+owner-stamped, and `--alloc-token` is what carries the identity this launch needs.
 The script calls `allocator.py resume` on that token itself - the atomic PARKED -> RUNNING
 transition. Relay `ALLOC_ATTACHED_FROM_RUN` in `notes` when the query emitted it: you inherited
 another run's parked instance on this host, so its data state is that run's, not a fresh build's.

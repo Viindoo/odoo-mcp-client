@@ -590,6 +590,33 @@ def test_readonly_is_lease_free(fixt):
     assert _leases(env) == [], "readonly must write NO lease"
 
 
+def test_a_persist_value_is_never_accepted_as_an_allocator_mode(fixt):
+    """`--mode` takes the FOUR allocator modes only. `exclusive-running` is a
+    `persist:` value (the skill/agent lifecycle vocabulary) that maps onto
+    `--mode ephemeral`, and the lifetime difference is load-bearing: the mode
+    decides `drop_on_release`, i.e. whether `release` destroys the database. A
+    silently accepted persist value would hand a caller a lease whose fate is
+    not the one it asked for, so this must be a loud refusal that writes
+    nothing - and the two neighbouring real modes must keep working."""
+    env, _, _ = fixt
+    p, _ = _acquire(env, "--mode", "exclusive-running", "--ports", "1")
+    assert p.returncode == 2, (
+        f"a persist value must be REFUSED as a --mode, not accepted\n{p.stdout}{p.stderr}"
+    )
+    assert "exclusive-running" in p.stderr, "the refusal must name the value it rejected"
+    assert _leases(env) == [], "a refused mode must write NO lease"
+
+    # The real modes on either side of the confusion, and the fate each carries.
+    p, a = _acquire(env, "--mode", "ephemeral", "--ports", "1", "--no-create")
+    assert p.returncode == 0, p.stderr
+    p, a = _acquire(env, "--mode", "exclusive", "--ports", "1")
+    assert p.returncode == 0, p.stderr
+    fates = {lz["mode"]: lz["drop_on_release"] for lz in _leases(env)}
+    assert fates.get("exclusive") is False, (
+        "an `exclusive` lease's database must SURVIVE release (drop_on_release false)"
+    )
+
+
 def test_registry_lives_under_odoo_ai_home(fixt):
     env, home, _ = fixt
     _acquire(env, "--mode", "ephemeral", "--no-create")

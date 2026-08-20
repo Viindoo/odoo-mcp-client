@@ -34,11 +34,25 @@ lifecycle/isolation vocabulary, NOT a fifth allocator mode: it maps onto the fou
 above. Four values:
 
 - `persist: ephemeral` -> allocator `ephemeral`, `--ports 0` (a throwaway `--stop-after-init` build).
-- `persist: exclusive-running` -> allocator `ephemeral`, `--ports 1` (or `2`) + `--run-id <id>` - the
-  SAME unique-db/pooled-port lease as `ephemeral` above, except the caller runs it as a LIVE,
-  listening process (`50-instance-spinup.sh --exclusive`, `agents/odoo-instance-ops.md` operation 1)
-  instead of `--stop-after-init`. This lease NEVER falls back to the declared/`8069` port - the port
-  always comes from this acquire (P5 port-uniqueness gate, below).
+- `persist: exclusive-running` -> allocator `ephemeral` - that is the mode the acquire step MUST
+  request; `--mode exclusive-running` is not a mode at all and exits 2 with no lease written - plus
+  `--ports 1` (`2` only under prefork; see "Gevent/longpolling port stays OPT-IN" below) and
+  `--run-id <id>`. It is the SAME unique-db/pooled-port lease as `ephemeral` above, except the
+  caller runs it as a LIVE, listening process instead of `--stop-after-init`. It reaches that state
+  in TWO LEGS under ONE lease - a `--stop-after-init` install leg that builds the database with its
+  module set, then a listening launch leg against that SAME database
+  (`50-instance-spinup.sh --exclusive`). The commands, and the invariants that hold across the
+  handoff, are owned by `agents/odoo-instance-ops.md` operation 1 and are deliberately NOT restated
+  here.
+  `--exclusive` is a flag on that SPIN-UP, naming which instance to launch; it never makes the LEASE
+  exclusive. The lease stays `mode: ephemeral` carrying `drop_on_release: true`, so `release` DROPS
+  this database (and so does `gc`). That is this value's contract, not a downgrade: the database is a
+  throwaway that happens to stay listening. `park` suspends such a lease and keeps its database,
+  filestore and ports, but does not change that fate - it REPORTS it (`ALLOC_DROP_ON_RELEASE`), and
+  nothing mutates `drop_on_release` after acquire. The only listening value whose database survives
+  `release` is `shared-running`, and that is the DECLARED shared database, not an isolated one. This
+  lease NEVER falls back to the declared/`8069` port - the port always comes from this acquire (P5
+  port-uniqueness gate, below).
 - `persist: exclusive-parked` -> the SAME lease as `exclusive-running` after `allocator.py park`:
   the server's process group is stopped (so it holds no RAM) while the database, the filestore and
   the pooled ports stay reserved, under `park_ttl_s` instead of the owner-pid arms. This is a STATE

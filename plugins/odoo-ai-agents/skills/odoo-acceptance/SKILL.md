@@ -121,9 +121,19 @@ the requirement only - it never reads the implementation to decide it.
 ## Phase 2 - provision the cluster (once)
 
 Provision the live instance via `odoo-instance` with the FULL `install_set` co-installed as ONE
-cluster (demo=on, `--http-port`, `persist: exclusive-running` - the cluster stays listening across
-Phase 2a/2b and the Phase 3 fix-loop, not a `--stop-after-init` build) - co-installing surfaces MRO /
-load-order breaks a single-module install hides. Capture `INSTANCE_HANDLE` once and forward it to
+cluster (demo=on, `persist: exclusive-running` - the cluster stays listening across Phase 2a/2b and
+the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
+hides. That is ONE dispatch, and the dispatched agent reaches the state in two legs it owns (build
+the database with the whole `install_set`, then launch it listening on the SAME database:
+`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § 1. create-instance) - do not decompose it here, and do
+not ask for a `--stop-after-init` build, which never listens.
+Ask for the default THREADED instance: one listening port is correct, and the browser-driven Phase
+2b below needs no second one (the longpolling/realtime bus multiplexes over that port) - name
+prefork only if a scenario genuinely requires it.
+`persist: exclusive-running` makes this cluster's database a THROWAWAY the run's lease owns: the
+final release drops it, which is the intended teardown. Never release it mid-run - a Phase 3 gap
+takes park/resume, per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5.
+Capture `INSTANCE_HANDLE` once and forward it to
 every dispatch below (precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`).
 Provisioning and the test-run lifecycle are NOT owned here - `odoo-instance` (the
 `odoo-instance-ops` agent) owns create/init/run-tests/drop
