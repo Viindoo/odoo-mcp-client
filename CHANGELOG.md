@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - `odoo-ai-agents` - **`run-harness` derives a co-dispatch batch instead of always dispatching one
-  node per iteration.** The loop gained `admit_batch`, plus a `Batch admission` section that is the
-  whole rule: the batch DEFAULTS to `[node]`, a batch of one is always correct, and a second member
+  node per iteration.** The loop gained `admit_batch`, whose whole rule lives in
+  `references/run-integration.md` § Batch admission (the SKILL.md pointer names it at the one place
+  it is needed, so the re-entered runtime contract does not carry it on every node dispatch): the batch DEFAULTS to `[node]`, a batch of one is always correct, and a second member
   joins only when it is READY in its own right (admission never crosses a `depends_on` edge), is a
   SOURCE-writing `skill` node, has file scopes pairwise disjoint from every other member and its own
   worktree, auto-passes its gate tier, and fits both bounds. Nothing authors a batch: the plan schema
@@ -39,6 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the terminal stages (which carry no `files-in-scope` precisely because they run over the aggregate
   diff) and `approach: odoo-instance` verification all stay one at a time, each for its own stated
   reason.
+- `odoo-ai-agents` - the co-dispatch rule ships in the reference, not in the runtime contract, and
+  `skills/run-harness/SKILL.md` was compacted (35,374B -> 30,467B) before its `[card-budget]` entry
+  moved 28,851 -> 30,467. The file sat 32B under its cap, so the new rule could not be absorbed by
+  prose alone; the rationale that could move (the admission clauses, the two bounds, the
+  one-at-a-time list) moved, everything a test pins to the runtime contract stayed, and the recorded
+  budget is the post-trim actual size the fixture's own convention requires.
+- `odoo-ai-agents` - the dispatch guard in `tests/test_run_harness_hardrules.py` now protects the
+  contract that is in force. It asserted "ONE node per iteration, never two dispatches in flight,
+  nothing batches or groups nodes"; that is exactly what this release changes, so the guard was
+  rewritten around what makes a batch of more than one SAFE - the default of `[node]`, admission
+  never crossing a `depends_on` edge, pairwise-disjoint scopes each in their own worktree, an
+  auto-passing tier, MEASURED machine headroom as a correctness bound - plus the serial tail
+  (cherry-pick, verify, checkpoint) that concurrency must never reach. The "all parallel /
+  maximum parallelism" misclaim sweep over every plugin file is unchanged.
 - `odoo-ai-agents` - the child worktree in `references/run-integration.md` is justified by
   poison-containment INDEPENDENTLY of how units are dispatched, so it is never dropped because a
   step happens to dispatch serially; where units ARE dispatched together, one-tree-per-unit is a
@@ -147,6 +162,21 @@ destroyed at every teardown because the exit that preserves one had not been bui
   to be serialized.
 
 ### Fixed
+
+- `odoo-ai-agents` - **the JS lint gate stopped grading 17.0 sources against a 15.0 oracle.**
+  `scripts/verify-frontend.sh` resolved `addons/web/tooling/_eslintrc.json` by scanning
+  `$ODOO_GIT_BASE` for `odoo-bin` and taking whichever checkout `find` returned first, capped at
+  five. That config is SERIES-SPECIFIC - 15.0 pins an es2019 parser and its own rule set - so on
+  any machine holding more than one checkout (that is, every developer machine) a 17.0/18/19 run
+  was linted by whatever series happened to sort first and reported blocking errors the real
+  Runbot gate never raises. The resolver now derives the TARGET series first - `ODOO_SERIES`, the
+  repo's own `odoo/release.py`, the nearest `__manifest__.py` version prefix, or a series-named
+  branch - and selects the checkout that DECLARES that series in its own `odoo/release.py`, never
+  by directory name (`odoo_17.0`, `odoo-17`, `17.0-wt` and a bare `odoo` all name the same thing).
+  No checkout for the target series is CANNOT-VERIFY with the series it needed and the ones it
+  found, never a borrowed config: an unrun gate is recoverable, a verdict from the wrong oracle
+  sends someone to fix code that was correct. The `head -5` cap is gone (it could hide the only
+  matching checkout) and the scan is sorted, so the choice no longer depends on directory order.
 
 - **Seven wrong Odoo facts, each re-verified against the Odoo Semantic index before the
   replacement was written.** `--load-language` is `Status: stable` on every indexed series, so the
