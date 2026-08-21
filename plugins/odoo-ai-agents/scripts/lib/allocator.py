@@ -88,10 +88,14 @@ CLI:
                  # CREATEDB=true is never emitted beside a proven refusal. This is
                  # the ONE question every reporting caller asks (05-prereq-check.sh,
                  # 45-venv.sh) instead of re-deriving half of it. Writes NO lease.
-    allocator.py release <token> [--run-id <id>] [--force] [--force-forget]
+    allocator.py release <token> --run-id <id> [--force] [--force-forget]
                  [--instances <path>]
-                 # refuses only when the caller's run differs from a non-empty
-                 # owner run (token-possession otherwise); --force overrides loudly.
+                 # a lease that records an owner run is released ONLY by that run:
+                 # any other --run-id, AND an absent one, is refused (an absent
+                 # caller run is not ownership unproven-but-assumed, it is
+                 # ownership not established - same shape as assert-droppable).
+                 # An UNOWNED lease (no owner run recorded) still releases on
+                 # token-possession; --force overrides loudly.
                  # A drop that FAILS keeps the lease (so gc / a later retry can
                  # finish it) - and the drop surface is re-resolved from the
                  # CURRENT catalog on every attempt, so `45-venv.sh record-env`
@@ -2674,7 +2678,7 @@ def cmd_acquire(opts):
 def cmd_release(opts):
     token = opts.get("token")
     if not token:
-        sys.stderr.write("Usage: allocator.py release <token>\n")
+        sys.stderr.write("Usage: allocator.py release <token> --run-id <id>\n")
         return 2
     with _locked():
         reg = _read_registry()
@@ -2688,30 +2692,53 @@ def cmd_release(opts):
             sys.stderr.write(f"allocator: no lease with token {token!r} (already released?).\n")
             return 0
 
-        # Ownership guard - NOT self-blocking. REFUSE the release IFF
-        # the caller identifies as a DIFFERENT non-empty run than the owner. Every
-        # other case proceeds on token-possession:
-        #   - caller_run == ""  -> release site forwarded no run id -> token-possession
-        #   - owner_run  == ""  -> unowned / legacy lease            -> token-possession
-        #   - caller_run == owner_run -> owner releasing its own lease
-        # This never blocks the rightful owner just because the run id was not
-        # threaded to the release call. --force overrides with a loud line.
+        # Ownership guard - it asks the ONE question a release site must answer:
+        # did this caller ACQUIRE this lease? `owner.run_id` is the answer, so a
+        # lease that records one is released only by the run it names.
+        # An EMPTY caller run is refused WITH the mismatches, not exempted from
+        # them. It does not mean "the rightful owner forgot a flag"; it means
+        # ownership cannot be established at all - and a call that is about to
+        # stop a server and DROP a database is the last place to guess. The
+        # rightful owner is never stuck by this: it already holds the run id
+        # (`ALLOC_RUN_ID` from its own acquire, `INSTANCE_HANDLE.run_id`
+        # downstream) and threads it; a caller that cannot produce one did not
+        # acquire this lease and has nothing here to release.
+        # This is the shape `cmd_assert_droppable` has used from the start.
+        # `cmd_release` was the outlier: its extra `and caller_run` conjunct read
+        # as leniency towards the owner while actually licensing a stranger - an
+        # un-threaded release short-circuited the whole comparison, and one such
+        # call destroyed a live acceptance database (113 modules + demo data) that
+        # a peer session had built minutes earlier.
+        # An UNOWNED lease (no run_id recorded at all) still releases on
+        # token-possession. That is a deliberate NON-import of
+        # `assert_droppable`'s P5.8 arm: P5.8 guards a BARE-NAME drop, which
+        # carries no evidence of ownership whatsoever, while `release` requires
+        # the token; refusing unowned leases here would leave every pre-run_id
+        # and never-threaded lease with no exit but `--force`, and `release` is
+        # the only correct teardown path there is.
+        # `--force` overrides loudly - it is the human's override, never a
+        # dispatched agent's way around a refusal.
         caller_run = opts.get("run_id") or opts.get("session", "")
         owner = found.get("owner", {})
         owner_run = owner.get("run_id") or owner.get("session_id", "")
         force = opts.get("force")
-        if owner_run and caller_run and owner_run != caller_run:
+        if owner_run and owner_run != caller_run:
+            caller_desc = repr(caller_run) if caller_run else "NOT NAMED (no --run-id passed)"
             if not force:
                 sys.stderr.write(
-                    "allocator: refusing to release the lease for db "
-                    f"{found.get('db_name')!r}: it is owned by run {owner_run!r}, "
-                    f"but the caller's run is {caller_run!r}. Pass --force to override "
-                    "(the DB is NOT dropped and the lease is kept).\n"
+                    "allocator: REFUSING to release the lease for db "
+                    f"{found.get('db_name')!r}: it is owned by run {owner_run!r} and "
+                    f"this caller's run is {caller_desc}. A release must name the run "
+                    "that ACQUIRED the lease - thread the --run-id your own acquire "
+                    "echoed as ALLOC_RUN_ID (INSTANCE_HANDLE.run_id downstream). If you "
+                    "did not acquire this lease, leave it alone: holding the token is not "
+                    "ownership, and this lease may be about to drop a live database. "
+                    "--force overrides. The DB is NOT dropped and the lease is KEPT.\n"
                 )
                 return 1
             sys.stderr.write(
                 f"allocator: force-releasing run {owner_run!r}'s lease "
-                f"(caller run {caller_run!r}).\n"
+                f"(caller run {caller_desc}).\n"
             )
 
         # Teardown ORDER is mandatory (L1.2): stop the server's process group

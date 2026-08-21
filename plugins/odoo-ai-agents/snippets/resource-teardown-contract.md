@@ -71,7 +71,8 @@ This list is the SSOT for that set: the `SubagentStop` hook names the same three
 emits, and a guard asserts the two sets are equal.
 
 - **`release`** - stops the server's whole process group, then drops the DB for `drop_on_release`
-  leases. Use it when the database is finished with.
+  leases. Use it when a database YOU acquired is finished with: "finished with" is a fact about
+  your own lease, never a licence over anyone else's.
 - **`park`** - stops the SAME process group, so it frees the RAM exactly as `release` does, but
   KEEPS the database, filestore and ports under a park budget for a later `resume`. Use it when
   the instance is done for now and the database is still wanted. NOT an exemption: park holds
@@ -79,8 +80,9 @@ emits, and a guard asserts the two sets are equal.
 - **`handoff`** - forward `INSTANCE_HANDLE` to a NAMED catcher in your continuation `next.inputs`
   (T4). The only exit that leaves the server RUNNING, and the only one needing a named owner.
 
-Choose on a fact about the DATABASE, not on convenience: still wanted -> park; finished with ->
-release; wanted by a named next step, still running -> handoff.
+Did YOU acquire this lease? If not, NONE of the three is yours to run - leave it and name it in
+your report. If yes, choose on a fact about the DATABASE, not on convenience: still wanted ->
+park; finished with -> release; wanted by a named next step, still running -> handoff.
 
 An ephemeral `--stop-after-init` build self-terminates its process, but the LEASE (db + port
 reservation) is still yours - release it so `drop_on_release` reclaims the DB.
@@ -137,10 +139,7 @@ not an alternative - you still release; the net catches crashes, not laziness.
   across phases): call `allocator.py heartbeat <token>` between phases - it is what protects you
   on the residual case the allocator cannot verify liveness for at all (a different host, or no
   pid recorded), governed by the TTL backstop (default 3600s).
-- **Per-mode rule is T1's matrix.** Self-provisioned ephemeral/exclusive -> you release at
-  your own task end. Forwarded handle -> hands off, never release. `shared-running` -> no
-  consumer ever drops it. `path-incremental` -> the owning skill releases at path end via
-  operation E, never between steps.
+- **Per-mode rule is T1's matrix** - read it there; it is deliberately not copied here.
 - **Park is routed, never hand-rolled, exactly like release.** `allocator.py park <token>` (T1's
   second exit); to come back, `Skill(odoo-instance)` finds it via `allocator.py query --series
   <X.Y> --state parked` and resumes it. The shared render target is never parkable. Full rules:

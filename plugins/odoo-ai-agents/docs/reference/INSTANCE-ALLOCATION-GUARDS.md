@@ -56,14 +56,32 @@ Consumers point back here rather than restating the contract: `agents/odoo-insta
 `owner.session_id` field is no longer written on new leases and is read only as a fallback on
 leases minted before `run_id` existed.
 
-**`release` refuses a foreign run.** `release <token> [--run-id <id>]` refuses the release IFF
-the caller passes a non-empty `--run-id` AND the lease's `owner.run_id` (or its legacy
-`session_id` fallback) is non-empty AND the two differ - unless `--force` is also passed. In
-every other case (no run id forwarded, an unowned/legacy lease, or a matching run id) the
-release proceeds on token possession alone, exactly as before: a caller that never forwards a
-run id is NEVER blocked from releasing its own lease. `--force` proceeds anyway and logs the
-foreign run id it overrode. The check runs inside the same `flock` critical section as the
-release itself, so it is race-free.
+**`release` belongs to the run that ACQUIRED the lease.** `release <token> --run-id <id>` refuses
+the release whenever the lease's `owner.run_id` (or its legacy `session_id` fallback) is non-empty
+and the caller's `--run-id` does not equal it - and an ABSENT `--run-id` is one of those cases, not
+an exemption from them. "No run id forwarded" is not "the owner forgot a flag"; it is ownership NOT
+ESTABLISHED, and a call that stops a server and drops a database may not proceed on a guess. The
+rightful owner is never blocked by this: it threads the id its own `acquire` echoed as
+`ALLOC_RUN_ID` (`INSTANCE_HANDLE.run_id` downstream). A caller that cannot produce one did not
+acquire this lease - holding the token is not ownership. `--force` proceeds anyway and logs the
+foreign run id it overrode; it is a human's override, never a dispatched agent's way around a
+refusal. The check runs inside the same `flock` critical section as the release itself, so it is
+race-free. This is the same predicate shape `assert-droppable` (below) has always used.
+
+An UNOWNED lease - no owner run recorded at all - still releases on token possession. That is a
+deliberate NON-import of P5.8 below: P5.8 guards a BARE-NAME drop, which carries no ownership
+evidence whatsoever, whereas `release` requires the token; and since `release` is the only correct
+teardown path, refusing unowned leases here would leave every pre-`run_id` lease with no exit but
+`--force`. Thread `--run-id` at `acquire` and the lease is never in that class.
+
+**Superseded, and deleted from this section:** the earlier rule "in every other case (no run id
+forwarded, ...) the release proceeds on token possession alone ... a caller that never forwards a
+run id is NEVER blocked from releasing its own lease". It was written to protect the owner and
+instead licensed a stranger: an `and caller_run` conjunct made an un-threaded release short-circuit
+the whole ownership comparison, so a dispatch that had acquired nothing released a live acceptance
+lease whose token it merely knew, and `drop_on_release: true` destroyed the database. Do not
+reinstate it in any wording. If a legitimate caller is blocked, thread its run id - do not widen
+the predicate.
 
 **A leased (managed) DB MUST be dropped via `release`, never by bare name.** Bare
 `odoo_db.py drop` / `55-instance-ops.sh drop` are for UNMANAGED databases only - one with no
