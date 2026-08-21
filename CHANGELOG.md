@@ -6,6 +6,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.4] - 2026-08-21
+
+### Fixed
+
+- `odoo-ai-agents` - **`allocator.py release` no longer treats an absent `--run-id` as ownership.**
+  A dispatched agent given a purely documentary brief - no instance, no token, no execution asked
+  for - ended its turn by releasing a live acceptance lease it had never acquired: it reasoned the
+  lease looked orphaned (no `owner.pid`, no `parked_at`, "from an earlier phase of the same run")
+  and cited the teardown contract's "finished with -> release", but never asked the one question
+  that mattered - did I acquire this. `cmd_release`'s guard read
+  `if owner_run and caller_run and owner_run != caller_run:`; the caller's empty `--run-id` made
+  `caller_run` empty, the comparison short-circuited, and the release proceeded -
+  `drop_on_release: true` then dropped the database: 113 modules plus demo data, full rebuild.
+  `cmd_release` now matches the shape its sibling `cmd_assert_droppable` already used: whenever a
+  lease records an `owner.run_id`, an empty caller run is refused ALONGSIDE every mismatched one,
+  never exempted from them, and the refusal names the remedy - thread the `--run-id` your own
+  `acquire` echoed as `ALLOC_RUN_ID` - and states plainly that holding the token is not ownership.
+  `--force` still overrides, loudly. An UNOWNED lease (no `run_id` ever recorded) still releases on
+  token possession alone; that is a deliberate non-import of the sibling's bare-name-drop arm, not
+  a residual gap - `release` already requires the token, and refusing every pre-`run_id` lease here
+  would leave it with no exit but `--force`. Four call sites (`agents/odoo-instance-ops.md`,
+  `agents/odoo-qa-planner.md`, `scripts/setup-steps/55-instance-ops.sh`,
+  `snippets/instance-resolution.md`) were swept to show `--run-id` as required BEFORE the guard
+  tightened, so no rightful owner is stranded, and `snippets/resource-teardown-contract.md` T1 now
+  opens with "did YOU acquire this lease? If not, NONE of the three exits is yours to run" -
+  replacing the sentence the incident actually cited ("finished with -> release"). Two existing
+  tests that had asserted the lenient behaviour as a requirement were rewritten to assert the
+  opposite, with the superseded rule recorded in their docstrings so it is never silently
+  reinstated. `allocator.py park` is deliberately UNCHANGED: it is one of the three exits the
+  `SubagentStop` teardown gate accepts, so making it refusable too could deadlock a subagent whose
+  stop is blocked while both of its exits refuse.
+
+### Added
+
+- `odoo-ai-agents` - **A new `PreToolUse` gate, `hooks/block-unowned-lease-mutation.sh`, denies a
+  dispatched agent's own attempt to repeat the incident above before the allocator is ever called.**
+  It refuses a SUBAGENT's `allocator.py release` that names no `--run-id` (nor its `--session`
+  alias), and refuses `--force` / `--force-forget` on `release` or `--yes` on `reap-orphans` from a
+  subagent - those overrides are a human's call, never a dispatch's way past a refusal. It is
+  identity-free by design rather than a per-agent allow-list: the agent-role SSOT carries only
+  `leaf` / `coordinator`, and the agents that legitimately drive the allocator sit on both sides of
+  that line, so no role-keyed table could separate "may mutate a lease" from "may not" - this gate
+  instead asserts the one property every legitimate caller can satisfy (name the owner), which also
+  covers agents that do not exist yet. The incident itself now ships as a permanent regression test:
+  pre-fix it exits 0 with the database recorded as dropped, post-fix it exits 1 with the lease kept.
+  Residual gaps are stated, not papered over: the gate does not reach `park`, `resume`, `heartbeat`
+  or `bind` on a lease the caller does not own (those verbs take no `--run-id` to check, and `park`
+  in particular must stay reachable so a stop already refused a release still has an exit); a verb
+  assembled inside a script the command only invokes, or computed at runtime, is invisible to it;
+  and an invocation whose interpreter is not spelled literally (`"$PY" .../allocator.py release`)
+  reads as unclassifiable and passes. The allocator's own refusal above is the layer that still
+  holds if this one is ever bypassed.
+
+### Known issues
+
+- `odoo-ai-agents` - `tests/test_db_auth_preflight.py` probes a live PostgreSQL cluster and flakes
+  depending on what is actually reachable on the host running the suite. Surfaced while verifying
+  this branch, not introduced by it, and left unfixed here.
+- `odoo-ai-agents` - `tests/test_ethos_content.py::test_no_banned_unicode_dashes` **fails on
+  `master`**: its whole-tree scan walks `.claude/worktrees/*`, and a nested worktree's own copy of
+  this same guard - which necessarily spells the four banned dash glyphs as its detection pattern
+  and its RED-proof sample - is not covered by the allowlist entry, which is keyed on the un-nested
+  path, so the detector flags its own literals. Surfaced while verifying this branch, not
+  introduced by it, and left unfixed here.
+
 ## [5.1.3] - 2026-08-20
 
 ### Fixed
