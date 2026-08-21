@@ -83,11 +83,11 @@ is unsafe under concurrency (another agent or session may hold it): acquire
 an isolated lease instead of reading the catalog directly:
 
 ```
-python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N] [--run-id <id>]
+python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N] --run-id <id>
 # emits ALLOC_SERIES / ALLOC_PROFILE / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PYTHON /
 # ALLOC_ADDONS_PATH / ALLOC_DB_HOST / ALLOC_DB_USER / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
-# ALLOC_RUN_ID echoes the --run-id you passed (the lease's ownership key).
-# release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done - or
+# ALLOC_RUN_ID echoes your --run-id - the ownership key release DEMANDS back.
+# release with `allocator.py release <ALLOC_TOKEN> --run-id <ALLOC_RUN_ID>` - or
 # `allocator.py park <ALLOC_TOKEN>` when you are done for NOW but the database must
 # survive for a later resume (park stops the server, so it frees the same RAM).
 ```

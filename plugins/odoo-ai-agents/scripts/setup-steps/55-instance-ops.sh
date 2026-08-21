@@ -2228,7 +2228,7 @@ cmd_drop() {
         if [[ -f "$alloc_py" ]]; then
             if ! python3 "$alloc_py" assert-droppable --db-name "$arg_db" --run-id "$arg_run_id" >/dev/null 2>&1; then
                 echo "x drop refused: '$arg_db' is held by a FRESH lease owned by a different run." >&2
-                echo "  Route the drop through 'allocator.py release <token>' (race-free ownership check)," >&2
+                echo "  Route the drop through 'allocator.py release <token> --run-id <id>' (race-free ownership check)," >&2
                 echo "  or pass --force to reap a foreign/stale lease." >&2
                 exit 1
             fi

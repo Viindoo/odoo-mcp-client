@@ -1338,23 +1338,39 @@ def test_session_alias_still_populates_owner_run_id(fixt):
     assert _leases(env)[0]["owner"].get("run_id") == "legacy-run"
 
 
-def test_release_without_run_id_still_succeeds_on_owned_lease(fixt):
-    """BLOCKER-1: the rightful owner must NEVER be blocked from releasing its own
-    lease just because no run id was forwarded to the release call (token-possession)."""
+def test_release_without_a_run_id_is_refused_and_names_the_remedy(fixt):
+    """SUPERSEDES BLOCKER-1's rule, which read: "the rightful owner must never be
+    blocked just because no run id was forwarded", and therefore let ANY holder of
+    a token release an owned lease. The owner is still never blocked - it threads
+    the run id it already has (see test_release_matching_run_id_proceeds) - but an
+    un-named caller is now refused, because "no run id" and "the owner's run id"
+    are not the same claim.
+
+    The refusal must NAME the remedy. A bare "refused" teaches the next reader
+    that the predicate is too strict, and the loosening that follows is exactly
+    how the data-loss hole was authored the first time."""
     env, _, _ = fixt
     _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
     rel = _run(env, "release", a["ALLOC_TOKEN"])  # NO --run-id forwarded
-    assert rel.returncode == 0, (
-        f"release with no forwarded run_id must succeed (token-possession); stderr={rel.stderr!r}"
+    assert rel.returncode != 0, (
+        f"an un-threaded release of an OWNED lease must be refused; stderr={rel.stderr!r}"
     )
-    assert _leases(env) == [], "the lease must be removed on a successful release"
+    assert "--run-id" in rel.stderr, (
+        f"the refusal must name the flag the rightful owner threads; stderr={rel.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, "a refused release must KEEP the lease"
 
 
 def test_release_matching_run_id_proceeds(fixt):
+    """The other direction, and the reason the guard above is not simply "refuse":
+    the run that ACQUIRED the lease releases it with no --force and no ceremony."""
     env, _, _ = fixt
     _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
     rel = _run(env, "release", a["ALLOC_TOKEN"], "--run-id", "run-A")
     assert rel.returncode == 0, rel.stderr
+    assert "force" not in rel.stderr.lower(), (
+        f"the owner must not need --force to release its own lease; stderr={rel.stderr!r}"
+    )
     assert _leases(env) == []
 
 
@@ -1380,6 +1396,42 @@ def test_release_different_run_id_refused_and_db_not_dropped(tmp_path):
     )
 
 
+def test_an_untraced_release_cannot_destroy_a_lease_owned_by_another_run(tmp_path):
+    """THE INCIDENT, as a test. A dispatch that had acquired NOTHING ran `release`
+    on a live acceptance lease whose token it merely knew. It forwarded no
+    `--run-id`, so the old predicate (`owner_run and caller_run and owner_run !=
+    caller_run`) short-circuited on the EMPTY caller, the release proceeded, and
+    `drop_on_release: true` destroyed a database that had just been built.
+
+    The rule this protects: a release must NAME the run that owns the lease. An
+    absent caller run is not a licence - it is the one case in which ownership
+    cannot be established at all, and the lease must survive it. The sibling
+    `assert-droppable` has refused an empty caller from the start, for the same
+    reason; this is `cmd_release` adopting that shape."""
+    env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML_PORT)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             "--run-id", "acceptance-run-a")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, p.stderr
+    assert _leases(env)[0]["drop_on_release"] is True, (
+        "the incident's lease DROPPED its database on release - reproducing it on a "
+        "lease that does not would prove nothing about the data loss"
+    )
+    rel = _run(env, "release", a["ALLOC_TOKEN"])  # no --run-id: the incident's shape
+    assert rel.returncode != 0, (
+        f"an untraced release of an OWNED lease must be refused; stderr={rel.stderr!r}"
+    )
+    assert "acceptance-run-a" in rel.stderr, (
+        f"the refusal must NAME the owning run, so the caller learns whose lease it "
+        f"just tried to destroy; stderr={rel.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, "a refused release must KEEP the lease"
+    argv = log.read_text(encoding="utf-8") if log.exists() else ""
+    assert " drop " not in f" {argv} ", (
+        f"the database must be untouched by a refused release; logged {argv!r}"
+    )
+
+
 def test_force_release_of_foreign_run_proceeds_and_logs(fixt):
     env, _, _ = fixt
     _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
@@ -1398,9 +1450,15 @@ def _seed_registry(env, leases):
     )
 
 
-def test_legacy_session_id_only_lease_releasable_by_token(fixt):
-    """A pre-existing lease that carries ONLY owner.session_id (no run_id) must be
-    releasable by token possession (owner_run resolves via the session_id fallback)."""
+def test_legacy_session_id_only_lease_is_owned_by_the_session_it_names(fixt):
+    """A pre-existing lease carrying ONLY `owner.session_id` is OWNED: that field is
+    the ownership key's legacy spelling, so `owner_run` resolves through it. It is
+    therefore refused to an un-named caller and released by the run it names -
+    identical treatment to a modern `owner.run_id` lease.
+
+    Reading the legacy spelling as "unowned" instead would leave every pre-run_id
+    lease destroyable by whoever holds its token, which is the hole this file's
+    ownership block exists to close."""
     env, _, _ = fixt
     token = "ab" * 16
     now = int(time.time())
@@ -1411,7 +1469,18 @@ def test_legacy_session_id_only_lease_releasable_by_token(fixt):
         "ttl_s": 7200, "heartbeat_at": now, "_pg": {"host": "localhost", "user": "odoo"},
     }])
     rel = _run(env, "release", token)  # no run id
-    assert rel.returncode == 0, f"legacy lease must be releasable by token; stderr={rel.stderr!r}"
+    assert rel.returncode != 0, (
+        f"a legacy session_id-only lease is OWNED, so an un-named caller must be "
+        f"refused; stderr={rel.stderr!r}"
+    )
+    assert "old-run" in rel.stderr, (
+        f"the refusal must name the owning session; stderr={rel.stderr!r}"
+    )
+    assert len(_leases(env)) == 1, "a refused release must KEEP the lease"
+    rel = _run(env, "release", token, "--run-id", "old-run")
+    assert rel.returncode == 0, (
+        f"the session that owns it must still release it; stderr={rel.stderr!r}"
+    )
     assert _leases(env) == []
 
 

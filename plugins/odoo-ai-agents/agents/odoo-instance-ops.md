@@ -492,8 +492,9 @@ covering HTTP workers, cron, the longpolling/gevent process, and any `--dev=relo
 using the `server_pid` bound onto the lease at create-instance (the `--alloc-token` wiring above),
 THEN drops the DB for `drop_on_release` leases. This agent does not signal the process itself -
 that mechanism lives in the allocator's release path, triggered by the release call below. If a
-lease token is known, release it (pass the run id so ownership is asserted, not just token
-possession) - the allocator calls `odoo_db.py drop` internally for leases with
+lease token is known, release it - and `--run-id` is REQUIRED, not a nicety: a lease that records an
+owner run refuses every release that does not name that run, an ABSENT `--run-id` included, so a
+release without it fails instead of destroying a database on token possession alone - the allocator calls `odoo_db.py drop` internally for leases with
 `drop_on_release=true` (all `ephemeral` leases that performed create-on-init):
 
 ```bash
