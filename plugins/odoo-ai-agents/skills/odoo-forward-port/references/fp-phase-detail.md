@@ -160,7 +160,7 @@ v8.0-v9.0); they can differ across a v9.0 -> v10.0 port. An absent `installable`
 side's OWN descriptor filename can support.
 
 DISPATCH the read-only sonnet leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
-needed to disambiguate category 3 - the module's manifest was NOT touched by the cherry-pick range and
+needed to disambiguate category 3 - the module's manifest was NOT touched by the forwarded commit range and
 its target state is unclear. The prober reads the manifest you wrote plus the history dump; it never
 runs git and never calls OSM for this fact. Whether resolved directly (categories 1-2) or via the
 prober (category 3), record `installable_false=yes|no` in `merge-log.md` for the module - the ONE
@@ -304,6 +304,9 @@ checkpoint/continuation read it:
 ```markdown
 # Forward-port plan: <source-series> -> <target-series> (<slug>)
 Mode: continuous | one-shot
+Absorption: <M> batch(es) -> <M> merge commit(s). Batch 1 = <src-first-SHA>..<src-tip-SHA> (<K> commits).
+  (Default is ONE batch for the whole range. The commit count NEVER sets the merge count -
+   SKILL.md Hard rule 2.)
 Integration worktree: <path>  (branched from <target-branch>, B untouched)
 Modules (<N>, after --scope/--since filter):
 
@@ -331,23 +334,33 @@ Opus-declined / gate-suppressed downgrades (if any, EXTRACT tier): <module>: son
 
 ---
 
-## P5 - Merge --no-commit (critical section)
+## P5 - Merge --no-commit (critical section) - ABSORB-ALL, runs ONCE per batch
 
-Invoke the `git-toolkit:git-ops` skill (via the Skill tool). Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the batch's ENTIRE commit
+range. Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 For semantic conflicts use the stateless-resume recipe in that snippet.
 
+`<src-tip-SHA>` = the batch's LAST (newest) source commit after the `--since`/scope filter;
+`<src-first-SHA>` = its first. Resolve both from the P0 range map before dispatching.
+
 ```
-# continuous - keep the source SHA
-op: merge --no-ff --no-commit <src-SHA>
+# continuous - one merge of the range TIP; every earlier SHA in the range comes with it
+op: merge --no-ff --no-commit <src-tip-SHA>
 worktree: <path>/fp-integration
 
-# one-shot only (source frozen)
-op: cherry-pick -n <src-SHA>
+# one-shot only (source frozen, or a deliberate sub-range) - the WHOLE range in one staged run
+op: cherry-pick -n <src-first-SHA>^..<src-tip-SHA>
 worktree: <path>/fp-integration
 ```
+
+**Never iterate this phase per source commit, in either mode** (`SKILL.md` Hard rule 2): one merge
+per commit mints N merge commits and re-resolves every shared hunk N times; one cherry-pick per
+commit mints N fresh SHAs and re-resolves every conflict on every future run. A batch merges its
+own range TIP once - the commit count never sets the merge count.
 
 Only one merge in flight (shared git index). Do NOT commit - the working tree is the absorption
-zone through P9. Full protocol incl. absorption window order: `[[fp-merge-absorption]]`.
+zone for the whole range through P9. Full protocol incl. absorption window order:
+`[[fp-merge-absorption]]`.
 
 ---
 
@@ -471,29 +484,31 @@ same-module inherit-view check.
 
 ---
 
-## P8 - Adapt (test-first; serial per-module within a commit; ALWAYS directly in the integration worktree)
+## P8 - Adapt (test-first; serial per-module; ALWAYS directly in the integration worktree)
 
-For each touched module/WI, dispatch the adapt unit DIRECTLY in the integration worktree
+P5 already absorbed the batch's whole range into the working tree, so P8 adapts the MERGED RESULT
+module by module, driven by the per-commit intent records - it never re-opens, re-merges, or
+re-stages anything per source commit. For each touched module/WI, dispatch the adapt unit DIRECTLY
+in the integration worktree
 (`<path>/fp-integration`, the JOB-tier worktree already created at P4 - `## P4` above) and process
-modules serially - complete one module before starting the next within the same commit. P8 NEVER
+modules serially - complete one module before starting the next. A module whose files were touched
+by several commits in the range is adapted ONCE, against the combined merged result. P8 NEVER
 creates a per-module child worktree (full derivation: `SKILL.md` § Git topology "WORK tier - NOT
 used by P8 adapt"): P8 is serial (no concurrent writer to filesystem-isolate) AND the open-merge
 window below never clears before P8 runs (no committed tip for a child to fork from, and no way to
 converge one back in time even if created).
 
 **Open-merge window (CRITICAL constraint - unconditional, not a special case).** For the ENTIRE
-span from P5 (`--no-commit`) through P10 (`commit`) - i.e. every commit's own P6/P7/P8/P9 -
-`MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot/absorb-all) is live in the
+span from P5 (`--no-commit`) through P10 (`commit`) - i.e. the batch's whole P6/P7/P8/P9 -
+`MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot mode) is live in the
 integration worktree. Git rejects any second merge in that worktree until the first is committed
-or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8
-on ANY commit, in EITHER mode. This is NOT a carve-out for "a subsequent commit after the previous
-P10 closed the prior merge": that gap sits BETWEEN commits, never DURING one - by the time P8 for
-the next commit runs, that commit's OWN P5 has already reopened `MERGE_HEAD` (P5 always precedes
-P6/P7/P8/P9; P10 is the only step that commits it, and P10 runs AFTER P8/P9 finish - `## P10`
-below). Adapt all modules SERIALLY, DIRECTLY in the integration worktree, on every commit, in
-either mode - continuous keeps `MERGE_HEAD` live for each commit's own P6-P9 span with no
-exception; one-shot/absorb-all keeps `CHERRY_PICK_HEAD` live for the WHOLE run's single P6-P9 span
-with no exception. SSOT: `[[fp-merge-absorption]]` §Absorption-window.
+or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8,
+in EITHER mode. There is no per-commit gap to exploit, because absorb-all is the ONLY shape both
+modes use: ONE window per batch, opened by P5 and closed only by P10, never a per-commit window
+opened and closed inside the batch (`SKILL.md` Hard rule 2 bans that outright). Adapt all modules
+SERIALLY, DIRECTLY in the integration worktree, in either mode - continuous keeps `MERGE_HEAD` live
+for the batch's whole P6-P9 span, one-shot keeps `CHERRY_PICK_HEAD` live for exactly the same span.
+SSOT: `[[fp-merge-absorption]]` §Absorption-window.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest).
 **R2b - at most one `odoo-test-writer` instance per module across the WHOLE run:** on the module's
@@ -562,8 +577,10 @@ uses, never a second differently-shaped field, and never a string anyone invente
 **R2b IS closed at 8b: `odoo-coding`'s brief-consumption contract
 recognizes `WORKER_AGENT_ID` and resumes that id instead of
 cold-spawning a fresh coordinator** (full reasoning:
-`SKILL.md` § P8). Hard rule 2 is unaffected either way: one resumed coordinator making N commits'
-worth of adapt work still produces N separate target merge commits, one per source SHA. The extra
+`SKILL.md` § P8). Hard rule 2 is unaffected either way: resuming the AGENT is a context-economy
+decision with NO effect on git topology - the batch's whole range is already absorbed by P5's
+single merge before any coder runs, so N commits' worth of adapt work lands inside that ONE open
+window and closes as ONE merge commit. The extra
 context a generic
 coder brief lacks:
 
@@ -790,23 +807,33 @@ Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ---
 
-## P10 - Gate merge (STOP, per batch)
+## P10 - Gate merge (STOP, per batch) - ONE commit closes the whole range
 
-Present `merge-log.md` and wait for human-confirm. On confirm, invoke the `git-toolkit:git-ops` skill (via the Skill tool):
+Present `merge-log.md` and wait for human-confirm. On confirm, invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE:
 
 ```
 op: commit
-message: "fp: absorb <src-SHA> - <one-line summary> [bucket <x>]"
+message: |
+  fp: absorb <src-first-SHA>..<src-tip-SHA> - <one-line summary>
+
+  <sha> <bucket x> <one-line reason>      # one body line per absorbed commit
+  ...
 worktree: <path>/fp-integration
 confirmed: yes - human approved at P10 gate
 ```
 
-Buckets (a)/(d) STILL commit (keeps SHA, advances merge-base - Hard rule 7); the message records
-the bucket + reason so the empty diff is not flagged. Update `checkpoint.json` `{<sha>: done}`.
-More commits/batches remain -> LOOP to P5 (each subsequent commit re-runs the full per-commit
-cycle P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt; P9 then verifies the batch of
-adapted commits and P10 gates that batch - never skip P5/P6/P7 for a later commit by looping
-straight to P8, which would absorb it without a merge or a symbol/drift check).
+That single commit closes the batch's merge window and lands the whole range; every SHA in the
+range is marked `done` in `checkpoint.json` by it. Buckets (a)/(d) are absorbed by the same commit
+and carry no diff (Hard rule 7) - their body line records the bucket + reason so the empty
+contribution is not flagged.
+
+**There is no P5 loop.** A single-batch run (the default) reaches P10 once, then goes on to P11.
+Only a human-approved multi-batch split at the P4 plan gate returns to P5, once PER BATCH, never
+per commit: that pass merges the NEXT batch's range TIP in ONE operation, then P6 symbol-survival
+-> P7 drift -> P8 adapt -> P9 verify -> P10 gate for that whole batch. Re-entering P5 for a single
+source commit, or committing part-way through a batch's range, is `SKILL.md` Hard rule 2's banned
+shape. Never skip P5/P6/P7 for a later batch by jumping straight to P8 either - that would leave
+the next range unabsorbed and unchecked.
 
 ---
 

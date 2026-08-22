@@ -20,8 +20,10 @@ model: opus
 
 ## Role
 
-Forward-port conductor: own the git topology, per-commit pipeline, and subagent lifecycle.
-Decide which commit at which model tier, which outcome bucket, when to merge, when to gate.
+Forward-port conductor: own the git topology, the per-commit SEMANTIC pipeline, and the subagent
+lifecycle. Decide which commit at which model tier, which outcome bucket, when to gate.
+**The semantic work is per-commit; the git operation is NOT.** Intent, bucket, and adapt are
+reasoned per source commit; the range is absorbed by ONE merge closed by ONE merge commit.
 Delegate leaf tasks to specialist agents and read-only delegates: intent extraction, code adapt,
 test forwarding, AND every gate P6 / P6-TEST / P7 runs - the conflict-marker scan and range file
 list, the OSM symbol grounding, the static lint lanes, and the test-collection gate (WHO takes
@@ -30,8 +32,9 @@ lines; you do not produce them.
 Core invariant: a forward-port is a SEMANTIC translation, not a git operation. A green
 merge + lint + install does NOT prove the feature works on the target platform; only an
 intent test that goes red-then-green, plus a symbol-survival check, proves it. SHA is sacred -
-continuous forward-port absorbs the source SHA into the target DAG so the merge-base advances;
-never squash or cherry-pick in continuous mode.
+continuous forward-port absorbs the source RANGE into the target DAG with a single merge of its
+tip, so every source SHA is preserved and the merge-base advances in one step; never squash,
+never cherry-pick, and never merge the range one commit at a time.
 
 ## Out of Scope
 
@@ -72,7 +75,7 @@ a natural-language description match, or a Skill-tool call from an orchestrator 
 | `<target-branch>` | yes | Target branch (e.g. `origin/18.0`, `18.0-fp-batch-01`) |
 | `--scope <modules>` | no | Comma-separated module list; default = all modified modules in range |
 | `--since <sha>` | no | Only commits after this SHA (continuous or incremental FP) |
-| `--one-shot` | no | Cherry-pick mode for a single one-time port (default: merge mode) |
+| `--one-shot` | no | One-time port of a frozen source (or a deliberate sub-range) via ONE staged cherry-pick of the whole range - does NOT preserve SHA. Default: merge mode |
 
 Parsed from `$ARGUMENTS` in P0 (missing `source-ref`/`target-branch` -> ask once, one message,
 before any read or git op).
@@ -81,9 +84,11 @@ before any read or git op).
 
 - **1-5 commits** - intent-extract + classify + Plan Mode gate + serial adapt + one merge commit.
 - **6+ commits** - full plan (commit topology, per-commit tier, buckets) in Plan Mode, recorded
-  to `plan.md`, with a human-confirm gate per merge batch.
-- **Continuous mode (default)** - recurring; source keeps evolving; SHA preserved so the
-  merge-base advances and past conflicts are never re-resolved.
+  to `plan.md`. Still ONE merge and ONE merge commit by default; a human may split the run into
+  several gated batches at the plan gate, and then each BATCH gets one merge of its own range tip
+  - the commit count never sets the merge count.
+- **Continuous mode (default)** - recurring; source keeps evolving; every SHA in the range
+  preserved so the merge-base advances to the range tip and past conflicts are never re-resolved.
 
 For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `/odoo-plan-upgrade`.
 
@@ -98,12 +103,20 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    leave a half-built integration branch) follows the shared SSOT
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 
-2. **Keep the source SHA (continuous)** - continuous forward-port uses a no-ff no-commit
-   merge (delegated to git-toolkit via `git-ops`; see `[[fp-merge-absorption]]`) so the source commit
-   enters the target DAG with its SHA intact and the merge-base advances. NEVER squash or cherry-pick for
-   continuous mode - both mint a fresh SHA, leave the merge-base behind, and force
-   re-resolving the same conflict every future run. Cherry-pick is the one-shot-only
-   fallback. Full protocol: `[[fp-merge-absorption]]`.
+2. **ONE merge, ONE merge commit - the range is the git unit, never the commit.** Continuous
+   forward-port opens a SINGLE no-ff no-commit merge of the range's TIP SHA (delegated to
+   git-toolkit via `git-ops`; see `[[fp-merge-absorption]]`) and closes it with a SINGLE merge
+   commit - exactly the shape an ordinary branch-level merge produces. Every commit in the range
+   becomes an ancestor of that merge commit, so every source SHA is preserved and the merge-base
+   advances to the tip in one step. **Two shapes are BANNED, both unconditionally:**
+   (i) **merging (or committing) one source commit at a time** - it mints N merge commits for one
+   logical forward-port and re-resolves every shared hunk once per commit instead of once per run;
+   (ii) **cherry-pick per commit** - it mints a fresh SHA, leaves the merge-base behind, and forces
+   re-resolving the same conflict on every future run, permanently. Splitting the run into gated
+   BATCHES does not reinstate either shape: a batch merges its own range TIP once, so batches -
+   never commits - bound the merge-commit count. One-shot mode is the only cherry-pick path, and it
+   too is ONE staged cherry-pick of the WHOLE range closed by ONE commit. Full protocol:
+   `[[fp-merge-absorption]]`.
 
 3. **Intent before code** - the unit being forwarded is the behavior/purpose, not the diff.
    P1 extracts intent (read-only); P8 re-implements that intent on the target
@@ -124,9 +137,12 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    in the Plan Mode UI). No automated commit of the integration into B, no auto-merge of the PR.
    Present and wait.
 
-7. **Outcome a/d still merge** - buckets (a) already-satisfied and (d) no-longer-relevant
-   produce no adapt diff but STILL create the merge commit (keeps SHA, advances merge-base).
-   Skipping the merge for them re-encounters the commit tomorrow. SSOT: `[[fp-merge-absorption]]`.
+7. **Outcome a/d are still ABSORBED** - buckets (a) already-satisfied and (d) no-longer-relevant
+   produce no adapt diff, but their SHAs stay inside the merged range: a bucket is a statement
+   about adapt work, never about git topology. NEVER narrow or fragment the merge range to exclude
+   an (a)/(d) commit - that leaves the merge-base behind it and re-encounters it tomorrow. Record
+   the bucket + reason on that commit's `merge-log.md` row and in the single merge commit's message
+   body, so reviewers see why those SHAs carry no diff. SSOT: `[[fp-merge-absorption]]`.
 
 8. **Verify subagent claims** - never trust a leaf's self-report of GREEN. Run the verify
    command yourself per batch (P9) before the P10 gate.
@@ -177,34 +193,34 @@ writes never race on the same git index, then lands back by cherry-pick (the sam
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop). **P8 adapt never qualifies for it,
 for two INDEPENDENT reasons that both hold on every P8 call this pipeline makes, in EITHER mode:**
 
-1. **No parallelism to isolate.** P8 is explicitly SERIAL per-module within a commit AND serial
-   across commits (§ P8 header below). Child-worktree filesystem isolation exists to stop
+1. **No parallelism to isolate.** P8 is explicitly SERIAL per-module across the batch's whole
+   absorbed range (§ P8 header below). Child-worktree filesystem isolation exists to stop
    concurrent writers racing on the same git index (`index.lock`); a serial writer has no
    concurrent sibling to race against, so there is nothing to isolate FROM.
-2. **The open-merge window (§ P8 below) never clears before P8 runs.** P5 opens the CURRENT
-   commit's merge (`--no-commit`) immediately before P6/P7/P8, and P10 is the ONLY step that
-   commits it - AFTER P8 and P9 finish. So `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD`
-   (one-shot/absorb-all - see `Two modes` below) is live in the integration worktree for the
-   ENTIRE span of every P8 call, in both modes - there is no commit, in no mode, for which P8
-   ever runs against an already-committed integration HEAD. Converging a child worktree back is
-   itself a second merge into that SAME worktree, which git rejects while the current commit's
-   own merge is open (error: `MERGE_HEAD exists`) - and P9 needs the adapted code already sitting
-   IN the integration working tree before it can verify (P9 re-roots onto `<path>/fp-integration` -
-   § P9 Worktree re-root), which is itself gated on P8 finishing, before P10 ever commits. No mode
-   can satisfy this circular precondition.
+2. **The open-merge window (§ P8 below) never clears before P8 runs.** P5 opens the run's SINGLE
+   merge of the range tip (`--no-commit`) immediately before P6/P7/P8, and P10 is the ONLY step
+   that commits it - AFTER P8 and P9 finish. So `MERGE_HEAD` (continuous mode) or
+   `CHERRY_PICK_HEAD` (one-shot mode) is live in the integration worktree for the ENTIRE P6-P9
+   span of the batch, in both modes - P8 never runs against an already-committed integration HEAD.
+   Converging a child worktree back is itself a second merge into that SAME worktree, which git
+   rejects while the window is open (error: `MERGE_HEAD exists`) - and P9 needs the adapted code
+   already sitting IN the integration working tree before it can verify (P9 re-roots onto
+   `<path>/fp-integration` - § P9 Worktree re-root), which is itself gated on P8 finishing, before
+   P10 ever commits. No mode can satisfy this circular precondition.
 
 **Conclusion (checkable, unconditional): P8 8a/8b always adapt DIRECTLY in the integration
-worktree - never a per-module child worktree, on any commit, in either mode.** § P8 below gives
-the resulting brief fields: a single, run-long `Worktree path` naming the integration worktree
-itself (never a per-commit "Child worktree path" that would need re-minting - there is nothing to
-re-mint). This holds identically for continuous (per-commit) and one-shot/absorb-all: continuous
-keeps `MERGE_HEAD` live for each commit's own P6-P9 span with no exception; absorb-all keeps
-`CHERRY_PICK_HEAD` live for the WHOLE run's single P6-P9 span with no exception - child-worktree
-isolation would only become reachable once that merge/cherry-pick is committed, which is the LAST
-thing either mode does, never something P8 itself can ever observe.
+worktree - never a per-module child worktree, in either mode.** § P8 below gives the resulting
+brief fields: a single, run-long `Worktree path` naming the integration worktree itself (never a
+per-module or per-commit "Child worktree path" that would need re-minting - there is nothing to
+re-mint). Both modes behave identically here, because both open exactly ONE window per batch and
+hold it across the batch's whole P6-P9 span: continuous keeps `MERGE_HEAD` live, one-shot keeps
+`CHERRY_PICK_HEAD` live. Child-worktree isolation would only become reachable once that
+merge/cherry-pick is committed, which is the LAST thing either mode does - never something P8
+itself can ever observe.
 
-The only serialized point is P10 writing the source-merge commit. There is no second agent-dispatch
-level here - JOB tier is the only worktree tier this phase (or any phase in this skill) uses.
+The only serialized point is P10 writing the batch's single merge commit. There is no second
+agent-dispatch level here - JOB tier is the only worktree tier this phase (or any phase in this
+skill) uses.
 
 ## The pipeline
 
@@ -248,6 +264,13 @@ Skill tool) to enumerate commits (range `<merge-base>..<source-ref>`, --no-merge
 worktree or branch yet); apply `--scope` / `--since` filters to the returned list. Map each
 `--scope` module name to its directory path before requesting git-ops to filter by path (module `l10n_vn` ->
 `l10n_vn/`; resolve via manifest location, may be at repo root or under an addons subdir).
+
+**Record the range ENDPOINTS, not just the list.** From the filtered, chronologically ordered
+list, record `<src-first-SHA>` (oldest) and `<src-tip-SHA>` (newest) in the run's working state.
+These two are what P5 absorbs the whole range with in ONE operation (Hard rule 2) and what the P10
+commit message spans; every later phase reads them rather than re-deriving a range. A run whose
+filters leave the list EMPTY has nothing to absorb - report `DONE` (nothing to forward) and stop,
+never open a merge window on an empty range.
 
 **Group by MODULE first, then by commit within that module (R2a - comparison order).** A flat
 commit list alone has no whole picture: two commits touching the same module's same file, or a
@@ -358,7 +381,7 @@ uses - means the module is not on the clean tip. **Produce
 `manifest_path` for EVERY touched module, unconditionally** - it is the prober's required input, and
 the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only sonnet leaf
 `odoo-installable-prober` only when the SOURCE HISTORY must ALSO be read to disambiguate category 3 -
-the module's manifest was NOT touched by the cherry-pick range yet its target state is unclear. Do NOT
+the module's manifest was NOT touched by the forwarded commit range yet its target state is unclear. Do NOT
 blanket-dispatch: for categories 1-2 the orchestrator's own clean-tip read is sufficient and a probe
 adds only the history pass.
 
@@ -413,7 +436,11 @@ UI. The plan CONTENT is forward-port-specific and stays authored here - it is NO
 module topology (each module's own ordered commit list, from the P0 map); per-module EXTRACT tier
 [the real triaged tier, gated per § Model triage when it resolves to opus]; per-commit bucket [the
 real classification] and ADAPT tier within that module; installable routing per module; design-doc
-link for any commit P3 designed; merge batches. Red flags: a text-gate "approve" is NOT Plan Mode
+link for any commit P3 designed; and the ABSORPTION topology - how many batches, each batch's
+`<src-first-SHA>..<src-tip-SHA>` range, and therefore how many merge commits the run will produce. State
+that number explicitly: it is the human's ONLY chance to choose a multi-batch split, the default is
+ONE batch = ONE merge commit for the whole range, and it is NEVER derived from the commit count
+(Hard rule 2). Red flags: a text-gate "approve" is NOT Plan Mode
 approval - they are two separate steps; `EnterPlanMode` MUST come before any branch, worktree, or
 file touch.
 
@@ -428,12 +455,17 @@ design-doc link + merge batch) as the resume RECORD - the SSOT-of-record
 that later phases and the checkpoint/continuation read. plan.md is now a RECORD, not the gate;
 the gate is Plan Mode above. plan.md template: `references/fp-phase-detail.md` P4.
 
-**P5 - Merge --no-commit [critical section, in integration].** Invoke the `git-toolkit:git-ops`
-skill (via the Skill tool). Continuous: no-ff no-commit merge of `<src-SHA>`. One-shot: no-commit cherry-pick of
-`<src-SHA>`. For semantic conflicts, use the stateless-resume recipe in
+**P5 - Merge --no-commit [critical section, in integration; ABSORB-ALL - runs ONCE per batch].**
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the whole batch, absorbing
+its ENTIRE commit range in one operation. Continuous: no-ff no-commit merge of `<src-tip-SHA>`
+(the batch's LAST/newest source commit - absorbing every earlier commit in the range as an
+ancestor). One-shot: no-commit cherry-pick of the WHOLE range `<src-first-SHA>^..<src-tip-SHA>` in one
+staged sequencer run. **Never iterate P5 per source commit in either mode** - that is Hard rule 2's
+banned shape (N merge commits, or N fresh SHAs, for one logical forward-port). For semantic
+conflicts, use the stateless-resume recipe in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Only one merge in flight at a time
-(shared git index). Do NOT commit yet - the working tree is now the absorption zone
-(P6 -> P8 -> P9 all happen before the commit). SSOT: `[[fp-merge-absorption]]`.
+(shared git index). Do NOT commit yet - the working tree is now the absorption zone for the whole
+range (P6 -> P8 -> P9 all happen before the single commit). SSOT: `[[fp-merge-absorption]]`.
 
 **P6 - Symbol-survival check [MUST].** Before any adapt, every source-side symbol in conflicted
 AND merge-clean-but-source-touched files is OSM-grounded against the target surface - by a
@@ -496,23 +528,26 @@ Predicate, the two non-defect exceptions (different-module base;
 a conditional child via `mode="primary"` / `active=False` / `groups`), and the merge-unsafe
 escape: `references/fp-triage-table.md` § Bucket-(c) same-module inherit-view check.
 
-**P8 - Adapt [test-first; SERIAL per-module within a commit; SERIAL across commits].** For each touched module/WI,
+**P8 - Adapt [test-first; SERIAL per-module; runs INSIDE the batch's single open merge window].**
+The batch's whole range is already absorbed into the working tree by P5, so P8 adapts the MERGED
+RESULT, module by module, driven by the per-commit intent records - it does NOT re-open, re-merge,
+or re-stage anything per source commit. For each touched module/WI,
 adapt DIRECTLY in the integration worktree (`<path>/fp-integration`, the SAME JOB-tier worktree
-created at P4) - P8 NEVER uses a per-module child worktree, on any commit, in either mode. Two
+created at P4) - P8 NEVER uses a per-module child worktree, in either mode. Two
 independent reasons, both unconditional (full derivation: `## Git topology` § WORK tier - NOT used
 by P8 adapt, above): (1) P8 is SERIAL, so there is no concurrent writer to filesystem-isolate;
 (2) the open-merge window below never clears before P8 runs, so a child worktree could never
 converge back in time even if one were created.
 
 **CRITICAL - open merge window (why (2) above is unconditional, not a special case):** For the
-ENTIRE span from P5 (`--no-commit`) through P10 (`commit`) - which is EVERY commit's own P6/P7/P8/P9
-- `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot/absorb-all, `Two modes` below) is
+ENTIRE span from P5 (`--no-commit`) through P10 (`commit`) - which is the batch's whole P6/P7/P8/P9
+- `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot mode) is
 live in the integration worktree. Git rejects any second merge in that worktree until the first is
-committed or aborted, so a child worktree could never converge back into integration during P8 on
-ANY commit, in EITHER mode - this is not a carve-out for "a subsequent commit after the previous
-P10 closed the prior merge" (that gap sits BETWEEN commits; by the time P8 for the next commit
-runs, THAT commit's own P5 has already reopened `MERGE_HEAD`, per the per-commit cycle in P10
-below). Adapt all modules SERIALLY, DIRECTLY in the integration worktree, always. SSOT for the
+committed or aborted, so a child worktree could never converge back into integration during P8, in
+EITHER mode. There is no gap to exploit: absorb-all opens exactly ONE window per batch and holds it
+until P10 closes it, and a module whose files were touched by several source commits in the range is
+adapted ONCE against the combined merged result - never once per commit. Adapt all modules SERIALLY,
+DIRECTLY in the integration worktree, always. SSOT for the
 in-window adapt protocol: `[[fp-merge-absorption]]` §Absorption-window.
 
 **Per-module agent-id registry (this run's plan.md).** You run inline in ONE context for the whole
@@ -564,10 +599,10 @@ a fresh coordinator.** R2b (at most one agent per module) holds at 8b exactly as
 does at 8a and at P1: the module's `odoo-coder` coordinator is launched once on the module's first
 commit, its returned id recorded, and it is resumed by that SAME id
 on every later commit touching that module - never cold-spawned a second time.
-Hard rule 2 is NOT in conflict with this design: one resumed
-coordinator making N sequential commits' worth of adapt work still produces N separate target merge
-commits, one per source SHA - resuming the AGENT never
-resumes or batches the git mutation, which stays exactly as strict and per-commit as before.
+Hard rule 2 is NOT in conflict with this design: resuming the AGENT is a context-economy decision
+and has NO effect on git topology. The batch's whole range is already absorbed by P5's single
+merge before any coder runs, so N commits' worth of adapt work lands inside that ONE open window
+and closes as ONE merge commit - a resumed coordinator neither adds nor removes a merge commit.
 Fallback (Tier C): when no id is recorded for the module (its first commit), the recorded id no
 longer resolves, or no messaging tool is present, re-invoke the `odoo-coding` skill (code re-adapt)
 and/or spawn a fresh `odoo-test-writer` agent (test re-adapt) with an explicit brief containing
@@ -675,12 +710,18 @@ needs a FRESH DB per pass (existing `<lang>.po` loaded before re-export), so reu
 lease does not make this free.
 
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
-On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to commit the merge (buckets a/d still commit - Hard rule 7), update
-`checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP to P5: each subsequent
-commit re-runs the full per-commit cycle P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt
-(directly in the integration worktree, as always - § Git topology), with P9 verifying the adapted
-batch and P10 gating it. Never loop straight to P8 - that would absorb the next commit without a
-merge or a symbol/drift check.
+On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to close the batch's single
+open merge window with ONE commit - the batch's whole range lands as ONE merge commit, and every
+SHA in the range is marked `done` in `checkpoint.json` by that one commit (buckets a/d are absorbed
+by it too, carrying no diff - Hard rule 7).
+
+**There is no P5 loop.** A single-batch run (the default) reaches P10 exactly once and then goes on
+to P11. Only when the human split the run into several gated batches at the P4 plan gate does the
+pipeline return to P5 - once PER BATCH, never per commit - and that next pass merges the NEXT
+batch's range TIP in one operation, then runs P6 symbol-survival -> P7 drift -> P8 adapt (directly
+in the integration worktree, as always - § Git topology) -> P9 verify -> P10 gate for that whole
+batch. Re-entering P5 for a single source commit, or committing part-way through a batch's range,
+is Hard rule 2's banned shape and produces the merge-commit sprawl this pipeline exists to avoid.
 
 **P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
 only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
@@ -764,7 +805,8 @@ the cluster-wide `odoo-acceptance` dispatch for this batch already ran at P11 AB
 entry would re-run acceptance a second time for the same batch.
 
 NEVER squash (keeps SHA). Only once the review above is addressed does B get anything at all:
-open PR now (invoke `git-toolkit:git-ops`). B stays LOCKED - the PR only adds the merge commits.
+open PR now (invoke `git-toolkit:git-ops`). B stays LOCKED - the PR carries the run's merge commit
+(one per gated batch; one in total for a default single-batch run), nothing else.
 
 **Cross-check every static-review bot comment on the PR (post-PR, informational only - the ONE
 sub-step in this phase that genuinely needs the PR to already exist).** Once the PR above is open
@@ -823,12 +865,28 @@ table at P0->P1 against the MODULE's whole commit bundle and the ADAPT table at 
 commit's own conditions; a module whose bundle is haiku-grade to EXTRACT may still have one commit
 that is opus-grade to ADAPT if that commit's target re-implementation is cross-module.
 
-## Two modes
+## Absorb-all - the one git shape both modes use
 
-- **Continuous (default).** Recurring; merge keeps SHA; `checkpoint.json` skips done commits and
-  never re-resolves a past conflict.
-- **One-shot (`--one-shot`).** Port one frozen batch once via a no-commit cherry-pick (delegated
-  to git-toolkit via `git-ops`); every other phase is identical.
+**Absorb-all** is this pipeline's name for its ONLY git shape: P5 takes the batch's ENTIRE commit
+range in ONE operation, P6-P9 work inside that one open window, and P10 closes it with ONE commit.
+It is not a mode, an option, or a large-run optimization - it is what BOTH modes below do, on every
+batch, always. Its opposite - stepping the range one source commit at a time - is banned by Hard
+rule 2 in both modes.
+
+Read it against the pipeline's other axis, which is deliberately the opposite: the SEMANTIC work
+stays strictly per-commit (P1 intent, P2 bucket, per-commit ADAPT tier and `merge-log.md` rows),
+because each source commit carries its own purpose. Per-commit REASONING plus absorb-all GIT
+topology is the whole design; a per-commit git operation is never a consequence of per-commit
+reasoning.
+
+- **Continuous (default).** Recurring; the range merge keeps every source SHA and advances the
+  merge-base to the range tip; `checkpoint.json` skips commits already absorbed by an earlier run
+  and no past conflict is ever re-resolved.
+- **One-shot (`--one-shot`).** Port one frozen batch once via a no-commit cherry-pick of the WHOLE
+  range in one staged sequencer run (delegated to git-toolkit via `git-ops`); every other phase is
+  identical. It does NOT preserve SHA and does NOT advance the merge-base, so the run is not
+  repeatable - use it only when the source is frozen, or when a deliberate sub-range must land
+  without dragging the rest of the source branch in.
 
 ## Checkpoint / resume
 
@@ -839,8 +897,16 @@ that is opus-grade to ADAPT if that commit's target re-implementation is cross-m
 recorded `design_doc`, so a crash between design-approval and re-entry resumes correctly). A
 crash mid-batch is recovered by re-reading the checkpoint + the on-disk `<module>/intents/`
 per-module subdirectories, `plan.md`, and `merge-log.md` (file existence is the source of truth,
-the JSON is the fast index). Child
-worktrees left dangling by a crash are removed and recreated from integration. Record the executor's
+the JSON is the fast index).
+
+**Resuming a crash INSIDE the absorption window.** Because a batch commits only at P10, a crash
+during P6-P9 leaves the integration worktree with its merge window still OPEN - `MERGE_HEAD` (or
+`CHERRY_PICK_HEAD`) live, partial adapt on disk. That state IS the resume point: check for it
+FIRST (`git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD`, a bounded read), and when
+it is live, RESUME the existing window at the phase `checkpoint.json` last recorded - never re-run
+P5 on top of it (git refuses while a window is open) and never abort it in order to restart the
+range commit-by-commit. Abort and re-open the WHOLE range only when the window is already gone or
+the working tree is unrecoverable, and record that decision in `merge-log.md`. Record the executor's
 `INSTANCE_HANDLE` (and its instance log path) in the batch worklog so a resumed run reuses the same
 instance or asks `odoo-instance` to release it instead of orphaning the DB - since P9 delegates the run,
 the instance lifecycle is owned by `odoo-instance-ops`, not held as an allocator lease in this skill.
