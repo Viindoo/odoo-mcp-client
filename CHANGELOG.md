@@ -6,6 +6,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.6] - 2026-08-22
+
+### Fixed
+
+- `odoo-ai-agents` - **a forward-port run now lands ONE merge commit, not one per source commit.**
+  `odoo-forward-port` P10 closed with *"More commits/batches remain -> LOOP to P5: each subsequent
+  commit re-runs the full per-commit cycle"*, so a run over N source commits minted N merge commits
+  and re-resolved every shared hunk once per commit instead of once per run. Hard rule 2 banned
+  squash and cherry-pick but never banned the per-commit merge itself, and § P8's R2b paragraph
+  asserted the wrong contract outright (*"produces N separate target merge commits, one per source
+  SHA"*). The cherry-pick habit had its own source: `odoo-intake`'s collision-zones reference
+  described the skill as a *"single-commit cherry-pick + adapt"*, which mints a fresh SHA, leaves
+  the merge-base behind, and forces re-resolving the same conflict on every future run - the exact
+  defect the merge contract exists to prevent. Replaced with an ABSORB-ALL contract: the RANGE is
+  the git unit, never the commit. P5 opens ONE `--no-ff --no-commit` merge of the range TIP (every
+  commit in the range enters the DAG as an ancestor, so every SHA is preserved and the merge-base
+  advances in one step), P6-P9 work inside that one open window, and P10 closes it with ONE commit.
+  Batches remain a human VERIFY/GATE choice taken at the P4 plan gate and now bound the
+  merge-commit count - the commit count never does; the default single batch produces exactly one
+  merge commit. `--one-shot` is likewise ONE staged whole-range `cherry-pick -n <first>^..<tip>`
+  closed by one commit, and now states that it does not preserve SHA and is not repeatable. The
+  per-commit SEMANTIC pipeline (P1 intent, P2 bucket, per-commit ADAPT tier, `merge-log.md` rows)
+  is unchanged and is now explicitly separated from git topology, so per-commit reasoning can no
+  longer be mistaken for a per-commit git operation.
+
+### Changed
+
+- `odoo-ai-agents` - **ambiguous and contradictory forward-port prose removed.** `absorb-all` was
+  used six times and pointed at a `Two modes` section that never defined it; it is now the named
+  contract with its own section, and is the ONE git shape both modes use. `odoo-intake` told the
+  router in three places that forward-port is *"ONE commit same major"* while the row above it
+  correctly said CROSS-major; all three now describe porting commits (one, or a whole range) up a
+  major, absorbed by one merge. `workflow-harness.md` claimed forward-port gates at P0 with a
+  per-commit `plan.md` - the gate is Plan Mode at P4 and the plan is module-first. P0 now records
+  the range endpoints (`<src-first-SHA>` / `<src-tip-SHA>`) the single merge needs, an empty
+  filtered range reports `DONE` instead of opening a merge window on nothing, and the
+  checkpoint/resume section gained the open-window case: a crash during P6-P9 leaves `MERGE_HEAD`
+  live and is resumed in place, never restarted commit-by-commit. `cherry-pick range` was corrected
+  to `forwarded commit range` in `odoo-installable-prober` and the classify phase, and the stale
+  "child worktrees left dangling by a crash" line was dropped (P8 has not created one since 5.0).
+
 ## [5.1.5] - 2026-08-22
 
 ### Changed
