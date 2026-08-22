@@ -135,7 +135,7 @@ final release drops it, which is the intended teardown. Never release it mid-run
 takes park/resume, per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5.
 Capture `INSTANCE_HANDLE` once and forward it to
 every dispatch below (precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`).
-Provisioning and the test-run lifecycle are NOT owned here - `odoo-instance` (the
+Provisioning and the test-run lifecycle are NOT owned here - the `odoo-instance` SKILL (which dispatches the
 `odoo-instance-ops` agent) owns create/init/run-tests/drop
 and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
 Lifecycle + test-invocation conventions:
