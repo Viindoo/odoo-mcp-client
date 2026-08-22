@@ -480,7 +480,7 @@ def test_the_evidence_log_survives_the_state_root_sweep(harness, env_home):
     decoy = logs / "retired_db-20240101120000.log"
     decoy.write_text("a per-run build log whose lease is long gone\n", encoding="utf-8")
 
-    ancient = time.time() - 400 * 24 * 3600
+    ancient = time.time() - 400 * 24 * 7200
     for path in (evidence, decoy):
         os.utime(path, (ancient, ancient))
 

@@ -274,13 +274,13 @@ DEFAULT_POOL_SIZE = 10
 # lower still because the "do not reap when unsure" bias (see `_is_stale`)
 # argues against being aggressive on the one bucket that is already the
 # hardest to get right.
-DEFAULT_TTL_S = 3600
+DEFAULT_TTL_S = 7200
 # reap-orphans default minimum PROVABLE age (seconds) before a lease-free
 # ephemeral-shaped DB is even proposed as a candidate. Conservative on purpose:
 # a DB that appeared moments ago (a narrow acquire-then-crash race, or a lease
 # write still in flight) must never be mistaken for an abandoned orphan just
 # because a reap-orphans sweep happened to run at the wrong instant.
-DEFAULT_REAP_MIN_AGE_S = 24 * 3600
+DEFAULT_REAP_MIN_AGE_S = 24 * DEFAULT_TTL_S
 # How long a PARKED lease keeps its database, filestore and ports with no owner
 # process at all. This is a DISK budget, not a RAM one, and that is why it is an
 # order of magnitude looser than DEFAULT_TTL_S: `park` stops the owner's process
@@ -289,7 +289,7 @@ DEFAULT_REAP_MIN_AGE_S = 24 * 3600
 # DEFAULT_REAP_MIN_AGE_S above, the file's other disk-scoped budget, so the two
 # "how long may abandoned disk survive" answers do not drift apart. Overridable
 # per lease with `park --park-ttl <s>`.
-DEFAULT_PARK_TTL_S = 24 * 3600
+DEFAULT_PARK_TTL_S = 24 * DEFAULT_TTL_S
 # SSOT for the "no declared port" fallback (Odoo's own stock default). Also
 # referenced by instances_io.py's INST_HTTP_PORT fallback so both Python
 # consumers converge on one literal (P5.9 8069-fallback consolidation).
@@ -3428,7 +3428,7 @@ def cmd_reap_orphans(opts):
 
     dropped, failed = [], []
     for db in all_candidates:
-        age_h = (db["age_s"] or 0) / 3600
+        age_h = (db["age_s"] or 0) / 7200
         size_mb = (db["size_bytes"] or 0) / (1024 * 1024)
         _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}")
         if yes:

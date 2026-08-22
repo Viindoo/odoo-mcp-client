@@ -59,8 +59,8 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
     "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
     "owner": { "host": "<hostname>", "pid": 41234, "pid_started": "<ps-lstart-fingerprint|absent>",
                "run_id": "<run-id>", "started_at": <epoch> },
-    "ttl_s": 3600, "heartbeat_at": <epoch>,
-    "parked_at": <epoch|absent>, "park_ttl_s": 86400, "parked_boot_id": "<kernel boot id|absent>" } ] }
+    "ttl_s": 7200, "heartbeat_at": <epoch>,
+    "parked_at": <epoch|absent>, "park_ttl_s": 17280, "parked_boot_id": "<kernel boot id|absent>" } ] }
                                                    // ttl_s default == DEFAULT_TTL_S in scripts/lib/allocator.py (SSOT)
 
 The three `parked_*` keys are present TOGETHER or not at all, and their presence IS the PARKED
