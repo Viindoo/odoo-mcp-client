@@ -281,6 +281,15 @@ source "$LIB_DIR/pg_mode.sh"
 # shellcheck source=../lib/state_reclaim.sh
 source "$LIB_DIR/state_reclaim.sh"
 
+# Toolchain env for Odoo's own lint test families (eslint / pylint / flake8 /
+# po). Sourced here but APPLIED only inside each odoo-bin launch subshell below,
+# so it never leaks past one invocation. Only this file sources it:
+# 50-instance-spinup.sh never passes --test-enable (measured: 0 occurrences), so
+# no lint test ever runs on its path and wiring it there would be a mechanism
+# nothing reaches.
+# shellcheck source=../lib/lint_toolchain.sh
+source "$LIB_DIR/lint_toolchain.sh"
+
 # ---------------------------------------------------------------------------
 # describe
 # ---------------------------------------------------------------------------
@@ -1885,6 +1894,14 @@ cmd_init() {
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Toolchain env for Odoo's own lint families, scoped to THIS launch the
+        # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
+        # Without it `test_eslint` resolves whatever `eslint` PATH happens to
+        # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
+        # config it cannot parse and FAILS the test with a message that reads
+        # like a finding about the code while zero JS files were examined.
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree (issue class: Odoo's own module-
         # loading log records only RELATIVE module paths, so a verifier can
         # never grep an absolute addons-path line to confirm which checkout
@@ -2005,6 +2022,14 @@ cmd_update() {
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Toolchain env for Odoo's own lint families, scoped to THIS launch the
+        # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
+        # Without it `test_eslint` resolves whatever `eslint` PATH happens to
+        # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
+        # config it cannot parse and FAILS the test with a message that reads
+        # like a finding about the code while zero JS files were examined.
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
         echo "allocator: ADDONS_PATH_USED=$addons_csv"
@@ -2119,6 +2144,14 @@ cmd_test() {
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Toolchain env for Odoo's own lint families, scoped to THIS launch the
+        # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
+        # Without it `test_eslint` resolves whatever `eslint` PATH happens to
+        # offer - on a stock Debian box the 2019 OS package, which exits 2 on a
+        # config it cannot parse and FAILS the test with a message that reads
+        # like a finding about the code while zero JS files were examined.
+        lint_toolchain_export "$arg_python" "$addons_csv" "$arg_modules"
+        lint_toolchain_diagnostics "$addons_csv"
         # Positive proof of the resolved tree - see the identical comment in
         # cmd_init above.
         echo "allocator: ADDONS_PATH_USED=$addons_csv"
