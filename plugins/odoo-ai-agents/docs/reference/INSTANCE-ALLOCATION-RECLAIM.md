@@ -102,7 +102,7 @@ but unreachable in practice.
 
 ## 9. TTL default
 
-`ttl_s` defaults to `DEFAULT_TTL_S = 3600` (1h) in `scripts/lib/allocator.py` (SSOT). It governs
+`ttl_s` defaults to `DEFAULT_TTL_S = 7200` (2h) in `scripts/lib/allocator.py` (SSOT). It governs
 only the liveness-unprovable bucket (different host, no pid recorded, unverifiable fingerprint) -
 a same-host owner with a verified-alive pid is NEVER TTL-reclaimed. Call `heartbeat <token>` on
 any long operation in that bucket.

@@ -2409,7 +2409,7 @@ def test_legacy_lease_without_db_run_mode_still_drops_on_a_native_host(tmp_path)
         "drop_on_release": True, "python": "",  # no venv -> raw fallback
         "db_host": "localhost", "db_user": "odoo", "db_port": "",
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }])
 
     rel = _run(env, "release", token)
@@ -2457,7 +2457,7 @@ def test_release_keeps_the_lease_when_the_raw_drop_command_fails(tmp_path):
         "drop_on_release": True, "python": "",  # no venv -> raw fallback
         "db_host": "localhost", "db_user": "odoo", "db_port": "",
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }])
 
     rel = _run(env, "release", token)
@@ -2750,7 +2750,7 @@ def test_release_re_resolves_the_drop_surface_from_the_current_catalog(tmp_path)
         "db_name": "odoo_17_0_t_deadbeef", "drop_on_release": True,
         "db_host": "localhost", "db_user": "odoo", "db_port": "",
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }])
 
     rel = _run(env, "release", token, timeout=60)
@@ -2790,7 +2790,7 @@ def test_release_force_forget_never_loses_a_database_silently(tmp_path):
         "db_name": "odoo_17_0_t_0badf00d", "drop_on_release": True, "python": "",
         "db_host": "localhost", "db_user": "odoo", "db_port": "",
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "", "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }
     _seed_registry(env, [lease])
 
@@ -2842,7 +2842,7 @@ def test_gc_result_survives_an_exclusive_conflict_exit(tmp_path):
             "token": "22" * 16, "mode": "exclusive", "series": "17.0",
             "db_name": "odoo_17_0", "drop_on_release": False,
             "owner": {"host": host, "pid": None, "run_id": "other", "started_at": now},
-            "ttl_s": 3600, "heartbeat_at": now,
+            "ttl_s": 7200, "heartbeat_at": now,
         },
     ])
 
@@ -3046,7 +3046,7 @@ def test_client_drop_fallback_refuses_a_lease_that_does_not_name_a_throwaway_db(
         "db_host": "localhost", "db_user": "odoo", "db_port": "",
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "",
                   "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }])
 
     rel = _run(env, "release", token, timeout=60)
@@ -3268,7 +3268,7 @@ def test_acquire_refuses_when_odoo_cannot_authenticate_and_writes_no_lease(
         "drop_on_release": False, "ports": [],
         "owner": {"host": socket.gethostname(), "pid": None, "run_id": "",
                   "started_at": now},
-        "ttl_s": 3600, "heartbeat_at": now,
+        "ttl_s": 7200, "heartbeat_at": now,
     }])
     registry = Path(env["ODOO_AI_HOME"]) / "runtime" / "leases.json"
     before = registry.read_bytes()

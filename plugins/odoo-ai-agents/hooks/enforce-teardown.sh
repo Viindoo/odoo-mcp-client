@@ -246,7 +246,7 @@ _instance_block_reason() {
   # common case (most leases never carry --pid), so an empty pid field here
   # would misalign every column after it. Never reintroduce a `// ""` fallback
   # on a middle TSV field for this reason.
-  # The `// 3600` fallback below is a SECOND COPY of `DEFAULT_TTL_S` in
+  # The `// 7200` fallback below is a SECOND COPY of `DEFAULT_TTL_S` in
   # scripts/lib/allocator.py (the SSOT) - it only ever fires for a lease
   # record missing `ttl_s` entirely (defensive; every real acquire writes it).
   # If that constant changes, this literal must change with it or the two
@@ -261,7 +261,7 @@ _instance_block_reason() {
       | ((.owner.run_id // .owner.session_id // "")) as $o
       | select($o != "" and ($rids | index($o)))
       | [(.token // ""), $o, (.owner.pid | tostring), (.owner.host | tostring),
-         ((($now - (.heartbeat_at // .owner.started_at // 0)) <= (.ttl_s // 3600)) | tostring)]
+         ((($now - (.heartbeat_at // .owner.started_at // 0)) <= (.ttl_s // 7200)) | tostring)]
       | @tsv' 2>/dev/null || true)"
   [[ -n "$rows" ]] || return 1
 
@@ -298,7 +298,7 @@ _instance_block_reason() {
 
   # THREE exits satisfy this gate, and all three are named here on purpose. The set is the one
   # declared in snippets/resource-teardown-contract.md T1 § "The three exits" (SSOT); this is a
-  # SECOND COPY of it, exactly like the `// 3600` DEFAULT_TTL_S copy above, kept in lockstep by
+  # SECOND COPY of it, exactly like the `// 7200` DEFAULT_TTL_S copy above, kept in lockstep by
   # tests/test_enforce_teardown.py rather than rendered from the markdown at hook time. Naming only
   # `release` would tell an agent that preserving a just-built database is impossible, which is how
   # instances got destroyed and rebuilt every dispatch.

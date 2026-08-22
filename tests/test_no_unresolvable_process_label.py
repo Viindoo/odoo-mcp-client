@@ -246,7 +246,7 @@ def test_detector_does_not_treat_a_python_or_shell_comment_as_a_heading_definiti
     in itself just by writing one `# G4: ...` comment anywhere."""
     text = (
         "# G4: TTL now governs ONLY the residual case.\n"
-        "DEFAULT_TTL_S = 3600\n"
+        "DEFAULT_TTL_S = 7200\n"
         '"""G4 fix: liveness is AUTHORITATIVE, not merely a condemn signal."""\n'
     )
     py_path = tmp_path / "plugins" / "fake-plugin" / "scripts" / "lib" / "allocator.py"

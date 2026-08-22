@@ -106,7 +106,8 @@ the brief's extra flags, which is placed after the default and therefore wins. T
 `--log-level` via `cli_help` like any other flag.
 
 **Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
-longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
+upto ten hours (depending on number of modules to run tests) that seems to be longer than the foreground
+tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
 build in the background, capture `LOG_PATH`, then BLOCK in the FOREGROUND on
 `55-instance-ops.sh wait-log --log "<LOG_PATH>"` as its VERY NEXT tool call - never backgrounding
 that call, and never ending its turn on a text-only "waiting for the build" reply. The Bash tool's
