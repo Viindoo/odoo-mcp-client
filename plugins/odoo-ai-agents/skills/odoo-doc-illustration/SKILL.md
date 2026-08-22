@@ -109,7 +109,10 @@ PARALLEL across independent instance-paths up to
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, the SSOT for
 `W`; HARD GUARD: never run two paths on the same browser family or the same instance):
 
-1. **Provision once at the leaf.** Dispatch `odoo-instance` (`odoo-instance-ops`,
+1. **Provision once at the leaf.** Invoke `Skill(odoo-instance)` INLINE in your own context
+   (NEVER dispatch the `odoo-instance-ops` agent - the product of this step is a VALUE this
+   skill must hold, and a dispatched agent cannot hand a value back without a relay hop that
+   loses it), with (
    `CONTEXT: doc, MODE: path-incremental`, `--skip-auto-install --with-demo --load-language=<csv>`,
    EXCLUSIVE lease, `--ports 1`). THIS SKILL (not instance-ops) reads back
    `INSTANCE_HANDLE = <db>:<port>` PLUS `addons_path` from the returned instance-ops block (the full
