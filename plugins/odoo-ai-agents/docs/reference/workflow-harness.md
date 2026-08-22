@@ -367,11 +367,11 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
   > the field is a superset that preserves every skill listed here.
 - **Skill owns a stronger gate** → **SKIP soft-plan-gate AND Phase P**. When the routed
   skill opens with a STOP plan gate richer than intake's soft-plan-gate (e.g.
-  `odoo-forward-port` P0 emits a per-commit plan.md + STOP before any branch or merge),
+  `odoo-forward-port` runs its own Plan Mode STOP gate at P4 - a module-first plan recorded to plan.md - before any branch or merge),
   do NOT also emit the soft-plan-gate - two consecutive approval gates for one action is
   friction, and the skill's gate is the authoritative one. Launch the skill directly with
   a one-liner noting it will present its own plan and stop for approval. Phase P does NOT
-  engage for these skills: a self-gating + self-resuming skill (P0 STOP gate +
+  engage for these skills: a self-gating + self-resuming skill (its own STOP plan gate +
   checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill
   drives itself.
 

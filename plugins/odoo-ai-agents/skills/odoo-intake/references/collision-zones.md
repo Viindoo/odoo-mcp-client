@@ -179,8 +179,11 @@ commits to replay and a few conflicts to resolve."
 - `odoo-git-rebase`: handles "rebase branch onto another branch SAME series" -> whole-range
   a rebase that replays the <upstream>..<branch> range onto <newbase> and resolves
   conflicts in-flight; SAME Odoo major throughout.
-- `odoo-forward-port`: handles "port a commit/PR to a HIGHER major version" -> single-commit
-  cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).
+- `odoo-forward-port`: handles "port commits to a HIGHER major version" -> absorbs the whole
+  source range with ONE no-ff merge of its tip (keeping every source SHA), adapts inside that one
+  open merge window, and closes it with ONE merge commit, across a version boundary (e.g.
+  16.0 -> 17.0). It is NOT a per-commit cherry-pick: cherry-pick only appears in its `--one-shot`
+  mode, and even there it stages the WHOLE range once.
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
   the node plan; the cherry-pick + squash of N independent changes that do NOT share a
   continuous range is performed by `run-harness`'s INTERNAL single node loop (driven
@@ -189,7 +192,8 @@ commits to replay and a few conflicts to resolve."
   merge is owned by the subsequent `odoo-pr-monitoring` at the merge approval gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
-**Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
+**Pick `odoo-git-rebase`**. Cross-major commits to port (one, or a whole range) ->
+`odoo-forward-port`. Many
 disjoint changes to land together -> **Pick `odoo-planning`** (it plans the node plan; `run-harness`
 drives it node by node onto ONE run-integration branch, then ONE PR, STOPPING at
 "PR opened"; the merge is owned by `odoo-pr-monitoring`).

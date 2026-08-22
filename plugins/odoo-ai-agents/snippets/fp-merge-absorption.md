@@ -5,41 +5,71 @@
 
 # FP Merge Absorption (git merge protocol + per-batch verify)
 
-## Git operation - keep the source SHA
+## Git operation - ONE merge for the whole range, ONE merge commit
+
+**The unit of the git operation is the RANGE, never the commit.** A forward-port run absorbs
+every commit in `<merge-base>..<source-ref>` with a SINGLE merge of the range's TIP commit, and
+closes it with a SINGLE merge commit - exactly the shape an ordinary branch-level merge has.
+Every commit in the range becomes an ancestor of that merge commit, so every source SHA is
+preserved and the merge-base advances to the tip in one step.
 
 **Continuous forward-port** (recurring, source repo keeps evolving):
 
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
-- `op: merge --no-ff --no-commit <src-SHA>` (request worktree isolation)
+- `op: merge --no-ff --no-commit <src-tip-SHA>` (request worktree isolation), where `<src-tip-SHA>`
+  is the LAST (newest) commit of the range this run forwards - after any `--since` filter.
 
-On return from git-ops, the working tree is the absorption zone. All adapt work
-(steps 1-4 in "Absorption window" below) happens there. When adapt is complete, invoke
-**`git-toolkit:git-ops`** again:
-- `op: commit`, `message: "fp: absorb <src-SHA> - <one-line summary>"`
+On return from git-ops, the working tree is the absorption zone for the WHOLE range. All adapt
+work (steps 1-4 in "Absorption window" below) happens there, driven by the per-commit intent
+records, inside this one open merge window. When adapt is complete, invoke
+**`git-toolkit:git-ops`** again, ONCE:
+- `op: commit`, `message: "fp: absorb <src-first-SHA>..<src-tip-SHA> - <one-line summary>"`
 
-`--no-ff` forces a true merge commit so the source SHA enters the DAG of the target branch.
-The merge-base advances to `<src-SHA>` after the commit. Next run, the scoped log
-(src..tgt) will no longer see this commit - no re-resolution ever.
+`--no-ff` forces a true merge commit so the source history enters the DAG of the target branch.
+The merge-base advances to `<src-tip-SHA>` after the commit. Next run, the scoped log
+(src..tgt) will no longer see ANY commit in the range - no re-resolution ever.
 
-**NEVER squash or cherry-pick for continuous forward-port.** Both create a fresh SHA on
-the target: merge-base does not move, and tomorrow's run encounters the same conflict again,
-permanently.
+### Two banned shapes (both produce the defects this protocol exists to prevent)
 
-**One-shot mode** (port once, source is frozen): invoke **`git-toolkit:git-ops`** with
-`op: cherry-pick -n <src-SHA>` (the -n / no-commit flag keeps the tree open for absorption;
-request this explicitly in the brief) as a SHOULD fallback - the repeated-resolution footgun
-does not apply when the source will never advance.
+1. **BANNED - one merge per commit.** Never loop `merge <sha-1>` / commit / `merge <sha-2>` /
+   commit over the range. It mints N merge commits for ONE logical forward-port (the target
+   history reads as N unrelated integrations), and every hunk touched by more than one source
+   commit is conflict-resolved once per commit instead of once per run. An ordinary branch-level
+   merge never behaves this way, and neither does this pipeline.
+2. **BANNED - cherry-pick per commit (any mode).** Each cherry-pick mints a FRESH SHA on the
+   target: the merge-base does not move, so tomorrow's run re-encounters every commit and
+   re-resolves every conflict, permanently. This is the single most expensive mistake available
+   in a forward-port.
 
-## Absorption window (inside the no-commit merge)
+**Batching does NOT reinstate either shape.** A batch is a VERIFY-and-GATE unit, not a git unit.
+If the human splits the run at the plan gate, each batch boundary is a source SHA, and batch *k*
+merges the LAST SHA of batch *k* - absorbing every commit up to it in one merge. So `N` batches
+produce at most `N` merge commits, never one per commit; the default (a single batch) produces
+exactly ONE. A batch is never allowed to be "one commit each" as a way to reach a per-commit merge.
+
+**One-shot mode** (port once, source is frozen, or only a sub-range may land): invoke
+**`git-toolkit:git-ops`** with `op: cherry-pick -n <src-first-SHA>^..<src-tip-SHA>` - the WHOLE range in
+ONE staged sequencer run (`-n` / no-commit keeps the tree open for absorption; request this
+explicitly in the brief), closed by ONE commit, exactly like the merge shape above. Never one
+cherry-pick call per commit. Record in `merge-log.md` that this mode does NOT preserve SHA and
+does NOT advance the merge-base: the run is not repeatable, which is why one-shot is reserved for
+a frozen source (or a deliberate sub-range that must not drag the rest of the branch in).
+
+## Absorption window (inside the ONE no-commit merge)
 
 Between the no-commit merge opened by git-ops and the subsequent commit step, the
-working tree is the absorption zone. All work happens here - in this order:
+working tree is the absorption zone **for the whole range**. There is exactly ONE such window per
+run (or per batch, when the human split the run at the plan gate) - it opens once, stays open
+across every module's adapt work, and closes once. All work happens here - in this order:
 
-1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file.
+1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file. It runs
+   ONCE over the merged result of the whole range, not once per source commit.
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
-   see [[fp-intent-4outcome]]).
+   see [[fp-intent-4outcome]]). A file touched by several commits in the range is resolved ONCE,
+   against the range's combined result - re-resolving it per commit is the banned shape above.
 2a. **Manifest version (C1) - never invent a bump.** `--no-ff` already carries whatever the source
-    commit did to the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0). Do NOT
+    commit did to the module descriptor - which filename applies on which series is owned by
+    `odoo-era-boundaries.md` row 6, never restated here. Do NOT
     add, derive, or increment a `version` bump on the target side. On a module-descriptor `version`
     CONFLICT, keep the **TARGET** file's `version` field as-is - never merge-pick the higher number,
     never bump "to be safe". (The only bump permitted anywhere in forward-port is the C2 case below,
@@ -101,7 +131,7 @@ Legacy-only `17.0.a.b.c` -> kept, fires for v17 jumpers, inert on native v18 (co
 After the rename, sweep the body for source-series literals (log strings, version constants) - they
 survive the rename and mislead operators.
 
-## Skip-code-but-still-merge rule
+## Skip-code-but-still-absorb rule
 
 Outcome buckets (a) and (d) from [[fp-intent-4outcome]] require NO adapt diff:
 
@@ -110,15 +140,22 @@ Outcome buckets (a) and (d) from [[fp-intent-4outcome]] require NO adapt diff:
 - **(d) no longer relevant** - the source commit worked around a platform limitation that
   the target has removed.
 
-**In both cases, still create the merge commit.** The merge commit is what advances the
-merge-base. If you skip it, tomorrow's forward-port encounters the same commit again. The
-commit message should record the bucket and reason so reviewers do not flag it as empty.
+**In both cases the commit is still ABSORBED - never excluded from the merge range.** The single
+range merge is what advances the merge-base past them; a bucket is a statement about ADAPT WORK,
+never about git topology. Narrowing the merged range to skip an (a)/(d) commit - or splitting it
+out so the range becomes non-contiguous - leaves the merge-base behind it, and tomorrow's
+forward-port encounters it again. Record each (a)/(d) bucket and its reason on that commit's
+`merge-log.md` row (and name them in the single merge commit's message body) so reviewers see why
+those SHAs carry no diff.
 
 ## Verify protocol - per-batch, not per-commit
 
 Running a full install + test-enable pass for every absorbed commit is prohibitive. Batch
 verification instead: collect every commit in one P10 gate window into a batch, then verify the
-WHOLE batch on ONE ephemeral instance.
+WHOLE batch on ONE ephemeral instance. The DEFAULT batch is the whole run - one merge, one verify
+pass, one gate, one merge commit; splitting into several batches is a human decision taken at the
+plan gate, and each batch still merges its own range TIP once (§ Git operation above), never one
+commit at a time.
 
 **Delegate the instance - never a raw `allocator.py`/`odoo-bin` invocation.** Provisioning,
 install, and test-run all go through the `odoo-instance` skill
@@ -140,9 +177,9 @@ the adapted worktree instead of the principal checkout.
    forward-port-specific `WORKTREE_PATH` re-root, see
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9 for the
    concrete dispatch brief.
-3. For a subsequent commit in the SAME batch touching only a subset, re-dispatch `odoo-instance`
-   with the SAME returned `INSTANCE_HANDLE` and `mode: reuse` (`-u` semantics) on the changed
-   modules only - skip the full reinstall.
+3. For a re-verify after a fix inside the SAME batch, or for a SUBSEQUENT batch touching only a
+   subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE` and `mode: reuse`
+   (`-u` semantics) on the changed modules only - skip the full reinstall.
 4. Release the instance when the batch is done: dispatch `odoo-instance` with `operation: drop`,
    passing the batch's `lease_token`/`run_id`. This stops any bound process first, then drops the
    DB through Odoo - never a raw `dropdb` or a bare `allocator.py release`.
@@ -219,9 +256,10 @@ Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 ## Git topology - two-tier worktrees (summary)
 
 The integration worktree branches from the TARGET branch (never the target branch directly -
-no direct commits land there during forward-port). Work-item worktrees branch from
-integration for per-module absorption and converge back into integration via merge
-(keeping SHA). Only after a human-gated P10 + P11 acceptance + P12 PR review does the human merge
+no direct commits land there during forward-port). Adapt work happens DIRECTLY in that integration
+worktree - the single open merge window spans the whole range, so no per-module child worktree can
+ever converge back into it (full derivation: `skills/odoo-forward-port/SKILL.md` § Git topology).
+Only after a human-gated P10 + P11 acceptance + P12 PR review does the human merge
 the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
