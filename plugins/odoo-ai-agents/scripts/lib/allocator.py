@@ -3428,7 +3428,7 @@ def cmd_reap_orphans(opts):
 
     dropped, failed = [], []
     for db in all_candidates:
-        age_h = (db["age_s"] or 0) / 7200
+        age_h = (db["age_s"] or 0) / 3600
         size_mb = (db["size_bytes"] or 0) / (1024 * 1024)
         _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}")
         if yes:
