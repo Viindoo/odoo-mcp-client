@@ -10,10 +10,14 @@
 #     its Postgres backend) that OUTLIVE the Claude session and leak RAM until a
 #     human notices. Their existence is provable from the allocator LEDGER (ground
 #     truth, not the fuzzy transcript). So a live owned lease at a subagent's turn
-#     END - a completion claim, `NEEDS_NEXT` with no handle forwarded, an out-of-enum
-#     status, or NO `continuation` status at all - is a HARD BLOCK (SubagentStop only)
-#     with a deterministic release cmd. Only a stopped-run report (BLOCKED /
-#     NEEDS_CONTEXT) or a T4 named handoff passes. A lease the caller PARKED is not a
+#     END is a HARD BLOCK (SubagentStop only) with a deterministic release cmd, on
+#     ANY terminal status: a completion claim, `NEEDS_NEXT` with no handle forwarded,
+#     an out-of-enum status, NO `continuation` status at all, AND a `BLOCKED` /
+#     `NEEDS_CONTEXT` stopped-run report. Only two things pass - the lease is GONE
+#     from the ledger (released or parked), or a T4 named handoff forwards
+#     `INSTANCE_HANDLE`. The gate is STATUS-BLIND on purpose: a dispatch that cannot
+#     RELEASE can always still NAME a catcher, so `BLOCKED` is no longer a door the
+#     lease escapes through unowned. A lease the caller PARKED is not a
 #     live lease at all for this purpose: park already stopped its process group, so it
 #     leaks no RAM, and it carries `parked_at` - the ledger fact the ledger scan below
 #     filters on. Its three exits (release / park / forwarded INSTANCE_HANDLE) are the
@@ -181,24 +185,29 @@ _instance_block_reason() {
   # Requires: SubagentStop event, python3 + allocator.py, a correlated run_id, no forwarded
   # handle. Prints the block reason on success; prints nothing (rc!=0) to fall through to advisory.
   [[ "$EVENT" == "SubagentStop" ]] || return 1
-  # Gate on the COMPLEMENT of a STOPPED-RUN REPORT - NEVER on the literal `DONE`. `status` is a
-  # CLOSED four-value enum (SSOT: generator/skill_tool_deps.json `vocabulary.continuation_status`,
-  # rendered in snippets/continuation-contract.md) and only these two report a run that STOPPED:
-  # resource-teardown-contract.md T4 makes BLOCKED the sanctioned outcome when teardown ITSELF
-  # failed ("report the lease token ... so the caller or allocator GC can reap it"), so blocking
-  # them would trap the one path the contract gives that failure. Everything else is a dispatch
-  # that ENDED while the ledger still holds this run's lease and falls through to the T4 handoff
-  # test below: `DONE`, `NEEDS_NEXT` (T4 permits a live lease under it ONLY with the handle
-  # forwarded - a bare one is the "unnamed forward the token for later release" T4 names as the
-  # leak), a value outside the enum, or NO machine-readable `continuation` status at all (that one
-  # leaks worst - no status means no fence, so no forwarded handle and no named catcher either,
-  # and a SubagentStop IS the end of the dispatch, so nothing runs later to release it). Same
-  # case-with-catch-all shape as report-terminal-status.sh's S1 strand signature, which already
-  # COUNTS the no-status turn - this gate is what stops the leak it counts.
-  case "$STATUS_KEY" in
-    BLOCKED|NEEDS_CONTEXT) return 1 ;;
-  esac
-  # T4's ONE exception, read from the SAME fence-scoped extraction as the status (never from free
+  # The gate is STATUS-BLIND. It asks ONE question - "is a live lease this dispatch acquired
+  # still in the ledger, with nobody named to take it?" - and `status` is not part of the answer.
+  #
+  # It did NOT always work this way. `NEEDS_NEXT` was once an unconditional pass, and so were
+  # `BLOCKED` / `NEEDS_CONTEXT`, on the reasoning that T4 makes BLOCKED the sanctioned outcome
+  # when teardown ITSELF fails ("report the lease token ... so the caller or allocator GC can reap
+  # it"), so blocking it would trap the one path the contract gives that failure. That reasoning
+  # confused two different things: being unable to RELEASE, and being unable to NAME A CATCHER.
+  # A dispatch can always do the second - forwarding `INSTANCE_HANDLE` is text in its own
+  # continuation fence, needs no tool, no permission, and no live process - so requiring it traps
+  # nobody. It is the FIRST that can be taken away, and when it is (an allocator error, a refusing
+  # process, a HARNESS PERMISSION DENIAL on the give-back verb - see permission-denied-teardown.sh)
+  # the old pass-set turned that into a silent, unowned leak: the lease outlived the dispatch with
+  # no named owner, and only the allocator's TTL backstop reclaimed it, hours later.
+  #
+  # So every terminal status now falls through to the same handoff test below: `DONE`,
+  # `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT`, a value outside the enum, or NO machine-readable
+  # `continuation` status at all (that one leaks worst - no status means no fence, so no forwarded
+  # handle and no named catcher either, and a SubagentStop IS the end of the dispatch, so nothing
+  # runs later to release it). A stopped run still reports honestly - it just names who inherits
+  # the lease while it does. When teardown is what failed, the catcher is the DISPATCHING CALLER;
+  # the block message below names it, so satisfying this gate never invents a fictional catcher.
+  # T4's exception is read from the SAME fence-scoped extraction as the status (never from free
   # prose - a handle promised in prose forwards nothing a consumer can act on).
   [[ "$FWD_HANDLE" == "1" ]] && return 1   # INSTANCE_HANDLE forwarded in next.inputs -> handoff -> pass
   [[ -n "$RUN_IDS" ]] || return 1
@@ -302,7 +311,7 @@ _instance_block_reason() {
   # tests/test_enforce_teardown.py rather than rendered from the markdown at hook time. Naming only
   # `release` would tell an agent that preserving a just-built database is impossible, which is how
   # instances got destroyed and rebuilt every dispatch.
-  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park the lease (`allocator.py park`, NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it prints the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values.' \
+  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park the lease (`allocator.py park`, NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it prints the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values. If exits 1 and 2 are UNAVAILABLE to you - the allocator errored, a process refuses to die, or the HARNESS DENIED the give-back command before it ran - do NOT fall back to a bare stopped-run report. Exit 3 is always available: it is text in your own continuation fence, needs no tool, no permission and no live process, and when teardown is what failed the named catcher is your DISPATCHING CALLER. Forward INSTANCE_HANDLE (lease_token + run_id) in next.inputs to it, state in your report that teardown was denied and quote the exact refusal, and keep your BLOCKED or NEEDS_CONTEXT status - the status is not what this gate reads.' \
     "$claim" "$n" "$lines"
   return 0
 }

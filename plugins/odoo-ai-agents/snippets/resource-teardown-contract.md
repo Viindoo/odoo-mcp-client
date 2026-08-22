@@ -40,11 +40,12 @@ BLOCKED / NEEDS_CONTEXT / handoff).
 
 **The two tiers behind this gate are NOT enforced the same way** (full rationale: "Why browsers
 and instances are enforced differently" below):
-- **(b) Instance teardown is HARD-blocked.** The `SubagentStop` `enforce-teardown.sh` hook reads
-  the allocator ledger and BLOCKS any turn end except `BLOCKED`/`NEEDS_CONTEXT` or a T4 named
-  handoff, while a live, self-provisioned, non-shared lease remains open. A parked lease is not a
-  live lease to this gate: its ledger row carries `parked_at` and no owner pid because its server
-  is already stopped, so parking clears the gate exactly as releasing does.
+- **(b) Instance teardown is HARD-blocked, and the gate is STATUS-BLIND.** The `SubagentStop`
+  `enforce-teardown.sh` hook reads the allocator ledger and BLOCKS **any** turn end, whatever its
+  status - a `BLOCKED`/`NEEDS_CONTEXT` stop report included, a missing status worst of all - while
+  a live, self-provisioned, non-shared lease remains open and no T4 named handoff forwards it. A
+  parked lease is not a live lease here: its row carries `parked_at` and no owner pid because its
+  server is already stopped, so parking clears the gate exactly as releasing does.
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
   on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
   when it infers an apparently-open page from the transcript. You remain contract-bound to close
@@ -152,17 +153,22 @@ not an alternative - you still release; the net catches crashes, not laziness.
   including after an error, a failed oracle, or a REJECTED verdict - close your pages and
   release your self-provisioned instances. Your captured evidence is on disk; the open page or
   running server is not evidence, it is a leak.
-- **The only exception is an EXPLICIT, NAMED handoff.** You may leave a self-provisioned
-  instance leased ONLY when your continuation block forwards its handle to a named catcher:
-  `status: NEEDS_NEXT` with `INSTANCE_HANDLE` (incl. `lease_token`, `run_id`) in
-  `next.inputs`, naming the skill that needs the live state. An unnamed "forward the token
-  for later release" is not a handoff - it is the leak this contract exists to close.
-  Browser pages get no such exception, with one narrow carve-out: T2's headed human-watch
-  case, which is itself a NAMED handoff - outside that one case, close pages even when handing
-  off.
-- **If teardown itself fails** (release errors, a process refuses to die), you are BLOCKED,
-  not DONE: report the lease token / page id and the error as the blocker so the caller or
-  allocator GC can reap it - never report success over a live leftover.
+- **The only exception is an EXPLICIT, NAMED handoff, and it rides ANY status** - T0(b) reads the
+  forwarded handle, never the status word (`NEEDS_NEXT` is the usual carrier, not a requirement).
+  You may leave a self-provisioned instance leased ONLY when your continuation forwards
+  `INSTANCE_HANDLE` (incl. `lease_token`, `run_id`) in `next.inputs`, naming the catcher that
+  needs the live state. An unnamed "forward the token for later release" is not a handoff - it is
+  the leak this contract exists to close. Browser pages get no such exception, with one narrow
+  carve-out: T2's headed human-watch case, which is itself a NAMED handoff - outside that one
+  case, close pages even when handing off.
+- **If teardown itself fails** (release errors, a process refuses to die, or the HARNESS REFUSES
+  the give-back before it runs - not one of this plugin's exit codes, so do not translate it into
+  one), you are BLOCKED, not DONE, and a bare BLOCKED is not enough: quote the refusal AND take
+  the named handoff above, with your **dispatching caller** as catcher. It outlives you and can
+  release what you cannot, and naming it needs no tool, no permission and no live process - so
+  being unable to RELEASE never leaves you unable to hand over. Never re-issue or reword a refused
+  give-back: the refusal is your answer, and an obfuscated retry is itself a blocked action.
+  `permission-denied-teardown.sh` says this at refusal time.
 
 ## Why browsers and instances are enforced differently
 
