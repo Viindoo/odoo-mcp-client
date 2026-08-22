@@ -452,40 +452,63 @@ def test_g4_alive_pid_past_ttl_still_blocks(tmp_path):
     )
 
 
-# The gate partitions the closed status enum into exactly two tiers, and every value must land in
-# one of them:
-#   STOP_REPORT      - a stopped run the contract itself permits to report a live lease. T4's last
-#                      bullet makes BLOCKED the sanctioned outcome when teardown ITSELF failed
-#                      ("report the lease token ... so the caller or allocator GC can reap it"), so
-#                      hard-blocking these would trap the one path the contract gives that failure.
-#   HANDOFF_OR_RELEASE - a turn that must have released the lease or forwarded it BY NAME (T4's
-#                      only exception). A bare one of these with a live lease is an unforwarded
-#                      lease, which is T4's definition of the leak.
-STOP_REPORT = {"BLOCKED", "NEEDS_CONTEXT"}
-HANDOFF_OR_RELEASE = {"DONE", "NEEDS_NEXT"}
+# The gate is STATUS-BLIND: it reads the LEDGER and the forwarded handle, never the status value.
+# There is no passing tier of statuses. `BLOCKED` / `NEEDS_CONTEXT` used to be an unconditional
+# pass, on the reading that T4 makes BLOCKED the sanctioned outcome when teardown ITSELF failed, so
+# hard-blocking it would trap the one path the contract gives that failure. That conflated being
+# unable to RELEASE with being unable to NAME A CATCHER: the second is always possible (it is text
+# in the dispatch's own continuation fence - no tool, no permission, no live process), so requiring
+# it traps nobody, while the old pass turned every denied teardown into a silent UNOWNED leak.
+STATUS_ENUM_EXPECTED = {"DONE", "NEEDS_NEXT", "BLOCKED", "NEEDS_CONTEXT"}
 
 
-def test_status_tiers_partition_the_closed_enum():
-    """Structural guard, not a restatement: every value of the vocabulary SSOT's closed enum must
-    be assigned to exactly one tier above. Adding a fifth status cannot silently inherit a pass -
-    this test goes red until someone decides which tier it belongs to."""
+def test_closed_status_enum_is_fully_enumerated():
+    """Structural guard: the vocabulary SSOT's closed enum must be exactly the set this file
+    exercises below. A fifth status cannot silently appear untested - this goes red until someone
+    adds it to the status-blind sweeps."""
     enum = set(_vocab("continuation_status"))
-    assert STOP_REPORT | HANDOFF_OR_RELEASE == enum, (
-        f"unassigned status value(s): {enum ^ (STOP_REPORT | HANDOFF_OR_RELEASE)!r}"
-    )
-    assert not (STOP_REPORT & HANDOFF_OR_RELEASE), "the two tiers must be disjoint"
+    assert enum == STATUS_ENUM_EXPECTED, f"closed enum changed: {enum!r}"
     assert set(_declared_non_completion_statuses()) == enum - {"DONE"}
 
 
-def test_non_done_status_never_blocks(tmp_path):
-    """A STOP_REPORT status is a stopped run reporting honestly, not a completion claim - the gate
-    must not fire. A BLOCKED agent that preserved its log path is behaving correctly, and one that
-    is BLOCKED *because* its own release failed must be able to say so."""
-    for status in sorted(STOP_REPORT):
+def test_every_status_blocks_when_a_live_lease_is_unforwarded(tmp_path):
+    """The invariant this gate exists for, swept across the WHOLE closed enum plus the two
+    off-enum shapes. A dispatch holding a live lease it acquired itself, naming nobody to take it,
+    must be blocked no matter how it labels its own ending - a stopped run reports honestly AND
+    names its catcher, it does not get to skip the second half.
+
+    MUST FAIL on the pre-fix hook for BLOCKED / NEEDS_CONTEXT (measured: both were an
+    unconditional pass, which is the door the leaked lease escaped through)."""
+    for status in sorted(STATUS_ENUM_EXPECTED) + ["WEDGED"]:
         lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(status)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
+        assert out is not None and out.get("decision") == "block", (
+            f"status={status} holds a live unforwarded lease - the gate must block it"
+        )
+
+
+def test_every_status_passes_when_the_handle_is_forwarded(tmp_path):
+    """The complement, and the reason the tightening above traps nobody: forwarding
+    INSTANCE_HANDLE clears the gate on EVERY status, including the stopped-run reports. An agent
+    whose teardown was denied is never stuck - it names its dispatching caller and ends."""
+    for status in sorted(STATUS_ENUM_EXPECTED):
+        lines = [_line(content=[_acquire("run-abc")]),
+                 _line(content=[_cont(status, forward_handle=True)])]
+        _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is None or out.get("decision") != "block", (
-            f"status={status} reports a stopped run - the instance gate must not block"
+            f"status={status} forwarded INSTANCE_HANDLE - the T4 handoff must pass"
+        )
+
+
+def test_stop_report_still_passes_when_no_lease_is_live(tmp_path):
+    """The tightening is scoped to an actually-live owned lease. A BLOCKED dispatch that released
+    (or never held) one is reporting a stopped run with nothing outstanding - it must sail
+    through, or every unrelated failure would be trapped by a resource gate."""
+    for status in ("BLOCKED", "NEEDS_CONTEXT"):
+        lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(status)])]
+        _, out = _run(tmp_path, lines, leases=[])
+        assert out is None or out.get("decision") != "block", (
+            f"status={status} with no live lease must not be blocked by the instance gate"
         )
 
 
@@ -588,15 +611,15 @@ def test_out_of_enum_completion_claim_is_gated_too(tmp_path):
 
 
 def test_cosmetic_spelling_never_moves_a_status_out_of_its_tier(tmp_path):
-    """False-positive fence for the complement predicate: the gate blocks everything that is
-    neither a stop report nor a named handoff, so a cosmetic spelling - backticks, lowercase, a
-    trailing comma, bold markers - must not cost a status the tier it declared. Both passing
-    tiers are covered: the stop report alone, and NEEDS_NEXT with its handle forwarded."""
+    """Decoration fence, now that the gate is status-blind. Cosmetic spelling - backticks,
+    lowercase, a trailing comma, bold markers - must change NOTHING in either direction: a
+    decorated stop report with a live unforwarded lease still blocks (no spelling buys back the
+    old unconditional pass), and a decorated status with its handle forwarded still passes."""
     for raw in ("`BLOCKED`", "blocked", "NEEDS_CONTEXT,", "**needs_context**"):
         lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(raw)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
-        assert out is None or out.get("decision") != "block", (
-            f"status={raw!r} reports a stopped run - decoration must not hard-block it"
+        assert out is not None and out.get("decision") == "block", (
+            f"status={raw!r} holds a live unforwarded lease - decoration must not buy a pass"
         )
     for raw in ("`NEEDS_NEXT`", "needs_next", "**NEEDS_NEXT**"):
         lines = [_line(content=[_acquire("run-abc")]),
@@ -1192,8 +1215,9 @@ def test_no_file_describes_the_teardown_gate_trigger_as_done_only():
 def test_the_authoritative_artifacts_state_the_real_trigger():
     """The other half of the rule above: deleting the description must NOT pass as 'no stale claim
     found'. The two artifacts a debugging agent actually reads - the hook manifest and the hook's
-    own header - must each name the pass-set (a BLOCKED / NEEDS_CONTEXT stop-report, or a forwarded
-    INSTANCE_HANDLE) and must not present DONE as the key."""
+    own header - must each state the REAL trigger: the gate is status-blind, its one exception is
+    a forwarded INSTANCE_HANDLE, and the stop-report statuses are named as GATED rather than sold
+    as a free pass. A reader who believes `BLOCKED` still walks through will re-open the leak."""
     manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
     for label, text in (
         ("hooks/hooks.json description", manifest.get("description", "")),
@@ -1201,12 +1225,17 @@ def test_the_authoritative_artifacts_state_the_real_trigger():
     ):
         norm = " ".join(text.split())
         assert "BLOCKED" in norm and "NEEDS_CONTEXT" in norm, (
-            f"{label}: must name BOTH stop-report statuses that pass the gate"
+            f"{label}: must name BOTH stop-report statuses the gate now covers"
         )
         assert "INSTANCE_HANDLE" in norm, (
-            f"{label}: must name the forwarded-handle handoff as the gate's other exception"
+            f"{label}: must name the forwarded-handle handoff as the gate's only exception"
         )
-        assert re.search(r"\bNOT keyed|NEVER on the literal|not keyed\b", norm), (
-            f"{label}: must state explicitly that the gate is NOT keyed on the literal DONE - "
-            "without it, the DONE-only reading comes straight back"
+        assert re.search(r"status-blind|STATUS-BLIND", norm), (
+            f"{label}: must say the gate is STATUS-BLIND - without it, the "
+            "'BLOCKED is a sanctioned pass' reading comes straight back and the leak with it"
+        )
+        assert not re.search(
+            r"Only a stopped-run report|stop-report\) or a T4 named handoff passes", norm
+        ), (
+            f"{label}: still advertises the retired unconditional stop-report pass"
         )

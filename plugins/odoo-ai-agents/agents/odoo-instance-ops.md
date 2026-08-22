@@ -501,6 +501,25 @@ release without it fails instead of destroying a database on token possession al
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --run-id "$ALLOC_RUN_ID"
 ```
 
+**If the HARNESS refuses this command before it runs** (a permission denial - the allocator never
+executes, so no exit code of yours describes it), that is NOT one of the outcomes below and NOT
+one of your refusal codes. Do exactly this, and nothing else:
+
+1. Do NOT re-issue it, and do NOT reword, re-encode or re-route it to get past the refusal. The
+   refusal is your answer; an obfuscated retry is itself a blocked action.
+2. Do NOT end on a bare `BLOCKED`. The `SubagentStop` teardown gate is STATUS-BLIND and will hold
+   you while the lease is live and unforwarded.
+3. Forward `INSTANCE_HANDLE` (`lease_token`, `run_id`, db, ports) in your continuation
+   `next.inputs`, naming your **dispatching caller** as the catcher, quote the refusal verbatim,
+   and keep the honest terminal status. See `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+   T4; `permission-denied-teardown.sh` says the same thing at the moment of refusal.
+
+The same three steps apply to a refused `allocator.py park`. Standing fix so it stops recurring:
+the operator adds the allocator's ephemeral-DB shape to `autoMode.environment` in USER or MANAGED
+settings - the classifier deliberately does not read a project's `.claude/settings.json`, so this
+plugin cannot ship it, and you must never edit a permission setting yourself to unblock your own
+call.
+
 A release that could not drop has FOUR outcomes and `--force-forget` decides which are reachable -
 never report one as another (SSOT: `docs/reference/INSTANCE-ALLOCATION-GUARDS.md` §6.7). WITHOUT the flag: a
 DB PROVED absent emits `ALLOC_FORGOTTEN_DB=<db>` and releases cleanly (exit 0, nothing left behind);
@@ -1043,8 +1062,10 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] every lease you took is cleared by ONE of the three exits - release, park the lease
       (operation 8), or forward the handle to a NAMED catcher in `next.inputs`
       (`INSTANCE_HANDLE`) - chosen on whether the DATABASE is still wanted; a lease left on none
-      of the three at any turn end but BLOCKED/NEEDS_CONTEXT is a leak the SubagentStop gate
-      hard-blocks (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4)
+      of the three at ANY turn end is a leak the SubagentStop gate hard-blocks, and that gate is
+      STATUS-BLIND - `BLOCKED`/`NEEDS_CONTEXT` is not an exemption, including when the harness
+      REFUSED the give-back (then the exit is the named handoff to your dispatching caller)
+      (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
