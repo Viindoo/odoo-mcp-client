@@ -6,6 +6,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.5] - 2026-08-22
+
+### Changed
+
+- `odoo-ai-agents` - **instance lease budgets doubled.** `DEFAULT_TTL_S` 3600 -> 7200, and
+  `DEFAULT_REAP_MIN_AGE_S` / `DEFAULT_PARK_TTL_S` re-expressed as `24 * DEFAULT_TTL_S` so they
+  track the TTL instead of restating an hour count (both therefore move 24h -> 48h). The TTL is
+  the residual backstop for the case where liveness cannot be verified AT ALL - a different host,
+  or no pid ever recorded - so a longer budget only delays reclaiming a lease nothing can prove
+  dead; a same-host owner whose pid is verified alive is still never TTL-reaped, and a dead pid is
+  still condemned immediately. Docs, the `SubagentStop` teardown hook and `odoo-instance` were
+  swept to match. KNOWN RESIDUAL, not fixed here: the same sweep also rewrote the seconds-to-hours
+  divisor in `reap-orphans`' candidate line (`age_h = age_s / 7200`), so that ONE printed figure
+  now reports half the real age. It is display-only - `_reap_candidates` decides on `age_s` and is
+  unaffected - but a human reading `age_h=` at the confirm step is reading half.
+
+### Fixed
+
+- `odoo-ai-agents` - **a teardown the harness refuses no longer leaks the lease.** A dispatched
+  agent could ACQUIRE an instance but not give it back: the auto-mode classifier refused
+  `allocator.py park` and `allocator.py release` before they ran. The agent did everything right
+  from there - no retry, no reword, refusal quoted verbatim - and ended on a bare `BLOCKED`, which
+  the `SubagentStop` teardown gate passed unconditionally, so a live ephemeral database and its
+  lease outlived the run and were reclaimed by hand. Reported from two independent forward-port
+  runs. The old pass-set conflated being unable to RELEASE with being unable to NAME A CATCHER;
+  only the first can be taken away, and the second is text in the dispatch's own continuation
+  fence - no tool, no permission, no live process - so requiring it traps nobody. The gate is now
+  STATUS-BLIND: it reads the allocator ledger and the forwarded handle, never the status word, so
+  `DONE`, `NEEDS_NEXT`, `BLOCKED`, `NEEDS_CONTEXT`, an out-of-enum value and a turn with no status
+  are gated alike; when teardown is what failed the catcher is the dispatching caller, and the
+  block message says so. A new `PermissionDenied` hook (`permission-denied-teardown.sh`,
+  matcher-scoped to Bash) states those steps at the moment a give-back verb is refused; it grants
+  no permission and never sets `retry`, because re-issuing a refused destructive call under a new
+  spelling is itself a blocked action. `resource-teardown-contract.md` T0/T4, `odoo-instance-ops`,
+  and one stale checklist line that still called `BLOCKED` an exemption were swept to match. The
+  contract file sat exactly at its card budget, so its grandfather entry moves 12809 -> 13472 as a
+  deliberate, visible bump. NOT fixable here: the standing remedy for the refusal itself is an
+  `autoMode.environment` entry describing the allocator's ephemeral databases, and the classifier
+  deliberately does not read a project's `.claude/settings.json` - only user or managed settings.
+- `odoo-ai-agents` - **the eslint gate now lints with the pinned toolchain instead of whatever the
+  OS ships.** `test_eslint` resolves its binary with a bare PATH lookup, so on a stock Debian box
+  it got eslint 6.4.0 from 2019, which cannot parse a modern `web/tooling/_eslintrc.json`: it exits
+  2 with `Environment key "es2022" is unknown` BEFORE reading a single JS file. Because the test is
+  `@skipIf(eslint is None)`, a present-but-ancient binary does not skip - it FAILS, rendering the
+  parse error as though it were a lint finding about the code. A repo could pin a correct eslint
+  and still be linted by the 2019 one, since nothing put its `node_modules/.bin` ahead of
+  `/usr/bin`. New `scripts/lib/lint_toolchain.sh` resolves the toolchain and is applied inside each
+  odoo-bin launch subshell in `55-instance-ops.sh`, scoped to one invocation exactly like
+  `PGPASSWORD`: it prepends the venv bin plus every repo-local `node_modules/.bin`, exports
+  `REPO_TO_CHECK_QUALITY` when exactly one addons repo owns the modules under test, and logs what
+  it resolved. A repo-local `node_modules` is accepted only at a GIT ROOT: the obvious
+  entry-then-parent search (correct for `odoo-bin`, which does sit beside the addons dir) matched a
+  stray install in the SHARED PARENT of every checkout on a real machine and would have put one
+  unrelated eslint ahead of PATH for all of them - `.git` is the discriminator, not `package.json`.
+  `50-instance-spinup.sh` is deliberately NOT wired: it passes no `--test-enable`, so no lint test
+  runs on its path. The log states what was EXPORTED, never that the gate is configured, because
+  some lint variants read only their config file and have no environment branch; the remedy it
+  names is the instance's OWN generated `odoo.conf`, never the shared default, which would leak one
+  run's lint target into every instance on the host. `odoo-code-quality.md` now records that
+  `ODOO_SERIES` is REQUIRED on a run-integration branch, the one class where every detection step
+  is designed to miss - three inference rescues were measured and all fail, with ancestry matching
+  SIX wrong series at once on a forward-merged repo, and a guard keeps that negative result from
+  being quietly undone.
+
 ## [5.1.4] - 2026-08-21
 
 ### Fixed
