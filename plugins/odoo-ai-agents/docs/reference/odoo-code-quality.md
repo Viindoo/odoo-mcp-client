@@ -58,6 +58,22 @@ that IS the series (the core's own `release.py`; a series-named branch). An addo
 unbumped. When nothing declares a series, the remedy the gate prints is the whole fix -
 `ODOO_SERIES=<series> verify-frontend.sh ...`.
 
+**On a run-integration or feature branch, `ODOO_SERIES` is REQUIRED, not optional.** This is the
+one branch class where every detection step is designed to miss, so the gate returns
+CANNOT-VERIFY on every invocation until a caller supplies the series - which is exactly a gate
+that never runs. Measured on a real run-integration worktree: no core `release.py` (an addons-only
+tree has none); the branch name is `run-integration-<slug>`, not a series; and the manifest
+`version` resolves nothing by design. Three plausible-looking rescues were measured and all fail -
+the upstream ref tracks the same run-integration branch, `--contains HEAD` matches no series
+branch, and ancestry matches SIX wrong series at once (series branches are forward-merged into
+each other, so most of them are ancestors) while missing the right one. There is no git fact to
+infer from; do not add one.
+
+So the CALLER passes it, from a value it already holds: the run's `INSTANCE_HANDLE` / allocator
+lease carries `series`, and the instance-ops dispatch carries the same resolved version. A
+pre-PR lint gate that reports CANNOT-VERIFY with an unresolved-series reason has NOT run - never
+read that row as a pass.
+
 **Every run prints a gate ledger** in the Summary - one row per tier, `RAN` / `DID NOT RUN` /
 `n/a` / `not configured` - whatever the verdict. Read it before quoting any tier's clean line: a
 tier that skipped itself prints nothing, while the tiers that did run still print their clean
