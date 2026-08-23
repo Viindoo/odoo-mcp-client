@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.3.0] - 2026-08-23
+
 ### Added
 
 - `odoo-ai-agents` - **`snippets/red-evidence-contract.md`: a RED is MEASURED or CONSTRUCTED, never
