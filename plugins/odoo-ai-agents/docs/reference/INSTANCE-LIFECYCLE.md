@@ -39,8 +39,12 @@
   `migrations/`, recompute stored fields. `-u all` updates every installed module (slow).
 - Neither is needed for pure-Python logic changes - a **server restart** picks those up.
 - `-i` on an already-installed module is a no-op; to truly reset, uninstall or drop the DB. To
-  RE-RUN tests on a DB that already has the module installed, use `-u <module> --test-enable` (see
-  `ODOO-TESTING.md` § Core test invocation).
+  RE-RUN tests on a DB that already has the module installed, use
+  `-u <module> --test-enable --test-tags /<module>` (see `ODOO-TESTING.md` § Core test invocation).
+- **`-i`/`-u` names modules; it does NOT bound the test run.** Odoo installs the whole dependency
+  closure plus every `auto_install` match, and `--test-enable` runs the suite of everything the
+  registry loaded. Pair the module list with `--test-tags` derived from it, or the run tests `base`
+  upward (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`).
 
 ## Traps to always check
 

@@ -1597,13 +1597,28 @@ def test_the_agent_is_told_an_empty_count_is_not_a_zero():
 # was nominally verifying ONE module (whose real depends closure is two
 # modules).
 #
-# The fix deliberately does NOT change scoping: auto-adding --test-tags or a
-# skip-auto-install flag would suppress tests, manufacturing a false green -
-# the exact defect class this release cycle removed. Instead the SCOPE becomes
-# part of the verdict: the figures actually observed, plus an explicit
-# statement when the verdict was decided outside the module under
-# verification. These guards protect that contract, and protect against the
-# suppression "fix" being introduced later.
+# The FIRST fix made the SCOPE part of the verdict: the figures actually
+# observed, plus an explicit statement when the verdict was decided outside the
+# module under verification. It also forbade the executor from adding
+# --test-tags at all, on the reasoning that any narrowing suppresses tests.
+#
+# That second half was too broad, and produced its own defect: with tags
+# forbidden by default, every run-tests dispatch ran UNTAGGED, so `-i sale`
+# tested the whole installed registry from `base` up - minutes-to-hours of wall
+# clock for a verdict about a tree nobody asked about.
+#
+# The corrected contract splits the two cases that the blanket ban conflated
+# (SSOT: snippets/test-scope-contract.md):
+#   SCOPING     - tags COVERING every module in --modules. The run tests exactly
+#                 what the caller declared; fan-out outside --modules was never
+#                 in scope, so not running it hides nothing. Required, and
+#                 DERIVED from --modules when the brief carries no tags.
+#   SUPPRESSION - tags narrower than --modules, or an unrequested
+#                 skip-auto-install, so a module the caller DID declare stops
+#                 being exercised. Still forbidden: that manufactures a false
+#                 green.
+# These guards protect both halves, so neither the untagged-by-default defect
+# nor the suppression "fix" can return.
 # ---------------------------------------------------------------------------
 
 # The grounded markers the figures come from - the script's own ran-marker SSOT
@@ -1677,32 +1692,96 @@ def test_run_tests_verdict_names_a_verdict_decided_outside_the_module():
     )
 
 
-def test_run_tests_never_narrows_the_run_to_hide_the_fan_out():
-    """The scope must be made VISIBLE, never suppressed: the contract must
-    forbid auto-adding a tag filter or a skip-auto-install flag the caller did
-    not ask for.
+def test_run_tests_resolves_test_tags_and_never_runs_untagged_by_default():
+    """A dispatch that carries no TEST_TAGS must still run SCOPED: the contract
+    must require deriving `/<m>` from --modules, and must say what an untagged
+    run actually costs.
 
-    This guards the tempting wrong fix. Suppressing tests to make a per-module
-    gate quiet manufactures a false green, which is worse than a noisy one -
-    paired with the presence assertions above so neither half can be dropped
-    alone."""
+    Pre-fix RED: the section said 'Pass --test-tags only when test tags are
+    provided' and forbade the executor from adding them, so the default run was
+    untagged - `-i sale` tested every installed module's suite from base up."""
+    section = _run_tests_section(_norm(AGENT_MD))
+    assert re.search(r"deriv", section, re.IGNORECASE), (
+        "the run-tests contract must require the tags to be DERIVED when the brief "
+        "carries none - otherwise the default run is untagged"
+    )
+    assert re.search(r"/<m>|/<module>", section), (
+        "the derivation must be stated concretely (`/<m>` per module in --modules), "
+        "not left as 'scope it appropriately'"
+    )
+    assert re.search(
+        r"(never|not|do NOT|must not)[^.]{0,120}untagged|untagged[^.]{0,200}"
+        r"(registry|base upward|`base` upward|every installed module)",
+        section, re.IGNORECASE,
+    ), (
+        "the contract must state the CONSEQUENCE of running untagged (the whole "
+        "installed registry is tested), so the default is not read as harmless"
+    )
+    assert re.search(r"full", section), (
+        "the contract must keep an explicit value for an intentional full run, so a "
+        "deliberate full sweep is distinguishable from a forgotten tag"
+    )
+    assert re.search(r"cli_help", section), (
+        "the derivation must be gated on the series actually supporting the /module "
+        "selector, confirmed via cli_help - never assumed from a version range"
+    )
+
+
+def test_run_tests_forbids_narrowing_below_the_declared_module_set():
+    """Scoping is required; SUPPRESSION stays forbidden. The contract must
+    forbid tags narrower than --modules and an unrequested skip-auto-install,
+    and must keep saying why.
+
+    This guards the tempting wrong fix in the other direction: quieting a
+    per-module gate by dropping a declared module from the tags manufactures a
+    false green, which is worse than a noisy run."""
     section = _run_tests_section(_norm(AGENT_MD))
     hits = [
         section[max(0, m.start() - 200): m.end() + 120]
         for m in _SUPPRESSION_FLAG_RE.finditer(section)
     ]
-    assert hits, "the run-tests section must reference the scoping flags it must not auto-add"
+    assert hits, "the run-tests section must reference the scoping flags it governs"
     assert re.search(
-        r"\b(never|not|do NOT|must not)\b[^.]{0,200}?"
-        r"(--test-tags|test_tags|skip-auto-install|skip_auto_install)",
+        r"\b(never|not|do NOT|must not)\b[^.]{0,240}?"
+        r"(skip-auto-install|skip_auto_install)",
         section, re.IGNORECASE,
     ), (
-        "the contract must FORBID auto-adding --test-tags / skip-auto-install the caller "
-        "did not request - suppressing tests manufactures a false green"
+        "the contract must FORBID adding a skip-auto-install flag the caller did not "
+        "request - suppressing tests manufactures a false green"
+    )
+    assert re.search(
+        r"(below|narrow\w*\s+below|fewer than|drop a module)",
+        section, re.IGNORECASE,
+    ), (
+        "the contract must name the SUPPRESSION case precisely - tags covering fewer "
+        "modules than --modules declared - rather than banning tags outright"
     )
     assert re.search(r"false green|false-green", section, re.IGNORECASE), (
-        "the reason the run is not narrowed must stay stated, so a later edit does not "
-        "'optimize' the noise away"
+        "the reason suppression is forbidden must stay stated, so a later edit does not "
+        "'optimize' a failing declared module away"
+    )
+
+
+def test_run_tests_reports_which_tags_it_used():
+    """The selection side of the scope must be reported, not just the install
+    side: a reader cannot judge a verdict from `modules_installed` alone.
+
+    Pre-fix RED: the output block carried modules_installed and the two measured
+    figures, but nothing said whether a filter had been applied at all - so an
+    untagged run and a correctly scoped one reported identically."""
+    raw = AGENT_MD.read_text(encoding="utf-8")
+    assert "test_tags_used" in raw, (
+        "the canonical output block must carry the tags the run actually used"
+    )
+    assert re.search(r"test_tags_source", raw), (
+        "the report must say WHERE the tags came from (caller-supplied, derived, or an "
+        "intentional full run) - provenance is what distinguishes a deliberate full "
+        "sweep from a forgotten filter"
+    )
+    section = _run_tests_section(_norm(AGENT_MD))
+    assert re.search(r"provenance|caller-supplied", section, re.IGNORECASE), (
+        "the run-tests section must require the provenance in its own report, not only "
+        "declare the field in the output block"
     )
 
 
@@ -1742,11 +1821,17 @@ def test_skill_relays_the_scope_transparency_requirement():
         "the relay must require the out-of-scope statement to be passed through"
     )
     assert re.search(
-        r"\b(never|not|do NOT|must not)\b[^.]{0,200}?"
-        r"(test_tags|--test-tags|skip_auto_install|skip-auto-install)",
+        r"\b(never|not|do NOT|must not)\b[^.]{0,240}?"
+        r"(skip_auto_install|skip-auto-install)",
         text, re.IGNORECASE,
     ), (
-        "the skill must forbid narrowing the run to hide the fan-out"
+        "the skill must forbid suppressing the run - narrowing below the modules the "
+        "caller declared, or adding an unrequested skip_auto_install"
+    )
+    assert re.search(r"deriv", text, re.IGNORECASE), (
+        "the relay must state that an absent test_tags is DERIVED from modules, not "
+        "that the run goes out untagged - the front door is where callers read the "
+        "default from"
     )
     assert "odoo-instance-ops.md" in SKILL_MD.read_text(encoding="utf-8"), (
         "the decidable rule stays single-sourced in the agent - the skill points at it"

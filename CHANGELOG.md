@@ -6,6 +6,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **a `--test-enable` run is now scoped on BOTH sides, so `-i sale` stops testing
+  the installed world.** Agents wrote `-i sale --test-enable` where `-i sale --test-enable
+  --test-tags /sale` was meant, and `-u sale,account --test-enable` where `--test-tags
+  /sale,/account` was meant. `-i`/`-u` names modules but does not bound the run: Odoo installs the
+  whole dependency closure plus every `auto_install` match, and `--test-enable` runs the suite of
+  everything the registry loaded - so a "one module" verification tested down to `base`, spending a
+  runtime set by the closure rather than by the change, and deciding its verdict on suites the
+  change never touched. The instructions caused it: `odoo-instance-ops` § Scope transparency said
+  *"never auto-add `--test-tags` ... the caller did not ask for"*, its `run-tests` operation said
+  *"Pass `--test-tags` only when test tags are provided"*, and `odoo-instance`'s `test_tags` field
+  was documented as an optional method-level selector - so with no tags in the brief, every dispatch
+  went out untagged BY CONTRACT. `ODOO-TESTING.md` then told the reader to *"let the suite run the
+  full `post_install` set (do not narrow the tag to the cluster)"*, and `odoo-test-writing` told it
+  to reach for `--skip-auto-install` instead - a flag that changes what is INSTALLED and can hide a
+  real integration break. New SSOT `snippets/test-scope-contract.md` states the two-sided rule (the
+  `-i`/`-u` list and the `--test-tags` selection are derived from ONE module set and must agree),
+  the derivation default (no tags in the brief -> derive `/<m>` per module, never run untagged), the
+  four cases where an untagged run IS correct, and the SCOPING-vs-SUPPRESSION test. `TEST_TAGS:
+  full` is now the explicit way to ask for an untagged run, so a deliberate full sweep is
+  distinguishable from a forgotten filter; `none`/omitted means NOT SUPPLIED and derives.
+  `55-instance-ops.sh` emits `TEST_TAGS_USED=<tags|(untagged)>` beside the existing scope figures,
+  and the agent reports `test_tags_used` + `test_tags_source` in its output block, so a forgotten
+  filter is visible in the summary rather than silent. The blast-radius algorithm
+  (`skills/_shared/regression-scope.md`) is unchanged and now states that its run-set feeds both
+  sides. Untagged examples corrected across `INSTANCE-ALLOCATION-MODES.md`, `INSTANCE-LIFECYCLE.md`,
+  `rb-phase-detail.md`, `upg-phase-detail.md` (which said `test_tags: (none - run all module tests
+  for this level)`) and `fp-phase-detail.md` (which defaulted to *"no narrowing (run the full
+  closure)"*); the Runbot Gate-7 parity run stays untagged and now says so as a named exemption.
+
+### Changed
+
+- `odoo-ai-agents` - **the suppression guard is preserved, not reverted.** The earlier fix for a
+  per-module verdict decided by 63 auto-installed modules banned the executor from adding tags at
+  all, which is what produced the untagged-by-default defect. The ban is now stated as the narrower
+  rule it always meant: tags may never cover FEWER modules than `--modules` declared, and an
+  unrequested `skip-auto-install` is still forbidden, because suppressing a module the caller DID
+  declare manufactures a false green. Deriving tags that cover exactly the declared set is not
+  suppression - the fan-out outside it was never in scope. `tests/test_instance_ops_hardening.py`
+  now holds both ends, and `tests/test_test_scope_contract.py` adds a corpus guard that fails on any
+  agent-facing `odoo-bin ... --test-enable` example that runs untagged with no stated exemption.
+  Deliberate card-budget bumps: `snippets/test-scope-contract.md` (new hot contract) and
+  `skills/_shared/regression-scope.md` (already over the default cap; crossed the 3-citer threshold
+  through the new cross-references).
+
 ## [5.1.7] - 2026-08-22
 
 ## [5.1.6] - 2026-08-22

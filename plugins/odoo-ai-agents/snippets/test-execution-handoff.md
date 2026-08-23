@@ -2,12 +2,11 @@
      inline vs delegate, INSTANCE_HANDLE precedence, the NEEDS_NEXT escalation, and the
      output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
      odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
-     the odoo-coder node coordinator (launched once per work node) owns the INTEGRATED whole-node
-     instance test; odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate
-     only - ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a
-     delegated odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail).
-     Canonical NEEDS_NEXT
-     example lives in odoo-test-writing Round 5.
+     the odoo-coder node coordinator owns the INTEGRATED whole-node instance test;
+     odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate only -
+     ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a delegated
+     odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail).
+     Canonical NEEDS_NEXT example lives in odoo-test-writing Round 5.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
 # Test-Execution Handoff Contract (who runs the suite, and where the output goes)
@@ -37,8 +36,8 @@ Run a check inline ONLY when it is small, immediate, and its output is bounded:
 DELEGATE to `odoo-instance` (which dispatches `odoo-instance-ops`) when any of these hold:
 - the full module suite or a cross-module/cluster run,
 - a run needing a live HTTP server (tour / `HttpCase` / `url_open`, requires `--http-port`),
-- demo=on integration runs, install/upgrade (`-i` / `-u`) of a cluster,
-- output would be large (full test log, tracebacks, query-count dumps).
+- demo=on integration runs, install/upgrade (`-i`/`-u`) of a cluster,
+- output would be large (full test log, tracebacks, query dumps).
 
 The writer/orchestrator MUST NOT allocate a DB + port and run a full suite inside its own context -
 that is the executor's job and it pollutes the caller.
@@ -46,8 +45,8 @@ that is the executor's job and it pollutes the caller.
 ## INSTANCE_HANDLE precedence (provided handle always wins - one narrow exception)
 
 If the brief carries an `INSTANCE_HANDLE`, USE IT for every odoo-bin operation - do NOT allocate
-your own db_name / port / addons_path (self-provisioning collides on port 8069 / DB name when
-agents run concurrently). Only when NO handle was passed, or the brief instead carries
+your own db_name / port / addons_path (self-provisioning collides on the port/DB name when agents
+run concurrently). Only when NO handle was passed, or the brief instead carries
 `SELF_PROVISION: worktree-addons` (never both), does the executor acquire its own isolated
 ephemeral instance - the ONE dispatcher-declared carve-out that authorizes self-provisioning even
 though a handle would otherwise be expected. Full contract:
@@ -65,7 +64,7 @@ status: NEEDS_NEXT
 next:
   - skill: odoo-instance
     reason: provision the live instance needed to run the suite / tours and adjudicate
-    inputs: {operation: run-tests, series: "<series>", modules: [<test_set>]}
+    inputs: {operation: run-tests, series: "<series>", modules: [<test_set>], test_tags: "<`/<m>` per module - bounds the run>"}
     confidence: 0.9
 ```
 

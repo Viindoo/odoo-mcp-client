@@ -291,8 +291,9 @@ inferred from module count, worktree path, or any other proxy:**
   to the probe-and-union steps below.
 - `GATE_ROLE: node-verify` - this dispatch is a node verification run
   (e.g. the `odoo-coder` coordinator's own integrated-node test, run for every node). Do
-  NOT probe for, install, or tag `test_lint`/`test_pylint` here - run the requested test tags/modules
-  exactly as given, with no lint-module union. A `test_lint`/`test_pylint` violation in freshly
+  NOT probe for, install, or tag `test_lint`/`test_pylint` here - run this dispatch's own resolved
+  scope (the tags the caller supplied, or the ones derived from `--modules` per "Test scope" in the
+  `run-tests` operation below), with no lint-module union. A `test_lint`/`test_pylint` violation in freshly
   written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-node
   `tests-failed` blocker.
 - `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - STOP and return `status:
@@ -318,7 +319,9 @@ the explicit argument on every call, never relying on the ambient `set_active_pr
 2. Append its tag to `--test-tags` (`/test_lint`, `/test_pylint`).
 
 The install set and the tag set MUST derive from the SAME probe - never tag a module you did not
-install (its tests will not load, and a green run would be a false pass). This composes with, and
+install (its tests will not load, and a green run would be a false pass). This is the two-sided
+scope rule (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`) applied to one more module: the
+lint modules widen BOTH sides together, they never license an untagged run. It composes with, and
 does not replace, the `en_US` HARD RULE above and the `--test-tags` selection guidance in
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. Do not hardcode which series carries which
 lint module - the runtime probe is authoritative (`ODOO-TESTING.md`'s version table is
@@ -603,7 +606,30 @@ Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP 
 
 Run the Odoo test suite for one or more modules - either against a fresh ephemeral database (init+test in one pass) or by re-running on an existing database that already has the modules installed.
 
-**Inputs:** series, modules, test tags (optional), `mode` (`fresh` | `reuse`, default `fresh`), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
+**Inputs:** series, modules, test tags (supplied by the caller, `full`, or absent - absent means DERIVE, see "Test scope" below; it never means "run untagged"), `mode` (`fresh` | `reuse`, default `fresh`), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
+
+**Test scope (HARD RULE - every `--test-enable` build).** A build's install set (`-i`/`-u`) and its
+selection set (`--test-tags`) are TWO SIDES OF ONE module set and must agree. Resolve the tags
+BEFORE composing the command, in this order:
+
+1. **`TEST_TAGS` names tags** -> use them verbatim. They are the caller's resolved blast radius.
+2. **`TEST_TAGS: full`** -> run untagged, on purpose. Name in `notes` which numbered exemption from
+   `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md` § `TEST_TAGS: full` and the exemptions
+   applies (case 1, the caller's explicit request, being the usual one).
+3. **`TEST_TAGS` absent / `none` / empty** -> **DERIVE** `/<m>` for every module in `--modules`,
+   comma-joined, and state in `notes` that the tags were derived. Do NOT run untagged: untagged
+   silently substitutes the whole installed registry - `base` upward, plus the `auto_install`
+   fan-out - for the scope the caller declared by naming those modules.
+
+The derivation needs a series whose `--test-tags` supports the `/module` selector: confirm via
+`cli_help(command='server', odoo_version='<series>')` in the Common preamble, never from memory. On
+a series that has no tag filter, the run is necessarily full - report it as exemption case 3 rather
+than as a scoped run.
+
+Full contract, including the SCOPING-vs-SUPPRESSION test and the exemption list:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`. Which modules belong in the set is the
+CALLER's blast-radius decision (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`) - you
+never widen `--modules` yourself, and you never narrow the tags BELOW it.
 
 **Pick the mode (auto rule).** If the brief carries an `INSTANCE_HANDLE` whose DB already has the scope modules installed, re-running tests there MUST use `reuse` - `-i` on an already-installed module is a no-op that does NOT re-exercise the install path. If you acquired a fresh ephemeral DB for this run (created by the `-i` pass), use `fresh`. `fresh` -> `-i`, `reuse` -> `-u`; the script maps `--mode` to the right flag - confirm the `-i`/`-u` semantics for the series via `cli_help(command='server', odoo_version='<series>')`.
 
@@ -620,12 +646,12 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
   --modules "<modules>" \
   --mode <fresh|reuse> \
   --version "<series>" \
-  [--test-tags "<tags>"] \
+  --test-tags "<resolved tags>" \
   [--log-mode <info|debug|sql>] \
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps the shared `info` default. Always pass `--version <series>`: the result parser needs it to pick the era-correct "the suite ran" marker. Version-correct flags - e.g. a skip-auto-install flag on series that support it, when the CALLER asked for one - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
+(Pass `--mode` per the auto rule above. Pass `--test-tags` with the tags resolved by "Test scope" above - caller-supplied or derived; OMIT the flag only for a `TEST_TAGS: full` run or a series with no tag filter, which are the two cases where an untagged run is the intent. Pass `--log-mode` only when a non-default log level is wanted - omitted, the script keeps the shared `info` default. Always pass `--version <series>`: the result parser needs it to pick the era-correct "the suite ran" marker. Version-correct flags - e.g. a skip-auto-install flag on series that support it, when the CALLER asked for one - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
 
 **Active wait (HARD RULE):** a `--test-enable` build is long - launch it in the background, then BLOCK in the FOREGROUND on `wait-log --log "<LOG_PATH>"` as your VERY NEXT tool call per "Active-wait on long builds" above. The ONLY completion signal is the run's OWN `TEST_RESULT=` line (or, before it lands, a hard-abort marker proving odoo-bin died) - every per-test failure marker and every count line, whichever suite published it, is MID-RUN evidence, not completion, exactly as that section states; never treat one as a reason to stop waiting. Never idle-stall past the tool timeout, never end a turn on a text-only "waiting" reply, and never return before the run terminates.
 
@@ -644,21 +670,33 @@ The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TES
 **Never grep the log for a JS success marker to decide anything.** Odoo prints the failing `browser_js(...)` source line, success-signal argument and all, inside its traceback, so a run that FAILED contains the success string verbatim. Even a correctly log-prefixed success marker speaks only for ITS OWN logger scope: one scope genuinely succeeding while another scope of the same run fails hundreds of tests is a shape that occurs in practice. The script already resolves this per scope; read `TEST_RESULT=` and the `JS_*` fields it emits, and never substitute your own grep for them.
 
 **Scope transparency (EVERY `run-tests` dispatch - a verdict is unreadable without the scope it was
-decided on).** Odoo's `auto_install` fan-out loads, and therefore tests, far more modules than
-`--modules` names, so a per-module verdict can be decided by tests this dispatch was never
-verifying. Do NOT narrow the run to hide them - never auto-add `--test-tags` or a skip-auto-install
-flag the caller did not ask for; suppressing tests manufactures a false green, which is worse than a
-noisy one. Make the scope VISIBLE instead. Read both figures from THIS run's own log with one
-BOUNDED grep each (`grep -aE '<marker>' <log> | tail -n 5`):
-- **modules actually loaded** - the HIGHEST `<N>` across the log's `loading <N> modules...` lines
-  (the widest registry this run built), reported next to how many `--modules` named;
-- **tests actually run** - the ran-marker total. Which marker THIS series prints is the parser's
-  fact, not yours to restate: read the two spellings it greps for from the `ran-marker` block in
-  `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh` and match on BOTH, taking the
-  total from the marker's LAST integer. Never gate the grep on a series.
+decided on).** Odoo's `auto_install` fan-out loads far more modules than `--modules` names, so an
+UNTAGGED run's verdict can be decided by tests this dispatch was never verifying. Two obligations
+follow, and they are different things - do not collapse them:
 
-State BOTH in the output block's `notes` field on EVERY `run-tests` dispatch. A figure THIS log does
-not carry is reported `unknown` - never estimated, never omitted. Then adjudicate SCOPE from
+- **Bound the run to the declared scope.** The `--test-tags` resolved in "Test scope" above keep the
+  suite on the modules the caller named. That is not hiding anything: fan-out outside `--modules`
+  was never in this dispatch's scope. What IS forbidden is narrowing BELOW the declared scope -
+  never drop a module in `--modules` from the tags, and never add a skip-auto-install flag the
+  caller did not ask for, to quiet a failure or fit a timeout. That suppresses tests the caller DID
+  declare and manufactures a false green, which is worse than a noisy run. The SCOPING-vs-SUPPRESSION
+  discriminator is single-sourced in `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
+- **Make the scope VISIBLE.** Whatever the tags, report what the run actually covered. Read both
+  figures from THIS run's own log with one BOUNDED grep each
+  (`grep -aE '<marker>' <log> | tail -n 5`):
+  - **modules actually loaded** - the HIGHEST `<N>` across the log's `loading <N> modules...` lines
+    (the widest registry this run built), reported next to how many `--modules` named;
+  - **tests actually run** - the ran-marker total. Which marker THIS series prints is the parser's
+    fact, not yours to restate: read the two spellings it greps for from the `ran-marker` block in
+    `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh` and match on BOTH, taking the
+    total from the marker's LAST integer. Never gate the grep on a series.
+
+State the TAGS USED and their provenance (caller-supplied / derived from `--modules` / `full` under
+a named exemption), plus BOTH figures, in the output block's `notes` field on EVERY `run-tests`
+dispatch. The figures are what expose a scope that did not hold - tags meant to bound the run to two
+modules beside a log reporting thousands of tests is a contradiction to report, not to round off. A
+figure THIS log does not carry is reported `unknown` - never estimated, never omitted. Then
+adjudicate SCOPE from
 `findings_path`: a failing or erroring test whose module is NOT in this dispatch's `--modules` list
 is OUT OF SCOPE. Whenever at least one exists, `notes` MUST state that the verdict was decided
 partly - or, when no in-scope test failed at all, ENTIRELY - by tests outside the module under
@@ -1022,9 +1060,11 @@ js_scope: <scoped|unscoped or null>  # run-tests only; from JS_SCOPE= - `unscope
 js_failed_reported: <n or null>      # run-tests only; from JS_FAILED_REPORTED= - each run's OWN figure summed (QUnit assertions + Hoot tests, mixed units); never added to `failed`
 js_failed_tests: <n or null>         # run-tests only; from JS_FAILED_TESTS= - distinct failing browser test NAMES; null when unmeasured, never 0
 findings_path: <path or null># run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
+test_tags_used: <tags or 'untagged'>  # run-tests only; from TEST_TAGS_USED= verbatim - the SELECTION side of the scope, beside modules_installed's install side. Never null: `untagged` is a known fact about the invocation, not an absent measurement
+test_tags_source: <caller | derived | full>  # run-tests only; where test_tags_used came from - the brief's TEST_TAGS, derived as `/<m>` per module, or an intentional full run (name the exemption in notes)
 lease_token: <token or null>
 status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-inconclusive | tests-failed | ready-for-doc | error | parked   # `parked` is NOT a flavour of `down`: the server is stopped but the lease still owns its database, filestore and ports, and a resume brings it back - reporting it as `down` tells the caller its data is gone
-notes: <one-line summary of any non-obvious decision or error; run-tests: ALWAYS carries the scope figures (modules actually loaded / tests actually run) and names any verdict decided by tests outside the module under verification>
+notes: <one-line summary of any non-obvious decision or error; run-tests: ALWAYS carries the test tags used + their provenance (caller-supplied / derived / full under a named exemption), the scope figures (modules actually loaded / tests actually run) and names any verdict decided by tests outside the module under verification>
 ```
 ````
 
@@ -1056,7 +1096,8 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: JS_RUNS/JS_SCOPE/JS_FAILED_REPORTED/JS_FAILED_TESTS captured and forwarded; a non-zero JS figure named in `notes` beside the Python counts and never summed into `failed`; all four EMPTY forwarded as `null` and described as "no browser suite measured", never as 0; no hand-rolled grep for a JS success marker anywhere in the dispatch
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; an EMPTY TEST_FAILED/TEST_ERROR forwarded as `null` and described as unmeasured, never as 0; tests-passed-with-warnings claimed only on warnings>0 with BOTH fail and error counts a measured 0 - an EMPTY count is not that evidence (findings_path surfaced, not swallowed)
-- [ ] run-tests scope reported in `notes` on EVERY dispatch: modules actually loaded + tests actually run, read from THIS run's log (or `unknown`), and any verdict decided by tests outside the `--modules` scope named as such - never narrowed away with an unrequested `--test-tags`/skip-auto-install flag
+- [ ] run-tests scope RESOLVED before the command is composed: `--test-tags` caller-supplied, or DERIVED as `/<m>` per `--modules` when the brief carried none, or omitted only for `TEST_TAGS: full` / a series with no tag filter - never left off by default, and never narrowed BELOW `--modules` nor paired with an unrequested skip-auto-install flag
+- [ ] run-tests scope reported in `notes` on EVERY dispatch: the tags used + their provenance, modules actually loaded + tests actually run, read from THIS run's log (or `unknown`), and any verdict decided by tests outside the `--modules` scope named as such
 - [ ] `TEST_RESULT=` read on EVERY dispatch and honored over the counters; tests-passed claimed ONLY on `TEST_RESULT=passed`, never inferred from all-zero counters; every `TEST_RESULT=inconclusive` reported as tests-inconclusive (findings_path surfaced, not swallowed; no exit code forced by skips alone)
 - [ ] `GATE_ROLE: pre-pr-lint-gate` run-tests dispatches: checker-load coverage confirmed per-module from THIS run's own log (never a hardcoded phrase) before trusting any all-zero counter set as tests-passed; a confirmed shortfall or an unconfirmable log both reported as tests-inconclusive, NEVER swallowed into tests-passed (see "Checker-load coverage confirmation" above)
 - [ ] every lease you took is cleared by ONE of the three exits - release, park the lease
@@ -1071,7 +1112,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
 - [ ] profile resolved and PINNED before any `to_base`/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
 - [ ] server-wide modules: `check_module_exists('to_base', ..., profile_name=<pinned>)` probed with the pinned profile before building `--load`; era default resolved via `cli_help` with local-source fallback (`base,web`, flagged `grounded: local-source`) when `cli_help` is silent (v19); `to_base` unioned into `--load` (never replacing the era default) when Indexed=Yes, left untouched when Indexed=No
-- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `node-verify` -> no lint probe, no lint union, run only the requested tags/modules; `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision

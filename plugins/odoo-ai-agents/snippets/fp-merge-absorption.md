@@ -170,7 +170,9 @@ the adapted worktree instead of the principal checkout.
 
 1. Collect the batch (module set = every module touched by the batch's commits).
 2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `persist: ephemeral`,
-   `modules: <the batch's affected modules>`, `mode: fresh` (install + test in one pass - Odoo
+   `modules: <the batch's affected modules>`, `test_tags: <`/<m>` per module in that list - the
+   install closure and the tag set are two sides of one scope;
+   `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`>`, `mode: fresh` (install + test in one pass - Odoo
    create-on-init builds the DB; the allocator only reserves the DB name/ports, it never runs
    `createdb` directly). Memory-cap is applied automatically inside `odoo-instance-ops` - no
    separate field to pass (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). For the

@@ -732,6 +732,50 @@ def test_test_verb_passes_test_tags_to_odoo_bin(tmp_path):
     assert "/sale" in call_content, (
         f"Expected '/sale' tag in odoo-bin call: {call_content}"
     )
+    assert "TEST_TAGS_USED=/sale" in res.stdout, (
+        "the summary must report the SELECTION side of the scope, so a reader can tell "
+        f"what the verdict covered: {res.stdout}"
+    )
+
+
+@requires_bash
+def test_test_verb_reports_an_untagged_run_as_untagged(tmp_path):
+    """A run given no --test-tags must SAY it ran untagged.
+
+    `-i <mod> --test-enable` with no tag filter runs every module the registry
+    loaded - the whole dependency + auto_install closure from `base` up - not
+    the module named in --modules. That is a legitimate invocation (older series
+    have no filter; a full sweep is sometimes wanted) but it must be legible in
+    the summary, because otherwise a forgotten tag and a deliberate full run
+    report identically. `(untagged)` is a positively-known fact about the
+    invocation, so it is NOT reported as an empty/unmeasured value the way
+    MODULES_LOADED is when the log carries no marker."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "untaggeddb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        env=env,
+    )
+
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--test-tags" not in call_content, (
+        "the script receives fully-resolved flags - it must not invent a filter the "
+        f"caller did not pass: {call_content}"
+    )
+    assert "TEST_TAGS_USED=(untagged)" in res.stdout, (
+        f"an untagged run must be reported as such, never as a blank: {res.stdout}"
+    )
 
 
 # ---------------------------------------------------------------------------

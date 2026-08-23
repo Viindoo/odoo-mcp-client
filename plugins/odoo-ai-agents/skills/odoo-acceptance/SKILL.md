@@ -152,8 +152,10 @@ verbatim - never default to the catalog/principal checkout when one was supplied
 For High- AND Med-tier modules in `test_set`, launch the `odoo-test-writer` agent (mode tour/HttpCase;
 it authors by invoking the `odoo-test-writing` skill inline, in its own context) to realize the
 oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
-`--test-enable`). This channel uses no browser, parallelizes across ephemeral DBs, feeds CI, and MAY
-run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
+`--test-enable`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
+is about those modules, and an untagged run would spend the sweep re-testing the core closure they
+pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). This channel uses no browser,
+parallelizes across ephemeral DBs, feeds CI, and MAY run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
 output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. (Med-tier also gets a
 SEPARATE smoke pass on the live channel below - see the Med-tier depth note in Phase 2b; the two
 clauses target different channels, not a contradiction.)

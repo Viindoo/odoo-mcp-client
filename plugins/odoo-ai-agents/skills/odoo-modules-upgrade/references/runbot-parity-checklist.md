@@ -158,6 +158,13 @@ When a module flips `installable: False → True`, the full `test_pylint` suite 
 on Runbot with `--init <module>` and **demo data ON** (the default for all v8-v18; explicit
 `--with-demo` for v19+). Run locally with demo ON to reproduce:
 
+> **This gate is DELIBERATELY untagged** - exemption case 4 of
+> `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md` (reproducing a CI gate that itself runs
+> untagged). Parity with Runbot is the point, so the scope must match Runbot's, not the change's
+> blast radius. Declare it as `TEST_TAGS: full` when dispatching through `odoo-instance`, so the log
+> shows a full run that was intended rather than a tag someone forgot. Every OTHER test run in this
+> checklist carries `--test-tags`.
+
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 

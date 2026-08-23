@@ -741,7 +741,10 @@ operation: run-tests
 series: <target_version>
 modules: <THIS LEVEL's modules only, comma-separated>
 flags: --test-enable
-test_tags: (none - run all module tests for this level)
+test_tags: <`/<m>` for every module in THIS LEVEL, comma-joined - the same set as `modules`, so the
+           level's own suites run and the transitive core closure installed in Step 2 does not.
+           Untagged here would test every module the level pulled in, `base` upward, on EVERY level.
+           SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md>
 CONFIRM: "report per-module test result for this level"
 ```
 

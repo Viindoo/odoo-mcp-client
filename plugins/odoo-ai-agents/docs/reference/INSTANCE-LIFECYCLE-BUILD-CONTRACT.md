@@ -27,6 +27,13 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
    flag that `-u` may not reload it and point at the era-correct asset location (verify).
 6. **`store=True` recompute** - ensure recompute happened; verify the column.
 7. **Tests** - see `ODOO-TESTING.md`; pick the test invocation supported by the target version.
+   **A `--test-enable` build declares its scope on BOTH sides:** the `-i`/`-u` list builds the
+   registry, and `--test-tags` (`/<m>` per module in that list) decides whose tests run. They are
+   derived from ONE module set - the change plus its in-repo blast radius - and a build that names
+   modules without tagging them runs the whole installed closure's suites, `base` upward. The
+   derivation default, the cases where an untagged run IS correct, and the line between legitimate
+   scoping and false-green suppression: `snippets/test-scope-contract.md` (module-set selection
+   itself: `skills/_shared/regression-scope.md`).
 8. **Version bump ≠ `-u`** - migrations go through the upgrade path.
 9. **Read-only verification** - confirm `-d` target and addons-path; never run Odoo just to
    "test a guess" - query OSM/source instead.

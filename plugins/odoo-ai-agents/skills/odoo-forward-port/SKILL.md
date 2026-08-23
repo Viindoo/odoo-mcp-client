@@ -506,7 +506,8 @@ path, import, and test-base-class the merged code touches (Lane 1 production AND
 only); you triage each returned finding into a bucket (b adapt / c re-implement / d drop) - never
 leave an auto-merged line referencing a dead symbol.
 **ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
-(`python -m pytest --collect-only` or `odoo-bin ... --test-enable` collection) before any
+(`python -m pytest --collect-only`, or an `odoo-bin ... --test-enable` collection scoped with
+`--test-tags` to the forwarded closure) before any
 red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from
 P9 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record findings in
 `merge-log.md`; P8a brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.

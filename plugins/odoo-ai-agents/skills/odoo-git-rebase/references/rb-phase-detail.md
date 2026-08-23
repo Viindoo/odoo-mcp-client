@@ -723,10 +723,13 @@ python -m pytest --collect-only <feature-touched test files>
 # OR via odoo-bin for TransactionCase/HttpCase tests. Pick the flag by DB freshness:
 #   -i <modules> on a FRESH <db> (modules not yet installed - the usual collection-gate case);
 #   -u <modules> on a REUSED/already-installed <db> (-i on an installed module is a no-op).
+#   --test-tags MUST mirror <modules> (`/<m>` each, comma-joined): untagged, this gate collects and
+#   runs every installed module's suite from `base` up, not the ones being rebased.
+#   SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md
 #   Confirm flags via cli_help; see ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
 #   Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d <db> --test-enable --stop-after-init -i <modules> \
+odoo-bin -d <db> --test-enable --stop-after-init -i <modules> --test-tags <'/<m>' per module> \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | grep -E "ERROR|error"
 ```
 

@@ -63,7 +63,7 @@ When invoked, gather the following from the caller's request:
 | `PROFILE` | Tenant profile name, e.g. `viindoo_17`; this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here |
 | `demo` | `on` / `off` (default `off`) |
-| `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
+| `test_tags` | `run-tests` scope selector - the OTHER half of `modules` (`-i`/`-u` builds the registry, `test_tags` decides whose tests run). Pass the caller's resolved blast radius, normally `/<m>` per module in `modules` (e.g. `/sale,/account`), narrowable to a class or method (`/module.ClassName.method_name`) for a focused re-run. `full` = run untagged ON PURPOSE (release sweep, CI/Runbot parity, no-code-change smoke) - an explicit declaration, not a blank. OMITTED / `none` = not supplied, and the agent DERIVES `/<m>` per module rather than running untagged; a `-i sale --test-enable` with no tags runs every installed module's suite from `base` up, which is the defect this field exists to prevent. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`; which modules belong in the set: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` |
 | `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions `test_lint`/`test_pylint` into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
 | `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
@@ -208,7 +208,9 @@ PROFILE: <the NON-EMPTY profile name this skill already resolved before composin
   never emit PROFILE: '' and never forward a pointer for the agent to go re-resolve>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
-TEST_TAGS: <tags or 'none'>
+TEST_TAGS: <the resolved scope tags (normally `/<m>` per module in MODULES), or 'full' to run
+  untagged on purpose; 'none'/omitted means NOT SUPPLIED and the agent derives `/<m>` per module -
+  it never means "run every installed module's suite">
 GATE_ROLE: <pre-pr-lint-gate|node-verify>   # REQUIRED for run-tests / test-enable init/update; resolved above - never omitted, never left for the agent to guess
 MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
 LOG_MODE: <info|debug|sql or 'default'>   # run-tests only; 'default' keeps the build default
@@ -231,6 +233,32 @@ ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re
 dispatched agent's own "Common preamble" (Steps A-D) and port-flag tie-break own that procedure end
 to end, keyed off `SERIES`/`PERSIST`/`RUN_ID`/`WORKTREE_PATH` above. Never add a field whose value is
 a procedure to follow rather than a value this skill already resolved.
+
+### Resolving `modules` + `test_tags` for a `run-tests` with no plan node
+
+A caller driving a plan node passes that node's `modules` list (authored by `odoo-planner` per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`) and the matching tags. For an AD-HOC run
+- a human asking to test a change, a leaf confirming its own edit - resolve the same module set `M`
+yourself before dispatching, in this order:
+
+1. **Modules actually changed.** Map the working tree's changed files to their owning modules: the
+   module is the nearest ancestor directory holding a module descriptor - glob for BOTH descriptor
+   filenames, per the "Module manifest (descriptor) filename" row of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`, since matching one name alone silently
+   finds nothing on the other era. Read the diff through `git-toolkit:git-ops`'s bounded-read
+   allowlist (`git diff --name-only`), never a hand-run mutation.
+2. **In-repo blast radius.** Add the modules in THIS repo whose own suites exercise a model the
+   change touched, keeping only owners that live in the repo under test - core / out-of-repo owners
+   are dominated by Odoo's own modules and carry near-zero regression signal for a local change. The
+   coverage lookup, the ceiling, and the OSM-down degrade are single-sourced in
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` § Run-set - follow it there rather
+   than re-deriving the query here.
+3. **Both fields, from that one set.** Pass `MODULES: <M>` (dependency order) and `TEST_TAGS: /<m>`
+   per module. Do NOT pass modules and leave the tags blank - that is the defect the `test_tags`
+   row above describes.
+
+When the request is explicitly a full sweep, or no code changed at all, pass `TEST_TAGS: full` and
+say which exemption applies (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`).
 
 ### WORKTREE_PATH substitution (mechanical - run before `acquire`, never edit the catalog)
 
@@ -297,14 +325,19 @@ On the agent's Continuation `status: NEEDS_CONTEXT` (its `instance-ops` block re
 on a refusal before launch), surface its `blocked_reason` and the refusal it quoted, then stop - do
 not retry without the missing requirement.
 
-**Scope transparency on every `run-tests` relay.** `auto_install` fan-out makes a run install and
-test far more modules than `modules` names, so a per-module verdict can be decided by tests the
-dispatch was not verifying. NEVER narrow the run to hide that - never add a `test_tags` or
-`skip_auto_install` the caller did not ask for, because suppressing tests manufactures a false
-green. Relay instead, verbatim in `notes`, the agent's scope figures (modules actually loaded, tests
-actually run) and its statement of any verdict decided by tests OUTSIDE the module under
-verification; never summarize them away, and never report an out-of-scope `tests-failed` as this
-module's own regression. SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Scope transparency.
+**Scope transparency on every `run-tests` relay.** `auto_install` fan-out makes a run install far
+more modules than `modules` names, so an UNTAGGED run's verdict can be decided by tests the dispatch
+was not verifying. The run is BOUNDED to the declared scope (`test_tags` you passed, else the agent
+derives `/<m>` per module in `modules`) and the result is REPORTED with the scope it was decided on -
+both, never one instead of the other. What stays forbidden is narrowing BELOW the declared scope:
+never drop a module in `modules` from the tags, and never add a `skip_auto_install` the caller did
+not ask for, because suppressing tests the caller DID declare manufactures a false green. Relay
+verbatim in `notes` the agent's tags-used + provenance and its scope figures (modules actually
+loaded, tests actually run), plus its statement of any verdict decided by tests OUTSIDE the module
+under verification; never summarize them away, and never report an out-of-scope `tests-failed` as
+this module's own regression. SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Scope
+transparency; the scoping-vs-suppression rule itself:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
 
 ### Inline leaf-mode (dispatched leaf / subagent self-provision)
 

@@ -50,7 +50,15 @@
 #             [--test-tags <tags>] [--mode fresh|reuse] [--log-mode info|debug|sql]
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run with <-i|-u> <modules> --test-enable [--test-tags <tags>]
-#             --stop-after-init. --mode fresh (default) -> -i (new DB / modules not yet
+#             --stop-after-init. --test-tags is the SELECTION side of the run's
+#             scope: <-i|-u> decides which modules the registry BUILDS, --test-tags
+#             decides whose tests RUN. Omitted, odoo-bin runs every module the
+#             registry loaded - the whole dependency + auto_install closure from
+#             `base` up, not the ones named in --modules. This script does not
+#             invent a filter (it receives fully-resolved flags); the CALLER
+#             resolves the tags, and TEST_TAGS_USED= reports what it passed so a
+#             forgotten filter is visible in the summary rather than silent.
+#             Scope contract: snippets/test-scope-contract.md. --mode fresh (default) -> -i (new DB / modules not yet
 #             installed; init+test in one pass); --mode reuse -> -u (DB already has the
 #             modules; re-running tests, where -i would be a no-op). --log-mode maps to
 #             the odoo log flag (debug -> --log-level=debug, sql -> --log-handler=
@@ -233,6 +241,10 @@
 #               log carries no JS marker - unmeasured, never 0)
 # TEST scope:   MODULES_LOADED=<n> TESTS_RUN=<n>  (parseable; `test` verb only;
 #               EMPTY when the log carries no marker for it - unmeasured, not zero)
+#               TEST_TAGS_USED=<tags|(untagged)>  (`test` verb only; the SELECTION
+#               side of the scope - the --test-tags value this run was given, or
+#               the literal (untagged) when none was. Never EMPTY: it is a fact
+#               about the invocation, not a measurement of the log)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
 #               holding the FAIL/ERROR test names + traceback heads, the WARNING lines
 #               (in-scope warnings - mentioning a --modules name - listed separately),
@@ -1422,6 +1434,16 @@ _parse_test_result() {
     # fabricated fact rather than an absent one.
     echo "MODULES_LOADED=$(_modules_loaded_count "$logf")"
     echo "TESTS_RUN=$(_tests_run_count "$logf" "${arg_version:-}")"
+    # The SELECTION side of the scope, beside the two measured figures above.
+    # MODULES_LOADED says what the registry built; this says whose tests were
+    # allowed to run. Read by dynamic scope from cmd_test, exactly as
+    # arg_version is. The literal `(untagged)` is deliberate and is NOT an empty
+    # value: EMPTY elsewhere in this block means "the log published no figure",
+    # whereas this is a positively-known fact about the invocation - no filter
+    # was passed, so every module the registry loaded ran its suite. A reader
+    # seeing `(untagged)` beside a large MODULES_LOADED is looking at the
+    # forgotten-scope defect; see snippets/test-scope-contract.md.
+    echo "TEST_TAGS_USED=${arg_test_tags:-(untagged)}"
     # JS (Hoot/QUnit) scope + counts. JS_RUNS is the number of browser-suite
     # logger scopes this log carries, failing or green - the file is NOT the run.
     # JS_SCOPE=unscoped means the log published an aggregate with no logger

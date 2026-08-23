@@ -18,7 +18,7 @@ Key nuance: a CI-style test - memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets
 
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d <db> -i <mod> --test-enable --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+odoo-bin -d <db> -i <mod> --test-enable --test-tags /<mod> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 binds **no HTTP port** - so `ephemeral` tests need only a unique DB, not a port (pass `--ports 0`). Port leasing

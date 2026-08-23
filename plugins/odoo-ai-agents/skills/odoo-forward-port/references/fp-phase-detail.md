@@ -740,6 +740,8 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/fp-integration   # re-root per the Worktree re-root note above
 modules: <union of the touched modules' full transitive depends closure, comma-separated>
+test_tags: <`/<m>` for every module in that closure, comma-joined - the closure's own suites run,
+            the Odoo core it dragged in does not. See the narrowing rule below>
 mode: fresh
 skip_auto_install: true   # ISOLATES auto_install modules that would otherwise be pulled in
                           # silently and mask (or fabricate) a break
@@ -752,11 +754,13 @@ CONFIRM: "confirm each module in this closure emits a Loading line before readin
 Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`db_name`,
 `lease_token`, `run_id`, `addons_path`) - memory-cap is applied automatically inside
 `odoo-instance-ops`, no separate field to pass
-(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). The closure suite can be very
-large. MAY narrow with `test_tags` to the touched modules + direct dependers, but NEVER narrow to
-only the edited module - a forwarded change can break tests in a downstream depender, and a
-module-only tag would hide that. Default: no narrowing (run the full closure); narrow only when
-the untagged run is prohibitively large, and record the tag used in `merge-log.md`.
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). **Pass `test_tags` - the install
+closure and the tag set are two sides of one scope** (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). Default: `/<m>` for every module in the
+INSTALL CLOSURE this batch named, comma-joined - the whole closure's suites run, and the Odoo core
+that the closure dragged in does not. NEVER narrow below that to only the edited module: a forwarded
+change can break tests in a downstream depender, and a module-only tag would hide that. Record the
+tag set used in `merge-log.md`.
 
 For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `odoo-instance` with
 the SAME `INSTANCE_HANDLE` forwarded and `mode: reuse` (`-u` semantics) on the changed modules only

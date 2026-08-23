@@ -606,9 +606,11 @@ ISOLATE_DIR      : <the run's captured absolute ISOLATE path - substitute it, ne
 WORKLOG          : <runSlug> - read it, then append significant decisions
 GATE_ROLE        : node-verify
 TEST_TAGS        : <series 12.0+: `/<m>` per module in MODULES, comma-joined, so BOTH the at-install
-                   and the post-install stage run for exactly those modules. Series 8.0-11.0: `none` -
+                   and the post-install stage run for exactly those modules. Series 8.0-11.0: `full` -
                    no tag filter exists there, so `--test-enable` runs every installed module's
-                   suite including the core dependency closure; slower, and expected.>
+                   suite including the core dependency closure; slower, and expected. Confirm the
+                   filter's availability via `cli_help` for the series rather than the ranges above.
+                   SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md>
 ```
 
 ---

@@ -23,6 +23,22 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 
 Memory-cap policy (default, override, uncap escape hatch): `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
+**`--test-tags` is part of the invocation, not an optional extra.** `-i`/`-u` decides which modules
+the registry BUILDS; `--test-tags` decides whose tests RUN. Odoo resolves the full dependency graph
+plus `auto_install` fan-out, so `-i sale --test-enable` with no tags runs every installed module's
+suite from `base` upward - a verdict about a tree nobody asked about, at many times the wall clock.
+Both flags are derived from ONE module set (the change plus its in-repo blast radius):
+
+```
+-u sale,account --test-enable --test-tags /sale,/account --stop-after-init
+```
+
+The two-sided rule, the derivation default when a caller supplies no tags, the named cases where an
+untagged run IS correct, and the scoping-vs-suppression test:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`. How the module set itself is resolved:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`. This section owns the FLAG semantics
+below; neither of those restates them.
+
 **Fresh DB vs re-run - `-i` vs `-u`.** The example above is the **fresh-DB** case: `-i` installs
 the not-yet-installed module and runs its `at_install` tests in one pass. To RE-RUN the suite on a
 DB where the module is **already installed**, use `-u <module> --test-enable` instead - `-i` on an
@@ -52,15 +68,18 @@ for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
   Example: `--test-tags :TestClass.test_func,/my_module,external`.
 - `--test-file` - run a specific test file (broadly available; confirm).
 
-> Older versions may lack `--test-tags` entirely (then use `--test-enable` alone). **Always
+> Older versions may lack `--test-tags` entirely; there the run is necessarily full (`--test-enable`
+> alone), which means the whole core dependency closure is tested and the run is slow. Say that
+> plainly when reporting such a run - it is a limitation of the series, not a scoped run. **Always
 > confirm with `cli_help` for the target version** rather than assuming the syntax exists.
 
-> **`--test-tags` only FILTERS - it never ADDS framework tests.** Narrowing tags to just
-> `/<cluster>` SKIPS framework `post_install` validation classes (e.g. Odoo `base` view-arch
-> tests, hr self-access tests) that are not tagged with your module - so a tag-restricted run can
-> stay green while a framework check the change actually broke never runs. To catch them, let the
-> suite run the full `post_install` set (do not narrow the tag to the cluster) or name the
-> framework class explicitly in `--test-tags`. The class names here are illustrative - confirm via
+> **`--test-tags` only FILTERS - it never ADDS framework tests.** Tagging `/<cluster>` SKIPS
+> framework `post_install` validation classes (e.g. Odoo `base` view-arch tests, hr self-access
+> tests) that are not tagged with your module - so a tag-restricted run can stay green while a
+> framework check the change actually broke never runs. **The remedy is to NAME those classes in
+> `--test-tags` beside the module tags** (`--test-tags '/<cluster>,base.TestInvisibleField'`), not
+> to drop the tag filter: an untagged run buys a handful of framework classes at the price of every
+> installed module's suite, `base` upward. The class names here are illustrative - confirm via
 > OSM / `cli_help`.
 
 ## Log verbosity modes (the runner's `log_mode` param)

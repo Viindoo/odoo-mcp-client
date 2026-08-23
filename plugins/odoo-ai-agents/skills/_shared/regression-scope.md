@@ -41,6 +41,13 @@ Own-module suites for every module in the run-set:
 - Python: `module_inspect(name=<module>, method="tests", odoo_version=<explicit>)`.
 - JS / Hoot / tour: `js_test_inspect(module=<module>, odoo_version=<explicit>)`.
 
+## The run-set feeds BOTH sides of the invocation
+
+The run-set is the `-i`/`-u` list AND the `--test-tags` selection (`/<m>` per module). Naming the
+modules without tagging them leaves the run untagged - testing the whole installed registry instead
+of the set computed above, so this selection work buys nothing. Pass the run-set as `MODULES` **and**
+`TEST_TAGS`. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
+
 ## Ceiling K + never-core
 
 - Cap the widening union at a ceiling `K` (default `K = 25` modules; tunable - raise it only when a
