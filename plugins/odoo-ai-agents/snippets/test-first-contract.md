@@ -20,8 +20,9 @@ exemption from a missing test.
    test. For the version-correct framework/class and OSM grounding, follow
    `skills/odoo-test-writing/SKILL.md` and `docs/reference/ODOO-TESTING.md` - this contract governs
    the discipline, that governs the shape.
-2. **Confirm it goes RED** - the test MUST fail before the production code exists (or with the rule
-   removed). State the RED confirmation as evidence (the failing assertion / the absent behavior).
+2. **Prove it can go RED** - a RED is MEASURED or CONSTRUCTED, never asserted. Which proof this
+   change owes (`RED_MODE`), and why a `KeyError` / missing-field / 0-selected failure is a broken
+   measurement and not a red: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
 3. **Write the minimum code to go GREEN** - implement until the test passes, nothing speculative.
 4. **Never edit the test to fit the code.** If a test fails after coding: fix the code if the code
    is wrong; change the test only if the test's *intent* was wrong - and say so explicitly. Banned:

@@ -154,7 +154,7 @@ Apply these to every model or feature you design, review, or explain:
 3. Standard app menu - a module with `application=True` needs one root menu, a Reports menu (one overview report + child reports), and a Configuration menu (Settings + admin-only config) when it has settings.
 4. Bidirectional impact - before changing a field/method, check BOTH directions: upstream (the `depends` closure it relies on) and downstream (the modules that depend on it), direct and indirect. Use `impact_analysis`.
 5. Dynamic demo data - demo records use time-relative dates (`relativedelta`), live in `demo/`, and are kept distinct from test fixtures.
-6. Test-first (red before green) - write the behavior test first and confirm it fails, then write code until it passes; never weaken a test to make it pass.
+6. Test-first (red before green) - write the behavior test first and confirm it fails ON THE ASSERTION (a `KeyError` / unknown-field / 0-tests-selected error means the test never ran - a broken measurement, not a red), then write code until it passes; never weaken a test to make it pass.
 ```
 
 ---

@@ -664,7 +664,8 @@ the coders never author tests. That FIRST launch is skipped only for a WI covere
 (red-before-green) and `snippets/test-behavior-contract.md` (drive the real workflow -
 action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo(); never
 seed the terminal state with create({state:...})): assert observable behavior not internals; ONE
-intent per test; confirm each goes RED.
+intent per test; and `snippets/red-evidence-contract.md` - a RED is MEASURED or CONSTRUCTED, never
+asserted.
 
 Each hard-leaf coder locates files via Read/Grep, writes its output, and reports the files written
 plus `__manifest__.py` changes - it does NOT run git. The node's `odoo-coder` coordinator

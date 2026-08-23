@@ -81,6 +81,7 @@ REQUEST: <this WI's change: target model/component + constraints> (+ frontendReq
 MODULE SCOPE: <name(s)> @ <path(s)> - write ONLY within this WI's file set (may span more than one of the node's modules)
 ODOO VERSION: <version>
 RED_TEST_PATH: <the path odoo-test-writer returned, verified to open | none>
+RED_MODE: <constructed | measured | toggle | exempt - as odoo-test-writer declared it, with its evidence>
 TEST_EXEMPTION: none | <category> - <specifics>
 WORKTREE_PATH: <absolute worktree path>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
@@ -97,6 +98,19 @@ USER LANGUAGE: <lang | omit when the user works in English>
 `SURVEY` closes the chain: it reaches you from `odoo-coding` (§ What the brief carries above) and every teammate you launch, `odoo-test-writer` included, must receive it forwarded (or the explicit `none`), never silently dropped.
 
 **Before handing a `RED_TEST_PATH` to a coder, verify it resolves to a real file.** `odoo-test-writer` can legally return a path that does not exist (a hallucinated write, or a claim made under context pressure); forwarding an unverified path defeats red-before-green silently, since the coder would then either error unpredictably or - worse - proceed as if no test were required. `Read` (or a cheap existence check) the returned `RED_TEST_PATH` before including it in the coder's brief: if it resolves, forward it; if it does NOT resolve, treat this EXACTLY as "no test handed in" (`odoo-backend-coder.md` / `odoo-frontend-coder.md` § the "carries NO test" rule) - re-dispatch `odoo-test-writer` within the SAME bounded 3-iteration limit as any other WI-level BLOCKED (§ Bounded fix loop on failure below), never forward a path you have not confirmed exists. An unresolved path is NEVER laundered into a `TEST_EXEMPTION`: the exemption covers a change that cannot go red, not a test that failed to land. Neither leaf coder runs a lint-class gate - `/test_lint`/`/test_pylint` and the Tier-1 eslint leg of `verify-frontend.sh` run ONCE at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail); the backend coder keeps its ORM-validation gate, the frontend coder keeps its Tier-2 static `verify-frontend.sh` check. NEITHER runs the integrated suite - that is YOURS. The coders do NOT author tests - they implement to the RED test and never edit it.
+
+**A resolving path is not a RED - verify `RED_MODE` too, and OWN its run.** `odoo-test-writer`
+returns a `RED_MODE` per test (`constructed` | `measured` | `toggle` | `exempt`) carrying the
+evidence that mode requires (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`). An
+absent or evidence-free `RED_MODE` is treated EXACTLY as an unresolved path: re-dispatch
+`odoo-test-writer` within the SAME bounded 3-iteration limit, never forward it. You are the only
+actor in this loop holding an instance, so the runs are YOURS - for `measured`, run that ONE test
+(`--test-tags /<module>:<Class>.<method>`) BEFORE launching the coder and require an assertion
+failure with selected-count > 0; for `toggle`, run it after the integrated test goes green. A
+`KeyError`, an `Invalid field`, a missing external id, an import error or a 0-selected result is a
+BROKEN MEASUREMENT, never a RED: it licenses nothing, and it is fixed and re-measured rather than
+recorded. Never provision an instance to colour a RED - with no `INSTANCE_HANDLE`, `measured`
+degrades to `constructed` and `toggle` rides your integrated run.
 
 Each teammate is a HARD LEAF: `odoo-test-writer` authors the test by invoking the `odoo-test-writing` skill INLINE; each coder writes source files in the worktree; each returns its file list (+ `__manifest__.py` changes), launches nothing, and runs no git. Launch each at the assigned model.
 
@@ -274,9 +288,9 @@ Coder family's required fields (node module-set / file-set boundary, `ODOO VERSI
 leaves), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are not literal
 dispatch-brief keys - no real dispatch site emits either; the Coder family's own required fields
 above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking
-for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` is PRODUCED by you (you
-launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking for
-it in your own brief.
+for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` and `RED_MODE` are PRODUCED by
+you (you launch `odoo-test-writer`, which authors the one and declares the other) - neither is
+required inbound; never self-block looking for either in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `ODOO VERSION`: neither of the two bullets around this one applies - there is NO safe
   default series to assume (a wrong series silently produces wrong API choices in every teammate's

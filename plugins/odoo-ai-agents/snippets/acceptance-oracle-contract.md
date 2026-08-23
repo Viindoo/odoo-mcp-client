@@ -78,5 +78,7 @@ does and what the business needs. That gap is the bug. These rules make the orac
   combination is missed.
 
 Each scenario must be capable of FAILING for the right reason (red-before-green) - a scenario that
-cannot fail protects nothing. Drive the real workflow when realizing a scenario as an executable
-test: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` (reference, do not duplicate).
+cannot fail protects nothing - and one that fails because the screen or record it names does not
+exist yet never ran at all (`${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`). Drive the real workflow when realizing
+a scenario as an executable test: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
+(reference, do not duplicate).

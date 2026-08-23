@@ -83,7 +83,7 @@ These are platform invariants, not suggestions - apply them whenever you design 
 - Standard app menu → an `application=True` module needs one root menu, a Reports menu (one overview + child reports), and a Configuration menu (Settings + admin config) when it has settings.
 - Bidirectional impact → before changing a field/method check BOTH directions, direct + indirect: upstream (its `depends` closure) and downstream (modules that depend on it). Use impact_analysis.
 - Dynamic demo data → demo records use time-relative dates (`relativedelta`), live in `demo/`, distinct from test fixtures.
-- Test-first (red before green) → write the behavior test first and confirm it fails, then code until it passes; never weaken a test to make it pass.
+- Test-first (red before green) → write the behavior test first and confirm it fails ON THE ASSERTION (a `KeyError` / unknown-field / 0-tests-selected error means the test never ran - a broken measurement, not a red), then code until it passes; never weaken a test to make it pass.
 
 ## MCP Resources (read-only, bookmark-stable)
 - odoo://{version}/model/{name}             # = model_inspect(model=<model>, method='summary', odoo_version='<version>') equivalent

@@ -89,19 +89,27 @@ OSM-ground every API reference for `tgt_version`:
 The translated test MUST fail on the target version BEFORE the adapted production code
 exists. This is the FP-delta proof.
 
-- If in the no-commit merge absorption window (see [[fp-merge-absorption]]): run the target
-  module's test suite against the current working tree (source merged but NOT yet
-  platform-adapted). The test must fail because the target platform lacks the adapted
-  behavior. State the failing assertion as RED evidence.
-- If running in isolation: reason from the intent doc + OSM that the behavior is absent on
-  the raw target version and state "RED - target does not yet have <behavior>, test will
-  fail at <assertion>".
+Modes and evidence: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
+
+- If in the no-commit merge absorption window (see [[fp-merge-absorption]]): this is
+  `RED_MODE: measured` - run the target module's test suite against the current working
+  tree (source merged but NOT yet platform-adapted). The test must fail ON THE ASSERTION
+  because the target platform lacks the adapted behavior. A `KeyError` /
+  `AttributeError` / `Invalid field` instead means YOUR TRANSLATION is incomplete - a
+  renamed symbol step 3 missed - not that the target lacks the behavior. That is a broken
+  measurement: fix the translation and re-measure. Letting it stand as RED-on-target
+  misclassifies the outcome in [[fp-intent-4outcome]].
+- If running in isolation: this is `RED_MODE: constructed` - no run is available, so the
+  proof must be structural. From the intent doc + OSM, name the asserted VALUE and why the
+  raw target cannot produce it. An assertion the absent behavior would already satisfy
+  (a default, a falsy flag, "no exception raised") proves nothing here and must be
+  strengthened before the test is forwarded.
 - If the test passes immediately without any adapted code: the behavior is already in the
   target platform - record this as outcome (a) in [[fp-intent-4outcome]], forward the test
   (it passes as a regression guard), skip the code-adapt step.
 
-RED evidence is required in the Continuation Contract. A test without RED evidence may be
-a green-by-accident test (change-detector, not a guard).
+`RED_MODE` + its evidence is required in the Continuation Contract. A test without it may
+be a green-by-accident test (change-detector, not a guard).
 
 ## What is BANNED in adapt mode
 
@@ -139,7 +147,8 @@ End with a Continuation Contract block per
 lists the translated test file path. The `status` block MUST include:
 
 ```
-RED confirmation: <assertion> fails on target because <reason>
+RED_MODE: measured - <assertion> fails on target because <reason>
+         | constructed - target cannot produce <value> because <reason>
 Dropped (capture-code): <list of test_* methods dropped and why, or "none">
 Expected changed: <list of changed expected values with cited reason, or "none">
 ```

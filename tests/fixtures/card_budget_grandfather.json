@@ -9,7 +9,7 @@
     "skills/_shared/odoo-failure-modes.md": 6976,
     "skills/_shared/odoo-frontend-fidelity.md": 21469,
     "skills/_shared/odoo-module-graph.md": 7948,
-    "snippets/acceptance-oracle-contract.md": 6161,
+    "snippets/acceptance-oracle-contract.md": 6316,
     "snippets/acceptance-scope.md": 5366,
     "snippets/access-groups-conventions.md": 4353,
     "snippets/context-handoff-protocol.md": 10354,
@@ -35,7 +35,7 @@
     "snippets/upg-conventions.md": 8202,
     "snippets/venv-resolution.md": 4879,
     "snippets/visual-evidence-lifecycle-contract.md": 27230,
-    "snippets/dispatch-brief.md": 18698,
+    "snippets/dispatch-brief.md": 19038,
     "snippets/module-coordination-ledger.md": 14164,
     "snippets/git-delegation.md": 14931,
     "snippets/resource-teardown-contract.md": 13472,
@@ -49,6 +49,7 @@
     "skills/run-harness/SKILL.md": 30467,
     "skills/workflow-chaining/SKILL.md": 12341,
     "skills/_shared/regression-scope.md": 5110,
-    "snippets/test-scope-contract.md": 5137
+    "snippets/test-scope-contract.md": 5383,
+    "snippets/red-evidence-contract.md": 4926
   }
 }

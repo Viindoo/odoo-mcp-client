@@ -76,6 +76,10 @@ pointer back to this file - never the full skeleton table.
 
 - `RED_TEST_PATH` - the failing test(s) `odoo-test-writer` already authored (hand over the failing
   test, not a spec).
+- `RED_MODE` - `constructed` | `measured` | `toggle` | `exempt`, as `odoo-test-writer` declared it,
+  WITH the evidence that mode requires. It travels beside `RED_TEST_PATH`; a resolving path with no
+  `RED_MODE` is not a RED. Contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
 - `TEST_EXEMPTION` - `none` (what an absent key also means), or a caller-DECLARED
   `<category> - <specifics>` for a change that cannot go red; never inferred by the
   receiver. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
@@ -275,8 +279,8 @@ Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
 passed through unchanged. Leaf coders (`odoo-backend-coder`/`odoo-frontend-coder`) KEEP
-`RED_TEST_PATH` as a required inbound field in THEIR OWN leaf-variant self-check - only this
-coordinator's self-check carves it out.
+`RED_TEST_PATH` AND `RED_MODE` as required inbound fields in THEIR OWN leaf-variant self-check -
+only this coordinator's self-check carves them out, because it produces both.
 ```
 
 ## How a caller uses it

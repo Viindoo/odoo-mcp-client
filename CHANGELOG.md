@@ -6,6 +6,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **`snippets/red-evidence-contract.md`: a RED is MEASURED or CONSTRUCTED, never
+  asserted.** New SSOT declaring `RED_MODE` (`constructed` | `measured` | `toggle` | `exempt`) and
+  the evidence each mode owes. It separates what red-before-green actually buys - INDEPENDENCE (the
+  test author has not read the implementation, which the topology already delivers for free) and
+  SENSITIVITY (the test can fail when the behavior is absent) - from the ritual that stood in for
+  the second one. It names the failures that are NOT a red but a BROKEN MEASUREMENT (`KeyError` on
+  a model, `Invalid field`, a missing external id, an `ImportError` or a file absent from
+  `tests/__init__.py`, a ParseError or failed install/upgrade, a fixture error, **0 tests
+  selected**, and on the JS side an unregistered component, an asset-bundle error or a tour
+  selector that never appears), and it bans manufacturing one by naming a symbol known to be
+  absent. It leads with the FREE proof - absence of a behavior can only produce the declared
+  default, the unchanged input, or no exception, so an assertion outside that set is provably
+  sensitive with no run at all - and bounds the rest: never provision an instance to colour a RED;
+  with none held, `measured` degrades to `constructed` and `toggle` rides the integrated run that
+  already happens. A per-change-type table says which RED each kind of work owes, including the
+  three a new-behavior recipe gets wrong: a refactor has NO new red (the proof is the existing
+  suite green before and after), a bug-fix test must reproduce the REPORTED symptom rather than
+  the intended fix, and a behavior removal inverts the red.
+
+### Changed
+
+- `odoo-ai-agents` - **`RED_MODE` is now a produced, carried, verified and gated field, not prose.**
+  `odoo-test-writer` declares it per authored file with its evidence and returns it;
+  `snippets/dispatch-brief.md` documents it beside `RED_TEST_PATH`; `generator/skill_tool_deps.json`
+  declares it REQUIRED inbound for both coder families, so the orchestration lint proves every
+  dispatch fence emits it; `agents/odoo-coder.md` carries it in its coder fence, refuses an absent
+  or evidence-free value exactly as it refuses an unresolved test path, and OWNS the runs - it is
+  the only actor in the loop holding an instance, so a `measured` RED is one narrow
+  `--test-tags /<module>:<Class>.<method>` run before the coder launches and a `toggle` RED runs
+  after the integrated test goes green.
+- `odoo-ai-agents` - both coders and `odoo-code-reviewer` now flag an INSENSITIVE assertion, the
+  decidable form of the change-detector rule they already carried: an assertion the ABSENCE of the
+  behavior would already satisfy (`assertFalse` on a field the change introduces, the field's own
+  default, "no exception raised", an arch-string match, an empty DOM) cannot fail when the rule is
+  wrong. For the reviewer it is a HIGH finding; for a coder it is flagged back, never "fixed".
+- `odoo-ai-agents` - forward-port/rebase adapt mode is mapped onto the same modes: a RED-on-target
+  that is a `KeyError`/`AttributeError`/`Invalid field` means the TRANSLATION is incomplete, not
+  that the target lacks the behavior, so it is fixed and re-measured instead of being recorded -
+  letting it stand misclassified the 4-outcome intent classification. The isolation branch is
+  `constructed` and must name the value the raw target cannot produce.
+- `odoo-ai-agents` - the acceptance oracle and the three standalone IDE instruction snippets
+  (Cursor, GPT, Gemini) carry the same discrimination in one clause each: a scenario or test that
+  fails because the screen, record or symbol it names does not exist yet never ran at all.
+
+### Fixed
+
+- `odoo-ai-agents` - **red-before-green was asserted and never measured, so the gate could not
+  fire.** Three prescriptions, each defensible alone, composed into a ceremony: `odoo-coder`
+  launches `odoo-test-writer` FIRST - before any model, field or external id the test will name
+  exists on the tree; the writer is told not to run the suite inline (correct for context and
+  instance economy, but it means the author never observes the failure it reports); and the RED
+  confirmation was a fixed sentence to emit, `"RED - production code not yet written"`, with the
+  authoring skill saying to *"state it's RED"* and to *"confirm by reasoning"* in coverage mode. The
+  coordinator's only check on the returned test was that the FILE EXISTS. The visible symptom - a
+  test authored against a model or field that does not exist, failing with `KeyError`, reported as
+  a confirmed RED, costing a loop and tokens for no signal - was the contract executing exactly as
+  written. `snippets/test-first-contract.md` also accepted *"the absent behavior"* as RED evidence,
+  which is the loophole in one phrase; that clause is gone and every asserted-RED template is
+  removed from the agent-facing corpus, with a test that fails if one returns.
+
 ## [5.2.0] - 2026-08-23
 
 ### Added

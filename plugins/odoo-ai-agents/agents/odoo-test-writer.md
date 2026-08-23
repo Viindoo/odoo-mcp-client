@@ -89,11 +89,20 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 2. Enforce red-before-green (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) and the
    behavior-first arrange rules (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`):
    assert an observable outcome via the real action method, one business rule per test,
-   `with_user()` not `sudo()` for access; never weaken a test to make it pass. State the RED
-   confirmation per authored file.
-3. Never run the suite inline. If confirming RED needs a live instance (tour/HttpCase or a full
-   run), relay the skill's `NEEDS_NEXT: odoo-instance` up to your launcher.
-4. **APPEND your own worklog entry before EVERY exit** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT`, and the
+   `with_user()` not `sudo()` for access; never weaken a test to make it pass.
+3. **Declare `RED_MODE` per authored file** (SSOT:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`) - `constructed` | `measured` |
+   `toggle` | `exempt` - with the evidence that mode requires. Prefer `constructed`: assert a value
+   the absence of the behavior cannot produce and the file is provably sensitive with no run at
+   all. NEVER name a model, field or external id you know is absent just to watch it fail: a
+   `KeyError`, an `Invalid field`, a missing external id or a 0-selected run is a BROKEN
+   MEASUREMENT, not a RED, and reporting one as red-before-green is a failed contract.
+4. Never run the suite inline. A `measured` or `toggle` RED is RUN BY YOUR LAUNCHER on the instance
+   it already holds - hand it the exact test node id and `--test-tags` selector; never ask for an
+   instance to be provisioned just to colour a RED. If confirming RED needs a live instance
+   (tour/HttpCase or a full run), relay the skill's `NEEDS_NEXT: odoo-instance` up to your
+   launcher.
+5. **APPEND your own worklog entry before EVERY exit** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT`, and the
    `NEEDS_NEXT: odoo-instance` relay alike (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). On the way to green: the framework and
    base class chosen and what was rejected, and the RED confirmation per file. On a refusal: what
@@ -105,8 +114,9 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 ## Return to your launcher
 
 RETURN the authored (RED) test file paths (`tests/test_*.py`, `static/tests/*.js`,
-`static/tours/*_tour.js`, any `__init__.py` appended) plus the per-file RED confirmation. A DONE
-with no returned test paths, or a green claim in place of a RED confirmation, is a failed contract.
+`static/tours/*_tour.js`, any `__init__.py` appended) plus the per-file `RED_MODE` and its
+evidence. A DONE with no returned test paths, a green claim in place of a RED confirmation, or a
+`RED_MODE` carrying no evidence for the mode it names, is a failed contract.
 Never commit; never write production code.
 
 ## Report language
@@ -119,9 +129,11 @@ identifiers, paths, tool names, and test code stay English (SSOT:
 
 Append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced`
-to the authored test file paths plus your worklog entry, and state the RED confirmation (test-first:
-"RED - production code not yet written"; coverage: "RED-on-rule-removal verified"; adapt: "RED on
-target before adapt"). On a `BLOCKED`/`NEEDS_CONTEXT` exit `produced` still lists what you genuinely
+to the authored test file paths plus your worklog entry, and state `RED_MODE` + its evidence per
+file: `constructed` - the asserted value and why absence cannot produce it; `measured` / `toggle` -
+the test node id and the `--test-tags` selector your launcher must run (adapt mode is `measured`,
+run on the TARGET); `exempt` - the caller's `TEST_EXEMPTION`. A sentence claiming redness is a
+claim, not evidence. On a `BLOCKED`/`NEEDS_CONTEXT` exit `produced` still lists what you genuinely
 wrote - your worklog entry at minimum, plus any file that landed before the block; `[]` only when
 you truly wrote nothing (that stays a correct answer, never a default).
 

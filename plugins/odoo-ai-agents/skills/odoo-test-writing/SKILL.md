@@ -166,7 +166,7 @@ for the integrated test to fail (mirrored in `agents/odoo-coder.md` § Cross-mod
 
 **One business rule per test.** Each `def test_*` covers exactly one invariant.
 
-**Each test must be able to fail - confirm RED (binding).** Core of `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`: in test-first mode the production code doesn't exist - state it's RED. In coverage mode confirm by reasoning (or intentionally removing the rule) that it would go red. Never weaken a test to make it pass; fix the code instead.
+**Each test must be able to fail - and a RED is MEASURED or CONSTRUCTED, never asserted (binding).** Declare `RED_MODE` per file with the evidence that mode requires (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`). Prefer `constructed`: assert a value the absence of the behavior cannot produce - that proves sensitivity with no run at all. A `KeyError`, `Invalid field`, missing external id, import error or 0-selected run is a BROKEN MEASUREMENT, not a red - fix it, never report it as one. Never weaken a test to make it pass; fix the code instead.
 
 **Minimal arrange.** `setUp` creates only records required by the test. No fields/models/fixtures for "possible future tests".
 
@@ -211,8 +211,12 @@ copy the text. Full protocol: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/re
    targeting `tgt_version`. Specifically: call `test_base_classes(odoo_version='<tgt_version>')` to confirm the correct base class for the target, applying the ADAPT RULE in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3 (test base-class windows + `SavepointCase` adapt boundary) - do not restate the windows here. Also reaffirm the `cr.commit()` FORBIDDEN contract from the same call. Call `tests_covering(model='<model>', odoo_version='<tgt_version>')` to check whether an equivalent test already exists on the target - if it does, record as outcome (a) "already covered on target" and skip forward-port of that method (see [[fp-merge-absorption]]).
 
 4. **Confirm RED on target** - the translated test must fail on the target before the
-   production code is adapted. State the failing assertion as evidence. If the test passes
-   immediately (behavior already in target), record as outcome (a) and skip code-adapt
+   production code is adapted, ON THE ASSERTION. State the failing assertion as evidence. A
+   `KeyError` / `AttributeError` / `Invalid field` on the target means the TRANSLATION is
+   incomplete, not that the target lacks the behavior: it is a broken measurement
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`), so fix the translation and
+   re-measure - never let it stand as RED-on-target, which would misclassify the outcome. If the
+   test passes immediately (behavior already in target), record as outcome (a) and skip code-adapt
    (see [[fp-merge-absorption]]).
 
 **BANNED in adapt mode** (in addition to the standard bans in `test-behavior-contract.md`):
@@ -252,4 +256,4 @@ so the run-harness provisions one; fall back to `BLOCKED` only if provisioning i
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the test file paths you wrote, and state the **RED confirmation** (test-first mode: "RED - production code not yet written"; coverage mode: "RED-on-rule-removal verified"). A coder consuming these tests implements to green and must not edit them. Additive output for the run-harness - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the test file paths you wrote, and state **`RED_MODE` + its evidence** per file (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`) - never a bare sentence claiming redness. A coder consuming these tests implements to green and must not edit them. Additive output for the run-harness - it does not change anything produced above.
