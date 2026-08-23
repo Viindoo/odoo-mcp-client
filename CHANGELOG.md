@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.1.8] - 2026-08-23
+
 ### Fixed
 
 - `odoo-ai-agents` - **a `--test-enable` run is now scoped on BOTH sides, so `-i sale` stops testing
