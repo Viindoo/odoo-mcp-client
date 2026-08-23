@@ -85,7 +85,7 @@ row above.
 
 ### How it works
 
-Every agent - the main agent and every custom sub-agent - carries a shared universal **Work Ethos** (11 principles: completeness, root-cause, SSOT, and so on) loaded from `ODOO-AI-ETHOS.md` via a managed `@import` in your global `~/.claude/CLAUDE.md`.
+Every agent - the main agent and every custom sub-agent - carries a shared universal **Work Ethos** (12 principles: completeness, root-cause, source-over-description, SSOT, and so on) loaded from `ODOO-AI-ETHOS.md` via a managed `@import` in your global `~/.claude/CLAUDE.md`.
 
 Everything runs through the **main agent**, which acts as an **orchestrator + decision-maker
 only** - it routes, decides at gates, and delegates the heavy work to specialists so its own
@@ -818,7 +818,7 @@ new `mcp__plugin_odoo-ai-agents_*` prefix.
 
 There are two distinct loading mechanisms for shared context:
 
-**Global universal principles** (`ODOO-AI-ETHOS.md`) - a single SSOT file containing 11 work-ethic principles (completeness, root-cause analysis, SSOT, ASCII hyphens, and so on) that apply across all agents and all of your Claude Code projects. A SessionStart hook writes a managed `@import` block to your global `~/.claude/CLAUDE.md`; because `@import` is resolved recursively, the main agent and every custom sub-agent in any project inherit these principles automatically. Built-in Plan/Explore agents skip CLAUDE.md by design and are NOT covered. Edit `ODOO-AI-ETHOS.md` once and all agents pick it up on the next session restart.
+**Global universal principles** (`ODOO-AI-ETHOS.md`) - a single SSOT file containing 12 work-ethic principles (completeness, root-cause analysis, never trusting a description over the source, SSOT, ASCII hyphens, and so on) that apply across all agents and all of your Claude Code projects. A SessionStart hook writes a managed `@import` block to your global `~/.claude/CLAUDE.md`; because `@import` is resolved recursively, the main agent and every custom sub-agent in any project inherit these principles automatically. Built-in Plan/Explore agents skip CLAUDE.md by design and are NOT covered. Edit `ODOO-AI-ETHOS.md` once and all agents pick it up on the next session restart.
 
 **Per-agent snippet contracts** - agents reference `${CLAUDE_PLUGIN_ROOT}/snippets/...` directly in their bodies (edit the snippet once, not each of the agents that consume it):
 

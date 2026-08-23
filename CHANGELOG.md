@@ -6,6 +6,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **ETHOS principle 12: "Descriptions are Claims, Source is Truth".** Every agent
+  is now bound to conclude nothing about behavior from text that DESCRIBES it - a docstring, an
+  inline comment, a `# TODO`, a README, a manifest `summary`, a commit message, a PR body, a ticket,
+  a prior report, a CRM note - until it is confirmed against the thing itself. The stance already
+  existed, but ONLY inside `snippets/zero-trust-code-survey.md`, scoped to `odoo-deep-survey` and
+  carrying an explicit *"Do NOT promote to ... any other skill"* header. So every other agent -
+  reviewers, coders, debuggers, planners - had no rule against quoting a stale docstring as
+  evidence. The principle states the mechanism (descriptive prose rots because NOTHING enforces it:
+  no test fails and no build breaks when a sentence goes false), and ranks the three rot classes a
+  measured single-module sweep actually found - a moved pointer, a CORRECT pointer attached to a
+  false sentence, and a block asserting a live pass/fail status. The middle one is called out as
+  WORSE than a broken pointer, because it resolves cleanly and therefore reads as freshly verified;
+  that is why the rule is "confirm against source", not "check the reference resolves". It carries
+  the WRITE side too - update or delete the describing prose in the SAME change that alters the
+  behavior, since the drift exists precisely because someone did not - and it explicitly does NOT
+  invert OSM-first: OSM's structural calls stay PRIMARY, only DESCRIPTIVE text (including OSM's own
+  prose fields) is demoted to a claim.
+
+### Changed
+
+- `odoo-ai-agents` - **`snippets/zero-trust-code-survey.md` now defers to ETHOS instead of
+  forbidding reuse.** Its header banned promoting the stance beyond `odoo-deep-survey`, which
+  contradicts the new universal principle. It is now described as the SURVEY-SPECIFIC elaboration:
+  ETHOS 12 owns the universal rule and the reasons prose rots; the snippet keeps only what a survey
+  needs - the OSM claim-vs-structure split and the RESOLVED/UNRESOLVED finding verdict - and other
+  skills cite ETHOS rather than copying that machinery. The existing scope gate
+  (`test_zero_trust_scope_is_deep_survey_only`) is deliberately left ENFORCED and untouched: ETHOS
+  is loaded into every session in every project, so it must not point at an Odoo-survey-specific
+  snippet.
+
+### Fixed
+
+- `odoo-ai-agents` - **three stale principle citations in the ETHOS one-line summary.** It cited
+  `(#8)` for "right audience" (that is principle 7; 8 is Test the Behavior), `(#10)` for
+  "behavior-protecting tests" (that is 8; 10 is Completion Status), `(#7)` for "finish with
+  evidence" (that is 10), and `(#9)` for "data-driven + SSOT + portable" (that is 11; 9 is How They
+  Work Together). Each resolved to a real heading while naming the wrong principle - the
+  resolving-but-false class principle 12 now warns about, found in the file that teaches it. The
+  header count and both README mentions moved 11 -> 12, and
+  `tests/test_ethos_source_over_description.py` now DERIVES the count from the headings and checks
+  every `(#n)` in the summary against the real heading titles, so this class of drift cannot
+  silently return.
+
 ## [5.1.8] - 2026-08-23
 
 ### Fixed

@@ -1,15 +1,24 @@
-<!-- SSOT snippet. Zero-trust survey stance for odoo-deep-survey ONLY (its orchestrator +
-     inlined into every dispatched fork-worker brief - workers are leaf subagents that cannot
-     resolve ${CLAUDE_PLUGIN_ROOT}, so the orchestrator PASTES this text). Sibling of
+<!-- SSOT snippet. The SURVEY-SPECIFIC elaboration of ODOO-AI-ETHOS.md principle 12
+     ("Descriptions are Claims, Source is Truth"): the universal rule binds every agent from
+     ETHOS; THIS file adds what only a survey needs - the OSM claim-vs-structure split and the
+     RESOLVED/UNRESOLVED finding verdict. Used by odoo-deep-survey (its orchestrator + inlined
+     into every dispatched fork-worker brief - workers are leaf subagents that cannot resolve
+     ${CLAUDE_PLUGIN_ROOT}, so the orchestrator PASTES this text). Sibling of
      osm-first-contract.md section 1 "Existence is not currency": that rule is about symbol CURRENCY;
-     THIS rule is about descriptive TEXT vs resolved SOURCE. Do NOT promote to worker-brief.md
-     or any other skill. Edit here only. -->
+     THIS rule is about descriptive TEXT vs resolved SOURCE. Another skill that needs the stance
+     but not the survey machinery cites ETHOS 12 - do NOT copy this file's finding-verdict
+     apparatus into it, and do NOT restate the universal rule here. Edit here only. -->
 
 # Zero-Trust Code Survey - descriptions are CLAIMS, source is TRUTH
 
 A survey exists to tell a later execute agent what the code ACTUALLY does, not what someone
 SAID it does. Every sentence describing behavior is an unverified CLAIM until it is confirmed
 against the resolved source definition. Trust the structure; distrust the prose about it.
+
+That stance is universal - `ODOO-AI-ETHOS.md` principle 12 binds every agent to it, whether or not
+a survey is running, and owns WHY descriptive text rots. What follows is what a SURVEY additionally
+needs: which OSM surfaces count as claim vs structure, and how that decides a finding's
+RESOLVED/UNRESOLVED verdict.
 
 ## What counts as a CLAIM (confirm, never quote-and-move-on)
 
