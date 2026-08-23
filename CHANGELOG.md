@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.2.0] - 2026-08-23
+
 ### Added
 
 - `odoo-ai-agents` - **ETHOS principle 12: "Descriptions are Claims, Source is Truth".** Every agent
