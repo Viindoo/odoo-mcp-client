@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.4.0] - 2026-08-24
+
 ### Changed
 
 - `odoo-ai-agents` - **`odoo-solution-architect` is `role: spawner`: a designer may now source the
