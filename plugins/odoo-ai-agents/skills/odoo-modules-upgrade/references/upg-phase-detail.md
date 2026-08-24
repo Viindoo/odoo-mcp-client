@@ -824,7 +824,9 @@ GATE: do NOT stop separately - return the result; it is presented at the P6 sign
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po
   2. git-ops diff-review each re-exported <lang>.po against its committed version; adjudicate every removed/changed msgid correct (term gone) or wrong (BLOCK) - preserves every existing msgstr except an adjudicated-correct loss
-  3. hand-translate ONLY the residual untranslated entries
+  3. hand-translate ONLY the genuinely NEW residual entries - a blank `msgstr` may instead be an
+     entry whose translation equals its source, which Odoo never re-exports; restore those
+     rather than translating them (`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`)
   4. reload with `-u <module>` on the instance and confirm the catalog loads
 ```
 Output: `i18n-reconcile.md` (per-module: residual count, translated count, skipped?).

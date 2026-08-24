@@ -11,7 +11,8 @@ exit code on data loss. The non-destructive method: build a FRESH instance, LOAD
 `<lang>.po` into it (so its `msgstr`s populate the DB), re-export (the re-export then reproduces the
 existing translation, adds new-empty terms, and drops terms gone from code), then RECONCILE by
 DIFF-REVIEW - diff the re-export against the committed `.po` and adjudicate every removed/changed
-entry as correct (term genuinely gone) or wrong (accidental loss) before commit. No merge library
+entry into the three buckets of `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` (CORRECT /
+ARTEFACT / WRONG) before commit. No merge library
 (no `polib`): the diff is delegated to `git-toolkit:git-ops` and the agent adjudicates the result.
 
 REQUIRES a running Odoo instance with the target module installed - export and validate both need
@@ -186,14 +187,13 @@ re-exported file against the committed one by DIFF-REVIEW:
    (via the Skill tool) to diff the re-exported `i18n/<lang>.po` against its committed (HEAD) version
    and report the changes back. Per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`, the git op is
    delegated to git-ops and its result is read back - the skill/agent does not run git itself.
-4. **Adjudicate every removed/changed `msgstr`** in the reported diff:
-   - **CORRECT** - the `msgid` genuinely no longer appears in the module source (term removed /
-     renamed in code). Confirm by grepping the module source (or `entity_lookup`). Accept the loss.
-   - **WRONG** - the `msgid` still exists in source but its translation vanished/changed. That is an
-     accidental loss (language not loaded, wrong export scope, `auto_install` leakage). BLOCK: do NOT
-     commit; fix the cause (re-provision fresh, re-load the language, re-export) and re-review.
-   Adjudicate only `msgid`/`msgstr` changes; IGNORE header timestamps, `#:` reference-comment churn,
-   and entry reordering - those are export-format noise, not translation losses.
+4. **Adjudicate every removed/changed `msgstr`** in the reported diff into one of the THREE
+   buckets - CORRECT / ARTEFACT / WRONG - defined once in
+   `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.
+   Read it rather than working from memory: the ARTEFACT test must be applied BEFORE ruling WRONG,
+   or every module holding a deliberately-unlocalised term blocks a correct run. Only a WRONG ruling
+   is a BLOCK - do NOT commit; fix the cause (re-provision fresh, re-load the language, re-export)
+   and re-review.
 5. Only after every removed/changed entry is ruled CORRECT does the re-exported `<lang>.po` become
    the new committed file - and the commit is itself a `git-ops` call (never run by a leaf worker).
 
@@ -205,13 +205,17 @@ the non-destructive contract; skipping it erases the human translation.
 
 ## L3 - Hand-translate the residual
 
-After L2, the residual to translate is the ADDED bucket (new-empty `msgstr` for terms new at this
-version) plus any entry a WRONG adjudication restored. Translate each residual `msgstr` by hand,
-applying the glossary (below). **Placeholder check per entry (no full-file polib scan):** as you
-write each `msgstr`, confirm its placeholder set matches the `msgid` - `%s` / `%d` / `%(name)s` /
-`{}` / `{name}` must be identical, else the translation raises or renders wrong at runtime. If
-Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming or correcting the
-`msgstr`.
+After L2 the residual is the NEW bucket plus any entry a WRONG adjudication restored. **An
+ARTEFACT blank is NOT residual** - it is an entry whose translation equals its source, which Odoo
+never re-exports; restore the committed entry and move on. The two origins of an empty `msgstr`, and
+the test that separates them, are in `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`
+§ An empty `msgstr` has TWO origins. Re-translating an ARTEFACT is the most common way this phase
+does damage: it overwrites a reviewed do-not-localise decision with an invented translation.
+
+Translate each genuine residual `msgstr` by hand, applying the term policy
+(`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`). Check the placeholder set and the
+`fuzzy` flag per entry as you write it (no full-file polib scan) - both rules live in
+`po-entry-semantics.md` § Fuzzy and placeholders.
 
 ---
 
@@ -219,17 +223,18 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
 
 1. **Diff-review adjudication (delegated to git-ops, NOT a raw local diff you run).** Invoke
    `git-toolkit:git-ops` to diff the re-exported `<lang>.po` against its committed version; every
-   removed/changed `msgid` in the reported diff MUST be adjudicated CORRECT (term gone from source)
-   or WRONG. An un-adjudicated or WRONG-ruled entry is a hard BLOCK - it means the human translation
-   was lost by accident (usually the language was not loaded into the DB before the re-export).
-   Adjudicate only `msgid`/`msgstr` changes; ignore header/reference-comment/reordering noise. The
-   skill/agent never runs git itself - it delegates to git-ops and reads the result.
+   removed/changed `msgid` in the reported diff MUST carry one of the three rulings from
+   `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.
+   An un-adjudicated entry, or one ruled WRONG, is a hard BLOCK - the human translation was lost by
+   accident (usually the language was not loaded into the DB before the re-export). An ARTEFACT
+   ruling is NOT a block and NOT residual: restore the committed entry. The skill/agent never runs
+   git itself - it delegates to git-ops and reads the result.
 
-2. **Placeholder integrity (per entry, no polib).** For every entry translated in L3, the
-   placeholder set in `msgstr` must equal the set in `msgid` (`%s`, `%d`, `%(name)s`, `{}` /
-   `{name}`); a mismatch makes the translation raise or render wrong at runtime - BLOCK. Check each
-   entry as you write it (a `re`-based spot-check on that entry is fine); reproduced entries from the
-   diff baseline were already correct and need no full-file re-scan.
+2. **Placeholder integrity (per entry, no polib).** Every entry translated in L3 must satisfy the
+   placeholder rule in `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Fuzzy and
+   placeholders; a mismatch makes the translation raise or render wrong at runtime - BLOCK. Check
+   each entry as you write it (a `re`-based spot-check on that entry is fine); reproduced entries
+   from the diff baseline were already correct and need no full-file re-scan.
 
 3. **Load validation via Odoo, NOT msgfmt.** Reload the module (HARD RULE, never omit the
    `ulimit -Sv` guard; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`;
@@ -281,28 +286,9 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
 
 ---
 
-## Glossary - three layers (consult in order, first canonical hit wins)
+## Glossary and term choice
 
-Consult when building the TM (P1) and hand-translating the residual (L3):
-
-1. **TM from core + deps.** Read the already-translated `<lang>.po` of core Odoo and the module's
-   dependency modules; reuse their `msgstr` for any recurring `msgid`. Largest, most authoritative
-   term source.
-2. **Project glossary file.** `glossary.yml` - YAML map of domain/regulatory terms the
-   project has fixed (accounting-circular terminology, product names) + source citation. Project
-   terms override a generic TM hit on conflict. Tier-2 SHARE; resolve it via the
-   resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
-   (captured path shown as `<SHARE_DIR>` below) - `<SHARE_DIR>/glossary.yml`.
-3. **OSM canonical field label.** For a term mapping to a model field, reuse the field's canonical
-   `string` rather than inventing one:
-
-   ```
-   entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<version>')
-   ```
-
-   Translate FROM the returned `field.string` so the translation aligns with the UI label.
-
-**Independent-regime guard:** for legally independent regimes (Vietnam accounting circulars TT200 /
-TT133 / TT99), do NOT dedup or cross-copy translations even when `msgid`s look identical. Each
-regime's `.po` stays complete and self-standing; an incidental string match is not a reason to
-share a translation.
+Which WORDS to use - the three glossary layers and their precedence (TM from core + deps, the
+project `glossary.yml`, the OSM canonical `field.string`), plus the independent-regime guard - is
+owned by `${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`. Consult it when building the
+TM (P1) and when hand-translating the residual (L3). It is not restated here.

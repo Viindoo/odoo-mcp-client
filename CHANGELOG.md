@@ -6,6 +6,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **A translation equal to its source is stored EMPTY - the i18n reconcile now
+  knows that, and stops fighting it.** Odoo's PO writer refuses to emit a translation identical to
+  its source string: in `odoo/tools/translate.py`, `PoFileWriter.write_rows` takes the value only
+  when `trad != src` and writes `''` for everything left unassigned - identical in v15, v16, v17,
+  v18 and v19. It is the EXPORT leg that drops the entry, so no care taken in the `.po` file and no
+  import-side fix preserves it. Every deliberately-unlocalised term (`ID`, `URL`, `AI`,
+  `Access Token`, a protocol or vendor name) therefore returns from EVERY re-export as
+  `msgstr ""`. The reconcile contract did not know this, and it broke in both directions. Its
+  adjudication had exactly two buckets - CORRECT (`msgid` gone from source, accept) and WRONG
+  (`msgid` still there but the translation vanished, **BLOCK**) - and a blanked identity entry
+  satisfies WRONG on its face, so a correct run hard-BLOCKED on every module holding one. Past
+  that, the blank looked exactly like a new term, so the translate phase picked it up as residual
+  and overwrote a reviewed do-not-localise decision with an invented word. One measured module
+  (Odoo 17) came back with 31 such blanks, all 31 identity, none a real loss.
+- `odoo-ai-agents` - **A third adjudication bucket, ruled BEFORE WRONG.** `ARTEFACT` - the `msgid`
+  still exists AND the committed `msgstr` equals it - restores the committed entry silently and is
+  neither a block nor residual. The ordering is load-bearing and is stated as such: a third bucket
+  checked last still blocks the run it exists to unblock. The `translation-report-<lang>.json`
+  adjudication log and the translator's self-review checklist both carry the new bucket, so a run
+  that re-translated an artefact is now visible rather than a private fact.
+
+### Added
+
+- `odoo-ai-agents` - **`snippets/po-entry-semantics.md`: what a `.po` entry MEANS, declared once.**
+  The identity rule with its source grounding, the TWO origins of an empty `msgstr` (NEW vs
+  ARTEFACT) and the test that separates them, the three adjudication buckets, the residual rule,
+  `fuzzy`, placeholders, and `.pot`-is-a-template.
+- `odoo-ai-agents` - **`snippets/translation-term-policy.md`: how a translator CHOOSES the wording,
+  declared once.** The three glossary layers and their precedence, the `entity_lookup` call for a
+  field's canonical label, the independent-regime guard, and the point that keeping the source
+  wording IS a decision worth recording in the glossary.
+
+### Changed
+
+- `odoo-ai-agents` - **The translation conventions were being restated, not referenced.** The
+  two-bucket adjudication rule stood in FIVE places (`i18n-recipe.md` twice, `odoo-translator.md`
+  twice, `odoo-i18n/SKILL.md`), the glossary layers plus regime guard in three, placeholder
+  integrity in four, `fuzzy` in two. Adding one convention to that shape means editing nine
+  paragraphs and drifting them apart on the next edit. Each is now declared in exactly one of the
+  two new SSOTs and cited everywhere else, along a boundary a reader can decide from: **the
+  semantics file says what an entry MEANS, the policy file says which WORDS to use, and
+  `i18n-recipe.md` keeps what you DO and in what ORDER.** `i18n-recipe.md` got smaller
+  (20025 -> 19159 B) while gaining the new rules.
+- `odoo-ai-agents` - **Both new snippets are held under the 4096 B `[card-budget]` default cap**
+  even though the cap does not fire on them yet (rule 13 needs >= 3 citers among
+  `skills/*/SKILL.md` + `agents/*.md`; these have 2, since `references/i18n-recipe.md` is not a
+  consumer body). A single larger file would have passed CI today purely because one citer is
+  missing, and gone red for whoever added the third. `test_odoo_i18n.py` asserts the cap directly
+  so the constraint is enforced rather than remembered.
+
 ## [5.4.0] - 2026-08-24
 
 ### Changed
