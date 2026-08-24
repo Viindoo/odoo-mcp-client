@@ -26,7 +26,16 @@ The load-bearing belief: a translation is MEMORY to be forwarded, never regenera
 `msgstr`s and silently destroys 40-90% of the human translation with a clean exit code. The
 non-destructive method: build a FRESH instance, LOAD the existing `.po` into it, re-export (which
 then reproduces the translation), then RECONCILE by a git-ops diff-review - adjudicate every
-removed/changed entry as correct or wrong before commit (no `polib`). A clean export + a green
+removed/changed entry before commit (no `polib`), into the THREE buckets of
+`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.
+
+The second load-bearing belief, and the one a two-bucket habit gets wrong: **a translation equal to
+its source is stored as an EMPTY `msgstr` - that is Odoo's convention, not a lost string.** Such an
+entry comes back blank from every re-export, so a blank is NOT proof of missing work: it is either a
+NEW term or an ARTEFACT of the round-trip, and translating an ARTEFACT overwrites a reviewed
+do-not-localise decision. Both rules, with the test that separates them, are in
+`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`; term choice is
+`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`. Neither is restated in this skill. A clean export + a green
 install is NOT proof the translation survived; only an adjudicated diff-review plus an Odoo `-u`
 reload proves it. Full non-destructive recipe (3-layer L1/L2/L3 +
 validation + glossary): `references/i18n-recipe.md` - the SSOT this skill and `odoo-forward-port`
@@ -247,10 +256,11 @@ never a fresh `ephemeral` lease (reserve-only = uncreated DB, `-u` will fail).
 **P5 - Consistency audit + report [sonnet default; opus ONLY when the in-scope terminology is domain/legal/regulatory (e.g. accounting circulars) - never for module or language count alone; ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. This phase is **ADVISORY and NEVER
 blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
-auto-dedup. Critically, legally independent regimes (e.g. the Vietnam accounting circulars TT200 /
-TT133 / TT99) MUST NOT be deduped even when their `msgid`s match - each regime's translation stays
-complete and self-standing, and an incidental string match is never a reason to share or rewrite a
-translation across regimes. Write findings per language to
+auto-dedup. The independent-regime guard binds it (`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`
+§ Independent-regime guard): regimes that are legally independent MUST NOT be deduped even when
+their `msgid`s match. An entry whose `msgstr` equals its `msgid` is likewise never an
+inconsistency to report - it is a deliberate do-not-localise decision (`po-entry-semantics.md`
+§ The identity rule). Write findings per language to
 `<ISOLATE_DIR>/i18n/<slug>-<date>/consistency-audit-<lang>.md` (one file per target language).
 
 ## Dispatch contract -> odoo-translator
@@ -300,7 +310,9 @@ All under `<ISOLATE_DIR>/i18n/<slug>-<date>/`:
   language; TM of one language is never shared with another)
 - `<module>.pot` - exported template(s) (P2; language-agnostic, shared across all target languages)
 - `translation-report-<lang>.json` - per-module diff-review adjudication log (removed/changed/added
-  msgids + correct/wrong rulings) for each language (an un-adjudicated or WRONG-ruled loss is a BLOCK)
+  msgids + CORRECT/ARTEFACT/WRONG rulings) for each language. An un-adjudicated entry or a WRONG
+  ruling is a BLOCK; an ARTEFACT ruling is neither a block nor residual - it records an identity
+  entry restored from the committed `.po`
 - `consistency-audit-<lang>.md` - the advisory P5 findings per language
 
 ## Continuation Contract

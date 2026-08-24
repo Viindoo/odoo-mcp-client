@@ -560,3 +560,171 @@ def test_mandate_contract_enumerates_escapes_and_the_right_predicate():
             f"i18n-mandate-contract.md must NOT reference {banned!r} - the falsified predicate "
             "must not creep back; installable_false is the ONE field any consumer reads"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant - the identity convention: a translation equal to its source is
+# stored EMPTY, so a blank `msgstr` is not proof of missing work.
+#
+# Behavior protected: an agent reconciling a re-exported .po must not (a) BLOCK
+# on an identity entry that came back blank, nor (b) re-translate it as if it
+# were a new term. Both follow from Odoo's own export rule, which the SSOT
+# states once and every consumer cites rather than restates.
+# ---------------------------------------------------------------------------
+
+PO_SEMANTICS = PLUGIN / "snippets" / "po-entry-semantics.md"
+TERM_POLICY = PLUGIN / "snippets" / "translation-term-policy.md"
+
+# The consumers that adjudicate or translate, and therefore need both rules.
+SEMANTICS_CONSUMERS = (
+    PLUGIN / "skills" / "odoo-i18n" / "SKILL.md",
+    PLUGIN / "skills" / "odoo-i18n" / "references" / "i18n-recipe.md",
+    PLUGIN / "agents" / "odoo-translator.md",
+)
+
+# `[card-budget]` (generator/check_orchestration.py rule 13) caps a snippets/*.md
+# file at 4096 B once >= 3 skills+agents cite it. Today these two are cited by 2
+# consumer bodies (the recipe lives under references/ and is not counted), so the
+# cap does not fire yet - which is exactly why it is asserted here. Letting them
+# drift over the cap would arm a CI failure for whoever adds the third citer,
+# and they would have no idea why their unrelated edit went red.
+CARD_BUDGET_DEFAULT_CAP = 4096
+
+
+def test_po_entry_semantics_ssot_exists_and_states_the_identity_rule():
+    """The SSOT must state the rule AND ground it in Odoo's own exporter, not assert it.
+
+    The mechanism matters for a reader deciding whether to trust it: it is the EXPORT leg
+    (`PoFileWriter.write_rows` takes the translation only when `trad != src`), so no import-side
+    fix preserves such an entry and no amount of care in the .po file survives a round-trip."""
+    assert PO_SEMANTICS.is_file(), f"missing SSOT {PO_SEMANTICS}"
+    text = PO_SEMANTICS.read_text(encoding="utf-8")
+    assert "PoFileWriter.write_rows" in text and "trad != src" in text, (
+        "the identity rule must cite the Odoo symbol and expression it was read from - a rule "
+        "this counter-intuitive is disbelieved unless it is grounded"
+    )
+    assert "odoo/tools/translate.py" in text, "name the source file the rule was read from"
+    low = text.lower()
+    assert "empty" in low and "msgstr" in text, "must state that the entry is stored EMPTY"
+
+
+def test_identity_rule_is_declared_in_exactly_one_place():
+    """SSOT-ness: a second copy is a second thing to drift. Consumers cite, never restate."""
+    definers = sorted(
+        str(p.relative_to(PLUGIN))
+        for p, t in _tree_texts()
+        if "PoFileWriter.write_rows" in t and "trad != src" in t
+    )
+    assert definers == ["snippets/po-entry-semantics.md"], (
+        f"the identity rule must be defined in exactly ONE file; found in: {definers}"
+    )
+
+
+def test_adjudication_declares_three_buckets_with_artefact_ruled_before_wrong():
+    """THE regression this whole change exists to prevent.
+
+    An identity entry passes the WRONG test on its face - its `msgid` is still in source and its
+    translation is gone - so a two-bucket CORRECT/WRONG rule blocks a correct run every time a
+    module holds a deliberately-unlocalised term. The third bucket only helps if it is tested
+    BEFORE WRONG, so the ordering instruction is asserted too, not just the bucket's existence."""
+    text = PO_SEMANTICS.read_text(encoding="utf-8")
+    heading = "## Adjudicating a removed or changed entry"
+    assert heading in text, f"missing the {heading!r} section"
+    section = text.split(heading, 1)[1].split("\n## ", 1)[0]
+
+    # Scoped to the section, and to a BOLD TABLE ROW inside it - not a bare substring over the
+    # whole file. A file-wide `"ARTEFACT" in text` passes on any unrelated mention, so the bucket
+    # could be renamed out of the ruling table with the assertion none the wiser (measured: that
+    # exact mutation left the earlier form of this test green).
+    rows = set(re.findall(r"^\|\s*\*\*(\w+)\*\*\s*\|", section, re.M))
+    assert rows == {"CORRECT", "ARTEFACT", "WRONG"}, (
+        f"the ruling table must define exactly the three buckets CORRECT/ARTEFACT/WRONG; found: "
+        f"{sorted(rows)}"
+    )
+    flat = re.sub(r"\s+", " ", section)
+    assert re.search(r"ARTEFACT test BEFORE ruling WRONG", flat, re.I), (
+        "the SSOT must instruct that the ARTEFACT test runs BEFORE a WRONG ruling - a third "
+        "bucket checked last still blocks the run it exists to unblock"
+    )
+    assert re.search(r"equals its `msgid`", flat), (
+        "the ARTEFACT bucket needs a decidable TEST (committed msgstr equals its msgid), not just "
+        "a name a reader has to interpret"
+    )
+
+
+def test_no_consumer_restates_a_two_bucket_adjudication():
+    """Anti-drift. A consumer that spells out the buckets itself has re-created the defect: the
+    two-bucket form reads complete, so nothing signals that a case is missing. Any consumer body
+    naming both CORRECT and WRONG as rulings must also name ARTEFACT."""
+    # Per SENTENCE, not per file. A file-level "does ARTEFACT appear anywhere" check is satisfied
+    # by any unrelated mention, which is how a two-bucket sentence survived in this very agent's
+    # OPENING paragraph - the first thing it reads - while the rest of the file was correct.
+    # Pattern: a sentence that pairs the two ruling words as an exhaustive choice.
+    two_bucket = re.compile(
+        r"(?:ruled|rule|ruling|adjudicated?|adjudicate)[^.]{0,80}?"
+        r"\bcorrect\b[^.]{0,40}?\bor\b[^.]{0,20}?\bwrong\b",
+        re.I,
+    )
+    offenders = []
+    for path in SEMANTICS_CONSUMERS:
+        flat = re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+        for m in two_bucket.finditer(flat):
+            window = flat[m.start(): m.end() + 120]
+            if "ARTEFACT" not in window.upper():
+                offenders.append(f"{path.relative_to(PLUGIN)}: ...{m.group(0)[:90]}...")
+    assert not offenders, (
+        "these sentences present adjudication as a CORRECT-or-WRONG choice with no ARTEFACT in "
+        "sight, which is the exact two-bucket rule that hard-BLOCKS a correct run on any module "
+        "holding a deliberately-unlocalised term:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_every_adjudicating_consumer_cites_the_semantics_ssot():
+    """A rule nobody is pointed at is a rule nobody reads."""
+    missing = [
+        str(p.relative_to(PLUGIN))
+        for p in SEMANTICS_CONSUMERS
+        if "po-entry-semantics.md" not in p.read_text(encoding="utf-8")
+    ]
+    assert not missing, f"these must cite snippets/po-entry-semantics.md: {missing}"
+
+
+def test_residual_never_includes_an_artefact_blank():
+    """The second failure mode: a blanked identity entry looks exactly like a new term, so the
+    translate phase picks it up and overwrites a reviewed do-not-localise decision. The two
+    files that own a translate phase must both carve it out."""
+    for path in (
+        PLUGIN / "skills" / "odoo-i18n" / "references" / "i18n-recipe.md",
+        PLUGIN / "agents" / "odoo-translator.md",
+    ):
+        flat = re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
+        assert re.search(r"ARTEFACT[^.]{0,40}NOT residual|NOT residual", flat, re.I), (
+            f"{path.name}: the translate phase must state that an ARTEFACT blank is NOT residual"
+        )
+
+
+def test_term_policy_ssot_owns_glossary_layers_and_the_regime_guard():
+    """Term CHOICE is one decision, so it lives in one file; the recipe and the agent point at it."""
+    assert TERM_POLICY.is_file(), f"missing SSOT {TERM_POLICY}"
+    text = TERM_POLICY.read_text(encoding="utf-8")
+    assert "first canonical hit wins" in text, "must declare the layer precedence rule"
+    assert "entity_lookup(" in text, "layer 3 must name the OSM call that returns the canonical label"
+    assert "Independent-regime guard" in text, "the regime guard must live here"
+    for path in (
+        PLUGIN / "skills" / "odoo-i18n" / "references" / "i18n-recipe.md",
+        PLUGIN / "agents" / "odoo-translator.md",
+    ):
+        assert "translation-term-policy.md" in path.read_text(encoding="utf-8"), (
+            f"{path.name} must cite the term-policy SSOT instead of restating the layers"
+        )
+
+
+def test_new_i18n_ssots_stay_under_the_card_budget_default_cap():
+    """Keep both under the cap while only 2 consumer bodies cite them, so the third citer does
+    not inherit a red gate they did not cause. See CARD_BUDGET_DEFAULT_CAP above."""
+    for snippet in (PO_SEMANTICS, TERM_POLICY):
+        size = snippet.stat().st_size
+        assert size <= CARD_BUDGET_DEFAULT_CAP, (
+            f"{snippet.name} is {size}B, over the {CARD_BUDGET_DEFAULT_CAP}B default card budget - "
+            "split it rather than growing it, or a third citer turns CI red"
+        )

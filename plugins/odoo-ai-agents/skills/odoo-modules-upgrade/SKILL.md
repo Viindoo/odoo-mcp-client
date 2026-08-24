@@ -325,7 +325,8 @@ own strings changed. Skip only via an enumerated escape, recorded in `install-te
 `odoo-i18n` skill (no new i18n logic) against a fresh instance with the existing `.po` loaded:
 re-export -> git-ops diff-review each `.po` against its committed version + adjudicate every loss
 (NEVER blind-regenerate - a fresh-DB export with no load step destroys existing msgstr) ->
-hand-translate only the residual untranslated entries -> reload with `-u`. Detail: phase-detail § P5.7.
+hand-translate only the genuinely NEW residual entries (a blank `msgstr` can be an identity entry
+Odoo never re-exports - `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`) -> reload with `-u`. Detail: phase-detail § P5.7.
 
 **P5.8 - Acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape only].**
 Goal: prove the whole upgraded cluster works end-to-end on a real running instance/UI - the SAME
