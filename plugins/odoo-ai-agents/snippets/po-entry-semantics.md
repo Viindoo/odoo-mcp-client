@@ -18,8 +18,8 @@ then writes `''` for every entry left unassigned. Verified identical in v15, v16
 (read 2026-08-24). It is the EXPORT leg that drops the entry, so no import fix can preserve it.
 
 A term deliberately NOT localised - a proper noun, protocol name, acronym, product or vendor name
-(`ID`, `URL`, `AI`, `Model`, `Chat`, `Access Token`, `Streamable HTTP`) - therefore returns from
-EVERY re-export as `msgstr ""`, no matter how carefully it was translated before.
+(`ID`, `URL`, `AI`, `Access Token`, `Streamable HTTP`) - therefore returns from EVERY re-export as
+`msgstr ""`, however carefully it was translated before.
 
 ## An empty `msgstr` has TWO origins - never merge them
 
@@ -29,9 +29,9 @@ EVERY re-export as `msgstr ""`, no matter how carefully it was translated before
 | **ARTEFACT** | the entry already existed and its translation EQUALS the source, so the export blanked it | restore the committed entry; do NOT translate it again |
 
 The committed `.po` is what tells them apart: empty in the re-export but PRESENT in the committed
-file = ARTEFACT; absent from both = NEW. One measured module (Odoo 17) came back with 31 blanked
-entries, all 31 identity, none a real loss. Reacting to the aggregate would have re-translated all
-31 - and hidden a genuine loss among them.
+file = ARTEFACT; absent from both = NEW. One measured module came back with 31 blanked entries,
+all 31 identity, none a real loss. Reacting to the aggregate would have re-translated all 31 and
+hidden a genuine loss among them.
 
 ## Adjudicating a removed or changed entry - THREE buckets, not two
 
@@ -43,8 +43,8 @@ entries, all 31 identity, none a real loss. Reacting to the aggregate would have
 
 Apply the ARTEFACT test BEFORE ruling WRONG: an identity entry passes the WRONG test on its face
 (the `msgid` is still in source, the translation is gone), so a two-bucket rule blocks a correct run
-every time the module contains one. Adjudicate `msgid`/`msgstr` changes only - header timestamps,
-`#:` reference-comment churn and entry reordering are export-format noise.
+every time a module contains one. Adjudicate `msgid`/`msgstr` changes only - header timestamps,
+`#:` comment churn and reordering are export-format noise.
 
 ## The residual rule
 

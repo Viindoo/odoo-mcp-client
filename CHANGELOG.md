@@ -53,12 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   semantics file says what an entry MEANS, the policy file says which WORDS to use, and
   `i18n-recipe.md` keeps what you DO and in what ORDER.** `i18n-recipe.md` got smaller
   (20025 -> 19159 B) while gaining the new rules.
-- `odoo-ai-agents` - **Both new snippets are held under the 4096 B `[card-budget]` default cap**
-  even though the cap does not fire on them yet (rule 13 needs >= 3 citers among
-  `skills/*/SKILL.md` + `agents/*.md`; these have 2, since `references/i18n-recipe.md` is not a
-  consumer body). A single larger file would have passed CI today purely because one citer is
-  missing, and gone red for whoever added the third. `test_odoo_i18n.py` asserts the cap directly
-  so the constraint is enforced rather than remembered.
+- `odoo-ai-agents` - **Both new snippets are held under the 4096 B `[card-budget]` default cap.**
+  `po-entry-semantics.md` is cited by three consumer bodies (`odoo-i18n`, `odoo-modules-upgrade`,
+  `odoo-translator`), so rule 13's >= 3-citer threshold is LIVE on it and the cap is enforced today;
+  `translation-term-policy.md` has two and is held under the same cap so that a third citer inherits
+  a green gate rather than a red one. `test_odoo_i18n.py` asserts both sizes directly, which is what
+  caught this: an edit that grew the first file to 4156 B turned the gate red, and the count of
+  citers had moved under it without anyone re-checking.
 
 ## [5.4.0] - 2026-08-24
 
