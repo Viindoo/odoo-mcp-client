@@ -22,8 +22,8 @@ vacuously when empty - an empty subject set would otherwise produce zero finding
 identical to "every spawner complies". This file proves BOTH halves fire for the right reason
 (red-before-green, on synthetic fixtures via monkeypatch - never touching the real tree), then
 separately verifies the real tree: every leaf/spawner is data-driven from the registry `role`
-field (never a hardcoded agent-name list), and exactly `odoo-coder` (the sole coordinator today)
-remains as the citer of every spawner-tier file.
+field (never a hardcoded agent-name list), and the citer set of every spawner-tier file equals
+that registry's role=spawner|coordinator set exactly - in both directions.
 
 Run: python -m pytest tests/test_role_scoped_citation.py -v
 """
@@ -101,16 +101,26 @@ def test_spawner_or_coordinator_cites_spawner_completion_contract(name):
     )
 
 
-def test_exactly_odoo_coder_cites_spawner_completion_contract():
-    """After M6, spawner-completion-contract.md must be cited by exactly ONE agent body:
-    odoo-coder (the sole role=spawner|coordinator agent today, which half (b) REQUIRES to cite
-    it). Verified by grep, not assumed - the task's own verification command
-    (`grep -rln spawner-completion-contract.md agents/`) made durable as a test."""
-    citers = sorted(
-        p.stem for p in AGENTS_DIR.glob("*.md")
-        if "spawner-completion-contract.md" in p.read_text(encoding="utf-8")
+def test_spawner_completion_contract_citers_are_exactly_the_spawner_tier():
+    """The citer SET of spawner-completion-contract.md must equal the registry's
+    role=spawner|coordinator SET - both directions, from the registry, never a hardcoded name list.
+
+    An earlier form of this test asserted the literal `["odoo-coder"]`. That passed for the right
+    reason only while odoo-coder was the sole spawner: the moment a second agent is legitimately
+    promoted, a name-list assertion fails on a CORRECT tree and says nothing about the invariant
+    it was meant to protect. The invariant is set equality: no leaf carries a contract that cannot
+    bind it (half (a)), and no spawner is missing the one that does (half (b))."""
+    citers = {
+        f.stem for f in AGENTS_DIR.glob("*.md")
+        if "spawner-completion-contract.md" in f.read_text(encoding="utf-8")
+    }
+    expected = set(SPAWNER_AGENTS)
+    assert expected, "subject set is empty - the assertion below would pass vacuously"
+    assert citers == expected, (
+        f"the set of agent bodies citing spawner-completion-contract.md must equal the registry's "
+        f"role=spawner|coordinator set. cites-but-is-not-a-spawner: {sorted(citers - expected)}; "
+        f"is-a-spawner-but-does-not-cite: {sorted(expected - citers)}"
     )
-    assert citers == ["odoo-coder"], f"expected exactly ['odoo-coder'], found {citers}"
 
 
 def test_retired_transport_snippet_is_cited_by_no_agent_body():
@@ -332,7 +342,7 @@ def test_role_scope_second_half_does_not_pass_vacuously_when_subject_set_empty(t
 
 
 def test_role_scope_real_registry_does_not_need_the_opt_out_flag():
-    """Sanity: the real registry has a genuine spawner/coordinator (odoo-coder) and must NOT be
+    """Sanity: the real registry has at least one genuine spawner/coordinator and must NOT be
     carrying the opt-out flag - if it ever needed to, that would itself be a signal worth a human
     seeing, not something to silently set."""
     data = _registry()
@@ -340,4 +350,4 @@ def test_role_scope_real_registry_does_not_need_the_opt_out_flag():
         "the real registry has role=spawner|coordinator agents and must not carry "
         "_role_scope_no_spawners_expected"
     )
-    assert SPAWNER_AGENTS, "the real registry lost its only spawner/coordinator agent"
+    assert SPAWNER_AGENTS, "the real registry lost every spawner/coordinator agent"

@@ -45,8 +45,12 @@ conversational text:
   design doc and pass it to the architect (`GAP_MATRIX:` line in the P1 template). When
   the artifact exists it is authoritative - do NOT re-derive tiers from memory.
 - **Not found AND the change is non-trivial:** recommend running `odoo-gap-analysis` first to
-  classify/cost the requirements rather than guessing the tier. (Trivial single-approach
-  change: proceed without it.)
+  classify/cost the requirements rather than guessing the tier. Not finding one is NOT a
+  blocker: dispatch the architect with the `GAP_MATRIX:` line omitted and it measures the
+  scope itself before designing (`agents/odoo-solution-architect.md`
+  § Round 1 - Gather context). Running the gap analysis here first is still preferable
+  when a human wants to gate the cost separately - it is a sequencing choice, never a
+  precondition you stall on. (Trivial single-approach change: proceed without it.)
 
 ## Before dispatch - no scope-preview gate, one scope QUESTION
 
@@ -361,11 +365,19 @@ the design hybrid (grounded: osm + local-source (hybrid)). Do NOT
 design from memory when OSM is reachable.
 
 Follow your system-prompt rounds. Write the design doc to <SHARE_DIR>/designs/<slug>-<date>.md.
-Do NOT write any production source files. Do NOT spawn subagents or invoke skills.
+Do NOT write any production source files - the design doc is your only artifact.
+GROUNDING you were not handed is yours to source: when a fact the design turns on is missing
+(no gap matrix for an uncosted requirement list, an unknown current behavior, a bounded
+external question), invoke the skill that owns it or launch a read-only research worker per
+your system prompt's § Delegating for grounding, rather than designing against a guess or
+bouncing back for it. Dispatch is asynchronous: save the doc, dispatch, end your turn.
 ```
 
-The agent runs its rounds using its restricted read-only tool allowlist. It does NOT spawn
-subagents, invoke skills, or write production code.
+The agent inherits the FULL tool surface (it carries no `tools:` allowlist) and stays read-only
+on SOURCE: it never writes production code, and the TDD is always its own work. It MAY invoke
+a grounding skill or launch a read-only analysis/research worker to close a fact gap - that is
+a sanctioned nested spawn, and `agents/odoo-solution-architect.md` § Delegating for grounding
+is the SSOT for which skills are in bounds, the fan-out cap, and the dispatch physics.
 
 ### Payload mapping when `return_to` is set (caller-return flow)
 

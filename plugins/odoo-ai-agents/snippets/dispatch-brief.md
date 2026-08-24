@@ -63,6 +63,9 @@ pointer back to this file - never the full skeleton table.
 
 `odoo-solution-architect`, `odoo-planner`, `odoo-doc-planner`:
 
+`odoo-solution-architect` is `role: spawner` (it may source its own grounding); the other two are
+leaves. All three take the LEAF self-check variant - see the SPAWNER variant note below.
+
 - Pointer to the CURRENT architecture/constraint snapshot to fit inside.
 - Which decisions need an ADR-style tradeoff vs are already-settled.
 - Non-negotiable interfaces other modules assume.
@@ -239,7 +242,11 @@ Full caller-side schema (reference only, not required to resolve): `dispatch-bri
 Replace `<family fields>` with the agent's own family-delta field list (e.g. the Coder delta above);
 `<field>` in the status calls is the specific missing field name at runtime, not literal text.
 
-### SPAWNER variant (`odoo-coder` only)
+### SPAWNER variant (a spawner that RE-BRIEFS named leaves - `odoo-coder`)
+
+Copy this variant only if you dispatch NAMED leaves whose briefs you fill. A spawner whose
+children are anonymous read-only workers (`odoo-solution-architect`) keeps its own family
+self-check and adds a re-brief rung to it instead.
 
 `odoo-coder` is a node COORDINATOR, not a leaf - `worker-brief.md` explicitly exempts it. Its
 `## Brief self-check` is framed for a spawner: it validates its OWN inbound brief, then RE-BRIEFS

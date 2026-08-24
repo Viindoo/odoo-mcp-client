@@ -6,6 +6,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-ai-agents` - **`odoo-solution-architect` is `role: spawner`: a designer may now source the
+  grounding it was not handed.** Designing regularly needs a fact nobody supplied - an uncosted
+  requirement list with no gap matrix on disk, what a module about to be extended already ships, an
+  external question the index cannot answer. The agent was a declared HARD LEAF, so all three were
+  closed to it: its body forbade launching any sub-agent and admitted the Skill tool only for
+  "genuine leaf skills that spawn nothing" (which excludes `odoo-gap-analysis`, a spawner), the
+  `odoo-solution-design` dispatch template ended with the literal line `Do NOT spawn subagents or
+  invoke skills`, and `agents.<name>.role: leaf` in the registry armed `hooks/remind-delegate.sh` to
+  warn the agent off at the call. All four are gone. The agent's new `§ Delegating for grounding`
+  replaces them with ONE decidable test - **does it GROUND the design, or does it EXECUTE it?** -
+  plus a lookup table from missing fact to the front door that supplies it
+  (`odoo-gap-analysis`, `odoo-feature-check`, `odoo-override-finding`, `odoo-version-diff`,
+  `odoo-deprecation-audit`, `odoo-frontend-design`, `odoo-doc-feature-map`,
+  `odoo-customization-inventory`, and `WebSearch`/`WebFetch` for a bounded external question). That
+  a front door fans out below the architect is now stated to be a sanctioned shape rather than a
+  violation. Executors (`odoo-coding`, `odoo-code-review`, `odoo-acceptance`, `odoo-instance`,
+  `run-harness`) stay out of bounds, and the two guarantees that mattered are unchanged and now
+  machine-enforced: the TDD is never delegated, and `hooks/block-coordinator-code-write.sh` - which
+  keys on exactly this role - refuses a production-source write from the agent's context rather than
+  merely discouraging it. Round 1 gains the matching branch: with no `GAP_MATRIX`, look on disk
+  first, then measure the scope, then record which of the three paths produced the matrix.
+- `odoo-ai-agents` - **Three contradictions the promotion exposed, fixed at their source.** The
+  agent body carried two overlapping Skill-tool paragraphs with different scopes (one "leaf skills
+  only", one "use it for what the design task needs") - merged into one. `snippets/worker-brief.md`
+  exempted the spawner tier by naming `odoo-coder` alone; it now reads the registry `role` instead,
+  so a future promotion is covered by the same sentence. `snippets/dispatch-brief.md`'s
+  `SPAWNER variant (odoo-coder only)` now says which spawner each self-check variant is for.
+
+### Fixed
+
+- `odoo-ai-agents` - **A rotten claim in `skills/odoo-solution-design/SKILL.md`.** It told readers
+  the architect "runs its rounds using its restricted read-only tool allowlist". The agent carries
+  no `tools:` allowlist and `tests/test_execute_agent_hardening.py` requires it to omit one, so the
+  sentence had been false for as long as that test has passed. Replaced with the true statement.
+- `odoo-ai-agents` - **A test that would fail on a correct tree.**
+  `test_exactly_odoo_coder_cites_spawner_completion_contract` asserted the literal
+  `citers == ["odoo-coder"]`, which held only while one spawner existed and said nothing about the
+  invariant it guarded. It now asserts SET EQUALITY against the registry's
+  `role: spawner|coordinator` set in both directions: no leaf carries a contract that cannot bind
+  it, and no spawner is missing the one that does.
+
 ## [5.3.0] - 2026-08-23
 
 ### Added

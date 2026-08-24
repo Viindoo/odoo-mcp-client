@@ -770,7 +770,11 @@
       }
     },
     "odoo-solution-architect": {
-      "role": "leaf",
+      "role": "spawner",
+      "spawns_agents": [
+        "odoo-gap-analyzer"
+      ],
+      "notes": "Designer that may source its own missing grounding. It PREFERS the front-door skill (odoo-gap-analysis, odoo-feature-check, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory), which fans out below it; odoo-gap-analyzer is listed because the architect launches it DIRECTLY on the R0-move-1 fallback where the Skill tool is absent from its own toolset (fence: agents/odoo-solution-architect.md \u00a7 Direct-launch fallback). It may also launch anonymous read-only research workers for a bounded external question. It never launches a coder/reviewer/executor and never writes production source.",
       "brief": {
         "required": [
           "REQUIREMENT"
@@ -1499,7 +1503,7 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-solution-architect",
-        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order, then MODE: consistency and, on any contested symbol, a MANDATORY MODE: reconcile architect call that picks the winner - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword)"
+        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order, then MODE: consistency and, on any contested symbol, a MANDATORY MODE: reconcile architect call that picks the winner - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword). The architect is itself role=spawner: when a fact the design turns on was not handed to it (an uncosted requirement list, an unknown current behavior, a bounded external question) it sources that GROUNDING for itself - invoking odoo-gap-analysis / odoo-feature-check / odoo-override-finding / odoo-version-diff / odoo-deprecation-audit / odoo-frontend-design / odoo-doc-feature-map via the Skill tool, or launching read-only research workers (Mode A cap) - so a nested fan-out below this skill is sanctioned, never a violation to forbid. It still launches no coder/reviewer/executor and writes no production source"
       ],
       "stack": "fullstack",
       "instance_touching": false,

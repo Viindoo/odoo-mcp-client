@@ -15,8 +15,17 @@ See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) y
 against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` - this file covers only your
 worker-side behavior once dispatched, not how the caller composed your brief.
 
-**The `odoo-coder` node coordinator is NOT a leaf and does NOT carry this brief.** It is a
-sanctioned nested spawner (one agent level below `odoo-coding`, launched once per work node) that
+**Who this brief does NOT bind: any agent the registry declares `role: spawner|coordinator`**
+(`generator/skill_tool_deps.json` -> `agents.<name>.role` is the SSOT - read the role, do not
+infer it from a name list here). Today that is `odoo-coder` and `odoo-solution-architect`; a
+third promoted tomorrow is covered by the same sentence. Such an agent launches its own
+children under `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` and the
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` cap, and takes its worker-side
+rails from its OWN agent body instead of the leaf rails above. `odoo-solution-architect` is
+the read-only case: it launches grounding workers only, writes no source, and runs no git.
+
+`odoo-coder` is the WRITING case, and the rest of this section is its detail. It is a sanctioned
+nested spawner (one agent level below `odoo-coding`, launched once per work node) that
 launches the three hard-leaf teammates - `odoo-test-writer` (RED test, first), `odoo-backend-coder`
 and/or `odoo-frontend-coder` (code to green) - per R0
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: it dispatches, ENDS ITS TURN, and
