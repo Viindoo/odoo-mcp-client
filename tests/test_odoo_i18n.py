@@ -583,11 +583,12 @@ SEMANTICS_CONSUMERS = (
 )
 
 # `[card-budget]` (generator/check_orchestration.py rule 13) caps a snippets/*.md
-# file at 4096 B once >= 3 skills+agents cite it. Today these two are cited by 2
-# consumer bodies (the recipe lives under references/ and is not counted), so the
-# cap does not fire yet - which is exactly why it is asserted here. Letting them
-# drift over the cap would arm a CI failure for whoever adds the third citer,
-# and they would have no idea why their unrelated edit went red.
+# file at 4096 B once >= 3 skills+agents cite it. po-entry-semantics.md is already
+# at 3 citers (odoo-i18n, odoo-modules-upgrade, odoo-translator), so the cap is
+# LIVE on it; translation-term-policy.md has 2 and is held under the same cap so a
+# third citer inherits a green gate. Asserting the size here rather than trusting a
+# citer count is deliberate: the count moved from 2 to 3 mid-change when a consumer
+# was wired up, and nobody re-derived it - the size assertion does not care.
 CARD_BUDGET_DEFAULT_CAP = 4096
 
 
