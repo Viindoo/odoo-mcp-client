@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.4.1] - 2026-08-24
+
 ### Fixed
 
 - `odoo-ai-agents` - **A translation equal to its source is stored EMPTY - the i18n reconcile now
