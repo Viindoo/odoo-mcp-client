@@ -180,7 +180,9 @@ loop:
         provision_worktree_if_needed(n)  # Hard rule 6 + Run start invariant 2: SOURCE-writing, no
                         # worktree, not self-provisioning -> git-ops forks one FROM this repo's
                         # run-integration branch; inject into n.inputs. ONE worktree per node is
-                        # what makes a batch of >1 safe - never two members in one tree.
+                        # what makes a batch of >1 safe - never two members in one tree. A node that
+                        # ARRIVES carrying a WORKTREE_PATH is skipped here, so this guard alone
+                        # cannot see a collision: check 6 of Plan agreement is what enforces it.
     write(RUN)
     dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN END YOUR TURN. A Skill call
                         # runs INLINE here, but every AGENT launch - yours, or a spawner skill's
@@ -243,8 +245,8 @@ emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per 
 
 ## Plan agreement (`verify_plan_agreement`)
 
-Five checks, before every dispatch: 1-4 are PURE FUNCTIONS of plan fields - no tool, no lookup; 5
-compares a plan field against a runtime observable. Each either AGREES, or STOPS the run BLOCKED
+Six checks, before every dispatch: 1-4 and 6 are PURE FUNCTIONS of plan fields - no tool, no
+lookup; 5 compares a plan field against a runtime observable. Each either AGREES, or STOPS the run BLOCKED
 naming the offending plan field. Never substitute, re-partition, re-order or re-plan.
 
 1. **File-scope disjointness.** No two nodes' `files-in-scope` globs may overlap. Overlap -> STOP
@@ -268,6 +270,16 @@ naming the offending plan field. Never substitute, re-partition, re-order or re-
    `produced`, and **route back to `odoo-planning`** to re-plan against the current tree; never
    re-derive the plan against the moved tree and never proceed on the stale one. An unresolvable fork
    point is an open finding, never agreement.
+6. **One worktree per co-dispatched node.** No two nodes admitted into the same batch, or beside a
+   still-`RUNNING` one, may carry the same `WORKTREE_PATH`. Collision -> STOP BLOCKED naming both
+   node ids and the shared path and **route back to `odoo-planning`**; never dispatch them anyway,
+   never merge them into one node, and never re-assign a tree yourself. A pure read of
+   `RUN.nodes[].inputs`. It exists because check 1
+   taught the wrong lesson: file-scope disjointness was the ONLY concurrency question asked, so an
+   orchestrator whose nodes touched disjoint FILES concluded nothing was left to isolate and put
+   two in one tree. Files are not what a shared tree shares - `.git/index` and one HEAD are, and no
+   file disjointness separates those. Rationale:
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § child worktree.
 
 Per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`, run-harness keeps a live task
 list of the RUN-DAG nodes it dispatches (one item per node, title = node id), mirroring

@@ -528,8 +528,10 @@ read from `plan.md`'s P3 classification table (count the rows whose action is KE
 REWRITE(model), MERGE, SPLIT or RECONCILE; DELETE-absorbed and OBSOLETE rows need no coder and do not
 count). `n <= 1` -> SKIP steps 1-3 below: dispatch the one module DIRECTLY into
 `<path>/upg-integration`. `n >= 2` -> steps 1-3 as written; the child worktree is there for
-poison-containment, not for an `index.lock` race (P4 is "Per module in dep order" - sequential - so
-that race never occurs here). Semantics:
+poison-containment FIRST, which holds whether or not two modules ever run at once - so a reader who
+notes that P4 is "Per module in dep order" has established nothing about whether the worktree is
+needed, and disjoint file sets establish less still: units sharing a tree share `.git/index` and one
+HEAD, which no amount of file-level disjointness separates. Semantics:
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Single-unit collapse.
 
 1. Create child worktree - invoke `git-toolkit:git-ops` to add a worktree (branch

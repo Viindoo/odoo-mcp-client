@@ -158,6 +158,10 @@ invocation was fed, before self-provisioning a worktree or dispatching any `odoo
 pairwise-compare each node's `files-in-scope` globs against every OTHER fed node's; on ANY
 overlap, STOP and report BLOCKED naming both node ids and the shared path, and route back to
 `odoo-planning` to re-partition - never guess an owner and never create a worktree first.
+Run check 6 (One worktree per co-dispatched node) in the same pass and on the same terms: no two
+nodes you dispatch together may carry the same `WORKTREE_PATH`. File disjointness does not make one
+tree safe for two nodes - they would share `.git/index` and one HEAD, which is what a concurrent
+stage and commit actually collide on.
 
 When dispatched under an active run-harness (a named `run-<id>`) OR with a `WORKTREE_PATH` (the
 pre-approved node dispatch path - see WORKTREE_PATH below) the upstream approval (`odoo-planning`
