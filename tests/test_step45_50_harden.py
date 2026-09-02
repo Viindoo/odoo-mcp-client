@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import farm_path, real_python3
+from conftest import farm_path, real_python3, run_and_reap
 
 ROOT = Path(__file__).resolve().parent.parent
 STEP45 = (
@@ -1086,16 +1086,18 @@ def _make_step50_spinup_env(tmp_path: Path, *, curl_mode: str):
 
 
 def _run_step50(env) -> subprocess.CompletedProcess:
-    return subprocess.run(
+    # run_and_reap, never subprocess.run: this step launches a background server it rightly
+    # leaves running, and an unreaped stub outlives the whole session (conftest.run_and_reap).
+    return run_and_reap(
         ["bash", str(STEP50), "apply", "--version", "17.0"],
-        capture_output=True, text=True, env=env, timeout=30,
+        env=env, timeout=30,
     )
 
 
 def _run_step50_args(env, *extra_args) -> subprocess.CompletedProcess:
-    return subprocess.run(
+    return run_and_reap(
         ["bash", str(STEP50), "apply", "--version", "17.0", *extra_args],
-        capture_output=True, text=True, env=env, timeout=30,
+        env=env, timeout=30,
     )
 
 
