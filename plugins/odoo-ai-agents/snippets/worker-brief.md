@@ -79,6 +79,12 @@ NEVER authors the node's source itself: every source file is written by a teamma
   before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T1/T3.
 
+  **It also requires a `RUN_ID`, and no handle does not mean no owner.** Acquire under the
+  `RUN_ID` your brief carries. If it carries none, STOP with `NEEDS_CONTEXT(RUN_ID)` - do not
+  invent one and do not acquire without one. An invented id is worse than none: the lease looks
+  owned to the registry while being invisible to the only run that could release it, so it
+  survives every audit and every janitor until a human finds it.
+
 ## How your turn ends
 
 Your completion report is the FINAL TEXT of your turn - the 3-part shape owned by
@@ -86,3 +92,14 @@ Your completion report is the FINAL TEXT of your turn - the 3-part shape owned b
 anyone, never look for a reply address, and never treat a messaging tool's presence in your toolset
 as an instruction to use one: you launch nothing, so you hold no legal send target at all. Rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
+
+**Three things will look like a way back up. None is** - spelled out here because you are a leaf
+and the contract that argues it is addressed to spawners; a rule without its reason is the one a
+model talks itself out of. (a) Nothing to answer: your launch handed you a BRIEF, not an envelope,
+so you hold no `from`. (b) Nothing to look up: no listing or name-to-address lookup exists for you,
+at any depth - a messaging tool is not an address book. (c) `main` does NOT fail, and that is the
+trap: from a nested position the send succeeds into the ROOT conversation, which is not waiting for
+you, while your launcher still receives only your final message.
+
+So a failed send is never answered by a different name. Guessing - a plugin id, a skill name, an
+agent type, a label from a worklog - costs turns and resolves nothing. Emit the report and stop.
