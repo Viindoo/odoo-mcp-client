@@ -241,7 +241,10 @@ Create the JOB-tier integration worktree: invoke the `git-toolkit:git-ops` skill
 tool) to add a worktree (branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
 Per module in dep order: invoke the `odoo-coding` skill (via the Skill tool) at the ADAPT tier
 (per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
-in a child worktree off integration. `odoo-coding` owns the backend/frontend split, coder fan-out
+in a child worktree off integration - the reason is POISON-CONTAINMENT and it is NOT optional when
+the modules touch disjoint files, which is the deviation this prescription keeps losing to; read it
+before deciding otherwise at `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
+§ Child worktree per module. `odoo-coding` owns the backend/frontend split, coder fan-out
 (via its `odoo-coder` per-node coordinator), and model, and grounds any ported OWL/QWeb/SCSS against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder`,
 `odoo-backend-coder`, or `odoo-frontend-coder`).

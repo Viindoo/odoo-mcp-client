@@ -141,10 +141,20 @@ race.** A unit whose build fails leaves its partial edits in its own tree, so th
 branch's prior commits stay clean and the step can abort to the pre-step SHA without unpicking a
 half-written sibling. That reason is INDEPENDENT of how the units are dispatched: it holds even
 where dispatch is strictly SEQUENTIAL and no race is possible, so never justify the child worktree as
-a concurrency race and never drop it because a given step happens to dispatch serially. Where units
-ARE dispatched together (§ Batch admission below),
+a concurrency race ALONE, and never drop it because a given step happens to dispatch serially. Where
+units ARE dispatched together (§ Batch admission below),
 one-tree-per-unit is additionally what keeps them from colliding - a SECOND reason to keep the child
 worktree, never a replacement for the first.
+
+What that second reason protects is the INDEX and the BRANCH, not the file set, and saying so is
+what makes it survive contact with a reader. Two units sharing a tree share one staging area and one
+HEAD, so disjointness in FILES buys them nothing. Observed near-miss: one unit staged five paths into
+the shared index WHILE a sibling was committing, and landed on the same branch 38 seconds earlier. It
+survived only because the committing delegate scoped its commit to an explicit pathspec - a
+whole-tree commit would have swallowed the sibling's in-flight work into the wrong commit, and
+nothing in the layout would have prevented it. An orchestrator reasoning from file-set disjointness
+alone concludes the child worktrees are ceremony, because on that axis they are; naming the axis it
+is NOT reasoning about is the whole point.
 
 ---
 
