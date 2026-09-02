@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.5.1] - 2026-09-02
+
 ### Fixed
 
 - `odoo-ai-agents` - **the i18n export instance is built WITH DEMO DATA, and one build serves the
