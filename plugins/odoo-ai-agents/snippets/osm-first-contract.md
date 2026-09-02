@@ -35,7 +35,19 @@ OSM call OR a direct source read - never asserted from memory:
   custom module/model), `Read`/`Grep` the local source for that entity instead - a
   Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does
   cover (`grounded: osm + local-source (hybrid)`). An index miss is not proof of
-  absence when a local repo is available to check.
+  absence when a local repo is available to check - and, per the next rule, an index
+  HIT is not proof that what you read is what the tree under review contains.
+- **Presence in the index is not currency with the TREE UNDER REVIEW.** OSM indexes repos at a
+  BRANCH and reports no SHA, so its copy cannot hold an unpushed commit, an uncommitted edit, or
+  the change you are reviewing - and you cannot ask which revision answered. A third axis, distinct
+  from absence (above) and deprecation (§ Existence is not currency): the entity resolves, the
+  answer is well-formed, and it describes a different revision. When the target names a WORKTREE,
+  branch or diff, that tree is authoritative for a file's CONTENT; read it before asserting what
+  the code says, and read a disagreement as the index lagging, never as a finding. Structure
+  (inheritance, override points, dep closure, ORM-path validity) stays PRIMARY - only currency
+  moves. Twice in one review this went unnoticed until someone happened to look: a method body that
+  differed would have been raised as a false CRITICAL, and a coverage audit returned a field name
+  the diff had already renamed.
 
 An unverifiable claim is flagged as an assumption, not stated as fact.
 

@@ -54,3 +54,6 @@ The RESOLVED structural / behavioral source definition:
    (`model_inspect` / `entity_lookup` / `resolve_orm_chain` / `find_override_point` /
    `impact_analysis` / `validate_*`); reading raw source is the FALLBACK. What is demoted to a
    claim is the DESCRIPTIVE TEXT about the code - never the resolved structure OSM returns.
+   Not covered here, so the silence is not read as coverage: revision SKEW, where the index
+   answers from an older revision of the same file. See `osm-first-contract.md` § Presence in
+   the index is not currency.
