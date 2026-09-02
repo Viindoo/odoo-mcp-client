@@ -19,7 +19,8 @@
 #       "the owner forgot a flag", it is ownership not established. A rightful owner always has the
 #       value - `ALLOC_RUN_ID` from its own acquire, `INSTANCE_HANDLE.run_id` downstream - so this
 #       arm costs a legitimate release nothing and refuses the incident's exact shape.
-#   A2  `--force` / `--force-forget` on `release`, or `--yes` on `reap-orphans`, from a subagent.
+#   A2  `--force` / `--force-forget` on `release`, `--yes` on `reap-orphans`, or `--allow-unowned`
+#       on `acquire`, from a subagent.
 #       The allocator's own refusal names `--force` as the override, so without this arm a
 #       dispatched agent that reads that refusal is ONE FLAG away from the same data loss, by the
 #       same "it looked orphaned" reasoning. `--force` overrides a human's ownership decision; it is
@@ -201,6 +202,15 @@ while IFS= read -r seg; do
      && printf '%s' "$seg" | grep -qE '(^|[[:space:]])--yes([[:space:]]|$)'; then
     ARM=A2; break
   fi
+  # `acquire --allow-unowned` is the allocator's opt-out from naming an owner. It exists for a
+  # human or a fixture that deliberately wants an ownerless lease; for a DISPATCHED agent it is
+  # the wrong answer to the only question the refusal asks. An agent that reaches for it has no
+  # run id, and the correct move is to say so upward - an ownerless lease is invisible to the run
+  # that would otherwise clean up after it.
+  if [[ "$VERB" == "acquire" ]] \
+     && printf '%s' "$seg" | grep -qE '(^|[[:space:]])--allow-unowned([[:space:]]|$)'; then
+    ARM=A2; break
+  fi
   # A1: a release that names no owner.
   if [[ "$VERB" == "release" ]] \
      && ! printf '%s' "$seg" | grep -qE '(^|[[:space:]])--(run-id|session)([[:space:]]|=)'; then
@@ -223,11 +233,13 @@ DO THIS INSTEAD - take the branch that applies to you; do not simply re-send thi
 
 This refusal is an ANSWER, not an obstacle - the same rule the override arm of this gate, snippets/resource-teardown-contract.md T4, agents/odoo-instance-ops.md and hooks/permission-denied-teardown.sh all state. Citing an owner you can actually produce is establishing ownership. Re-sending this call in a different SHAPE to get past the guard - rejoining or splitting lines, moving flags, re-encoding it, routing it through a script the gate does not read - is itself a blocked action. With no owner to cite, end your turn BLOCKED and quote this refusal."
 else
-  REASON="REFUSED: you are \`$AGENT_NAME\`, and this \`allocator.py\` call carries an override flag (--force / --force-forget / --yes). A dispatched agent may not override the allocator's ownership decision.
+  REASON="REFUSED: you are \`$AGENT_NAME\`, and this \`allocator.py\` call carries an override flag (--force / --force-forget / --yes / --allow-unowned). A dispatched agent may not override the allocator's ownership decision.
 
 Those flags exist to let a HUMAN reap a lease or database the ownership guard is protecting - which is exactly the judgement a dispatch cannot make: it cannot see the other sessions on this host, and the failure mode is irreversible (a dropped database, an abandoned one).
 
-DO THIS INSTEAD: run the operation WITHOUT the override. If the allocator then refuses it, that refusal is your ANSWER, not an obstacle - end your turn with status BLOCKED (or NEEDS_NEXT naming who should decide) and quote the refusal, including the owning run it named. Never re-issue the same call with an override to get past it."
+DO THIS INSTEAD: run the operation WITHOUT the override. If the allocator then refuses it, that refusal is your ANSWER, not an obstacle - end your turn with status BLOCKED (or NEEDS_NEXT naming who should decide) and quote the refusal, including the owning run it named. Never re-issue the same call with an override to get past it.
+
+For \`--allow-unowned\` specifically the answer is upward, not sideways: you reached for it because you hold no run id, and the run id is something you should have been GIVEN. End your turn with NEEDS_CONTEXT(RUN_ID) naming the brief field that was missing. Do not invent an id either - an invented one is worse than none, because the lease then looks owned to the registry while being invisible to the only run that could release it."
 fi
 
 jq -cn --arg reason "$REASON" \

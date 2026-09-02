@@ -589,16 +589,46 @@ def test_missing_continuation_contract_allowlist_is_shrink_only():
 # ---------------------------------------------------------------------------
 
 
-def test_dispatch_brief_skeleton_ends_at_field_10():
-    """The skeleton table must stop at field 10. An eleventh row is, by construction, the retired
-    reply-address field coming back under some name - there is no other candidate."""
+def test_no_skeleton_field_is_a_reply_address_under_another_name():
+    """What this guard actually protects is that the RETIRED reply-address field never returns.
+
+    It used to enforce that by capping the table at ten rows, on the stated premise that "an
+    eleventh row is, by construction, the retired reply-address field coming back under some name -
+    there is no other candidate". That premise turned out to be false, and the counter-example is
+    the reason field 11 now exists: `RUN_ID` is an OWNERSHIP identity for a lease, not an address.
+    It travels strictly DOWNWARD, nothing is ever sent to it, and its absence is what let a
+    grandchild agent mint its own run id and hold a lease invisible to the run that would have had
+    to reap it. Capping the count would have kept the wrong field out by keeping every field out.
+
+    So the assertion moved from the COUNT to the PROPERTY: any field beyond ten must be on the
+    named allowlist, and no skeleton row may carry reply-address vocabulary.
+    """
     text = DISPATCH_BRIEF.read_text(encoding="utf-8")
-    rows = [line for line in text.splitlines() if re.match(r"^\| 11 \|", line)]
-    assert not rows, (
-        f"dispatch-brief.md: the universal skeleton must stop at field 10, found: {rows}"
-    )
     assert "| 10 | `RETURN_BUDGET`" in text, (
-        "sanity: field 10 (RETURN_BUDGET) must still be the last skeleton row"
+        "sanity: field 10 (RETURN_BUDGET) must still be a skeleton row"
+    )
+
+    allowed_beyond_ten = {"RUN_ID"}
+    for line in text.splitlines():
+        m = re.match(r"^\| (\d+) \| `([A-Z_]+)`", line)
+        if not m or int(m.group(1)) <= 10:
+            continue
+        assert m.group(2) in allowed_beyond_ten, (
+            f"dispatch-brief.md: field {m.group(1)} `{m.group(2)}` is not on the allowlist. A new "
+            "skeleton field is the retired reply-address returning under another name unless it "
+            "is demonstrably something else - add it here deliberately, with the argument."
+        )
+
+    banned = re.compile(r"REPLY_TO|CALLER_ID|reply[- ]address", re.I)
+    for line in text.splitlines():
+        if not re.match(r"^\| \d+ \|", line):
+            continue
+        assert not banned.search(line), (
+            f"a skeleton row carries reply-address vocabulary, which is the retired field: {line}"
+        )
+
+    assert "**No reply-address field exists.** Do not add one under any name." in text, (
+        "the prohibition itself must stay stated, not merely enforced by this test"
     )
 
 

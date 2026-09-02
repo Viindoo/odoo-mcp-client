@@ -1123,7 +1123,7 @@ def test_step50_attaches_to_existing_shared_lease_without_relaunch(tmp_path):
     # Pre-seed a LIVE shared lease (pid = this pytest process, which is alive).
     pre = subprocess.run(
         [sys.executable, str(ALLOC), "acquire", "--series", "17.0", "--mode", "shared",
-         "--port", "18069", "--db-name", "odoo_test", "--pid", str(os.getpid())],
+         "--port", "18069", "--db-name", "odoo_test", "--pid", str(os.getpid()), "--allow-unowned"],
         capture_output=True, text=True, env=env,
     )
     assert pre.returncode == 0, pre.stderr

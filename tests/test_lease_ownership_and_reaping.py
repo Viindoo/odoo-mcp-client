@@ -41,9 +41,23 @@ def _import_allocator():
     return mod
 
 
+_OWNERSHIP_FLAGS = ("--run-id", "--session", "--allow-unowned")
+
+
+def _with_ownership(args):
+    """`acquire` REFUSES a lease with no owner (exit 10) - an ownerless lease cannot be released by
+    ownership, cannot be correlated to the subagent holding it, and is invisible to its own run's
+    audit. Cases in this file exercise other allocator behaviour and genuinely want an ownerless
+    lease, so they take the documented opt-out. Injected in ONE place rather than at ~50 call
+    sites, and only when the case named no ownership flag itself - so a case that DOES care about
+    ownership still says so by passing its own --run-id."""
+    if args and args[0] == "acquire" and not any(a in _OWNERSHIP_FLAGS for a in args):
+        return (*args, "--allow-unowned")
+    return args
+
 def _run(env, *args, cwd=None):
     return subprocess.run(
-        [sys.executable, str(ALLOC), *args],
+        [sys.executable, str(ALLOC), *_with_ownership(args)],
         capture_output=True, text=True, env=env, cwd=cwd,
     )
 

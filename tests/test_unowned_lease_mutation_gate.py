@@ -191,6 +191,11 @@ def test_a_run_id_cannot_be_borrowed_from_a_neighbouring_command():
     f"{ALLOC} release tok --run-id mine \\\n    --force",
     f"{ALLOC} release tok \\\n    --force-forget",
     f"{ALLOC} reap-orphans \\\n    --yes",
+    # `acquire --allow-unowned` is the allocator's deliberate opt-out from naming an owner. For a
+    # HUMAN or a fixture that is a legitimate declaration; for a dispatched agent it is the wrong
+    # answer to the only question the refusal asks - it reached for the flag because it holds no
+    # run id, and an ownerless lease is invisible to the run that would have to reap it.
+    f"{ALLOC} acquire --series 17.0 --mode ephemeral --allow-unowned",
 ])
 def test_a_subagent_may_not_override_the_ownership_decision(command):
     reason = _denied(_run(command, agent_type="odoo-coder"))

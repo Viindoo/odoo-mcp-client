@@ -735,8 +735,18 @@ cmd_apply() {
         # P5.5: owner-stamp the shared lease with the caller's run id (sourced
         # from INST_RUN_ID, the same INST_* convention every other field here
         # follows) so a foreign session can no longer bare-drop it. Unset ->
-        # the lease stays unowned, exactly as before (back-compat).
-        [[ -n "${INST_RUN_ID:-}" ]] && args+=(--run-id "${INST_RUN_ID}")
+        # the lease stays unowned, exactly as before (back-compat) - but that is
+        # now STATED rather than implied: `acquire` refuses an ownerless lease
+        # unless the caller says it means one, because an unowned lease is
+        # invisible to any run's audit and only a human can reap it. A shared
+        # lease is the one shape that legitimately outlives its acquirer (many
+        # readers across sessions; `drop_on_release` is false), so declaring it
+        # here is correct - it is not a workaround for a missing id.
+        if [[ -n "${INST_RUN_ID:-}" ]]; then
+            args+=(--run-id "${INST_RUN_ID}")
+        else
+            args+=(--allow-unowned)
+        fi
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             args+=(--pid "$1")
         fi

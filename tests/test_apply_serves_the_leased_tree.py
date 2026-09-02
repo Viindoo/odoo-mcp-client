@@ -102,6 +102,14 @@ def _acquire(sandbox: Sandbox, *extra: str) -> str:
     `--no-create` keeps the acquire off the DB-capability gate: this file is about which TREE a
     lease reserves, not about cluster privileges.
     """
+    # `acquire` now REFUSES a lease with no owner (exit 10): an unowned lease cannot be released
+    # by ownership, cannot be correlated to the subagent holding it, and is invisible to its own
+    # run's audit. These cases are about other allocator behaviour and deliberately want an
+    # ownerless lease, so they take the documented opt-out rather than pretending to an owner -
+    # injected HERE, once, instead of at every call site, so a case that DOES care about ownership
+    # can still say so by passing its own --run-id.
+    if not any(a in ("--run-id", "--session", "--allow-unowned") for a in extra):
+        extra = (*extra, "--allow-unowned")
     res = subprocess.run(
         [
             sys.executable, str(ALLOCATOR), "acquire",
