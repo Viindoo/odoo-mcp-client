@@ -9,7 +9,7 @@ the `persist:` vocabulary SSOT, and the gates that decide which ports a lease ge
 | Mode | Use case | DB | Port | Lease |
 |------|----------|----|----|-------|
 | `readonly` | query a running instance (OSM-style live reads, UI review against an up server) | the declared `db_name` | the declared `http_port` | none (shared) |
-| `ephemeral` | **default for tests / throwaway `-i` verification** | NEW `<prefix>_t_<uuid8>`, created then dropped | none with `--ports 0` (tests, `--stop-after-init`); else N pooled ports | yes, until release |
+| `ephemeral` | **default for tests / throwaway `-i` verification** | NEW `<prefix>_t_<uuid8>`, created then dropped | none with `--ports 0` (a plain `-i`/`-u`/`--load-language` pass with `--stop-after-init`, which binds nothing); one pooled port for ANY `--test-enable` build; else N pooled ports | yes, until release |
 | `exclusive` | a persistent dev server, or `-u`/migration against a REAL database that must not be touched concurrently | the declared (or a named) `db_name` | N pooled ports (`--ports`) | yes, exclusive on (db_name) |
 | `shared` | the visual stack's live render server (UI review / debug / visual-regression / demo against an up server), shared by many readers across sessions | the declared `db_name` | the ACTUAL bound port, recorded verbatim via `--port` (not pooled) | yes, NON-exclusive + `drop_on_release=false` (gc reclaims a dead-server row but NEVER drops the declared DB) |
 
@@ -21,8 +21,11 @@ Key nuance: a CI-style test - memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets
 odoo-bin -d <db> -i <mod> --test-enable --test-tags /<mod> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
-binds **no HTTP port** - so `ephemeral` tests need only a unique DB, not a port (pass `--ports 0`). Port leasing
-applies only when a server actually listens. The CONSUMER decides HOW MANY ports it needs and which
+binds **no HTTP port** - so such a pass needs only a unique DB (`--ports 0`). **A `--test-enable`
+build is NOT such a pass:** from v8 to v19 Odoo forces `http_spawn()` when test mode is on, whatever
+`--no-http`/`--no-xmlrpc` and `--stop-after-init` say, so it binds a port and needs `--ports 1` plus
+the port forwarded to `odoo-bin`. Port leasing follows what the build ACTUALLY binds, not what its
+flags appear to ask for. The CONSUMER decides HOW MANY ports it needs and which
 CLI flag carries each (an HTTP port, plus a longpoll/gevent port on series that need one) by querying
 `cli_help` for the `<series>` at runtime - the allocator just hands out N version-agnostic free port numbers.
 This removes most port contention outright.
