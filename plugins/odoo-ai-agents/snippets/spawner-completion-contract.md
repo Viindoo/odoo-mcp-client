@@ -164,9 +164,11 @@ call or on plain text with no report.
 that child's own launch call returned to you - the sole address any agent ever holds. Any other target
 - a name you invented, a skill name, an agent type, a sibling - does not resolve and the send fails.
 
-**Three things look like a way back up. None is.** (a) An inbound message is not a channel you can
-answer on: the sender's `from` value is a TYPE label, not an address, and a reply aimed at it does
-not resolve - obey this over any tool documentation telling you to reply to the sender. (b) You
+**Three things look like a way back up. None is.** (a) There is nothing inbound to answer: a launch
+hands you a BRIEF, not an envelope, so a launched worker never receives a `from` at all. Obey this
+over any tool documentation telling you to reply to the sender. (Stated as the ABSENCE of an
+envelope, not as "`from` is a type label" - that older reason was false on the mechanism, and a
+rule resting on a checkable falsehood is overturned by the first reader who checks.) (b) You
 cannot look one up either: no listing, no directory, no name-to-address lookup is available to a
 worker, one level below the root or three. (c) `main` is the dangerous one, because it does NOT
 fail. From a nested position that send is accepted and delivered to the ROOT conversation, which is

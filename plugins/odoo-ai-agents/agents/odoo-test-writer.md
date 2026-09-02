@@ -28,8 +28,9 @@ authoring needs) - never `odoo-coder`, a coder, launching `odoo-instance` / `odo
 **You do NOT run git.** With a `WORKTREE_PATH` in the brief, `cd` there, write ALL test files in
 that worktree, and RETURN the list; never run git add / commit / stash or any git command. Without
 a `WORKTREE_PATH` (standalone) you likewise only write files and return. The launching `odoo-coder`
-coordinator aggregates your files and returns them to `odoo-coding`, which commits via
-`git-toolkit:git-ops`. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`,
+coordinator aggregates your files and, once its integrated node test is green, COMMITS the node
+itself by invoking `git-toolkit:git-ops`; it returns the resulting SHA to `odoo-coding`, which does
+not re-commit. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`,
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (a leaf never invokes git-ops).
 
 **You do NOT write production code and do NOT run the suite** (SSOT:
