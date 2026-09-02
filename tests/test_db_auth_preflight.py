@@ -716,6 +716,17 @@ def _step50_env(tmp_path, *, preflight_rc, pg_isready_rc=0):
     odoo_bin = core / "odoo-bin"
     odoo_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     odoo_bin.chmod(0o755)
+    # Stub `curl`, or this test asks the DEVELOPER'S MACHINE whether an instance is up. The step
+    # probes http://localhost:8069 before doing anything else and short-circuits with "already up"
+    # when something answers - so any Odoo listening on the default port turns these cases red with
+    # a message about a cluster that was never consulted. Observed exactly that: a concurrent
+    # `--test-enable --stop-after-init` run from an unrelated session was bound to 8069, which is
+    # the very behaviour `tests/test_test_run_binds_a_port.py` documents (test mode forces an HTTP
+    # bind on every series, whatever --no-http and --stop-after-init say). `404` = nothing serving,
+    # which is the precondition every case in this helper assumes.
+    curl = bindir / "curl"
+    curl.write_text("#!/bin/sh\necho 404\n", encoding="utf-8")
+    curl.chmod(0o755)
     py = bindir / "stub_python"
     py.write_text(textwrap.dedent("""\
         #!/bin/sh
