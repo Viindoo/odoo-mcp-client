@@ -6,7 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [5.5.0] - 2026-09-02
+
 ### Added
+
+- `odoo-ai-agents` - `scripts/lib/require_python.sh`: one preflight that proves the interpreter runs
+  AND imports what the caller actually needs, so a step reports the missing interpreter rather than a
+  downstream symptom. Each caller names its own capability floor - `tomllib` for the catalog readers,
+  `json` alone for the settings and gate steps - because refusing a host that a step would have
+  served is the same defect inverted. `$ODOO_AI_PYTHON3` lets an operator name an interpreter without
+  touching `PATH`.
+- `odoo-ai-agents` - `odoo_ai_scratch_dir`: the ONE scratch destination, Tier-1 flat under the state
+  root. Every scratch write in the plugin now routes through it; the existing stderr-suppressed call
+  sites are deliberately left alone, because once the interpreter and the destination are known good
+  their silence means what it always meant - no data, not no interpreter.
+- `odoo-ai-agents` - `allocator.py`: `--allow-unowned`, the deliberate opt-out from naming an owner
+  (refused from a dispatched agent the way `--force` is, because an agent that reaches for it has no
+  run id and the correct move is to report that upward), plus `list --run-id` and `list --older-than`
+  so auditing a run's own leases stops being an ad-hoc grep over a shared prefix.
+- `test` - a third rule in the no-scratch guard for the shape the first two cannot see: a `mktemp`
+  with no destination argument, `tempfile.*`, `--basetemp`, and `TMP=`/`TEMP=`. Its allowlist is
+  empty on purpose - every site it found was moved, not excused.
 
 - `odoo-ai-agents` - **`snippets/code-comment-contract.md`: what a comment or docstring in shipped
   source may say, declared once.** Default to no comment; write one only when the WHY is invisible
@@ -40,6 +60,120 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `odoo-ai-agents` - **The two PreToolUse hard denies stopped reading text as execution.** Both
+  split a command on `|| && ; | &` without first joining backslash-continued lines, so ONE command
+  written across two physical lines became two segments - and that broke both directions at once. A
+  lease release whose `--run-id` sat on the continuation line was refused from its rightful owner:
+  in one real run that leaked an ephemeral database, and in another the agent rejoined the line and
+  the guard's own remediation text became a working bypass. In the other direction a `--force` or
+  `reap-orphans --yes` on the continuation line landed in a segment carrying no allocator token, so
+  the override arm never looked at it. The same split silently disarmed the coordinator
+  source-write detectors, whose end-anchored and verb-adjacent patterns cannot span a physical
+  line: a two-line `cp`, `>` or `tee` into module source matched nothing at all. Segmentation now
+  lives in one shared SSOT, joins continuations before splitting, is quote-aware, drops a data
+  heredoc's body while keeping an interpreter's, and uses POSIX `awk` rather than GNU-only `sed`
+  (on BSD/macOS the old splitter emitted a literal `n` and silently degraded both gates to
+  whole-command matching). (#243, #244)
+- `odoo-ai-agents` - **A bare `>` made every `2>&1` look like a file write.** The coordinator gate's
+  interpreter detector accepted a redirect character as a write token, and its three tests are
+  independent - so any command naming a `.py` path and carrying `2>&1` or `2>/dev/null` was refused,
+  including `allocator.py --help` and a plain `pytest` run. That is the whole of the reported
+  "non-determinism": the same command passed or died depending only on whether the caller had
+  appended a redirect. Shell redirection is the redirect detector's job, and it alone carries the
+  stream-redirect guard that tells `> file.py` from `2>&1`. (#244)
+- `odoo-ai-agents` - **A quoted `;` let a real write walk through the source-write gate.**
+  `python3 -c "import pathlib; pathlib.Path('<module>/models/sale.py').write_text('x')"` passed,
+  because the separator inside the quoted argument split the command and the half carrying
+  `write_text` no longer carried an interpreter token. The residual list had recorded quoted
+  separators as a false-DENY nuisance; they are also a false-PASS bypass, and that is the half that
+  mattered.
+- `odoo-ai-agents` - **A gate that refuses reads defeats the split it protects.** An `open()` for
+  READING counted as a write, so a coordinator could not verify what its workers produced and was
+  left accepting their self-reports as evidence - the opposite of why the coordinator/worker split
+  exists. A write token is now `.write(`, `write_text`, `writeFileSync`, `writeFile`, or an `open()`
+  carrying an explicit write MODE.
+- `odoo-ai-agents` - **The coordinator's batch barrier had no release.** It held until every worker
+  returned one of four terminal statuses, and a worker whose final message asks a human to relay
+  carries none - so it was neither terminal nor running, and the hold never cleared. Observed five
+  times across two runs, each costing a manual relay. The STALL clause and the dead-dispatch clause
+  both already existed, one level up each, and neither was restated where the barrier is defined.
+  A relayed or pasted summary is now explicitly not a substitute for a return: if a worker could not
+  deliver, the WORK is what needs re-dispatching. (#244)
+- `odoo-ai-agents` - **A leaf was handed the rule without its reason.** The orchestration linter
+  forbids a `role: leaf` body from citing the spawner contract, so all 24 leaves saw only the short
+  form and never the passage that names, one by one, the three things a worker tries when a send
+  fails - the inbound `from`, a directory lookup, and `main`. Every one was tried in the real runs,
+  and `main` is the dangerous one because it does NOT fail: from a nested position it delivers to
+  the root conversation, which is not waiting. The reason now sits where the leaf reads it. (#244)
+- `odoo-ai-agents` - **A test run binds an HTTP port on every series from v8 to v19.**
+  `--test-enable` forces `http_spawn()` regardless of `--no-http`/`--no-xmlrpc` AND of
+  `--stop-after-init` - read from `odoo/service/server.py` (`openerp/` on v8-v9) in all twelve
+  checkouts, three code shapes, one behaviour. The plugin advised `--ports 0` for test runs on the
+  opposite premise, costing a full build and its lease whenever the default port was already taken,
+  which on a plugin that deliberately runs concurrent ephemeral instances is normal operation. The
+  discriminator is now named as `--test-enable`, not `--stop-after-init`, and the leased port is
+  forwarded with the era-correct flag (`--xmlrpc-port` v8-v10, `--http-port` v11+, legacy aliases
+  removed at v19). Genuine non-test `--stop-after-init` paths keep `--ports 0`. (#244)
+- `odoo-ai-agents` - **The index and the tree under review can disagree, and nothing said so.** OSM
+  indexes a repository at a BRANCH and reports no revision, so its copy cannot contain an unpushed
+  commit, an uncommitted edit, or the change being reviewed - and an agent cannot ask which revision
+  answered. The contract covered absence and deprecation and was silent on this third axis. In one
+  review a method body differed between index and worktree and would have been raised as a false
+  CRITICAL; a coverage audit returned a field name the diff had already renamed. When the target
+  names a worktree, branch or diff, that tree is authoritative for a file's CONTENT; OSM's resolved
+  structure stays PRIMARY. (#244)
+- `odoo-ai-agents` - **An ownerless lease is invisible to everything that could reclaim it.**
+  `run_id` is the ownership identity - what a release is authorised against, what the teardown gate
+  correlates to, what a leak audit matches on - and the chain carrying it down had no link at the
+  bottom: the dispatch skeleton had no `RUN_ID` field, the value rode inside a conditional
+  `INSTANCE_HANDLE`, and the carve-out permitting a leaf to self-provision fires precisely when no
+  handle was forwarded. A grandchild in that position minted its own id, and the run's audit caught
+  it only because the invented string happened to share a prefix with the real one. `acquire` now
+  refuses unless the caller declares an ownerless lease; the one production caller that legitimately
+  takes one (a shared lease outliving its acquirer) declares it instead of inheriting it by
+  omission. (#245)
+- `odoo-ai-agents` - **The child-worktree prescription was unreachable, not unexplained.** Its
+  rationale sat four hops away while the only concurrency question the plan agreement asked was
+  file-scope disjointness - so an orchestrator whose nodes touched entirely disjoint FILES
+  reasonably concluded the worktrees were ceremony and put two nodes in one tree. Files are not what
+  a shared tree shares: one staging area and one HEAD are. An observed near-miss had a sibling stage
+  five paths into the shared index during another node's commit, surviving only because the
+  committing delegate scoped its commit to a pathspec. A sixth plan-agreement check now refuses two
+  co-dispatched nodes in one `WORKTREE_PATH`. (#244)
+- `odoo-ai-agents` - **A host without a usable `python3` was told the wrong thing.** Ten setup steps
+  read the instance catalog or a settings file through `python3`, six of them with stderr
+  suppressed, and nothing anywhere checked that the interpreter existed - so a broken one was
+  indistinguishable from an empty result. Measured: with `python3` unresolvable, the local-auth step
+  enumerated zero instances from a catalog declaring one and reported "nothing was proven", naming a
+  cluster that was never consulted. The hosts this hits are ordinary - a version manager whose shim
+  resolves to nothing, a container-only host with no system python, a python older than `tomllib`.
+  Every step now preflights the interpreter it needs, and `describe` still runs on a host with none.
+- `odoo-ai-agents` - **Seven scratch writes reached the ambient temp directory without naming it.**
+  A bare `mktemp` spells neither the path nor the environment variable, so neither existing rule
+  could see it - the guard said so itself, and its numbers had gone stale (it claimed four sites in
+  two files, all cleaning up after themselves; there were seven across five, and two had no trap and
+  a removal conditional on the preceding `cat`). One ran `npm install --prefix` into that directory,
+  materialising a whole browser-MCP dependency tree; another was a SessionStart hook, so once per
+  session. Where that directory is memory-backed and quota-limited, the combination exhausted it and
+  every agent session on the host began failing on a two-byte write.
+- `odoo-ai-agents` - **`worktree_root` said only where NOT to go.** Four copies described it as
+  "outside the repo tree" and named no destination - the last place an agent could freely pick the
+  ambient temp directory, where a checkout costs RAM and vanishes on reboot while its
+  `.git/worktrees/<name>` registration survives, leaving a registered worktree with no tree.
+- `test` - **The suite stopped asking the developer's machine whether Odoo is up.** The spin-up
+  fixture stubbed docker and the interpreter but not `curl`, so the step probed the real
+  `localhost:8069` and short-circuited with "already up" whenever anything answered - turning two
+  cases red with a message about a cluster that was never consulted.
+- `test` - **The suite now reaps the background server the spin-up tests start.** Two unreaped stubs
+  were found alive 48 minutes after their run, each holding a 2.5 GB DELETED log file: once their
+  temp tree was removed the PATH farm went with it, `sleep` stopped resolving, and
+  `while : ; do sleep 1; done` became a hot loop writing an error line per iteration. On a
+  memory-backed temp filesystem that was enough to take down every agent session on the host.
+- `test` - **The harness stopped mistaking a version-manager shim for the interpreter.** A PATH farm
+  built from the ambient PATH re-exposes the shim, which resolves nothing once that PATH is
+  replaced; 57 tests failed this way on every local run while CI stayed green, and two of them hung
+  in an exec loop until their subprocess timeout fired.
+
 - `odoo-ai-agents` - **"Hand off to `odoo-coding`" told a hard leaf to use a primitive that does
   not exist.** `odoo-coding` is a SKILL, and no agent can hand work sideways to anything: the
   runtime gives a subagent exactly one outbound channel - the report it returns - and the caller
@@ -67,6 +201,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   agent that writes them.** It listed "code, docstrings" among the artifacts it governed while a
   single consumer, the intake router, referenced it - so no coder ever loaded it. It now owns prose
   artifacts only and hands source to the code-comment contract, leaving one owner per fact.
+
+### Not changed - filed, and refuted against source
+
+- **#244 item 5 (profile naming) is not a defect.** The instance catalog already declares
+  series-suffixed profiles and the index registers only suffixed names, so passing the resolved
+  value verbatim - which the instruction already mandates - is correct as written. Adding the
+  proposed `<profile>_<major>` derivation would produce a doubled suffix.
+- **#244 item 2 was diagnosed as an allocator block; the hook contains no allocator logic at all.**
+  The trigger was the bare `>` above, which is also why the refusal appeared non-deterministic
+  between two nodes.
+- **#244 item 4's proposed rationale contradicts its own SSOT**, which forbids justifying the child
+  worktree as a concurrency race. The real defect was reachability, plus a plan check that asked
+  only about files.
+- **#244 item 1 is refuted**: nothing in the plugin ever told a leaf to message its launcher, and the
+  runtime makes upward addressing impossible. The defects were the barrier with no release and the
+  reason withheld from the leaf.
 
 ## [5.4.1] - 2026-08-24
 
