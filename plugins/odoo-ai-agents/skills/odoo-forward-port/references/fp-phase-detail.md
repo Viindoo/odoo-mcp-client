@@ -303,7 +303,6 @@ checkpoint/continuation read it:
 
 ```markdown
 # Forward-port plan: <source-series> -> <target-series> (<slug>)
-Mode: continuous | one-shot
 Absorption: <M> batch(es) -> <M> merge commit(s). Batch 1 = <src-first-SHA>..<src-tip-SHA> (<K> commits).
   (Default is ONE batch for the whole range. The commit count NEVER sets the merge count -
    SKILL.md Hard rule 2.)
@@ -344,18 +343,18 @@ For semantic conflicts use the stateless-resume recipe in that snippet.
 `<src-first-SHA>` = its first. Resolve both from the P0 range map before dispatching.
 
 ```
-# continuous - one merge of the range TIP; every earlier SHA in the range comes with it
+# the ONLY shape - one merge of the range TIP; every earlier SHA in the range comes with it
 op: merge --no-ff --no-commit <src-tip-SHA>
-worktree: <path>/fp-integration
-
-# one-shot only (source frozen, or a deliberate sub-range) - the WHOLE range in one staged run
-op: cherry-pick -n <src-first-SHA>^..<src-tip-SHA>
 worktree: <path>/fp-integration
 ```
 
-**Never iterate this phase per source commit, in either mode** (`SKILL.md` Hard rule 2): one merge
-per commit mints N merge commits and re-resolves every shared hunk N times; one cherry-pick per
-commit mints N fresh SHAs and re-resolves every conflict on every future run. A batch merges its
+To land only PART of a source branch, pass that sub-range's TIP as `<src-tip-SHA>`: the merge
+absorbs that commit and its ancestors and nothing else. A cherry-pick is never the answer here, at
+any granularity (`SKILL.md` Hard rule 2 - there is no mode flag that reinstates one).
+
+**Never iterate this phase per source commit** (`SKILL.md` Hard rule 2): one merge
+per commit mints N merge commits and re-resolves every shared hunk N times; a cherry-pick
+mints fresh SHAs and re-resolves every conflict on every future run. A batch merges its
 own range TIP once - the commit count never sets the merge count.
 
 Only one merge in flight (shared git index). Do NOT commit - the working tree is the absorption
@@ -500,14 +499,14 @@ converge one back in time even if created).
 
 **Open-merge window (CRITICAL constraint - unconditional, not a special case).** For the ENTIRE
 span from P5 (`--no-commit`) through P10 (`commit`) - i.e. the batch's whole P6/P7/P8/P9 -
-`MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot mode) is live in the
+`MERGE_HEAD` is live in the
 integration worktree. Git rejects any second merge in that worktree until the first is committed
-or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8,
-in EITHER mode. There is no per-commit gap to exploit, because absorb-all is the ONLY shape both
-modes use: ONE window per batch, opened by P5 and closed only by P10, never a per-commit window
+or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8.
+There is no per-commit gap to exploit, because absorb-all is the ONLY shape the pipeline has:
+ONE window per batch, opened by P5 and closed only by P10, never a per-commit window
 opened and closed inside the batch (`SKILL.md` Hard rule 2 bans that outright). Adapt all modules
-SERIALLY, DIRECTLY in the integration worktree, in either mode - continuous keeps `MERGE_HEAD` live
-for the batch's whole P6-P9 span, one-shot keeps `CHERRY_PICK_HEAD` live for exactly the same span.
+SERIALLY, DIRECTLY in the integration worktree - `MERGE_HEAD` stays live for the batch's whole
+P6-P9 span.
 SSOT: `[[fp-merge-absorption]]` §Absorption-window.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest).

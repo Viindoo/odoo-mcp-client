@@ -2221,13 +2221,13 @@ class TestP8NeverUsesChildWorktree:
     worktree off integration'), the mandatory 'Child worktree path' brief field on 8a/8b, and
     the unconditional 'op: create per-module child worktree' git-ops call all assumed a
     per-module child worktree is available for P8 fan-out. The SAME phase's own
-    'CRITICAL - open merge window' rule says MERGE_HEAD (continuous) / CHERRY_PICK_HEAD
-    (one-shot/absorb-all) is live for the ENTIRE P6-P9 span of every commit, in BOTH modes - so
-    a child worktree can never converge back before P10, and the mandatory field has no value an
-    agent can ever safely fill. Reconciled by removing the per-module child worktree entirely:
-    P8 always adapts DIRECTLY in the integration worktree (P8 is SERIAL, so there is no
+    'CRITICAL - open merge window' rule says MERGE_HEAD is live for the ENTIRE P6-P9 span of every
+    commit - so a child worktree can never converge back before P10, and the mandatory field has no
+    value an agent can ever safely fill. Reconciled by removing the per-module child worktree
+    entirely: P8 always adapts DIRECTLY in the integration worktree (P8 is SERIAL, so there is no
     concurrent writer to filesystem-isolate, and the open-merge window never clears before P8
-    runs, in either mode) - a single run-long 'Worktree path' field replaces the unfillable
+    runs). (The two-mode framing this docstring once carried is gone with the --one-shot
+    cherry-pick mode; absorb-all is now the pipeline's only shape.) - a single run-long 'Worktree path' field replaces the unfillable
     'Child worktree path' field, and the 8a/8b 'converge child worktree back' step is dropped
     (there is nothing to converge - the adapt already happened in place).
 
@@ -2948,4 +2948,132 @@ class TestPathShapeSegmentOrderConsistency:
             "- one of the two orders is wrong for every artifact this pair names; "
             "resolve which order is correct and make every occurrence agree:\n"
             + "\n".join(lines)
+        )
+
+
+# ---------------------------------------------------------------------------
+# The `--one-shot` cherry-pick mode is REMOVED (not renamed, not defaulted-off).
+#
+# Cherry-pick mints fresh SHAs, so the merge-base never advances and every
+# future forward-port re-encounters the same commits and re-resolves the same
+# conflicts - permanently, for as long as both branches live. The mode also
+# collided with the ordinary meaning of its own name: an orchestrator writing
+# `MODE: one-shot` means "one run, not continuous", and a skill that reads that
+# as "cherry-pick, discard SHA" silently does the one thing the pipeline's own
+# Hard rule 2 exists to prevent.
+#
+# These guards pin the removal AND the capability that replaced it, because a
+# removal that loses a real use case gets reverted: a deliberate sub-range is
+# landed by merging THAT sub-range's tip SHA, which keeps every landed SHA and
+# advances the merge-base to exactly that point.
+# ---------------------------------------------------------------------------
+
+
+class TestOneShotCherryPickModeIsGone:
+    """RED against `git show HEAD~1:<path>` (the pre-removal tree), GREEN here."""
+
+    FP_FILES = ("skills/odoo-forward-port/SKILL.md",
+                "skills/odoo-forward-port/references/fp-phase-detail.md",
+                "snippets/fp-merge-absorption.md")
+
+    def test_the_flag_is_not_an_argument_any_more(self):
+        """A flag left in the Arguments table is a flag someone will pass."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        usage = text.split("### Arguments", 1)[1].split("### When to use", 1)[0]
+        assert "--one-shot" not in usage, (
+            "`--one-shot` must be gone from the usage line AND the Arguments table - documenting "
+            "a mode is what makes it reachable, whatever the prose elsewhere says"
+        )
+
+    def test_no_cherry_pick_shape_is_OFFERED_anywhere_in_the_pipeline(self):
+        """Prose may (and must) NAME cherry-pick in order to ban it; what may not survive is a
+        dispatch-shaped line an agent can copy into a git-ops brief."""
+        offenders = []
+        for rel in self.FP_FILES:
+            for i, line in enumerate((PLUGIN / rel).read_text(encoding="utf-8").splitlines(), 1):
+                if re.search(r"op:\s*cherry-pick", line):
+                    offenders.append(f"{rel}:{i}: {line.strip()!r}")
+        assert not offenders, (
+            "these lines still hand an agent a runnable cherry-pick shape for the forward-port "
+            "pipeline:\n  " + "\n  ".join(offenders)
+        )
+
+    def test_cherry_pick_head_is_no_longer_a_window_state(self):
+        """CHERRY_PICK_HEAD only ever appeared as the one-shot twin of MERGE_HEAD. Left behind, it
+        tells a resuming agent to look for a state this pipeline can no longer produce."""
+        offenders = [rel for rel in self.FP_FILES
+                     if "CHERRY_PICK_HEAD" in (PLUGIN / rel).read_text(encoding="utf-8")]
+        assert not offenders, (
+            f"CHERRY_PICK_HEAD must be gone from the forward-port surface; still in: {offenders}"
+        )
+
+    def test_cherry_pick_is_banned_at_every_granularity(self):
+        """The old ban said 'per commit', which a whole-range staged cherry-pick reads as permitted
+        - that reading is exactly how the mode justified itself."""
+        flat = _ws_normalize((PLUGIN / "snippets" / "fp-merge-absorption.md").read_text(encoding="utf-8"))
+        assert re.search(r"BANNED - cherry-pick, at ANY granularity", flat), (
+            "the ban must cover a staged whole-range cherry-pick, not only a per-commit loop"
+        )
+
+    def test_the_subrange_use_case_keeps_a_sha_preserving_answer(self):
+        """A removal that drops a real capability gets reverted. Landing part of a branch was the
+        mode's strongest justification, so the merge-shaped answer has to be written down - and
+        written down TOGETHER, in one sentence.
+
+        Asserted as co-location rather than two independent substrings on purpose: the pre-removal
+        tree already said "sub-range" (inside the one-shot justification) and "TIP SHA" (inside the
+        ordinary merge rule) in two unrelated places, and a reader who lands on either one is no
+        closer to knowing how to land half a branch. What is new, and what this pins, is the
+        sentence that connects them."""
+        flat = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        joined = re.search(
+            r"[^.]*\bsub-range[^.]*\bTIP SHA[^.]*|[^.]*\bTIP SHA[^.]*\bsub-range[^.]*",
+            flat, re.I,
+        )
+        assert joined, (
+            "one sentence must state the mechanism: pass the SUB-RANGE'S TIP SHA as the source-ref, "
+            "so the merge absorbs that commit and its ancestors only - the rest of the branch stays "
+            "out and every landed SHA survives. Two separate mentions teach nobody the recipe"
+        )
+        assert re.search(r"ancestor", joined.group(0), re.I), (
+            "the sentence must say WHY it works (a merge takes the commit and its ancestors), or a "
+            "reader cannot tell it from the cherry-pick it replaced"
+        )
+
+    def test_the_naming_trap_is_closed_at_p0(self):
+        """The defect that surfaced this: an orchestrator wrote `MODE: one-shot` meaning 'one run'.
+        With the flag gone there is nothing to switch on, but the WORDS still arrive in briefs, so
+        P0 has to say out loud how to read them."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        p0 = text.split("**P0 - Recon & triage", 1)[1].split("**P1 ", 1)[0]
+        flat = _ws_normalize(p0)
+        assert re.search(r'"one-shot".{0,80}means ONE RUN', flat), (
+            "P0 must state that 'one-shot'/'one-time' in a request means ONE RUN, never a git "
+            "shape - the words outlive the flag"
+        )
+
+    def test_intake_no_longer_advertises_a_cherry_pick_mode(self):
+        """odoo-intake composes the briefs; its collision-zone note is where a router learns what
+        forward-port does, and it used to point at the one-shot mode by name."""
+        flat = _ws_normalize(
+            (PLUGIN / "skills" / "odoo-intake" / "references" / "collision-zones.md")
+            .read_text(encoding="utf-8")
+        )
+        assert "`--one-shot`" not in flat, (
+            "the router must not describe forward-port as having a cherry-pick mode"
+        )
+        assert re.search(r"NEVER a cherry-pick at any granularity", flat), (
+            "state the invariant positively so a router composing a brief cannot infer an exception"
+        )
+
+    def test_orchestration_ssot_offers_only_the_merge_shape(self):
+        """skill_tool_deps.json is the SSOT the ORCHESTRATION-MAP is generated from - a stale
+        cherry-pick clause there re-enters the tree on the next `make gen`."""
+        deps = json.loads((PLUGIN / "generator" / "skill_tool_deps.json").read_text(encoding="utf-8"))
+        blob = json.dumps(deps)
+        assert "cherry-pick in one-shot mode" not in blob, (
+            "the git-ops dependency line must not advertise a one-shot cherry-pick path"
+        )
+        assert "never a cherry-pick at any granularity" in blob, (
+            "it must state the ban, so the generated map carries it too"
         )

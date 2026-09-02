@@ -36,10 +36,11 @@ The merge-base advances to `<src-tip-SHA>` after the commit. Next run, the scope
    history reads as N unrelated integrations), and every hunk touched by more than one source
    commit is conflict-resolved once per commit instead of once per run. An ordinary branch-level
    merge never behaves this way, and neither does this pipeline.
-2. **BANNED - cherry-pick per commit (any mode).** Each cherry-pick mints a FRESH SHA on the
-   target: the merge-base does not move, so tomorrow's run re-encounters every commit and
-   re-resolves every conflict, permanently. This is the single most expensive mistake available
-   in a forward-port.
+2. **BANNED - cherry-pick, at ANY granularity.** Per commit or staged over a whole range, each
+   cherry-pick mints a FRESH SHA on the target: the merge-base does not move, so tomorrow's run
+   re-encounters every commit and re-resolves every conflict, permanently. This is the single most
+   expensive mistake available in a forward-port, and there is no mode, flag, or special case that
+   licenses it.
 
 **Batching does NOT reinstate either shape.** A batch is a VERIFY-and-GATE unit, not a git unit.
 If the human splits the run at the plan gate, each batch boundary is a source SHA, and batch *k*
@@ -47,13 +48,13 @@ merges the LAST SHA of batch *k* - absorbing every commit up to it in one merge.
 produce at most `N` merge commits, never one per commit; the default (a single batch) produces
 exactly ONE. A batch is never allowed to be "one commit each" as a way to reach a per-commit merge.
 
-**One-shot mode** (port once, source is frozen, or only a sub-range may land): invoke
-**`git-toolkit:git-ops`** with `op: cherry-pick -n <src-first-SHA>^..<src-tip-SHA>` - the WHOLE range in
-ONE staged sequencer run (`-n` / no-commit keeps the tree open for absorption; request this
-explicitly in the brief), closed by ONE commit, exactly like the merge shape above. Never one
-cherry-pick call per commit. Record in `merge-log.md` that this mode does NOT preserve SHA and
-does NOT advance the merge-base: the run is not repeatable, which is why one-shot is reserved for
-a frozen source (or a deliberate sub-range that must not drag the rest of the branch in).
+**Landing only PART of a source branch is a `<src-tip-SHA>` choice, not a different shape.** Merge
+the SUB-RANGE'S TIP: a merge absorbs that commit and its ancestors and nothing else, so the commits
+after it stay out of the target, every SHA that DOES land is preserved, and the merge-base advances
+to exactly that point - the next run picks up from there instead of re-resolving what just landed.
+A frozen source needs nothing special either; it merges like any other. These were the two
+justifications for the removed `--one-shot` cherry-pick mode, and the merge shape serves both
+without giving up SHA preservation - which is why that mode is gone rather than renamed.
 
 ## Absorption window (inside the ONE no-commit merge)
 

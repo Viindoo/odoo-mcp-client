@@ -2,7 +2,7 @@
 name: odoo-forward-port
 argument-hint: "[from-series] [to-series] [module/range]"
 description: >-
-  This skill orchestrates a continuous or one-shot Odoo forward-port - porting fixes
+  This skill orchestrates an Odoo forward-port - porting fixes
   and features from a lower-series source repo or branch up to a higher-series target -
   as an ordered agentic pipeline that forwards INTENT, not code text. It runs a parallel
   read-only intent sweep, a 4-outcome classification, an installable probe, a conditional
@@ -11,7 +11,7 @@ description: >-
   human-confirm gate, and a PR. Invoked when asked to
   "forward-port", "port commits to a
   newer Odoo version", "merge a fix forward", "continuous forward-port", "one-shot
-  back-of-port", or in Vietnamese "forward-port Odoo", "port fix lên phiên bản mới",
+  forward-port" (which means ONE RUN, never a cherry-pick), or in Vietnamese "forward-port Odoo", "port fix lên phiên bản mới",
   "đẩy commit lên series cao", "forward-port liên tục". Do NOT use to write one isolated
   change (use odoo-coding), to diff two versions only (use odoo-version-diff), or to
   review a PR (use odoo-code-review)
@@ -66,7 +66,7 @@ a natural-language description match, or a Skill-tool call from an orchestrator 
 ### Arguments
 
 ```
-/odoo-forward-port <source-ref> <target-branch> [--scope <mod1,mod2>] [--since <sha>] [--one-shot]
+/odoo-forward-port <source-ref> <target-branch> [--scope <mod1,mod2>] [--since <sha>]
 ```
 
 | Argument | Required | Description |
@@ -74,8 +74,12 @@ a natural-language description match, or a Skill-tool call from an orchestrator 
 | `<source-ref>` | yes | Source branch or commit range (e.g. `origin/17.0`, `v17-fixes`) |
 | `<target-branch>` | yes | Target branch (e.g. `origin/18.0`, `18.0-fp-batch-01`) |
 | `--scope <modules>` | no | Comma-separated module list; default = all modified modules in range |
-| `--since <sha>` | no | Only commits after this SHA (continuous or incremental FP) |
-| `--one-shot` | no | One-time port of a frozen source (or a deliberate sub-range) via ONE staged cherry-pick of the whole range - does NOT preserve SHA. Default: merge mode |
+| `--since <sha>` | no | Only commits after this SHA (an incremental or resumed run) |
+
+There is exactly ONE shape and no mode flag: an SHA-preserving merge of the range tip, closed by ONE
+merge commit. To land only PART of a source branch, pass that sub-range's TIP SHA as `<source-ref>`
+- merging a SHA absorbs that commit and its ancestors and nothing else, so the rest of the branch
+stays out while every SHA that DOES land is preserved and the merge-base advances to that point.
 
 Parsed from `$ARGUMENTS` in P0 (missing `source-ref`/`target-branch` -> ask once, one message,
 before any read or git op).
@@ -87,8 +91,9 @@ before any read or git op).
   to `plan.md`. Still ONE merge and ONE merge commit by default; a human may split the run into
   several gated batches at the plan gate, and then each BATCH gets one merge of its own range tip
   - the commit count never sets the merge count.
-- **Continuous mode (default)** - recurring; source keeps evolving; every SHA in the range
-  preserved so the merge-base advances to the range tip and past conflicts are never re-resolved.
+- **Repeatable by construction** - every SHA in the range is preserved, so the merge-base advances
+  to the range tip and the next run never re-encounters a commit this one already landed. That is
+  the property the single shape exists to protect; it is not a mode you can opt out of.
 
 For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `/odoo-plan-upgrade`.
 
@@ -103,7 +108,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    leave a half-built integration branch) follows the shared SSOT
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 
-2. **ONE merge, ONE merge commit - the range is the git unit, never the commit.** Continuous
+2. **ONE merge, ONE merge commit - the range is the git unit, never the commit.** A
    forward-port opens a SINGLE no-ff no-commit merge of the range's TIP SHA (delegated to
    git-toolkit via `git-ops`; see `[[fp-merge-absorption]]`) and closes it with a SINGLE merge
    commit - exactly the shape an ordinary branch-level merge produces. Every commit in the range
@@ -111,12 +116,16 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    advances to the tip in one step. **Two shapes are BANNED, both unconditionally:**
    (i) **merging (or committing) one source commit at a time** - it mints N merge commits for one
    logical forward-port and re-resolves every shared hunk once per commit instead of once per run;
-   (ii) **cherry-pick per commit** - it mints a fresh SHA, leaves the merge-base behind, and forces
-   re-resolving the same conflict on every future run, permanently. Splitting the run into gated
-   BATCHES does not reinstate either shape: a batch merges its own range TIP once, so batches -
-   never commits - bound the merge-commit count. One-shot mode is the only cherry-pick path, and it
-   too is ONE staged cherry-pick of the WHOLE range closed by ONE commit. Full protocol:
-   `[[fp-merge-absorption]]`.
+   (ii) **cherry-pick, at ANY granularity** - per commit or staged over a whole range, it mints
+   fresh SHAs, leaves the merge-base behind, and forces re-resolving the same conflicts on every
+   future run, permanently. Splitting the run into gated BATCHES does not reinstate either shape: a
+   batch merges its own range TIP once, so batches - never commits - bound the merge-commit count.
+
+   **There is no cherry-pick escape hatch, and none is needed.** The two situations that used to be
+   offered one both merge cleanly: a FROZEN source merges like any other, and a DELIBERATE SUB-RANGE
+   is landed by merging that sub-range's TIP SHA - a merge absorbs exactly that commit and its
+   ancestors, so the rest of the source branch stays out while the SHAs that do land are preserved
+   and the merge-base advances to that tip. Full protocol: `[[fp-merge-absorption]]`.
 
 3. **Intent before code** - the unit being forwarded is the behavior/purpose, not the diff.
    P1 extracts intent (read-only); P8 re-implements that intent on the target
@@ -199,24 +208,21 @@ for two INDEPENDENT reasons that both hold on every P8 call this pipeline makes,
    concurrent sibling to race against, so there is nothing to isolate FROM.
 2. **The open-merge window (§ P8 below) never clears before P8 runs.** P5 opens the run's SINGLE
    merge of the range tip (`--no-commit`) immediately before P6/P7/P8, and P10 is the ONLY step
-   that commits it - AFTER P8 and P9 finish. So `MERGE_HEAD` (continuous mode) or
-   `CHERRY_PICK_HEAD` (one-shot mode) is live in the integration worktree for the ENTIRE P6-P9
-   span of the batch, in both modes - P8 never runs against an already-committed integration HEAD.
+   that commits it - AFTER P8 and P9 finish. So `MERGE_HEAD` is live in the integration worktree for
+   the ENTIRE P6-P9 span of the batch - P8 never runs against an already-committed integration HEAD.
    Converging a child worktree back is itself a second merge into that SAME worktree, which git
    rejects while the window is open (error: `MERGE_HEAD exists`) - and P9 needs the adapted code
    already sitting IN the integration working tree before it can verify (P9 re-roots onto
    `<path>/fp-integration` - § P9 Worktree re-root), which is itself gated on P8 finishing, before
-   P10 ever commits. No mode can satisfy this circular precondition.
+   P10 ever commits. Nothing can satisfy this circular precondition.
 
 **Conclusion (checkable, unconditional): P8 8a/8b always adapt DIRECTLY in the integration
-worktree - never a per-module child worktree, in either mode.** § P8 below gives the resulting
+worktree - never a per-module child worktree.** § P8 below gives the resulting
 brief fields: a single, run-long `Worktree path` naming the integration worktree itself (never a
 per-module or per-commit "Child worktree path" that would need re-minting - there is nothing to
-re-mint). Both modes behave identically here, because both open exactly ONE window per batch and
-hold it across the batch's whole P6-P9 span: continuous keeps `MERGE_HEAD` live, one-shot keeps
-`CHERRY_PICK_HEAD` live. Child-worktree isolation would only become reachable once that
-merge/cherry-pick is committed, which is the LAST thing either mode does - never something P8
-itself can ever observe.
+re-mint). The run opens exactly ONE window per batch and holds `MERGE_HEAD` live across the batch's
+whole P6-P9 span. Child-worktree isolation would only become reachable once that merge is committed,
+which is the LAST thing the batch does - never something P8 itself can ever observe.
 
 The only serialized point is P10 writing the batch's single merge commit. There is no second
 agent-dispatch level here - JOB tier is the only worktree tier this phase (or any phase in this
@@ -254,8 +260,15 @@ directory per run forever:
 executes `odoo-forward-port` next, unconditionally, every run.
 
 **P0 - Recon & triage [read-only, NO stop].** Parse `$ARGUMENTS` (`source-ref` / `target-branch` /
-`--scope` / `--since` / `--one-shot`); if `source-ref` or `target-branch` is missing, ask once in a
-single brief message before any read or git op. Read any existing worklog
+`--scope` / `--since`); if `source-ref` or `target-branch` is missing, ask once in a
+single brief message before any read or git op.
+
+**"one-shot" / "one-time" / "chạy một lượt" in a request means ONE RUN, not a different git shape.**
+A caller (often `odoo-intake` composing a brief) uses the phrase in its ordinary sense - do this
+once rather than continuously - and there is nothing to switch on: the pipeline has one shape, and
+it is the SHA-preserving merge. Never read those words as a licence to cherry-pick. If the caller
+meant "land only part of the branch", that is a `<source-ref>` question - point them at the
+sub-range recipe in Hard rule 2 - not a mode question. Read any existing worklog
 (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) and `checkpoint.json` (resume per the
 Checkpoint section: skip ONLY `status=done`; do NOT re-run design for a `status=designed` commit -
 resume it at the P4 plan gate with its recorded `design_doc`; a `status=extracted` commit resumes
@@ -457,11 +470,11 @@ the gate is Plan Mode above. plan.md template: `references/fp-phase-detail.md` P
 
 **P5 - Merge --no-commit [critical section, in integration; ABSORB-ALL - runs ONCE per batch].**
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) ONCE for the whole batch, absorbing
-its ENTIRE commit range in one operation. Continuous: no-ff no-commit merge of `<src-tip-SHA>`
-(the batch's LAST/newest source commit - absorbing every earlier commit in the range as an
-ancestor). One-shot: no-commit cherry-pick of the WHOLE range `<src-first-SHA>^..<src-tip-SHA>` in one
-staged sequencer run. **Never iterate P5 per source commit in either mode** - that is Hard rule 2's
-banned shape (N merge commits, or N fresh SHAs, for one logical forward-port). For semantic
+its ENTIRE commit range in one operation: a no-ff no-commit merge of `<src-tip-SHA>` (the batch's
+LAST/newest source commit - absorbing every earlier commit in the range as an ancestor). There is no
+second shape to choose between; a cherry-pick here is banned at any granularity (Hard rule 2).
+**Never iterate P5 per source commit** - that is Hard rule 2's other
+banned shape (N merge commits for one logical forward-port). For semantic
 conflicts, use the stateless-resume recipe in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Only one merge in flight at a time
 (shared git index). Do NOT commit yet - the working tree is now the absorption zone for the whole
@@ -542,10 +555,10 @@ converge back in time even if one were created.
 
 **CRITICAL - open merge window (why (2) above is unconditional, not a special case):** For the
 ENTIRE span from P5 (`--no-commit`) through P10 (`commit`) - which is the batch's whole P6/P7/P8/P9
-- `MERGE_HEAD` (continuous mode) or `CHERRY_PICK_HEAD` (one-shot mode) is
+- `MERGE_HEAD` is
 live in the integration worktree. Git rejects any second merge in that worktree until the first is
-committed or aborted, so a child worktree could never converge back into integration during P8, in
-EITHER mode. There is no gap to exploit: absorb-all opens exactly ONE window per batch and holds it
+committed or aborted, so a child worktree could never converge back into integration during P8.
+There is no gap to exploit: absorb-all opens exactly ONE window per batch and holds it
 until P10 closes it, and a module whose files were touched by several source commits in the range is
 adapted ONCE against the combined merged result - never once per commit. Adapt all modules SERIALLY,
 DIRECTLY in the integration worktree, always. SSOT for the
@@ -879,13 +892,13 @@ table at P0->P1 against the MODULE's whole commit bundle and the ADAPT table at 
 commit's own conditions; a module whose bundle is haiku-grade to EXTRACT may still have one commit
 that is opus-grade to ADAPT if that commit's target re-implementation is cross-module.
 
-## Absorb-all - the one git shape both modes use
+## Absorb-all - the ONE git shape, and the only one
 
 **Absorb-all** is this pipeline's name for its ONLY git shape: P5 takes the batch's ENTIRE commit
-range in ONE operation, P6-P9 work inside that one open window, and P10 closes it with ONE commit.
-It is not a mode, an option, or a large-run optimization - it is what BOTH modes below do, on every
-batch, always. Its opposite - stepping the range one source commit at a time - is banned by Hard
-rule 2 in both modes.
+range in ONE operation as a no-ff no-commit merge of the range TIP, P6-P9 work inside that one open
+window, and P10 closes it with ONE commit. It is not a mode, an option, or a large-run optimization
+- it is what every batch does, always. Its opposite - stepping the range one source commit at a
+time - is banned by Hard rule 2, and so is a cherry-pick at any granularity.
 
 Read it against the pipeline's other axis, which is deliberately the opposite: the SEMANTIC work
 stays strictly per-commit (P1 intent, P2 bucket, per-commit ADAPT tier and `merge-log.md` rows),
@@ -893,14 +906,19 @@ because each source commit carries its own purpose. Per-commit REASONING plus ab
 topology is the whole design; a per-commit git operation is never a consequence of per-commit
 reasoning.
 
-- **Continuous (default).** Recurring; the range merge keeps every source SHA and advances the
-  merge-base to the range tip; `checkpoint.json` skips commits already absorbed by an earlier run
-  and no past conflict is ever re-resolved.
-- **One-shot (`--one-shot`).** Port one frozen batch once via a no-commit cherry-pick of the WHOLE
-  range in one staged sequencer run (delegated to git-toolkit via `git-ops`); every other phase is
-  identical. It does NOT preserve SHA and does NOT advance the merge-base, so the run is not
-  repeatable - use it only when the source is frozen, or when a deliberate sub-range must land
-  without dragging the rest of the source branch in.
+What the shape buys, and why it is not optional: the range merge keeps every source SHA and advances
+the merge-base to the range tip, so `checkpoint.json` skips commits an earlier run already absorbed
+and **no past conflict is ever re-resolved**. Anything that mints fresh SHAs leaves the merge-base
+behind and hands every future run the same conflicts again - a cost that compounds for as long as
+the two branches both live.
+
+**There was once a `--one-shot` cherry-pick mode; it is REMOVED, not renamed.** Its two
+justifications do not survive contact with the merge shape - a frozen source merges like any other,
+and a deliberate sub-range lands by merging that SUB-RANGE'S TIP SHA (a merge absorbs that commit
+and its ancestors only, so the rest of the branch stays out while the SHAs that land are preserved).
+It also collided with the ordinary meaning of the words: a caller writing `MODE: one-shot` in a brief
+means "one run, not continuous", which is what this pipeline already does. Read those words that way
+(P0), and never as a git shape.
 
 ## Checkpoint / resume
 
@@ -914,8 +932,8 @@ per-module subdirectories, `plan.md`, and `merge-log.md` (file existence is the 
 the JSON is the fast index).
 
 **Resuming a crash INSIDE the absorption window.** Because a batch commits only at P10, a crash
-during P6-P9 leaves the integration worktree with its merge window still OPEN - `MERGE_HEAD` (or
-`CHERRY_PICK_HEAD`) live, partial adapt on disk. That state IS the resume point: check for it
+during P6-P9 leaves the integration worktree with its merge window still OPEN - `MERGE_HEAD`
+live, partial adapt on disk. That state IS the resume point: check for it
 FIRST (`git -C <path>/fp-integration rev-parse -q --verify MERGE_HEAD`, a bounded read), and when
 it is live, RESUME the existing window at the phase `checkpoint.json` last recorded - never re-run
 P5 on top of it (git refuses while a window is open) and never abort it in order to restart the

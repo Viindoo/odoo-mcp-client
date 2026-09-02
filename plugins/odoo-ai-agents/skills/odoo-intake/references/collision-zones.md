@@ -182,8 +182,10 @@ commits to replay and a few conflicts to resolve."
 - `odoo-forward-port`: handles "port commits to a HIGHER major version" -> absorbs the whole
   source range with ONE no-ff merge of its tip (keeping every source SHA), adapts inside that one
   open merge window, and closes it with ONE merge commit, across a version boundary (e.g.
-  16.0 -> 17.0). It is NOT a per-commit cherry-pick: cherry-pick only appears in its `--one-shot`
-  mode, and even there it stages the WHOLE range once.
+  16.0 -> 17.0). It is NEVER a cherry-pick at any granularity - the merge shape is its only shape,
+  because a cherry-pick would mint fresh SHAs and hand every future run the same conflicts again.
+  A caller who writes "one-shot" in a brief means ONE RUN, not a cherry-pick; do not translate that
+  word into a git shape.
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
   the node plan; the cherry-pick + squash of N independent changes that do NOT share a
   continuous range is performed by `run-harness`'s INTERNAL single node loop (driven
