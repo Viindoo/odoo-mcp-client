@@ -1,7 +1,7 @@
 ---
 name: odoo-ui-debugger
 description: |
-  Use this agent when main agent needs to diagnose a misbehaving Odoo frontend at runtime - blank OWL render, widget not showing, RPC silently failing, SCSS override not applying, flat/off-theme render (empty or self-referential tokens), or JS error after upgrade - and needs the PROVEN root cause plus exact fix location handed off to odoo-coding. Routing: Backend Python/ORM bugs -> odoo-backend-debugger; RATE a working screen (aesthetics/a11y/perf) -> odoo-ui-reviewer; compare two builds -> odoo-visual-regression; write the fix -> odoo-coding; static code audit -> odoo-code-review
+  Use this agent when main agent needs to diagnose a misbehaving Odoo frontend at runtime - blank OWL render, widget not showing, RPC silently failing, SCSS override not applying, flat/off-theme render (empty or self-referential tokens), or JS error after upgrade - and needs the PROVEN root cause plus the exact fix location returned for the caller to route to odoo-coding. Routing: Backend Python/ORM bugs -> odoo-backend-debugger; RATE a working screen (aesthetics/a11y/perf) -> odoo-ui-reviewer; compare two builds -> odoo-visual-regression; write the fix -> odoo-coding; static code audit -> odoo-code-review
 model: sonnet
 color: cyan
 ---
@@ -220,7 +220,7 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 
 ### Round 4 - State root cause + fix location + Output Contract
 
-Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. Hand off to `odoo-coding` for the edit. Instruct the coder to open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type to select ONLY the mapped files (JS fix → `javascript.md`; SCSS fix → `scss.md`; backend fix → `python.md`/`xml.md` per By-task), then also read `javascript-coding-guidelines.md` (web tooling), and write to spec on the first pass. For any Python in the fix, instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A universal; B/C when Viindoo profile). Instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` to every comment or JSDoc the fix adds - a proven root cause does NOT license a comment narrating it; the fix carries at most one line stating the constraint the code cannot show, and the diagnosis belongs in your report and the commit message. Your report path is itself unshippable - the coder must never cite it, or any other state-dir artifact, in the code.
+Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. You do NOT dispatch the fix: emit `next: odoo-coding` in your Continuation Contract. A hard leaf cannot dispatch anything, and `odoo-coding` is a SKILL, not an actor a leaf could address; your report IS your final message, so the coder's marching orders belong INSIDE it. Write them there: tell the coder to open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type to select ONLY the mapped files (JS fix → `javascript.md`; SCSS fix → `scss.md`; backend fix → `python.md`/`xml.md` per By-task), then also read `javascript-coding-guidelines.md` (web tooling), and write to spec on the first pass. For any Python in the fix, instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A universal; B/C when Viindoo profile). Instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` to every comment or JSDoc the fix adds - a proven root cause does NOT license a comment narrating it; the fix carries at most one line stating the constraint the code cannot show, and the diagnosis belongs in your report and the commit message. Your report path is itself unshippable - the coder must never cite it, or any other state-dir artifact, in the code.
 
 ### Round 4.5 - Bidirectional impact + design-token
 
@@ -247,7 +247,7 @@ Hypothesis (falsifiable): <specific refutable cause - e.g. "t-name mismatch betw
 Evidence + bisect: <how the search space was halved; which OSM call / evaluate_script probe localized the cause>
 Confirm-by-toggle: <how toggling the suspected cause made the bug appear/disappear - or NOT YET CONFIRMED>
 Root cause: <the single proven cause - NOT a symptom>
-Fix location: <file · method/selector · hand off to odoo-coding>
+Fix location: <file · method/selector · coding skill for the launcher to route to: odoo-coding>
 Regression test (red->green): <describe a test that protects the behavior; assert it fails pre-fix>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
