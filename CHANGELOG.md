@@ -40,6 +40,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- `odoo-ai-agents` - **"Hand off to `odoo-coding`" told a hard leaf to use a primitive that does
+  not exist.** `odoo-coding` is a SKILL, and no agent can hand work sideways to anything: the
+  runtime gives a subagent exactly one outbound channel - the report it returns - and the caller
+  relays it. Spawning is depth-filtered, so an agent may not even hold the launch tool; and an
+  agent name is a blueprint, not an address (each launch is a distinct instance, and the only
+  address that exists is the id a launch returned to its CALLER, pointing downward). Both debuggers
+  and the reviewer now say what is actually possible: name the fix location, emit
+  `next: odoo-coding` in the Continuation Contract, and let whichever caller launched this instance
+  route it - with the coder's marching orders carried INSIDE the report so that caller can forward
+  them. A plugin-wide sweep found the same class in the two coders, which told a leaf to return
+  "to the `odoo-coder`" - a named blueprint on an unaddressed return path, and wrong outright for
+  any agent more than one orchestrator dispatches. `tests/test_leaf_never_hands_off.py` guards both
+  halves, data-driven over every agent declared `role: leaf`, with self-checks proving each
+  detector can go red.
 - `odoo-ai-agents` - **The only comment guidance in the plugin pushed one way: write more.** The
   reviewer graded "non-obvious logic without a docstring" as a maintainability defect with no
   counterweight anywhere for surplus, and the verbatim upstream guideline line "document your code
