@@ -750,7 +750,14 @@ this section still owns.
 **Every terminal NODE's brief carries the integration worktree.** When the loop dispatches a review /
 i18n / acceptance / doc node, state `WORKTREE_PATH: <path>/run-integration` on that dispatch, plus
 `SELF_PROVISION: worktree-addons` when a bounded subagent carries it
-(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Same for
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
+
+**The i18n node in particular must be allowed to build its OWN instance** - pass `SELF_PROVISION`,
+never a lease held over from a verification or review node. An export build has a shape a test build
+does not (demo data loaded, `en_US` plus the target languages active), and demo loads at `-i` only,
+so an inherited lease cannot be upgraded into one; reusing it silently truncates every catalog the
+run touches. What a caller may and may not instruct here:
+`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` § Orchestrator obligations. Same for
 an `odoo-acceptance` node the loop MATERIALIZES from a review node's `next[]`: thread
 `worktree_path: <path>/run-integration` into its `inputs` before dispatch, because
 `odoo-acceptance`'s own Inputs resolves its live instance from a caller-supplied `INSTANCE_HANDLE` or

@@ -808,7 +808,12 @@ When it runs (against the P5 instance, demo=on):
 ```
 SKILL: odoo-i18n
 INSTANCE: the P5 ephemeral instance (already up) - its addons path MUST cover WORKTREE_PATH
-          (established at P5 Step 1's own WORKTREE_PATH field, above)
+          (established at P5 Step 1's own WORKTREE_PATH field, above). Its `demo: on` is
+          load-bearing TWICE: the framework-validation gate needs demo records, and so does the
+          export - demo-owned records carry translatable terms and a demo-less build ships a
+          truncated catalog (i18n caller obligation 5;
+          `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4). If P5 ever stops
+          building demo=on, this dispatch must switch to SELF_PROVISION rather than inherit it
 MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
@@ -825,7 +830,11 @@ TARGET LANGUAGES: <explicit list when this run has one, else omit the field enti
 GATE: do NOT stop separately - return the result; it is presented at the P6 sign-off
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po
-  2. git-ops diff-review each re-exported <lang>.po against its committed version; adjudicate every removed/changed msgid correct (term gone) or wrong (BLOCK) - preserves every existing msgstr except an adjudicated-correct loss
+  2. git-ops diff-review each re-exported <lang>.po against its committed version; adjudicate every
+     removed/changed msgid into the THREE buckets CORRECT / ARTEFACT / WRONG defined in
+     `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` (apply the ARTEFACT test BEFORE ruling
+     WRONG, or an entry whose translation equals its source blocks a correct run) - preserves every
+     existing msgstr except an adjudicated-CORRECT loss
   3. hand-translate ONLY the genuinely NEW residual entries - a blank `msgstr` may instead be an
      entry whose translation equals its source, which Odoo never re-exports; restore those
      rather than translating them (`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`)

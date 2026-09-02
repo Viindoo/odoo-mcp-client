@@ -337,14 +337,17 @@ class TestFix6P95LanguageEdgeCase:
             "non-blocking outcome when no language is resolvable at all - not a stop"
         )
 
-    def test_p95_instance_handle_addons_path_claim_is_now_true(self):
-        """P9.5 asserts 'the P9 INSTANCE_HANDLE ... its addons path now genuinely covers that
-        worktree' - this must be backed by P9 actually re-rooting (FIX 4); a dangling claim here
-        with no corresponding P9 wiring would just move the false assumption one paragraph over."""
+    def test_p95_addons_path_claim_names_its_mechanism(self):
+        """P9.5's addons-path claim must point at what makes it true, not restate an assumption.
+
+        Originally that mechanism was P9 re-rooting the verify handle P9.5 inherited; P9.5 now
+        self-provisions instead (an export build needs demo data, which a verify lease does not
+        have and cannot gain after `-i`). Either way the claim is only worth reading if it names
+        the mechanism - a dangling one just moves the false assumption a paragraph over."""
         p95 = _norm(self._p95_block())
-        assert "P9 re-roots it via" in p95 or "re-roots" in p95, (
-            "P9.5's INSTANCE_HANDLE addons-path claim must point at the mechanism P9 uses to make "
-            "it true, not merely restate the (previously false) assumption"
+        assert "re-roots" in p95 or "re-rooted" in p95, (
+            "P9.5's addons-path claim must point at the re-root that makes it true, not merely "
+            "restate the (previously false) assumption"
         )
 
         p9_start = _read(FP_SKILL).index("**P9 - Verify by behavior")

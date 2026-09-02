@@ -694,21 +694,34 @@ executor). Never relax an assertion to hide a pre-existing failure. Full per-bat
 § Ephemeral isolation: `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` and `docs/reference/ODOO-TESTING.md`.
 
-**P9.5 - i18n reconcile [MANDATORY, per batch, reuses the P9 instance].** For every module in this
+**P9.5 - i18n reconcile [MANDATORY, per batch, own export build].** For every module in this
 batch whose 8e record says `i18n_due: yes`, invoke the `odoo-i18n` skill (via the Skill tool) ONCE.
-Pass the four caller obligations from
+Pass the five caller obligations from
 `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`: `WORKTREE_PATH` (this batch's integration
-worktree), the P9 `INSTANCE_HANDLE` (its addons path now genuinely covers that worktree - P9 re-roots
-it via `WORKTREE_PATH`, above), `TARGET LANGUAGES` (best-effort: the codes inferred from the
+worktree), `SELF_PROVISION: worktree-addons` so `odoo-i18n` builds its OWN export instance whose
+addons path covers that worktree - `SELF_PROVISION` re-roots it onto `WORKTREE_PATH` exactly as P9
+re-roots its own verify instance, so the coverage claim is backed by a mechanism rather than
+assumed, and the obligation itself is unchanged
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion: on a
+miss, BLOCK - an instance on the principal checkout makes a worktree-only `msgid` surface as
+nothing and the loss is committed unseen) - `TARGET LANGUAGES` (best-effort: the codes inferred from the
 source-side `<lang>.po` filenames - deliverable languages only, never `en_US` - when any exist; a
 module gaining its FIRST-EVER translatable string in this batch has none to infer, so OMIT the field
 rather than block on it - `odoo-i18n`'s own P0 still tries tiers 2-4 itself and records escape E3,
 non-blocking, if all four come up empty), and `GATE: fold into P10`. `odoo-i18n` owns the
 non-destructive recipe and the isolated-DB export; this pipeline forwards only the intent. An
 `i18n_due: escape:<E-id>` module is skipped with its recorded reason. Present every result -
-reconciled or escaped - at the P10 gate, so the human sees ONE combined decision. Note `odoo-i18n`
-needs a FRESH DB per pass (existing `<lang>.po` loaded before re-export), so reusing the P9 server
-lease does not make this free.
+reconciled or escaped - at the P10 gate, so the human sees ONE combined decision.
+
+**Do NOT hand over the P9 verify instance.** P9's instance is built to RUN TESTS, not to export a
+catalog: it is not provisioned with demo data, and demo-owned records carry translatable terms that
+the exporter reaches only when they are in the database (caller obligation 5;
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4). Reusing it would truncate
+every catalog this batch touches AND make committed entries reappear as removals - silently, with a
+clean exit code. Demo loads at `-i` only, so there is no way to upgrade that lease into an export
+build. `odoo-i18n` also needs a FRESH DB per pass anyway (the existing `<lang>.po` must be loaded
+before the re-export), so the reuse never bought much: let it provision, and let the P9 lease do
+its own job.
 
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
 On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to close the batch's single

@@ -70,12 +70,28 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Scenario | Flag / behavior | Version range |
 |---|---|---|
 | Disable demo data | `--without-demo` | v8-v19 (present in ALL versions) |
+| `--without-demo` takes a REQUIRED value - bare `--without-demo` is a parse error (`option requires 1 argument`) | `--without-demo=all` | v8-v18 |
+| `--without-demo` takes an OPTIONAL, BOOL-typed value - bare `--without-demo` is valid | `--without-demo` | v19+ |
 | Demo ON is the default; no extra flag needed to get demo | *(default)* | v8-v18 |
 | Enable demo data | `--with-demo` | **v19+ only** - this flag does NOT exist in v8-v18 |
 | Demo default | **ON** when `-i`/`-u` given | v8-v18 |
 | Demo default | **OFF** | v19+ |
 
-> `--without-demo=False` is **INVALID** in all versions. Never use it.
+> **The flag's ARITY moved - carrying one spelling across that boundary is a real defect.** In the
+> earlier era it is an ordinary string option (optparse `action="store"`, `nargs=1`), so a value is
+> mandatory and the documented `all` form is the one to use. In the later one it is re-declared onto
+> `dest="with_demo"` with `nargs='?'`, `const=True` and a BOOL type inverted on read: a bare
+> `--without-demo` is the intended spelling, and a module-list value no longer parses (it fails the
+> bool check, logs `invalid boolean value: 'all'`, and only reaches "demo off" via that fallback).
+> Rows above own the boundary; read at `odoo/tools/config.py` across the indexed span (2026-09-02).
+
+> `--without-demo=False` is **INVALID** in all versions. Never use it. In the string era the value is
+> only truthiness-tested at the consumption site (`if not tools.config['without_demo']`,
+> `odoo/modules/loading.py`), so `"False"` is TRUE and DISABLES demo - the opposite of how it reads;
+> in the bool era it parses, but the command line still reads as its own opposite. Say what you mean:
+> omit the flag where demo is already on, or pass `--with-demo` where it is not. That same
+> truthiness-only consumption also breaks the help text's per-module promise ("comma-separated, use
+> \"all\" for all modules"): ANY non-empty value disables demo for EVERY module in the build.
 
 ## JavaScript / OWL / tests
 

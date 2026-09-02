@@ -185,10 +185,10 @@ ALWAYS reconfirm live via `cli_help` - this table (including the port-flag rows)
 | HTTP port | `--xmlrpc-port` | `--http-port` | `--http-port` |
 | Disable HTTP | `--no-xmlrpc` | `--no-http` | `--no-http` |
 | Longpoll/gevent port | `--longpolling-port` | `--longpolling-port` (v11-v15), `--gevent-port` (v16+) | `--gevent-port` |
-| Demo data off | `--without-demo=all` | `--without-demo=all` (exists v8-v19; demo ON is default v8-v18 so this flag is how you disable it) | `--without-demo=all` still valid; v19 demo is OFF by default so this flag is usually unnecessary |
+| Demo data off | `--without-demo=all` (the value is REQUIRED here - bare `--without-demo` is a parse error) | `--without-demo=all` (same required-value form; demo ON is default v8-v18 so this flag is how you disable it) | bare `--without-demo` - per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo flag the value turns OPTIONAL and BOOL-typed at this boundary, so the `=all` module-list form no longer parses (it fails the bool check and only reaches "demo off" via a logged fallback); demo is OFF by default here anyway, so the flag is usually unnecessary |
 | Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | default OFF from v19; use `--with-demo` to enable - always reconfirm via `cli_help` |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
-| Language activation (ACTIVATE; NOT `-l`/`--language`) | `--load-language=<csv>` combined with `-i base --stop-after-init`; CRITICAL: `-l`/`--language` ONLY selects export file, does NOT activate locale in DB - never substitute | same: `--load-language=<csv>` combined with `-i base --stop-after-init` | `odoo-bin i18n loadlang -d <db> -l <lang>` (dedicated subcommand, one locale per call); confirm via `cli_help(command='i18n', odoo_version='<series>')`; combined `--load-language` removed in v19 |
+| Language activation (ACTIVATE; NOT `-l`/`--language`) | `--load-language=<csv>` combined with `-i base --stop-after-init`; CRITICAL: `-l`/`--language` ONLY selects export file, does NOT activate locale in DB - never substitute | same: `--load-language=<csv>` combined with `-i base --stop-after-init` | `--load-language=<csv>` is STILL PRESENT and still functional (`odoo/tools/config.py` declares it; `odoo/modules/loading.py` splits the csv and calls `tools.translate.load_language` per code - read 2026-09-02), and v19 ALSO adds `odoo-bin i18n loadlang -d <db> -l <lang>` as a dedicated subcommand (one locale per call). It is the EXPORT/IMPORT half that moved onto the `i18n` subcommand, never activation - do not report `--load-language` as removed. Confirm via `cli_help(command='server', flag='--load-language', odoo_version='<series>')` and `cli_help(command='i18n', odoo_version='<series>')` |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
 | Server-wide modules (`--load` / `server_wide_modules`) | default `web` (`cli_help` confirms) | default `base,web` (`cli_help` confirms) | default `base,web`, but `cli_help` returns NO `Default:` line at all on v19 (silent, not merely stale) - fall back to the local-source default below |
 | Lint modules for test-run builds (`-i`/`-u` + `--test-tags`) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) |
@@ -224,8 +224,12 @@ whether or not the brief's `LANGUAGES` field mentions it. Compute
 `activation_set = {"en_US"} union {brief LANGUAGES, or empty when 'none'}` and build the language
 flag from it:
 - v8-v18: fold `--load-language=<activation_set csv>` into that run's `--extra`.
-- v19+: after the install/init returns, run `odoo-bin i18n loadlang -d <db> -l <code>` once per code
-  in `activation_set` (the combined `--load-language` flag is gone).
+- v19+: EITHER fold the same `--load-language=<activation_set csv>` into the run - confirm with
+  `cli_help(command='server', flag='--load-language', odoo_version='<series>')` that it is still
+  declared, which it is; the EXPORT/IMPORT half is what moved onto the subcommand, not activation -
+  OR, after the install/init returns, run `odoo-bin i18n loadlang -d <db> -l <code>` once per code in
+  `activation_set`. Prefer whichever the call above confirms at call time; never report the csv flag
+  as gone.
 
 Even when `LANGUAGES` is `none`, still load `en_US` alone. Apply this defensively even though the
 dispatching `odoo-instance` skill also unions it - never emit a build command that omits `en_US`.

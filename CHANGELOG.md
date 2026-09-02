@@ -6,6 +6,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **the i18n export instance is built WITH DEMO DATA, and one build serves the
+  whole run.** The recipe told the v8-v16 path to install `--without-demo=all`, and the skill never
+  passed `demo` to `odoo-instance` at all (whose own default is `off`), so every translation run
+  exported from a demo-less database. That is not a smaller-but-valid catalog: Odoo's exporter
+  reaches a module's records through `ir_model_data` filtered by MODULE ALONE - no demo predicate,
+  no `noupdate` predicate anywhere on the export leg, read in every series from v8 to v19 - so a
+  record's terms are in the catalog if and only if the record is in the database, and Odoo's own
+  committed `.pot` files carry demo-defined terms in every one of those series. Worse than the
+  missing terms: re-exporting a maintained `.po` from a demo-less build DROPS the demo-owned entries
+  the committed file already holds, which then arrive at the diff-review as removals whose `msgid`
+  is still plainly in source - the bucket most likely to be mis-ruled and "repaired" by deleting
+  real human translation. New recipe key-truths KT4 (demo is mandatory, with the mechanism) and KT5
+  (the `.pot` and every `.po` of a run come from ONE build, because a reconcile across two builds
+  compares two different term inventories), a `BUILD_SHAPE` field on the `odoo-translator` brief
+  that the leaf CORROBORATES and BLOCKs on, and Validation gate 6 that checks it before any exported
+  file is trusted.
+- `odoo-ai-agents` - **`odoo-forward-port` P9.5 no longer hands `odoo-i18n` the P9 verify instance.**
+  That instance is built to run tests, not to export a catalog; the reuse read as an obvious economy
+  and silently truncated every catalog a batch touched. It now passes `SELF_PROVISION` and refuses
+  the reuse by name. `run-harness` and `odoo-modules-upgrade` state the same requirement at their own
+  dispatch sites (the latter already built `demo: on` for the framework-validation gate - that
+  coincidence is now written down as load-bearing so it is not optimised away).
+- `odoo-ai-agents` - **`--without-demo` changed ARITY at v19, and the plugin recorded only one
+  shape.** Up to v18 it is an ordinary string option, so a value is REQUIRED (`--without-demo=all`;
+  a bare flag is a parse error) and it is only truthiness-tested at the consumption site - which is
+  why `--without-demo=False` DISABLES demo, and why the help text's per-module promise does not
+  hold. From v19 it is re-declared onto `dest="with_demo"` with an OPTIONAL, bool-typed value, so a
+  bare `--without-demo` is the intended spelling and `=all` no longer parses as a module list.
+  Recorded in the version-pivots SSOT and corrected in `odoo-instance-ops`.
+- `odoo-ai-agents` - **`--load-language` was NOT removed at v19.** `odoo-instance-ops` said it was,
+  contradicting the i18n recipe, which says the opposite and is right: the flag is still declared and
+  `odoo/modules/loading.py` still splits its csv and loads each code; it is the export/import half
+  that moved onto the `i18n` subcommand. A contract that disagrees with its own sibling is how a leaf
+  ends up following whichever it read last.
+- `odoo-ai-agents` - **`odoo-modules-upgrade` restated the `.po` adjudication as a two-bucket
+  CORRECT-or-WRONG rule**, the exact shape the ARTEFACT bucket exists to prevent - it hard-BLOCKs a
+  correct run on any module holding a deliberately-unlocalised term. The anti-drift guard could not
+  see it because `upg-phase-detail.md` was missing from the consumer list it scans; the file is now
+  in that list, and the test fails on the old wording.
+- `odoo-ai-agents` - the identity rule's grounding no longer implies a narrow version range: the
+  `trad != src` guard was read unchanged in every series this plugin serves, v8 through v19.
+
+### Added
+
+- `odoo-ai-agents` - **`snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY
+  text: a hard ban, with the substitute for every banned shape.** Labels, `string=`/`help=`,
+  selection labels, exception WORDING, rendered UI strings, `.po` `msgstr`s, untranslated-entry
+  counts and "translation coverage" are improved continuously by people who never see the test suite,
+  so a test pinned to them fails on an IMPROVEMENT and its only cheap remedy is editing the
+  expectation - which is itself banned. Assert the exception TYPE, the technical value, the
+  `res_model`/`xml_id`, or the state instead. Two carve-outs keep the rule from over-correcting: a
+  text LOCATOR (clicking by visible label where no stable handle exists) stays allowed, and DELETING
+  an existing offending assertion is cleanup rather than loosening - while RELAXING one to keep it
+  green stays banned. Carried by `odoo-test-writer`, `odoo-test-writing`, `odoo-code-reviewer` (a
+  HIGH finding) and `acceptance-oracle-contract` (an expected result is never display text).
+- `odoo-ai-agents` - **`snippets/i18n-mandate-contract.md` § Orchestrator obligations: what a CALLER
+  must never instruct.** The orchestrator routes translation work without knowing how translation
+  works, and the instructions it actually issues - "skip demo / reuse the test DB", "get the
+  untranslated count to zero", "export just the `.pot`", "add a test that the translation is right" -
+  each contradict a contract the leaf is bound by, and a leaf told two different things follows the
+  brief. Four rows, each pointing at the SSOT that owns the fact rather than restating it, plus
+  caller obligation 5 (hand over an export-shaped instance or none at all) and escape E7 for a
+  demo-less handover.
+- `odoo-ai-agents` - an `[i18n]` hint in the `detect-intent` hook, so the doctrine reaches the main
+  agent at prompt time rather than waiting for it to open a snippet it has no reason to open. Fires
+  on English and Vietnamese translation intent behind the same Odoo anchor every other Odoo-specific
+  hint uses; silent on documentation, coding, and non-Odoo translation prompts.
+
 ## [5.5.0] - 2026-09-02
 
 ### Added

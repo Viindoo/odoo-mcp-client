@@ -90,7 +90,14 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 2. Enforce red-before-green (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) and the
    behavior-first arrange rules (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`):
    assert an observable outcome via the real action method, one business rule per test,
-   `with_user()` not `sudo()` for access; never weaken a test to make it pass. Comments and
+   `with_user()` not `sudo()` for access; never weaken a test to make it pass. **Never author an
+   assertion on TRANSLATED or DISPLAY text** - a label, `help=`/`string=`, a selection label, an
+   exception's wording, a rendered UI string, a `.po` `msgstr`, or an untranslated-entry count. That
+   wording is improved continuously by people who never see your test, so such an assertion fails on
+   an improvement and gates nothing; assert the exception TYPE, the technical value, or the state
+   instead (same SSOT, § Never assert TRANSLATED or DISPLAY text). Asked for a test that would
+   exercise translation CONTENT, return the substitute you wrote instead and say why - the catalog
+   is gated by the `odoo-i18n` pipeline, never by a test. Comments and
    docstrings inside the authored files obey
    `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` - a test method's NAME states the
    business rule it protects, so a docstring restating that name is banned; write one only for a

@@ -20,6 +20,14 @@ a live DB + registry. No no-DB workaround (babel/polib cannot walk the module's 
 the way Odoo's registry does). Missing instance is a BLOCK, not a fallback - acquire per
 `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`.
 
+**And not just any instance - the BUILD SHAPE is part of the recipe, not an operator preference.**
+The catalog a run can produce is bounded by what that build contains: demo data must be loaded or
+every demo-owned term is missing from it (KT4), `en_US` plus every target language must be active or
+the exports come back blank (KT1 + KT3), and the `.pot` and every `.po` of the run must come from
+that ONE build or the reconcile is comparing different inventories (KT5). A wrongly-shaped build
+fails silently with a clean exit code, exactly like the unloaded-language failure above - so it is
+checked (Validation gate 6), never assumed.
+
 Ground every odoo-bin flag for the target series before invoking - the EXPORT/IMPORT surface
 is the half that moved off the server flags onto an `i18n` subcommand; the language-ACTIVATION
 flag did not move. Resolve each one, never assume from the series:
@@ -37,14 +45,23 @@ tiers 1-4) - a run that resolves none returns `NEEDS_CONTEXT`/escape E3 rather t
 
 ---
 
-## L1 - Install + load the language, then export
+## L1 - Build ONE instance, then export every artifact from it
 
-Two distinct exports - pick the one you need:
+**One build per module per run serves the WHOLE run.** Install the module WITH DEMO DATA (KT4),
+activate `en_US` plus every target language in that same build (KT1 + KT3), then export BOTH
+artifacts from that one database: the `.pot` template AND each `<lang>.po`. Do not provision a
+second, differently-shaped instance for the `.pot` - see KT5 for why that quietly breaks the L2
+reconcile.
 
-- **Template (`.pot`) for the L2 reconcile / seeding a new language:** install the module (no language load needed), export the
-  term inventory with empty `msgstr`s. Common path.
-- **Translated (`.po`) re-export of existing translation:** the language must be LOADED into the
-  DB FIRST or the export emits empty `msgstr`s (a template, not a translation).
+The two exports differ only in the flag that selects the output, never in the build behind them:
+
+- **Template (`.pot`)** - the term INVENTORY with empty `msgstr`s. The export reads the source
+  language, so having target languages loaded in the DB does not leak into it (the reader falls back
+  to `en_US` when no language is selected); the `.pot` is the same file whether or not they are
+  loaded. Export it ONCE per module per run.
+- **Translated (`.po`)** - the existing translation re-exported. The language must be LOADED into
+  the DB or the export emits empty `msgstr`s (a template, not a translation). Export one per target
+  language from the SAME database.
 
 **KT1 - `--load-language` ACTIVATES the translation in the DB; `--language`/`-l` only SELECTS the
 export file.** Two different flags, both needed for a translated export:
@@ -64,6 +81,49 @@ preceding `odoo-bin i18n loadlang -d <db> -l en_US` call in the subcommand form.
 requirement only - it is NEVER a translation deliverable (Odoo ships no `en_US.po`; do not export
 one).
 
+**KT4 - the export build MUST carry DEMO DATA. Never disable demo for a translation run.**
+A module's translatable terms are not only its code strings. Every record the module OWNS is
+exported too - view arch, action and menu names, group names, mail-template subject/body, selection
+and field labels - and that includes every record loaded from the manifest's `demo` files. The
+exporter reaches those records through `ir_model_data` filtered by MODULE ALONE; there is no demo
+predicate and no `noupdate` predicate anywhere on the EXPORT leg (read in every series v8 through
+v19, 2026-09-02: the `... FROM ir_model_data WHERE module ...` query behind
+`_export_translatable_records`, and its `trans_generate` ancestor in the pre-reader series). A
+record's terms are in the catalog **if and only if that record is in the database**, so a demo-less
+build silently ships a truncated catalog.
+
+That demo terms BELONG in the catalog is checkable rather than argued: Odoo's own committed
+`<module>.pot` files carry the terms of records defined only in those modules' `demo` files, in
+every series v8 through v19 (2026-09-02) - dozens of modules and hundreds of entries per series.
+A catalog exported from a demo-less build does not disagree with a preference; it disagrees with
+the file Odoo itself ships.
+
+**The missing terms are the smaller half of the damage.** Re-exporting a maintained `<lang>.po`
+from a demo-less build DROPS every demo-owned entry the committed file already holds. Those entries
+then reach the L2 diff-review as REMOVED while their `msgid`s are plainly still in the module
+source - which is precisely the WRONG bucket's test - so a correct run BLOCKS, or, adjudicated
+carelessly, real human translation is deleted with a clean exit code. Demo-on is what makes the
+re-export and the committed file comparable at all.
+
+Demo loads at `-i` and NEVER at `-u`, so a build that came up without demo cannot be repaired -
+provision a new one. Resolve the era's flag instead of carrying one forward; the arity and the
+default both moved (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo
+flag): in the earlier era demo is ON by default, so pass NO demo flag at all; in the later one it is
+OFF by default, so `--with-demo` must be passed explicitly - the SSOT row above names the boundary,
+and `cli_help(command='server', flag='--with-demo', odoo_version='<target>')` confirms it for the
+series in hand. Never pass `--without-demo` in any form on a translation run, and never
+`--without-demo=False`, a truthy string that disables the demo data you need.
+
+**KT5 - the `.pot` and every `.po` of one run come from ONE build.** The L2 reconcile compares a
+re-export against a committed file and rules each difference; that comparison is only meaningful if
+both sides describe the same term inventory. Two builds that differ in ANY inventory-shaping input -
+demo on/off, `--skip-auto-install` on/off, a different addons path, a different code state -
+manufacture differences that belong to neither the code nor the translation, and the adjudication
+has no way to tell them from a real loss. So: install once, activate `en_US` + every target language
+once, and export the `.pot` and every `<lang>.po` from that same database before releasing it. If
+the build must be replaced mid-run, re-export EVERY artifact from the replacement - never mix
+artifacts across builds.
+
 When dispatched from `odoo-forward-port`, copy each source-series `<lang>.po` into the target
 module's `i18n/<lang>.po` BEFORE L1 - that makes the source translation the "existing `.po`" L1
 loads, so the same fresh-instance -> load -> re-export -> diff-review path forwards it (no polib
@@ -82,13 +142,18 @@ its children, so a parent's `.pot` carries only the parent's terms.
 ```bash
 # Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-# install + load en_US (base language, KT3 - ALWAYS) + the target language into an isolated
-# per-module DB (dependency order):
-odoo-bin -d <db> -i <module> --load-language=en_US,<lang> \
-  --without-demo=all --stop-after-init \
+# ONE build (KT5): install + demo + activate en_US (KT3 - ALWAYS) and EVERY target language,
+# into an isolated per-module DB, in dependency order.
+# NO demo flag here: demo is ON by default on these series (KT4) - passing --without-demo in any
+# form truncates the catalog, and --without-demo=False truncates it too (the string is truthy).
+odoo-bin -d <db> -i <module> --load-language=en_US,<lang1>[,<lang2>...] \
+  --stop-after-init \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-# export the language file (.pot template, or .po once <lang> is loaded above):
+# export the .pot TEMPLATE from that same DB (no --language: the inventory, empty msgstrs):
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
+  --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+# export one translated .po per target language from the SAME DB (repeat per <lang>):
+odoo-bin -d <db> --modules=<module> --i18n-export=<lang>.po \
   --language=<lang> --stop-after-init \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
@@ -101,11 +166,16 @@ registry - install just the module and its closure:
 ```bash
 # Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-# install + load en_US (base language, KT3 - ALWAYS) + the target language, blocking auto_install siblings:
-odoo-bin -d <db> -i <module> --skip-auto-install --load-language=en_US,<lang> \
+# ONE build (KT5): install + demo + activate en_US (KT3 - ALWAYS) and EVERY target language,
+# blocking auto_install siblings. Still NO demo flag - demo is ON by default here too (KT4).
+odoo-bin -d <db> -i <module> --skip-auto-install \
+  --load-language=en_US,<lang1>[,<lang2>...] \
   --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-# export the language file:
+# export the .pot TEMPLATE from that same DB (no --language):
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
+  --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+# export one translated .po per target language from the SAME DB (repeat per <lang>):
+odoo-bin -d <db> --modules=<module> --i18n-export=<lang>.po \
   --language=<lang> --stop-after-init \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
@@ -129,14 +199,22 @@ invoking:
 # install the module (still a server-flag concern) - memory-cap policy:
 # ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d <db> -i <module> --skip-auto-install --stop-after-init \
-  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-# load en_US (base language, KT3 - ALWAYS) + the target language INTO the DB
-# (KT1 - activates msgstr for a translated export). The `i18n` subcommand is a separate CLI
-# parser from the server build path above and does not take --limit-memory-hard:
+# ONE build (KT5). Demo is OFF by default on this series, so --with-demo MUST be passed explicitly
+# (KT4) - the one era where a demo flag belongs on a translation build; confirm with
+# cli_help(command='server', flag='--with-demo', odoo_version='<target>'). Do NOT reach for
+# --without-demo here: its arity moved too - snippets/odoo-version-pivots.md owns that row.
+odoo-bin -d <db> -i <module> --skip-auto-install --with-demo \
+  --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+# activate en_US (base language, KT3 - ALWAYS) + EVERY target language INTO the DB
+# (KT1 - activates msgstr for a translated export). Two forms exist here and BOTH work: the csv
+# server flag was NOT removed when export/import moved onto the subcommand - confirm with
+# cli_help(command='server', flag='--load-language', odoo_version='<target>'). The i18n subcommand
+# is a separate CLI parser from the server build path above and does not take --limit-memory-hard:
 odoo-bin i18n loadlang -d <db> -l en_US
-odoo-bin i18n loadlang -d <db> -l <lang>
-# export (default -l pot = template .pot; pass <lang> to emit the translated .po):
+odoo-bin i18n loadlang -d <db> -l <lang1> [<lang2> ...]
+# export the .pot TEMPLATE and then one .po per target language, all from that SAME DB
+# (default -l pot = template .pot; pass <lang> to emit the translated .po):
+odoo-bin i18n export -d <db> -o <module>.pot <module>
 odoo-bin i18n export -d <db> -l <lang> -o <lang>.po <module>
 # import (optional: test-import the finalized post-adjudication .po; the -u reload gate covers this):
 odoo-bin i18n import -d <db> -l <lang> -w <lang>.po
@@ -155,15 +233,21 @@ per-language - see the multi-language loop below.
 
 ## Multi-language loop order
 
-When the resolved scope has more than one target language, run two nested loops:
+When the resolved scope has more than one target language, the BUILD is still singular (KT5) - it is
+the exports and the translation work that loop:
 
-- Loop 1 (per module, language-agnostic): export the `.pot` template ONCE per module. The `.pot`
-  is the untranslated catalog and does NOT depend on language - never re-export it per language.
+- Loop 0 (per module, ONCE): the L1 build - install with demo, activate `en_US` plus EVERY target
+  language in that one call. Not per language: activating three languages is one build with three
+  codes in the activation set, never three builds.
+- Loop 1 (per module, language-agnostic): export the `.pot` template ONCE per module from that
+  build. The `.pot` is the untranslated catalog and does NOT depend on language - never re-export it
+  per language, and never from a different build than the `.po`s (KT5).
 - Loop 2 (per language, module-inner): for each target `<lang>`, and for each module - build the
-  per-language glossary/TM (`glossary-tm-<lang>.json`), `--load-language=<lang>`, reconcile into
-  `<lang>.po` by load + re-export + diff-review (non-destructive, no polib), hand-translate the residual, then run the per-language
-  validation gates (diff-review adjudication + placeholder-integrity; `-u` reload with
-  `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
+  per-language glossary/TM (`glossary-tm-<lang>.json`), re-export `<lang>.po` from the SAME build
+  (its language is already active from Loop 0 - do not re-provision to add one), reconcile by
+  load + re-export + diff-review (non-destructive, no polib), hand-translate the residual, then run
+  the per-language validation gates (diff-review adjudication + placeholder-integrity; `-u` reload
+  with `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
   reload follows the reserve-only allocator guard (see gate-3 above): reuse the L1 install lease
   or use `--mode exclusive` on a declared DB - never a fresh ephemeral lease for reload-only.
 
@@ -283,6 +367,27 @@ Translate each genuine residual `msgstr` by hand, applying the term policy
    not per language). AND `en_US` must be in the activation set of every `--load-language` / `loadlang`
    call (KT3), never the target language alone. Skipping either is a silent under-merge / false pass -
    BLOCK.
+
+6. **Build shape - demo loaded, and ONE build behind every artifact (KT4 + KT5).** Confirm, before
+   trusting any exported file, that the build these artifacts came from was installed WITH demo data
+   and that the `.pot` and every `<lang>.po` of this run came from THAT SAME database. Both are
+   decidable from what you already have, so neither is a judgement call:
+
+   - **Demo:** the `-i` command line carries no `--without-demo` in any form, and carries
+     `--with-demo` on the series where demo defaults OFF
+     (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo flag). Corroborate against
+     the instance rather than the command alone - a module in
+     scope whose manifest declares `demo` files must have its demo records present
+     (`ir.model.data` rows for that module pointing at records those files define). Absent -> the
+     catalog is truncated: BLOCK and re-provision. Demo loads only at `-i`, so there is no repair
+     short of a new build.
+   - **One build:** the `.pot` and every `.po` name the same `INSTANCE_HANDLE` / lease. A mismatch
+     means the reconcile compared two different term inventories and its rulings are void -
+     re-export every artifact from one build and re-adjudicate.
+
+   A demo-less or mixed-build run is exactly the shape that produces a mass of REMOVED entries whose
+   `msgid`s are still in source, so it is ALSO the shape most likely to be mis-ruled WRONG and
+   "fixed" by deleting real translation. Check the build before you trust the diff.
 
 ---
 

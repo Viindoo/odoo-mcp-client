@@ -1,5 +1,7 @@
-<!-- SSOT snippet. The single home for the MANDATORY i18n reconcile step its two callers share:
-     the mandate wording, the enumerated escapes, and the decidable trigger. Edit here only;
+<!-- SSOT snippet. The single home for the MANDATORY i18n reconcile step its callers share:
+     the mandate wording, the caller obligations, the enumerated escapes, the decidable trigger,
+     and the orchestrator's must-not-instruct list (what a CALLER may never tell the i18n leaf,
+     each row pointing at the SSOT that owns the fact). Edit here only;
      consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md.
      The i18n PROTOCOL itself (export, load, diff-review, adjudicate) is owned by
      ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md and is NOT restated here. -->
@@ -18,7 +20,7 @@ gate, and it under-fires silently.
 Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The run is not DONE until
 `odoo-i18n` returns a per-module result or a RECORDED escape from the table below.
 
-**Caller obligations (all four, or the mandate is unsound):**
+**Caller obligations (all five, or the mandate is unsound):**
 1. Pass `WORKTREE_PATH` - the worktree the adapt wrote. `.po`/`.pot` are git-tracked and
    `odoo-translator` is a separate agent context that does not inherit cwd.
 2. Pass an `INSTANCE_HANDLE` (or `SELF_PROVISION: worktree-addons`) whose addons path covers that
@@ -35,6 +37,15 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
    (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md` P0); it only ever reaches escape E3 above.
 4. Present the returned result at YOUR OWN existing human gate - do NOT let `odoo-i18n` open a separate
    STOP per invocation. A mandated step that always stops is a deadlock.
+5. Hand over an instance BUILT FOR EXPORT - installed WITH DEMO DATA, `en_US` plus the target
+   languages active - or hand over none and let `odoo-i18n` build its own
+   (`SELF_PROVISION: worktree-addons`). Reusing a lease you happen to hold (a test DB, a review
+   instance, anything `demo=off`) truncates the catalog: demo-owned records carry translatable terms,
+   and re-exporting a maintained `.po` from a demo-less build drops entries the committed file
+   already holds, which then read as accidental losses. Demo loads at `-i` only, so it cannot be
+   added afterwards. The wrong instance is worse than none - none BLOCKS loudly, the wrong one
+   succeeds quietly. Rule + per-series flags:
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4/KT5.
 
 ## Escape hatches (ENUMERATED - no others; every skip RECORDED, never silent)
 
@@ -46,9 +57,27 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
 | E4 | forward-port only: `installable_false == yes` for this module (the lint-only lane) | `i18n: n/a (installable:False at target - lint-only lane)` | proceed |
 | E5 | no instance can be provisioned | `i18n: blocked (no instance)` | **BLOCKED** |
 | E6 | the instance's addons path does not cover `WORKTREE_PATH` | `i18n: blocked (instance addons-path excludes the worktree)` | **BLOCKED** |
+| E7 | the handed-over instance was built without demo data (obligation 5) | `i18n: blocked (export instance has no demo data - catalog would be truncated)` | **BLOCKED** |
 
 Anything not in this table is NOT an escape. "The diff looked label-free" is E2, which requires
 BOTH conditions.
+
+## Orchestrator obligations - what a CALLER must never instruct
+
+A caller need not know how translation works, but it must not instruct AGAINST it: a leaf told one
+thing by its contract and another by its brief follows the brief. These four are the instructions
+that actually get given. Each row names the SSOT that owns the fact; none is restated here.
+
+| Never instruct | Why it is wrong | Owner of the fact |
+|---|---|---|
+| "skip demo / reuse the test DB / build it fast" | Demo-owned records carry translatable terms, so a demo-less build ships a truncated catalog AND turns committed entries into phantom removals | `skills/odoo-i18n/references/i18n-recipe.md` KT4 |
+| "get the untranslated count to zero" | Odoo stores a translation equal to its source EMPTY, so many blanks are REVIEWED do-not-localise decisions; a zero-blank target orders the leaf to overwrite them | `snippets/po-entry-semantics.md` § The identity rule |
+| "export just the `.pot`" / a fresh instance per language | Every artifact of one run must come from ONE build, or the reconcile compares different term inventories and its rulings are void | `skills/odoo-i18n/references/i18n-recipe.md` KT5 |
+| "test that the translation is right / the catalog complete" | That wording is improved continuously, so the test fails on an improvement; the catalog is gated by this pipeline, never by the suite | `snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text |
+
+Positive form, short enough to carry: **dispatch `odoo-i18n`, give it a worktree plus either a
+demo-loaded instance or permission to build one, name the languages if you know them, and let it
+decide what counts as translated.**
 
 ## Catalog-presence check (E2 clause 1 - mechanical, decidable by BOTH flows)
 
