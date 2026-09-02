@@ -62,8 +62,13 @@ _append_block() {
 # Takes a tmp file path; moves its content into _md, then removes the tmp file.
 # ---------------------------------------------------------------------------
 _replace_through_symlink() {
-  local _tmp="$1"
-  cat "${_tmp}" > "${_md}" && rm -f "${_tmp}"
+  local _tmp="$1" _rc=0
+  cat "${_tmp}" > "${_md}" || _rc=$?
+  # UNCONDITIONAL. This was `cat ... && rm -f ...`, so a failed cat skipped the
+  # removal and there is no trap to catch it - in a SessionStart hook, once per
+  # session, which is the multiplier that fills an ambient temp directory.
+  rm -f "${_tmp}"
+  return "$_rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -98,7 +103,7 @@ elif [ "${_begin_count}" -eq 1 ] && [ "${_end_count}" -eq 1 ]; then
       :
     else
       # Stale/relocated path -> range-delete block, re-append correct one.
-      _tmp=$(mktemp)
+      _tmp=$(mktemp "${_md}.ethos.XXXXXX")
       awk -v b="${_begin_line}" -v e="${_end_line}" \
         'NR < b || NR > e' "${_md}" > "${_tmp}"
       _replace_through_symlink "${_tmp}"
@@ -118,7 +123,7 @@ fi
 if [ "${_begin_count}" -ne 0 ] && \
    { [ "${_begin_count}" -ne 1 ] || [ "${_end_count}" -ne 1 ] || \
      [ "${_begin_count}" -eq 99 ]; }; then
-  _tmp=$(mktemp)
+  _tmp=$(mktemp "${_md}.ethos.XXXXXX")
   grep -vxF "${_BEGIN}" "${_md}" | \
     grep -vxF "${_END}" | \
     grep -vE "^@.*/ODOO-AI-ETHOS\.md$" > "${_tmp}" || true

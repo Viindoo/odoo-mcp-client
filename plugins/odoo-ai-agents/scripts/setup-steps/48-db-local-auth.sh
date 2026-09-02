@@ -76,6 +76,10 @@ ODOO_DB_PY="$LIB_DIR/odoo_db.py"
 source "$LIB_DIR/pg_mode.sh"
 # shellcheck source=../lib/resolve_instances.sh
 source "$LIB_DIR/resolve_instances.sh"
+# odoo_ai_scratch_dir - every working file below lands under the state root, never
+# the ambient temp directory.
+# shellcheck source=../lib/state_reclaim.sh
+source "$LIB_DIR/state_reclaim.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 
 SETUP_CMD="/odoo-ai-agents:odoo-setup"
@@ -561,8 +565,9 @@ _apply_one_cluster() {
         return 1
     fi
 
-    local tmpdir cur new
-    tmpdir="$(mktemp -d)"
+    local tmpdir cur new scratch
+    scratch="$(odoo_ai_scratch_dir)" || return 1
+    tmpdir="$(mktemp -d -p "$scratch")"
     cur="$tmpdir/cur"; new="$tmpdir/new"
     if ! pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
             docker exec "$container" cat "$hba" >"$cur" 2>/dev/null; then
@@ -980,8 +985,9 @@ $c
             fi
             failed=1; continue
         }
-        local tmpdir cur new
-        tmpdir="$(mktemp -d)"; cur="$tmpdir/cur"; new="$tmpdir/new"
+        local tmpdir cur new scratch
+        scratch="$(odoo_ai_scratch_dir)" || { echo "x $c: could not resolve the state root." >&2; continue; }
+        tmpdir="$(mktemp -d -p "$scratch")"; cur="$tmpdir/cur"; new="$tmpdir/new"
         if ! pg_bounded_run "$PG_MODE_PROBE_TIMEOUT" \
                 docker exec "$c" cat "$hba" >"$cur" 2>/dev/null; then
             echo "x $c: could not read $hba - nothing was reverted." >&2

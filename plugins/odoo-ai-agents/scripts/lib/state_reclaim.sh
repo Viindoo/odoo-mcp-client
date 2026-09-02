@@ -57,6 +57,42 @@ odoo_ai_state_root() {
 }
 
 # ---------------------------------------------------------------------------
+# odoo_ai_scratch_dir - the ONE scratch destination for short-lived working
+# files, created on demand and printed on stdout. Empty output means it could
+# not be created; a caller that cannot proceed without it must FAIL rather than
+# fall back to the ambient temp directory.
+#
+#   WHY THIS EXISTS. The ambient temp directory is a trap on a real developer
+#   machine, not a theoretical one: it is commonly a memory-backed filesystem of
+#   a few gigabytes with a per-user quota, and a `mktemp` with no `-p` lands
+#   there while naming neither that directory nor the environment variable that
+#   selects it - so it is invisible to both rules of
+#   tests/test_no_tmp_scratch.py. A single `npm install --prefix` into such a
+#   directory materialises a whole browser-MCP dependency tree into memory.
+#   Exhausting it made every agent session on one host fail on a two-byte write.
+#
+#   Tier-1 FLAT (`$ODOO_AI_HOME/scratch/`), by construction rather than by
+#   prose: this function hardcodes the flat root, so there is no path for a
+#   codemod to namespace. Scratch is machine-global by nature - it belongs to
+#   whoever is running, not to a repo or a worktree - and namespacing it would
+#   multiply directories nothing ever reclaims. It is deliberately NOT added to
+#   the Tier-1 allowlist table in
+#   ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md: that file is held
+#   just under the [ref-scope] size threshold on purpose, because ~50 skills and
+#   agents cite it whole-file with no section anchor, and a row here would push
+#   it over and manufacture dozens of orphan findings against files nobody
+#   touched (tests/test_ref_scope_citation_anchor.py states the measurement).
+#   Callers still remove what they create; this only decides WHERE.
+# ---------------------------------------------------------------------------
+odoo_ai_scratch_dir() {
+    local _root _dir
+    _root="$(odoo_ai_state_root)" || return 1
+    _dir="${_root}/scratch"
+    mkdir -p "$_dir" 2>/dev/null || return 1
+    printf '%s\n' "$_dir"
+}
+
+# ---------------------------------------------------------------------------
 # _DB_NAME_RE - the ONE spelling of the accepted db_name character class.
 #   It MIRRORS Odoo's own database-manager gate rather than inventing (or
 #   near-copying) a class of its own: addons/web/controllers/database.py
