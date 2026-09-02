@@ -89,6 +89,7 @@ def test_contract_fits_the_hot_contract_budget():
         "default to no comment",
         "purpose, not the mechanics",
         "attribution / self-defense",
+        "unshippable references",
         "volume ceiling",
     ],
 )
@@ -142,6 +143,31 @@ def test_code_writing_agent_inlines_the_two_headline_rules(agent):
     )
     assert "serves" in body or "why not what" in body or "never what it does" in body, (
         f"{agent} must inline the purpose-over-mechanics rule, not only link it"
+    )
+
+
+@pytest.mark.parametrize("agent", CODE_WRITING_AGENTS)
+def test_code_writing_agent_inlines_the_unshippable_reference_ban(agent):
+    """The vector is the brief itself: a coder is handed DESIGN_DOC, SURVEY, RED_TEST_PATH,
+    WORKLOG, SHARE_DIR/ISOLATE_DIR and WORKTREE_PATH as authoritative inputs, so pointing a comment
+    at one reads as helpful traceability. None of them exists in the repo the code ships in, and
+    nothing else catches it: the repo's own confidentiality hook scans THIS repo's commits, while a
+    coder writes into the customer's."""
+    body = _read(AGENTS / agent).lower()
+    assert "unshippable" in body, (
+        f"{agent} must inline the ban on citing anything absent from the shipping repo"
+    )
+    assert "state dir" in body or "state-dir" in body or "design_doc" in body, (
+        f"{agent} must name at least one concrete unshippable class (the run's state dir, or the "
+        f"brief fields that carry those paths) - an abstract ban is not actionable"
+    )
+
+
+def test_reviewer_grades_the_unshippable_reference():
+    body = _read(REVIEWER).lower()
+    assert "unshippable" in body, (
+        "odoo-code-reviewer.md must grade an unshippable reference - it is the only gate that sees "
+        "the finished diff"
     )
 
 

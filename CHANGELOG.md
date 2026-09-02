@@ -19,6 +19,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   contract a signature cannot: a `_compute_*` or `@api.constrains` method needs one only when the
   rule it enforces is not derivable from the code, and an override states WHY it exists, not that
   it is an override.
+- `odoo-ai-agents` - **A comment may not point at anything the shipping repo does not contain.**
+  A coder's brief hands it `DESIGN_DOC`, `SURVEY`, `RED_TEST_PATH`, `WORKLOG`, the run's state dirs
+  and `WORKTREE_PATH` as authoritative inputs, so pointing a comment at one reads as helpful
+  traceability - and every one of them is gitignored working state that will not exist for whoever
+  opens the file next. Nothing caught it: the repo's own confidentiality hook scans THIS repo's
+  commits, while a coder writes into the customer's. The contract now bans the whole class -
+  a design doc, survey, worklog, review, QA oracle, plan or evidence file under the state dir, an
+  absolute or worktree path, a run id, slug or instance handle - in any comment, docstring or
+  `TODO`; state the reason itself, never where you read it. Graded MED in review, with the concrete
+  strings to grep an added-comment diff for. Both debuggers now say their own report path is
+  unshippable too, and `odoo-coding` warns that the paths it hands down are inputs, not citations.
 - `odoo-ai-agents` - **The contract reaches the agents that write code.** It is wired into
   `odoo-backend-coder`, `odoo-frontend-coder` and `odoo-test-writer` (inline, not by path alone,
   plus a self-check item), into the `odoo-coding` per-node dispatch brief, into both debuggers'
