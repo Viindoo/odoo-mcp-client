@@ -96,7 +96,11 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
    non-obvious arrange step, stating what it SERVES and never what it does. No attribution or
    self-defense line ("this bug pre-existed", "added after review", "not covered before"), no
    narration of the RED/green journey, no ticket, date or author - a test file is where those
-   collect fastest, and they address a reviewer rather than the next reader.
+   collect fastest, and they address a reviewer rather than the next reader. Never cite an
+   UNSHIPPABLE reference either: the oracle `scenarios.md`, a survey, worklog or design doc under
+   the run's state dir, an absolute or worktree path, a run id, slug or instance handle are YOUR
+   inputs and do not exist in the repo the test ships in - encode the rule in the test name and the
+   assertion, never a pointer to where you read it.
 3. **Declare `RED_MODE` per authored file** (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`) - `constructed` | `measured` |
    `toggle` | `exempt` - with the evidence that mode requires. Prefer `constructed`: assert a value

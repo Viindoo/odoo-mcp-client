@@ -638,7 +638,9 @@ GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codin
 - **Comments and docstrings are contracted, not left to taste.** Every comment and docstring the
   node's workers write obeys `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` - default to
   none, state what the code SERVES rather than what it does, and never address the reviewer. The
-  leaf coders carry it in their own bodies, so do not restate the rules in the brief.
+  paths you hand down - `DESIGN_DOC`, `SURVEY`, `WORKLOG`, the state dirs, `WORKTREE_PATH` - are
+  the workers' INPUTS and must never surface in a comment: none of them exists in the repo the code
+  ships in. The leaf coders carry the rules in their own bodies, so do not restate them in the brief.
 
 - **Addons provenance is the DISPATCHER's job.** Each node gets ONE worktree and ONE `addons_path`
   covering its whole module set, so one lease is exactly right for one node. For every per-node
