@@ -43,3 +43,4 @@ Read the files relevant to your task before writing code. The two warnings below
 | Report (SQL view or QWeb) | `module-structure.md`, `naming.md` |
 | JavaScript / CSS assets | `javascript.md`, `scss.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Naming fields, methods, classes, variables | `naming.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
+| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

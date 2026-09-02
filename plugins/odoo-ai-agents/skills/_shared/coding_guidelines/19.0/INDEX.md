@@ -39,3 +39,4 @@ These guidelines apply to every new module and to all new development. Two warni
 | Organizing or writing web assets (JS) | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS/SCSS, variables, mixins, and naming classes | scss.md |
 | Naming fields, methods, classes, variables | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
+| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

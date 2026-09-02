@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - **`snippets/code-comment-contract.md`: what a comment or docstring in shipped
+  source may say, declared once.** Default to no comment; write one only when the WHY is invisible
+  in the code, and then state what the code SERVES rather than what it does, since a well-named
+  identifier already says that. Bans outright the categories that address a reviewer instead of the
+  next reader - attribution and self-defense ("this bug pre-existed", "not introduced by this
+  change", "as requested in review"), process narration, provenance (ticket, date, author, "used by
+  X"), before/after wording, commented-out code, and banner blocks - and sets a volume ceiling of
+  one short line, never a multi-paragraph docstring. Docstrings survive only where they carry the
+  contract a signature cannot: a `_compute_*` or `@api.constrains` method needs one only when the
+  rule it enforces is not derivable from the code, and an override states WHY it exists, not that
+  it is an override.
+- `odoo-ai-agents` - **The contract reaches the agents that write code.** It is wired into
+  `odoo-backend-coder`, `odoo-frontend-coder` and `odoo-test-writer` (inline, not by path alone,
+  plus a self-check item), into the `odoo-coding` per-node dispatch brief, into both debuggers'
+  hand-off instructions so a proven root cause does not become a narrating comment in the fix, and
+  into the `coding_guidelines` snippets catalog plus every per-version "By task" table - the
+  read-before-write mandate forbids reading a file that table does not map, so absence there meant
+  unreachable.
+
+### Fixed
+
+- `odoo-ai-agents` - **The only comment guidance in the plugin pushed one way: write more.** The
+  reviewer graded "non-obvious logic without a docstring" as a maintainability defect with no
+  counterweight anywhere for surplus, and the verbatim upstream guideline line "document your code
+  (docstring on methods, simple comments for tricky parts of code)" read as a quota. The reviewer
+  dimension now grades BOTH directions - MED for an attribution, narration, provenance or
+  before/after comment and for a genuinely invisible load-bearing constraint, LOW for a comment
+  that restates what the code already says - and explicitly does not raise a finding merely because
+  a method lacks a docstring. The upstream extraction is untouched; the contract declares
+  precedence over it as a permission, never a quota.
+- `odoo-ai-agents` - **`snippets/artifact-voice.md` claimed code and docstrings but reached no
+  agent that writes them.** It listed "code, docstrings" among the artifacts it governed while a
+  single consumer, the intake router, referenced it - so no coder ever loaded it. It now owns prose
+  artifacts only and hands source to the code-comment contract, leaving one owner per fact.
+
 ## [5.4.1] - 2026-08-24
 
 ### Fixed

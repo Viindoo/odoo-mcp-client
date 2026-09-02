@@ -86,3 +86,4 @@ map to load only the snippets that apply to your task.
 | `orm-performance.md` | Stored compute aggregating a relation on a high-volume model | CORE - all distributions |
 | `stored-write-survival.md` | Writing a stored/computed core field | CORE - all distributions |
 | `python-naming-conventions.md` | Naming Python variables (l/O/i ban; meaningful names; for-r-in-self) | CORE Rule A; Viindoo-gated Rules B/C |
+| `code-comment-contract.md` | Writing ANY comment or docstring, in any language - read it on every code-writing task, not only when a By-task row names it | CORE - all distributions; GOVERNS over the upstream "document your code" line in `<version>/python.md` |

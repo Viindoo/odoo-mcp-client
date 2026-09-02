@@ -8,8 +8,8 @@ it ships and forces every future reader to subtract history from fact.
 ## The contract
 
 Every ARTIFACT this plugin's skills and agents produce - reports, proposals,
-design docs, marketing copy, code, docstrings, checklists, generated skills -
-is written in present-tense, current-state voice:
+design docs, marketing copy, checklists, generated skills - is written in
+present-tense, current-state voice:
 
 1. **No process narration.** Do not write "we first tried X, then switched to
    Y", "after investigating, ...", "this was added because the review found
@@ -25,6 +25,15 @@ is written in present-tense, current-state voice:
    "used to", "the new behavior" describe a diff, not a state. Write what the
    system does now. (Facts about EXTERNAL version history - e.g. an Odoo API
    removed in a given version - are domain knowledge, not narration: keep them.)
+
+## Comments and docstrings inside source
+
+Source files are governed by
+`${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`, which owns whether a
+comment should exist at all and what it may say. It applies these same voice
+rules and adds the code-specific ones (default to no comment, purpose over
+mechanics, no attribution or self-defense, the volume ceiling). Do not restate
+either contract in the other.
 
 ## What is exempt
 
