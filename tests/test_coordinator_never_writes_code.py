@@ -254,6 +254,12 @@ BASH_WRITES = [
     ("patch", "patch -p1 < /tmp/change.patch"),
     ("python-open", "python3 -c \"open('/w/addons/x/models/sale.py','w').write('x')\""),
     ("pipeline-tail", "grep -rn foo /w/addons | sed -i 's/a/b/' /w/addons/x/models/sale.py"),
+    # Continued forms. Each of these matched NO detector before the segmenter joined `\`-lines:
+    # W5's end-of-command anchor cannot match a physical line ending in ` \`, and W1/W2 lost the
+    # path to a second segment carrying no verb. A guard a newline defeats is not a guard.
+    ("cp-continued", "cp /tmp/new.py \\\n   /w/addons/x/models/sale.py"),
+    ("redirect-continued", "printf '%s' x \\\n   > /w/addons/x/models/sale.py"),
+    ("tee-continued", "printf '%s' x | tee \\\n   /w/addons/x/models/sale.py"),
 ]
 
 
@@ -278,6 +284,17 @@ BASH_READS = [
     ("allocator", "python3 scripts/lib/allocator.py release tok-1"),
     ("git-status", "git status --porcelain"),
     ("pytest", "python -m pytest tests/test_sale.py -q"),
+    # The SAME commands carrying a stream redirect. W7 once accepted a bare `>` as a "file-writing
+    # token", and because its three greps are independent that made every `2>&1` on any command
+    # naming a `.py` path read as a write. The gate therefore refused `allocator.py --help` and a
+    # plain pytest run depending only on whether the caller had appended a redirect - which is why
+    # it looked non-deterministic between two coordinator nodes that had simply typed it
+    # differently. Shell redirection is W1's job; W1 alone carries the `[^0-9&>]` stream guard.
+    ("allocator-stderr", "python3 scripts/lib/allocator.py acquire --series 18.0 2>&1"),
+    ("allocator-help-stderr", "python3 scripts/lib/allocator.py --help 2>&1"),
+    ("allocator-devnull", "python3 scripts/lib/allocator.py release tok-1 2>/dev/null"),
+    ("pytest-stderr", "python -m pytest tests/test_sale.py -q 2>&1"),
+    ("pytest-to-scratch", "python -m pytest tests/test_sale.py -q > /tmp/out.txt"),
 ]
 
 
@@ -288,6 +305,35 @@ def test_bash_reads_and_runs_are_never_denied(label, command):
     detector that fired on any command merely MENTIONING a `.py` path would deny all of these and
     be switched off within a day."""
     _passed(_run("Bash", {"command": command}))
+
+
+def test_a_bash_mediated_worklog_append_is_not_gated_on_its_body():
+    """The gate's own refusal promises "your worklog, findings, plan or design notes - are
+    unaffected by this gate". That promise held for Write/Edit, which are target-gated, and broke
+    for Bash, which is the path a heredoc append actually takes: the whole prose body arrives in
+    `tool_input.command`, so an agent writing down WHY it had been blocked was blocked again for
+    naming the path in its own report - and the refusal interpolated the path from the PROSE rather
+    than the `.md` being written, so it also misnamed the file. A guard that suppresses the reports
+    needed to fix the guard is worse than no guard."""
+    command = (
+        "cat >> /w/.odoo-ai/worklog/run-1/odoo-coder.md <<'EOF'\n"
+        "BLOCKED: the gate refused python3 scripts/lib/allocator.py acquire 2>&1,\n"
+        "and it also refused editing /w/addons/x/models/sale.py through a teammate.\n"
+        "EOF"
+    )
+    _passed(_run("Bash", {"command": command}))
+
+
+def test_an_interpreter_heredoc_body_is_still_inspected():
+    """The complement, and the reason the body drop is conditional rather than blanket: `bash
+    <<EOF` really does EXECUTE its body, so dropping it would turn the heredoc into a bypass for
+    the very shapes this gate exists to refuse."""
+    command = (
+        "bash <<'EOF'\n"
+        "cp /tmp/new.py /w/addons/x/models/sale.py\n"
+        "EOF"
+    )
+    _denied(_run("Bash", {"command": command}))
 
 
 DOCUMENTED_RESIDUAL = [

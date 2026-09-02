@@ -149,6 +149,13 @@ def test_the_deny_reason_refutes_the_reasoning_that_caused_the_incident():
     f"{ALLOC} release tok --run-id=acceptance-run-a",
     f"{ALLOC} release tok --session legacy-run",
     f"{ALLOC} release tok --instances /srv/x/instances.toml --run-id r1",
+    # A command written across two physical lines is ONE command. Splitting before joining put the
+    # verb and its owner flag in different segments, so this exact shape - the owner releasing its
+    # own lease - was refused, twice in real runs. Once it cost a leaked ephemeral database; once
+    # the agent rejoined the line and the release went through, which means the guard's own
+    # remediation text was a working bypass.
+    f"{ALLOC} release tok \\\n    --run-id r1",
+    f"{ALLOC} release \\\n    tok --run-id r1",
 ])
 def test_the_rightful_owner_is_never_blocked(command):
     """Every legitimate release shape passes untouched, for a subagent. A gate that stalled these
@@ -171,6 +178,14 @@ def test_a_run_id_cannot_be_borrowed_from_a_neighbouring_command():
     f"{ALLOC} release tok --force",
     f"{ALLOC} reap-orphans --yes",
     f"{ALLOC} reap-orphans --min-age-s 60 --yes",
+    # The SAME split, in the direction that loses data rather than stalling a pipeline: an override
+    # flag on the continuation line landed in a segment carrying no allocator token at all, so arm
+    # A2 never looked at it and a subagent was one newline away from --force-forget on a live
+    # lease. hooks.json claims this arm refuses "any --force / --force-forget / reap-orphans --yes
+    # override from a subagent"; before the join that sentence was false.
+    f"{ALLOC} release tok --run-id mine \\\n    --force",
+    f"{ALLOC} release tok \\\n    --force-forget",
+    f"{ALLOC} reap-orphans \\\n    --yes",
 ])
 def test_a_subagent_may_not_override_the_ownership_decision(command):
     reason = _denied(_run(command, agent_type="odoo-coder"))
@@ -218,6 +233,16 @@ def test_non_destructive_and_janitor_verbs_pass(command):
     'echo "then run: allocator.py release $TOKEN"',
     'python3 -c \'print("allocator.py release tok")\'',
     "cat scripts/lib/allocator.py",
+    # The interpreter spelled INSIDE the quoted sentence. The old test was adjacency - the script
+    # token preceded by a python token anywhere in the segment - so the moment a remediation line
+    # quoted the interpreter too, the mention read as an invocation. This gate refused a read-only
+    # analysis command twice while its own sibling defect was being investigated.
+    'echo "then run: python3 scripts/lib/allocator.py release $TOKEN"',
+    "grep -rn 'python3 scripts/lib/allocator.py release' docs/",
+    # A worklog entry describing the refusal. The body of a DATA heredoc is prose, not a command.
+    ("cat >> /w/.odoo-ai/worklog/run-1/odoo-coder.md <<'EOF'\n"
+     "BLOCKED: python3 scripts/lib/allocator.py release tok was refused; no owner to cite.\n"
+     "EOF"),
 ])
 def test_reading_or_quoting_the_command_is_not_running_it(command):
     """Found by this file, not by review: the first detector matched `allocator.py` + a verb
