@@ -56,7 +56,7 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
   { "token": "<uuid>", "mode": "exclusive|ephemeral|shared",
     "series": "17.0", "db_name": "odoo_17_t_ab12cd34", "drop_on_release": true,
     "python": "<venv-interpreter>", "db_host": "localhost", "db_user": "odoo", "db_port": "<port|absent>",
-    "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
+    "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (a plain -i/-u pass that binds nothing); N pooled ports otherwise
     "owner": { "host": "<hostname>", "pid": 41234, "pid_started": "<ps-lstart-fingerprint|absent>",
                "run_id": "<run-id>", "started_at": <epoch> },
     "ttl_s": 7200, "heartbeat_at": <epoch>,
