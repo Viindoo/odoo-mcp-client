@@ -986,7 +986,7 @@ references a driver-required workflow directly.
      "verify": "<command that must pass after every cherry-pick>",
      "commit": "<resolved by git-toolkit:git-ops at commit time>",
      "confidential": "public | restricted | internal",
-     "worktree_root": "<parent path for this repo's worktrees, outside the repo tree>"}
+     "worktree_root": "<sibling of the repo root, never the ambient temp dir - rule: skills/run-harness/references/run-integration.md>"}
   ],
   "nodes": [
     {"id": "node-A", "repo": "fleet-addons",    // which repos[].id this node belongs to; null = belongs to none

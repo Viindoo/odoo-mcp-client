@@ -57,6 +57,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/browser-mcp-servers.sh
 . "$SCRIPT_DIR/../lib/browser-mcp-servers.sh"
+# odoo_ai_scratch_dir - npm materialises a whole dependency tree below, and the
+# ambient temp directory is commonly memory-backed on a developer machine.
+# shellcheck source=../lib/state_reclaim.sh
+. "$SCRIPT_DIR/../lib/state_reclaim.sh"
 
 # Pinned Playwright version (single source of truth, env-overridable so users
 # and CI can pick a different release without editing this script).
@@ -106,8 +110,9 @@ _npm_ok() {
 # the (never-taken) write path. This never runs the package - only a probe.
 _pkg_cached() {
     _npm_ok || return 1
-    local tmp rc
-    tmp="$(mktemp -d 2>/dev/null)" || return 1
+    local tmp rc scratch
+    scratch="$(odoo_ai_scratch_dir)" || return 1
+    tmp="$(mktemp -d -p "$scratch" 2>/dev/null)" || return 1
     if npm install --offline --dry-run --no-save --ignore-scripts \
         --prefix "$tmp" "$1" >/dev/null 2>&1; then
         rc=0
@@ -217,9 +222,16 @@ _install_mcp_package_ondisk() {
         return 0
     fi
     echo "  Pre-installing $spec on disk (npm cache warm - package is never launched)..."
-    local tmp
-    tmp="$(mktemp -d 2>/dev/null)" || {
-        echo "  x could not create a scratch dir to pre-install $spec" >&2
+    local tmp scratch
+    # NEVER the ambient temp directory: `npm install --prefix` below writes the
+    # whole dependency tree, and where that directory is memory-backed those are
+    # hundreds of MB of RAM.
+    scratch="$(odoo_ai_scratch_dir)" || {
+        echo "  x could not resolve the state root to pre-install $spec" >&2
+        return 1
+    }
+    tmp="$(mktemp -d -p "$scratch" 2>/dev/null)" || {
+        echo "  x could not create a scratch dir under $scratch to pre-install $spec" >&2
         return 1
     }
     if npm install --no-save --ignore-scripts --prefix "$tmp" "$spec"; then

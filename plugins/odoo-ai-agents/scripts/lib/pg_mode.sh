@@ -487,7 +487,17 @@ pg_publish_is_loopback_only() {
 PG_ERR_FILE=""
 
 pg_err_open() {
-    PG_ERR_FILE="$(mktemp 2>/dev/null)" || PG_ERR_FILE=""
+    # Under the state root, never the ambient temp directory - odoo_ai_scratch_dir.
+    # Failure stays non-fatal: an absent sink degrades to "no stderr captured",
+    # which every caller already handles, and is not worth failing a probe over.
+    local _scratch
+    # shellcheck source=./state_reclaim.sh
+    . "$(dirname "${BASH_SOURCE[0]}")/state_reclaim.sh" 2>/dev/null || true
+    PG_ERR_FILE=""
+    if declare -F odoo_ai_scratch_dir >/dev/null 2>&1 \
+       && _scratch="$(odoo_ai_scratch_dir)" && [[ -n "$_scratch" ]]; then
+        PG_ERR_FILE="$(mktemp -p "$_scratch" 2>/dev/null)" || PG_ERR_FILE=""
+    fi
     return 0
 }
 

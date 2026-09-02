@@ -181,7 +181,7 @@ node shape is incompatible with `run/1.0` and the driver refuses anything older)
 "schema_version": "run/2.0",
 "repos": [{"id": "fleet-addons", "base": "<principal branch>", "verify": "<command>",
            "commit": "<resolved by git-toolkit:git-ops>", "confidential": "public",
-           "worktree_root": "<parent path outside the repo tree>"}],
+           "worktree_root": "<sibling of the repo root, never the ambient temp dir - rule: run-harness/references/run-integration.md>"}],
 "nodes": [{"id": "billing-core", "repo": "fleet-addons", "approach": "odoo-coding",
            "approach_kind": "skill", "modules": ["viin_fleet_billing"],
            "files_in_scope": ["fleet-addons/viin_fleet_billing/**"], "depends_on": []},

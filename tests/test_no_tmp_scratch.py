@@ -69,11 +69,12 @@ _SKIP_DIR_PARTS = {"__pycache__", ".git", "node_modules", ".pytest_cache"}
 # unowned destination this rule excludes.
 #
 # STATED BOUNDARY (so a reader does not over-trust this rule): a bare `mktemp`/`mktemp -d` with
-# no argument still lands in the ambient temp dir without ever naming `TMPDIR`, and Rule 1
-# cannot see that. Four such sites exist under plugins/ today (`48-db-local-auth.sh`,
-# `20-browser-deps.sh`); all four remove what they create on every exit path, which is why they
-# are not the defect this file guards. A NEW unremoved `mktemp` is not covered here - Rule 2
-# catches it only if it also spells a `/tmp` literal.
+# no `-p` still lands in the ambient temp dir without ever naming `TMPDIR`, and Rule 1 cannot
+# see that. Rule 3 below now does. That boundary used to say "four such sites exist ... all four
+# remove what they create on every exit path"; both halves were wrong by the time it was checked
+# - there were SEVEN across five files, and two of them (`hooks/ensure-ethos-import.sh`) had no
+# `trap` and a removal conditional on the preceding `cat` succeeding. A stated boundary that is
+# never re-measured becomes a false assurance, which is worse than no boundary at all.
 # ---------------------------------------------------------------------------
 TMPDIR_RE = re.compile(r"TMPDIR")
 
@@ -90,6 +91,64 @@ TMP_PATH_RE = re.compile(r"/(?:var/)?tmp(?![A-Za-z0-9_])")
 # path, it does not write one, and `odoo_ai_state_root` is the only function allowed to spell
 # it (see scripts/lib/state_reclaim.sh).
 STATE_ROOT_FALLBACK_PREFIX = "${HOME:-"
+
+# ---------------------------------------------------------------------------
+# Rule 3 - the ambient temp dir reached WITHOUT naming it
+#
+# The hole Rules 1 and 2 leave open by construction: `mktemp` with no `-p`, Python's `tempfile`
+# helpers, and pytest's `--basetemp` all resolve the ambient temp directory while spelling
+# neither `TMPDIR` nor a `/tmp` literal, so a text scan for those two tokens sees nothing.
+#
+# This is not hypothetical. One such site ran `npm install --prefix` into that directory,
+# materialising a whole browser-MCP dependency tree; another was a SessionStart hook whose
+# cleanup was conditional, leaking one file per session. On a host where the ambient directory
+# is memory-backed and quota-limited - the common desktop case - that combination exhausted it
+# and every agent session on the machine began failing on a two-byte write.
+#
+# `TMP=`/`TEMP=` are folded in as the obvious next workaround for a rule that knows only the
+# POSIX spelling.
+#
+# The sanctioned destination is `odoo_ai_scratch_dir` (scripts/lib/state_reclaim.sh), which is
+# why `mktemp -p` PASSES: naming a parent is precisely the act this rule is asking for.
+# ---------------------------------------------------------------------------
+AMBIENT_TEMP_RE = re.compile(
+    # `mktemp` followed ONLY by option flags and redirections, then end-of-command. Anything
+    # that names a destination - `-p DIR`, or a TEMPLATE argument - stops matching, because
+    # naming one is the act this rule asks for. That is why the pattern is shaped as "no
+    # remaining argument" rather than "no `-p`": `mktemp "${target}.XXXXXX"` is compliant and a
+    # `-p`-only test would have punished it.
+    r"\bmktemp\b(?:\s+(?:-[A-Za-z-]+|\d?>+[^\s);|&]+))*\s*(?=[);|&]|$)"
+    r"|\btempfile\.(?:mkstemp|mkdtemp|gettempdir|NamedTemporaryFile|TemporaryDirectory)\b"
+    r"|--basetemp\b"
+    r"|(?<![A-Za-z_])(?:TMP|TEMP)="
+)
+
+# Empty on purpose, and that is the point: every site this rule found was MOVED rather than
+# excused. An entry here would need the same >=8-word reason Rule 2's allowlist requires, and
+# would be the first argument for the second.
+AMBIENT_TEMP_ALLOWLIST: dict[str, list[tuple[str, str]]] = {}
+
+
+def ambient_temp_hits_in_text(text: str, relpath: str = "<text>") -> list[str]:
+    """Every ambient-temp-dir reach in `text` that no allowlist entry excuses."""
+    allowed = [literal for literal, _reason in AMBIENT_TEMP_ALLOWLIST.get(relpath, [])]
+    hits = []
+    for lineno, line in enumerate(text.splitlines(), 1):
+        normalized = _normalize(line)
+        if not AMBIENT_TEMP_RE.search(normalized):
+            continue
+        if any(literal in normalized for literal in allowed):
+            continue
+        hits.append(f"{relpath}:{lineno}: {normalized.strip()}")
+    return hits
+
+
+def ambient_temp_hits_in_tree() -> list[str]:
+    hits = []
+    for relpath, text in _iter_plugin_files():
+        hits.extend(ambient_temp_hits_in_text(text, relpath))
+    return hits
+
 
 # Explicit, reasoned exceptions. Keyed by path RELATIVE TO plugins/ plus the literal text, so
 # an entry survives the file being re-ordered or re-wrapped (never a file:line pin).
@@ -358,6 +417,56 @@ def test_rule2_catches_every_tmp_destination_shape(shape, line):
 def test_rule2_leaves_compliant_text_alone(shape, line):
     assert unsanctioned_tmp_in_text(line, "probe.sh") == [], (
         f"Rule 2 fired on compliant text ({shape}): {line!r}"
+    )
+
+
+AMBIENT_MUST_CATCH = [
+    ("bare-mktemp", 'tmp="$(mktemp -d)"'),
+    ("bare-mktemp-quiet", 'tmp="$(mktemp -d 2>/dev/null)"'),
+    ("bare-mktemp-file", "_tmp=$(mktemp)"),
+    ("python-mkdtemp", "d = tempfile.mkdtemp()"),
+    ("python-namedtemp", "f = tempfile.NamedTemporaryFile()"),
+    ("python-gettempdir", "root = tempfile.gettempdir()"),
+    ("pytest-basetemp", "pytest tests/ --basetemp=somewhere"),
+    ("tmp-env-var", "TMP=/somewhere npm install"),
+    ("temp-env-var", "TEMP=/somewhere npm install"),
+]
+
+AMBIENT_MUST_NOT_CATCH = [
+    ("mktemp-with-parent", 'tmp="$(mktemp -d -p "$scratch")"'),
+    ("mktemp-with-parent-quiet", 'tmp="$(mktemp -d -p "$scratch" 2>/dev/null)"'),
+    ("mktemp-with-template", '_tmp=$(mktemp "${_md}.ethos.XXXXXX")'),
+    ("word-containing-tmp", "the tmpdir local is a shell variable, not this rule"),
+    ("attempt", "an attempt to resolve the state root"),
+]
+
+
+@pytest.mark.parametrize("shape,line", AMBIENT_MUST_CATCH, ids=[s for s, _ in AMBIENT_MUST_CATCH])
+def test_rule3_catches_every_unnamed_ambient_temp_shape(shape, line):
+    assert ambient_temp_hits_in_text(line), (
+        f"Rule 3 must catch the {shape!r} shape - it reaches the ambient temp dir without "
+        f"naming it, which is exactly what Rules 1 and 2 cannot see: {line!r}"
+    )
+
+
+@pytest.mark.parametrize(
+    "shape,line", AMBIENT_MUST_NOT_CATCH, ids=[s for s, _ in AMBIENT_MUST_NOT_CATCH]
+)
+def test_rule3_leaves_a_named_destination_alone(shape, line):
+    assert not ambient_temp_hits_in_text(line), (
+        f"Rule 3 must NOT fire on {shape!r}: naming a parent (or a template under a resolved "
+        f"path) is the act this rule asks for, and a guard that punishes compliance gets "
+        f"switched off: {line!r}"
+    )
+
+
+def test_no_unnamed_ambient_temp_destination_under_plugins():
+    """The whole-tree assertion. Every site this rule found was MOVED to `odoo_ai_scratch_dir`
+    rather than excused, so the allowlist is empty and should stay that way."""
+    hits = ambient_temp_hits_in_tree()
+    assert not hits, (
+        "these reach the ambient temp directory without naming it - route them through "
+        "`odoo_ai_scratch_dir` (scripts/lib/state_reclaim.sh) instead:\n  " + "\n  ".join(hits)
     )
 
 

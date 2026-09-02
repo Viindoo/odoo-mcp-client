@@ -27,7 +27,7 @@ Repo Capability Card  (one per repo; serialized as a repos[] entry in run-<id>.j
   verify        : <command that must pass after every cherry-pick, e.g. "make test" or "make gen-check && make deps-check && make test">
   commit        : <resolved by git-toolkit:git-ops at commit time - do not pre-declare a standard>
   confidential  : <public | restricted | internal>
-  worktree_root : <parent path for this repo's node worktrees, outside the repo tree>
+  worktree_root : <parent path for this repo's node worktrees - see the rule below>
 ```
 
 Notes:
@@ -60,8 +60,16 @@ Notes:
 - Discover `verify` from Makefile targets, CI config, or README. If multiple commands
   are required, chain them with `&&`.
 - `confidential: restricted` triggers the 8-group ban check on every artifact.
-- `worktree_root` should be outside the repo tree to avoid accidental staging of integration files
-  by git.
+- `worktree_root` is a SIBLING of the repo root, on the same disk - the shape
+  `git-toolkit`'s safety contract already uses (`../worktree-<branch>-<ts>`), and the shape the
+  PR-review path uses inside the repo at `<repo-root>/.pr-worktrees/pr-<N>` where a `.gitignore`
+  entry covers it. Two requirements, and the second is the one "outside the repo tree" alone did
+  not carry: it must be outside the repo tree, so integration files are never accidentally staged;
+  and it must NOT be the ambient temp directory, which on a typical developer machine is
+  memory-backed and quota-limited, so a checkout there costs RAM and vanishes on reboot while its
+  `.git/worktrees/<name>` registration survives - leaving a registered worktree with no tree. Say
+  where, not only where not: a field that names only what to avoid leaves the ambient directory as
+  a legal-looking answer.
 
 ---
 
