@@ -66,12 +66,26 @@ def _env(home: Path, toml: Path) -> dict:
     return e
 
 
+_OWNERSHIP_FLAGS = ("--run-id", "--session", "--allow-unowned")
+
+
+def _with_ownership(args):
+    """`acquire` REFUSES a lease with no owner (exit 10) - an ownerless lease cannot be released by
+    ownership, cannot be correlated to the subagent holding it, and is invisible to its own run's
+    audit. Cases in this file exercise other allocator behaviour and genuinely want an ownerless
+    lease, so they take the documented opt-out. Injected in ONE place rather than at ~50 call
+    sites, and only when the case named no ownership flag itself - so a case that DOES care about
+    ownership still says so by passing its own --run-id."""
+    if args and args[0] == "acquire" and not any(a in _OWNERSHIP_FLAGS for a in args):
+        return (*args, "--allow-unowned")
+    return args
+
 def _run(env, *args, timeout=None):
     """Invoke the allocator. `timeout` is a HARD test-side bound: every command
     promises to return a verdict, so a hang is a FAILURE (TimeoutExpired), never
     a test that waits until the harness kills it."""
     return subprocess.run(
-        [sys.executable, str(ALLOC), *args],
+        [sys.executable, str(ALLOC), *_with_ownership(args)],
         capture_output=True, text=True, env=env, timeout=timeout,
     )
 
@@ -648,7 +662,7 @@ def test_parallel_acquires_never_duplicate_a_port(fixt):
     procs = [
         subprocess.Popen(
             [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
-             "--mode", "ephemeral", "--no-create", "--ports", "1"],
+             "--mode", "ephemeral", "--no-create", "--ports", "1", "--allow-unowned"],
             stdout=subprocess.PIPE, text=True, env=env,
         )
         for _ in range(n)
@@ -1316,6 +1330,74 @@ def test_drop_through_odoo_threads_the_declared_odoo_root(tmp_path):
 # --------------------------------------------------------------------------- #
 # Ownership: run_id carrier + FIXED release predicate (BLOCKER-1)
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# Ownership is not optional: an acquire that names no owner is REFUSED
+# --------------------------------------------------------------------------- #
+def test_acquire_without_an_owner_is_refused_and_names_both_ways_out(fixt):
+    """An unowned lease is the one leak shape nothing can clean up on its own behalf:
+    `assert-droppable` will not drop it (it cannot prove whose it is), the SubagentStop teardown
+    gate cannot correlate it to the subagent holding it, and a run auditing its own leases will
+    not find it because it belongs to no run. It survives until a human notices.
+
+    Observed: a grandchild agent that was never handed the run's id MINTED one, and the leak audit
+    caught it only because the invented string happened to share a prefix with the real id.
+    Refusing here turns "nobody threaded the id down" from a silent leak into a message at the
+    moment the chain actually broke."""
+    env, _home, _toml = fixt
+    # Deliberately NOT through `_run`: that helper injects the opt-out for every case in this file
+    # that named no owner, which is exactly what this case must not receive.
+    p = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "ephemeral", "--no-create"],
+        capture_output=True, text=True, env=env,
+    )
+    assert p.returncode == 10, f"expected the documented ownership refusal; got {p.returncode}\n{p.stderr}"
+    assert not _leases(env), "a refused acquire must write NO lease"
+    assert "--run-id" in p.stderr, "the refusal must name the flag that fixes it"
+    assert "--allow-unowned" in p.stderr, "and the deliberate opt-out, so the caller can choose"
+    assert "NEEDS_CONTEXT" in p.stderr, (
+        "a dispatched agent with no id must be told to report upward - inventing one is what "
+        "produced the leak this refusal exists for"
+    )
+
+
+def test_the_opt_out_still_produces_an_ownerless_lease(fixt):
+    """`--allow-unowned` is a DECLARATION, not a bypass: it must still yield exactly the lease the
+    old default produced, or callers that legitimately want one (a shared lease outliving its
+    acquirer, a fixture) would be forced to fake an owner instead."""
+    env, _home, _toml = fixt
+    p, alloc = _acquire(env, "--mode", "ephemeral", "--no-create", "--allow-unowned")
+    assert p.returncode == 0, p.stderr
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert (leases[0]["owner"].get("run_id") or "") == "", (
+        "the opt-out must record NO owner - if it invented one, the declaration would be a lie "
+        "and the lease would look reapable by a run that never took it"
+    )
+
+
+def test_the_audit_can_find_a_lease_by_owner_and_by_age(fixt):
+    """The leak that prompted this was caught by grepping `list` output for a run-id PREFIX - a
+    thing this tool never offered and prefix matching cannot do reliably. `--run-id` matches the
+    recorded owner exactly; `--older-than` finds what an id-based audit structurally cannot, namely
+    a lease whose owner string matches nothing the run knows about."""
+    env, _home, _toml = fixt
+    _acquire(env, "--mode", "exclusive", "--db-name", "a", "--no-create", "--run-id", "run-A")
+    _acquire(env, "--mode", "exclusive", "--db-name", "b", "--no-create", "--run-id", "run-B")
+
+    mine = json.loads(_run(env, "list", "--show-tokens", "--run-id", "run-A").stdout)["leases"]
+    assert [l["owner"]["run_id"] for l in mine] == ["run-A"], (
+        "an exact owner filter must return only that run's leases"
+    )
+    none_yet = json.loads(_run(env, "list", "--older-than", "3600").stdout)["leases"]
+    assert none_yet == [], "nothing is an hour old yet"
+    all_of_them = json.loads(_run(env, "list", "--older-than", "0").stdout)["leases"]
+    assert len(all_of_them) == 2, (
+        "an age filter must reach leases regardless of what their owner string says - that is the "
+        "whole point of having it beside the id filter"
+    )
+
+
 def test_acquire_run_id_stored_as_owner_run_id_and_echoed(fixt):
     env, _, _ = fixt
     _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x",
@@ -2052,7 +2134,7 @@ def test_no_global_catalog_and_nonempty_project_catalog_emits_named_fallthrough(
     env.pop("ODOO_AI_INSTANCES", None)
     p = subprocess.run(
         [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
-         "--mode", "ephemeral", "--no-create", "--ports", "0"],
+         "--mode", "ephemeral", "--no-create", "--ports", "0", "--allow-unowned"],
         capture_output=True, text=True, env=env, cwd=str(project),
     )
     assert p.returncode == 0, p.stderr

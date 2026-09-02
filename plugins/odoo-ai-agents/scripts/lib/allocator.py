@@ -209,6 +209,7 @@ acquire exit codes:
     7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE
     8 REFUSED: Odoo cannot AUTHENTICATE to the cluster (`ephemeral`+`exclusive`)
     9 REFUSED: the cluster did not answer at all (`ephemeral`+`exclusive`)
+   10 REFUSED: no --run-id and no --allow-unowned (ownership not established)
 Every non-zero exit writes NO lease.
 `--mode` accepts ONLY the four values in "Modes" above. `exclusive-running` is a
 `persist:` value - the skill/agent lifecycle vocabulary, NOT a fifth mode - and
@@ -2342,9 +2343,36 @@ def cmd_acquire(opts):
     # Postgres port (empty when undeclared -> omit everywhere).
     db_port = inst.get("db_port", "")
     # Canonical ownership key: --run-id (or the --session back-compat alias).
-    # Empty for a standalone one-off run -> the lease is unowned (ownership then
-    # degrades to token-possession, today's behavior).
+    # Empty ONLY when the caller passed --allow-unowned, which is a deliberate
+    # statement that this lease has no owner; ownership then degrades to
+    # token-possession. Every other path is refused below (exit 10).
     run_id = opts.get("run_id") or opts.get("session", "")
+
+    # OWNERSHIP IS NOT OPTIONAL. A lease acquired with no run id is UNOWNED, and an unowned lease
+    # is the leak shape nothing can clean up on its own behalf: `assert-droppable` refuses to drop
+    # it (it cannot prove whose it is), the SubagentStop teardown gate cannot correlate it to any
+    # subagent, and a run auditing its own leases will not find it because it belongs to no run.
+    # Observed: a grandchild agent that was never handed the run's id MINTED ONE, and the audit
+    # caught it only because the invented string happened to share a prefix with the real one.
+    # Refusing here is what turns "nobody threaded the id down" from a silent leak into a message
+    # at the moment the chain broke. `--allow-unowned` is the deliberate opt-out for a human or a
+    # fixture that genuinely wants an unowned lease; a dispatched agent may not pass it
+    # (hooks/block-unowned-lease-mutation.sh refuses it the same way it refuses --force).
+    if not run_id and not opts.get("allow_unowned") and mode != "readonly":
+        sys.stderr.write(
+            "allocator: REFUSING to acquire without --run-id.\n"
+            "  A lease with no owner cannot be released by ownership, cannot be correlated to the\n"
+            "  subagent that holds it, and does not appear in its own run's audit - it can only be\n"
+            "  reaped by hand, once someone notices.\n"
+            "  Choose ONE:\n"
+            "    - pass --run-id <the run id you were given> (INSTANCE_HANDLE.run_id when a handle\n"
+            "      was forwarded to you; ALLOC_RUN_ID from your own earlier acquire). If you were\n"
+            "      given none and you are a dispatched agent, that is the bug - report it as\n"
+            "      NEEDS_CONTEXT(RUN_ID) rather than inventing a value, because an invented id is\n"
+            "      invisible to the run that would have to clean up after you; or\n"
+            "    - pass --allow-unowned to state deliberately that this lease has no owner.\n"
+        )
+        return 10
 
     # readonly: lease-free; just surface the running instance's coordinates.
     if mode == "readonly":
@@ -3676,6 +3704,25 @@ def cmd_query(opts):
 
 def cmd_list(opts):
     reg = _read_registry()
+    # Audit filters. A run auditing its own leaks used to grep this output for its run-id PREFIX,
+    # which is not a thing this tool offers and not a thing prefix matching can do reliably: the
+    # one leak it caught was caught because an INVENTED run id happened to share a prefix with the
+    # real one. `--run-id` filters on the recorded owner exactly, and `--older-than` finds what an
+    # id-based audit structurally cannot - a lease whose owner string matches nothing the run
+    # knows about, which is precisely the shape a descendant that minted its own id produces.
+    want_run = opts.get("run_id") or opts.get("session") or ""
+    older_than = opts.get("older_than")
+    if want_run or older_than:
+        cutoff = (_now() - float(older_than)) if older_than else None
+        kept = []
+        for lease in reg.get("leases", []):
+            owner = lease.get("owner") or {}
+            if want_run and (owner.get("run_id") or owner.get("session_id") or "") != want_run:
+                continue
+            if cutoff is not None and float(owner.get("started_at") or 0) > cutoff:
+                continue
+            kept.append(lease)
+        reg["leases"] = kept
     # Redact each token to an 8-char fingerprint by default so a `list` scrape
     # can no longer hand a full token to `release`. --show-tokens reveals them for
     # debugging. This is an ACCIDENT-PREVENTION layer, not a security boundary
@@ -3759,11 +3806,12 @@ _FLAG_KEYS = {
     "--ttl": "ttl", "--run-id": "run_id", "--session": "session", "--db-name": "db_name",
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
     "--addons-path-override": "addons_path_override", "--min-age-s": "min_age_s",
-    "--park-ttl": "park_ttl", "--state": "state",
+    "--park-ttl": "park_ttl", "--state": "state", "--older-than": "older_than",
 }
 _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
     "--yes": "yes", "--force-forget": "force_forget", "--force-attach": "force_attach",
+    "--allow-unowned": "allow_unowned",
 }
 # Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
 # two conventional Unix forms. This is the SSOT the regression test derives its

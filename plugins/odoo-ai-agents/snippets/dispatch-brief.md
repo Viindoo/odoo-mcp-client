@@ -19,7 +19,7 @@ This file is **READ BY PATH** by non-leaf spawners while they compose a dispatch
 field list already carried inline in its own body (see `## Brief self-check` below) - the opposite
 of `worker-brief.md`, which IS inlined into leaves because it is worker-side behavior.
 
-## Universal skeleton (10 fields)
+## Universal skeleton (11 fields)
 
 | # | Field | ALWAYS / COND | Definition |
 |---|-------|----------------|------------|
@@ -33,6 +33,7 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
+| 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is what an Odoo lease is acquired under, what the teardown gate correlates a live lease to, and what a leak audit matches on. It used to travel only INSIDE `INSTANCE_HANDLE`, so a brief that said `none provisioned` carried no run id at all - and the agents permitted to self-provision are exactly the ones handed no handle. A grandchild in that position MINTED its own id; the audit caught it only because the invented string happened to share a prefix with the real one. A dispatched agent NEVER invents this value: absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
 **No reply-address field exists.** Do not add one under any name. The agent you dispatch returns its
 report as its final message, and you are woken with it once you end that turn - rule:

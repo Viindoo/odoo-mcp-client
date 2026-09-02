@@ -191,11 +191,20 @@ def test_dispatch_brief_skeleton_declares_no_reply_address_field():
     )
 
 
-def test_dispatch_brief_skeleton_is_ten_fields_with_no_caller_id_row():
+def test_dispatch_brief_skeleton_has_no_caller_id_row():
+    """What this protects is the ABSENCE of the retired reply-address row, which it used to
+    enforce by pinning the field COUNT at ten. The count stopped being a proxy for that the moment
+    a genuinely different eleventh field was needed: `RUN_ID`, an ownership identity that travels
+    strictly downward and that nothing is ever sent to. Its absence is what let a dispatched agent
+    acquire a lease under an id it invented. So the assertion is now on the property, not the
+    number - the row-level guard lives in `tests/test_dispatch_brief.py`."""
     norm = _norm(DISPATCH_BRIEF)
-    assert "Universal skeleton (10 fields)" in norm, (
-        "the skeleton heading must reflect the removed reply-address row - still 11 means the "
-        "row is back in the table"
+    assert "Universal skeleton (" in norm, "the skeleton heading must still declare its field count"
+    assert not re.search(r"REPLY_TO|CALLER_ID", norm), (
+        "the retired reply-address field must not return under either of its old names"
+    )
+    assert "**No reply-address field exists.** Do not add one under any name." in norm, (
+        "and the prohibition must stay stated in the file itself, not only in a test"
     )
 
 
