@@ -30,7 +30,19 @@
 #      `ruby`, `perl`, `env`, `eval`, `xargs`). `bash <<'EOF' ... EOF` really does run its body, so
 #      that body stays visible to the detectors.
 #
-#   3. PORTABLE, AND `>&` IS NOT A SEPARATOR. The old splitter used `sed -E 's/.../\n/g'`, whose
+#   3. AN OPERATOR INSIDE QUOTES IS NOT A SEPARATOR. `;`, `&&`, `||`, `|` and `&` split a command
+#      only OUTSIDE `'...'` and `"..."`. Splitting inside them tore a single interpreter command in
+#      half, and that ran in both directions:
+#        - false PASS, a real guard BYPASS: `python3 -c "import pathlib;
+#          pathlib.Path('addons/m/models/sale.py').write_text('x')"` split at the quoted `;`, so
+#          the half carrying `write_text` no longer carried a `python` token and the interpreter
+#          detector never looked at it. A coordinator could write production source through it.
+#        - false DENY: `--reason "a && b"` split mid-argument, and a `release` whose `--run-id`
+#          followed the quoted operator lost its owner flag.
+#      Reported by a peer session that hit the false-deny face of the same detector during a
+#      forward-port adapt.
+#
+#   4. PORTABLE, AND `>&` IS NOT A SEPARATOR. The old splitter used `sed -E 's/.../\n/g'`, whose
 #      `\n` replacement is GNU-only: on BSD/macOS sed it emits a literal `n`, silently degrading
 #      both gates to whole-command matching. This uses POSIX awk. It also protects the stream-dup
 #      operator, so `2>&1` is no longer split into `2>` and `1`.
@@ -43,7 +55,8 @@
 # RESIDUALS - stated, not papered over. This function makes segments; it does not resolve a shell.
 #   - A body fed to an interpreter heredoc (`bash <<EOF`) is kept as text, so the detectors see it,
 #     but it is not parsed as the script it is.
-#   - Quoted separators still split (`--reason "a && b"`): the splitter is lexical, not a parser.
+#   - Quote tracking is lexical, not a shell parse: it does not resolve `$(...)`, `${VAR}` or a
+#     nested quoting level a real shell would re-scan.
 #   - `$(...)`, `${VAR}`, `eval` and a command assembled inside a script the line only invokes stay
 #     outside every detector's reach, exactly as each gate's own header already records.
 
@@ -71,8 +84,33 @@ function is_interp(s) {
     if (!is_interp(pre)) { delim = d; skip = 1 }
   }
 }
+# Replace every UNQUOTED operator with a newline, character by character. A regex cannot do this:
+# it has no quote state, so it cannot tell the `;` in `-c "a; b"` from the one in `a; b`.
+function split_unquoted(s,    i, c, nxt, q, out) {
+  q = ""
+  out = ""
+  for (i = 1; i <= length(s); i++) {
+    c = substr(s, i, 1)
+    nxt = substr(s, i + 1, 1)
+    if (q != "") {
+      # Inside "..." a backslash escapes the next character; inside '...' it does not.
+      if (q == "\"" && c == "\\") { out = out c nxt; i++; continue }
+      if (c == q) { q = "" }
+      out = out c
+      continue
+    }
+    if (c == "'" || c == "\"") { q = c; out = out c; continue }
+    if (c == "\\") { out = out c nxt; i++; continue }
+    if (c == ">" && nxt == "&") { out = out ">&"; i++; continue }   # stream dup, not a separator
+    if (c == "|" && nxt == "|") { out = out "\n"; i++; continue }
+    if (c == "&" && nxt == "&") { out = out "\n"; i++; continue }
+    if (c == ";" || c == "|" || c == "&") { out = out "\n"; continue }
+    out = out c
+  }
+  return out
+}
+
 END {
-  dup = sprintf("%c", 1)
   m = 0
   cur = ""
   for (i = 1; i <= n; i++) {
@@ -87,10 +125,7 @@ END {
   }
   if (cur != "") { out[++m] = cur }
   for (i = 1; i <= m; i++) {
-    s = out[i]
-    gsub(/>&/, dup, s)
-    gsub(/\|\||&&|[;|&]/, "\n", s)
-    gsub(dup, ">\\&", s)
+    s = split_unquoted(out[i])
     c = split(s, parts, "\n")
     for (p = 1; p <= c; p++) {
       if (parts[p] ~ /[^ \t]/) { print parts[p] }
