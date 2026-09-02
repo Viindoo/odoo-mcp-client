@@ -31,6 +31,8 @@ from shutil import which
 
 import pytest
 
+from conftest import real_python3
+
 ROOT = Path(__file__).resolve().parent.parent
 STEP55 = (
     ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "55-instance-ops.sh"
@@ -79,7 +81,7 @@ def _make_fake_python(tmp_path: Path, *, odoo_bin_path: Path | None = None,
     simply exec-delegates to real python3 for all calls (used for tests that
     only need library Python, e.g. drop).
     """
-    real = real_py3 or which("python3") or "/usr/bin/python3"
+    real = real_py3 or real_python3()
     fake_dir = tmp_path / "fake-py-bin"
     fake_dir.mkdir(exist_ok=True)
     fake_py = fake_dir / "python"

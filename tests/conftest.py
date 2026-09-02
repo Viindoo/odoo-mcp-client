@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -41,6 +42,104 @@ import pytest
 # so the cache also survives across the different scopes that request the
 # session fixture.
 _FARM_CACHE: dict[frozenset, Path] = {}
+
+
+# Interpreters a version manager (pyenv, asdf, rbenv, mise) commonly SHIMS. A shim
+# is an ordinary executable, so the farm loop symlinks the shim rather than the
+# interpreter it dispatches to - and a shim resolves its target by re-searching
+# PATH with its own shims directory removed. Under a farm-only PATH there is
+# nothing left for it to find, so the farm's `python3` exits 127 with
+# "pyenv: python3: command not found". Nothing asserts on that, so the farm looks
+# complete while every script that shells out to `python3` silently produces
+# nothing - and a setup step that suppresses its interpreter's stderr then reports
+# a downstream symptom instead of the missing interpreter. Measured on a pyenv host
+# with `pyenv version` = system: 57 tests across three files failed this way, all of
+# them green in CI, where no version manager is installed.
+_SHIM_PRONE = ("python3", "python")
+
+
+def _runs_under(binary: Path, path_value: str) -> bool:
+    """True when `binary` executes at all with PATH set to `path_value`."""
+    try:
+        return subprocess.run(
+            [str(binary), "-c", ""],
+            capture_output=True,
+            env={**os.environ, "PATH": path_value},
+            timeout=60,
+        ).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+_CONCRETE_CACHE: dict[str, "Path | None"] = {}
+
+
+def _concrete_interpreter(name: str) -> Path | None:
+    """The real executable `name` runs as under the AMBIENT PATH, or None.
+
+    Asked of the interpreter itself rather than derived from the shim's text, so
+    it stays correct for every version manager instead of one this file happens
+    to know the layout of.
+    """
+    if name in _CONCRETE_CACHE:
+        return _CONCRETE_CACHE[name]
+    _CONCRETE_CACHE[name] = _resolve_concrete(name)
+    return _CONCRETE_CACHE[name]
+
+
+def _resolve_concrete(name: str) -> Path | None:
+    try:
+        done = subprocess.run(
+            [name, "-c", "import sys; print(sys.executable)"],
+            capture_output=True, text=True, timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    target = Path(done.stdout.strip())
+    return target if target.is_file() and os.access(target, os.X_OK) else None
+
+
+def real_python3() -> str:
+    """The CONCRETE `python3` a test may hand to a stub that re-execs it.
+
+    `shutil.which("python3")` is the wrong answer on any host running a version
+    manager: it returns the SHIM, and a shim resolves its target by re-searching
+    PATH with its own shims directory removed. A test that puts its own `python3`
+    stub on PATH - which several do, to record what a step asked - then gets an
+    exec loop: stub -> shim -> PATH search -> the same stub, forever. Measured on
+    a pyenv host: two tests in `test_step45_50_harden.py` hung until their
+    subprocess timeout fired, on every run, while CI stayed green because no
+    version manager is installed there.
+
+    Falls back to `shutil.which` and then to the conventional absolute path, so a
+    host with no resolvable interpreter behaves exactly as it did before.
+    """
+    concrete = _concrete_interpreter("python3")
+    if concrete is not None:
+        return str(concrete)
+    return shutil.which("python3") or "/usr/bin/python3"
+
+
+def _relink_version_manager_shims(farm: Path, drop: frozenset) -> None:
+    """Repoint any farm entry that is a shim at the interpreter it dispatches to.
+
+    Only entries that PROVABLY do not run under a farm-only PATH are touched, so
+    on a host with no version manager this is a no-op and the farm keeps the
+    ambient binary verbatim.
+    """
+    for name in _SHIM_PRONE:
+        link = farm / name
+        if name in drop or not link.exists():
+            continue
+        if _runs_under(link, str(farm)):
+            continue
+        concrete = _concrete_interpreter(name)
+        if concrete is None:
+            continue  # the ambient interpreter is broken too - let the assert below say so
+        link.unlink()
+        link.symlink_to(concrete)
 
 
 def _build_farm(tmp_path_factory: "pytest.TempPathFactory", drop: frozenset) -> Path:
@@ -74,6 +173,7 @@ def _build_farm(tmp_path_factory: "pytest.TempPathFactory", drop: frozenset) -> 
                 link.symlink_to(src)
             except OSError:
                 continue
+    _relink_version_manager_shims(farm, drop)
     # Self-validating, once per farm (per drop-set) instead of once per test:
     # if this construction ever stops working, fail LOUDLY here rather than
     # quietly falling back to whatever the host or CI image happens to ship.
@@ -89,6 +189,21 @@ def _build_farm(tmp_path_factory: "pytest.TempPathFactory", drop: frozenset) -> 
         "legitimately needs, or a test built on this farm stops exercising the "
         "real code path"
     )
+    # Reachable is not the same as runnable, and the difference is what a shim
+    # hides. Assert EXECUTION, so a farm that re-exposes an interpreter it cannot
+    # actually run fails here - loudly, once - instead of turning every script
+    # that calls it into a silent no-op somewhere downstream.
+    for name in _SHIM_PRONE:
+        link = farm / name
+        if name in drop or not link.exists():
+            continue
+        assert _runs_under(link, str(farm)), (
+            f"the constructed PATH re-exposes {name!r} but it does not RUN under "
+            f"that PATH: {link} -> {os.path.realpath(link)}. On a host using a "
+            "version manager this is the shim, which cannot resolve its target "
+            "once the ambient PATH is replaced. Every script the farm hands this "
+            "interpreter to would silently produce nothing."
+        )
     _FARM_CACHE[drop] = farm
     return farm
 
