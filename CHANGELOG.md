@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-09-02
+
 ### Removed
 
 - `odoo-ai-agents` - **`odoo-forward-port`'s `--one-shot` cherry-pick mode is gone.** A
