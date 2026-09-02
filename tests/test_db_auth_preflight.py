@@ -32,7 +32,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import farm_path
+from conftest import farm_path, run_and_reap
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
@@ -800,8 +800,10 @@ def test_spinup_refuses_when_only_pg_isready_would_have_said_yes(tmp_path):
     """
     env, launch_log, _conf = _step50_env(tmp_path, preflight_rc=EXIT_AUTH_DENIED,
                                         pg_isready_rc=0)
-    res = subprocess.run(["bash", str(STEP50), "apply", "--version", "17.0"],
-                         capture_output=True, text=True, env=env, timeout=120)
+    # run_and_reap: the step leaves a background server behind by design, and an unreaped
+    # stub outlives the session (conftest.run_and_reap).
+    res = run_and_reap(["bash", str(STEP50), "apply", "--version", "17.0"],
+                       env=env, timeout=120)
     assert res.returncode != 0, (
         "a denied cluster must block the spin-up; stdout={out!r} stderr={err!r}".format(
             out=res.stdout, err=res.stderr))
@@ -824,8 +826,8 @@ def test_spinup_writes_no_db_password_into_the_generated_conf(tmp_path):
     """
     env, launch_log, conf_log = _step50_env(tmp_path, preflight_rc=EXIT_OK)
     env["ODOO_PG_PASSWORD"] = SENTINEL
-    subprocess.run(["bash", str(STEP50), "apply", "--version", "17.0"],
-                   capture_output=True, text=True, env=env, timeout=120)
+    run_and_reap(["bash", str(STEP50), "apply", "--version", "17.0"],
+                 env=env, timeout=120)
 
     assert launch_log.exists(), "test setup: the server must have been launched"
     launched = launch_log.read_text(encoding="utf-8")

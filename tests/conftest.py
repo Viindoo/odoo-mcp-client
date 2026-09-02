@@ -29,8 +29,10 @@ of re-implementing it.
 from __future__ import annotations
 
 import os
+import signal
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -231,3 +233,107 @@ def farm_path(farm: Path, *stub_dirs: Path) -> str:
     helper implemented locally.
     """
     return os.pathsep.join([*(str(d) for d in stub_dirs), str(farm)])
+
+
+# ---------------------------------------------------------------------------
+# Reaping what a step leaves behind
+#
+# `50-instance-spinup.sh` launches a background server and polls it - correct for a real daemon,
+# and the step rightly leaves it running. The step-50 fixtures never reaped it, so the stub
+# survived the test, the pytest session, and the deletion of its own `tmp_path`.
+#
+# That is not a tidiness point. Two such orphans were found alive 48 minutes after their run,
+# each holding a 2.5 GB DELETED log file: once their tmp dir went away the PATH farm went with
+# it, `sleep` stopped resolving, and `while : ; do sleep 1; done` became a hot loop writing an
+# error line per iteration into a log whose file descriptor was still open. On a host whose
+# temp filesystem is memory-backed and quota-limited, ~5 GB of unreclaimable RAM made every
+# agent session on the machine fail on a two-byte write.
+#
+# Two mechanisms, deliberately both: `run_and_reap` kills promptly and precisely, and the
+# session-end sweep is the backstop for any spawner nobody has routed through it yet.
+# ---------------------------------------------------------------------------
+
+
+def _kill_group(pgid: int) -> None:
+    """SIGTERM a process group, then SIGKILL whatever ignored it. Never raises."""
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except (ProcessLookupError, PermissionError, OSError):
+            return
+        for _ in range(20):
+            try:
+                os.killpg(pgid, 0)
+            except (ProcessLookupError, OSError):
+                return
+            time.sleep(0.05)
+
+
+def run_and_reap(cmd, *, timeout=None, **kwargs) -> subprocess.CompletedProcess:
+    """`subprocess.run` for a command that may leave a daemon behind.
+
+    The command runs in its OWN process group, so anything it starts and does not stop can be
+    killed as a group once it returns - which `subprocess.run` cannot do, because it exposes no
+    pid after the fact. Use this for every invocation of a step that spins something up.
+    """
+    kwargs.setdefault("start_new_session", True)
+    kwargs.pop("capture_output", None)
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, **kwargs
+    )
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _kill_group(proc.pid)
+        out, err = proc.communicate()
+        raise
+    finally:
+        _kill_group(proc.pid)
+    return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _reap_processes_left_under_basetemp(tmp_path_factory: "pytest.TempPathFactory"):
+    """Session-end backstop: kill anything still running out of this session's temp tree.
+
+    One `/proc` scan at the very end, not per test - a per-test scan over thousands of tests
+    would cost more than the leak it prevents. Scoped by cmdline match on this session's own
+    basetemp, so it can never reach a process that belongs to somebody else.
+    """
+    yield
+    try:
+        base = str(tmp_path_factory.getbasetemp().resolve())
+    except (OSError, AttributeError):
+        return
+    # Our OWN process group is excluded, and that is not a nicety: pytest's command line carries
+    # `--basetemp=<path>`, so the first version of this sweep matched the runner itself and killed
+    # the group it was running in. A sweep that can reach its own caller is a worse defect than
+    # the leak it cleans up.
+    own_pgid = os.getpgrp()
+    own_pid = os.getpid()
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except (OSError, PermissionError):
+            continue
+        # argv[0] ONLY - the program being RUN, never the whole command line. Matching anywhere
+        # in the command line looked equivalent and was not: pytest's own invocation carries
+        # `--basetemp=<path>`, and so does the shell that typed it, so the first two versions of
+        # this sweep killed the runner and its wrapper instead of the leak. A process whose
+        # EXECUTABLE lives under this session's temp tree is, by construction, something the
+        # session created and nobody else can own.
+        argv0 = raw.split(b"\0", 1)[0].decode("utf-8", "replace")
+        if not argv0.startswith(base):
+            continue
+        try:
+            pid = int(entry.name)
+            if pid == own_pid:
+                continue
+            pgid = os.getpgid(pid)
+            if pgid == own_pgid:
+                continue
+            _kill_group(pgid)
+        except (ProcessLookupError, PermissionError, OSError, ValueError):
+            continue
