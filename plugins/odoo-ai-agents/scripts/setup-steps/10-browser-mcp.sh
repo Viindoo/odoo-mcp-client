@@ -167,6 +167,21 @@ cmd_apply() {
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
+# --- interpreter preflight ------------------------------------------------------------------
+# This step rewrites JSON settings files through python. A broken interpreter would leave
+# them unwritten while the step reported success, so it stops here instead.
+# SSOT: scripts/lib/require_python.sh. `describe` and the usage arm are pure text and stay
+# runnable on a host with no python at all.
+_REQ_PY="$SCRIPT_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "${1:-}" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") ${1:-}" json || exit 2 ;;
+    esac
+fi
+
 case "${1:-}" in
     describe) cmd_describe ;;
     check)    cmd_check ;;

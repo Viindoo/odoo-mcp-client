@@ -1430,6 +1430,21 @@ cmd_apply() {
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
+# --- interpreter preflight ------------------------------------------------------------------
+# This step reads the instance catalog (tomllib) and hashes registry state through python, with
+# stderr suppressed in places - a broken interpreter reads as an empty registry rather than as a
+# missing interpreter. SSOT: scripts/lib/require_python.sh. `describe` and the usage arm are pure
+# text and stay runnable on a host with no python at all.
+_REQ_PY="$SCRIPT_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "$SUBCMD" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") $SUBCMD" json tomllib || exit 2 ;;
+    esac
+fi
+
 case "$SUBCMD" in
     describe) cmd_describe ;;
     check)    cmd_check ;;
