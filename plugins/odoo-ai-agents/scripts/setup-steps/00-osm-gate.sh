@@ -77,6 +77,22 @@ cmd_apply() {
     return 1
 }
 
+# --- interpreter preflight ------------------------------------------------------------------
+# This gate reads the Claude config through python with stderr suppressed, so a broken
+# interpreter would read as "no MCP server configured" - a confident wrong answer. It needs only
+# `json`, NOT tomllib: refusing a host this step would have served is the same defect inverted.
+# SSOT: scripts/lib/require_python.sh.
+_GATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_REQ_PY="$_GATE_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "${1:-}" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") ${1:-}" json || exit 2 ;;
+    esac
+fi
+
 case "${1:-}" in
     describe) cmd_describe ;;
     check)    cmd_check ;;

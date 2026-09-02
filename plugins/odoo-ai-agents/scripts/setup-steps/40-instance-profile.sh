@@ -467,6 +467,22 @@ PY
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
+# --- interpreter preflight ------------------------------------------------------------------
+# A step that cannot run python must report THAT, not an empty catalog. Every catalog read below
+# goes through `python3` with its stderr suppressed, which is right for an absent optional fact
+# and wrong for a broken interpreter - the two become indistinguishable, and the operator is shown
+# a downstream symptom instead of the cause. SSOT: scripts/lib/require_python.sh.
+# `describe` and the usage arm are pure text, so they stay runnable on a host with no python.
+_REQ_PY="$SCRIPT_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "${1:-}" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") ${1:-}" || exit 2 ;;
+    esac
+fi
+
 case "${1:-}" in
     describe) cmd_describe ;;
     check)    cmd_check ;;
