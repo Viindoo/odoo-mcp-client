@@ -49,6 +49,8 @@ from shutil import which
 
 import pytest
 
+from conftest import real_python3
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 PLUGINS_DIR = ROOT / "plugins"
@@ -98,7 +100,7 @@ class Sandbox:
         self.db = db
         self.pids: list[int] = []
 
-        real_py3 = which("python3") or "/usr/bin/python3"
+        real_py3 = real_python3()
         # One fake python covering every call step 50 / step 55 makes through it:
         #   `<py> <odoo-bin> --version`      -> the venv/preflight gate, always passes
         #   `<py> <odoo_db.py> preflight`    -> the DB-auth preflight, always passes (it is

@@ -31,7 +31,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import farm_path
+from conftest import farm_path, real_python3
 
 ROOT = Path(__file__).resolve().parent.parent
 STEP45 = (
@@ -182,7 +182,7 @@ def _make_fake_venv(tmp_path: Path, *, odoo_runnable: bool) -> Path:
     bin_dir = venv_dir / "bin"
     bin_dir.mkdir(parents=True)
 
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
 
     if odoo_runnable:
         # `<py> <odoo-bin> --version` -> exit 0; everything else -> real python3
@@ -350,7 +350,7 @@ def test_step45_gate_uses_odoo_bin_version_not_import(tmp_path):
     venv_dir = tmp_path / "fake-venv-oracle"
     bin_dir = venv_dir / "bin"
     bin_dir.mkdir(parents=True)
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
 
     # This stub: `--version` -> exit 0 (Odoo runnable); `-c "import odoo"` -> exit 1.
     # If gate still uses import odoo, it would fail -> python NOT recorded.
@@ -452,7 +452,7 @@ def test_step45_per_profile_venv_path_and_profile_field(tmp_path):
 
     venv_dir_bin = venv_dir / "bin"
     venv_dir_bin.mkdir(exist_ok=True)
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     _write_stub(
         venv_dir_bin / "python",
         textwrap.dedent(f"""\
@@ -682,7 +682,7 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
     expected_venv.mkdir(parents=True, exist_ok=True)
     venv_bin = expected_venv / "bin"
     venv_bin.mkdir(exist_ok=True)
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     _write_stub(
         venv_bin / "python",
         textwrap.dedent(f"""\
@@ -762,7 +762,7 @@ def _make_step50_fake_py(tmp_path: Path, *, odoo_importable: bool) -> Path:
     The parameter name retains `odoo_importable` for call-site readability, but
     the stub now controls `<py> <odoo-bin> --version` behavior.
     """
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     bin_dir = tmp_path / "fake-py-bin"
     bin_dir.mkdir(exist_ok=True)
     fake_py = bin_dir / "python"
@@ -859,7 +859,7 @@ def test_step50_gate_uses_odoo_bin_version_not_import(tmp_path):
 
     This test is RED on any code path that still uses `import odoo` as the gate.
     """
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     # Oracle stub: `$2 == "--version"` passes (gate check);
     # When called as `<py> <odoo-bin> -c <conf> ...` (real launch), log and exit 0
     # so odoo-bin is "launched" and the log file is created.
@@ -2087,7 +2087,7 @@ def test_step50_shared_lease_passes_profile_to_allocator(tmp_path):
     fake_bin = tmp_path / "fake-core" / "odoo-bin"
     _write_stub(fake_bin, 'echo "Odoo Server 17.0"\n')
 
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     py_bin_dir = tmp_path / "fake-py-bin"
     py_bin_dir.mkdir(exist_ok=True)
     fake_py = py_bin_dir / "python"
@@ -2761,7 +2761,7 @@ def _run55_test_verb(tmp_path: Path, *, odoo_output: str, exit_code: int = 0):
     _write_stub(fake_bin, f'cat <<"EOF"\n{odoo_output}\nEOF\nexit {exit_code}\n')
     fake_py = tmp_path / "fake-py-bin" / "python"
     fake_py.parent.mkdir(exist_ok=True)
-    real = shutil.which("python3") or "/usr/bin/python3"
+    real = real_python3()
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server (preflight)"; exit 0; fi
         if [[ "$1" == "{fake_bin}" ]]; then shift; exec bash "{fake_bin}" "$@"; fi
@@ -2934,7 +2934,7 @@ def _step45_db_question_env(tmp_path, *, preflight_rc, createdb="true",
     _write_stub(bind / "docker", f'echo "{docker_answer}"\nexit 0\n')
     _require_real_timeout(bind)
     log = alloc_log or (tmp_path / "alloc-calls.log")
-    real_py3 = shutil.which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     # A python3 that RECORDS what the step asked the allocator, then runs it for
     # real. Recording is what turns "the delegation exists" from a claim about the
     # source text into an observation about the run - this repo's dominant defect

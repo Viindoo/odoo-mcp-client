@@ -52,6 +52,8 @@ from shutil import which
 
 import pytest
 
+from conftest import real_python3
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 ALLOCATOR = PLUGIN / "scripts" / "lib" / "allocator.py"
@@ -123,7 +125,7 @@ def _long_lived_launcher(sandbox: Sandbox) -> None:
        liveness assertion below still went green. A detached Odoo server does not time itself out,
        and neither may the stand-in that stands for it.
     """
-    real_py3 = which("python3") or "/usr/bin/python3"
+    real_py3 = real_python3()
     sandbox.fake_py.write_text(
         "#!/usr/bin/env bash\n"
         'if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi\n'

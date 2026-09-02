@@ -53,6 +53,8 @@ from shutil import which
 
 import pytest
 
+from conftest import real_python3
+
 ROOT = Path(__file__).resolve().parent.parent
 STEP55 = (
     ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "55-instance-ops.sh"
@@ -257,7 +259,7 @@ def _run_verb(tmp_path: Path, verb: str, *, db: str, lines: list[str],
     payload = "\n".join(lines)
     _write_stub(fake_bin, f'cat <<"ODOO_LOG_EOF"\n{payload}\nODOO_LOG_EOF\nexit {exit_code}\n')
     fake_py = work / "python"
-    real = which("python3") or "/usr/bin/python3"
+    real = real_python3()
     _write_stub(fake_py, textwrap.dedent(f"""\
         if [[ "$2" == "--version" ]]; then echo "Odoo Server (preflight)"; exit 0; fi
         if [[ "$1" == "{fake_bin}" ]]; then shift; exec bash "{fake_bin}" "$@"; fi
