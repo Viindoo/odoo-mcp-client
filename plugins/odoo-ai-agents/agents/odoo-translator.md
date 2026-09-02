@@ -54,6 +54,12 @@ When your brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields, those literals ARE t
 
 ## Round 2 - Re-export + diff-review reconcile (the non-destructive core - no polib)
 
+**First, verify the build you are about to export from (recipe KT4/KT5 + Validation gate 6).** Your brief carries `INSTANCE_HANDLE` and `BUILD_SHAPE`. Before any export:
+
+- `BUILD_SHAPE` must say `demo=on`, and you CORROBORATE it rather than take it: for a module in scope whose manifest declares `demo` files, confirm the build actually holds demo records for that module. Demo-owned records carry translatable terms and the exporter filters by module ALONE, so a demo-less build omits them from the catalog - and re-exporting a maintained `.po` from it DROPS the demo-owned entries the committed file already holds, which then reach the diff-review as REMOVED with their `msgid`s still plainly in source. That is the shape most likely to be mis-ruled WRONG and "repaired" by deleting real human translation. Demo loads only at `-i` and never at `-u`, so you cannot fix it in place: return `BLOCKED(build has no demo data - catalog would be truncated; re-provision with demo)` and export nothing.
+- Every artifact of this run comes from the ONE build your `INSTANCE_HANDLE` names. If the `.pot` you were handed came from a different build, return BLOCKED - a reconcile across two builds compares two different term inventories, so its rulings mean nothing.
+- `BUILD_SHAPE` absent from your brief -> `NEEDS_CONTEXT(BUILD_SHAPE)`. Do not infer one, and do not provision your own instance to check it.
+
 The `odoo-i18n` skill provisioned a FRESH instance with the existing `<lang>.po` loaded (KT3: `en_US` + `<lang>`), so the committed translation is already in the DB. Re-export `<module>` for `<lang>` (the recipe L1 translated-re-export path): because the DB holds the loaded translation, the re-export REPRODUCES it, adds new-empty terms, and drops terms gone from code. Do NOT `polib`-merge, and do NOT blind-overwrite from a fresh (unloaded) DB.
 
 You do NOT run git and do NOT invoke git-ops (worker-brief). After you re-export, the `odoo-i18n` skill invokes `git-toolkit:git-ops` to diff the re-exported `<lang>.po` against its committed (HEAD) version and hands you the reported changes. **Adjudicate every removed/changed `msgstr` into one of the THREE buckets** - CORRECT / ARTEFACT / WRONG - defined in `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry. Read that section before you rule: an entry whose committed `msgstr` EQUALS its `msgid` is an ARTEFACT of Odoo's own export convention, not a loss - it passes the WRONG test on its face, so ruling from the two-bucket habit blocks a perfectly correct run. Only WRONG is a BLOCK (fix by re-loading the language / re-exporting); ARTEFACT means restore the committed entry and carry on.
@@ -89,12 +95,14 @@ You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): d
 - fuzzy cleared: <N> entries
 - placeholder-integrity gate: PASS/BLOCK
 - Languages active in DB (KT3): en_US + <lang> confirmed / MISSING
+- Build shape (KT4/KT5): demo=on corroborated / MISSING; every artifact from one INSTANCE_HANDLE: yes / no
 - Odoo `-u <module>` reload: clean / <error>
 
 ### Glossary decisions
 - <term>: <chosen msgstr> (source: core-TM / project-glossary / OSM field.string / regime-specific)
 
 ### Self-review checklist
+- [ ] Export build carried DEMO data (corroborated, not assumed) and every artifact came from that ONE build
 - [ ] Reconciled via load + re-export + git-ops diff-review (never blind-overwrote; no polib)
 - [ ] Diff-review adjudication ran; every removed/changed msgid ruled CORRECT, ARTEFACT or fixed
 - [ ] Every blank msgstr I translated was NEW, not an ARTEFACT (checked against the committed .po)

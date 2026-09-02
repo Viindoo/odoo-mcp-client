@@ -580,6 +580,11 @@ SEMANTICS_CONSUMERS = (
     PLUGIN / "skills" / "odoo-i18n" / "SKILL.md",
     PLUGIN / "skills" / "odoo-i18n" / "references" / "i18n-recipe.md",
     PLUGIN / "agents" / "odoo-translator.md",
+    # upg-phase-detail.md spells out the adjudication STEPS for the modules-upgrade flow, so it can
+    # (and did) restate them as a two-bucket rule while the guard looked only at the three files
+    # above. A file that instructs adjudication is a consumer whether or not it lives under
+    # skills/odoo-i18n/.
+    PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md",
 )
 
 # `[card-budget]` (generator/check_orchestration.py rule 13) caps a snippets/*.md
@@ -729,3 +734,175 @@ def test_new_i18n_ssots_stay_under_the_card_budget_default_cap():
             f"{snippet.name} is {size}B, over the {CARD_BUDGET_DEFAULT_CAP}B default card budget - "
             "split it rather than growing it, or a third citer turns CI red"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant - the EXPORT BUILD's shape (KT4 demo / KT5 one build)
+#
+# The regression these protect is silent in both directions: a demo-less build
+# omits every demo-owned term from the catalog, AND makes committed entries
+# reappear in the diff-review as removals whose msgid is still in source - the
+# bucket most likely to be mis-ruled and "repaired" by deleting real
+# translation. Odoo's exporter filters ir_model_data by MODULE alone (no demo
+# and no noupdate predicate), so a record's terms are in the catalog if and
+# only if that record is in the database.
+# ---------------------------------------------------------------------------
+
+MANDATE = PLUGIN / "snippets" / "i18n-mandate-contract.md"
+
+
+def test_recipe_mandates_demo_on_the_export_build():
+    """The recipe must REQUIRE demo data on the export build, and say why.
+
+    A bare "use demo" is not enough to survive an operator who is short of RAM: the reason has to
+    name the mechanism (the exporter reaches demo-owned records through ir_model_data, filtered by
+    module alone) or the rule reads as a preference and gets optimised away."""
+    text = RECIPE.read_text(encoding="utf-8")
+    assert "KT4" in text, "the demo rule needs its own key-truth id so consumers can cite it"
+    flat = re.sub(r"\s+", " ", text)
+    assert re.search(r"MUST carry DEMO DATA", flat), "state the requirement, do not imply it"
+    assert "ir_model_data" in text, (
+        "ground the rule in the exporter's own query - without the mechanism this reads as a "
+        "preference and the next operator turns demo off to save RAM"
+    )
+    assert re.search(r"no demo predicate", flat, re.I), (
+        "say explicitly that the EXPORT leg has no demo filter - that is the whole reason a "
+        "demo-less build silently truncates the catalog"
+    )
+
+
+def test_recipe_never_disables_demo_in_any_example_command():
+    """No runnable line in the recipe may disable demo.
+
+    This is the executable half of KT4: prose can say "keep demo" while a copy-pasteable command
+    two screens down still carries --without-demo=all, and the command is what gets run. Scoped to
+    fenced code blocks for that reason - the prose is allowed (and required) to NAME the flag in
+    order to forbid it; what may not survive is a line someone can paste into a shell."""
+    text = RECIPE.read_text(encoding="utf-8")
+    offenders = []
+    in_fence = False
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if not in_fence:
+            continue
+        code = line.split("#", 1)[0]          # a comment may discuss the flag; a command may not
+        if "--without-demo" in code:
+            offenders.append(f"{RECIPE.name}:{i}: {line.strip()!r}")
+    assert not offenders, (
+        "these runnable lines disable demo, which truncates the exported catalog (KT4):\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_recipe_v19_example_enables_demo_explicitly():
+    """v19 flipped the demo default to OFF, so v19 is the ONE series where a demo flag is REQUIRED.
+
+    Carrying the v8-v18 shape forward (pass nothing, demo is on) produces a demo-less build there -
+    the same truncation, reached by doing nothing wrong on any earlier series."""
+    text = RECIPE.read_text(encoding="utf-8")
+    assert "--with-demo" in text, (
+        "the v19 branch must pass --with-demo explicitly - demo is OFF by default from v19, so "
+        "'omit the flag' (correct up to v18) silently builds without demo there"
+    )
+
+
+def test_recipe_requires_one_build_behind_every_artifact():
+    """KT5: the .pot and every .po of a run come from ONE build.
+
+    Two builds that differ in demo / skip_auto_install / addons path describe different term
+    inventories, so the L2 reconcile manufactures differences that belong to neither the code nor
+    the translation - and the adjudication has no way to tell them from a real loss."""
+    text = RECIPE.read_text(encoding="utf-8")
+    assert "KT5" in text, "the one-build invariant needs its own key-truth id"
+    flat = re.sub(r"\s+", " ", text)
+    assert re.search(r"ONE build", flat), "state the invariant"
+    assert re.search(r"Validation gate 6|gate 6", flat), (
+        "an invariant with no gate is advice - the build shape must be CHECKED before the "
+        "exported files are trusted"
+    )
+
+
+def test_skill_p2_passes_the_export_build_shape_to_odoo_instance():
+    """The skill must state demo=on + the activation languages ON THE DISPATCH.
+
+    odoo-instance's own `demo` parameter defaults to OFF, so a dispatch that says nothing gets a
+    demo-less instance by default. Silence here is not neutral - it is the defect."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", text)
+    assert re.search(r"`demo`\s*\|\s*`on`", flat), (
+        "P2 must name demo=on as a REQUIRED dispatch field; odoo-instance defaults demo to off, so "
+        "an unstated value builds the wrong instance"
+    )
+    assert "activation_languages" in text, (
+        "the dispatch must carry the full activation set, so no .po needs a second provision"
+    )
+
+
+def test_translator_blocks_on_a_demo_less_build():
+    """The leaf must REFUSE to export from a demo-less build, not warn about it.
+
+    It is the only actor holding the instance at export time, and the damage is unrecoverable in
+    place (demo loads at -i, never at -u), so 'note it and continue' ships the truncated catalog."""
+    text = AGENT_FILE.read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", text)
+    assert "BUILD_SHAPE" in text, "the leaf needs the build shape as an explicit brief field"
+    assert re.search(r"BLOCKED\(build has no demo data", flat), (
+        "a demo-less build must produce a BLOCKED return with a named reason - a warning lets the "
+        "truncated catalog through"
+    )
+    assert re.search(r"corroborate", flat, re.I), (
+        "the leaf must CHECK the claim against the instance; taking BUILD_SHAPE on trust re-creates "
+        "the failure it exists to catch"
+    )
+
+
+def test_mandate_contract_carries_the_export_build_obligation_and_its_block():
+    """Callers must be told to hand over an export-shaped instance - or none at all.
+
+    Every mandated caller already holds SOME lease when it reaches the i18n step, so the cheap move
+    is to pass that one. E7 makes the cheap move fail loudly instead of quietly."""
+    text = MANDATE.read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", text)
+    assert re.search(r"all five", flat), "obligation count must match the list"
+    assert re.search(r"WITH DEMO DATA", flat), "obligation 5 must name the demo requirement"
+    assert re.search(r"\|\s*E7\s*\|", text), "a demo-less handover needs an enumerated BLOCK row"
+
+
+def test_mandate_contract_tells_the_orchestrator_what_never_to_instruct():
+    """Issue #3: the main agent routes i18n work without knowing how i18n works.
+
+    A leaf told one thing by its contract and another by its brief follows the brief. Each row must
+    point at the SSOT that owns the fact rather than restate it, or this table becomes a fifth copy
+    to drift."""
+    text = MANDATE.read_text(encoding="utf-8")
+    assert "## Orchestrator obligations" in text, "the must-not-instruct list needs its own section"
+    section = text.split("## Orchestrator obligations", 1)[1].split("\n## ", 1)[0]
+    for owner in (
+        "po-entry-semantics.md",
+        "i18n-recipe.md",
+        "test-behavior-contract.md",
+    ):
+        assert owner in section, (
+            f"the orchestrator table must cite {owner} rather than restate its rule"
+        )
+    flat = re.sub(r"\s+", " ", section)
+    assert re.search(r"untranslated count to zero|zero-blank|no empty `msgstr`", flat, re.I), (
+        "the 'get untranslated to zero' instruction is the one that orders the leaf to overwrite "
+        "reviewed do-not-localise decisions - it must be named"
+    )
+
+
+def test_forward_port_does_not_hand_its_verify_instance_to_i18n():
+    """P9's instance is built to RUN TESTS; it is not an export build.
+
+    Reusing it reads as an obvious economy (the lease is up, the addons path is right) which is
+    exactly why it needs an explicit refusal rather than silence."""
+    text = (PLUGIN / "skills" / "odoo-forward-port" / "SKILL.md").read_text(encoding="utf-8")
+    p95 = text.split("**P9.5", 1)[1].split("**P10", 1)[0]
+    flat = re.sub(r"\s+", " ", p95)
+    assert "SELF_PROVISION" in p95, "P9.5 must let odoo-i18n build its own export instance"
+    assert re.search(r"NOT hand over the P9 verify instance", flat), (
+        "the reuse must be refused by name - it is the cheap move a reader will otherwise take"
+    )

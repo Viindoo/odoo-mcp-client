@@ -14,8 +14,9 @@
 **A translation identical to its source string is written as an EMPTY `msgstr`.** That is Odoo's
 convention, not a defect and not a lost string. Grounded at source rather than inferred: in
 `odoo/tools/translate.py`, `PoFileWriter.write_rows` takes the translation only when `trad != src`,
-then writes `''` for every entry left unassigned. Verified identical in v15, v16, v17, v18 and v19
-(read 2026-08-24). It is the EXPORT leg that drops the entry, so no import fix can preserve it.
+then writes `''` for every entry left unassigned. Read unchanged in every series this plugin serves,
+v8 through v19 (2026-09-02); only its enclosing function moved. It is the EXPORT leg that drops the
+entry, so no import fix can preserve it.
 
 A term deliberately NOT localised - a proper noun, protocol name, acronym, product or vendor name
 (`ID`, `URL`, `AI`, `Access Token`, `Streamable HTTP`) - therefore returns from EVERY re-export as

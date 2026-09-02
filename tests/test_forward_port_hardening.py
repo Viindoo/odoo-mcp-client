@@ -1733,21 +1733,32 @@ class TestP9WorktreeReroot:
             "P9's text - a re-root documented after the dispatch that needs it is easy to miss"
         )
 
-    def test_p95_addons_coverage_claim_is_backed_by_p9(self):
-        """P9.5 says 'the P9 INSTANCE_HANDLE whose addons path covers it' - this assertion is
-        only true once P9 itself re-roots via WORKTREE_PATH (this test pins the dependency both
-        ways: P9.5 still makes the claim, and P9 now backs it)."""
+    def test_p95_addons_coverage_claim_is_backed_by_a_mechanism(self):
+        """P9.5's export instance must cover the integration worktree, and the claim that it does
+        must NAME what makes it true.
+
+        The mechanism has changed once already - P9.5 used to inherit P9's re-rooted verify handle,
+        and now self-provisions its own export build (that lease is not demo-loaded, so it cannot
+        serve an export). What must not change is that the claim is BACKED: a dangling
+        'its addons path covers the worktree' with no mechanism behind it is the false assumption
+        this test exists to keep out, whichever mechanism is current. P9's own re-root is asserted
+        alongside it because P9 still needs it for its own verify run."""
         text = SKILL_MD.read_text(encoding="utf-8")
         p95_start = text.index("**P9.5 - i18n reconcile")
         p95_end = text.index("**P10 - Gate merge", p95_start)
         p95_block = _ws_normalize(text[p95_start:p95_end])
         assert "addons path" in p95_block, (
-            "P9.5 must still assert the P9 INSTANCE_HANDLE's addons path covers the worktree"
+            "P9.5 must still assert its export instance's addons path covers the worktree"
+        )
+        assert "SELF_PROVISION" in p95_block or "P9 re-roots" in p95_block, (
+            "the coverage claim must name the mechanism that makes it true (today: SELF_PROVISION "
+            "re-rooting onto WORKTREE_PATH) - an unnamed one is an assumption, and the last "
+            "unnamed one was false"
         )
         p9_block = _ws_normalize(self._p9_block(text, "**P9.5 - i18n reconcile"))
         assert "WORKTREE_PATH: <path>/fp-integration" in p9_block, (
-            "P9 must itself pass WORKTREE_PATH so P9.5's addons-path claim is actually true, not "
-            "an unbacked assumption"
+            "P9 must itself pass WORKTREE_PATH - its own verify run reads the adapted tree only "
+            "because of it"
         )
 
 

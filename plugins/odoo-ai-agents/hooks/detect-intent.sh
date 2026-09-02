@@ -202,6 +202,20 @@ if _wb 'module|profile|inventory|composition|compose' \
   _is_lookup=true
 fi
 
+# i18n / translation intent - EN + VI. Independent of `_domain` (the `content` bucket also catches
+# "document"/"write", which must NOT pull the i18n hint). Same word-boundary discipline as above:
+# `localiz` is an open stem on purpose (localize/localise/localization/localisation), while `po`
+# and `pot` are far too short to leave open - they are matched as explicit file/flag shapes below,
+# never as a bare stem, or "post"/"point"/"potential" would fire.
+_is_i18n=false
+if _wb 'translat|localiz|i18n|msgid|msgstr|gettext' \
+   || _wb 'dich|dịch' full \
+   || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])\.?pot?\b' \
+   || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])(\.po|\.pot|load-language|i18n-export)' \
+   || printf '%s' "${_p_lower}" | grep -Eq 'ban[[:space:]]+dich|bản[[:space:]]+dịch|ngon[[:space:]]+ngu|ngôn[[:space:]]+ngữ|thuat[[:space:]]+ngu|thuật[[:space:]]+ngữ'; then
+  _is_i18n=true
+fi
+
 # Consider vague when: short (<= 12 words) OR no action verb detected
 _is_vague=false
 if [ "${_word_count}" -le 12 ] 2>/dev/null || [ "${_has_action}" = "false" ]; then
@@ -234,6 +248,18 @@ esac
 if [ "${_osm_wired}" = "true" ] && [ "${_odoo_anchor}" = "true" ] && [ "${_is_lookup}" = "true" ]; then
   _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / odoo_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
   _osm_context="${_osm_context:+${_osm_context}\n}${_osm_lk}"
+fi
+
+# --- i18n doctrine hint ---
+# The orchestrator routes translation work without knowing how translation works, and the two facts
+# it gets wrong are BOTH silent: it hands the leaf a demo-less instance (truncated catalog) and it
+# asks for "zero untranslated entries" (which orders the leaf to overwrite deliberate
+# do-not-localise decisions). Neither shows up as an error. Gated on the Odoo anchor like every
+# other Odoo-specific hint; fires regardless of vague/specific, because a SPECIFIC translation
+# request is exactly where the wrong instruction gets issued.
+if [ "${_odoo_anchor}" = "true" ] && [ "${_is_i18n}" = "true" ]; then
+  _i18n_hint="[i18n] Odoo translation work routes to the odoo-i18n skill, which owns the method - do not direct it. Three facts so you do not instruct against its contract: (1) the export instance MUST be built WITH DEMO DATA and with en_US + every target language active, and the .pot and every .po of a run come from that ONE build - a demo-less or reused test instance silently truncates the catalog; (2) an EMPTY msgstr is not necessarily untranslated - Odoo stores a translation equal to its source as empty, so many blanks are deliberate do-not-localise decisions and 'get untranslated to zero' is a wrong goal; (3) never ask for tests asserting translated content, labels, help text or catalog completeness - that wording changes daily and the catalog is gated by odoo-i18n's own validation. SSOT: plugin snippets/i18n-mandate-contract.md (orchestrator obligations), snippets/po-entry-semantics.md, skills/odoo-i18n/references/i18n-recipe.md."
+  _osm_context="${_osm_context:+${_osm_context}\n}${_i18n_hint}"
 fi
 
 # --- Stack-aware routing hints (named specialists, so a JS/OWL or full-stack task never

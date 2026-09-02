@@ -82,3 +82,12 @@ cannot fail protects nothing - and one that fails because the screen or record i
 exist yet never ran at all (`${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`). Drive the real workflow when realizing
 a scenario as an executable test: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
 (reference, do not duplicate).
+
+**An expected result is never a piece of DISPLAY TEXT.** Write it as the state, the record produced,
+the exception TYPE, or the permission refused - never as the wording of a label, button, help
+sentence, error message, or translated term. That wording is improved independently of the behavior,
+so an oracle pinned to it reports FAIL on an improvement: a false verdict, the most expensive kind.
+Naming a visible label to say WHERE to click is addressing and stays fine; making it the expected
+RESULT is not. Rule + substitutions:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY
+text.
