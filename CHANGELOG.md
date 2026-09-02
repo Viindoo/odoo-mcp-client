@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Removed
+
+- `odoo-ai-agents` - **`odoo-forward-port`'s `--one-shot` cherry-pick mode is gone.** A
+  forward-port now has exactly ONE git shape: a no-ff no-commit merge of the range TIP, closed by
+  ONE merge commit. `--one-shot` staged a whole-range cherry-pick instead, which mints fresh SHAs -
+  so the merge-base never advanced, every future run re-encountered the same commits, and the same
+  conflicts had to be re-resolved for as long as both branches lived. The mode's two justifications
+  do not survive contact with the merge shape: a FROZEN source merges like any other, and a
+  DELIBERATE SUB-RANGE is landed by passing that sub-range's TIP SHA as the source-ref, because a
+  merge absorbs that commit and its ancestors and nothing else - the rest of the branch stays out
+  while every SHA that does land is preserved and the merge-base advances to exactly that point.
+  So nothing was lost, and the removal is a removal rather than a rename.
+- `odoo-ai-agents` - with the mode went its whole second code path: the `CHERRY_PICK_HEAD` window
+  state, the "in EITHER mode" branches through P5, P8, the Git-topology derivation and the
+  crash-resume rule, the `Mode:` line in the plan template, and the `expected_mode` axis in the
+  forward-port evals. A single shape with one described path is the point; leaving half of a
+  removed mode behind is how a reader concludes it is still reachable.
+
+### Fixed
+
+- `odoo-ai-agents` - **the `--one-shot` NAME was itself a trap, and it is now closed at P0.** In
+  ordinary use "one-shot" means "one run, not continuous" - which is what an orchestrator meant
+  when it wrote `MODE: one-shot` into a forward-port brief. The skill read the same word as
+  "cherry-pick the range, discard SHA", so a caller asking for the normal thing could get the one
+  shape Hard rule 2 exists to prevent. P0 now states how those words are read (they name a
+  cadence, never a git shape), the skill keeps "one-shot forward-port" as a routing TRIGGER so the
+  phrase still reaches the right front door, and an eval pins that a request saying "one-shot"
+  still gets the SHA-preserving merge.
+- `odoo-ai-agents` - the cherry-pick ban was written as "per commit", which reads as permitting a
+  staged whole-range cherry-pick - the exact loophole the removed mode used. It now reads "at ANY
+  granularity", in the merge-absorption SSOT and in Hard rule 2.
+- `odoo-ai-agents` - the orchestration SSOT still described the i18n step as reusing the P9 verify
+  instance, which stopped being true when that step moved to `SELF_PROVISION` (a verify instance
+  carries no demo data and cannot gain it after `-i`). Corrected at the SSOT so the generated
+  orchestration map carries the current wiring.
+
 ## [5.5.1] - 2026-09-02
 
 ### Fixed
