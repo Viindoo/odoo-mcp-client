@@ -47,7 +47,10 @@
 #   W6 patch apply   `git apply`, or `patch` with `-p<N>`/`-i`/`<` - the target paths live inside
 #                    the patch, not on the command line, so the verb alone is the signal
 #   W7 interpreter   `python|python3|node|ruby|perl` whose command text carries BOTH a source path
-#                    AND a file-writing token (`open(`, `write_text`, `writeFileSync`, `writeFile`)
+#                    AND a WRITE token: `.write(`, `write_text`, `writeFileSync`, `writeFile`, or
+#                    an `open()` carrying an explicit write MODE. A read - `open(p)`, `open(p,'rb')`,
+#                    `ast.parse(open(p).read())`, `py_compile`, `json.tool` - is not a write, and
+#                    denying one blocks the very verification a coordinator exists to perform
 #
 # WHAT THE DETECTORS ARE RUN OVER - hooks/command-segments.sh, the segmentation SSOT this gate
 # shares with block-unowned-lease-mutation.sh (read its header for the three defects it fixes).
@@ -73,7 +76,10 @@
 #   - a separator inside quotes still splits the segment (`--reason "a && b"`): segmentation is
 #     lexical, not a shell parse;
 #   - a body fed to an interpreter heredoc (`bash <<EOF ... EOF`) is kept as text for the detectors
-#     but is not parsed as the script it is.
+#     but is not parsed as the script it is;
+#   - an interpreter write whose MODE is computed (`open(p, m)`, `mode=MODES[k]`) or whose target
+#     is opened through a call the `open(...)` mode test cannot span (`open(os.path.join(a,b),'w')`
+#     with no following `.write(`): the write token is literal, like every other detector here.
 #   The residual is therefore real. It is bounded by the fact that the gate's whole subject set is
 #   agents this plugin DECLARES as coordinator/spawner, whose own bodies now also carry the
 #   prohibition in prose (the belt this buckle backs up), and by the SubagentStop grounding and
@@ -196,8 +202,14 @@ else
     # a redirect passed - which is why the gate looked non-deterministic between two nodes that had
     # simply typed it differently. Shell redirection is W1's job, and W1 alone carries the
     # `[^0-9&>]` guard that tells `> file.py` from `2>&1`.
+    # A WRITE token, not merely a file handle. `open(` alone was once accepted, which refused
+    # every read an interpreter performs: `python -c "ast.parse(open('.../sale.py').read())"` and
+    # `open(p,'rb').read()` were both denied, so a coordinator could not verify its workers'
+    # output and was pushed toward accepting their self-reports as evidence. A read-mode or
+    # default-mode `open()` is now not a write; an explicit write mode, `.write(`, or one of the
+    # always-writing helpers is.
     [[ -z "$HIT" ]] && printf '%s' "$seg" | grep -qE "\b(python3?|node|ruby|perl)\b" \
-      && printf '%s' "$seg" | grep -qE "open\(|write_text|writeFileSync|writeFile" \
+      && printf '%s' "$seg" | grep -qE "write_text|writeFileSync|writeFile|\.write\(|\bopen\([^)]*['\''\"][rbt+]*[wxa][rbt+]*['\''\"]" \
       && printf '%s' "$seg" | grep -qE "${PATHTOK}" && HIT=w7
     [[ -n "$HIT" ]] || continue
     if [[ "$HIT" == w6 ]]; then

@@ -260,6 +260,14 @@ BASH_WRITES = [
     ("cp-continued", "cp /tmp/new.py \\\n   /w/addons/x/models/sale.py"),
     ("redirect-continued", "printf '%s' x \\\n   > /w/addons/x/models/sale.py"),
     ("tee-continued", "printf '%s' x | tee \\\n   /w/addons/x/models/sale.py"),
+    # A real write that WALKED THROUGH before the segmenter learned about quotes: the `;` inside
+    # the quoted `-c` argument was read as a command separator, so the half carrying `write_text`
+    # no longer carried a `python` token and W7 never looked at it. A bypass, not a nuisance.
+    ("write-text-after-quoted-semicolon",
+     "python3 -c \"import pathlib; pathlib.Path('/w/addons/x/models/sale.py').write_text('x')\""),
+    ("open-write-mode", "python3 -c \"open('/w/addons/x/models/sale.py','w').write('x')\""),
+    ("open-append-mode", "python3 -c \"open('/w/addons/x/models/sale.py','a').write('x')\""),
+    ("open-binary-write", "python3 -c \"open('/w/addons/x/models/sale.py','wb').write(b'x')\""),
 ]
 
 
@@ -295,6 +303,19 @@ BASH_READS = [
     ("allocator-devnull", "python3 scripts/lib/allocator.py release tok-1 2>/dev/null"),
     ("pytest-stderr", "python -m pytest tests/test_sale.py -q 2>&1"),
     ("pytest-to-scratch", "python -m pytest tests/test_sale.py -q > /tmp/out.txt"),
+    # Read-only interpreter work, reported by a peer session whose coordinator was refused while
+    # VERIFYING its workers' output. `open(` alone was treated as a write, so every read an
+    # interpreter performs was denied. Blocking a coordinator's reads defeats the coordinator/
+    # worker split rather than protecting it: the coordinator exists to be the independent check
+    # on what its workers claim, and a coordinator that cannot read is left accepting their
+    # self-reports as evidence.
+    ("py-compile", "python -m py_compile /w/addons/x/models/sale.py"),
+    ("py-compile-stderr", "python -m py_compile /w/addons/x/models/sale.py 2>&1"),
+    ("json-tool", "python -m json.tool /w/addons/x/static/src/x.json"),
+    ("ast-parse-read", "python -c \"ast.parse(open('/w/addons/x/models/sale.py').read())\""),
+    ("open-default-mode-read", "python3 -c \"print(open('/w/addons/x/models/sale.py').read())\""),
+    ("open-explicit-read-mode", "python3 -c \"open('/w/addons/x/models/sale.py','r').read()\""),
+    ("open-binary-read-mode", "python3 -c \"open('/w/addons/x/models/sale.py','rb').read()\""),
 ]
 
 

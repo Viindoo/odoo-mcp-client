@@ -156,6 +156,11 @@ def test_the_deny_reason_refutes_the_reasoning_that_caused_the_incident():
     # remediation text was a working bypass.
     f"{ALLOC} release tok \\\n    --run-id r1",
     f"{ALLOC} release \\\n    tok --run-id r1",
+    # A separator INSIDE quotes is part of an argument, not a command boundary. Splitting there
+    # cut the command before its owner flag and refused the rightful owner - the same lexical
+    # mistake that, in the source-write gate, let a real write through instead.
+    f'{ALLOC} release tok --reason "cleanup a && b" --run-id r1',
+    f"{ALLOC} release tok --reason 'phase 1; phase 2' --run-id r1",
 ])
 def test_the_rightful_owner_is_never_blocked(command):
     """Every legitimate release shape passes untouched, for a subagent. A gate that stalled these
