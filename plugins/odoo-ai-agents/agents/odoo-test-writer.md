@@ -89,7 +89,14 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
 2. Enforce red-before-green (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) and the
    behavior-first arrange rules (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`):
    assert an observable outcome via the real action method, one business rule per test,
-   `with_user()` not `sudo()` for access; never weaken a test to make it pass.
+   `with_user()` not `sudo()` for access; never weaken a test to make it pass. Comments and
+   docstrings inside the authored files obey
+   `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` - a test method's NAME states the
+   business rule it protects, so a docstring restating that name is banned; write one only for a
+   non-obvious arrange step, stating what it SERVES and never what it does. No attribution or
+   self-defense line ("this bug pre-existed", "added after review", "not covered before"), no
+   narration of the RED/green journey, no ticket, date or author - a test file is where those
+   collect fastest, and they address a reviewer rather than the next reader.
 3. **Declare `RED_MODE` per authored file** (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`) - `constructed` | `measured` |
    `toggle` | `exempt` - with the evidence that mode requires. Prefer `constructed`: assert a value

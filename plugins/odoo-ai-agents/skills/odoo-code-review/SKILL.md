@@ -252,6 +252,7 @@ Key constraints for each dispatched agent:
 - Every dispatched agent (scoper, per-module/synthesis reviewer, ui-reviewer) receives the `SHARE_DIR:`/`ISOLATE_DIR:` literals captured once in Phase 0 and MUST use them directly for every Tier-2 path - it does NOT re-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` from its own cwd (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
 - Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
 - Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
+- Comments: the diff's comments and docstrings are reviewed BOTH ways - surplus as hard as absence - per `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`. A missing docstring is not, on its own, a finding.
 
 After legs finish, main writes `index.md` summarizing the set.
 

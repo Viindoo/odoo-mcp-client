@@ -55,3 +55,4 @@ Source header. All rules come directly from the 18.0 RST source.
 | Declaring records, views, actions, menus, inherits | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Organizing and writing web assets in Javascript | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS/SCSS styles, variables, and mixins | scss.md |
+| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

@@ -46,3 +46,4 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | Writing SCSS / CSS | `scss.md` |
 | Code review checklist | all files relevant to the changed file types |
 | Naming fields, methods, classes, variables | `naming.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
+| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

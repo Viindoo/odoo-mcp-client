@@ -55,3 +55,4 @@ or borrowed from other versions.
 | Writing SCSS / CSS styles | scss.md |
 | Naming fields, methods, classes, variables | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
 | Ordering model attributes | model-ordering.md |
+| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |
