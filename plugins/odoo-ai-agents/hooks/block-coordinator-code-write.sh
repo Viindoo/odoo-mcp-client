@@ -49,6 +49,15 @@
 #   W7 interpreter   `python|python3|node|ruby|perl` whose command text carries BOTH a source path
 #                    AND a file-writing token (`open(`, `write_text`, `writeFileSync`, `writeFile`)
 #
+# WHAT THE DETECTORS ARE RUN OVER - hooks/command-segments.sh, the segmentation SSOT this gate
+# shares with block-unowned-lease-mutation.sh (read its header for the three defects it fixes).
+# Two properties are load-bearing HERE: a `\`-continued command is joined into the one command it
+# is - without that, W5's end-of-command anchor could never match a line ending in ` \`, and W1/W2
+# lost the path to a segment carrying no verb, so a two-line `cp x.py dst.py` matched nothing at
+# all - and a DATA heredoc's body is dropped before matching, so appending a worklog entry that
+# merely NAMES a source path is no longer read as writing it. A heredoc fed to an interpreter
+# (`bash <<EOF`) really does execute, so that body is kept.
+#
 # WHAT IT PROVABLY DOES NOT CATCH - stated, not papered over. A gate that claimed completeness it
 # lacks would be worse than one that names its limit:
 #   - a write whose target path is COMPUTED at runtime (`$F`, `"${dir}/models.py"`, a glob, a
@@ -60,7 +69,11 @@
 #     computed name), or through an editor/pager invocation;
 #   - a write via an MCP tool, or any tool outside this hook's matcher;
 #   - a path spelled through a symlink or an unresolved relative segment that this hook does not
-#     normalize (it matches the literal text, it does not resolve the filesystem).
+#     normalize (it matches the literal text, it does not resolve the filesystem);
+#   - a separator inside quotes still splits the segment (`--reason "a && b"`): segmentation is
+#     lexical, not a shell parse;
+#   - a body fed to an interpreter heredoc (`bash <<EOF ... EOF`) is kept as text for the detectors
+#     but is not parsed as the script it is.
 #   The residual is therefore real. It is bounded by the fact that the gate's whole subject set is
 #   agents this plugin DECLARES as coordinator/spawner, whose own bodies now also carry the
 #   prohibition in prose (the belt this buckle backs up), and by the SubagentStop grounding and
@@ -85,6 +98,18 @@
 
 set -uo pipefail
 _pass() { exit 0; }
+
+# Segmentation SSOT: hooks/command-segments.sh, resolved relative to THIS script so the gate gains
+# no dependency on $CLAUDE_PLUGIN_ROOT. Unreadable or truncated -> fail open, the convention every
+# hook in this plugin follows.
+_CMDSEG_LIB="${BASH_SOURCE[0]%/*}/command-segments.sh"
+if [[ -r "$_CMDSEG_LIB" ]]; then
+  # shellcheck source=/dev/null
+  . "$_CMDSEG_LIB"
+else
+  _pass
+fi
+declare -F _logical_segments >/dev/null 2>&1 || _pass
 
 command -v jq >/dev/null 2>&1 || _pass
 INPUT="$(cat 2>/dev/null || true)"
@@ -137,9 +162,13 @@ if [[ "$TOOL" != "Bash" ]]; then
 else
   CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
   [[ -n "$CMD" ]] || _pass
-  # One simple command per line, so an end-of-command anchor is meaningful and a detector cannot
-  # borrow a path from the next command in a pipeline.
-  SEGS="$(printf '%s' "$CMD" | sed -E 's/(\|\||&&|[;|&])/\n/g')"
+  # One LOGICAL simple command per line, so an end-of-command anchor is meaningful and a detector
+  # cannot borrow a path from the next command in a pipeline. Continuations are joined first - the
+  # end-anchored W5 could never match a line ending in ` \`, and W1/W2 lost the path to the next
+  # segment - and a data heredoc's BODY is dropped, so appending a worklog entry that merely NAMES
+  # a source path is no longer read as writing it. Segmentation is the shared SSOT in
+  # hooks/command-segments.sh - never re-implement it here.
+  SEGS="$(printf '%s' "$CMD" | _logical_segments)"
   PATHTOK="[^[:space:]'\"\`;|&<>]*\.${SOURCE_EXT}"
   while IFS= read -r seg; do
     [[ -n "$seg" ]] || continue
@@ -159,9 +188,16 @@ else
     [[ -z "$HIT" ]] && printf '%s' "$seg" | grep -qE "\b(cp|mv|install|rsync)\b.*[[:space:]]['\"]?${PATHTOK}['\"]?[[:space:]]*\$" && HIT=w5
     # W6 patch application - target paths live inside the patch, so the verb is the signal
     [[ -z "$HIT" ]] && printf '%s' "$seg" | grep -qE "\bgit[[:space:]]+apply\b|\bpatch\b([[:space:]]+-(p[0-9]|i)\b|[[:space:]]*<)" && HIT=w6
-    # W7 interpreter writing a literal source path (best-effort - see the header's residual list)
+    # W7 interpreter writing a literal source path (best-effort - see the header's residual list).
+    # The write token is an INTERPRETER-BODY write ONLY. A bare `>` was once accepted here, and
+    # because the three greps are independent it made every `2>&1` / `2>/dev/null` on any command
+    # naming a `.py` path read as a file write: `python3 .../allocator.py --help 2>&1` and
+    # `python -m pytest tests/test_x.py -q 2>&1` were both refused, while the same commands without
+    # a redirect passed - which is why the gate looked non-deterministic between two nodes that had
+    # simply typed it differently. Shell redirection is W1's job, and W1 alone carries the
+    # `[^0-9&>]` guard that tells `> file.py` from `2>&1`.
     [[ -z "$HIT" ]] && printf '%s' "$seg" | grep -qE "\b(python3?|node|ruby|perl)\b" \
-      && printf '%s' "$seg" | grep -qE "open\(|write_text|writeFileSync|writeFile|>" \
+      && printf '%s' "$seg" | grep -qE "open\(|write_text|writeFileSync|writeFile" \
       && printf '%s' "$seg" | grep -qE "${PATHTOK}" && HIT=w7
     [[ -n "$HIT" ]] || continue
     if [[ "$HIT" == w6 ]]; then
