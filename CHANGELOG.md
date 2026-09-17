@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.0.1] - 2026-09-17
+
+### Fixed
+
+- `odoo-ai-agents` - **the `hr` self-access framework class was RENAMED at v19, not removed.** 7.0.0
+  recorded it as gone because a grep for the old class name came back empty and the file listing that
+  would have contradicted it was truncated - which is what a rename looks like from one angle. An
+  agent targeting v19 would have read "removed", dropped the class from `--test-tags`, and silently
+  stopped enforcing a convention Odoo's own `hr.employee` docstring still states there. The table now
+  carries the per-series name and the fact that it moved.
+
+### Changed
+
+- `odoo-ai-agents` - **stopped naming individual framework-validation classes inside the untagged
+  parity gate.** That gate is deliberately untagged, so every installed module's suite already runs -
+  the `base` and `hr` framework classes included. Naming them there added no coverage and one name
+  per class to re-verify against every series forever; it is the line that rotted twice. The
+  convention files that merely cited a class as provenance now point at the rule's own source instead
+  of at the test that happens to enforce it.
+- `odoo-ai-agents` - the framework-class table states the criteria a class must meet to earn a row:
+  a FRAMEWORK class, enforcing a convention this plugin teaches, that a module-scoped run SKIPS.
+  Without a written boundary the list grows, and each entry is a new thing to keep true across
+  twelve series. Odoo and Viindoo ship hundreds of thousands of tests; this is not a mirror of them.
+- `odoo-ai-agents` - the upgrade ledger gains a `flip_gates` key. The phase text said to record the
+  installable-flip verdicts in that file, but the schema had nowhere to put them, so they landed in
+  free text that neither resume nor the PR gate reads.
+- repo - `CLAUDE.md` said the pre-commit hook blocks hardcoded Odoo version ranges. It does not;
+  `check_orchestration.py` rules 17 and 18 do. Two different guards were described as one, so a
+  contributor could satisfy the hook and still trip CI.
+
 ## [7.0.0] - 2026-09-17
 
 ### Changed
