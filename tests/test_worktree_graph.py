@@ -276,13 +276,21 @@ def test_ledger_notes_intra_run_backstopped_by_policy_not_structure():
     text = _text(LEDGER)
     norm = _normalize_ws(text)
     low = norm.lower()
+    # The owner is cited by NAME (`run-harness`), not by a path to its SKILL.md: rule 20
+    # [definition-pointer] bans that path in a runtime file, because a skill is INVOKED and never
+    # READ. The contract here is unchanged - the ledger must CITE the one owner rather than restate
+    # the lineage fact or point at a plan-side projection.
     assert re.search(
         r"(?i)forks? from the ONE `?run-integration`? branch[^.]{0,80}"
-        r"run-harness/SKILL\.md.{0,20}Run start", norm
+        r"`?run-harness`?.{0,20}Run start", norm
     ), (
-        "the ledger must cite the lineage's ONE owner (run-harness/SKILL.md § Run start) for the "
+        "the ledger must cite the lineage's ONE owner (`run-harness` § Run start) for the "
         "fork-from-the-one-run-integration-branch fact, rather than restating it or pointing at a "
         "plan-side projection."
+    )
+    assert "run-harness/SKILL.md" not in norm, (
+        "cite `run-harness` by NAME - rule 20 [definition-pointer] bans a path to a skill body in "
+        "a runtime file, and the bare `run-harness/SKILL.md` form is the same instruction"
     )
     assert "contains" in low and "addons-path" in low, (
         "the ledger must distinguish the worktree CONTAINING the dependency's source from that "

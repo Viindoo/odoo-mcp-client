@@ -203,8 +203,8 @@ up later - into exactly one bucket:
    NEVER a capture destination - reached only by an explicit Bash `cp`/`mv` of one named file out
    of bucket (1) or (2), then committed via `git-toolkit:git-ops`.
 
-Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer.md`, `odoo-marketing-writer.md`,
-`odoo-user-doc-writer.md` each reach it only by an explicit copy step - never a direct capture target.
+Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer`, `odoo-marketing-writer`,
+`odoo-user-doc-writer` each reach it only by an explicit copy step - never a direct capture target.
 
 **Family mechanics.** chrome-devtools (eager default): pass the absolute path as **`filePath`**
 (never `path` - unknown keys are silently ignored); omitting it attaches the image inline instead

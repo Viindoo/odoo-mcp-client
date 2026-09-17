@@ -22,7 +22,7 @@
 > Conv-0 and Conv-1 have no standalone file; both are reached at the point of obedience: every
 > `odoo-modules-upgrade` P4 adapt dispatch brief (`upg-phase-detail.md` § odoo-coding dispatch
 > brief) cites this file unconditionally (no profile check on the citation), firing
-> `odoo-backend-coder.md` / `odoo-frontend-coder.md`'s "Modules-upgrade adapt" disposition (also
+> `odoo-backend-coder` / `odoo-frontend-coder`'s "Modules-upgrade adapt" disposition (also
 > unconditional on profile) and sending the coder to § Convention 0 and § Convention 1 below - on
 > ANY profile, Viindoo or not. Conv-3/Conv-4's rule text lives in dedicated CORE files reachable
 > via `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` § Snippets catalog

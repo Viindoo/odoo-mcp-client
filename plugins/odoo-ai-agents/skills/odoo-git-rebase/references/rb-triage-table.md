@@ -1,4 +1,4 @@
-<!-- Reference for odoo-git-rebase/SKILL.md § Model triage. Loaded as needed.
+<!-- Reference for `odoo-git-rebase` § Model triage. Loaded as needed.
      Two deterministic tables: EXTRACT (P1) and ADAPT (P8) + bucket-(c) upgrade-scale gate. -->
 
 # Git-Rebase Model Triage - full tables

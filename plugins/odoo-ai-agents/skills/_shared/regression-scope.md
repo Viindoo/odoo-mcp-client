@@ -20,7 +20,7 @@ GREEN before `integrate` may open a PR. The scope is the monotonically-growing r
 - `odoo-planner` AUTHORS `C_N` into that node's `modules` field at plan-authoring time. It is not
   injected at runtime by anything: `run-harness` only computes the FLOOR (the same union, computed
   from the live `depends_on` graph) and BLOCKS the plan if the authored `modules` list is below it
-  (`run-harness/SKILL.md` § `verify_plan_agreement`, check 4).
+  (`run-harness` § `verify_plan_agreement`, check 4).
 - `C_N` grows with the node's position in the graph - a node placed later in the dependency order
   covers a larger union, because it depends (transitively) on more coding nodes. This is the
   regression guard: an earlier node's module must stay green after a later node lands.

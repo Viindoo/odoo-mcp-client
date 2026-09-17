@@ -45,7 +45,7 @@ If OSM unreachable: all phases complete via training knowledge; append caveat th
 > support-triage workflow. When the `workflow-chaining` fires this skill it follows the
 > phase sequencing declared in that YAML. The phase descriptions below document the
 > **inline behavior** of this skill as invoked by the runner - they do not duplicate
-> the orchestration logic. (Same pattern as `odoo-qa-suite/SKILL.md`.)
+> the orchestration logic. (Same pattern as `odoo-qa-suite`.)
 
 ## Phase 0 - Collect ticket input
 
