@@ -812,6 +812,58 @@ def _skill_dispatch_surface(skill_name: str) -> list[tuple[str, str]]:
     return out
 
 
+# --- [definition-pointer] (rule 20) ------------------------------------------------------------
+#
+# A runtime file may not send its reader to a SKILL.md or an agents/<name>.md.
+#
+# A skill is something you INVOKE. An agent is something you LAUNCH. Neither is something you READ.
+# Telling a reader to open one of those files hands it the text without the act: it now holds
+# instructions addressed to whoever actually runs them, and it still has not dispatched anything.
+# The instruction it needed was one word - invoke, or launch.
+#
+# Pointing at instruction MATERIAL is the opposite case and stays correct: `snippets/`, `docs/` and
+# a skill's own `references/` exist to be read, and a skill or agent that tells you to read one is
+# making that content part of itself.
+#
+# Naming an agent or skill is always fine - `dispatch odoo-coder`, `invoke odoo-instance`. What this
+# bans is the PATH to its definition file.
+
+_DEFINITION_FILE = re.compile(
+    r"`?\$?\{?[A-Za-z_]*\}?/?(?:plugins/odoo-ai-agents/)?"
+    r"(agents/[a-z0-9-]+\.md|skills/[a-z0-9-]+/SKILL\.md)`?"
+)
+
+
+def _runtime_md_files() -> list[Path]:
+    """Every .md a runtime actor reads while working. `docs/` is excluded: it is authoring and
+    reference material for whoever EDITS this plugin, and may cite any file it needs."""
+    out: list[Path] = []
+    for base in (SKILLS_DIR, AGENTS_DIR, SNIPPETS_DIR):
+        if base.exists():
+            out += sorted(p for p in base.rglob("*.md") if p.is_file())
+    return out
+
+
+def check_definition_pointers(findings: list[str]) -> None:
+    """20. [definition-pointer] - STRICT. No runtime file points at a SKILL.md or an
+    agents/<name>.md: a skill is invoked and an agent is launched, neither is read."""
+    for path in _runtime_md_files():
+        rel = path.relative_to(PLUGIN_ROOT).as_posix()
+        text = path.read_text(encoding="utf-8")
+        for match in _DEFINITION_FILE.finditer(text):
+            target = match.group(1)
+            if rel.endswith(target):
+                continue  # a file naming itself is not a pointer
+            line = text[: match.start()].count("\n") + 1
+            findings.append(
+                f"[definition-pointer] {rel}:{line} points a runtime reader at '{target}'. "
+                f"A skill is INVOKED and an agent is LAUNCHED - neither is READ, so opening that "
+                f"file yields instructions meant for whoever runs them and dispatches nothing. Say "
+                f"invoke/launch and name it, or state the fact the reader needs. Pointing at "
+                f"instruction material (snippets/, docs/, a skill's own references/) stays fine"
+            )
+
+
 def check_brief_knowhow(findings: list[str], warn_only_findings: list[str]) -> None:
     """19. [brief-knowhow] - the negative counterpart of rule 12, over the SAME two edge tiers rule
     12 walks (skill->agent and agent->agent): a dispatcher must not hand its agent the agent's own
@@ -867,8 +919,8 @@ def check_brief_knowhow(findings: list[str], warn_only_findings: list[str]) -> N
                     f"[brief-knowhow] {label}: the section '{match.group(0).strip()}' pre-digests "
                     f"a dispatched agent's own domain for it. Move an orphan rule into the agent "
                     f"body, delete what the agent already owns "
-                    f"(docs/authoring-skills-and-agents.md § What a dispatching skill hands its "
-                    f"agent)"
+                    f"(docs/authoring-skills-and-agents.md § Writing the brief a skill hands an "
+                    f"agent it dispatches)"
                 )
 
             caller_sentences = _knowhow_sentences(_brief_region(text))
@@ -2097,10 +2149,15 @@ def main(argv: list[str]) -> int:
 
     # 19. [brief-knowhow] - its DETERMINISTIC half is LIVE and enforcing from the start: it ships
     # in the same change that cleans every named-agent dispatcher, so there is no backlog to burn
-    # down and no reason for the warn-first window rules 9/10 needed. Its prose-duplication half
-    # rides this permanently warn-only list beside rule 12 (the function's docstring says why it
-    # cannot gate).
-    check_brief_knowhow(findings, permanent_warn_only_findings)
+    # down and no reason for the warn-first window rules 9/10 needed. Its prose-duplication half is
+    # permanently warn-only (the function's docstring says why it cannot gate) and gets its OWN
+    # list: folding it into rule 12's would print 37 [brief-knowhow] findings under a
+    # "[brief-fields]" header, and a reader who trusts that header mis-attributes every one.
+    knowhow_warn_only_findings: list[str] = []
+    check_brief_knowhow(findings, knowhow_warn_only_findings)
+
+    # 20. [definition-pointer] - LIVE. Ships with the sweep that clears it, same as rule 19.
+    check_definition_pointers(findings)
 
     if findings:
         print(f"check_orchestration: {len(findings)} finding(s)"
@@ -2131,6 +2188,13 @@ def main(argv: list[str]) -> int:
         for fnd in permanent_warn_only_findings:
             print(f"  - {fnd}")
 
+    if knowhow_warn_only_findings:
+        print(f"check_orchestration: {len(knowhow_warn_only_findings)} warn-only finding(s) "
+              f"([brief-knowhow] prose duplication, warn-only PERMANENTLY - a shared sentence is "
+              f"sometimes required on both sides, so read each as a question, not a verdict):")
+        for fnd in knowhow_warn_only_findings:
+            print(f"  - {fnd}")
+
     if version_claim_advisory_findings:
         print(f"check_orchestration: {len(version_claim_advisory_findings)} advisory finding(s) "
               f"([version-claim], no merge base resolvable - the diff-scoped rule could not "
@@ -2150,7 +2214,8 @@ def main(argv: list[str]) -> int:
         return 1
 
     if (not findings and not warn_only_findings and not ref_scope_warn_only_findings
-            and not permanent_warn_only_findings and not instance_truth_warn_only_findings
+            and not permanent_warn_only_findings and not knowhow_warn_only_findings
+            and not instance_truth_warn_only_findings
             and not version_claim_advisory_findings):
         print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0

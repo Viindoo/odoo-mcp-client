@@ -89,15 +89,15 @@ The icon deliverable is a rasterized PNG (`static/description/icon.png`, 256x256
 live-rendered Odoo UI component - the CSS design-token checks in
 `skills/_shared/odoo-frontend-fidelity.md` (which govern RENDERED Odoo screens) do NOT apply to
 it. Palette resolution (brief -> `brand-tokens.json` -> category hue -> Odoo default) and the
-brand-agnostic, no-vendor-palette rule are owned by `agents/odoo-icon-designer.md` § Step 1 and
-§ Hard constraints - not restated here.
+brand-agnostic, no-vendor-palette rule are owned by `odoo-icon-designer`'s own Step 1 and
+Hard constraints - not restated here.
 
 ## Standalone-first fallback
 
 - **OSM unreachable:** agent proceeds disk-only from the manifest descriptor; exact fields read
-  and warning text owned by `agents/odoo-icon-designer.md` § Step 0.
+  and warning text owned by `odoo-icon-designer`'s own Step 0.
 - **Rasterizer absent:** not a hard fail - `icon.svg` ships alone with install guidance; full
-  fallback behavior owned by `agents/odoo-icon-designer.md` § Step 4.
+  fallback behavior owned by `odoo-icon-designer`'s own Step 4.
 
 ## Verify then commit (git-delegation)
 

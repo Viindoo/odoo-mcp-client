@@ -344,7 +344,7 @@ MANDATORY: one module-level acceptance-criteria block PER AFFECTED MODULE - one 
 
 Downstream ownership (do not resolve it here - just know it exists): at planning time, this
 solution-level (cross-module) summary is owned by the verification node whose `modules` cover every
-module the summary spans (`agents/odoo-planner.md` § Round 1; `skills/odoo-intake/references/plan-mode-schema.md`
+module the summary spans (`odoo-planner`'s own Round 1; `skills/odoo-intake/references/plan-mode-schema.md`
 § Cross-module acceptance-criterion ownership). Write the summary so it names WHICH modules it spans -
 that is what lets planning assign it an owner.
 

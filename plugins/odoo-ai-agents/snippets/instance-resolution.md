@@ -38,7 +38,7 @@ resolve-capture-substitute protocol every consumer follows:
    no `-i`/`-u`), which calls `allocator.py resume <token> --pid <new pid>` itself. A REFUSED
    resume BLOCKs that spin-up, which has already stopped the server it launched and left the
    lease parked: never re-run it - act on the exit code the refusal names
-   (`<plugin>/agents/odoo-instance-ops.md` operation 9).
+   (`odoo-instance-ops` operation 9).
 2. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
    already applies the machine-global SSOT with its internal override/fallback order
    (`$ODOO_AI_INSTANCES` explicit override -> machine-global `$ODOO_AI_HOME/instances.toml`

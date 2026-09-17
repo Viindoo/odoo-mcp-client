@@ -434,8 +434,7 @@ even if the registry omits it.
 | `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
-**Language resolver order.** SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (4-tier +
+**Language resolver order.** SSOT: this skill's own Language resolution section (4-tier +
 disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
 is authoritative and this file cross-references it.
 

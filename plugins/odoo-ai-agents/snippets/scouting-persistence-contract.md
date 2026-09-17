@@ -33,8 +33,8 @@ substitute the captured absolute literal. The dispatched scout stays WRITE-FREE 
 writes this file after the scout returns.
 
 **Header line (staleness anchor - written once, the FIRST line of the file, before any finding
-line; NOT one of the capped finding lines below - same field role as `_scope.md`'s `base_ref:`,
-`agents/odoo-review-scoper.md:200`):**
+line; NOT one of the capped finding lines below - same field role as `_scope.md`'s `base_ref:`
+field in `odoo-review-scoper`):**
 
 ```
 target_ref: <ref>
@@ -91,17 +91,18 @@ sibling(s) too - it never guesses at what a merged line left out.
 
 **Consumer registry (authoritative, SSOT for this clause's readers).** Every site that dispatches
 a Write-constrained scout and relies on this clause registers its row here. A row is
-`<file path relative to the plugin root> | <section anchor - the exact substring marking that
-site's own section>`. Adding a new such site anywhere in the tree requires BOTH adding its row
-below AND citing "clause 3" within that site's own section (the anchor's section) - a row with no
-citation, or a citation with no row, is a guard-test failure, not a style nit.
+`<skill name, or a references file path relative to the plugin root> | <section anchor - the
+exact substring marking that site's own section>`. Adding a new such site anywhere in the tree
+requires BOTH adding its row below AND citing "clause 3" within that site's own section (the
+anchor's section) - a row with no citation, or a citation with no row, is a guard-test failure,
+not a style nit.
 
-| file | section anchor |
+| site | section anchor |
 |---|---|
-| `skills/odoo-intake/SKILL.md` | `Persist before you propose` |
+| `odoo-intake` | `Persist before you propose` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1a - DAG build` |
 | `skills/odoo-modules-upgrade/references/upg-phase-detail.md` | `### P1d - Transitive Symbol Survey` |
-| `skills/odoo-debug/SKILL.md` | `### Phase 1 - Triage (classify + reproduce)` |
+| `odoo-debug` | `### Phase 1 - Triage (classify + reproduce)` |
 
 ## Relation to the worklog
 

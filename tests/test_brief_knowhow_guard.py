@@ -280,9 +280,11 @@ def test_anonymous_worker_fanout_is_exempt(monkeypatch):
 
 def test_rule_19_strict_half_gates_rather_than_warns():
     source = (PLUGIN / "generator" / "check_orchestration.py").read_text(encoding="utf-8")
-    assert "check_brief_knowhow(findings, permanent_warn_only_findings)" in source, (
+    assert "check_brief_knowhow(findings, knowhow_warn_only_findings)" in source, (
         "the deterministic half must be invoked with the gating `findings` list; passing it a "
-        "warn-only list would let the boundary rot back in while the build stays green"
+        "warn-only list would let the boundary rot back in while the build stays green. The "
+        "prose half takes its OWN warn list rather than rule 12's, so the printed header cannot "
+        "report [brief-knowhow] findings under a [brief-fields] label"
     )
 
 

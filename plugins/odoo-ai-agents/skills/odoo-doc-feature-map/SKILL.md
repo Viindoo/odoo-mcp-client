@@ -94,8 +94,8 @@ prefix, which carries no series on a stock checkout.
 ## Standalone-first fallback
 
 OSM unreachable -> agent drops to disk-only grounding (`local-source`) with its own warning text;
-full descriptor/`views`/`models`/`security` fallback chain owned by
-`agents/odoo-feature-cataloger.md` § Step 0 and Steps 2-3 - not restated here.
+full descriptor/`views`/`models`/`security` fallback chain owned by `odoo-feature-cataloger`'s own
+Step 0 and Steps 2-3 - not restated here.
 
 No browser, no live Odoo instance, no screenshot capture. Route a screenshot / live-UI need to
 `odoo-doc-illustration` after the catalog is produced.

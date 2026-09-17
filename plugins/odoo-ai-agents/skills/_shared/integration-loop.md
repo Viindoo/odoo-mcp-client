@@ -19,13 +19,13 @@ These owners run an integration loop and reference THIS file instead of restatin
 
 - `run-harness` - the **canonical per-node integration consumer** and SOLE owner (no separate
   git-executor skill exists): it forks ONE `run-integration` branch from base at run start
-  (`run-harness/SKILL.md` § Run start); every source-writing node's worktree forks from it, and
+  (its own § Run start); every source-writing node's worktree forks from it, and
   this saga cherry-picks each node's returned commit, in node-DAG order, onto run-integration
   before moving to the next ready node. Review and regression verification are ordinary PLAN
   nodes (dispatched to `odoo-code-review` / `odoo-instance`), not a driver-owned close step.
   There is NO per-node PR: the terminal `integrate` node squashes run-integration + opens the ONE
   per-repo PR once every non-land-tail node in that repo is terminal AND a DONE `odoo-instance`
-  node covers the repo's coding nodes (`run-harness/SKILL.md` § integrate readiness + §
+  node covers the repo's coding nodes (its own § integrate readiness + §
   `integrate` node dispatch).
 - The PEER orchestrators, each owning its own loop plus a main-context human-confirm gate:
   `odoo-forward-port`, `odoo-modules-upgrade`, `odoo-git-rebase`.
@@ -67,7 +67,7 @@ failure.
 must be GREEN before `integrate` opens runs as an ordinary `odoo-instance` plan node, scoped by
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`; a red verdict fails that node -
 `run-harness` never opens a repo's PR without a DONE verification node on `integrate`'s dependency
-path (`run-harness/SKILL.md` § integrate readiness).
+path (its own § integrate readiness).
 
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
@@ -93,8 +93,8 @@ and never-pushed, and every commit up to the anchor stays reachable on its own s
 `worktree add`/`worktree remove` is an ordinary, ungated mutation verb
 (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git), distinct from the
 8-item destructive gate list. So a mid-node failure does NOT stop for human confirmation -
-drive-to-done continues autonomously (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` §
-Gate-tier resolution). The terminal closing push is a fresh FIRST push of the never-pushed
+drive-to-done continues autonomously (`run-harness`'s own § Gate-tier resolution). The terminal
+closing push is a fresh FIRST push of the never-pushed
 run-integration branch (non-force, no history rewrite on any remote branch) - also NOT a
 destructive op, also firing no confirm gate; it runs as part of drive-to-done. The only
 human-gated LANDING is the downstream outward MERGE (odoo-pr-monitoring's merge approval gate).

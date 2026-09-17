@@ -230,15 +230,25 @@ def test_skill_cross_references_the_coverage_axis_without_restating_it():
     axis from its existing "Lint modules for run-tests - GATED" paragraph (discoverability for a
     reader who only opens the skill), without duplicating the decidable rule itself (SSOT stays in
     the agent file, matching this repo's own convention for every other HARD RULE).
+
+    The pointer is by NAME (`odoo-instance-ops`), not by path (`agents/odoo-instance-ops.md`): the
+    agent is LAUNCHED, never READ, so a path to its file is an instruction nobody dispatched from
+    the skill can act on. Rule 20 [definition-pointer] bans the path in a runtime file; the name
+    reaches the same SSOT owner.
     """
     text = _norm(SKILL_MD)
     assert "coverage" in text, (
         "skills/odoo-instance/SKILL.md must mention the coverage axis so a reader of the front "
         "door discovers it exists."
     )
-    assert "odoo-instance-ops.md" in _read(SKILL_MD), (
-        "the skill must point at agents/odoo-instance-ops.md as the coverage rule's SSOT, not "
-        "restate the decidable rule inline."
+    skill_text = _read(SKILL_MD)
+    assert "odoo-instance-ops" in skill_text, (
+        "the skill must point at odoo-instance-ops as the coverage rule's SSOT, not restate the "
+        "decidable rule inline."
+    )
+    assert "odoo-instance-ops.md" not in skill_text, (
+        "cite `odoo-instance-ops` by NAME, not by path: rule 20 [definition-pointer] bans pointing "
+        "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
     )
 
 

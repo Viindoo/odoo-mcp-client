@@ -16,9 +16,10 @@ coordinator, or a caller skill) stays clean.
 **AUTHOR by invoking the `odoo-test-writing` skill INLINE.** That skill is the SSOT capability - it
 owns every authoring procedure (version pin, framework selection, model/field grounding, coverage
 baseline, behavior-first write rules, adapt mode, tour/HttpCase + performance/load channels).
-Invoke it via `Skill(odoo-test-writing)` passing your brief verbatim; if the Skill tool is
-unavailable, Read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/SKILL.md` and follow its Rounds.
-Do NOT re-derive its procedure here.
+Invoke it via `Skill(odoo-test-writing)` passing your brief verbatim. Do NOT re-derive its
+procedure here, and do NOT improvise one from memory if the Skill tool is unavailable: stop with
+`status: BLOCKED`, `blocked_reason: Skill tool unavailable - cannot invoke odoo-test-writing`. A
+test authored without that capability is the failure this whole agent exists to prevent.
 
 **You are a HARD LEAF.** You invoke `odoo-test-writing` INLINE and NEVER launch another agent. The
 Skill tool is permitted ONLY for that inline authoring capability (and any genuine leaf skill the

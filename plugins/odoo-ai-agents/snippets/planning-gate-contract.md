@@ -46,9 +46,8 @@ runtime contradiction of a per-stage self-gate.
   an executor invoked standalone (no signal) self-derives and proceeds - it never self-blocks
   for "no plan".
 
-This is the SAME three-signal set `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` (its
-plan-provided fast-path) keys on - intake, `odoo-coding`, and `run-harness` all cite THIS one
-definition; they do not restate it.
+This is the SAME three-signal set `odoo-coding` (its plan-provided fast-path) keys on - intake,
+`odoo-coding`, and `run-harness` all cite THIS one definition; they do not restate it.
 
 For cross-run/worktree NEW-module coordination, the same three defer to the single ledger SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (written only by `odoo-coding`).
@@ -105,8 +104,8 @@ omitted (treated as `false`).
 - **WHEN - enter before the first GIT-TRACKED or otherwise irreversible effect, and ALWAYS before
   presenting the plan for approval.** Authoring a plan artifact that lives ONLY under the
   `$ODOO_AI_HOME` state root does NOT require an open Plan Mode window (Plan Mode gates
-  git-TRACKED writes, not state-root writes - `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md`
-  § Plan Mode decision tree). `EnterPlanMode` MUST be called BEFORE any branch, worktree,
+  git-TRACKED writes, not state-root writes - `odoo-intake` § Plan Mode decision tree).
+  `EnterPlanMode` MUST be called BEFORE any branch, worktree,
   git-tracked file write, or deletion, and BEFORE the plan is presented - never after an
   irreversible effect has already happened. "I'll enter Plan Mode after I've already started
   editing" stays BANNED. Exactly ONE actor calls it for a given plan: the plan-authoring skill
@@ -139,7 +138,7 @@ design exists it runs AFTER that design and CONSUMES its approved output - a dow
 NOT a peer or alternative to design. That ORDER is the whole rule: a design is only ever an INPUT to
 a plan, never a NODE of one, and no plan is ever withheld for a design nobody authored
 (§ Mandatory-planning rule above). DECLARED, enforcing nothing, at
-`skills/odoo-planning/SKILL.md` § Design precedes planning. ENFORCED (not merely declared) at
+`odoo-planning` § Design precedes planning. ENFORCED (not merely declared) at
 `skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to this plan and
 `skills/run-harness/references/run-integration.md` § Gate-tier node classes.
 

@@ -90,7 +90,7 @@ fire the identical intent the same day. The 4-character random suffix is the dis
 **Fifth consumer - a filename, not a directory.** `odoo-demo-recording` applies this SAME rule
 to its video artifact name instead of a directory: `<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}`
 under `visual/videos/` (`<feature>` plays the role of `<intent-slug>`; full wiring:
-`skills/odoo-demo-recording/SKILL.md` § Round 4 and § Narrated evidence mode). Mint it once per
+`odoo-demo-recording` § Round 4 and § Narrated evidence mode). Mint it once per
 run, before Round 4's orphan sweep, and reuse the SAME value for both takes of a narrated
 before/after pair (the `-before`/`-after` suffix is appended on top, never a second random mint).
 This closes the exact gap a bare `<feature>-<timestamp>` resolving to a date-only string would
@@ -109,7 +109,7 @@ committed module deliverable (bucket 3) - it is reached only by an explicit copy
 module tree and thereafter lives under git, entirely outside this sweep's reach.
 
 **Bound.** `visual/current/<slug>/` already self-deletes at its own run's terminal status
-(`odoo-visual-regression/SKILL.md` § Retention); its TTL backstop stays the existing 24h
+(`odoo-visual-regression` § Retention); its TTL backstop stays the existing 24h
 (mtime), for the crash-only case. The other three (`qa/`, `debug/`, `screenshots/`) are
 deliberately RETAINED past their own run's terminal status - they are the cited evidence
 behind a PASS/FAIL verdict, a diagnosed root cause, or a review finding - so a 24h sweep
@@ -158,7 +158,7 @@ Tier-1 subpaths (`logs/`, `conf/`) are OUT OF SCOPE here - see § 3.7.
 | Subpath | Owner | Bound | Why this bound |
 |---|---|---|---|
 | `worklog/<run-or-slug>/` | every multi-agent run (via `worklog-contract.md`) | 30d | decision log stays useful after the run for the next resume/audit; no self-cleanup step exists |
-| `integration/<slug>/` | `run-harness` (integration) | 24h | Self-deletes at its own post-merge cleanup (`run-integration.md` § Cleanup Checklist). TTL crash-backstop wired at `run-harness/SKILL.md` § Run start + `run-integration.md` § Stale integration-dir sweep - fail-closed, run-status-correlated (never a bare mtime check; see § 3.6 for why the naive Clause-2 recipe was unsafe here). |
+| `integration/<slug>/` | `run-harness` (integration) | 24h | Self-deletes at its own post-merge cleanup (`run-integration.md` § Cleanup Checklist). TTL crash-backstop wired at `run-harness` § Run start + `run-integration.md` § Stale integration-dir sweep - fail-closed, run-status-correlated (never a bare mtime check; see § 3.6 for why the naive Clause-2 recipe was unsafe here). |
 | `git-rebase/<slug>/` | `odoo-git-rebase` | 30d | checkpoint/commit-dump working state; retained as evidence of what the rebase did, no self-cleanup step |
 | `forward-port/<slug>/` | `odoo-forward-port` | 30d | same reasoning as `git-rebase/<slug>/` |
 | `modules-upgrade/<slug>/` (+ `checkpoint.json`) | `odoo-modules-upgrade` | 30d | same reasoning as `git-rebase/<slug>/` |
@@ -167,7 +167,7 @@ Tier-1 subpaths (`logs/`, `conf/`) are OUT OF SCOPE here - see § 3.7.
 | `pr-monitoring/<id>.md` | `odoo-pr-monitoring` | 30d | rewritten on every poll tick while monitoring is active - only goes stale once monitoring has genuinely concluded (merged/abandoned) |
 | `followups/<slug>.md` | `odoo-draft-followup` command | 30d | terminal deliverable - the run concludes the instant this file is written, so there is no "still alive" window to protect against. Wired at `commands/odoo-draft-followup.md` § Phase 0, step 0. |
 | `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` (a FILE - `state-root-resolution.md`'s ISOLATE-table trailing `/` on this row is loose notation, not a real directory) | `odoo-demo-recording` | 30d | terminal deliverable, same class as `followups/<slug>.md`; the filename itself is collision-proofed per Clause 1's fifth-consumer rule above, not merely a bare `<timestamp>` |
-| `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | 24h | ALREADY self-deletes at its own end-of-run staging cleanup (`odoo-doc-illustration/SKILL.md` § End-of-run staging cleanup) - the TTL is a crash-only backstop, same class as `integration/<slug>/` and `visual/current/<slug>/` |
+| `visual/<run_id>/<module>_staging/` | `odoo-doc-illustration` | 24h | ALREADY self-deletes at its own end-of-run staging cleanup (§ End-of-run staging cleanup) - the TTL is a crash-only backstop, same class as `integration/<slug>/` and `visual/current/<slug>/` |
 | `i18n/<slug>-<date>/` | `odoo-i18n` | 30d | the i18n recipe already mandates a fresh export on every invocation and forbids reusing a prior run's artifacts (`i18n-mandate-contract.md`) - anything past the very next run is already-superseded, but 30d still gives grace for a delayed review of the translation report |
 | the 13 workflow `output_dir` trees (`bids/`, `content/`, `debug/`, `discovery/`, `implement/`, `packaging/`, `positioning/`, `qa/`, `research/`, `sales/`, `support/`, `upgrade-plans/`, `video/`) | `workflow-chaining` (the single runner for all 13) | 30d | same retained-evidence reasoning; swept ONCE generically at Phase 0 for whichever `output_dir` the active workflow declares, rather than thirteen separate call sites |
 | `visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, `visual/screenshots/<slug>/` | see Clause 2 | 24h / 30d | already covered above - listed here only for completeness of the full ISOLATE enumeration |
@@ -187,7 +187,7 @@ moment their own top-level directory goes 24h without a NEW child being created 
 worse than the leak this contract exists to close. The sweep MUST exclude all seven known
 siblings by name (`! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name
 screenshots ! -name videos`) so only an actual `<run_id>/` leftover matches
-(`odoo-doc-illustration/SKILL.md` § the exact command). Any future skill adding an EIGHTH named
+(`odoo-doc-illustration` § the exact command). Any future skill adding an EIGHTH named
 child directly under `visual/` must add itself to this exclusion list, or `odoo-doc-illustration`'s
 crash-backstop would delete that new sibling's tree the same way.
 
@@ -245,7 +245,7 @@ before resolving/using the active workflow's `output_dir` slug) - citing this fi
 restating the command. Two rows are wired ONCE at a shared chokepoint that already fans out to
 many consumers, instead of once per consumer: `worklog/<run-or-slug>/` at `worklog-contract.md`
 § Where it lives (every worklog writer follows that contract, so one edit covers all of them),
-and the 13 workflow `output_dir` trees at `workflow-chaining/SKILL.md` Phase 0 (the single
+and the 13 workflow `output_dir` trees at `workflow-chaining` Phase 0 (the single
 runner for all 13 workflows). Every other § 3.1 row is wired at its own owning skill.
 
 ### 3.6 - `integration/<slug>/` and `followups/<slug>.md`: the criterion design (both now wired)
@@ -272,10 +272,10 @@ plain mtime sweep `pr-monitoring/` already uses is directly correct with no corr
 needed. Wired at that command's Phase 0, step 0.
 
 **`integration/<slug>/` (owner: `skills/run-harness/references/run-integration.md` /
-`skills/run-harness/SKILL.md`) - a bare mtime sweep is UNSAFE here; do not copy Clause 2's generic
+`run-harness`) - a bare mtime sweep is UNSAFE here; do not copy Clause 2's generic
 recipe verbatim.** Applying `find ... -mmin +1440 -type d -exec rm -rf {} +` as-is would reopen the
 exact danger `run-<id>.json` is excluded from this sweep for (§ 3.3): `run-harness` can pause at an
-L2 human-confirm gate for an UNBOUNDED period mid-run (`run-harness/SKILL.md` § Gate-tier
+L2 human-confirm gate for an UNBOUNDED period mid-run (§ Gate-tier
 resolution - "ALWAYS human - emit gate, end turn, resume after approve/skip/cancel"), during which
 `integration/<slug>/plan.md` sits untouched - its mtime goes stale while the run is PAUSED, not abandoned.
 
@@ -322,7 +322,7 @@ name authorizes deletion - mirroring `reap-orphans`' own age-unknown-means-not-r
 (`scripts/lib/allocator.py` `_reap_candidates`) and the resolve-or-refuse discipline this contract
 already applies to `run-<id>.json` itself (§ 3.3). This is deliberately NOT a bare one-liner like
 the other 14 rows - it trades that uniformity for the one property that actually matters here: it
-can never delete a live paused run's evidence. Wired at `run-harness/SKILL.md` § Run start
+can never delete a live paused run's evidence. Wired at `run-harness` § Run start
 (the first action there, before this run creates or writes anything under
 its OWN `integration/<slug>/` for the first time) and detailed at `run-integration.md` § Stale integration-dir
 sweep.

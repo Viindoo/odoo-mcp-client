@@ -91,9 +91,8 @@ the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-c
 
 ### Step 1 - Resolve languages + detect conventions
 
-Resolve the locale set with the shared resolver (SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution): brief
-`LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
+Resolve the locale set with the shared resolver (SSOT: `odoo-doc-illustration`'s own Language
+resolution): brief `LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
 live `res.lang` (no built-in default beyond these tiers - all four empty returns `NEEDS_CONTEXT` per
 the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the

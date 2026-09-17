@@ -198,8 +198,7 @@ worktree (branched off integration, converged back via merge, then removed) is t
 WORK-tier pattern a fanned-out phase uses for genuinely PARALLEL, filesystem-isolated writers -
 each independent writer forks its own child worktree off the integration branch so concurrent
 writes never race on the same git index, then lands back by cherry-pick (the same shape
-`run-harness` applies to every source-writing plan node's worktree, per
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop). **P8 adapt never qualifies for it,
+`run-harness` applies to every source-writing plan node's worktree). **P8 adapt never qualifies for it,
 for two INDEPENDENT reasons that both hold on every P8 call this pipeline makes, in EITHER mode:**
 
 1. **No parallelism to isolate.** P8 is explicitly SERIAL per-module across the batch's whole
@@ -355,9 +354,8 @@ the identical SHA. Without a namespace, both would target the SAME
 `intents/<sha>.md` path with no owner or merge rule - a write race. Set the P1 dispatch brief's
 `SLUG` field to `<slug>/<module>` (the run `<slug>` plus this module's own name), never the bare
 run `<slug>`, for EVERY module's extractor dispatch (full brief:
-`references/fp-phase-detail.md` P1). The extractor's own write-path template
-(`agents/odoo-intent-extractor.md` Step 3) then resolves PER MODULE with no change needed
-to that agent. Each worker still writes
+`references/fp-phase-detail.md` P1). The extractor's own write-path template then resolves
+PER MODULE with no change needed to that agent. Each worker still writes
 one record PER COMMIT in its module bundle, under its own module's namespace (the why + behavioral
 contract + OSM-grounded symbols, never the diff) - output granularity stays per-SHA even though
 dispatch granularity is per-module, so P2/P3/`plan.md` need no change beyond the path shape above.
@@ -407,7 +405,7 @@ and the patched manifest history (log-with-patch of manifest modifications again
 `repo_root` is the MAIN checkout root where git runs - the integration worktree does NOT exist at
 P2 (it is created at P4); never reference it here. `source_ref` / `target_ref` are the source /
 target git refs. `manifest_path` / `history_dump_path` are absolute paths to the surveyor-written
-files (see pre-step above) - both mandatory (`agents/odoo-installable-prober.md` Inputs table).
+files (see pre-step above) - both mandatory.
 Whether resolved directly (categories 1-2) or via the prober (category 3), record
 `installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module, distinct
 from the per-commit intent/bucket/reason/evidence rows - this is the ONE field any later phase
@@ -416,8 +414,8 @@ installable:False short-circuit (`## Model triage`) and its lint-only lane uncha
 restate the rule here - SSOT: `[[fp-installable-false]]`.
 
 **P3 - Design [conditional route-out].** When a bucket-(c) "do now" commit touches a NON-TRIVIAL
-module (reuse the non-trivial criterion from `skills/odoo-solution-design/SKILL.md` § When to
-invoke - do NOT invent a third definition), route OUT to `odoo-solution-design` instead of
+module (the SAME non-trivial criterion `odoo-solution-design` applies for its own dispatch -
+do NOT invent a second definition here), route OUT to `odoo-solution-design` instead of
 adapting blind. A deferred or `installable:False` module needs no design - skip it. Mechanism:
 emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the run-harness
 advances it. The payload is `next: odoo-solution-design` with `return_to: odoo-forward-port` and
@@ -592,8 +590,8 @@ shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "
 a git worktree - cd on resume").
 
 **8b CODE adapt - closing R2b's remaining gap: launch the coder once, resume it across commits.**
-`agents/odoo-coder.md` § Cross-round resume confirms the coordinator is ROUND-scoped, not
-single-shot-forever: nothing in its own contract stops a caller from resuming the SAME
+The `odoo-coder` coordinator is ROUND-scoped, not single-shot-forever: nothing in its own
+contract stops a caller from resuming the SAME
 coordinator for a LATER round (a subsequent source commit touching the same module) instead of
 cold-spawning a fresh one - the identical mechanism already proven above for the 8a
 `odoo-test-writer` leg. **Same field shape as 8a - an ID your own launch returned, never a name:**
@@ -603,9 +601,9 @@ yours to keep - record it for that module in `plan.md`; on every LATER commit to
 `WORKER_AGENT_ID: <id>` in the FP-ENRICHED brief. One registry, one field label, one shape for both
 legs - never a second, differently-shaped field for the same purpose.
 
-**R2b is CLOSED at the 8b leg: `odoo-coding`'s brief-consumption contract (`skills/odoo-coding/SKILL.md`
-§ Dispatch loop step 0/3) recognizes `WORKER_AGENT_ID` and resumes that id instead of cold-spawning
-a fresh coordinator.** R2b (at most one agent per module) holds at 8b exactly as it already
+**R2b is CLOSED at the 8b leg: `odoo-coding`'s brief-consumption contract recognizes
+`WORKER_AGENT_ID` and resumes that id instead of cold-spawning a fresh coordinator.** R2b
+(at most one agent per module) holds at 8b exactly as it already
 does at 8a and at P1: the module's `odoo-coder` coordinator is launched once on the module's first
 commit, its returned id recorded, and it is resumed by that SAME id
 on every later commit touching that module - never cold-spawned a second time.
@@ -622,7 +620,7 @@ worklog is always written regardless of tier.
 
 - **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes
   the `odoo-test-writing` skill inline, which owns the whole classify/strip/translate/confirm-RED
-  method - `skills/odoo-test-writing/SKILL.md` § Adapt mode). The forwarded source test IS the
+  method). The forwarded source test IS the
   oracle: adapt it in place; only write one from scratch when the source commit shipped none,
   anchored to the source intent record, not improvised.
   Build an FP-ENRICHED brief carrying a named **Worktree path: `<path>/fp-integration`** field
@@ -654,7 +652,7 @@ worklog is always written regardless of tier.
   first dispatch this run>` (per the R2b rule above - omit on the module's first commit) +
   `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out
   result, so 8b never adapts blind - `none` when P3 never routed this commit to design; same
-  sentinel shape `odoo-coding`'s own brief-resolution already uses, `skills/odoo-coding/SKILL.md`
+  sentinel shape `odoo-coding`'s own brief-resolution already uses:
   "DESIGN_DOC: <child TDD path | none>") +
   `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
   version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs

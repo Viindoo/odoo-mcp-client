@@ -109,45 +109,54 @@ incomplete or unreachable. Never invert this. OSM is STATIC (no live records). K
 `handoff` is `fork` or `send-message` must document a Tier-C (fresh-spawn) fallback - reference
 `snippets/context-handoff-protocol.md` (`tests/test_chp_hardening.py`).
 
-### What a dispatching skill hands its agent
+### Writing the brief a skill hands an agent it dispatches
 
-The runtime rule is one line in `snippets/dispatch-brief.md`: **a brief carries WHAT and WHY,
-never HOW.** The caller owns outcome, scope, resolved inputs and boundaries; the dispatched agent
-owns its method. This is the same layering as `## Role` vs persona above - identity lives in the
-agent, not the skill - applied one axis over: *expertise* lives in the agent, not the skill.
+Runtime rule, stated once in `snippets/dispatch-brief.md`: **a brief carries WHAT and WHY, never
+HOW.** The caller owns outcome, scope, resolved inputs and boundaries; the agent owns its method.
+Same layering as `## Role` vs persona above - identity lives in the agent, not the skill - one axis
+over: expertise lives in the agent too.
 
-A skill that re-teaches its agent's trade does not reinforce the rule. It hands the agent a second
-copy that is already a lossy paraphrase of the first, and the agent spends its turn deciding which
-one governs. Paraphrases also drift: measured on this repo, a skill's one-line summary of a rule
-routinely outran the hedge its own cited SSOT carried.
+Re-teaching an agent its trade does not reinforce a rule. It gives the agent a second, lossier copy
+and a runtime decision about which governs, and the copies then drift: measured here, a skill's
+one-line summary routinely outran the hedge its own cited SSOT carried.
 
-**When editing a dispatching skill, give every block in its brief-composing sections exactly one
-disposition:**
+**Also do not replace the removed text with a pointer at the agent file.** A skill is something you
+INVOKE; an agent is something you LAUNCH. Neither is something you READ. `read agents/<name>.md` or
+`see skills/<x>/SKILL.md` hands the reader text addressed to whoever actually runs it, and still
+dispatches nothing - the instruction it needed was one word. Write `invoke <skill>` or
+`launch <agent>` and stop there. (Provenance belongs in your commit message and in this guide, not
+in the runtime file.)
+
+Pointing at instruction MATERIAL is the opposite and stays correct: `snippets/`, `docs/` and a
+skill's own `references/` exist to be read, and a skill or agent that tells you to read one is
+making that content part of itself. Rule 20 `[definition-pointer]` enforces exactly this line.
+
+**Give every block in a skill's brief-composing sections exactly one disposition:**
 
 | | When | Do |
 |---|---|---|
 | **KEEP** | Caller-side: a resolved value, scope in/out, business intent, `ACCEPTANCE` by pointer, deliverable + return shape, a hard boundary, a gate, a model tier, or a routing fact the caller needs to sequence its own phases | Leave it in the skill |
-| **MOVE** | Worker method, and the skill holds the ONLY copy | Relocate into the agent body (or a snippet that agent Reads). Deleting would lose a real rule. Re-ground any Odoo fact via OSM as you move it - do not carry a claim across on faith (ODOO-AI-ETHOS #12) |
-| **DELETE** | The agent, or a snippet it Reads, already owns it | Cut it. Cite `agents/<name>.md` § `<heading>` if the caller's reader must know the rule exists |
+| **MOVE** | Worker method, and the skill holds the ONLY copy | Relocate into the agent body (or a snippet that agent reads). Deleting would lose a real rule. Re-ground any Odoo fact via OSM as you move it - do not carry a claim across on faith (ODOO-AI-ETHOS #12) |
+| **DELETE** | The agent, or a snippet it reads, already owns it | Cut it, and cut it clean - no replacement pointer |
 
-Verify a DELETE by opening the agent and finding the owning line - not by assuming a well-built
-agent must already know. Verify the other direction too: wherever a skill says "the agent owns
-`<X>`", confirm `<X>` is actually in that agent's body. A caller that invents a downstream owner
-leaves the rule enforced by nobody, which reads exactly like a rule that is covered.
+Verify a DELETE by opening the agent and finding the owning line; do not assume a well-built agent
+must already know. Verify the other direction too: wherever a skill says the agent owns `<X>`,
+confirm `<X>` is in that agent's body. An invented downstream owner leaves the rule enforced by
+nobody, which reads exactly like a rule that is covered.
 
 **Two exemptions, both load-bearing - check for them before cutting anything.**
 
 1. *Anonymous workers.* A skill dispatching an UNNAMED leaf (an anonymous fork/spawn worker with no
-   `agents/<name>.md`) must paste the procedure into the brief - that worker cannot resolve
-   `${CLAUDE_PLUGIN_ROOT}` to read it. `orchestration.<skill>.spawns_agents` in
-   `generator/skill_tool_deps.json` is the data that says which case a skill is in: empty means
-   every worker on that edge is anonymous.
+   agent of its own) must paste the procedure into the brief - that worker arrives holding nothing
+   and cannot resolve `${CLAUDE_PLUGIN_ROOT}` to read it. `orchestration.<skill>.spawns_agents` in
+   `generator/skill_tool_deps.json` says which case a skill is in: empty means every worker on that
+   edge is anonymous.
 2. *Skills that also run INLINE.* The boundary is per-PATH, not per-skill. Several skills dispatch
-   an agent on one path and execute the same work themselves on another (`odoo-instance` runs
-   inline leaf-mode when its caller is a hard leaf, which cannot spawn). On the inline path there
-   is no agent to defer to, so the skill legitimately holds the method, and the duplication with
-   its agent is deliberate. Where that is so, a test usually pins BOTH statements and cross-checks
-   that they agree - look for one before concluding a restatement is drift.
+   an agent on one path and do the same work themselves on another (`odoo-instance` runs inline
+   leaf-mode for a hard-leaf caller, which cannot spawn). On the inline path there is no agent to
+   defer to, so the skill legitimately holds the method and the duplication is deliberate. A test
+   usually pins BOTH statements and cross-checks them - look for one before calling a restatement
+   drift.
 
 Guards: `tests/test_dispatch_brief.py`, and `check_orchestration.py` rule 19 `[brief-knowhow]`.
 

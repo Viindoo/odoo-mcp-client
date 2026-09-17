@@ -76,7 +76,7 @@ these pointers, each authoritative:
    is ALWAYS authored, statically, like every other terminal stage - its presence never depends on
    whether this oracle exists yet. When the oracle is absent (the common case), author the
    `acceptance` node's criteria from the design's §9 Acceptance Criteria instead (module-level AC
-   blocks PLUS the solution-level cross-module summary - see `agents/odoo-solution-architect.md` §9).
+   blocks PLUS the solution-level cross-module summary).
    When the oracle is already present (e.g. a re-plan), wire the review/acceptance lifecycle stages
    to it directly.
 4. **SURVEY (OPTIONAL - your brief states it explicitly, one value or the other, never omits it)** -
@@ -97,10 +97,10 @@ Apply these SSOTs by pointer:
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`); the plan carries ordering via
   `depends_on` ONLY. It carries NO worktree topology and NO concrete ref STATE - no SHAs, no branch
   tips, no resolved worktree filesystem paths, no lease tokens; those are RUNTIME, resolved by
-  `run-harness` (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Run start / § The loop).
-- **Model tier + TDD oracle** - the model tier is owned by the dispatched specialist skill at
-  runtime (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` model-tier section); the TDD oracle
-  is `odoo-qa-planner`'s `scenarios.md`. Reference both - pick neither.
+  `run-harness`.
+- **Model tier + TDD oracle** - the model tier is owned by the dispatched specialist skill (e.g.
+  `odoo-coding`) at runtime; the TDD oracle is `odoo-qa-planner`'s `scenarios.md`. Reference both -
+  pick neither.
 
 Each plan node is at **SKILL granularity** (`node -> skill`), never an agent. The plan's outer unit
 is the **node**, never the module (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`
@@ -138,8 +138,7 @@ list here). Skip a stage the run does not have; never reorder the rest. `integra
 per REPO**, once, after every non-land-tail node in that repo is DONE or SKIPPED; `odoo-pr-monitoring`
 then merges that PR at the merge approval gate. Each stage is its own node, tagged with its repo. **A
 node carries NO `gate_tier` - never author one, anywhere in the plan.** The tier is a total function
-resolved at dispatch (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution);
-writing a `gate_tier` field is a schema violation.
+`run-harness` resolves at dispatch; writing a `gate_tier` field is a schema violation.
 
 ## Round 2 - Decision X: estimate, never bind model or count
 
@@ -153,8 +152,7 @@ skill decides the actual count/model"** in BOTH the plan prose and each `run`-no
 runtime agent never reads a number as a directive. For ANY acceptance criterion that spans more than
 one module - whether those modules sit in ONE node or are split across SIBLING nodes - add ONE line
 to the OWNING node's Block 3 assignment (Round 1's Cross-module acceptance-criterion ownership rule)
-naming which of its assertions cross a module boundary, so `odoo-coder` knows what to stage
-(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Cross-module test staging). The plan binds only the
+naming which of its assertions cross a module boundary, so `odoo-coder` knows what to stage. The plan binds only the
 dependency layer (`depends_on` ordering); intra-skill
 coordination (per-node dispatch, backend-first leg, count/model) stays the specialist skill's.
 
@@ -207,11 +205,9 @@ When you finish, append a Continuation Contract block per
 
 - **`RETURN_TO` SET:** `next: <RETURN_TO>` with `inputs: {plan: <path>}` - the caller owns downstream
   serialization + execution.
-- **`RETURN_TO` ABSENT:** `next: odoo-intake` with `inputs: {plan: <path>}` - intake's **Phase P**
-  ingests the plan by pointer, serializes `run-<id>.json`, and dispatches `run-harness`. Rationale
-  SSOT (why intake, not `next: run-harness`):
-  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Continuation Contract. You only EMIT this;
-  never dispatch the next step yourself.
+- **`RETURN_TO` ABSENT:** `next: odoo-intake` with `inputs: {plan: <path>}` - never `run-harness`.
+  Why intake and not the harness is `odoo-planning`'s own Continuation Contract; do not restate it
+  here. You only EMIT this; never dispatch the next step yourself.
 
 ## You launch nothing
 

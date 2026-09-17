@@ -592,6 +592,21 @@ def _parse_clause3_registry(contract_text: str) -> list[tuple[str, str]]:
     return rows
 
 
+def _resolve_clause3_site(name_or_relpath: str) -> str:
+    """Resolve a Clause 3 registry row's first column to a plugin-relative file path.
+
+    The contract's own spec (see 'A row is `<skill name, or a references file path...>`') cites a
+    SKILL by NAME (e.g. `odoo-intake`), never by path (`skills/odoo-intake/SKILL.md`): rule 20
+    [definition-pointer] bans a runtime file (this contract lives under snippets/) from pointing at
+    a SKILL.md, because a skill is INVOKED, never READ - the name reaches the same site. A
+    references-file row already carries its own path (references material stays path-citable, per
+    rule 20's own carve-out) and passes through unchanged.
+    """
+    if "/" in name_or_relpath:
+        return name_or_relpath
+    return f"skills/{name_or_relpath}/SKILL.md"
+
+
 def test_clause3_registry_rows_each_cite_the_clause_in_their_own_section():
     """Genre A (registry-driven, not a hardcoded Python list). Every row in Clause 3's OWN
     consumer registry (parsed from scouting-persistence-contract.md, not restated here) must
@@ -602,21 +617,31 @@ def test_clause3_registry_rows_each_cite_the_clause_in_their_own_section():
     itself did not exist yet, so none of the three sections mentioned 'clause 3').
 
     Fails if: a registered site's clause-3 pointer is removed, or its section is dropped/renamed
-    without updating the registry row.
+    without updating the registry row. A skill row's first column is resolved from its NAME to
+    `skills/<name>/SKILL.md` (see `_resolve_clause3_site`) rather than hardcoding the path in the
+    registry itself, which rule 20 [definition-pointer] now bans.
     """
     contract_text = CONTRACT.read_text(encoding="utf-8")
     registry = _parse_clause3_registry(contract_text)
 
     failures = []
     for relpath, section_marker in registry:
-        path = PLUGIN / relpath
-        assert path.exists(), f"{relpath}: registered file not found on disk"
+        if "/" not in relpath:
+            assert not relpath.endswith(".md"), (
+                f"{relpath}: a skill-name registry row must stay a bare skill name, never a "
+                "skills/<name>/SKILL.md path - rule 20 [definition-pointer] bans a runtime file "
+                "(this contract lives under snippets/) pointing at a SKILL.md, because a skill is "
+                "INVOKED, never READ"
+            )
+        resolved = _resolve_clause3_site(relpath)
+        path = PLUGIN / resolved
+        assert path.exists(), f"{relpath} (resolved to {resolved}): registered file not found on disk"
         text = path.read_text(encoding="utf-8")
         idx = text.find(section_marker)
-        assert idx != -1, f"{relpath}: section anchor {section_marker!r} not found"
+        assert idx != -1, f"{resolved}: section anchor {section_marker!r} not found"
         section = text[idx:idx + 3000]
         if not re.search(r"clause 3", section, re.IGNORECASE):
-            failures.append(f"{relpath} ({section_marker!r}): no 'clause 3' pointer in its section")
+            failures.append(f"{resolved} ({section_marker!r}): no 'clause 3' pointer in its section")
     assert not failures, "Missing verbatim-capture clause pointers:\n" + "\n".join(failures)
 
 
@@ -658,8 +683,11 @@ def test_every_shared_detector_recon_site_is_registered():
     hyphenated qualifier broke the original "recon" + whitespace + "subagent" match) - widened again, in lockstep
     with registering that site (see `test_clause3_registry_rows_each_cite_the_clause_in_their_own_section`).
     """
+    # Registry rows name a SKILL (`odoo-intake`), never path at its SKILL.md (rule 20
+    # [definition-pointer] - a skill is INVOKED, never READ); resolve each to the file path this
+    # detector's own offender list uses so the two line up (see `_resolve_clause3_site`).
     registry = _parse_clause3_registry(CONTRACT.read_text(encoding="utf-8"))
-    registered_files = {relpath for relpath, _ in registry}
+    registered_files = {_resolve_clause3_site(relpath) for relpath, _ in registry}
 
     offenders = []
     for path in _tree_md_files():

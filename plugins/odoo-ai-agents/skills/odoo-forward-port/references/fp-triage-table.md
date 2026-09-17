@@ -64,8 +64,8 @@ Table 2's fable gate below already uses) - and the human's Plan
 Mode approval covers it. On a decline, downgrade that module's EXTRACT tier to **sonnet**
 (fable is not in the EXTRACT band, so there is no intermediate step down from opus) and record
 `<module>: sonnet (opus declined)` in `plan.md`. **Suppressed-gate auto-downgrade** (same pattern
-`skills/odoo-coding/SKILL.md` § Model triage already uses for its own fable gate - reused here by
-pointer, not re-derived): when Plan Mode itself is suppressed (an active `run-<id>` node or a
+`odoo-coding` already uses for its own fable gate - reused here, not re-derived): when Plan Mode
+itself is suppressed (an active `run-<id>` node or a
 `WORKTREE_PATH` dispatched-node context with no interactive human available), AUTO-DOWNGRADE to
 sonnet and record `<module>: sonnet (opus auto-downgraded - gate suppressed)` in `plan.md` -
 never silently proceed at opus, and never deadlock waiting on a human who is not there.
@@ -99,9 +99,9 @@ Constraints:
   the cost - with the reply set `approve / skip / cancel`. On `skip`, downgrade that
   work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`. Fable-grade work
   with no approved design doc -> recommend `odoo-solution-design` first.
-- **Suppressed-gate auto-downgrade** (same pattern `skills/odoo-coding/SKILL.md` § Model triage
-  already uses for its own fable gate, and Table 1's R2d opus gate above already reuses by
-  pointer - reused here too, not re-derived): when the P4 Plan Mode gate itself is suppressed (an
+- **Suppressed-gate auto-downgrade** (same pattern `odoo-coding` already uses for its own fable
+  gate, and Table 1's R2d opus gate above already reuses - reused here too, not re-derived):
+  when the P4 Plan Mode gate itself is suppressed (an
   active `run-<id>` node or a `WORKTREE_PATH` dispatched-node context with no interactive human
   available), no inline human confirmation is possible - if a work-item resolves to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`

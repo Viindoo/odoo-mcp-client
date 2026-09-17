@@ -17,7 +17,7 @@ per-skill judgment call:
   recommending a live verification pass rather than blocking. Example: `odoo-code-review` -
   Python/XML/OWL source review completes fully from static analysis; only the rendered-UI
   dimension needs a live render, so that one dimension is flagged while the overall review
-  still ships (`odoo-code-review/SKILL.md` § Phase A.5).
+  still ships (`odoo-code-review` § Phase A.5).
 - **Instance-REQUIRED** (the deliverable REQUIRES a live render/execution to exist at all).
   Emit `status: NEEDS_NEXT` with `next: odoo-instance` - there is nothing to ship without the
   instance, so the run stops and hands off provisioning instead of shipping a partial

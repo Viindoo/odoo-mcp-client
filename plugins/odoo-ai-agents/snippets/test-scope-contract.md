@@ -61,7 +61,7 @@ Run untagged only under one of these, and NAME which one in the report:
   how to resolve the class names: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 - **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but run only if INSTALLED, so a
   build that tags them unions them into `-i`/`-u` from the SAME probe - gated on `GATE_ROLE:
-  pre-pr-lint-gate`, owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Lint modules.
+  pre-pr-lint-gate`, owned by `odoo-instance-ops` § Lint modules.
 
 Both widen BOTH sides together. Neither is an exception to the two-sided rule.
 

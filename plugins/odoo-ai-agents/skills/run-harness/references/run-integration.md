@@ -1,6 +1,6 @@
 # Run Integration - Reference Templates
 
-On-demand reference for `skills/run-harness/SKILL.md`. Load this file when you need the full
+On-demand reference for `run-harness`. Load this file when you need the full
 template text for one of the structures below. Do not load it on every invocation.
 
 > `run-harness` is consume-only: it CONSUMES the approved plan's nodes and their `depends_on` edges
@@ -75,7 +75,7 @@ Notes:
 
 ## Run start procedure
 
-Expansion of `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Run start. The two steps and the
+Expansion of `SKILL.md` § Run start. The two steps and the
 three lineage invariants are DECIDED there; this section is the recipe.
 
 ```
@@ -129,7 +129,7 @@ resume from the last passing checkpoint). Never leave a half-built run-integrati
 
 ## Single-unit collapse
 
-Unit-agnostic collapse rule. Cited by `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` and by
+Unit-agnostic collapse rule. Cited by `run-harness` itself and by
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` P4; this section
 is its ONE owner - do not restate it, and do not re-derive a local variant.
 
@@ -468,7 +468,7 @@ paths, no personal info. Groups 1-3 and 5-8 still apply to avoid accidental leak
 
 ## Gate-tier node classes
 
-Expansion of `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, which owns
+Expansion of `SKILL.md` § Gate-tier resolution, which owns
 the tier FUNCTION and points here for the per-class detail. Nothing here computes a tier.
 
 **Source-writing node.** The BINDING human gate is the driver's, emitted before dispatch. A skill's
@@ -498,7 +498,7 @@ Write the prose in the USER'S language, keeping node ids, module names, paths, s
 reply keywords verbatim (`${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 **`confidence` resolution - an ABSENT value is `0.0`, never a default of "confident".** Before the
-`next[]` admission test in `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop compares
+`next[]` admission test in `SKILL.md` § The loop compares
 anything, RESOLVE the field: a number stays itself; ABSENT, `null`, or a non-numeric value resolves to
 `0.0`. `(nx.confidence or 0)` on that line is that resolution in code for every shape an emitter
 actually produces. `0.0` is below the bar the same line sets, so an UNSCORED hop takes the
@@ -506,7 +506,7 @@ actually produces. `0.0` is below the bar the same line sets, so an UNSCORED hop
 Two reasons, both load-bearing. (1) An emitter that OMITS the field has expressed NO confidence at
 all, and `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` makes `confidence` the
 advisory-vs-auto-run lever, so an omitted value is not a default - unscored hops are what real
-emitters ship (`agents/odoo-code-reviewer.md` § Continuation Contract emits `next:
+emitters ship (`odoo-code-reviewer`'s Continuation Contract emits `next:
 odoo-modules-upgrade` carrying no `confidence` field at all). (2) Reading the absence as consent
 inserts a node the human never approved into a Plan-Mode-approved plan; reading it as `0.0` costs one
 suggestion a human glances at. A number PRESENT but outside `0.0..1.0` is a malformed entry, not a
@@ -535,7 +535,7 @@ Refusal is the driver's call, so the stall it can cause is the driver's to close
 every skill shaped this way, not skill by skill. The shape: the node returned `NEEDS_NEXT`, the
 refused design hop was its ONLY forward move, and its own contract says it re-enters by reading the
 design artifact out of that hop's returned `inputs`
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P2b is exactly this - its mandatory
+(`odoo-modules-upgrade`'s P2b is exactly this - its mandatory
 route-out verdicts emit the Continuation Contract and YIELD, then expect `design_doc` back on
 re-entry). Such a node has nothing left to wait for, so `SKILL.md` § The loop's `NEEDS_NEXT -> DONE`
 mapping does NOT reach it: that mapping holds only for a node whose `next[]` actually materialized,
@@ -561,7 +561,7 @@ The concrete brief `run-harness` composes when it dispatches a coding node to `o
 **inputs only** - `odoo-coding`'s own body owns every procedure (design-doc resolution, model-tier
 choice, test-first dispatch); never restate `odoo-coding`'s internals here, only the fields it needs
 to CONSUME the plan's already-computed slice for one node (SSOT for the full field-by-field
-contract: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` § Plan-provided fast-path).
+contract: `odoo-coding`'s own Plan-provided fast-path).
 
 ```
 ## NODE <id> -> odoo-coding (Plan-provided fast-path: CONSUME, do not re-derive)
@@ -602,7 +602,7 @@ Return: the commit SHA on the node's branch (REQUIRED - a DONE with no SHA is a 
 ## Verification Brief Template
 
 The brief `run-harness` composes ITSELF for a node whose `approach` is `odoo-instance`
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Verification dispatch, which owns the
+(`SKILL.md` § Verification dispatch, which owns the
 decision and the GREEN-only DONE rule). Composing it yourself is what makes the touch EPHEMERAL and
 is the basis of that section's tier ceiling - never delegate the composition and never drop
 `MODE: fresh` / `PERSIST: ephemeral`. `WORKTREE_PATH` names a root other than your own cwd, so
@@ -699,7 +699,7 @@ where its original code was authored) plus the AUTONOMOUS FIX (review-driven) se
 path uses a SEPARATE tree from `run-integration`, so it is not done until the returned SHA is
 cherry-picked back onto `run-integration` - the SAME
 `cherry_pick(sha, into = repos[node.repo].run_integration)` step
-`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop performs for every node SHA, via the
+`SKILL.md` § The loop performs for every node SHA, via the
 `git-toolkit:git-ops` skill, never a raw git command inline. **Re-run verify against
 `run-integration`'s current tip specifically** (never the node's own worktree, and never a
 worker's bare DONE self-report) after ANY of the fix paths above. The review node returns DONE only
@@ -734,7 +734,7 @@ integrate`), `monitor` and `merge` are each authored as their OWN node by `odoo-
 the skill named above, and dispatched ONE AT A TIME by `run-harness`'s `pick_ready` loop exactly like
 a coding node. The PLAN copies this order into its `depends_on` edges; nothing here dispatches a
 position, and no tail may re-drive one. `integrate` readiness clause (i)
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`) already requires every pre-PR node of that repo
+(`SKILL.md`) already requires every pre-PR node of that repo
 DONE-or-SKIPPED before the PR can open, so a tail that drove them again would double a DECLARED human
 gate (i18n and acceptance are registry-L2 - `generator/skill_tool_deps.json`, `instance_touching:
 true` - and the ephemeral ceiling does not reach them, because the driver does not write their
@@ -743,7 +743,7 @@ briefs) and execute a side-effecting stage twice.
 **The ONE exception - do not delete it when trimming this section. Position (5), the pre-PR
 LINT-CLASS GATE, is NOT a plan node.** No node carries it; it is a DRIVER step the `integrate` land
 tail runs itself over the integration branch's aggregate diff. It keeps its caller
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § `integrate` node dispatch, step 1) and it
+(`SKILL.md` § `integrate` node dispatch, step 1) and it
 keeps `GATE_ROLE: pre-pr-lint-gate`. Stage blocks (5) and (6) below are the only execution detail
 this section still owns.
 
@@ -776,8 +776,7 @@ Each edge is a dependency, not a style preference:
 - **review first.** Its findings are fixed by EDITING SOURCE, so it belongs ahead of everything the
   edit would invalidate; and its blast-radius render-check is what makes the acceptance position fire
   at all - `odoo-code-review` emits that hand-off itself whenever a `render_check_set` reaches beyond
-  the changed modules (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Emit the acceptance
-  hand-off; shared `render_check_set` SSOT:
+  the changed modules (its own Emit-the-acceptance-hand-off step; shared `render_check_set` SSOT:
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`), and that hand-off is a
   BEFORE-the-PR obligation, never a post-merge one. A review placed after i18n would also re-read the
   whole translated `.po` churn for nothing.
@@ -801,10 +800,10 @@ Each edge is a dependency, not a style preference:
   exact failure this order exists to prevent. Every such edit re-opens § Verdict currency below.
 - **Only work that must OBSERVE the opened PR runs after (6).** CI-failure triage and fix,
   static-review-bot comment cross-check, review/approval polling, the MERGE itself, and post-merge
-  cleanup - all owned by `${CLAUDE_PLUGIN_ROOT}/skills/odoo-pr-monitoring/SKILL.md`. A bot comment
+  cleanup - all owned by `odoo-pr-monitoring`. A bot comment
   cannot predate the PR it is posted on; a worktree diff review can, and therefore must.
 - **ONE PR per REPO.** The PR stage opens exactly one PR for each repo the run touched, once that
-  repo's readiness predicate holds (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`
+  repo's readiness predicate holds (`SKILL.md`
   § integrate readiness - a predicate the driver evaluates over the LIVE node set, for which the
   plan's `integrate.depends_on` is only a floor).
 - **A pipeline that has no stage at some position SKIPS that position - it never reorders the
@@ -814,7 +813,7 @@ Each edge is a dependency, not a style preference:
 
 ### Verdict currency (a CONDITION the driver evaluates, not a caution)
 
-`integrate` readiness clause (iii) (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`
+`integrate` readiness clause (iii) (`SKILL.md`
 § integrate readiness) owns the rule; this is how to evaluate it. **ANY mutation of repo `R`'s
 `run-integration` branch after that repo's last verification node closed GREEN INVALIDATES that
 verdict.** Every terminal position can mutate it - a review node's fix, an i18n node's `.po`/`.pot`
@@ -841,7 +840,7 @@ leg of `verify-frontend.sh`. Invocation mechanics (commands, flags, PASS/CANNOT-
 are owned by `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md` +
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` - not restated here. This REPLACES every
 per-work-item / per-node lint-class self-check and re-verification - see
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` and its hard-leaf workers for what
+`odoo-coding` and its hard-leaf workers for what
 stays per-node instead (OSM-grounded ORM validation, inline review, zero-toolchain static OWL/SCSS
 checks - none of these are lint-class and none run here).
 
@@ -850,8 +849,8 @@ instance MUST load `run-integration`'s tree, not the principal checkout - the SA
 Example 3 below states for a cross-node verification instance ("the allocator emits the CATALOG
 addons list, which points at the principal checkout"). State `WORKTREE_PATH: <path>/run-integration`
 on the provisioning dispatch: when this gate runs INLINE in run-harness's own context, pass
-`WORKTREE_PATH: <path>/run-integration` directly on the `odoo-instance` skill dispatch (the field
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § Dispatch already defines); when run-harness
+`WORKTREE_PATH: <path>/run-integration` directly on the `odoo-instance` skill dispatch (a field
+`odoo-instance` already defines on its own Dispatch); when run-harness
 instead dispatches a bounded subagent for this gate, carry `WORKTREE_PATH: <path>/run-integration`
 PLUS `SELF_PROVISION: worktree-addons` in that subagent's brief - the SAME two fields § Node
 Invocation Brief Template above and Example 3 below already use for a worktree-rooted instance
@@ -866,12 +865,12 @@ guard refuses the `acquire` outright (rc 5) and the now-sole lint gate hard-bloc
 
 **Gate role is explicit too, never inferred from "this is the last stage" (mandatory).** This
 `run-tests` dispatch ALSO carries `GATE_ROLE: pre-pr-lint-gate` - the ONE explicit signal
-`agents/odoo-instance-ops.md` § Lint modules HARD RULE reads to decide whether to probe for, install,
+`odoo-instance-ops` reads (its own Lint modules HARD RULE) to decide whether to probe for, install,
 and tag any lint-class module at all. Every OTHER `run-tests` dispatch anywhere in this plugin -
 in particular the integrated node test `odoo-coder` runs for every coding node
-(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Own the integrated node verification), and the
+(its own Own-the-integrated-node-verification step), and the
 driver's own § Verification dispatch for an `odoo-instance` node
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`) - states `GATE_ROLE: node-verify` instead, so
+(`SKILL.md`) - states `GATE_ROLE: node-verify` instead, so
 the SAME operation name (`run-tests`) never collapses the two into one gate again: a node's
 integrated test surfaces ONLY that node's behavior failures, never a lint-class failure, and
 lint-class failures surface ONLY here. Omitting `GATE_ROLE` on this dispatch is not a safe default -
@@ -879,7 +878,7 @@ the agent refuses with `NEEDS_CONTEXT` rather than silently guess, exactly like 
 `WORKTREE_PATH` above must never be inferred from cwd.
 
 **A `tests-inconclusive` verdict from THIS dispatch is treated as a non-pass too, not only
-`tests-failed` (mandatory).** `agents/odoo-instance-ops.md` § Verdict contract resolves this
+`tests-failed` (mandatory).** `odoo-instance-ops`'s own Verdict contract resolves this
 `GATE_ROLE: pre-pr-lint-gate` dispatch to `tests-inconclusive` on ANY `TEST_RESULT=inconclusive`
 (skips, or no proof the suite ran), and on the "Checker-load coverage confirmation" case (a custom
 checker - e.g. an SQL-injection rule - that failed to load, or a log with no checker-coverage
@@ -903,13 +902,13 @@ it replaces:
   dispatch, still live at this point - node worktrees are torn down only by the post-merge
   § Cleanup Checklist above, never mid-run) - never an undefined "slice." Hand it the concrete lint
   output as evidence (the SAME "AUTONOMOUS FIX (review-driven)" sentinel pattern `odoo-code-review`
-  already uses, `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Autonomous fix loop).
+  already uses, in its own Autonomous fix loop).
   `odoo-coding` commits the fix there and returns the SHA exactly as any node dispatch does
   (§ Node Invocation Brief Template above, "Return: the commit SHA").
 - **Cherry-pick the fix back onto `run-integration` (mandatory - the fix does not ship until this
   runs).** `run-integration` is the ONLY branch the terminal land-tail squashes and pushes; a fix
   left on the node's own worktree branch never reaches the PR. Bring the returned SHA onto
-  `run-integration` the SAME way `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § The loop
+  `run-integration` the SAME way `SKILL.md` § The loop
   brings every other node SHA onto it - `cherry_pick(sha, into = repos[node.repo].run_integration)`
   via the `git-toolkit:git-ops` skill. This loop never runs raw git mutations inline; the repo's
   git-delegation rule binds it exactly as it binds every other mutation in this file. A semantic
@@ -941,7 +940,7 @@ it replaces:
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T0-T4 - the SAME contract every other self-provisioning step in this file already follows.
   Removing the per-work-item lint self-checks does not orphan anything: each was a self-contained
-  acquire-run-release cycle (`agents/odoo-backend-coder.md` "Backend code-quality gate"), so removing
+  acquire-run-release cycle (`odoo-backend-coder`'s own "Backend code-quality gate"), so removing
   the call removes the acquisition and its paired release together - no lease is left dangling, and
   the `odoo-coder` coordinator's OWN integrated-node-test instance cycle (a DIFFERENT, non-lint-class
   obligation) is untouched and continues exactly as before. Net effect across a run is FEWER

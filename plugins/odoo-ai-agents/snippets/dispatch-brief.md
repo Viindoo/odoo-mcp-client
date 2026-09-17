@@ -56,26 +56,25 @@ art, edit a view, author a test, provision an instance, run a suite and commit i
 will not complete. SPLIT on kind-count, never on length - which is not a licence to send a long
 brief; shorten it by cutting HOW (next rule), never by splitting one kind in two.
 
-**A brief carries WHAT and WHY, never HOW.** You own outcome, scope, resolved inputs, boundaries;
-the agent owns its method. Re-teaching its trade hands it a SECOND, already-lossy copy and it
-spends the turn deciding which governs. So a brief NEVER carries a step sequence the agent already
-runs, a tool-call chain, a domain heuristic or version fact, an algorithm, a severity rubric, a
-restatement of the agent's own contract (what it spawns, must not write, tears down), or text
-copied from a snippet it Reads. Cite the owner - `agents/<name>.md` § `<heading>`.
+**A brief carries WHAT and WHY, never HOW.** You own the outcome, the scope, the resolved inputs
+and the boundaries. The agent owns its method: it arrives already holding it, so re-teaching it
+hands it a second, lossier copy of a rule it has, and it spends the turn deciding which governs.
+Never put in a brief a step sequence, a tool-call chain, a domain heuristic or version fact, an
+algorithm, a severity rubric, the agent's own contract (what it spawns, must not write, tears
+down), or text copied from a snippet it reads. Leave it out - do not replace it with a pointer
+either.
 
-This is also what keeps the brief SHORT, which is load-bearing: a brief long enough to skim is one
-the receiver acts on before reaching the end, and the tail - boundaries, return shape - never gets
-applied. Budget: **one line per field, whole brief on one screen (~40 lines).** Over budget cut
-HOW, never a field: a dropped field costs a `NEEDS_CONTEXT` round-trip, a dropped procedure costs
-nothing. A field needing more than a line was never resolved - resolve it (rule 1).
+Keep the brief SHORT: **one line per field, the whole brief on one screen (~40 lines).** Past that
+the receiver starts acting before it reaches the tail, which is where your boundaries and return
+shape sit. Over budget, cut HOW, never a field - a dropped field costs a `NEEDS_CONTEXT`
+round-trip, a dropped procedure costs nothing. A field needing more than a line was never resolved;
+resolve it (rule 1).
 
-The other direction binds too: **do not delegate what nobody owns.** Before writing "the agent owns
-`<X>`", open that agent and confirm `<X>` is there; if not, put it there or drop the claim.
+**Do not delegate what nobody owns.** Ask for the outcome you need. Do not assert what the agent
+does internally to reach it - an assumption that turns out false leaves that gap enforced by no one.
 
-**Exemption - anonymous workers.** A skill dispatching an UNNAMED leaf (no `agents/<name>.md` holds
-the method) MUST paste the procedure in - that worker cannot resolve `${CLAUDE_PLUGIN_ROOT}` to
-read it. The rule above governs briefs to a NAMED agent; what decides which you are is
-`generator/skill_tool_deps.json` -> `orchestration.<skill>.spawns_agents`.
+**Exemption - anonymous workers.** Dispatching an UNNAMED worker (an anonymous fork or spawn, no
+agent of its own): paste the procedure into the brief. It arrives holding nothing.
 
 ## Role-family deltas (additive on the skeleton)
 
@@ -208,8 +207,8 @@ no format choice. Its brief is worktree-and-instance shaped:
 - `GATE_ROLE` (`pre-pr-lint-gate` | `node-verify`) - REQUIRED on every `run-tests` dispatch
   (and any test-enable `init-modules`/`update-modules`); decides whether the lint-module union
   fires. A load-bearing field with NO safe default - absence is refused (`NEEDS_CONTEXT`), never
-  guessed either way. Detailed rule owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md`
-  § Lint modules HARD RULE - pointer only, not restated here.
+  guessed either way. Detailed rule owned by `odoo-instance-ops` (§ Lint modules HARD RULE) -
+  not restated here.
 - The "provision-once / forward-everywhere" rule (`instance-handle-contract.md`).
 - Carries NO git ref / force-push / commit-convention fields - this family provisions databases and
   runs zero git.

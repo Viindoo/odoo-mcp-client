@@ -134,11 +134,11 @@ install_step <= k}). `doc:true|false` is the dedup switch. `extends_in_scope` (=
 ∩ the `doc:true` set) drives the cross-reference hint ("Extends `<base>` - see its documentation")
 the assembler adds to an extension's doc. `doc_layer` (`userguide|appstore|both`) is the PER-MODULE
 documentation-layer selector - carried straight from the `odoo-doc-scoper` scope block's per-module
-`doc_layer` (SSOT: `agents/odoo-doc-scoper.md` § Step 5, default `both`) when `plan_source: scope`;
+`doc_layer` (SSOT: `odoo-doc-scoper`'s own Step 5, default `both`) when `plan_source: scope`;
 a `plan_source: design-dag` entry MAY omit it (the design DAG carries no doc-layer signal). The
-writer-launch step (`odoo-doc-illustration/SKILL.md` § per-instance loop) reads THIS field per
-module; when an entry has no `doc_layer`, the run-level DOC LAYER axis default (`odoo-doc-illustration/SKILL.md`
-§ Documentation axes) applies to that module only.
+writer-launch step (`odoo-doc-illustration`'s own per-instance loop) reads THIS field per
+module; when an entry has no `doc_layer`, the run-level DOC LAYER axis default (`odoo-doc-illustration`'s
+own Documentation axes) applies to that module only.
 
 ```yaml
 run: doc-run-<timestamp>

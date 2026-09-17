@@ -41,7 +41,7 @@ Invoke whenever:
 
 **Default (no `SCOPE_FILES`/`CHANGED_SET` supplied): whole-module output, UNCHANGED** - a standalone invocation of this skill is unaffected.
 
-When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill with `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files - restrict authoritative findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing code) in a separate "Pre-existing / blast-radius" section of the output - never silently dropped, never merged into the diff-scoped findings.
+When a caller (e.g. `odoo-code-reviewer`'s own Audit escalation step) briefs this skill with `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files - restrict authoritative findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing code) in a separate "Pre-existing / blast-radius" section of the output - never silently dropped, never merged into the diff-scoped findings.
 
 Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md` - one severity scale governs the whole review-plus-audit pipeline.
 

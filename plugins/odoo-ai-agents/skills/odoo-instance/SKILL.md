@@ -96,8 +96,7 @@ risks silently reinstating the lint-class gate the pre-PR tail owns. Only forwar
 inferred from module count, phrasing, or any other proxy. This resolution happens HERE so the
 dispatched `odoo-instance-ops` agent always receives a resolved `GATE_ROLE` and never has to guess
 on this skill's behalf (its own contract refuses with `NEEDS_CONTEXT` if it ever does see one
-missing - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY
-for the designated pre-PR lint gate (HARD RULE)").
+missing).
 
 **Log verbosity default.** Every build (`create` / `init` / `update` / `run-tests`) runs at
 `--log-level=info` - Odoo's stock default, and the lowest level at which a PASSING run still emits
@@ -130,8 +129,8 @@ interchangeable: `create`/`init`/`update` need exit 0 AND the `Modules loaded.` 
 AND no failure marker; `run-tests` needs the run's OWN `TEST_RESULT=` line, and `Modules loaded.`
 is only PROGRESS there - Odoo logs it BEFORE the post-install suite starts, so it can never certify
 a tested build.
-Full contract (markers, heartbeat, reaped-launcher rule):
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
+Full contract (markers, heartbeat, reaped-launcher rule): owned by `odoo-instance-ops`'s own
+"Active-wait on long builds".
 
 **Readiness/completion signal is DETERMINISTIC, never a log tail.** One signal per job shape. An
 install/update job is DONE when the launched process EXITS (`--stop-after-init` guarantees this),
@@ -139,7 +138,7 @@ confirmed by exit 0 AND the forced `Modules loaded.` completion marker AND no fa
 0 ALONE is NOT proof of install (a bad module name, an unresolved dependency, or a failed demo load
 can each exit 0 while silently skipping it). A LISTENING instance is READY on a BOUNDED-timeout HTTP
 port poll - primary `/web/database/selector`, fallback `/web/login` - never a log line. Full
-contract: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Deterministic completion contract"
+contract: owned by `odoo-instance-ops`'s own "Deterministic completion contract"
 and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 14.
 
 **`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
@@ -165,9 +164,8 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
   series from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules,
   pins the resolved profile (brief `PROFILE`, or the series' vanilla profile when absent, or
   `NEEDS_CONTEXT`), probes every member of that set, and unions the whole set into the server-wide
-  `--load` list (never as an ordinary `-i`) when all of them are present - see
-  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Server-wide modules (`--load`) on a Viindoo
-  profile (HARD RULE)".
+  `--load` list (never as an ordinary `-i`) when all of them are present, per
+  `odoo-instance-ops`'s own "Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)".
 - **Lint modules for `run-tests` - GATED, never unconditional.** This union is NOT automatic like
   the server-wide set above - it fires ONLY when this dispatch's `GATE_ROLE` (resolved above) is
   `pre-pr-lint-gate`. For that ONE role, the agent reuses the pinned profile to resolve and probe the
@@ -177,13 +175,12 @@ before building the `odoo-bin` command, on top of the `en_US` union above:
   tag any of them - a lint-class violation in that dispatch's own module is caught
   ONLY at the run's designated pre-PR gate, never as a per-node `tests-failed` blocker. A
   `run-tests`/test-enable dispatch reaching the agent with `GATE_ROLE` still unresolved refuses with
-  `NEEDS_CONTEXT` rather than guess either way. Full contract:
-  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed ONLY for the
-  designated pre-PR lint gate (HARD RULE)" and
+  `NEEDS_CONTEXT` rather than guess either way. Full contract: owned by `odoo-instance-ops`'s own
+  "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" and
   `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
   Installing and tagging them is not proof their checkers ran: a clean counter set on a
   `pre-pr-lint-gate` dispatch is NOT `tests-passed` until the agent's own coverage confirmation
-  clears too (SSOT: `agents/odoo-instance-ops.md` "Checker-load coverage confirmation").
+  clears too (SSOT: `odoo-instance-ops`'s own "Checker-load coverage confirmation").
 
 **Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
 reads no config file, the generated-conf path is a unique temp file per run; see
@@ -338,9 +335,8 @@ not ask for, because suppressing tests the caller DID declare manufactures a fal
 verbatim in `notes` the agent's tags-used + provenance and its scope figures (modules actually
 loaded, tests actually run), plus its statement of any verdict decided by tests OUTSIDE the module
 under verification; never summarize them away, and never report an out-of-scope `tests-failed` as
-this module's own regression. SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Scope
-transparency; the scoping-vs-suppression rule itself:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
+this module's own regression. SSOT: `odoo-instance-ops`'s own Scope transparency section; the
+scoping-vs-suppression rule itself: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
 
 ### Inline leaf-mode (dispatched leaf / subagent self-provision)
 
@@ -357,9 +353,8 @@ A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and
 (contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Only with NO handle does
 the caller self-provision via this inline path.
 
-Run these steps in order, honoring the SAME HARD RULES as the agent (single source: the
-cross-referenced sections in `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` - do NOT restate
-them here):
+Run these steps in order, honoring the SAME HARD RULES as the agent (single source:
+`odoo-instance-ops`'s own cross-referenced sections - do NOT restate them here):
 
 1. **Acquire an isolated ephemeral lease** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
    § "Odoo instance allocation" (`scripts/lib/allocator.py acquire --mode ephemeral` -> a unique
@@ -367,10 +362,10 @@ them here):
 2. **Pin series + ground CLI flags** - `set_active_version` then `cli_help` per the agent's "Common
    preamble" Steps A-B (every flag from this series' `cli_help`, never from memory).
 3. **Apply the HARD RULES** as the agent does - `en_US` union
-   (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "en_US - always loaded on every build"),
-   the Viindoo server-wide set unioned into `--load` (same file, "Server-wide modules (`--load`) on
+   (`odoo-instance-ops`'s own "en_US - always loaded on every build"),
+   the Viindoo server-wide set unioned into `--load` (its own "Server-wide modules (`--load`) on
    a Viindoo profile (HARD RULE)"), and lint-module install for a test-run build ONLY when `GATE_ROLE:
-   pre-pr-lint-gate` (same file, "Lint modules - installed ONLY for the designated pre-PR lint gate
+   pre-pr-lint-gate` (its own "Lint modules - installed ONLY for the designated pre-PR lint gate
    (HARD RULE)"). A HARD LEAF self-provisioning here (e.g. `odoo-test-writer` confirming RED via a
    live run) is never the run's designated pre-PR lint gate, so it always self-resolves
    `GATE_ROLE: node-verify` per the resolution rule above before this step - it never installs

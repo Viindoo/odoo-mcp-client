@@ -280,9 +280,19 @@ def test_skill_inline_mode_honors_hard_rules():
 
 
 def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
-    """HARD RULES stay single-sourced in the agent - the skill cross-references, not restates."""
+    """HARD RULES stay single-sourced in the agent - the skill cross-references, not restates.
+
+    The cross-reference is by NAME (`odoo-instance-ops`), not by path
+    (`agents/odoo-instance-ops.md`): an agent is LAUNCHED, never READ, so a path to its file is an
+    instruction nobody dispatched from the skill can act on. Rule 20 [definition-pointer] bans the
+    path in a runtime file; naming the agent still identifies the same HARD-RULE owner.
+    """
     text = _norm(SKILL_MD)
-    assert "agents/odoo-instance-ops.md" in text
+    assert "odoo-instance-ops" in text
+    assert "agents/odoo-instance-ops.md" not in text, (
+        "cite `odoo-instance-ops` by NAME, not by path: rule 20 [definition-pointer] bans pointing "
+        "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
+    )
     assert "en_US - always loaded on every build" in text, (
         "inline-mode must point at the agent's en_US HARD-RULE section (SSOT)"
     )
@@ -1833,8 +1843,16 @@ def test_skill_relays_the_scope_transparency_requirement():
         "that the run goes out untagged - the front door is where callers read the "
         "default from"
     )
-    assert "odoo-instance-ops.md" in SKILL_MD.read_text(encoding="utf-8"), (
-        "the decidable rule stays single-sourced in the agent - the skill points at it"
+    # Cited by NAME (`odoo-instance-ops`), not by path (`odoo-instance-ops.md`): rule 20
+    # [definition-pointer] bans a runtime file pointing a reader at an agents/<name>.md file,
+    # because the agent is LAUNCHED, never READ - the name reaches the same SSOT owner.
+    skill_text = SKILL_MD.read_text(encoding="utf-8")
+    assert "odoo-instance-ops" in skill_text, (
+        "the decidable rule stays single-sourced in the agent - the skill points at it by name"
+    )
+    assert "odoo-instance-ops.md" not in skill_text, (
+        "cite `odoo-instance-ops` by NAME, not by path: rule 20 [definition-pointer] bans pointing "
+        "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
     )
 
 

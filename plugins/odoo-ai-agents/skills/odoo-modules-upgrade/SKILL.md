@@ -160,7 +160,7 @@ Comparator brief: "compare the module's nghiệp vụ / ý đồ / expected outc
 acceptance criteria against target-version CORE (`<target>`). Classify each feature per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`" -
 the comparator itself owns the whole-module DELETE-absorbed derivation
-(`agents/odoo-diff-comparator.md` § Step 3c, `whole_module_absorbed` rule).
+(its own `whole_module_absorbed` rule).
 Output per module: `absorption/<module>.md` - {per-feature classification, evidence
 (OSM citation), proposed action, deferred_work items (below)}.
 
@@ -181,7 +181,7 @@ implement -> P4b review -> P5 test path, not a side note (see § P4).
 
 **P2b - Hard-call design [mandatory route-out for specific verdicts].**
 Route to `odoo-solution-design` (`odoo-solution-architect` opus) when the comparator's return
-block `verdict:` field (`agents/odoo-diff-comparator.md` § Upgrade mode return block) equals ANY
+block `verdict:` field equals ANY
 of the following - match directly on `verdict:`, never infer from the `proposed_classification`
 count aggregate (that field is an extra roll-up, not the gate key):
 - `MERGE` (any merge, regardless of apparent clarity)
@@ -201,9 +201,8 @@ These verdicts represent architectural or data decisions that must NOT be auto-d
 the comparator or orchestrator. A trivial REWRITE(api)/KEEP - a localized deprecation-fix or
 call-site swap confined to <= 5 call sites in 1 module with no public-surface change - SKIPS
 design and goes straight to P3. DELETE-absorbed (no risk) and OBSOLETE never route (the module
-is removed, not adapted). Reuse the non-trivial criterion from
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a
-third definition. Full table: `references/upg-phase-detail.md` § P2b.
+is removed, not adapted). Reuse the SAME non-trivial criterion `odoo-solution-design` applies
+for its own dispatch - do NOT invent a second definition. Full table: `references/upg-phase-detail.md` § P2b.
 Emit the Continuation Contract and YIELD. On re-entry, read `design_doc` from the returned
 contract's `inputs`, record it, and proceed to P3.
 

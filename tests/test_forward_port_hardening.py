@@ -2455,11 +2455,20 @@ class TestTable2FableGateSymmetricWithTable1Opus:
         )
 
     def test_table2_cites_the_mirrored_odoo_coding_pattern(self):
+        """What must hold is that Table 2 names the pattern it MIRRORS rather than inventing a
+        parallel mechanism. It used to be pinned to the literal path `skills/odoo-coding/SKILL.md`,
+        which rule 20 [definition-pointer] now bans in a runtime file: a skill is invoked, never
+        read, so a path to its body is an instruction nobody can act on. Naming the skill carries
+        the same reuse claim, so the assertion moves to the name - the contract, not the spelling
+        it happened to have (ODOO-AI-ETHOS #8). Table 1's twin clause already cites it by name."""
         block = self._table2_fable_constraint_block()
-        assert "skills/odoo-coding/SKILL.md" in block, (
-            "fp-triage-table.md Table 2's new clause must cite skills/odoo-coding/SKILL.md as "
-            "the pattern it mirrors (the same pointer Table 1's own opus gate already uses) - "
-            "per the reuse-don't-reinvent instruction, not a freshly invented mechanism"
+        assert "odoo-coding" in block, (
+            "fp-triage-table.md Table 2's fable clause must name `odoo-coding` as the pattern it "
+            "mirrors - per the reuse-don't-reinvent instruction, not a freshly invented mechanism"
+        )
+        assert "skills/odoo-coding/SKILL.md" not in block, (
+            "cite `odoo-coding` by NAME, not by path: rule 20 [definition-pointer] bans pointing a "
+            "runtime reader at a SKILL.md, which is invoked rather than read"
         )
 
 

@@ -95,11 +95,22 @@ def test_p1_retired_test_base_class_directives_excised():
 
 
 def test_pointers_replaced_the_old_sites():
-    """The former duplicate sites now POINT at their SSOT (measurably shorter = a pointer)."""
+    """The former duplicate sites CITE their SSOT instead of restating it.
+
+    The citation is the skill's NAME, not `odoo-planning/SKILL.md`: rule 20 [definition-pointer]
+    bans a path to a skill body in a runtime file, because a skill is invoked and never read. The
+    contract this protects is unchanged - these two sites must defer, not restate. Inlining the
+    rationale to dodge the path ban is the failure mode, not a fix: it puts the same fact in four
+    places again, which is what NR1 exists to stop.
+    """
     planner = (PLUGIN / "agents" / "odoo-planner.md").read_text(encoding="utf-8")
     phase_p = (PLUGIN / "skills" / "odoo-intake" / "references" / "phase-p-run-dag.md").read_text(encoding="utf-8")
     for text, name in ((planner, "odoo-planner.md"), (phase_p, "phase-p-run-dag.md")):
-        assert "odoo-planning/SKILL.md" in text and "Continuation Contract" in text, (
-            f"{name} must point at odoo-planning/SKILL.md § Continuation Contract for the why-next "
-            "rationale instead of restating it."
+        assert "odoo-planning" in text and "Continuation Contract" in text, (
+            f"{name} must cite `odoo-planning`'s Continuation Contract for the why-next rationale "
+            "instead of restating it."
+        )
+        assert "odoo-planning/SKILL.md" not in text, (
+            f"{name} must cite `odoo-planning` by NAME - rule 20 [definition-pointer] bans a path "
+            "to a SKILL.md in a runtime file, because a skill is INVOKED, never READ"
         )

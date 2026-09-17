@@ -55,7 +55,7 @@ Consultant / Project Manager
 
 Gap analysis sets client expectations and determines budget. Errors in either direction are costly (under = overruns; over = lost deals).
 
-**Effort classification** (the locked `classification` axis - one of `standard | config | extension | custom`): the `odoo-gap-analyzer` agent's own § Classification + effort tier table is the SSOT for the classification -> effort_tier mapping - not restated here (`agents/odoo-gap-analyzer.md:95-106`).
+**Effort classification** (the locked `classification` axis - one of `standard | config | extension | custom`): the `odoo-gap-analyzer` agent's own Classification + effort tier table is the SSOT for the classification -> effort_tier mapping - not restated here.
 
 `effort_tier` is the separate day axis: **S** <1d - **M** 1-3d - **L** 3-10d - **XL** >10d. `coverage` is `full | partial | none`. These four enums (`classification`, `effort_tier`, `coverage`, and `grounded`) are the locked keys of `gap-matrix.jsonl` (see § Output).
 
@@ -132,14 +132,14 @@ correct. Each worker brief carries:
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.
 3. **Version + profile pin** - the concrete series and profile name Round 0 resolved; pass the
    concrete version on EVERY OSM call, never `'auto'`.
-4. **Grounding + brand rule** - both fully owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-gap-analyzer.md`
-   (§ Grounding: OSM-first, local-checkout fallback, the `grounded: unknown` + BLOCKED marker; its
-   module-identity rule: take `module` from `describe_module`'s `author`/`shortdesc`, never a slug
-   token) - do not restate either here.
+4. **Grounding + brand rule** - both fully owned by `odoo-gap-analyzer`'s own Grounding: OSM-first,
+   local-checkout fallback, the `grounded: unknown` + BLOCKED marker; its module-identity rule:
+   take `module` from `describe_module`'s `author`/`shortdesc`, never a slug token - do not
+   restate either here.
 5. **Output contract** - `OUTPUT_DIR: <SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>/`
    (a distinct DIRECTORY per cluster, never a bare filename - this is what keeps concurrent
    workers from racing on one path). File name + exact key schema are the agent's own LOCKED
-   Output contract (`agents/odoo-gap-analyzer.md`) - do not restate the key list here.
+   Output contract - do not restate the key list here.
 
 The `odoo-gap-analyzer` agent owns the per-requirement OSM method (the `check_module_exists` ->
 `model_inspect` / `module_inspect` -> `find_examples` / `suggest_pattern` rounds) and the
@@ -175,8 +175,8 @@ phrase it that way.
 All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill writes state-root
 artifacts (L0/L1, per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` risk tiers) - it
 writes the three artifacts below, then prints a compact summary plus these paths to chat. It still
-**skips Plan Mode** (state-root-only writer exemption - SSOT + rationale:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md` § Plan Mode decision tree).
+**skips Plan Mode** (state-root-only writer exemption - SSOT + rationale: `odoo-intake`'s own
+Plan Mode decision tree).
 
 ### `gap-matrix.jsonl` (machine SSOT - one JSON object per requirement)
 
@@ -228,7 +228,7 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
   `effort_tier` in `{L, XL}`. An `extension` row with `effort_tier: M` (Extension-M - a simple
   `_inherit` point) does NOT trigger design on its own. This mirrors `odoo-brl`'s Extension-M
   (skips design) vs Extension-L/Custom-XL (routes to design) split, so the two classifiers are
-  interchangeable (`odoo-brl/SKILL.md` § Stay format-compatible).
+  interchangeable.
 - `next` is a JSON **array** mirroring the chat continuation block's `next[]` (empty `[]`, or one
   entry `[{"skill": "..."}]`) - never a bare string/null. Three branches, evaluated in order (same
   split `odoo-brl` uses for Extension-L/Custom-XL vs Standard/Config/Extension-M, § Stay

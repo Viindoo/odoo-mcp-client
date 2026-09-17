@@ -28,10 +28,11 @@ post-merge; after merge the source-side `installable: True` is already present
 and masks the gap.
 
 - Read `<module>/<tgt-descriptor>` at the target ref via the `git-toolkit:git-ops` skill (read-only) -
-  `<tgt-descriptor>` is the module descriptor filename resolved once for the TARGET series
-  (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0; SSOT: `skills/odoo-forward-port/SKILL.md`
-  Hard rule 11) - an absent `installable` key means installable, an absent FILE means the module is
-  not on the clean tip. (Same read mechanism the "Recognition" step below re-applies for category 2/3.)
+  `<tgt-descriptor>` is the module descriptor filename resolved once for the TARGET series (the
+  `__openerp__.py`/`__manifest__.py` flip: `odoo-era-boundaries.md` § 6; resolution rule owned by
+  `odoo-forward-port` Hard rule 11) - an absent `installable` key means installable, an absent FILE
+  means the module is not on the clean tip. (Same read mechanism the "Recognition" step below
+  re-applies for category 2/3.)
 
 Decision:
 - Target clean-tip: module ABSENT or `installable: False` -> forward as

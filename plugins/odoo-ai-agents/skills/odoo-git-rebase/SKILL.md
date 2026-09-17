@@ -254,9 +254,9 @@ field add/remove/type-change, changes a method signature, overrides or relocates
 point (`create`/`write`/`unlink` or a method whose `find_override_point` chain has >=3
 entries), is a refactor in the sense `odoo-solution-design` § When to invoke defines one, or is
 full-stack / crosses the legacy<->OWL-2 boundary. A single-file, single-symbol, signature-preserving bucket-(b) rename - and every
-bucket-(a)/(d) commit - skips design. Reuse the non-trivial criterion from
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a
-third definition. Full table: `references/rb-triage-table.md` § Design-trigger table. Emit Continuation Contract and YIELD. Canonical payload (match
+bucket-(a)/(d) commit - skips design. Reuse the SAME non-trivial criterion `odoo-solution-design`
+applies for its own dispatch - do NOT invent a second definition. Full table:
+`references/rb-triage-table.md` § Design-trigger table. Emit Continuation Contract and YIELD. Canonical payload (match
 exactly): `next: odoo-solution-design`, `inputs: { return_to: odoo-git-rebase,
 design_slug_hint: <slug>-rb-<sha>, target_version: <series>, modules: [<names>],
 intent_records: [<paths>], classification: <outcome bucket + one-line reason> }`. On re-entry, read

@@ -168,7 +168,7 @@ single adversarial pass by a fresh context that did NOT author the design under 
 and/or child TDD(s) READ-ONLY, names the single weakest assumption plus a concrete alternative,
 and writes `_review-<date>.md` under `<SHARE_DIR>/designs/<master-slug>/` as a FINDINGS list
 (severity + alternative) - it never rewrites the TDD or `index.yaml`. Full contract:
-`agents/odoo-solution-architect.md` § Review mode.
+`odoo-solution-architect` § Review mode.
 
 ## Handoff fields (additive; backward-compat with single mode)
 

@@ -78,7 +78,7 @@ This mode activates when the dispatch brief contains `GROUNDING MODE: rebase-bas
 Write the intent record to `<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` - NOT the forward-port path.
 
 **`SLUG` is REQUIRED in rebase mode - NEVER derive a fallback here.** The caller
-(`odoo-git-rebase` `SKILL.md` § P2 and `references/rb-phase-detail.md` § P2) always supplies a
+(`odoo-git-rebase`, per `references/rb-phase-detail.md` § P2) always supplies a
 concrete `SLUG`: the bare run `<slug>` for the per-commit dispatch shape (one extractor owns
 exactly one commit - no collision possible), or `<slug>/<module>` for the module-batched dispatch
 shape used above the ~30-non-(a)-commit threshold (a commit shared between two modules is
@@ -194,7 +194,7 @@ and write it to `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md` - one file 
 output granularity as the single-SHA case, so P2/P3/`plan.md` (which key by SHA) need no change.
 
 **`SLUG` is REQUIRED in forward-port mode - NEVER derive a fallback here.** The caller
-(`odoo-forward-port` `SKILL.md` § P1 "Write path is PER-MODULE NAMESPACED") sets `SLUG` to
+(`odoo-forward-port`) sets `SLUG` to
 `<run-slug>/<module>`, not the bare run slug, so that a commit shared between two modules resolves
 to two DIFFERENT write paths instead of colliding on the same `intents/<sha>.md`. Deriving a
 fallback slug here from the source/target branch names alone would silently reconstruct the bare,

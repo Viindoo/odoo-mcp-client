@@ -140,10 +140,9 @@ match routes. Genuinely tiny/mechanical commits fall through and skip design.
 | 5 | (a) already-present / (d) no-longer-relevant | never (no adapt code is written) | NO |
 | 6 | (b) adapt | none of rows 2-4 match - a single-file, single-symbol, signature-preserving rename/move resolved to intent | NO (skip - trivial) |
 
-Where the row conditions come from: rows 2-4 mirror
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md` § When to invoke - READ the
-non-trivial criterion there and apply it as written. It is qualitative on purpose: do NOT
-invent a file-count or module-count threshold here, and do NOT restate the criterion inline -
-a third definition is exactly what this skill forbids. A model-field or method-signature
+Where the row conditions come from: rows 2-4 mirror the SAME non-trivial criterion
+`odoo-solution-design` applies for its own dispatch - apply it as written. It is qualitative
+on purpose: do NOT invent a file-count or module-count threshold here, and do NOT restate the
+criterion inline - a second definition is exactly what this skill forbids. A model-field or method-signature
 change is the "changes public model surface" line. Row 6 is the explicit "very small scale
 skips design".

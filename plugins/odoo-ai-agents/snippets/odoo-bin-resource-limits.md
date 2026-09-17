@@ -42,8 +42,8 @@ a stable `server` option v8-v19), but ENFORCEMENT does:
 value - `ulimit -Sv "$(resource_limit_hard_kib)"` immediately before the odoo-bin invocation, PLUS
 `--limit-memory-hard=$(resource_limit_hard_bytes)` on the command line. Each is a no-op where the
 other version's code path already handles it, and load-bearing where it doesn't. No prose
-version-branching is needed - `cli_help` grounding (already required by
-`agents/odoo-instance-ops.md`) is a defensive confirm only.
+version-branching is needed - `cli_help` grounding (already required of `odoo-instance-ops`)
+is a defensive confirm only.
 
 ## Uncapped escape hatch
 

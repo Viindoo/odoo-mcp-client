@@ -83,7 +83,7 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
 - **Survey (OPTIONAL - ALWAYS an explicit value, never a silently-missing field)** -
   `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`, forwarded in this skill's own dispatch brief
   `INPUTS` when intake's Proposed Plan `Survey:` field resolved a deep-survey synthesis this
-  session (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md` § Deep survey). Additional
+  session. Additional
   hotspot/impact grounding for node authoring and effort estimates - never a required gate. State
   `none` explicitly to `odoo-planner` when absent rather than omitting the field, and thread it
   onward the same way (§ P1a below); the mandatory-recon analog is `odoo-intake`'s Phase P
@@ -121,8 +121,7 @@ not here:
 - **driver** - such a node gets no tier and is never dispatched, static or materialized, at any
   confidence (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier
   node classes).
-- **actor** - the plan author may wire no node it writes to that skill or agent
-  (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-planner.md`).
+- **actor** - the plan author, `odoo-planner`, wires no node it writes to that skill or agent.
 
 ## No scope-preview gate - go straight to the planners
 
@@ -182,7 +181,7 @@ RETURN_TO: [omit when absent; set to the caller skill name when return routing i
 ```
 
 (Method - reading inputs, OSM grounding, schema conformance, node/skill wiring, the estimate-only
-constraint, and its own leaf/no-write boundaries - is `agents/odoo-planner.md`'s own Rounds 0-3;
+constraint, and its own leaf/no-write boundaries - is `odoo-planner`'s own Rounds 0-3;
 not restated here.)
 
 ### P1b - Doc plan (odoo-doc-planner)
@@ -216,7 +215,7 @@ it with nowhere to write (`snippets/dispatch-brief.md` § Universal skeleton, ru
 carries a resolved value).
 
 (Method - the doc-cluster scheduling algorithm, `doc-plan.yaml`'s path/schema, and the
-never-provision / never-spawn boundaries - is `agents/odoo-doc-planner.md`'s own Rounds 0-2; not
+never-provision / never-spawn boundaries - is `odoo-doc-planner`'s own Rounds 0-2; not
 restated here.)
 
 After both return, stitch their summaries into the combined plan-approval gate (see below).
@@ -251,8 +250,8 @@ Note: the doc plan's EXECUTION is deferred - it runs after the code plan's nodes
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. See `agents/odoo-planner.md` for the agent's
-read-only execution detail and output contract.
+This skill is part of an agent+skill bundle; `odoo-planner` itself owns the read-only execution
+detail and output contract.
 
 ### Plan Mode guard (enter HERE, after both planners return, before the approval gate)
 
@@ -283,7 +282,7 @@ covers what happens next: present the plan, gate on human approval, then `ExitPl
 
 When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
 then gate. Quote each plan path from the planner that RETURNED it - `odoo-doc-planner` picks its
-own path per dispatch path (`agents/odoo-doc-planner.md` § Round 2), so a path restated here is a
+own path per dispatch path (`odoo-doc-planner`'s own Round 2), so a path restated here is a
 path that goes stale without anything failing. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
 module names, model identifiers, and skill names verbatim):
 
@@ -385,7 +384,7 @@ skill always authors a plan - there is no design branch and no no-plan branch to
   code plan by pointer, serializes it into `run-<id>.json`, and THEN dispatches `run-harness` to
   drive it to done. The doc plan (`doc-plan.yaml`) is consumed by the doc stage after code lands.
   **This is the SSOT rationale for "why `next: odoo-intake`, not `next: run-harness`"** (other sites
-  - `agents/odoo-planner.md`, `skills/odoo-intake/references/phase-p-run-dag.md` - point here, do
+  - `odoo-planner`, `skills/odoo-intake/references/phase-p-run-dag.md` - point here, do
   not restate it): Do NOT emit `next: run-harness` here: `run-harness` walks an EXISTING
   `run-<id>.json` and cannot ingest a plan `.md`, so handing the plan straight to it would strand
   every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase
@@ -400,6 +399,5 @@ Note: the on-the-fly execution task list is owned by `run-harness`, NOT by this 
 creates and keeps it current per
 `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md` whenever a task-list tool is
 available, gated on nothing else.
-See `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`.
 
 Additive output for the Phase P -> run-harness handoff - it does not change anything produced above.
