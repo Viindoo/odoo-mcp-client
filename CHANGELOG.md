@@ -6,6 +6,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.0.2] - 2026-09-17
+
+### Changed
+
+- `odoo-ai-agents` - **a skill that dispatches a specialist agent no longer teaches that agent its
+  own trade.** A caller hands over outcome, scope, resolved inputs and boundaries; the agent owns
+  its method. Before this, an agent received two copies of one rule - its own, and the caller's
+  already-lossy paraphrase - and had to decide at runtime which governed, while the two drifted
+  apart independently. The rule is stated once in `snippets/dispatch-brief.md` (a third rule beside
+  the existing two) with a brevity budget, because an over-long brief is acted on before it is
+  finished reading and the tail is where the boundaries and the return shape sit. The
+  KEEP / MOVE / DELETE procedure and the two exemptions live in
+  `docs/authoring-skills-and-agents.md`. Skill-side prose is down ~670 lines; rules a skill held the
+  ONLY copy of were moved into the agent rather than deleted, and Odoo facts were re-grounded via
+  OSM on the way instead of copied on faith.
+
+### Fixed
+
+- `odoo-ai-agents` - **seven callers delegated to an owner that did not exist.** The worst renamed
+  the installable prober's `installable_false` field to `verdict` and inverted its sense, routing
+  modules into the lint-only lane backwards - a silently wrong answer, not an error. The same file
+  handled a `tentative` verdict the prober states it never returns. Also: `odoo-debug` claimed a
+  conditional security-audit hand-off `odoo-backend-debugger` never carried; `odoo-planning` told
+  the human the doc plan lands where `odoo-doc-planner` does not write it, and sent a brief with no
+  `SHARE_DIR`/`ISOLATE_DIR`/`RUN_ID` for it to resolve one from; `odoo-solution-design` told the
+  architect to ground against the frontend-fidelity contract in a file the architect never reads;
+  `odoo-translator` self-checked for Doc-writer fields an i18n dispatch never sends; and
+  `odoo-modules-upgrade` matched on a bare `DELETE` the comparator only ever returns as
+  `DELETE-absorbed`.
+- `odoo-ai-agents` - both coder agents cited `docs/reference/odoo-code-quality.md` without the
+  plugin-root prefix. Each `cd`s into its node's worktree before writing, so the path never
+  resolved there and the mandatory code-quality read was silently skipped.
+- `odoo-ai-agents` - `odoo-gap-analysis` restated the effort-tier heuristic its analyzer owns, and
+  the copies had drifted: the skill said `config -> S - M` where the agent's locked rule is
+  `config -> S`. A caller reading only the skill over-estimated a config item on the exact axis
+  that skill exists to protect.
+
+### Added
+
+- `odoo-ai-agents` - `check_orchestration.py` rule 19 `[brief-knowhow]`, the negative counterpart of
+  rule 12 `[brief-fields]`, over the same two dispatch tiers (skill -> agent and agent -> agent) and
+  over each skill's `references/` templates as well as its `SKILL.md`. Its deterministic half gates:
+  a brief field whose value points at a document instead of carrying a resolved value, and a
+  know-how heading family. Its prose-duplication half is permanently warn-only, because the same
+  wording appears innocently when a contract requires both sides to carry a sentence verbatim -
+  stated in the rule rather than hidden, so the gate's colour means what it says.
+  `tests/test_brief_knowhow_guard.py` proves the detector goes red before green, and pins the shapes
+  that must stay legal.
+- `odoo-ai-agents` - every citation of `snippets/dispatch-brief.md` (49 files) now carries
+  `§ Universal skeleton`, so a reader loads the section it needs instead of a 21KB contract.
+
+### Fixed (guards that were themselves wrong)
+
+- `odoo-ai-agents` - rule 3 `[design-system]` required every `stack: frontend` skill to cite the
+  fidelity contract, which ORDERED the duplication this release removes. It now checks the contract
+  is REACHED on the path, accepting an agent-side citation from a skill that only dispatches.
+- `tests/test_dispatch_brief.py` pinned the literal heading "Two rules ...", so adding a third rule
+  read as a regression. It now locates the section by its stable tail and asserts each rule.
+
 ## [7.0.1] - 2026-09-17
 
 ### Fixed
