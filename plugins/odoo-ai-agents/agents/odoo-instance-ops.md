@@ -303,13 +303,17 @@ Resolve both, never one alone:
    state the derivation in the output block notes rather than leaving it implicit. A `--test-enable`
    build always matches the automation-test row whatever its `GATE_ROLE`; `GATE_ROLE` decides the
    lint union, never the demo shape, so never read it as a purpose signal.
-   **Purpose unresolvable -> refuse, do not pick.** If no row in that table matches the dispatch
-   and the target series defaults demo OFF, STOP and return `status: NEEDS_CONTEXT`,
-   `blocked_reason: build purpose unresolved, so demo cannot be decided for <series>`. Both guesses
-   are silently wrong there: guessing off ships a demo-less docs or translation build whose output
-   is truncated with no error, and guessing on hands demo to a build that must not have it. Where
-   the series defaults demo ON this branch cannot arise - every purpose resolves to the same "no
-   flag" - so the refusal costs nothing on those series.
+   **Refuse only where the ANSWER MATTERS, never merely because no row named your build.** The table
+   ends with a catch-all for builds whose OUTPUT does not depend on demo records - a debug
+   reproduction, an ensure-up, a language activation, a bare create, a smoke run with no code change
+   - and those resolve to `off` with no flag. Refuse when the dispatch looks like one whose output
+   WOULD depend on demo (it produces a catalog, a document, a screenshot, a recording, or an
+   acceptance verdict) and you still cannot tell which row it is, on a series where demo defaults
+   OFF: STOP and return `status: NEEDS_CONTEXT`, `blocked_reason: build purpose unresolved, so demo
+   cannot be decided for <series>`. Both guesses are silently wrong for those: guessing off ships a
+   demo-less docs or translation build whose output is truncated with no error, and guessing on
+   hands demo to a build that must not have it. Where the series defaults demo ON this branch cannot
+   arise - every purpose resolves to the same "no flag" - so it costs nothing on those series.
 2. Turn it into a flag. **`DEMO: off` NEVER produces a flag, on any series** - it says the build
    does not require demo, and no purpose in this plugin ever actively strips a demo the series loads
    by default. Only `DEMO: on` can produce one, and only where the series does not already load demo;

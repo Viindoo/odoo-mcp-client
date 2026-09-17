@@ -152,19 +152,22 @@ find <addons_path1> <addons_path2> ... -maxdepth 2 \( -name __manifest__.py -o -
 ## Gate 7 - full untagged suite (installable-flip trigger)
 
 When a module flips `installable: False -> True`, the full gate suite (Gates 1-6) runs on Runbot
-with `--init <module>`. Reproduce Runbot's DEMO SHAPE FOR THIS SERIES, and take it from RUNBOT's own
-configuration for that series - this gate's whole purpose is parity, so deriving its shape from this
-plugin's tables instead would make the gate agree with us rather than with CI. Where Runbot's config
-is not to hand, fall back to the automation-test row of
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE and say in the
-report that the demo shape was assumed, not confirmed:
+with `--init <module>`. Its demo shape is the automation-test row of
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, which is the
+RECORDED Runbot shape for each series - and it is also the only shape this gate can actually run,
+because `odoo-instance` REFUSES `DEMO: on` on a `--test-enable` build wherever demo defaults off.
+So do not go looking for a different answer to pass to the dispatch. If you have Runbot's own config
+for the target series and it DISAGREES with that row, that is a FINDING to report - the row is
+stale and needs correcting at its source - never a reason to request demo on this build:
 
 > **This gate is DELIBERATELY untagged** - exemption case 4 of
 > `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md` (reproducing a CI gate that itself runs
 > untagged). Parity with Runbot is the point, so the scope must match Runbot's, not the change's
 > blast radius. Declare it as `TEST_TAGS: full` when dispatching through `odoo-instance`, so the log
 > shows a full run that was intended rather than a tag someone forgot. Every OTHER test run in this
-> checklist carries `--test-tags`.
+> checklist carries `--test-tags`. Like every `--test-enable` dispatch, this one also states
+> `GATE_ROLE` - `node-verify` unless this run IS the run's one designated pre-PR lint gate - because
+> `odoo-instance` refuses a test-run dispatch that leaves it unresolved rather than picking one.
 
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
@@ -178,16 +181,73 @@ odoo-bin -i <module> --test-enable --stop-after-init <db-options> \
 
 Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
-> The `-i` here reproduces the Runbot FRESH-init scenario (module just flipped installable, clean
-> DB). Re-running this gate against a DB where the module is ALREADY installed uses `-u <module>`
-> instead - `-i` on an installed module is a no-op. Confirm the flags via `cli_help`; see
+**Gate 7b - demo-load check, on any series where the suite above ran demo-less.** An
+installable-flip is the first time the module's own `demo/` data is ever loaded, so a suite that
+ran without demo has proved nothing about it, and broken demo XML would ship unnoticed - while
+`${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md` requires the module to ship that data. Prove
+it in a SECOND, SEPARATE build that loads demo and runs NO tests. Never merge the two: demo rows in
+a DB the suite asserts on make a correct record-counting test fail, and the tempting repair is to
+weaken the test rather than to remove the demo rows that never belonged there.
+
+```bash
+# Install only - NO --test-enable anywhere on this line.
+# The enable-flag exists ONLY on the series where demo defaults off - which is exactly the series
+# where this gate fires, so the two conditions coincide. Resolve the spelling from the pivots demo
+# rows for the target series, never by copying this line onto an earlier one.
+odoo-bin -i <module> --with-demo --stop-after-init <db-options> \
+         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+```
+
+Dispatch it through `odoo-instance` as `OPERATION: init`, `DEMO: on`, no `TEST_TAGS` and no
+`GATE_ROLE` - that field is required only for a build whose purpose is running tests, which this one
+is not, so supplying it here would misdescribe the build. Without `--test-enable` no suite runs at
+all, tags or none, so the untagged-run hazard the scope contract warns about cannot arise here. The
+demo-load row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build
+PURPOSE is what authorises `DEMO: on` here, and it authorises it ONLY because this build runs no
+tests.
+
+**Check the manifest FIRST - this gate cannot see demo that was deleted.** Odoo's demo loader
+returns success immediately when the manifest declares no `demo`/`demo_xml` key: nothing is loaded,
+nothing is logged, the install is green. So a rewrite that DROPPED the key during the upgrade passes
+this gate silently, which is the likeliest demo regression of all. Before running the build, compare
+the target manifest against the source one: if the module declared demo at source and no longer
+does, FAIL here and report it - do not let the build's own verdict answer a question it is
+structurally unable to answer.
+
+**Verdict, once the build runs.** Dispatched through `odoo-instance`, a demo load that raises is
+already caught for you: the loader logs it with a traceback, and the runner's install-failure
+matcher (`${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`, `_INSTALL_FAIL_RE`) turns
+any traceback into `STATUS=error`. Take that as the verdict. The caveat matters only if you ever run
+`odoo-bin` by hand outside that runner: Odoo catches every exception from a module's demo load,
+downgrades it to a WARNING, finishes installing the module WITHOUT its demo data, and still exits 0
+(`odoo/modules/loading.py`, `load_demo`) - so a hand-run gate that reads the exit code alone reports
+PASS on precisely the breakage it exists to catch. There, read the log for the demo-failure warning
+instead, taking its wording from that build's own `load_demo`.
+
+> **Gate 7b is FRESH-DB ONLY - never re-run it with `-u`.** On the upgrade path Odoo does not consult
+> the demo enable-flag at all: it reloads demo only when the module's stored `demo` flag is already
+> set (`odoo/modules/loading.py`, the `else: # 'upgrade' or 'reinit'` branch). A module that Gate 7
+> installed demo-less therefore has that flag FALSE, so `-u <module>` plus the enable-flag loads
+> nothing, the build goes green, and this gate reports PASS having verified nothing. Always give it
+> its own clean database.
+>
+> (The `-i`/`-u` note that follows applies to GATE 7, above, not to Gate 7b: `-i` there reproduces
+> the Runbot FRESH-init scenario, and re-running Gate 7 against a DB where the module is ALREADY
+> installed uses `-u <module>` instead - `-i` on an installed module is a no-op.) Confirm the flags via `cli_help`; see
 > `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
-Additionally run `base.TestInvisibleField` and (for `hr.*` modules) `hr.TestSelfAccessProfile`:
+Additionally run the framework-validation classes THIS SERIES ACTUALLY SHIPS. Neither of them spans
+the whole range - one only starts partway through it and the other is removed before the end - and a
+tag naming a class the series does not have matches nothing while the run still exits 0. Resolve the
+set from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes,
+drop any class not present at the target, and skip the `hr.*` one entirely for a module unrelated to
+`hr` (its tests cannot load unless `hr` is installed):
 
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin --test-tags base.TestInvisibleField,hr.TestSelfAccessProfile \
+# --test-enable is what turns the suite ON; --test-tags only FILTERS an already-enabled run.
+# Without it this line installs the module, runs zero tests, and still exits 0 having proved nothing.
+odoo-bin --test-enable --test-tags <only the classes resolved as present for THIS series> \
          -i <module> --stop-after-init <db-options> \
          --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
@@ -209,5 +269,6 @@ Viindoo-specific gates (hr.employee groups, always-invisible comment).
 | images PIL | yes | yes | yes | yes | yes |
 | .po `#. module:` | yes | yes | yes | yes | yes |
 | same-module-name | yes | yes | yes | yes | yes |
-| TestInvisibleField | no | no | no | no | v18+ |
-| TestSelfAccessProfile | no | no | no | v17+ | yes |
+| Framework-validation classes (which ones exist per series - `odoo-version-pivots.md`) | resolve | resolve | resolve | resolve | resolve |
+| Gate 7b demo-load (install only) | only where Gate 7 ran demo-less | same | same | same | same |
+

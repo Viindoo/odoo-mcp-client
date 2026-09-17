@@ -207,6 +207,193 @@ def test_agent_refuses_demo_on_an_automation_test_build():
     )
 
 
+def test_demo_load_verification_is_its_own_install_only_build():
+    """Dropping demo from the test gate must not drop the only check that demo still loads.
+
+    An installable-flip is the first time a module's `demo/` XML is ever loaded. When the suite
+    runs demo-less, nothing else exercises that XML, so broken demo data ships unnoticed - while
+    the plugin separately REQUIRES every user-visible feature to ship demo data. The two must be
+    separate builds: merging them puts demo rows inside a suite that counts records.
+    """
+    text = _norm(PIVOTS)
+    assert "Demo-load verification" in text, (
+        "pivots must carry a purpose row for proving a module's own demo data still loads - "
+        "without it the agent BLOCKs on that build as an unresolvable purpose"
+    )
+    row = next(
+        (ln for ln in text.split("|") if "Demo-load verification" in ln), ""
+    )
+    assert re.search(r"install only", row, re.I) and re.search(
+        r"never carries `--test-enable`|no `--test-enable`", row, re.I
+    ), (
+        "the demo-load row must state it never carries --test-enable, which is the only reason "
+        f"it may ask for demo at all; row was: {row!r}"
+    )
+
+    parity = _norm(PLUGIN / "skills/odoo-modules-upgrade/references/runbot-parity-checklist.md")
+    assert "Gate 7b" in parity, "the upgrade parity checklist must carry the demo-load gate"
+    gate = parity[parity.index("Gate 7b"):]
+    assert re.search(r"(NO|no|never)\s+`?--test-enable`?", gate), (
+        "Gate 7b's command must forbid --test-enable inline, where it is copied from"
+    )
+
+
+def test_demo_load_gate_does_not_key_its_verdict_on_exit_code():
+    """The gate would otherwise pass on exactly the breakage it exists to catch.
+
+    Odoo catches every exception from a module's demo load, logs a WARNING, records an
+    `ir.demo_failure` row, and finishes installing the module WITHOUT its demo data - exit 0,
+    completion marker printed. A verdict read from the exit code is therefore green on broken
+    demo XML, so this gate has to key on the warning instead.
+    """
+    parity = _norm(PLUGIN / "skills/odoo-modules-upgrade/references/runbot-parity-checklist.md")
+    gate = parity[parity.index("Gate 7b"):]
+    # The requirement is behavioural, not a phrasing: the gate must (a) warn that the exit code
+    # alone is not the verdict here, and (b) name a signal to read instead. How it words either is
+    # free - pinning the sentence is what makes a correct rewrite turn CI red.
+    assert "exit code" in gate.lower(), (
+        "Gate 7b must address the exit code, which is green on a failed demo load"
+    )
+    assert re.search(
+        r"demo[- ]failure warning|demo data failed to install|_INSTALL_FAIL_RE|STATUS=error", gate
+    ), (
+        "Gate 7b must name at least one concrete failure signal to read instead of the exit code"
+    )
+
+
+def test_flip_gates_are_reachable_from_the_phase_that_triggers_them():
+    """A gate nothing routes to is a gate that never runs.
+
+    The installable-flip gates live in the parity checklist, but the pipeline phase that detects
+    the flip is what an agent actually walks. Without an explicit pointer naming BOTH gates, an
+    agent following the phase steps literally never reaches them.
+    """
+    phase = _norm(PLUGIN / "skills/odoo-modules-upgrade/references/upg-phase-detail.md")
+    assert "Gate 7" in phase and "Gate 7b" in phase, (
+        "the upgrade phase detail must name BOTH installable-flip gates, not just the demo one"
+    )
+    assert "they ADD to Step 3, they never replace it" in phase, (
+        "the phase must say whether the flip gates replace or supplement the per-level run - "
+        "leaving that open makes the agent invent an answer"
+    )
+
+
+def test_every_test_enable_example_actually_enables_tests():
+    """`--test-tags` only filters; without `--test-enable` the run tests nothing and exits 0.
+
+    That is a silent false green of the same family as a tagged-but-uninstalled lint module, so no
+    example in the parity checklist may carry tags without enabling the suite.
+    """
+    raw = (PLUGIN / "skills/odoo-modules-upgrade/references/runbot-parity-checklist.md").read_text(
+        encoding="utf-8"
+    )
+    # Rejoin shell continuations first: an odoo-bin example spans several lines, and judging each
+    # line alone would flag the half that carries the tags while its --test-enable sits one line up.
+    commands, current = [], ""
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("#", ">", "|")):
+            current = ""
+            continue
+        current += " " + stripped
+        if stripped.endswith("\\"):
+            continue
+        commands.append(current)
+        current = ""
+    offenders = [
+        c.strip() for c in commands if "--test-tags" in c and "--test-enable" not in c
+    ]
+    assert not offenders, (
+        "these command lines filter a test run that was never enabled, so they run zero tests and "
+        f"still exit 0: {offenders}"
+    )
+
+
+def test_framework_validation_classes_carry_both_boundaries():
+    """Neither class spans the indexed range, and they move in OPPOSITE directions.
+
+    One appears partway through the range; the other is removed before the end. A `--test-tags`
+    entry naming a class the series does not ship matches nothing and the run still exits 0, so a
+    gate that names the pair unconditionally is green on both sides of the range while testing
+    nothing.
+    """
+    text = _norm(PIVOTS)
+    assert "Framework-validation test classes" in text, (
+        "pivots must own the framework-validation class boundaries"
+    )
+    assert "REMOVED at v19" in text, (
+        "pivots must state that the hr self-access class is removed, not merely 'newer'"
+    )
+    # Bounds pinned because they were wrong twice: read from each checkout's own addons/ tree.
+    assert "v18+ ONLY" in text, "TestInvisibleField appears at v18, not earlier"
+    assert "v13-v18 ONLY" in text, (
+        "TestSelfAccessProfile spans v13-v18 - a bound starting later drops a gate that exists"
+    )
+    assert "/base:TestInvisibleField" in text and "/hr:TestSelfAccessProfile" in text, (
+        "pivots must give the COPYABLE tag spec for each class, colon-separated"
+    )
+    assert "SILENT no-op, not an error" in text, (
+        "pivots must state that tagging an absent class fails silently rather than erroring"
+    )
+
+
+def test_no_test_tags_example_spells_a_class_with_a_dot():
+    """`module.Class` in a tag spec selects NOTHING, and nothing errors.
+
+    Odoo's selector grammar is `[-][tag][/module][:class][.method]` - the class separator is a
+    COLON. `base.TestInvisibleField` therefore parses as tag `base` plus METHOD
+    `TestInvisibleField`, matches no method that exists, and the run exits 0 having tested nothing.
+    Every example an agent might copy has to use the colon form.
+    """
+    offenders = []
+    for path in _agent_facing_md():
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            if "test-tags" not in raw_line and "test_tags" not in raw_line:
+                continue
+            # A dotted CapitalisedName inside a tag spec is the defect; `/mod:Class.method` is fine.
+            if re.search(r"[,'\"\s/]\w+\.[A-Z]\w+", raw_line) and ":" not in raw_line:
+                offenders.append(f"{path.relative_to(REPO_ROOT)}: {raw_line.strip()[:90]}")
+    assert not offenders, (
+        "these --test-tags examples name a class with a dot, which selects nothing and still "
+        f"exits 0; use /module:ClassName instead: {offenders}"
+    )
+
+
+def test_no_consumer_tags_both_framework_classes_unconditionally():
+    """A consumer that hardcodes the pair is wrong on one side of the range or the other."""
+    offenders = []
+    for path in _agent_facing_md():
+        if path.name == "odoo-version-pivots.md":
+            continue
+        text = _norm(path)
+        if "TestInvisibleField" in text and "TestSelfAccessProfile" in text:
+            if "Framework-validation test classes" not in text:
+                offenders.append(str(path.relative_to(REPO_ROOT)))
+    assert not offenders, (
+        "these files name both framework-validation classes without pointing at the per-series "
+        f"boundary that says which one the target actually ships: {offenders}"
+    )
+
+
+def test_upgrade_test_gate_never_asks_for_demo():
+    """The defect this change fixes: a v19 upgrade suite run with demo, failing correct tests.
+
+    A record-counting test is inflated by demo rows, so the suite looks broken and the tempting
+    repair is to weaken the test. Neither upgrade file may reinstate an unconditional demo=on.
+    """
+    for rel in (
+        "skills/odoo-modules-upgrade/SKILL.md",
+        "skills/odoo-modules-upgrade/references/upg-phase-detail.md",
+        # Gate 7's demo shape lives here, so leaving it out let a demo=on reappear un-caught.
+        "skills/odoo-modules-upgrade/references/runbot-parity-checklist.md",
+    ):
+        text = _norm(PLUGIN / rel)
+        assert "demo=on" not in text, (
+            f"{rel} still prescribes an unconditional demo=on for the install + test gate; "
+            "the demo shape must come from the automation-test purpose row instead"
+        )
+
+
 def test_no_file_spells_the_demo_enable_flag_with_a_value():
     """`--with-demo` takes no value - a `=<value>` form dies at option parsing (issue #252).
 

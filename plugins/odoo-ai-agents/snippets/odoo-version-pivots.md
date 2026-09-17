@@ -104,6 +104,14 @@ from the dispatch brief's own signals, never from the operation name alone.
 | Translation export / `.pot` / `.po` work | `on` | `--with-demo` | none - already on |
 | Documentation capture (`CONTEXT: doc`), demo recording, UI review | `on` | `--with-demo` | none - already on |
 | Acceptance live-UI sweep | `on` | `--with-demo` | none - already on |
+| Demo-load verification - proving a module's own `demo/` data still loads. INSTALL ONLY: this build NEVER carries `--test-enable` | `on` | `--with-demo` | none - already on |
+| Anything whose OUTPUT does not depend on demo records - a debug reproduction, an ensure-up, a language activation, a bare create, a no-code-change smoke run | `off` | none | none |
+
+The last row is the ONLY way a demo-carrying build and a code-gating suite coexist: they are two
+SEPARATE builds, never one build with both flags. Loading demo proves the `demo/` XML still parses
+and installs; running the suite proves the code works - and the moment demo rows enter a DB the
+suite asserts on, a correct test that counts records starts failing, which makes weakening the test
+look like the fix.
 
 `demo: off` states that the build does not REQUIRE demo; it is never an instruction to remove demo
 that the series loads by default. Disabling it changes what the build reproduces, so every row above
@@ -115,6 +123,26 @@ asks for a flag only where one is needed to ADD demo.
 > in `setUpClass` / `setUp` and MUST NOT reference a demo record by xmlid or by name. This holds even
 > when the test was authored while driving a demo-carrying acceptance instance: the file it leaves
 > behind runs demo-less in the gate.
+
+## Framework-validation test classes (named in `--test-tags` beside module tags)
+
+| Class | Tag spec to pass | Present at |
+|---|---|---|
+| `TestInvisibleField` (in `base`) | `/base:TestInvisibleField` | v18+ ONLY - absent below v18 |
+| `TestSelfAccessProfile` (in `hr`) | `/hr:TestSelfAccessProfile` | v13-v18 ONLY - REMOVED at v19, the whole test file is gone |
+
+> **The class separator in a tag spec is a COLON.** The grammar is `[-][tag][/module][:class][.method]`
+> (`odoo/tests/tag_selector.py`, `filter_spec_re`), so `base.TestInvisibleField` does NOT name a
+> class - it parses as tag `base` plus METHOD `TestInvisibleField`, matches no test method that
+> exists, and selects NOTHING. Spell it `/base:TestInvisibleField`. This is why the tag-spec column
+> above exists: copy it, never re-derive it from the class's dotted name.
+
+> **A tag that matches nothing is a SILENT no-op, not an error** - whether because the spec is
+> misspelled or because the series does not ship that class. The suite then runs whatever else was
+> tagged, possibly nothing at all, and the process still exits 0. So resolve this set PER SERIES and
+> never carry the pair across either boundary: they move in OPPOSITE directions, one appearing
+> partway through the range and the other removed before the end. Class bounds and the selector
+> grammar read from each indexed checkout's own `addons/` and `odoo/tests/`, 2026-09-17.
 
 ## CLI - server-wide modules (`--load` / `server_wide_modules`)
 
@@ -177,7 +205,10 @@ class HrEmployee(models.Model):
   both models and would wrongly gate the field on the public model too.
 - ACL requirement from v16+. Enforced by `hr.TestSelfAccessProfile.test_employee_fields_groups`
   (exact test name present from v18; sibling test `TestSelfAccessRights.testReadOtherEmployee`
-  covers v16/v17).
+  covers v16/v17). Those are METHOD bounds inside the class, narrower than the CLASS bound in
+  § Framework-validation test classes - read that section for what to TAG, and this line only for
+  which assertion actually fires. The class itself is gone at v19, so the convention stands on its
+  own there with no test left to catch a violation.
 
 ---
 

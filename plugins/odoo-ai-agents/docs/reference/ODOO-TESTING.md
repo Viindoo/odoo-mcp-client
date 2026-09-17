@@ -79,7 +79,7 @@ for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 > framework `post_install` validation classes (e.g. Odoo `base` view-arch tests, hr self-access
 > tests) that are not tagged with your module - so a tag-restricted run can stay green while a
 > framework check the change actually broke never runs. **The remedy is to NAME those classes in
-> `--test-tags` beside the module tags** (`--test-tags '/<cluster>,base.TestInvisibleField'`), not
+> `--test-tags` beside the module tags** (`--test-tags '/<cluster>,/base:TestInvisibleField'`), not
 > to drop the tag filter: an untagged run buys a handful of framework classes at the price of every
 > installed module's suite, `base` upward. The class names here are illustrative - confirm via
 > OSM / `cli_help`.
