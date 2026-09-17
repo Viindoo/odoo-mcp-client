@@ -185,12 +185,12 @@ ALWAYS reconfirm live via `cli_help` - this table (including the port-flag rows)
 | HTTP port | `--xmlrpc-port` | `--http-port` | `--http-port` |
 | Disable HTTP | `--no-xmlrpc` | `--no-http` | `--no-http` |
 | Longpoll/gevent port | `--longpolling-port` | `--longpolling-port` (v11-v15), `--gevent-port` (v16+) | `--gevent-port` |
-| Demo data off | `--without-demo=all` (the value is REQUIRED here - bare `--without-demo` is a parse error) | `--without-demo=all` (same required-value form; demo ON is default v8-v18 so this flag is how you disable it) | bare `--without-demo` - per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo flag the value turns OPTIONAL and BOOL-typed at this boundary, so the `=all` module-list form no longer parses (it fails the bool check and only reaches "demo off" via a logged fallback); demo is OFF by default here anyway, so the flag is usually unnecessary |
-| Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | default OFF from v19; use `--with-demo` to enable - always reconfirm via `cli_help` |
+| Demo data off (this row is HOW to disable demo, never WHETHER to - see § Demo data by build PURPOSE for that, and note an automation-test build does NOT disable a default-on demo) | `--without-demo=all` (the value is REQUIRED here - bare `--without-demo` is a parse error) | `--without-demo=all` (same required-value form; demo ON is default v8-v18 so this flag is how you disable it) | bare `--without-demo` - per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo flag the value turns OPTIONAL and BOOL-typed at this boundary, so the `=all` module-list form no longer parses (it fails the bool check and only reaches "demo off" via a logged fallback); demo is OFF by default here anyway, so the flag is usually unnecessary |
+| Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | demo defaults OFF in this column - bare `--with-demo` enables it, and the flag takes NO value, so a `=<value>` form is a parse error that kills the run before the DB is touched. Which build purposes may enable it at all: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
 | Language activation (ACTIVATE; NOT `-l`/`--language`) | `--load-language=<csv>` combined with `-i base --stop-after-init`; CRITICAL: `-l`/`--language` ONLY selects export file, does NOT activate locale in DB - never substitute | same: `--load-language=<csv>` combined with `-i base --stop-after-init` | `--load-language=<csv>` is STILL PRESENT and still functional (`odoo/tools/config.py` declares it; `odoo/modules/loading.py` splits the csv and calls `tools.translate.load_language` per code - read 2026-09-02), and v19 ALSO adds `odoo-bin i18n loadlang -d <db> -l <lang>` as a dedicated subcommand (one locale per call). It is the EXPORT/IMPORT half that moved onto the `i18n` subcommand, never activation - do not report `--load-language` as removed. Confirm via `cli_help(command='server', flag='--load-language', odoo_version='<series>')` and `cli_help(command='i18n', odoo_version='<series>')` |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
-| Server-wide modules (`--load` / `server_wide_modules`) | default `web` (`cli_help` confirms) | default `base,web` (`cli_help` confirms) | default `base,web`, but `cli_help` returns NO `Default:` line at all on v19 (silent, not merely stale) - fall back to the local-source default below |
+| Server-wide modules (`--load` / `server_wide_modules`) | core default per series, and the Viindoo set to union into it, are ONE table: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules. Read the whole resulting `--load` from that row - never append to a remembered shorter one | same | same, plus: `cli_help` can return NO `Default:` line at all in this column (silent, not merely stale) - take the core default from that table and flag `grounded: local-source` |
 | Lint modules for test-run builds (`-i`/`-u` + `--test-tags`) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) |
 
 **v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
@@ -206,11 +206,11 @@ version-correct flag" is not enough on its own - pick deterministically, never b
 operation below that resolves a port flag; Step D resolves the allocator-issued PORT NUMBER, this
 rule resolves the flag NAME - never guess either.
 
-**Server-wide modules on a Viindoo profile** (row above): when the active profile carries `to_base`, UNION it into `--load` regardless of the era default shown - see "Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)" below. **Lint modules row**: which module(s) to union (`test_lint`, `test_pylint`) is never assumed from a version range, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
+**Server-wide modules on a Viindoo profile** (row above): the Viindoo set is version-dependent and is NOT the same set on every series - resolve it from the pivots row, then confirm the profile carries it, per "Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)" below. **Lint modules row**: which module(s) to union comes from `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, never from a version range you recall, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
 
 **CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale or silent (known gaps: v18 `--with-demo` was erroneously indexed - see OSM bug tracker; v19 `cli_help(command='server', flag='--load', odoo_version='19.0')` returns NO `Default:` line at all - live-verified). For demo, port, and server-wide-module flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|http.port\|server_wide_modules' odoo/tools/config.py`) - this is exactly how the v19 `--load` fallback below resolves. Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
 
-**v19 `--load` fallback (cli_help silent, HARD RULE):** when `cli_help` for `--load` on the target series returns no `Default:` line (currently only observed on v19), do NOT treat this as "no default modules load" - fall back to the known modern default `base,web` sourced from Odoo disk (`odoo/tools/config.py`'s `server_wide_modules` default) and flag `grounded: local-source` in the output block notes, exactly like the `--with-demo` stale-cli_help fallback above. Then union `to_base` into that fallback default per the HARD RULE below, same as any other era default.
+**v19 `--load` fallback (cli_help silent, HARD RULE):** when `cli_help` for `--load` on the target series returns no `Default:` line (currently only observed on v19), do NOT treat this as "no default modules load" - take the core default for that series from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules (sourced from `odoo/tools/config.py`'s `server_wide_modules` default) and flag `grounded: local-source` in the output block notes, exactly like the `--with-demo` stale-cli_help fallback above. Then union the Viindoo set for that same series per the HARD RULE below. Read the core default from the pivots row rather than carrying one forward from an earlier series: the newest core default in that table gained a module Odoo does NOT re-add for you, so a set carried forward loses it silently.
 
 Source-fallback trigger: when `cli_help` for the db subcommand reports no usable flags (empty or 'no flags indexed'), read `odoo/cli/db.py` from the source checkout directly.
 
@@ -235,7 +235,7 @@ Even when `LANGUAGES` is `none`, still load `en_US` alone. Apply this defensivel
 dispatching `odoo-instance` skill also unions it - never emit a build command that omits `en_US`.
 Verify via `res.lang` that every code (including `en_US`) is active before reporting `status: ok`.
 
-## Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)
+## Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)
 
 Before constructing the `odoo-bin` server command for **create-instance**, **init-modules**,
 **update-modules**, and **run-tests**, detect DATA-DRIVEN (never hardcoded) whether the active
@@ -258,29 +258,79 @@ then resolve and PIN the profile BEFORE any probe - never call `check_module_exi
    session-level pin is last-write-wins under concurrency (the same caveat that applies to the
    version pin in Step B), so the explicit argument is the safety net that never relies on the
    ambient pin alone.
-3. **Probe.** `check_module_exists(name='to_base', odoo_version='<series>',
-   profile_name='<resolved profile>')`.
+3. **Resolve the set for THIS series.** Read the row for the target series in
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules. That row
+   gives BOTH the core default and the Viindoo set to union - they are different sets on different
+   series, so a set remembered from another series is wrong even when every module in it resolves.
+4. **Probe.** For EACH module in that series' Viindoo set, call
+   `check_module_exists(name='<module>', odoo_version='<series>', profile_name='<resolved profile>')`.
 
-If Indexed = Yes, the build MUST load `to_base` server-wide: read the era default for `--load`
-(config key `server_wide_modules`) via `cli_help(command='server', odoo_version='<series>')` -
-falling back to local-source when `cli_help` is silent, per the v19 fallback above - and UNION
-`to_base` into it - e.g. a modern default `base,web` -> `--load base,web,to_base`; an older
-default `web` -> `--load web,to_base`. NEVER drop the era default; only APPEND `to_base`. If
-`to_base` is Indexed = No (the resolved profile - vanilla or Viindoo - has no `to_base` in scope),
-do NOT add `--load` at all - leave the series default untouched. Verify the final `--load` value
-against the current series' `cli_help` output like every other flag, then fold it into `--extra`.
+Then decide from the probe results as a WHOLE - the set is atomic, never partially applied:
+
+- **Every module Indexed = Yes** -> this is a Viindoo stack. Build `--load` as the whole resulting
+  value from the pivots row (core default PLUS the Viindoo set). Take the core default from that
+  row, not from a value carried over from another series.
+- **Every module Indexed = No** -> this profile does not carry THIS series' server-wide set. Do NOT
+  add `--load` at all; leave the series default untouched. Report it that way too - as the set that
+  was not found, naming it - never as a verdict that the profile "is not Viindoo": a Viindoo-named
+  profile can legitimately carry none of them, and a stack verdict you report upward is one a
+  later reader will act on.
+- **Some Yes, some No** -> STOP. Return `status: NEEDS_CONTEXT` with `blocked_reason: the Viindoo
+  server-wide set for <series> is only partially present in <profile>`, naming which modules
+  resolved and which did not. Never build a partial `--load`: a server-wide set missing one member
+  boots a registry that differs from every other build on that series, and nothing errors.
+
+Verify the final `--load` value against the current series' `cli_help` output like every other flag,
+then fold it into `--extra`.
 
 **Unsafe degradation (do not do this).** Live-verified: a profile-less `check_module_exists` can
 default to a Viindoo-inclusive cross-profile view and report Indexed = Yes on a build that should be
 vanilla-CE. NEVER omit `profile_name=` to "simplify" the call - resolve per step 1 and pin per step 2
 first, every time, for both this probe and the lint-module probe below.
 
-`to_base` must load server-wide (before the registry builds) via `--load` / `server_wide_modules`;
-installing it as an ordinary `-i` module is NOT equivalent - it misses the boot-time patch point.
+These modules must load server-wide (before the registry builds) via `--load` /
+`server_wide_modules`; installing one as an ordinary `-i` module is NOT equivalent - it misses the
+boot-time patch point.
+
+## Demo data on a build (HARD RULE)
+
+The `DEMO:` brief field says what this build NEEDS; the series decides which flag expresses it.
+Resolve both, never one alone:
+
+1. Take `DEMO:` from the brief. When it is absent on ANY build operation - **create-instance**,
+   **init-modules**, **update-modules** or **run-tests** alike - DERIVE it from the build's PURPOSE
+   via `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, and
+   state the derivation in the output block notes rather than leaving it implicit. A `--test-enable`
+   build always matches the automation-test row whatever its `GATE_ROLE`; `GATE_ROLE` decides the
+   lint union, never the demo shape, so never read it as a purpose signal.
+   **Purpose unresolvable -> refuse, do not pick.** If no row in that table matches the dispatch
+   and the target series defaults demo OFF, STOP and return `status: NEEDS_CONTEXT`,
+   `blocked_reason: build purpose unresolved, so demo cannot be decided for <series>`. Both guesses
+   are silently wrong there: guessing off ships a demo-less docs or translation build whose output
+   is truncated with no error, and guessing on hands demo to a build that must not have it. Where
+   the series defaults demo ON this branch cannot arise - every purpose resolves to the same "no
+   flag" - so the refusal costs nothing on those series.
+2. Turn it into a flag. **`DEMO: off` NEVER produces a flag, on any series** - it says the build
+   does not require demo, and no purpose in this plugin ever actively strips a demo the series loads
+   by default. Only `DEMO: on` can produce one, and only where the series does not already load demo;
+   take its spelling from the "Demo data on" row of the era table above, whose NAME, ARITY and
+   default all move across the span - never carry one spelling from one series to another. The
+   "Demo data off" row of that table is REFERENCE ONLY: it documents the disable flag's arity for a
+   caller who has some other reason to pass it, and no dispatch here emits it.
+
+Two refusals, both absolute:
+
+- **A `--test-enable` build never carries demo data on a series where demo is OFF by default.** On
+  such a series the automation-test environment does not accept demo records, so `DEMO: on` arriving
+  on that dispatch is a caller error and not a preference: return `status: NEEDS_CONTEXT`,
+  `blocked_reason: demo requested on an automation-test build for <series>`. Silently honouring it
+  would hand the suite records the gate it reproduces will not have.
+- **Never spell the enable-flag with a value.** It takes none; a `=<value>` form fails at option
+  parsing, before the database is ever touched, and the run produces no build at all.
 
 ## Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)
 
-Lint-class gating (`test_lint`, `test_pylint`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
+Lint-class gating (module set: `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
 `run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
 § Pre-PR tail stage 5) - never inside a node verification run. This HARD RULE is
 therefore CONDITIONAL, gated on one explicit brief field, never on the operation name alone -
@@ -295,9 +345,9 @@ inferred from module count, worktree path, or any other proxy:**
   to the probe-and-union steps below.
 - `GATE_ROLE: node-verify` - this dispatch is a node verification run
   (e.g. the `odoo-coder` coordinator's own integrated-node test, run for every node). Do
-  NOT probe for, install, or tag `test_lint`/`test_pylint` here - run this dispatch's own resolved
+  NOT probe for, install, or tag any lint-class module here - run this dispatch's own resolved
   scope (the tags the caller supplied, or the ones derived from `--modules` per "Test scope" in the
-  `run-tests` operation below), with no lint-module union. A `test_lint`/`test_pylint` violation in freshly
+  `run-tests` operation below), with no lint-module union. A lint-class violation in freshly
   written code is caught ONLY at the pre-PR lint gate, by design - it is never a per-node
   `tests-failed` blocker.
 - `GATE_ROLE` absent from a `run-tests`/test-enable dispatch - STOP and return `status:
@@ -305,31 +355,39 @@ inferred from module count, worktree path, or any other proxy:**
   cannot be decided`. NEVER default either way: defaulting to install/tag silently reinstates the
   per-node lint gate this rule exists to remove; defaulting to skip risks a false-green
   pre-PR lint gate that forgot to declare its own role. This is the SAME resolve-or-refuse discipline
-  the `to_base`/profile HARD RULE above already applies to `PROFILE:` - never probe (or skip
+  the server-wide-module/profile HARD RULE above already applies to `PROFILE:` - never probe (or skip
   probing) on an unresolved input.
 
 **When `GATE_ROLE: pre-pr-lint-gate`, probe and union as follows.** Resolve and PIN the profile
-exactly as steps 1-2 of the `to_base` HARD RULE above - brief `PROFILE:` first, else the resolved
+exactly as steps 1-2 of the server-wide-module HARD RULE above - brief `PROFILE:` first, else the resolved
 root/vanilla profile, else `NEEDS_CONTEXT` - never probe profile-less. Reuse the pin already
-established earlier in the same build (`to_base` HARD RULE runs first for create/init/update/
+established earlier in the same build (that HARD RULE runs first for create/init/update/
 run-tests); if this dispatch reaches the lint probe without having resolved a profile yet, run
-steps 1-2 here before probing. Then for each of `test_lint` and `test_pylint`, call
-`check_module_exists(name='<module>', odoo_version='<series>', profile_name='<resolved profile>')` -
-the explicit argument on every call, never relying on the ambient `set_active_profile` pin alone
-(same last-write-wins concurrency caveat as Step B). For every one that is Indexed = Yes:
+steps 1-2 here before probing. **The probe plays a DIFFERENT part here than it does in the
+server-wide-module rule above - do not carry that rule's shape across.** There, every module that
+comes back Indexed = Yes is unioned. Here, the SERIES picks the module name and the probe only
+confirms the pinned profile carries it, because this gate has one name below a boundary and another
+above it: two names from the same distribution unioned into one build is a defect, never
+belt-and-braces, no matter what the index answers for both. Then resolve WHICH modules this gate is made of, and probe them,
+exactly as `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies - that snippet owns the
+candidate set, the one-name-per-series selection, and the stale-index rule that makes a bare probe
+insufficient. Pass `profile_name=` explicitly on every call, never relying on the ambient
+`set_active_profile` pin alone (same last-write-wins concurrency caveat as Step B). For every module
+that snippet resolves as present:
 
 1. UNION it into the `-i` (or `-u`) module list for this build, exactly as `en_US` is unioned into
    the language activation set above.
-2. Append its tag to `--test-tags` (`/test_lint`, `/test_pylint`).
+2. Append its tag to `--test-tags` (one `/<module>` per resolved module).
 
 The install set and the tag set MUST derive from the SAME probe - never tag a module you did not
 install (its tests will not load, and a green run would be a false pass). This is the two-sided
 scope rule (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`) applied to one more module: the
 lint modules widen BOTH sides together, they never license an untagged run. It composes with, and
 does not replace, the `en_US` HARD RULE above and the `--test-tags` selection guidance in
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. Do not hardcode which series carries which
-lint module - the runtime probe is authoritative (`ODOO-TESTING.md`'s version table is
-illustrative only), pinned exactly as the `to_base` probe above.
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. Never decide which series carries which lint
+module from memory, and never treat a bare probe as proof it is really there - both are settled by
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, with the profile pinned exactly as the
+server-wide-module probe above.
 
 ## Memory cap on every scripted odoo-bin launch (HARD RULE)
 
@@ -347,7 +405,7 @@ cap, or to `""`/`"0"` to opt into the uncapped escape hatch) - never hardcode a 
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
+**Inputs:** series, modules (list), demo (bool - what the build REQUIRES; absent means DERIVE it from the build purpose per the Demo HARD RULE above, never silently false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it).
 
 **Resume before you build (listening `persist:` values only - run this FIRST).** An earlier
 dispatch may have PARKED an instance for this series instead of destroying it: its database,
@@ -709,7 +767,7 @@ verification, naming those modules. The verdict itself never softens: an out-of-
 still `tests-failed` and still BLOCKING. Naming it as out-of-scope is what lets the caller route a
 pre-existing failure separately instead of reading it as this module's own regression.
 
-**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** A custom checker (or a whole checker plugin - e.g. an SQL-injection rule) that fails to load inside `test_lint`/`test_pylint` produces NONE of the four signals: not a failure (the checker never ran), not a skip (it is not a test), not a warning (nothing objected). The wrapper test still runs, so the build earns a genuine `TEST_RESULT=passed` at `0/0/0/0` having checked less than the caller asked for, and the ladder above would resolve that straight to `tests-passed`. This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these modules; a `GATE_ROLE: node-verify` dispatch never installs them, so there is nothing to check coverage on there.
+**Checker-load coverage confirmation (`GATE_ROLE: pre-pr-lint-gate` only - checked BEFORE trusting any of the four branches above as a pass).** A custom checker (or a whole checker plugin - e.g. an SQL-injection rule) that fails to load inside a lint-class module produces NONE of the four signals: not a failure (the checker never ran), not a skip (it is not a test), not a warning (nothing objected). The wrapper test still runs, so the build earns a genuine `TEST_RESULT=passed` at `0/0/0/0` having checked less than the caller asked for, and the ladder above would resolve that straight to `tests-passed`. This axis applies ONLY to a `GATE_ROLE: pre-pr-lint-gate` dispatch - the ONE run that installs+tags these modules; a `GATE_ROLE: node-verify` dispatch never installs them, so there is nothing to check coverage on there.
 
 For every lint-class module this build unioned into the install+tag set (the SAME probe result the Lint modules HARD RULE above used - never a second probe), read that module's own portion of the log for POSITIVE evidence that its full checker/rule set loaded and ran. The exact wording is a live-log fact of THIS run, never a fixed phrase assumed from memory or carried over from a prior series or report - these modules' reporting is framework-internal and NOT OSM-indexed. Read what this run's log actually printed, then decide:
 
@@ -891,7 +949,7 @@ direct `depends[]` only, no auto_install noise:
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 odoo-bin -d <db> -i <target_module> \
-  --with-demo=all \               # v19+ only; v8-v18 demo is ON by default, omit this flag
+  --with-demo \                   # bare, takes NO value; v19+ only - v8-v18 demo is ON by default, omit the flag
   --load-language=<csv_locales> \ # v8-v18: all resolved locales in one csv; v19: see below
   --skip-auto-install \           # v17+: prevent auto_install modules from installing
   --stop-after-init \
@@ -1115,9 +1173,10 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
-- [ ] profile resolved and PINNED before any `to_base`/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
-- [ ] server-wide modules: `check_module_exists('to_base', ..., profile_name=<pinned>)` probed with the pinned profile before building `--load`; era default resolved via `cli_help` with local-source fallback (`base,web`, flagged `grounded: local-source`) when `cli_help` is silent (v19); `to_base` unioned into `--load` (never replacing the era default) when Indexed=Yes, left untouched when Indexed=No
-- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> `test_lint`/`test_pylint` probed with the same pinned `profile_name=`, every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed); `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
+- [ ] profile resolved and PINNED before any server-wide/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
+- [ ] server-wide modules: the series' Viindoo set read from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules (NOT carried over from another series), every member probed with the pinned `profile_name=`, and the whole resulting `--load` taken from that same row; all-Yes -> union, all-No -> no `--load` at all, mixed -> `NEEDS_CONTEXT` naming which resolved; `grounded: local-source` flagged when `cli_help` gives no `Default:` line
+- [ ] demo: `DEMO:` taken from the brief, else derived from the build purpose (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE) with the derivation stated in notes; flag spelled from the era table for THIS series, enable-flag never given a value; `DEMO: on` on a `--test-enable` build where demo defaults OFF -> `NEEDS_CONTEXT`, never honoured
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> lint modules resolved and probed per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` with the same pinned `profile_name=`, each resolved module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe (never tagged without being installed), and each tagged module confirmed from the log to have actually installed and loaded its tests; `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision

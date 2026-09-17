@@ -59,7 +59,7 @@ Run untagged only under one of these, and NAME which one in the report:
   skips framework classes not tagged with your module. NAME them beside the module tags
   (`'/sale,base.TestInvisibleField'`); dropping the filter to reach them is not the remedy. Method +
   how to resolve the class names: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
-- **Lint modules.** `test_lint` / `test_pylint` are selected by tag but run only if INSTALLED, so a
+- **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but run only if INSTALLED, so a
   build that tags them unions them into `-i`/`-u` from the SAME probe - gated on `GATE_ROLE:
   pre-pr-lint-gate`, owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Lint modules.
 

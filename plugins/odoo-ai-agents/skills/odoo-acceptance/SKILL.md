@@ -121,8 +121,10 @@ the requirement only - it never reads the implementation to decide it.
 ## Phase 2 - provision the cluster (once)
 
 Provision the live instance via `odoo-instance` with the FULL `install_set` co-installed as ONE
-cluster (demo=on, `persist: exclusive-running` - the cluster stays listening across Phase 2a/2b and
-the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
+cluster (`demo: on` - an acceptance sweep drives real screens, so it is one of the purposes that
+carries demo on every series, per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo
+data by build PURPOSE; `persist: exclusive-running` - the cluster stays listening across Phase
+2a/2b and the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
 hides. That is ONE dispatch, and the dispatched agent reaches the state in two legs it owns (build
 the database with the whole `install_set`, then launch it listening on the SAME database:
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § 1. create-instance) - do not decompose it here, and do
@@ -154,7 +156,11 @@ it authors by invoking the `odoo-test-writing` skill inline, in its own context)
 oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
 `--test-enable`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
 is about those modules, and an untagged run would spend the sweep re-testing the core closure they
-pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). This channel uses no browser,
+pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **The files this channel leaves
+behind must not depend on demo data**, even though Phase 2's own cluster carries it: they run later
+in the automation-test environment, which on some series has no demo at all. State that constraint in
+the writer's brief; the rule itself is `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/SKILL.md`
+§ The test must build its own data. This channel uses no browser,
 parallelizes across ephemeral DBs, feeds CI, and MAY run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
 output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. (Med-tier also gets a
 SEPARATE smoke pass on the live channel below - see the Med-tier depth note in Phase 2b; the two

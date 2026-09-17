@@ -86,7 +86,7 @@ CORE rule - applies to all distributions. Full rule and code example:
 
 Upgrade context: omitting `groups='hr.group_hr_user'` causes
 `hr.TestSelfAccessProfile.test_employee_fields_groups` to fail in the full CI suite triggered on
-installable-flip (P5 demo=on gate).
+installable-flip (the P5 install + test gate).
 
 ---
 

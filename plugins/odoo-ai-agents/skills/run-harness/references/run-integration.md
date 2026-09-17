@@ -836,7 +836,7 @@ stage (5)'s containment loop cherry-picks a fix and before stage (6)'s Existence
 
 **5 - Pre-PR lint-class gate (L0/L1 - ephemeral instance, not a SHARED-instance L2 case).** Run the
 FULL CI-parity lint-class suite ONCE, over the run-integration branch's aggregate diff (every module
-the run touched): `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles) and the Tier-1 eslint
+the run touched): the lint-class modules (${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md) and the Tier-1 eslint
 leg of `verify-frontend.sh`. Invocation mechanics (commands, flags, PASS/CANNOT-VERIFY semantics)
 are owned by `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md` +
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` - not restated here. This REPLACES every
@@ -867,7 +867,7 @@ guard refuses the `acquire` outright (rc 5) and the now-sole lint gate hard-bloc
 **Gate role is explicit too, never inferred from "this is the last stage" (mandatory).** This
 `run-tests` dispatch ALSO carries `GATE_ROLE: pre-pr-lint-gate` - the ONE explicit signal
 `agents/odoo-instance-ops.md` § Lint modules HARD RULE reads to decide whether to probe for, install,
-and tag `test_lint`/`test_pylint` at all. Every OTHER `run-tests` dispatch anywhere in this plugin -
+and tag any lint-class module at all. Every OTHER `run-tests` dispatch anywhere in this plugin -
 in particular the integrated node test `odoo-coder` runs for every coding node
 (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` § Own the integrated node verification), and the
 driver's own § Verification dispatch for an `odoo-instance` node

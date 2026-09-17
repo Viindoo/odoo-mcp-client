@@ -73,7 +73,7 @@ instance URL rather than guessing.
 documents the low-level allocator mechanism `odoo-instance` (and any other in-plugin caller) uses
 INTERNALLY. An agent needing a live instance and handed no `INSTANCE_HANDLE` invokes
 `Skill(odoo-instance)` - which performs the acquire below AND applies the instance HARD RULES
-(`en_US` union, Viindoo `to_base` union, lint-module install union, per-version `cli_help`
+(`en_US` union, Viindoo `--load` union, lint-module install union, per-version `cli_help`
 grounding) - never `scripts/lib/allocator.py acquire` directly, which skips those rules.
 
 The resolution above is for a **read-only** need (a URL to open / query a running

@@ -44,17 +44,23 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `skills/odoo-instance/SKILL.md`); `odoo-i18n` enforces the same invariant independently for the
     raw `odoo-bin` calls it issues outside this dispatch (recipe KT3:
     `skills/odoo-i18n/references/i18n-recipe.md`).
-11. **Viindoo `to_base` unioned into `--load` when the active profile carries it.** Server-wide
-    modules are resolved from a DATA-DRIVEN profile probe, never hardcoded, and `to_base` is
-    appended to the era default (never replacing it). Owned by `odoo-instance-ops` (SSOT:
-    `agents/odoo-instance-ops.md` § Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE));
-    the `odoo-instance` skill threads the resolved `PROFILE` through its dispatch brief.
-12. **Lint modules (`test_lint`/`test_pylint`) installed, not just tagged, on any test-run build.**
-    A `--test-enable` build must UNION the present lint module(s) into the `-i`/`-u` install list
-    from the same probe that appends their tag to `--test-tags`. Owned by `odoo-instance-ops`
-    (SSOT: `agents/odoo-instance-ops.md` § Lint modules - installed for test-run builds (HARD
-    RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not just tag
-    them).
+11. **The Viindoo server-wide set unioned into `--load` when the active profile carries it.** WHICH
+    modules that set contains is series-dependent and comes from one table
+    (`snippets/odoo-version-pivots.md` § CLI - server-wide modules); whether the profile carries
+    them is a DATA-DRIVEN probe, never hardcoded. The whole resulting `--load` is read from that
+    row - a set carried over from another series is wrong even when its modules still resolve, and a
+    partially-present set is `NEEDS_CONTEXT`, never a partial `--load`. Owned by
+    `odoo-instance-ops` (SSOT: `agents/odoo-instance-ops.md` § Server-wide modules (`--load`) on a
+    Viindoo profile (HARD RULE)); the `odoo-instance` skill threads the resolved `PROFILE` through
+    its dispatch brief.
+12. **Lint modules installed, not just tagged, on any test-run build.** A `--test-enable` build must
+    UNION the present lint module(s) into the `-i`/`-u` install list from the same probe that
+    appends their tag to `--test-tags`, and must confirm from the log that each tagged module really
+    installed and loaded its tests. WHICH modules, and the stale-index rule that makes a bare probe
+    insufficient: `snippets/lint-gate-modules.md`. Owned by `odoo-instance-ops` (SSOT:
+    `agents/odoo-instance-ops.md` § Lint modules - installed ONLY for the designated pre-PR lint
+    gate (HARD RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not
+    just tag them).
 13. **`persist` + `run_id` on any build that must stay running.** A build that must remain a live,
     listening process (never `--stop-after-init`) declares a listening `persist:` value - an
     isolated, owner-stamped instance on an allocator-issued pooled port (never the declared/`8069`
@@ -145,3 +151,12 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` (SSOT). Owned by
     `scripts/setup-steps/55-instance-ops.sh` (build path) and `scripts/setup-steps/50-instance-spinup.sh`
     (listener conf); the resolution logic itself lives only in `scripts/lib/resource_limits.sh`.
+16. **Demo data decided by the build's PURPOSE, not by habit.** The `DEMO:` field states what the
+    build NEEDS; which flag (or none) expresses that need moves across the span, so the two are
+    resolved together and never one alone. The purpose-to-demo mapping, and the one prohibition -
+    an automation-test build never carries demo on a series where demo defaults OFF, and such a
+    request is REFUSED rather than honoured - live in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
+    § Demo data by build PURPOSE. The enable-flag takes no value; a `=<value>` form fails at option
+    parsing before the database is touched. Owned by `odoo-instance-ops` (SSOT:
+    `agents/odoo-instance-ops.md` § Demo data on a build (HARD RULE)); the `odoo-instance` skill
+    threads `DEMO:` through its dispatch brief.

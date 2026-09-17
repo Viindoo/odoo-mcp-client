@@ -85,6 +85,6 @@ The recommended Python per Odoo series lives in
 
 ## Note: the backend lint gate uses the instance interpreter
 
-The backend code-quality gate (`/test_lint` + `/test_pylint` on v16+ Viindoo) runs INSIDE an
-Odoo instance (`odoo-bin --test-enable --test-tags /test_lint,...`). Use the same interpreter
+The backend code-quality gate (module set: `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) runs INSIDE an
+Odoo instance (`odoo-bin --test-enable --test-tags /<lint module>,...`). Use the same interpreter
 resolved above for the instance run - you do not need a separate toolchain for linting.

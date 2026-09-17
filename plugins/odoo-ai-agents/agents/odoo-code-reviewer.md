@@ -122,11 +122,11 @@ Merge findings from Steps 0.6-3.6, applying Step 3.6's ownership-transfer rule s
 
 ## Verification gates
 
-Reproduce the CI quality gates you are RESPONSIBLE for as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate. The CI-parity lint-class suites (`/test_lint` + `/test_pylint`, and the Tier-1 eslint leg of `verify-frontend.sh`) run ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail) - not per module here.
+Reproduce the CI quality gates you are RESPONSIBLE for as evidence - never assert a clean pass you did not run. An unrun gate is not a green gate. The CI-parity lint-class suites (the lint modules resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md, and the Tier-1 eslint leg of `verify-frontend.sh`) run ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail) - not per module here.
 
 **Frontend (JS / OWL / SCSS) - Tier-2 static pitfalls only.** When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite the Tier-2 per-file `[BLOCK]`/`[WARN]` markers as evidence for your OWL/SCSS findings. The script's Tier-1 eslint output is informational only here - do NOT cite it as a clean or failed JS lint pass and do NOT gate your verdict on it; that gate is verified once at the pre-PR tail instead.
 
-**Backend (`.py`) - not re-verified here.** The `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles) gate is verified ONCE, over the aggregate diff, at the pre-PR tail - not per module by this review. Do not run it inline and do not claim a Python lint pass or fail in this review; a CRITICAL/HIGH Python finding from your OWN reading of the diff (bugs, conventions, security, N+1) is unaffected and still yours to report.
+**Backend (`.py`) - not re-verified here.** The lint-class gate is verified ONCE, over the aggregate diff, at the pre-PR tail - not per module by this review. Do not run it inline and do not claim a Python lint pass or fail in this review; a CRITICAL/HIGH Python finding from your OWN reading of the diff (bugs, conventions, security, N+1) is unaffected and still yours to report.
 
 ## Severity & scoring
 
@@ -214,8 +214,8 @@ Master: `<SHARE_DIR>/designs/<master-slug>/_master-<date>.md` - §10 Cross-modul
 | <integration-module rule>     | §10 integ   | yes/no         | <code ref / gap> |
 Master verdict: <complies | N violations -> CRITICAL>.
 
-### Lint gate (/test_lint) - deferred to the pre-PR tail
-<One line, always: "Backend lint (/test_lint, /test_pylint on v16+ Viindoo) - deferred to
+### Lint gate - deferred to the pre-PR tail
+<One line, always: "Backend lint-class gate - deferred to
 run-harness's pre-PR tail; not re-verified per module by this review." Do not state PASS/FAIL/SKIPPED
 here - this review never runs the gate. See `## Verification gates`.>
 

@@ -10,11 +10,12 @@
 
 ## Backend lint - Odoo's lint test module (SSOT: ODOO-TESTING.md)
 
-The backend lint gate is Odoo's own `test_lint` module (v14+) plus the Viindoo `tvtmaaddons`
-custom `test_pylint` module (v16+). **Full description, version table, and invocation command:
+The backend lint gate is Odoo's own `test_lint` module plus, on a Viindoo profile, Viindoo's own
+lint module. **Which modules, and how to resolve the right one for a series:
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`. Invocation command:
 `docs/reference/ODOO-TESTING.md` § "Quality gate / lint tests".**
 
-Append `/test_lint` (and `/test_pylint` for v16+ Viindoo) to `--test-tags` in any `odoo-bin` test
+Append every module that snippet resolves as present to `--test-tags` in any `odoo-bin` test
 invocation. Requires a running instance + DB. **Tagging alone is not enough** - the lint module(s)
 must also be INSTALLED in the target DB or the tag silently selects nothing (false-clean pass); see
 `ODOO-TESTING.md` § "Install the lint modules (not just tag them)".

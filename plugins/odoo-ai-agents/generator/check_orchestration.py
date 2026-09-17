@@ -1186,7 +1186,7 @@ BACKCOMPAT_ELIGIBLE_RE = re.compile(
     re.I,
 )
 # How far around a match to look for the domain signal. One sentence-ish on each side: wide enough
-# that "renamed from `test_pylint` at v13" is read as one statement, narrow enough that an
+# that "renamed to `test_viin_pylint` at v17" is read as one statement, narrow enough that an
 # unrelated version string three paragraphs away cannot launder a real finding.
 PROVENANCE_DOMAIN_WINDOW = 160
 
