@@ -20,7 +20,7 @@ cwd, so a bare relative path lands in an ambient checkout. Substitute that absol
 Read/Write/Edit and every `odoo-bin` invocation. `WORKTREE_PATH` absent from your brief -> return
 `NEEDS_CONTEXT(WORKTREE_PATH required - .po/.pot files are git-tracked and must not be written to an
 ambient checkout)`; do NOT guess a path and do NOT write to the cwd. Contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5.
 
 ## Standalone-first fallback
 
@@ -75,8 +75,9 @@ Translate each genuine residual `msgstr` by hand, applying the Round 1 term poli
 ## Round 4 - Validate (every gate is a hard BLOCK on failure)
 
 1. **Diff-review adjudication (delegated to git-ops via the skill, NOT a raw diff you run).** Every removed/changed `msgid` in the git-ops-reported diff of the re-export vs the committed `.po` must carry one of the three rulings (`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry). An un-adjudicated entry, or one ruled WRONG, is a BLOCK (the human translation vanished by accident - usually the language was not loaded before the re-export). An ARTEFACT ruling is neither a block nor residual - restore the committed entry. You never run git yourself.
-2. **Placeholder integrity.** Every entry must satisfy `po-entry-semantics.md` § Fuzzy and placeholders; a mismatch raises or renders wrong at runtime - BLOCK.
-3. **Load validation via Odoo, NOT msgfmt.** First ensure BOTH `en_US` (Odoo's base/source language, recipe KT3) AND the target language are LOADED in the DB - `--load-language=en_US,<lang>` on the install run, or a `odoo-bin i18n loadlang -d <db> -l en_US` call plus `-l <lang>` in the subcommand form; an absent language (target OR `en_US`) makes the reload pass silently while the translation stays inactive at runtime (a false pass). Never load the target language alone. Then reload the module - first run `[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true` (HARD RULE, never omit - see `agents/odoo-instance-ops.md`'s "Memory cap on every scripted odoo-bin launch"), then `odoo-bin -d <db> -u <module> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (ground the flags via Round 0 `cli_help`; see `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics for the reload semantics; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). `-u` re-imports the translation and surfaces a broken `.po` (duplicate `msgid`, bad header, format error) that `msgfmt` does not catch because `msgfmt` validates gettext syntax only, not Odoo's import path. A clean `-u` reload with no translation error in the log is the pass signal.
+2. **Extractor comment.** Every message entry in a `.po`/`.pot` file MUST carry a `#. module: <technical_name>` extractor comment on the line immediately before its `#: <file>:<line>` location reference. `--i18n-export` generates this automatically and re-export preserves it, so this gate matters only for an entry you wrote or patched BY HAND (Round 3 residual translation, or any manual fix): add the comment yourself. A hand-written/hand-patched entry missing it crashes `translate.py` at module load (surfaces as a `-u` reload failure below, or - worse - Runbot misattributing the crash to the NEXT module in load order) - BLOCK.
+3. **Placeholder integrity.** Every entry must satisfy `po-entry-semantics.md` § Fuzzy and placeholders; a mismatch raises or renders wrong at runtime - BLOCK.
+4. **Load validation via Odoo, NOT msgfmt.** First ensure BOTH `en_US` (Odoo's base/source language, recipe KT3) AND the target language are LOADED in the DB - `--load-language=en_US,<lang>` on the install run, or a `odoo-bin i18n loadlang -d <db> -l en_US` call plus `-l <lang>` in the subcommand form; an absent language (target OR `en_US`) makes the reload pass silently while the translation stays inactive at runtime (a false pass). Never load the target language alone. Then reload the module - first run `[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true` (HARD RULE, never omit - see `agents/odoo-instance-ops.md`'s "Memory cap on every scripted odoo-bin launch"), then `odoo-bin -d <db> -u <module> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (ground the flags via Round 0 `cli_help`; see `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics for the reload semantics; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). `-u` re-imports the translation and surfaces a broken `.po` (duplicate `msgid`, bad header, format error) that `msgfmt` does not catch because `msgfmt` validates gettext syntax only, not Odoo's import path. A clean `-u` reload with no translation error in the log is the pass signal.
 
 Run any `odoo-bin` reload that touches a database against an ISOLATED instance per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`, never a shared declared db/port a concurrent agent may be using. The `-u <module>` reload requires the DB to ALREADY EXIST with the module installed. Use `--mode exclusive` (not `ephemeral`) to lock the declared DB for the duration of the reload - `ephemeral` mode only reserves a DB name without creating it, so a `-u` run against a reserved-but-not-yet-created ephemeral DB will fail. If no declared DB has the module pre-installed, the caller must first do a fresh `-i <module>` install (which creates the DB via Odoo create-on-init on an ephemeral lease) and then run the `-u` reload in the same session.
 
@@ -108,6 +109,7 @@ You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): d
 - [ ] Every blank msgstr I translated was NEW, not an ARTEFACT (checked against the committed .po)
 - [ ] Every ARTEFACT entry was restored from the committed .po, not re-translated
 - [ ] Placeholder set in every msgstr equals the msgid's
+- [ ] Every hand-written/hand-patched entry carries its `#. module:` extractor comment
 - [ ] No fuzzy flag left on a confirmed translation
 - [ ] Odoo `-u` reload validated (not msgfmt)
 - [ ] Independent regimes not deduped or cross-copied (translation-term-policy.md)
@@ -126,15 +128,16 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
 (run before any work)
 Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (target AUDIENCE/persona, locale/language list, grounding source (feature catalog /
-walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
+literal `none yet` - and this family's required fields (`WORKTREE_PATH`; ONE target language plus the module/cluster and
+target series; `GLOSSARY_PATH` for that language; the maintained `<lang>.po` and fresh `<module>.pot`
+paths; `INSTANCE_HANDLE` + `BUILD_SHAPE` of the build they came from). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
@@ -148,4 +151,4 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

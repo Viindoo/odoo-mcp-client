@@ -231,9 +231,9 @@ skill) uses.
 ## The pipeline
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for any specialist agent
-dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`,
-`odoo-installable-prober`, `odoo-test-writer`, etc.), fill the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
+dispatched across the phases below (`odoo-intent-extractor`, `odoo-installable-prober`,
+`odoo-test-writer`), fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's family
 delta; never inline that file verbatim into a hard-leaf brief. This pipeline dispatches leaves
 (P1/P8a/P8b etc.) that run inside the JOB-tier integration worktree rather than the principal -
 P8a/P8b never use a WORK-tier child worktree (§ Git topology above) - the
@@ -356,11 +356,8 @@ the identical SHA. Without a namespace, both would target the SAME
 `SLUG` field to `<slug>/<module>` (the run `<slug>` plus this module's own name), never the bare
 run `<slug>`, for EVERY module's extractor dispatch (full brief:
 `references/fp-phase-detail.md` P1). The extractor's own write-path template
-(`agents/odoo-intent-extractor.md` Step 3 - `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md`,
-substituted verbatim from the brief's `SLUG` field) then resolves PER MODULE with no change needed
-to that agent: module A's instance writes `<ISOLATE_DIR>/forward-port/<run-slug>/A/intents/<sha>.md`;
-module B's instance writes `.../B/intents/<sha>.md` for the SAME sha - two distinct files, each
-module's own perspective on the commit, never a last-write-wins collision. Each worker still writes
+(`agents/odoo-intent-extractor.md` Step 3) then resolves PER MODULE with no change needed
+to that agent. Each worker still writes
 one record PER COMMIT in its module bundle, under its own module's namespace (the why + behavioral
 contract + OSM-grounded symbols, never the diff) - output granularity stays per-SHA even though
 dispatch granularity is per-module, so P2/P3/`plan.md` need no change beyond the path shape above.
@@ -410,8 +407,7 @@ and the patched manifest history (log-with-patch of manifest modifications again
 `repo_root` is the MAIN checkout root where git runs - the integration worktree does NOT exist at
 P2 (it is created at P4); never reference it here. `source_ref` / `target_ref` are the source /
 target git refs. `manifest_path` / `history_dump_path` are absolute paths to the surveyor-written
-files (see pre-step above); the prober mandates both, never runs git itself, and BLOCKs if
-`manifest_path` is missing.
+files (see pre-step above) - both mandatory (`agents/odoo-installable-prober.md` Inputs table).
 Whether resolved directly (categories 1-2) or via the prober (category 3), record
 `installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module, distinct
 from the per-commit intent/bucket/reason/evidence rows - this is the ONE field any later phase
@@ -624,12 +620,11 @@ the P9 failure output - in Tier C, EVERY dispatch is a fresh spawn (no resume av
 R2b module cap above rests on the id registry, not on the fallback. Tier C is always correct; the
 worklog is always written regardless of tier.
 
-- **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes the `odoo-test-writing` skill inline). Adapt the MERGED SOURCE
-  TEST to run on the target - translate API to the target idiom (base class, imports, helper
-  signatures per P7), strip implementation-coupled assertions, confirm it goes RED. Do NOT
-  author a brand-new test from scratch: the forwarded source test IS the oracle; 8a adapts it
-  to run. Only when the source commit shipped NO test does the agent write one - anchored to
-  the source intent record, not improvised.
+- **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes
+  the `odoo-test-writing` skill inline, which owns the whole classify/strip/translate/confirm-RED
+  method - `skills/odoo-test-writing/SKILL.md` § Adapt mode). The forwarded source test IS the
+  oracle: adapt it in place; only write one from scratch when the source commit shipped none,
+  anchored to the source intent record, not improvised.
   Build an FP-ENRICHED brief carrying a named **Worktree path: `<path>/fp-integration`** field
   (the SAME JOB-tier integration worktree for the WHOLE run - P8 never uses a per-module child
   worktree, § Git topology above - so this value never changes across a resume), plus:
@@ -771,7 +766,7 @@ every module touched across the batch (from `merge-log.md`) - forward-port has n
 dependency DAG file the way `odoo-modules-upgrade` does, so this pass derives the reverse-closure
 directly via OSM `impact_analysis` per that snippet's Step 1.
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
-or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 (read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
 `merge-log.md` + each touched module's own `<module>/intents/<sha>.md` (§ P1 write path), `odoo_version`
 = target series; `INSTANCE_HANDLE` from P9 if

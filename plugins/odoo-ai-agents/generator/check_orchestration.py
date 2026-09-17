@@ -714,6 +714,182 @@ def check_brief_fields(warn_only_findings: list[str]) -> None:
                     )
 
 
+# --- [brief-knowhow] (rule 19) -----------------------------------------------------------------
+#
+# The NEGATIVE counterpart of rule 12. Rule 12 asks "did the caller emit every field the agent
+# needs"; this asks "did the caller also hand the agent its own trade back". SSOT for the boundary:
+# snippets/dispatch-brief.md § "A brief carries WHAT and WHY, never HOW"; the KEEP/MOVE/DELETE
+# procedure lives in docs/authoring-skills-and-agents.md.
+#
+# Why it exists: a skill that re-teaches its agent hands it a SECOND copy of a rule that is already
+# a lossy paraphrase of the agent's own. The agent then spends its turn deciding which governs, and
+# the two copies drift - measured on this tree, a skill's one-line summary had already outrun the
+# hedge its own cited SSOT carried.
+#
+# Scope: NAMED-agent dispatch edges only. A skill that fans out ANONYMOUS workers (no
+# agents/<name>.md exists to hold the method) is REQUIRED to paste the procedure into the brief,
+# because such a worker cannot resolve ${CLAUDE_PLUGIN_ROOT} to read it. `spawns_agents` is what
+# separates the two: empty means every worker on that edge is anonymous, so the skill is exempt.
+#
+# Two checks, deliberately different strictness:
+#   (a) procedural field VALUES - deterministic, so it gates. This generalizes
+#       tests/test_dispatch_brief.py::test_no_procedural_field_values_in_instance_brief, which
+#       proved the rule on odoo-instance alone, to every named-agent dispatcher.
+#   (b) a "Brief context"-family HEADING - structural and unambiguous, so it gates. That heading
+#       shape exists only to pre-digest the agent's domain for it.
+# Prose-similarity detection is deliberately NOT here: a fuzzy threshold over agent-facing prose
+# produces false positives, and a guard that cries wolf gets suppressed. What catches the rest is
+# the authoring procedure plus review.
+
+# A field VALUE that sends the worker off to do something instead of handing it a resolved value.
+# The verb may sit anywhere in the value, not only at its start: "MODULES: the list, per the DAG"
+# is the same defect as "MODULES: per the DAG". Keys may carry `/` and `_` (`MODEL/EFFORT`).
+_PROCEDURAL_BRIEF_VALUE = re.compile(
+    r"^(?P<key>[A-Z][A-Z0-9_/ ]*)\s*(?:\([^)]*\))?\s*:\s*(?P<value>.*)$",
+    re.MULTILINE,
+)
+# The defect is a value that sends the worker to RESOLVE SOMETHING THE CALLER SHOULD HAVE RESOLVED,
+# not any imperative: `TASK: Resolve the conflict in place` is an OBJECTIVE and must stay legal.
+# So the verb only counts when it points at a document/contract, or tells the worker to work the
+# value out for itself.
+_PROCEDURAL_VERB = re.compile(
+    r"\b(?:follow|consult|apply|per|call|read|see|use)\b[^.;|]{0,60}"
+    r"(?:\.md\b|\bsnippets/|\bcontract\b|\bprotocol\b|\bladder\b)"
+    r"|\b(?:resolve|derive|work) (?:it|them|this) (?:out )?yourself\b",
+    re.IGNORECASE,
+)
+
+# Heading families whose whole purpose is to pre-digest the agent's domain for it. Matched at any
+# heading level and case-insensitively - a guard keyed to one spelling goes green on every other.
+_KNOWHOW_HEADING = re.compile(
+    r"^#{1,6}\s+.*\b(brief context|pitfalls?|failure modes?|things? (?:the|your) agent"
+    r"|what the agent (?:checks|watches|looks))\b.*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+# A sentence long enough to be a RULE rather than a field name or a pointer.
+_KNOWHOW_SENTENCE_MIN_WORDS = 14
+_SHINGLE = 9
+
+
+def _knowhow_sentences(text: str) -> dict[tuple[str, ...], str]:
+    """Normalized long sentences, keyed by their leading shingle.
+
+    Pointer lines are excluded: a caller SHOULD cite the agent's contract, and a citation shares
+    wording with the thing it cites. What this looks for is the caller RESTATING the rule."""
+    out: dict[tuple[str, ...], str] = {}
+    for raw in re.split(r"(?<=[.;])\s+|\n", text):
+        if "${CLAUDE_PLUGIN_ROOT}" in raw or "](" in raw:
+            continue
+        words = re.findall(r"[a-z0-9_]+", raw.lower())
+        if len(words) < _KNOWHOW_SENTENCE_MIN_WORDS:
+            continue
+        for i in range(len(words) - _SHINGLE + 1):
+            out.setdefault(tuple(words[i: i + _SHINGLE]), raw.strip())
+    return out
+
+
+def _brief_region(body: str) -> str:
+    """Everything a caller uses to compose a brief: the fences plus the prose around them.
+
+    Scoping this to fences alone was the original guard's blind spot - the dominant form of
+    re-teaching is prose bullets with no fence at all."""
+    return body
+
+
+def _skill_dispatch_surface(skill_name: str) -> list[tuple[str, str]]:
+    """(label, text) for the skill body AND the reference files it dispatches from. A template
+    parked in `references/` is still a brief this skill sends."""
+    out = []
+    body = skill_body(skill_name)
+    if body is not None:
+        out.append((f"skills/{skill_name}/SKILL.md", body))
+    refs = SKILLS_DIR / skill_name / "references"
+    if refs.is_dir():
+        for path in sorted(refs.glob("*.md")):
+            out.append((f"skills/{skill_name}/references/{path.name}",
+                        path.read_text(encoding="utf-8")))
+    return out
+
+
+def check_brief_knowhow(findings: list[str], warn_only_findings: list[str]) -> None:
+    """19. [brief-knowhow] - the negative counterpart of rule 12, over the SAME two edge tiers rule
+    12 walks (skill->agent and agent->agent): a dispatcher must not hand its agent the agent's own
+    trade back.
+
+    Two strictness levels, and the split is deliberate rather than a migration window:
+
+      STRICT (`findings`) - the DETERMINISTIC shapes. A field value that sends the worker off to do
+      something instead of handing it a resolved value, and a heading family whose whole purpose is
+      to pre-digest the agent's domain. Both are decidable, so both gate.
+
+      WARN-ONLY, permanently (`warn_only_findings`) - cross-edge prose duplication. This is what
+      catches the DOMINANT form of re-teaching, a rule restated as ordinary prose with no fence and
+      no telltale heading, which no structural check can see. It cannot gate, because the same
+      wording legitimately appears on both sides in two innocent cases this cannot distinguish from
+      a restatement: a sentence a contract REQUIRES both sides to carry verbatim (the state-root
+      placeholder ban, the descriptor-filename pair), and a caller correctly stating a routing fact
+      about its callee. Treat a hit as a question - does the AGENT own this? - not a verdict. What
+      actually enforces the fuzzy case is the authoring procedure plus review; claiming otherwise
+      would be a gate whose colour predicts nothing."""
+    orch = load_orch()
+    edges = agent_spawn_edges()
+
+    dispatchers: list[tuple[str, list[str], list[tuple[str, str]]]] = []
+    for skill_name in sorted(orch):
+        entry = orch[skill_name] or {}
+        spawns = entry.get("spawns_agents") or []
+        if not spawns:
+            continue  # anonymous-worker fan-out - the paste-the-procedure exemption
+        delegated = {leaf for a in spawns for leaf in edges.get(a, ())}
+        direct = [a for a in spawns if a not in delegated]
+        if direct:
+            dispatchers.append((skill_name, direct, _skill_dispatch_surface(skill_name)))
+    for dispatcher in sorted(edges):
+        body = agent_body(dispatcher)
+        if body is not None:
+            dispatchers.append((dispatcher, edges[dispatcher],
+                                [(f"agents/{dispatcher}.md", body)]))
+
+    for name, targets, surface in dispatchers:
+        for label, text in surface:
+            for match in _PROCEDURAL_BRIEF_VALUE.finditer(_dispatch_fences(text)):
+                verb = _PROCEDURAL_VERB.search(match.group("value"))
+                if verb:
+                    findings.append(
+                        f"[brief-knowhow] {label}: field '{match.group('key').strip()}' has a "
+                        f"value that tells the worker to '{verb.group(0).strip()}' - that is a "
+                        f"procedure it must run, not a value '{name}' already resolved "
+                        f"(snippets/dispatch-brief.md, rules 1 and 3)"
+                    )
+            for match in _KNOWHOW_HEADING.finditer(text):
+                findings.append(
+                    f"[brief-knowhow] {label}: the section '{match.group(0).strip()}' pre-digests "
+                    f"a dispatched agent's own domain for it. Move an orphan rule into the agent "
+                    f"body, delete what the agent already owns "
+                    f"(docs/authoring-skills-and-agents.md § What a dispatching skill hands its "
+                    f"agent)"
+                )
+
+            caller_sentences = _knowhow_sentences(_brief_region(text))
+            if not caller_sentences:
+                continue
+            for target in targets:
+                target_body = agent_body(target)
+                if not target_body:
+                    continue
+                shared = set(caller_sentences) & set(_knowhow_sentences(target_body))
+                for shingle in sorted(shared)[:1]:
+                    warn_only_findings.append(
+                        f"[brief-knowhow] {label} shares wording with "
+                        f"'agents/{target}.md': \"{' '.join(shingle)}...\" - if the AGENT owns "
+                        f"that rule, cite it instead of repeating it "
+                        f"(snippets/dispatch-brief.md rule 3). Innocent when a contract requires "
+                        f"both sides to carry the sentence verbatim, or when the caller is "
+                        f"stating a routing fact about its callee"
+                    )
+
+
 # --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
 #
 # Ground truth (R0, spawner-completion-contract.md): the Agent tool exposes NO blocking/foreground
@@ -1801,9 +1977,24 @@ def main(argv: list[str]) -> int:
         if name in OSM_REQUIRED and OSM_SNIPPET not in body:
             findings.append(f"[osm-first] '{name}' must reference snippets/{OSM_SNIPPET}.md")
 
-        # 3. Design-system fidelity
+        # 3. Design-system fidelity - REACHABILITY on the path, not restatement by the
+        #    skill. What must hold is that whoever actually renders or styles something is
+        #    wired to the contract. For a skill that only DISPATCHES, that actor is the
+        #    agent, so an agent-side reference satisfies this rule and the skill needs none.
+        #    Demanding the citation from the caller too is what produced a second copy of the
+        #    contract's content in the caller - the exact duplication
+        #    `snippets/dispatch-brief.md` § "A brief carries WHAT and WHY, never HOW" bans.
+        #    A leaf/orchestrator-nl skill has no agent to carry it, so it still must cite.
         if stack in ("frontend", "fullstack") and DESIGN_DOC not in body:
-            findings.append(f"[design-system] '{name}' (stack={stack}) must reference {DESIGN_DOC}.md")
+            reached_via_agent = spawn_class == "spawner-agent" and any(
+                DESIGN_DOC in (agent_body(a) or "")
+                for a in (e.get("spawns_agents") or [])
+            )
+            if not reached_via_agent:
+                findings.append(
+                    f"[design-system] '{name}' (stack={stack}) must reference {DESIGN_DOC}.md - "
+                    f"or, if it only dispatches, an agent in its spawns_agents must reference it"
+                )
 
         # 4. Instance-touching → CLI grounding
         if e.get("instance_touching") and not any(r in body for r in INSTANCE_REFS):
@@ -1870,6 +2061,7 @@ def main(argv: list[str]) -> int:
     check_ref_scope_no_reference_pointer(findings)
     check_no_provenance(findings)
 
+
     # 16. [instance-truth] - half (a) joins `findings` (gates --strict); half (b) is collected into
     # its OWN list below so its print message can state why it cannot gate yet.
     instance_truth_warn_only_findings: list[str] = []
@@ -1902,6 +2094,13 @@ def main(argv: list[str]) -> int:
     # migration window that does not apply to it.
     permanent_warn_only_findings: list[str] = []
     check_brief_fields(permanent_warn_only_findings)
+
+    # 19. [brief-knowhow] - its DETERMINISTIC half is LIVE and enforcing from the start: it ships
+    # in the same change that cleans every named-agent dispatcher, so there is no backlog to burn
+    # down and no reason for the warn-first window rules 9/10 needed. Its prose-duplication half
+    # rides this permanently warn-only list beside rule 12 (the function's docstring says why it
+    # cannot gate).
+    check_brief_knowhow(findings, permanent_warn_only_findings)
 
     if findings:
         print(f"check_orchestration: {len(findings)} finding(s)"

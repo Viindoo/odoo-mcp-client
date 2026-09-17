@@ -194,12 +194,9 @@ SHA: <sha>
 commit_dump_path: <ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump
 SERIES: <e.g. 17.0>
 SLUG: <slug>
-TASK: Extract the business intent and behavioral contract of this one commit. Read commit
-      message -> PR/issue -> test changes -> code comments (priority order). Ground the
-      touched symbols at <NEW BASE REF> HEAD (same-version grounding, NOT a cross-version diff).
-      Do NOT call api_version_diff (same series; no version jump).
-      Write <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
-      Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome bucket (caller's job).
+TASK: Extract this commit's business intent and behavioral contract. GROUNDING MODE above
+      selects this agent's own rebase-mode grounding, write path, and scope boundary
+      (`agents/odoo-intent-extractor.md` § Rebase mode) - no further instruction needed.
 OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
 ```
@@ -244,14 +241,11 @@ commit_dump_paths:
   # read-only, single writer - unchanged regardless of dispatch shape)
 SERIES: <e.g. 17.0>
 SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
-TASK: For EACH commit in commit_dump_paths (in order), extract the business intent and
-      behavioral contract. Ground the touched symbols at <NEW BASE REF> HEAD (same-version
-      grounding, NOT a cross-version diff). Do NOT call api_version_diff (same series; no
-      version jump). Write ONE <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md per commit
-      (the module-scoped <slug> above, so this module's write path never collides with
-      another module's for a shared sha). Note any overlap or revert between commits in this
-      SAME module bundle. Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome
-      bucket (caller's job).
+TASK: For EACH commit in commit_dump_paths (in order), extract its business intent and
+      behavioral contract. GROUNDING MODE + the per-module SLUG above select this agent's own
+      rebase-mode grounding and write path per commit
+      (`agents/odoo-intent-extractor.md` § Rebase mode); the agent already notes any
+      same-bundle overlap/revert on its own (§ Step 1, § Module-bundle cross-reference).
 OUTPUT FIELDS: sha, intent_file, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
 ```
@@ -372,25 +366,15 @@ TASK: Compare the feature branch versus the new base as a WHOLE - what intents t
 REFS:
   FEATURE_REF: <branch>
   NEW_BASE: <branch>
+  diff_scope: <new-base>...<feature-ref>
   diff_path: <ISOLATE_DIR>/git-rebase/<slug>/three-dot-diff.txt
   intents_dir: <ISOLATE_DIR>/git-rebase/<slug>/intents/
 OUTCOME_CONTRACT: [[rb-intent-4outcome]] (${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md)
-STEPS:
-  1. Read diff_path and all intent files.
-  2. For each commit's intent, decide which absorption failure mode applies:
-       already-present | renamed | moved | override-refactored | depends-drift | test-symbol-removed
-  3. Propose exactly one outcome (a/b/c/d) per commit with evidence (symbol + path).
-  4. List a duplicate-behavior risk for any commit classified (a) - confirm the feature truly
-     already exists at new-base and is not just a similar-looking construct.
-EMIT: <ISOLATE_DIR>/git-rebase/<slug>/comparison.md
-FORMAT per commit:
-  sha: <sha>
-  outcome: a|b|c|d
-  failure_mode: <from list above | none>
-  evidence: <symbol:path>
-  proposed_adapt: <one-liner or null>
-  dup_risk_note: <string or null>
 ```
+
+The agent's own § Step 3a (rebase mode P3) owns the absorption-failure-mode taxonomy,
+`comparison.md` table shape, and duplicate-behavior risk list - do not restate them here
+(`agents/odoo-diff-comparator.md` § 3a).
 
 ---
 
@@ -749,11 +733,12 @@ Skill tool) until GREEN - `odoo-coding` owns the coder fan-out + model (do NOT d
 
 ```
 DISPATCH MODEL: <adapt_tier>
-TASK: Adapt the branch's own tests to the new-base idiom for module <module>.
+TASK: Adapt the branch's own tests to the new-base (<new-base branch>) idiom for module <module>.
 MODE: adapt (RED first, then GREEN)
-INTENT_FILE: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
-TARGET_SERIES: <series>
-NEW_BASE: <new-base branch>
+MODULE SCOPE: <module> @ <WT_ROOT>/rb-integration/<module>
+TARGET BEHAVIOR / ORACLE SCENARIOS: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md - forward the
+      source test as the behavioral oracle
+ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
@@ -831,30 +816,16 @@ DISPATCH MODEL: sonnet
 mode: rebase
 verify_mode: true
 TASK: Verify the rebase outcome via range-diff and duplicate-behavior guard.
+diff_scope: <old-base>..<feature-ref-tip> vs <new-base>..<rb-tip>
 diff_path: <ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt
 intents_dir: <ISOLATE_DIR>/git-rebase/<slug>/intents/
 PLAN: <ISOLATE_DIR>/git-rebase/<slug>/plan.md
-STEPS:
-  1. Read the file at diff_path (the range-diff output produced by the git-ops pre-step above).
-  2. For each P4 intent: confirm it is present and semantically unchanged in the rb branch.
-  3. Duplicate-behavior guard - for each feature's key identifier (field name, model name,
-     method name, xmlid):
-     a. PRIMARY (hard fail): call OSM `entity_lookup` for the identifier and count
-        definitions across the FULL INHERITANCE CHAIN (all modules). If count >1,
-        this is a HARD duplicate failure - flag as dup_findings. A feature re-added by
-        the rebase that base ALSO added in a DIFFERENT module (classic core-absorption)
-        will have count >1; grep scoped to one module path misses this.
-     b. SECONDARY (locator): grep the rb-integration worktree within the relevant module
-        path to locate the definitions. This is a locator only, not the dup signal.
-     Flag any identifier with OSM count >1 as a definitive duplicate; flag count=0
-     (symbol removed at base) as a symbol-survival miss that should have been caught at P8b.
-EMIT: <ISOLATE_DIR>/git-rebase/<slug>/verify.md
-FORMAT:
-  range_diff_verdict: pass|fail|warn
-  intent_survival: [{sha, present: true|false, note}]
-  duplicate_findings: [{identifier, osm_definition_count, paths[], note}]
-  overall: pass|fail
 ```
+
+The agent's own § Step 3b (rebase mode P10 verify) owns the range-diff read, the
+OSM-primary/grep-secondary duplicate-behavior guard, and the `verify.md` format - do not
+restate them here (`agents/odoo-diff-comparator.md` § 3b). Its Step 4 return block's
+`duplicate_blockers` field gates whether the orchestrator may proceed.
 
 ### B3 - conditional instance verify
 

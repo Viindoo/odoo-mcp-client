@@ -71,7 +71,7 @@ tagline) - it does NOT generate features or copy.
 |---|---|
 | `MODULE` / `MODULE PATH` | Module technical name and/or absolute path on disk (`TARGET` is reserved for `odoo-doc-scoper`'s scan-mode selector - never a synonym here) |
 | `RUN_ID` | Run-or-slug that scopes the capture staging dir (reuse it; never mint a new id). Absent = fall back to the module name as the scope segment |
-| `WORKTREE_PATH` | Absolute root this run writes into (the skill's `doc_root`) - resolve a bare `MODULE PATH` under it, never under your own cwd (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5) |
+| `WORKTREE_PATH` | Absolute root this run writes into (the skill's `doc_root`) - resolve a bare `MODULE PATH` under it, never under your own cwd (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5) |
 | `SHARE_DIR` | Pre-resolved absolute SHARE path for this run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); when the caller forwards it, use it directly - do NOT re-resolve. Absent = resolve it yourself per that snippet's protocol |
 | `ISOLATE_DIR` | Pre-resolved absolute ISOLATE path for this run; same forward-or-resolve rule as `SHARE_DIR` |
 | `INSTANCE_HANDLE` | `<db>:<port>` of an already-provisioned instance (skill owns the lease); absent = standalone |
@@ -271,7 +271,7 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
@@ -298,4 +298,4 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 missing" above - never PROCEED on a safe-default assumption for either; this check is the
 standardized overlay, not a replacement for that gate.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

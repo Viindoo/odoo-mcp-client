@@ -55,13 +55,7 @@ Consultant / Project Manager
 
 Gap analysis sets client expectations and determines budget. Errors in either direction are costly (under = overruns; over = lost deals).
 
-**Effort classification** (the locked `classification` axis - one of `standard | config | extension | custom`):
-| classification | Definition | typical effort_tier |
-|---|---|---|
-| standard | Exists in CE or EE; zero dev (flag EE license in `notes`) | S (activation only) |
-| config | Module exists; needs setup | S - M |
-| extension | `_inherit` extension pattern | M - L |
-| custom | New model, complex logic, or integration | L - XL |
+**Effort classification** (the locked `classification` axis - one of `standard | config | extension | custom`): the `odoo-gap-analyzer` agent's own § Classification + effort tier table is the SSOT for the classification -> effort_tier mapping - not restated here (`agents/odoo-gap-analyzer.md:95-106`).
 
 `effort_tier` is the separate day axis: **S** <1d - **M** 1-3d - **L** 3-10d - **XL** >10d. `coverage` is `full | partial | none`. These four enums (`classification`, `effort_tier`, `coverage`, and `grounded`) are the locked keys of `gap-matrix.jsonl` (see § Output).
 
@@ -125,7 +119,7 @@ Capture the printed absolute path as `SHARE_DIR` for the rest of this run and su
 cluster a 2-digit `<NN>` and a short `<area>` label.
 
 **Dispatch.** Fill each worker's prompt from the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst family
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst family
 delta; never inline that file verbatim into a hard-leaf brief. Launch one `odoo-gap-analyzer` worker per cluster (or one worker total on the fast
 path) at the `model` chosen for that cluster's complexity, honoring the Mode B budget with a
 rolling window. Prefer CHP Tier-B `subagent_type: "fork"` (the fork inherits the orchestrator's
@@ -138,19 +132,14 @@ correct. Each worker brief carries:
 2. **Scope, hard** - this cluster's requirements (each `req_id` + text) and the `<area>` label.
 3. **Version + profile pin** - the concrete series and profile name Round 0 resolved; pass the
    concrete version on EVERY OSM call, never `'auto'`.
-4. **Grounding rule** - OSM-first; on a Tier-1 MISS read the local checkout; an ungroundable
-   requirement is `grounded: unknown` + `notes: "BLOCKED - needs OSM index or checkout"`. NEVER
-   guess from training (§ Standalone-first fallback).
-5. **Brand rule** - take module identity only from OSM `check_module_exists` / `describe_module`
-   / `module_inspect` (`author`, `shortdesc`); a vendor-like token in a slug is NOT proof of a
-   provider. If unprovable, leave `module` empty (`null`) and set `grounded: unknown`.
-6. **Output contract** - `OUTPUT_DIR: <SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>/`
+4. **Grounding + brand rule** - both fully owned by `${CLAUDE_PLUGIN_ROOT}/agents/odoo-gap-analyzer.md`
+   (§ Grounding: OSM-first, local-checkout fallback, the `grounded: unknown` + BLOCKED marker; its
+   module-identity rule: take `module` from `describe_module`'s `author`/`shortdesc`, never a slug
+   token) - do not restate either here.
+5. **Output contract** - `OUTPUT_DIR: <SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>/`
    (a distinct DIRECTORY per cluster, never a bare filename - this is what keeps concurrent
-   workers from racing on one path). The agent's own LOCKED contract writes one JSON object PER
-   requirement to `<OUTPUT_DIR>/gap-matrix.jsonl` with the EXACT keys
-   `{req_id, requirement, coverage, classification, effort_tier, module, grounded, notes}`
-   (enums per § Context) - do not rename that file. Be conservative - upgrade `effort_tier` when
-   in doubt.
+   workers from racing on one path). File name + exact key schema are the agent's own LOCKED
+   Output contract (`agents/odoo-gap-analyzer.md`) - do not restate the key list here.
 
 The `odoo-gap-analyzer` agent owns the per-requirement OSM method (the `check_module_exists` ->
 `model_inspect` / `module_inspect` -> `find_examples` / `suggest_pattern` rounds) and the

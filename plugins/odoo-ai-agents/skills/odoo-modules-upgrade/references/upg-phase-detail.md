@@ -268,136 +268,33 @@ target_version: <target_version>
 slug: <src>-<tgt>-<cluster>
 repo_root: <absolute path to the repository root>
 CLASSIFICATION TABLE: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
+```
 
-STEPS:
-1. set_active_version(odoo_version='<target_version>')
-2. Read the module source (models/, views/, security/, static/src/) via Read/Grep to
-   understand its nghiệp vụ (business purpose), ý đồ (intent), expected outcomes,
-   and acceptance criteria.
-2a. DATA-AT-RISK CHECK: check the module's manifest for `installable: True`. If True,
-   check whether the module defines stored non-computed fields (fields without
-   `compute=` or `related=`, and with `store=True` or default store behavior) OR has
-   `noupdate="1"` records in its data XML. If both conditions hold (installable:True +
-   stored fields or noupdate records), set `data_at_risk: true` in the output.
-   If `data_at_risk: true` and the forthcoming verdict is REWRITE(model) or DELETE,
-   report BLOCKED and escalate to the orchestrator for human decision - do NOT proceed
-   to classify as code-only.
-2b. VERSION-ANCHORED DEFERRED-WORK SCAN (same read as step 2 - no separate dispatch): scan
-   every file already read, PLUS `tests/*.py`, `data/*.xml`, `data/*.csv`, `i18n/*.po`, and any
-   README/doc file (`README.rst`, `doc/*.rst`, `static/description/*.html`) present in the module,
-   for a case-insensitive marker set: `TODO`, `todo`, `Todo`, `ToDo`, `@todo`, `FIXME`, `XXX`,
-   `HACK`. For EACH hit, read the surrounding text and try to parse a VERSION ANCHOR - an Odoo
-   series/major named in the marker (e.g. "17.0", "v17", "version 17", "when we move to 17",
-   "upgrade to 17", "Odoo 17"). A bare number with no Odoo-version context ("fix by Q3",
-   "issue #123") is NOT a version anchor. Classify:
-   - DUE: anchored version == `<target_version>` (X) OR a series LOWER than X (already overdue -
-     it should have been done at an earlier upgrade and was not).
-   - DEFERRED: anchored version HIGHER than X - leave the marker untouched in source, not due yet.
-   - UNANCHORED: no parseable version anchor. Do NOT force it into DUE. Record it with
-     `needs_human: true` - never silently absorbed into DUE nor silently dropped.
-   Emit a one-line `work_item` (the actionable description of what the marker asks for) for every
-   DUE item only. This scan is part of the SAME delegated per-module read as step 2 - the
-   orchestrator never greps module source itself for this; it only consumes the returned
-   `deferred_work` block (see OUTPUT below).
-3. For each FEATURE the module provides:
-   a. Use check_module_exists / module_inspect / model_inspect to determine whether
-      the target-version core ALREADY provides this feature.
-   b. Use api_version_diff to check if the relevant API changed.
-   c. Classify the feature per the classification table:
-      - DELETE-absorbed: target core fully provides this (cite the core module/feature)
-      - OBSOLETE: the module's purpose is moot at target but NO named core feature absorbs it
-      - KEEP: custom logic that core does not provide and API is stable
-      - REWRITE(api): API changed at target; custom logic still needed; adapt call sites
-      - REWRITE(model): model structure changed (field renamed/type-changed/removed)
-      - RECONCILE: custom intent survives BUT target-core now writes/computes the SAME business
-        quantity on the SAME records (data-divergence), OR a new core mechanism can replace/
-        simplify the custom impl -> route to P2b design (never a silent KEEP)
-      - MERGE: this module + another cluster module are now best combined
-      - SPLIT: this module has grown to warrant splitting
-3b. NEW-FEATURE SWEEP (RECONCILE detection) - run for EVERY feature classified KEEP or
-   REWRITE(api)/REWRITE(model).
-   (a) API-endpoint sweep: if the api_version_diff result from step 3.b above contains a `new`
-   section, inspect those new items for mechanisms that replace or simplify the feature - REUSE
-   that same result; do NOT call api_version_diff again for the same feature.
-   (b) UNCONDITIONAL domain sweep: run `suggest_pattern` / `find_examples` for EVERY KEEP
-   feature regardless of the api_version_diff result. This catches new parallel core mechanisms
-   (new model on the same domain, new mixin, new action) that do NOT appear in an
-   endpoint-scoped api_version_diff but can replace the custom logic. A new parallel core
-   mechanism on the same domain forces RECONCILE even when the feature's own API is stable.
-   For each surviving custom feature, judge whether a NEW target-core mechanism/API can replace
-   or materially simplify it AND still cover the feature's acceptance criteria. Evidence: the
-   api_version_diff `new` items + `suggest_pattern` / `find_examples` / `describe_module`.
-   - New core mechanism can wire-in and covers the criteria -> reclassify RECONCILE (b);
-     record it in `reuse_candidates[]`.
-   - New core ALSO writes/computes the SAME business quantity on the SAME records the custom
-     code writes -> reclassify RECONCILE (a) data-divergence (two SSOTs).
-   A RECONCILE feature sets the module verdict to RECONCILE (or MIXED if other features stay
-   KEEP/REWRITE); the orchestrator routes that verdict to P2b design (§ P2b) - never a silent KEEP.
-4. If EVERY feature is DELETE-absorbed, return verdict=DELETE-absorbed with
-   the SINGLE core module/feature that replaces the whole module.
-4a. BEHAVIORAL-EQUIVALENCE CHECK (MANDATORY for DELETE-absorbed verdict):
-   Enumerate every override the module defines: `create`/`write`/`unlink`/`_compute_*`/
-   `_constrains`/`@api.onchange`/action methods/SQL constraints. Use
-   `model_inspect(model='<model>', method='methods', odoo_version='<target_version>')` + grep of models/ source. For EACH override:
-   - confirm that target core produces the SAME observable effect, OR
-   - confirm the override is a no-op against core behavior at target.
-   If ANY override has no core equivalent with the same effect, change the verdict from
-   DELETE-absorbed to REWRITE or MERGE - the module is NOT fully absorbed.
-   Record the full enumeration in `behavioral_equivalence` in the output.
-5. For each classification, provide:
-   - evidence: OSM citation (module_inspect / model_inspect / api_version_diff result)
-   - proposed_action: DELETE-absorbed / OBSOLETE / KEEP / REWRITE(api) / REWRITE(model) / MERGE / SPLIT
+The agent's own Step 1 (upgrade mode) owns reading the module source into a feature inventory and
+the version-anchored deferred-work reconciliation (no separate dispatch: reuses this same
+per-module read for the marker family, VERSION ANCHOR parsing, and DUE/DEFERRED/UNANCHORED
+classification) - do not restate them here (`agents/odoo-diff-comparator.md` § Version-anchored
+deferred-work reconciliation). Its § 3c (Upgrade mode) owns the DATA-AT-RISK CHECK, the
+classification-table walk (`check_module_exists`/`module_inspect`/`model_inspect`/
+`api_version_diff` grounded per its own Step 2), the reuse-candidate sweep that reclassifies
+KEEP/REWRITE(api)/REWRITE(model) as RECONCILE, the MANDATORY behavioral-equivalence check before
+any DELETE-absorbed verdict, and the `absorption/<module>.md` output format + Step 4 Upgrade-mode
+return block - do not restate them here (`agents/odoo-diff-comparator.md` § 3c, § Step 4 Upgrade
+mode).
 
+```
 OUTPUT: write to absorption/<module>.md
-FORMAT:
-  module: <module>
-  grounded: "osm" | "osm + local-source (hybrid)" | "local-source (not OSM-indexed)"
-    # hybrid = OSM resolved core symbols but a CUSTOM _inherit/symbol was confirmed from module
-    # source (OSM does not index custom code; an OSM MISS on a custom symbol is NOT absence).
-  verdict: DELETE-absorbed | OBSOLETE | KEEP | REWRITE(api) | REWRITE(model) | RECONCILE | MERGE | SPLIT | MIXED
-  features:
-    - name: <feature_description>
-      classification: <class>
-      evidence: <OSM citation>
-      proposed_action: <action>
-  reuse_candidates:
-    # NEW-FEATURE SWEEP output (RECONCILE-b). Omit when empty.
-    - feature: <feature_description>
-      new_core_mechanism: "<core module/API that can replace or simplify it>"
-      covers_acceptance_criteria: true | false
-      evidence: "<api_version_diff new item + suggest_pattern/find_examples citation>"
-  whole_module_absorbed: true | false
-  absorbing_core_feature: "<core_module>/<feature>" (only when whole_module_absorbed=true; omit for OBSOLETE)
-  data_at_risk: true | false
-    # true if: module is currently installable:True AND (defines stored non-computed fields
-    # OR has noupdate="1" records). Flag before applying any REWRITE(model) or DELETE verdict.
+FORMAT: module / grounded / verdict / features / reuse_candidates / whole_module_absorbed /
+  absorbing_core_feature / data_at_risk / deferred_work / behavioral_equivalence - per the
+  agent's own § 3c template + Step 4 Upgrade-mode return block cited above; do not restate them
+  here.
   vendor_api_checked: <pkg>@<found> -> adapted-to <newest> | <pkg>@<found> (newer <newest> deferred - <reason>) | <pkg>@<version-found> | over-cap (<n> packages) | not-triggered | unreachable
-    # Populated at P4 adapt time (Convention 0(c) vendor-currency pass), NOT at this P2 comparator
+    # the ONE field this SKILL owns (the agent's own schema above does not declare it):
+    # populated at P4 adapt time (Convention 0(c) vendor-currency pass), NOT at this P2 comparator
     # emission - absent/omitted here until P4 records it (P4 step 0c writes/updates this field on
     # this SAME file). One of exactly the six forms Convention 0(c) enumerates:
     # ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0(c). This is the field P6
     # presents (P6 shows "absorption/* summaries") - no separate surfacing step needed.
-  deferred_work:
-    # Version-anchored TODO/FIXME/XXX/HACK reconciliation (step 2b). items: [] if none found -
-    # emit the key regardless, so an empty sweep is a recorded fact, not a silent omission.
-    items:
-      - file: <relative path>
-        line: <line number>
-        marker: "TODO" | "FIXME" | "XXX" | "HACK" | "@todo"
-        raw_text: "<verbatim comment text>"
-        anchored_version: "17.0" | null
-        classification: DUE | DEFERRED | UNANCHORED
-        work_item: "<one-line actionable description>"   # DUE only; omit otherwise
-        needs_human: true | false                          # true for every UNANCHORED item
-    due_count: <n>
-    unanchored_count: <n>
-  behavioral_equivalence:
-    # MANDATORY for DELETE-absorbed verdict. Omit for other verdicts.
-    overrides_enumerated:
-      - method: <method_name>
-        core_equivalent: <yes|no>
-        proof: "<citation or explanation>"
-    conclusion: "all overrides proved equivalent" | "FAIL: <method> has no core equivalent -> NOT DELETE-absorbed"
 ```
 
 ### P2 - odoo-gap-analysis dispatch (per module, parallel with comparator)

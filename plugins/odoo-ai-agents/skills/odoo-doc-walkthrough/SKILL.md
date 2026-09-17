@@ -55,7 +55,7 @@ execution is needed to produce the walkthrough.
 ## Dispatch brief
 
 **Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Doc-writer family
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Doc-writer family
 delta; never inline that file verbatim into a hard-leaf brief.
 
 Main dispatches `odoo-doc-scenarist` with (resolve `<SHARE_DIR>` once per
@@ -82,18 +82,13 @@ If `MODULE_PATH` or `ODOO_VERSION` is unknown, the scenarist resolves it per
 after every rung it returns `NEEDS_CONTEXT(odoo_version)` before proceeding rather than guessing
 one from a manifest `version` string.
 
-Collect `walkthrough.md` (and optional `walkthrough.jsonl`) from the agent output path, then
-emit a Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`.
+Collect `walkthrough.md` and `walkthrough.jsonl` from the agent output path - the agent writes
+both on every run (`agents/odoo-doc-scenarist.md` § Completion returns `jsonl_path`
+unconditionally) - then emit a Continuation Contract per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`.
 
 ## Standalone-first fallback
 
-When Odoo Semantic (the odoo-semantic-mcp server) is unreachable:
-- Fall back to reading the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9),
-  model `.py` files, and view XML on disk to enumerate menus, models, and key fields.
-- Label the grounding in the output: `grounding: local-source`.
-- Emit `WARNING: OSM unreachable - scenario steps inferred from disk source; verify labels
-  against a live instance before publishing`.
-
-When `CATALOG_PATH` is absent or the file does not exist:
-- The scenarist derives the feature set directly from OSM `describe_module` / `module_inspect`
-  (or disk fallback); the output is labeled `catalog: none`.
+OSM unreachable -> agent falls back to disk, labels `grounding: local-source`, and emits its own
+warning text; full fallback chain and the `CATALOG_PATH`-absent behavior are owned by
+`agents/odoo-doc-scenarist.md` § Step 1 and § Feature catalog - not restated here.

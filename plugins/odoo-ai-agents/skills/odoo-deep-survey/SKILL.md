@@ -237,7 +237,7 @@ A worker is a leaf subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself
 orchestrator must **read referenced snippets and paste their content into the brief**.
 
 **Dispatch-brief skeleton.** Before dispatching, fill the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst
 family delta; never inline that file verbatim into a hard-leaf brief.
 
 1. **Worker brief** - inline full text of `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`

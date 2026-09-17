@@ -51,7 +51,7 @@ If the brief states `USER LANGUAGE: <language>`, write the human-facing parts of
 
 ## Code quality
 
-Treat lint/format compliance as a functional requirement: JavaScript must be ESLint-compliant and Prettier-compatible per the Tooling/ESLint/Prettier rules described in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md`; Odoo frontend code from v14.0+ must follow established OWL conventions and patterns. READ `docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
+Treat lint/format compliance as a functional requirement: JavaScript must be ESLint-compliant and Prettier-compatible per the Tooling/ESLint/Prettier rules described in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md`; on an OWL-era target (the era you resolved in the version gate above, per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`) follow established OWL conventions and patterns. READ `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
 
 ## View design (UX is functional, not cosmetic)
 
@@ -374,7 +374,7 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own § Brief self-check below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
@@ -400,4 +400,4 @@ literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

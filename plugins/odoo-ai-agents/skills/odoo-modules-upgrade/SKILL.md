@@ -80,7 +80,7 @@ Full per-phase commands, dispatch briefs, and artifact formats:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`.
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 **Sequence invariant (non-negotiable order).** Pipeline order is
@@ -158,9 +158,9 @@ is NOT dispatched until its in-cluster dependencies have finished P2. Dispatch c
 follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode B.
 Comparator brief: "compare the module's nghiệp vụ / ý đồ / expected outcomes /
 acceptance criteria against target-version CORE (`<target>`). Classify each feature per
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`;
-if the WHOLE module is provided by core, return verdict=DELETE-absorbed with the core
-module/feature that replaces it."
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`" -
+the comparator itself owns the whole-module DELETE-absorbed derivation
+(`agents/odoo-diff-comparator.md` § Step 3c, `whole_module_absorbed` rule).
 Output per module: `absorption/<module>.md` - {per-feature classification, evidence
 (OSM citation), proposed action, deferred_work items (below)}.
 
@@ -343,7 +343,7 @@ directly - do NOT re-derive the reverse-closure: `changed_set` = every surviving
 MERGE/SPLIT) module in `plan.md`; the dependent-module reverse-closure comes for free from P1's
 `graph.md` DAG.
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole cluster (never per
-module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by
+module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by
 path): `INPUTS` = the `changed_set` above, `scope_hint` = `graph.md` + `absorption/*.md`,
 `odoo_version` = target series; `INSTANCE_HANDLE` from P5 if still live (reuse - never
 re-provision; else pass `none provisioned` and `odoo-acceptance` still scopes + plans its oracle,
@@ -419,7 +419,7 @@ human merge.
    Data-at-risk detection: if a candidate module is currently `installable: True`
    AND it defines stored non-computed fields OR has `noupdate="1"` data records, the P2
    comparator flags `data_at_risk: true` in `absorption/<module>.md`. A `data_at_risk`
-   module that receives a REWRITE(model) or DELETE verdict MUST ESCALATE: the pipeline
+   module that receives a REWRITE(model) or DELETE-absorbed verdict MUST ESCALATE: the pipeline
    reports BLOCKED status and requires explicit human decision before proceeding code-only.
    The fresh P5 ephemeral DB cannot detect data loss - proceeding code-only on a
    data-at-risk module is a production-incident risk.

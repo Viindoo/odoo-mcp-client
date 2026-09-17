@@ -124,7 +124,7 @@ Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one ba
 
 **Do NOT run the coverage sweep in this context** - each reviewer runs it for its OWN module. Put this line in every reviewer brief: `COVERAGE_CHECK: for each affected model in your module, call OSM tests_covering(model='<affected_model>', odoo_version='<version>') and report the counts` (model-edge level; distinct from the scoper's module-level `COVERAGE_BASELINE`). The reviewer already holds its module's affected-model list, so this front door never issues N OSM calls of its own before dispatching.
 
-**Before flagging pitfall #10 (behavior change with no protecting test) as HIGH**, the reviewer verifies with evidence from the `COVERAGE_CHECK` it ran: if that shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. **Method-narrow caveat:** `tests_covering` with `method=` returns zero for many well-tested methods (COVERS_METHOD edges are sparse) - a method-narrow zero is supporting evidence, not proof; corroborate with the model-level count or `find_test_examples` before escalating to HIGH.
+**Before flagging a behavior change with no protecting test as HIGH**, the reviewer verifies with evidence from the `COVERAGE_CHECK` it ran: if that shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. (Method-narrow-zero handling is the reviewer's own call - `agents/odoo-code-reviewer.md` § Step 2 already owns that caveat.)
 
 ### Phase A.5 - Rendered-UI review (conditional, per module)
 
@@ -233,16 +233,9 @@ always.
 
 Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 
-## Brief context - Odoo review pitfalls
-
-Eleven failure modes the agent checks for. Full details:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/review-pitfalls.md`
-
-Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → launch the `odoo-test-writer` agent (context-isolated; it authors by invoking the `odoo-test-writing` skill inline), (11) forward-ported test coupled to source-version API/snapshot → assert observable outcome on target, RED-then-GREEN, launch the `odoo-test-writer` agent (adapt mode).
-
 ## Agent invocation
 
-When composing the dispatch prompt for `odoo-code-reviewer`, fill the universal skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read by path) plus the Reviewer/auditor family delta.
+When composing the dispatch prompt for `odoo-code-reviewer`, fill the universal skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read by path) plus the Reviewer/auditor family delta.
 
 Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`
 
@@ -281,6 +274,6 @@ Before finishing, APPEND your significant findings/decisions to the run worklog 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the paths actually written; decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
 **The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active you have ALREADY invoked the target; `next:` advances nothing on its own, so **never stop at it**.
 - CRITICAL/HIGH findings needing a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-harness instead, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, report_path: <this report>, ...}` (the driver bounds the loop to 3 iterations, then escalates).
-- Behavior change with no protecting test (pitfall #10) → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (context isolation; it authors by invoking the `odoo-test-writing` skill inline) for the protecting RED test; when a code fix is also needed, drive it through `odoo-coding` (test-first - its `odoo-coder` coordinator launches `odoo-test-writer` per WI). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
+- Behavior change with no protecting test → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (context isolation; it authors by invoking the `odoo-test-writing` skill inline) for the protecting RED test; when a code fix is also needed, drive it through `odoo-coding` (test-first - its `odoo-coder` coordinator launches `odoo-test-writer` per WI). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
 - Clean review, behavior covered → no fix, no `next` (loop terminates).
 A CRITICAL bug in a behavior that also lacks a test drives BOTH the RED test and the fix through `odoo-coding` (test-first) - under a run-harness: `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, ...}`. Additive output for the run-harness; it changes nothing produced above.

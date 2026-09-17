@@ -137,7 +137,7 @@ Rules:
 - Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md` (state-root cache, never git-tracked - no
   `WORKTREE_PATH` applies to this phase; the executable `.py`/`.js` test files themselves are
   written by `odoo-test-writing`, which carries its own `WORKTREE_PATH` contract per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5)
+  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5)
 
 ---
 

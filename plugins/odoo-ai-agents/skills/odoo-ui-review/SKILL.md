@@ -41,20 +41,10 @@ audit, sweep responsive breakpoints, then ground every styling defect in the cod
 runs as an autonomous agent (not inline) because the review needs many sequential+parallel
 browser/MCP round-trips.
 
-## Brief context - Odoo UI review pitfalls
-
-Key things the agent watches for:
-
-1. **Selector era by version** - v17+ backend uses `/odoo` with `.o_form_view` / `.o_list_view` / `.o_kanban_view`; older versions use `/web`. Pin the version before navigating.
-2. **Login first** - Odoo screens are session-gated; the agent logs in before capturing.
-3. **Six-lens coverage** - a finding in one lens (e.g. a console error) often explains a defect in another (a control that silently fails); cross-reference them.
-4. **Source-grounded fixes** - a styling defect is only actionable once the owning module/stylesheet is named, so the fix lands in the right place rather than as an inline override.
-5. **Design-system / theme lens** - run a token-reality check per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`: read `getComputedStyle` on `:root` + representative elements and flag empty/transparent surfaces, self-referential CSS custom properties, `--bs-*` references (Odoo sets `$variable-prefix:''`, so Bootstrap `--bs-*` runtime vars are absent across v16+ confirmed through v19 - reference `--primary` / `--o-color-*` instead), hardcoded palette, and divergence from the mockup. Emit remediation as a token+file pointer, not an inline patch.
-
 ## Agent invocation
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 **Resolve `ISOLATE_DIR`, sweep, then mint `SLUG`.** This skill is the `odoo-ui-reviewer` agent's
@@ -105,13 +95,8 @@ cross-check hard constraints from the master TDD. Single mode (no `index.yaml`):
 Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
 When the user confirms intent (or main detects a running instance + a "how does it look" request),
-main launches the `odoo-ui-reviewer` agent as a subagent with restricted tools (odoo-semantic-mcp +
-chrome-devtools, read-only). The agent does NOT spawn further subagents, does NOT invoke any Skill
-tool, and never edits Odoo source - fixes are handed to `odoo-coding`.
-
-**Teardown before DONE.** The dispatched `odoo-ui-reviewer` agent's `DONE` is not valid while a
-browser page it opened this dispatch is still open - close every page you created before your
-terminal status. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+launch the `odoo-ui-reviewer` agent as a subagent. It returns findings, never edits - route every
+fix it names to `odoo-coding`.
 
 **Browser mode (headless default / headed on request).** The agent defaults to headless - the only
 safe choice on a no-display/CI host. Only when the human explicitly asks to see/watch the browser

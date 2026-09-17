@@ -68,7 +68,7 @@ If the proposed placement is architecturally wrong, do not silently implement it
 
 ## Code quality
 
-Treat lint/format compliance as a functional requirement: Python must be Flake8-compliant; do not rely on future linting/cleanup passes to become acceptable. READ `docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
+Treat lint/format compliance as a functional requirement: Python must be Flake8-compliant; do not rely on future linting/cleanup passes to become acceptable. READ `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
 
 ## View design (UX is functional, not cosmetic)
 
@@ -352,7 +352,7 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own § Brief self-check below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
@@ -378,4 +378,4 @@ literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

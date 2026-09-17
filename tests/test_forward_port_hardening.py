@@ -2388,8 +2388,11 @@ class TestNoReplyAddressInAnyBriefTemplate:
 
     def test_8a_brief_template_carries_no_reply_address(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
-        start = text.index("TEST ADAPT MODE: forward this source test to the target platform.")
-        end = text.index("RULE: translate to target API", start)
+        start = text.index("MODE: adapt - forward this source test to the target platform.")
+        # End at the template's own closing fence, not at a prose line inside it: the invariant
+        # is "no reply-address field anywhere in the 8a brief", and a sentence-shaped boundary
+        # marker breaks the test the moment that sentence is legitimately edited away.
+        end = text.index("\n```", start)
         block = text[start:end]
         for banned in ("CALLER_ID", "REPLY_TO"):
             assert banned not in block, (

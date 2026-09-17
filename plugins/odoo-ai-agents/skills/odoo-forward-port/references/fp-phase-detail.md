@@ -94,11 +94,8 @@ intentionally dispatched to BOTH modules' single extractor instances - two indep
 legitimately process the identical SHA, and would otherwise both write the SAME `intents/<sha>.md`
 path with no owner or merge rule. Set this brief's `SLUG` field to `<slug>/<module>` (the run
 `<slug>` plus this module's own name) - the extractor's own write-path template
-(`agents/odoo-intent-extractor.md` Step 3, `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md`,
-substituted verbatim from this field) then resolves per module automatically, with no change needed
-to that agent: module A's instance writes `<ISOLATE_DIR>/forward-port/<run-slug>/A/intents/<sha>.md`;
-module B's writes `.../B/intents/<sha>.md` for the SAME sha - two distinct files, each module's own
-perspective, never a last-write-wins collision. `commit_dump_paths` below is UNCHANGED - those are
+(`agents/odoo-intent-extractor.md` Step 3) then resolves per module automatically, no agent change
+needed. `commit_dump_paths` below is UNCHANGED - those are
 already-resolved absolute paths the orchestrator wrote ONCE (single writer, shared read-only),
 keyed by the run-level `<slug>`, never per-module.
 
@@ -113,14 +110,8 @@ commit_dump_paths:
   # ... every sha touching this module, oldest first (run-level <slug> - shared, read-only, single writer)
 SOURCE SERIES: <e.g. 16.0>
 SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
-TASK: For EACH commit in commit_dump_paths (in order), extract the business intent + behavioral
-      contract. Read commit message -> PR/issue -> test changes -> code comments (in that
-      priority). OSM-ground the touched symbols at the SOURCE version. Write ONE
-      <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md per commit (the module-scoped <slug>
-      above, so this module's write path never collides with another module's for a shared sha).
-      Note any overlap or revert
-      between commits in this SAME module bundle. Do NOT copy diff hunks as intent. Do NOT
-      classify the 4-outcome bucket (caller's job).
+TASK: Extract business intent + behavioral contract for every commit in commit_dump_paths
+      (own method: agents/odoo-intent-extractor.md Steps 1-3).
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -161,8 +152,7 @@ side's OWN descriptor filename can support.
 
 DISPATCH the read-only sonnet leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
 needed to disambiguate category 3 - the module's manifest was NOT touched by the forwarded commit range and
-its target state is unclear. The prober reads the manifest you wrote plus the history dump; it never
-runs git and never calls OSM for this fact. Whether resolved directly (categories 1-2) or via the
+its target state is unclear. Whether resolved directly (categories 1-2) or via the
 prober (category 3), record `installable_false=yes|no` in `merge-log.md` for the module - the ONE
 field any later phase reads for its installable state.
 
@@ -199,17 +189,22 @@ Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 The prober consumes those and returns BOTH:
 
 - `merge_log_line:` - a single-line verdict logged VERBATIM to `merge-log.md`.
-- a structured verdict block - `{ module, verdict: yes|no|tentative, evidence }`.
+- a structured verdict block - `{ module, installable_false: yes|no, evidence }`. Read that field
+  by its own name and polarity (`agents/odoo-installable-prober.md` § Step 3); it is the single
+  field any consumer reads, and there is no third value - a probe that cannot resolve returns
+  `status: BLOCKED`, never a degraded verdict.
 
 **merge-log row placement.** The prober verdict is its OWN row keyed by module, kept DISTINCT
 from the per-commit rows (intent / bucket / reason / evidence). Place it under a dedicated
 `## Installable probes` heading (one row per probed module) so a module-keyed verdict is never
 confused with a commit-keyed classification row.
 
-**TENTATIVE handling.** A `tentative` verdict is NEVER silently coerced to yes/no: carry it to
-the P4 plan gate as a FLAGGED row requiring explicit human confirmation before that module's
-merge. A `no` verdict means `installable:False` -> the module enters the lint-only lane and SKIPs
-extract/adapt logic tiers. Do not restate the rule - SSOT: `[[fp-installable-false]]`.
+**Routing the verdict.** `installable_false: yes` means the module lands `installable: False` ->
+lint-only lane, SKIPping the extract/adapt logic tiers; `no` means it stays enabled and takes the
+normal lane. Do not restate the rule - SSOT: `[[fp-installable-false]]`. A `BLOCKED` probe is not
+a verdict: resolve the missing input (`manifest_path`) and re-probe, or carry the module to the P4
+plan gate as a FLAGGED row needing explicit human confirmation before its merge - never coerce it
+to yes or no.
 
 ---
 
@@ -522,7 +517,11 @@ Worktree path field never changes (P8 always adapts directly in the SAME integra
 the whole run, `SKILL.md` § Git topology).
 
 ```
-TEST ADAPT MODE: forward this source test to the target platform.
+MODE: adapt - forward this source test to the target platform.
+TEST TYPE(S): <the type(s) the source test already is - python | js | tour | httpcase>
+MODULE SCOPE: <module> @ <path>/fp-integration/<module>
+TARGET BEHAVIOR / ORACLE SCENARIOS: the SOURCE TEST below is the oracle - forward what it protects.
+SURVEY: none
 SOURCE TEST (READ/WRITE, in the integration worktree): <path>/fp-integration/<module>/tests/<test_file>
   (merged working-tree content; for bucket (b) it may still carry conflict markers or auto-merged
    text - resolve IN PLACE and write the adapted result back to this SAME path. P8 never uses a
@@ -543,11 +542,11 @@ TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo
       that already test this behavior the target-idiomatic way - imitate their structure>
 BROKEN TEST-SYMBOLS: <the P6 / P7 SYMBOL-BROKEN entries that land in THIS test file - the
       author must repair each (do not forward them verbatim)>
-RULE: translate to target API; STRIP implementation-coupled assertions (private method asserts,
-      call counts, internal ordering); re-create the BEHAVIOR on target; confirm RED on target.
-      Never relax/rewrite an assertion to pass unless the target platform legitimately redefines
-      the behavior AND you cite the OSM/platform reason.
 ```
+
+(Adapt method - classify/strip/translate/confirm-RED, and the never-relax-an-assertion ban - is
+`skills/odoo-test-writing/references/fp-adapt-mode.md`'s own Steps 1-4 + BANNED list; not restated
+here.)
 
 Resolve the three enrichment lines BEFORE dispatch:
 

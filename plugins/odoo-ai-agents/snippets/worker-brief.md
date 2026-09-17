@@ -12,7 +12,7 @@ the worker writes files and returns them; the orchestrator commits via git-ops (
 leaf launches NO sub-agent and invokes NO spawner skill.
 
 See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) you were briefed
-against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` - this file covers only your
+against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton - this file covers only your
 worker-side behavior once dispatched, not how the caller composed your brief.
 
 **Who this brief does NOT bind: any agent the registry declares `role: spawner|coordinator`**

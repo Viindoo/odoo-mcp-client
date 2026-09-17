@@ -61,7 +61,7 @@ per-language leaf scoping (P1-P5) are enforced in one place. A live instance is 
 invoking the `odoo-instance` skill (never the raw `odoo-instance-ops` agent).
 
 **`WORKTREE_PATH` is required whenever this skill runs.** `.po` / `.pot` files are git-tracked, so per
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 the write happens in a dedicated worktree -
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 the write happens in a dedicated worktree -
 never the principal checkout. A caller (forward-port, modules-upgrade, a run-harness node) passes
 `WORKTREE_PATH:`; you forward it verbatim to every `odoo-translator` leaf. Invoked with no
 `WORKTREE_PATH` and no worktree of your own -> provision one via `git-toolkit:git-ops` before P2, per
@@ -298,13 +298,13 @@ inconsistency to report - it is a deliberate do-not-localise decision (`po-entry
 ## Dispatch contract -> odoo-translator
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 P3 dispatches the `odoo-translator` agent as a subagent launch - one leaf per (module-cluster ×
 language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: `WORKTREE_PATH` (the
 absolute worktree the `.po`/`.pot` writes land in - MANDATORY, per
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5, because the leaf is a separate agent
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5, because the leaf is a separate agent
 context that does NOT inherit your cwd); `SHARE_DIR` + `ISOLATE_DIR` as the absolute literals you
 captured at P0 (field 5 again - the leaf roots itself at `WORKTREE_PATH`, so re-resolving
 `<ISOLATE_DIR>` from its own cwd would land its worklog in that worktree and orphan the glossary
@@ -326,21 +326,9 @@ the reconcile would report phantom removals. Pass the model both as a
   circulars, statutory report labels) where a wrong term has compliance cost.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
-decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). It does the
-re-export + translation directly - there is no OSM i18n tool, so it uses shell `odoo-bin` (the
-git-ops diff-review + commit stay with the skill, never the leaf), and uses OSM only to confirm
-canonical field labels, e.g.:
-
-```
-entity_lookup(kind='field', model='account.move', field='amount_total', odoo_version='<target>')
-```
-
-**`.po`/`.pot` file format constraint (authoring and hand-editing):** Every message entry in a
-`.po` or `.pot` file MUST carry a `#. module: <technical_name>` extractor comment on the line
-immediately before the `#: <file>:<line>` location reference. A hand-written or hand-patched entry
-missing this comment causes `translate.py` to crash at module load and Runbot misattributes the
-failure to a later module. Odoo's `--i18n-export` generates this comment automatically; the
-re-export preserves it, and it must be added manually when entries are written by hand.
+decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its re-export /
+translate / validate method (incl. when it uses OSM vs shell `odoo-bin`) is its own Rounds 0-5
+(`agents/odoo-translator.md`) - do not restate the procedure here.
 
 ## Artifacts
 
