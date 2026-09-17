@@ -165,7 +165,7 @@ install, and test-run all go through the `odoo-instance` skill
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py` or
 `odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
 allocator/odoo-bin call from this orchestration layer bypasses the instance HARD RULES `odoo-instance`
-enforces (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding)
+enforces (`en_US` union, the Viindoo server-wide set, lint-module install, per-version `cli_help` grounding)
 and, for forward-port specifically, the `WORKTREE_PATH` re-root that keeps verification pointed at
 the adapted worktree instead of the principal checkout.
 

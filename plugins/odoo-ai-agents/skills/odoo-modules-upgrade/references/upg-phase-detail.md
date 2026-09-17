@@ -698,23 +698,27 @@ failures localize to the level that introduced them and resume skips proven leve
 Per-level green is recorded in `checkpoint.json` (status `installed` per module) and
 `install-test.md`.
 
-**Framework-validation gate is MERGED into P5 (no separate phase) and runs demo=on.** A module
-that flips `installable: False -> True` is scanned by the target's FULL test suite for the first
-time; from v18 `base.TestInvisibleField` (every always-invisible view field needs an explanatory
-XML comment) and `hr.TestSelfAccessProfile` (custom `hr.employee` fields need
-`groups='hr.group_hr_user'`) run in that suite and require demo data. Demo default is
-version-keyed - F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md:
-v8-v18 demo ON by default (`--without-demo` disables); v19 demo OFF by default (`--with-demo`
-enables); `--without-demo=False` is INVALID. The gate stays demo=on regardless
-(on v19 the instance must be created `--with-demo`). The P4b review for any flipped module MUST
+**Framework-validation gate is MERGED into P5 (no separate phase).** A module that flips
+`installable: False -> True` is scanned by the target's FULL test suite for the first time;
+`base.TestInvisibleField` (every always-invisible view field needs an explanatory XML comment) and
+`hr.TestSelfAccessProfile` (custom `hr.employee` fields need `groups='hr.group_hr_user'`) run in
+that suite. **This gate is an automation-test build, so its demo shape is the automation-test row,
+never an exception to it** - resolve it from
+${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Demo data by build PURPOSE. Do NOT request
+demo for this gate on a series where demo defaults off: the test environment there does not accept
+it, and the `odoo-instance` dispatch refuses the request rather than honouring it. These framework
+classes do not need a demo build to run - their base class creates the demo user itself when the
+database has none (`odoo/addons/base/tests/common.py`, `TransactionCaseWithUserDemo.setUpClass`),
+so read that base class for the target series rather than assuming a demo build is required. The
+P4b review for any flipped module MUST
 additionally cover ACL / `.sudo()` for every create/write/compute override on a widely-used core
 model. Cross-ref ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md.
 
-Step 1 - create instance (once), demo=on:
+Step 1 - create instance (once):
 ```
 operation: create
 series: <target_version>
-demo: on   # framework-validation gate REQUIRES demo data (see note above); on v19 -> --with-demo
+demo: <resolve from the automation-test row of § Demo data by build PURPOSE for this series - see note above; never `on` where demo defaults off>
 SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substitute it>
 ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
@@ -804,16 +808,18 @@ strings changed. The ONLY skips are the enumerated escapes in
 `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` § Escape hatches, and each one is RECORDED in
 `install-test.md` - never silent. DELETE-absorbed and OBSOLETE modules skip via E1.
 
-When it runs (against the P5 instance, demo=on):
+When it runs:
 ```
 SKILL: odoo-i18n
-INSTANCE: the P5 ephemeral instance (already up) - its addons path MUST cover WORKTREE_PATH
-          (established at P5 Step 1's own WORKTREE_PATH field, above). Its `demo: on` is
-          load-bearing TWICE: the framework-validation gate needs demo records, and so does the
-          export - demo-owned records carry translatable terms and a demo-less build ships a
-          truncated catalog (i18n caller obligation 5;
-          `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4). If P5 ever stops
-          building demo=on, this dispatch must switch to SELF_PROVISION rather than inherit it
+INSTANCE: DECIDE, never assume - the export needs a DEMO-CARRYING build, because demo-owned records
+          carry translatable terms and a demo-less build ships a truncated catalog (i18n caller
+          obligation 5; `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4).
+          P5's instance is an AUTOMATION-TEST build, so whether it carries demo depends on the
+          series (§ Demo data by build PURPOSE). Inherit the P5 ephemeral instance ONLY when that
+          row says the test build carries demo - its addons path MUST then cover WORKTREE_PATH
+          (established at P5 Step 1's own WORKTREE_PATH field, above). Where the test build is
+          demo-less, this dispatch MUST use SELF_PROVISION and build its own demo-carrying instance
+          instead - never inherit a demo-less build for an export, and never ask P5 to turn demo on
 MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)

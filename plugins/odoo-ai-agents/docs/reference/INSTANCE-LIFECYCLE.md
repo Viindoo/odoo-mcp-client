@@ -54,7 +54,10 @@
    bundle hash changes on `-u`. **Where assets are declared differs by era** - confirm for
    the target version (manifest `assets` dict vs an XML `<template>`); do not assume.
 3. **`-u` without `-d <DB>`** does nothing useful - always target a database.
-4. **Demo data** loads only at `-i`; `--without-demo=all` at first install is not reversible by `-u`.
+4. **Demo data** loads only at `-i`, and whether a build gets it is decided by PURPOSE, not habit -
+   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE owns that
+   decision and the per-series flag spelling. Whichever way the first install went, `-u` does not
+   reverse it.
 5. **API-compat gate:** a module using a removed decorator/API (e.g. `@api.multi`) only runs on
    older versions - confirm the removal version via `api_version_diff` / `find_deprecated_usage`
    for the target before assuming it installs.
@@ -66,5 +69,5 @@ live in part files; cite the PART that owns the fact you need.
 
 | File | Owns |
 |------|------|
-| `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` | the numbered build/update/test checklist (items 1-15), including item 14's deterministic readiness/completion contract and item 15's resource limits |
+| `INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` | the numbered build/update/test checklist (items 1-16), including item 14's deterministic readiness/completion contract, item 15's resource limits and item 16's purpose-keyed demo decision |
 | `INSTANCE-LIFECYCLE-TEARDOWN.md` | the teardown half: the T0 DONE-gate, T1 ownership, the stop-group-then-drop mechanism, `server_pid` on the handle, and the four-layer enforcement chain |

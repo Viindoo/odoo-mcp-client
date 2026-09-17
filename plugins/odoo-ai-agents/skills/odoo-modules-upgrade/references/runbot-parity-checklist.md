@@ -1,7 +1,7 @@
 # Runbot Parity Checklist
 
-SSOT for the full-suite gate that Runbot runs when a module flips `installable: False → True`.
-Used in: P5 demo=on gate (upgrade pipeline) and as a pre-PR checklist (WS6 P15).
+SSOT for the full-suite gate that Runbot runs when a module flips `installable: False -> True`.
+Used in: the P5 install + test gate (upgrade pipeline) and as a pre-PR checklist (WS6 P15).
 
 > **Trigger:** any module in the cluster has `installable` flipped `False → True` in this PR.
 > When this checklist is triggered, EVERY item below must pass before the PR is considered ready.
@@ -30,24 +30,21 @@ stray bugbear or a different `--max-line-length` value.
 
 ---
 
-## Gate 2 - Odoo lint test module (/test_lint + /test_pylint v16+)
+## Gate 2 - Odoo lint test module
 
-Reproduce the backend code-quality CI by running Odoo's own lint test module. Append `/test_lint`
-to `--test-tags` on a `-u <module> --test-enable` instance run (v14+; renamed from `test_pylint`
-at v13). On v16+ Viindoo profiles also include `/test_pylint` (tvtmaaddons). Requires a running
+Reproduce the backend code-quality CI by running the lint-class modules. Resolve WHICH modules the
+gate is made of for this series - and confirm each one really installed - per
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, then append one `/<module>` tag per resolved
+module to `--test-tags` on a `-u <module> --test-enable` instance run. Requires a running
 instance + DB.
 
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 
-# v14-v15 CE (and v16+ CE without Viindoo tvtmaaddons):
+# One /<tag> per lint module the snippet above resolved as present on this profile,
+# each also present in the -u install list for this build.
 odoo-bin -d <DB> -u <module> --test-enable \
-    --test-tags '/<module>,/test_lint' --stop-after-init \
-    --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-
-# v16+ Viindoo (tvtmaaddons installed):
-odoo-bin -d <DB> -u <module> --test-enable \
-    --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init \
+    --test-tags '/<module>,/<lint module>[,/<lint module>...]' --stop-after-init \
     --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
@@ -152,11 +149,15 @@ find <addons_path1> <addons_path2> ... -maxdepth 2 \( -name __manifest__.py -o -
 
 ---
 
-## Gate 7 - full-suite demo=on (installable-flip trigger, version-keyed)
+## Gate 7 - full untagged suite (installable-flip trigger)
 
-When a module flips `installable: False → True`, the full `test_pylint` suite (Gates 1-6) runs
-on Runbot with `--init <module>` and **demo data ON** (the default for all v8-v18; explicit
-`--with-demo` for v19+). Run locally with demo ON to reproduce:
+When a module flips `installable: False -> True`, the full gate suite (Gates 1-6) runs on Runbot
+with `--init <module>`. Reproduce Runbot's DEMO SHAPE FOR THIS SERIES, and take it from RUNBOT's own
+configuration for that series - this gate's whole purpose is parity, so deriving its shape from this
+plugin's tables instead would make the gate agree with us rather than with CI. Where Runbot's config
+is not to hand, fall back to the automation-test row of
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE and say in the
+report that the demo shape was assumed, not confirmed:
 
 > **This gate is DELIBERATELY untagged** - exemption case 4 of
 > `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md` (reproducing a CI gate that itself runs
@@ -168,12 +169,10 @@ on Runbot with `--init <module>` and **demo data ON** (the default for all v8-v1
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 
-# v8-v18: demo ON is the default - no extra flag
+# No demo flag either way: on the series where demo defaults ON the test build simply
+# inherits it, and on the series where it defaults OFF the test environment does not
+# accept demo data at all. Never add the enable-flag to a --test-enable build.
 odoo-bin -i <module> --test-enable --stop-after-init <db-options> \
-         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-
-# v19+: demo ON requires explicit flag
-odoo-bin -i <module> --with-demo --test-enable --stop-after-init <db-options> \
          --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
@@ -205,7 +204,7 @@ Viindoo-specific gates (hr.employee groups, always-invisible comment).
 |---|---|---|---|---|---|
 | flake8 (no bugbear) | yes | yes | yes | yes | yes |
 | /test_lint (Odoo CE) | yes (v14+) | yes | yes | yes | yes |
-| /test_pylint (tvtmaaddons) | no | no | v16+ | yes | yes |
+| Viindoo lint module (presence AND name per series - `lint-gate-modules.md`) | no | no | resolve | resolve | resolve |
 | description RST | yes (v12+) | yes | yes | yes | yes |
 | images PIL | yes | yes | yes | yes | yes |
 | .po `#. module:` | yes | yes | yes | yes | yes |

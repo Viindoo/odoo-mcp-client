@@ -182,10 +182,21 @@ for the integrated test to fail (mirrored in `agents/odoo-coder.md` § Cross-mod
 - `@api.depends` paths used in `Form` interactions pass `validate_depends`
 - Field names in `env['<model>'].create({...})` match `model_inspect` output
 
-Backend code-quality gate: the `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles)
-CI-parity gate runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s
+Backend code-quality gate: the lint-class CI-parity gate (module set:
+${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md) runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s
 pre-PR tail - not appended per test-run here
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply on Viindoo Standard/Internal profiles. On later execution under `--test-enable` (FRESH DB `-i <module>`; already-installed DB `-u <module>`, since `-i` is then a no-op; confirm flags via `cli_help`, full rule `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`), resolve the interpreter (the instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
+
+**The test must build its own data - never reach for a demo record.** A test file outlives the
+instance it was written on: it later runs in the automation-test environment, whose demo shape is
+the automation-test row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by
+build PURPOSE. On any series where that row says the test build carries NO demo, a test that reads a
+demo record by xmlid or by name fails there even though it passed where it was authored. So create
+every record the test needs in `setUpClass` / `setUp`, and treat a demo xmlid in an assertion or a
+fixture lookup as a defect to fix, not a shortcut - including when you are authoring against a live
+demo-carrying instance (an acceptance sweep, a doc capture), where the record IS present and the
+test will pass in front of you. The one place a demo reference is legitimate is a test that exists
+to assert something about the demo data itself.
 
 **Comments and docstrings in the authored files.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`. The test method NAME states the business rule it protects, so a docstring that merely restates the name is banned; comment only a non-obvious arrange step, stating what it SERVES rather than what it does. No attribution or self-defense line, no narration of the RED/green journey, no ticket, date or author - a test file is where those collect fastest.
 

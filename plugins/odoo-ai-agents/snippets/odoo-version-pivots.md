@@ -93,6 +93,58 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 > truthiness-only consumption also breaks the help text's per-module promise ("comma-separated, use
 > \"all\" for all modules"): ANY non-empty value disables demo for EVERY module in the build.
 
+### Demo data by build PURPOSE
+
+Because the default flips at v19, the build's PURPOSE decides the flag there. Resolve the purpose
+from the dispatch brief's own signals, never from the operation name alone.
+
+| Build purpose - the signal that decides it | `demo` field (what the build REQUIRES, not what the DB ends up with) | v19+ flag | v8-v18 flag |
+|---|---|---|---|
+| Automation test run that gates code - ANY `--test-enable` build, at BOTH `GATE_ROLE: node-verify` and `GATE_ROLE: pre-pr-lint-gate` | `off` | none - already off | none - demo stays ON by default here, and that is correct; do NOT reach for a disable flag |
+| Translation export / `.pot` / `.po` work | `on` | `--with-demo` | none - already on |
+| Documentation capture (`CONTEXT: doc`), demo recording, UI review | `on` | `--with-demo` | none - already on |
+| Acceptance live-UI sweep | `on` | `--with-demo` | none - already on |
+
+`demo: off` states that the build does not REQUIRE demo; it is never an instruction to remove demo
+that the series loads by default. Disabling it changes what the build reproduces, so every row above
+asks for a flag only where one is needed to ADD demo.
+
+> **A v19+ automation-test build carries NO demo data, and the test suite must not want any.** Demo
+> records are absent there, so a test that reads one fails. Every durable test authored for a v19+
+> target - Python `TransactionCase` / `HttpCase`, Python tour, JS tour - MUST create its own records
+> in `setUpClass` / `setUp` and MUST NOT reference a demo record by xmlid or by name. This holds even
+> when the test was authored while driving a demo-carrying acceptance instance: the file it leaves
+> behind runs demo-less in the gate.
+
+## CLI - server-wide modules (`--load` / `server_wide_modules`)
+
+| Series | Core default | Viindoo set to union | Resulting `--load` on a Viindoo profile |
+|---|---|---|---|
+| v8-v10 | `web,web_kanban` | `to_base` | `web,web_kanban,to_base` |
+| v11 | `web` | `to_base` | `web,to_base` |
+| v12-v17 | `base,web` | `to_base` | `base,web,to_base` |
+| v18 | `base,web` | `to_erponline_utility,viin_brand` | `base,web,to_erponline_utility,viin_brand` |
+| v19+ | `base,rpc,web` | `to_erponline_utility,viin_brand` | `base,rpc,web,to_erponline_utility,viin_brand` |
+
+> Core-default column read from `--load`'s `my_default=` in `odoo/tools/config.py` (`openerp/` in the
+> earliest series) across every indexed checkout, 2026-09-17. The core default is NOT monotonic - it
+> loses a module at v11 and gains one at v12 and again at v19 - so it is read per row, never
+> interpolated between rows. The Viindoo column is a Viindoo DEPLOYMENT fact, not a source fact:
+> `grounded: operator-report 2026-09-17`; module presence in a profile cannot confirm it, because
+> every module named here also resolves on series where it is not server-wide.
+
+> **`to_base` leaves the SERVER-WIDE set at v18.** It stays an ordinary installable module there;
+> only its server-wide role ends. A v18+ `--load` that still lists it is wrong even though the
+> module itself resolves.
+
+> **`rpc` is a v19 core addon, absent at v18, and Odoo re-adds only `base` and `web` when a `--load`
+> omits them.** A v19+ `--load` spelled `base,web,...` therefore drops `rpc` with no error and no log
+> line. Spell the whole set for the series; never append to a remembered shorter one.
+
+> `cli_help(command='server', flag='--load', odoo_version='<version>')` returns NO `Default:` line on v19 - silent, not stale.
+> Take the core default from this table and flag `grounded: local-source`; do not read the silence as
+> "no modules load by default".
+
 ## JavaScript / OWL / tests
 
 | Change | New API | From | Old |
@@ -167,3 +219,15 @@ Apply ONLY under `upg-conventions.md`'s gating. NOT Odoo core or other distribut
 | Convention | Rule | Cross-ref |
 |---|---|---|
 | No-data module rename | `old_technical_name` key only - no migration script | `upg-conventions.md` Convention 2 |
+
+### Backend lint-class gate - which modules exist per series
+
+| Module | Source | Present at |
+|---|---|---|
+| `test_lint` | Odoo core (`odoo/addons/test_lint`) | v10+ ONLY - absent below that, where a `/test_lint` tag silently matches nothing |
+| `test_pylint` | Viindoo `tvtmaaddons` | v16 ONLY - the gate does not exist below v16 |
+| `test_viin_pylint` | Viindoo `tvtmaaddons` | v17+ ONLY - same gate as `test_pylint`, under the new name |
+
+> `test_pylint` and `test_viin_pylint` are ONE gate under two names, split at v17 - never install or
+> tag both in the same build. Selection procedure, and the false-green trap that makes this matter:
+> `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.

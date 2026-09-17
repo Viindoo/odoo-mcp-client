@@ -114,55 +114,44 @@ runs. (The `gettext` checker's actual rule - named placeholders required for mul
 lint-enforced from v18 - is `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext
 placeholders`; this section only catalogs the checker.)
 
-**Illustrative only - the runtime probe is authoritative (see D4).** The table below is a rough
-era guide, kept for orientation; it is superseded by the `check_module_exists` probe below whenever
-they disagree. OSM shows `test_lint` present as early as v10 (not "renamed from `test_pylint` at
-v13" as the table implies) - never assume the table over a live probe.
-
-| Series | Tag(s) to append to `--test-tags` | Source |
-|---|---|---|
-| v10-v13 | `/test_pylint` | Odoo CE (module renamed to `test_lint` at v13/saas-15 boundary) |
-| v14-v15 | `/test_lint` | Odoo CE only |
-| v16+ | `/test_lint,/test_pylint` | CE `test_lint` + Viindoo `tvtmaaddons` custom `test_pylint` |
+**WHICH modules the gate is made of is not decided here.** The module set, the per-series name
+resolution, and the stale-index rule that makes a bare probe insufficient all live in ONE place:
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`. Resolve the set there first, then invoke it
+with the command shape below. This file owns the INVOCATION; that snippet owns the MEMBERSHIP.
 
 ```bash
 [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 
-# v14-v15: test_lint only
+# One /<tag> per module the snippet above resolved as present, and every one of them
+# also present in the -u/-i install list for this build.
 odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=info \
-  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-
-# v16+ Viindoo: also add /test_pylint (tvtmaaddons)
-odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=info \
+  --test-tags '/<module>,/<lint module>[,/<lint module>...]' --stop-after-init --log-level=info \
   --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
-**Confirm the exact tag and module name for the target version via OSM before running:**
-`set_active_version(<version>)` then `check_module_exists("test_lint", odoo_version='<version>')` and
-`cli_help("server", "--test-tags", odoo_version='<version>')`. The table above is illustrative -
-never assume without checking.
+**Confirm the tag syntax for the target version via OSM before running:**
+`set_active_version(<version>)` then `cli_help("server", "--test-tags", odoo_version='<version>')`.
+The module NAMES are resolved by `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, not guessed
+here.
 
 ### Install the lint modules (not just tag them)
 
-Appending `/test_lint`/`/test_pylint` to `--test-tags` only SELECTS those tests IF the module is
+Appending a `/<lint module>` tag to `--test-tags` only SELECTS those tests IF the module is
 already installed in the target DB - it does not install it. For a **test-run build** (any build
 whose purpose is running `--test-enable`: `run-tests`, or a coder/reviewer inline lint-gate run),
 each lint module must be INSTALLED, not merely tagged:
 
-1. For each of `test_lint` and `test_pylint`, call `check_module_exists(name='<module>',
-   odoo_version='<version>', profile_name='<active profile>')`.
-2. For every module that is Indexed = Yes, UNION it into the `-i`/`-u` INSTALL list for that build
+1. Resolve and probe the module set per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.
+2. For every module it resolves as present, UNION it into the `-i`/`-u` INSTALL list for that build
    (exactly as `en_US` is unioned into the language activation set - see `agents/odoo-instance-ops.md`
    "en_US - always loaded on every build (HARD RULE)"), AND append its tag to `--test-tags`.
 3. The install set and the tag set MUST come from the SAME probe. Never tag a module that was not
    also installed - its tests will not load, and the run will report a false-clean pass.
 
 The operational HARD RULE unioning these into the install set lives in `agents/odoo-instance-ops.md`
-"Lint modules - installed for test-run builds (HARD RULE)" - this section is the test-invocation
+"Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" - this section is the test-invocation
 method; that section is the build-time enforcement point.
 
 > `test_lint` (Odoo CE) is distinct from the third-party `pylint-odoo` package

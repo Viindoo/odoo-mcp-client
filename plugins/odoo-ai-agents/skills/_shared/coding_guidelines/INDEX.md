@@ -52,8 +52,8 @@ One file lives at the root of `coding_guidelines/` and is shared across all vers
 ## Mechanical gate (safety net, not a substitute)
 
 A subset of these rules that can be checked mechanically is enforced by two gates against changed
-files. The backend gate is Odoo's own lint test module: append `/test_lint` (and `/test_pylint` on
-the Viindoo profiles that ship it) to `--test-tags` in the instance test run - same gate as Runbot (deprecated
+files. The backend gate is Odoo's own lint test module plus, on a Viindoo profile, Viindoo's -
+append the set resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md to `--test-tags` in the instance test run - same gate as Runbot (deprecated
 decorators, `cr.commit()`, ORM misuse, sql-injection, translation rules). See
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. `scripts/verify-frontend.sh` runs a
 three-tier check over changed `.js`/`.xml`/`.scss` files: JS lint/format via repo-pinned

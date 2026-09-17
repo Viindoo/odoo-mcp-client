@@ -61,7 +61,7 @@ NEVER authors the node's source itself: every source file is written by a teamma
   `Skill(odoo-instance)` to self-provision a live Odoo instance when handed NO `INSTANCE_HANDLE`,
   or when your brief carries `SELF_PROVISION: worktree-addons`.
   `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
-  `to_base`, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
+  server-wide set, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
   it re-roots the addons list onto your `WORKTREE_PATH` so the instance loads YOUR code, not the
   principal checkout; do NOT call `scripts/lib/allocator.py` directly, which would bypass all of
   that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
@@ -72,7 +72,7 @@ NEVER authors the node's source itself: every source file is written by a teamma
   `odoo-frontend-coder` are BOTH INSTANCE-FREE - neither self-provisions; each runs only its own
   static gate (ORM-validation for the backend leg, `verify-frontend.sh` for the frontend leg), and
   any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
-  `odoo-instance` run - the `/test_lint`/`/test_pylint` lint-class gate runs ONCE at
+  `odoo-instance` run - the lint-class gate runs ONCE at
   `run-harness`'s pre-PR tail, never inside either leaf. Contract:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
   **Self-provisioning carries teardown:** what you acquire under this carve-out you release

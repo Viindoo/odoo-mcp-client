@@ -52,7 +52,7 @@ spelled out in ONE place, never restated here:
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context, declaring the `persist:` value that matches its need per that SSOT (a throwaway build by
 default; a listening one when the process must stay up), applying the instance HARD RULES (`en_US`
-union, Viindoo `to_base`, lint-module install, per-version
+union, Viindoo `--load`, lint-module install, per-version
 `cli_help` grounding) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance
 allocation - never a bare `allocator.py` call. A provided handle always wins (consume, never
 re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.

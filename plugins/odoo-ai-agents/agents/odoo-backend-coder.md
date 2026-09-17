@@ -146,7 +146,7 @@ Write the code yourself, grounded in Rounds 1-3 evidence (verified field names/t
 
 Any `BROKEN`/`ERROR`/`MISMATCH` is a blocker - fix before presenting.
 
-**Backend code-quality gate.** The `/test_lint` (+ `/test_pylint` on v16+ Viindoo) CI-parity
+**Backend code-quality gate.** The backend lint-class CI-parity
 gate runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail) - not here.
 You remain INSTANCE-FREE for this gate; the ORM validation gate above and the inline review are still

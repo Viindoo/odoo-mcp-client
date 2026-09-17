@@ -286,8 +286,8 @@ def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
     assert "en_US - always loaded on every build" in text, (
         "inline-mode must point at the agent's en_US HARD-RULE section (SSOT)"
     )
-    assert "to_base" in text and "Lint modules" in text, (
-        "inline-mode must point at the to_base + lint-module HARD-RULE sections"
+    assert "Server-wide modules" in text and "Lint modules" in text, (
+        "inline-mode must point at the server-wide-module + lint-module HARD-RULE sections"
     )
     assert "do NOT restate them here" in text, (
         "inline-mode must explicitly avoid duplicating the HARD RULES"

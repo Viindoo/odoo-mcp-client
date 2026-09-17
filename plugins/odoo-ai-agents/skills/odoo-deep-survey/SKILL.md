@@ -208,7 +208,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   Phase 3 (trigger: § Phase 3 item 3). This call populates tiers (i) own-module and (ii)
   dependency tests of the **test-protection map** (`references/survey-lenses.md` § Test-protection
   map); tier (iii) framework-validation + lint gates (`base.TestInvisibleField`,
-  `hr.TestSelfAccessProfile`, `test_pylint`, `test_lint`) is assembled at synthesis. All three feed
+  `hr.TestSelfAccessProfile`, and the lint-class modules) is assembled at synthesis. All three feed
   the synthesis `tests_protecting` section.
 
 - **Persist:** `<SHARE_DIR>/survey/<slug>-<date>/phase2/<NN>-<hotspot>.md` + worklog entries.

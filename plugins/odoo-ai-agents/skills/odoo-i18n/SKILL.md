@@ -234,7 +234,7 @@ Dispatch `odoo-instance` with a build shape that is not negotiable and not defau
 
 | Field | Value | Why it is not optional |
 |---|---|---|
-| `demo` | `on` | Demo-owned records carry translatable terms and the exporter filters by module ALONE - no demo predicate. Omit this and the field's own `off` default truncates the catalog and turns the P3 reconcile into mass phantom removals (recipe KT4) |
+| `demo` | `on` | Demo-owned records carry translatable terms and the exporter filters by module ALONE - no demo predicate. State it explicitly rather than relying on the dispatch to infer a translation build: a build that reaches the exporter without demo truncates the catalog and turns the P3 reconcile into mass phantom removals (recipe KT4) |
 | `languages` | the full `activation_languages` set from P0 | Every target language active in the SAME build, so no `.po` needs a second provision (recipe KT1 + KT3). The skill unions `en_US` before dispatch |
 | `skip_auto_install` | `true` where the series has it | Keeps `auto_install` siblings' terms out of the catalog |
 | `WORKTREE_PATH` | the run's worktree | The export must read the code being translated, not the principal checkout |

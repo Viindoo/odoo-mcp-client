@@ -295,15 +295,15 @@ dispatch at P5.8 below, which reuses P1's `graph.md` reverse-closure instead of 
 per module. This is the clause that was missing before - without it the hand-off was silently
 dropped on the floor.
 
-**P5 - Install + test gate [ephemeral instance, one dependency level at a time, demo=on].**
+**P5 - Install + test gate [ephemeral instance, one dependency level at a time].**
 Goal: prove the whole cluster installs + tests green on a fresh target DB, bottom-up,
 one dependency level at a time (leaves first). Installing one dependency level at a time
 localizes failures and allows resume to skip proven levels.
-Run the instance with **demo=on** (no separate framework-validation phase): a module that
-flips `installable: False -> True` is scanned by the target's FULL suite for the first time -
-from v18 `base.TestInvisibleField` + `hr.TestSelfAccessProfile` run there and need demo data
-(demo default is version-keyed - F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`;
-gate stays demo=on regardless). The P4b review MUST cover ACL / `.sudo()` for every create/
+There is no separate framework-validation phase: a module that flips `installable: False -> True`
+is scanned by the target's FULL suite for the first time, so `base.TestInvisibleField` +
+`hr.TestSelfAccessProfile` run here. This is an AUTOMATION-TEST build - take its demo shape from
+the automation-test row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by
+build PURPOSE and never override it for this gate. The P4b review MUST cover ACL / `.sudo()` for every create/
 write/compute override on a widely-used core model. Cross-ref
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`.
 Dispatch `odoo-instance` (via Skill tool, L2 human gate applies). Create the instance

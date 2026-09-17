@@ -12,8 +12,11 @@ for live demo readiness. Keep the two separate and serve both.
 ## Rule: every new end-user-visible model or behavior ships demo data
 
 If the design introduces a new model or a new behavior a user can see/operate, it MUST include demo
-data that exercises it, so the feature is demo-ready the moment the module installs with
-`--demo`/demo enabled.
+data that exercises it, so the feature is demo-ready the moment the module installs on a build that
+carries demo. Which builds those are, and how each series spells the flag:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. Note that an
+automation-test build never REQUIRES demo, and on the series where demo defaults off it has none
+at all - so demo data serves demo-readiness only, and a test must never depend on it.
 
 ## Make it dynamic in time (so the demo never looks stale)
 
