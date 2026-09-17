@@ -137,11 +137,17 @@ breaking change -> **major**.
 
 ## This repo is public - confidentiality
 
-No environment-specific, machine-specific, or Viindoo-internal data in committed files (no vault
-paths, personal emails, absolute `~/.` paths, instance hosts/dbs/keys, or hardcoded version
-ranges/counts in agent-facing prose). Install the pre-commit guard once:
-`git config --local core.hooksPath .githooks/`. It scans staged blobs against generic structural
-patterns plus untracked `.githooks/patterns.local`. A confidentiality-scan CI job also runs.
+No environment-specific, machine-specific, or Viindoo-internal data in committed files: no vault
+paths, personal emails, absolute `~/.` paths, instance hosts/dbs/keys. Install the pre-commit guard
+once: `git config --local core.hooksPath .githooks/`. It scans staged blobs against generic
+structural patterns plus untracked `.githooks/patterns.local`. A confidentiality-scan CI job also
+runs.
+
+Separately - a DIFFERENT guard, often confused with the one above: **no hardcoded Odoo version
+ranges/counts in agent-facing prose.** The pre-commit hook does NOT check this; it is enforced by
+`generator/check_orchestration.py` rules 17 (`[gen-prose]`) and 18 (`[version-claim]`), which gate
+`make validate` and CI. Only the boundary-SSOT files listed in that script may spell a version;
+everywhere else points at them.
 
 ## Contributions
 

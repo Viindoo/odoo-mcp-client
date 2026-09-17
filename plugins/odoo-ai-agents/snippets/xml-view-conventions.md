@@ -18,8 +18,10 @@ expression) MUST carry an explanatory XML comment immediately after the field el
 
 - "Always invisible" = literal `"1"` or `"True"`. Conditional (`invisible="record.state == 'done'"`)
   does NOT require a comment.
-- Enforced by `base.TestInvisibleField.test_uncommented_invisible_field` from v18; absent in v17
-  and earlier.
+- Enforced by a `base` view-arch test from the series named in the pivot row below; absent before
+  it. The enforcing class has been renamed before - do not carry its name around. When you need to
+  TAG it, resolve the name for the target series per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes.
 - Pivot row: F0 `§XML views` row "Always-invisible field".
 
 ---
