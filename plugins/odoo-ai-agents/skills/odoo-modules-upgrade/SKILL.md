@@ -300,8 +300,10 @@ Goal: prove the whole cluster installs + tests green on a fresh target DB, botto
 one dependency level at a time (leaves first). Installing one dependency level at a time
 localizes failures and allows resume to skip proven levels.
 There is no separate framework-validation phase: a module that flips `installable: False -> True`
-is scanned by the target's FULL suite for the first time, so `base.TestInvisibleField` +
-`hr.TestSelfAccessProfile` run here. This is an AUTOMATION-TEST build - take its demo shape from
+is scanned by the target's FULL suite for the first time, so the framework-validation classes run
+here - whichever of them the target series actually ships
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes; neither
+spans the whole range, and a tag for an absent class matches nothing without erroring). This is an AUTOMATION-TEST build - take its demo shape from
 the automation-test row of `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by
 build PURPOSE and never override it for this gate. The P4b review MUST cover ACL / `.sudo()` for every create/
 write/compute override on a widely-used core model. Cross-ref

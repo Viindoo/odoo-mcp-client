@@ -23,7 +23,7 @@
     "snippets/new-module-manifest.md": 4035,
     "snippets/odoo-bin-resource-limits.md": 6984,
     "snippets/odoo-era-boundaries.md": 16926,
-    "snippets/odoo-version-pivots.md": 14783,
+    "snippets/odoo-version-pivots.md": 17292,
     "snippets/osm-first-contract.md": 9235,
     "snippets/planning-gate-contract.md": 11385,
     "snippets/read-before-write-contract.md": 5608,
@@ -32,7 +32,7 @@
     "snippets/test-behavior-contract.md": 7228,
     "snippets/test-execution-handoff.md": 6183,
     "snippets/test-expected-log-contract.md": 6103,
-    "snippets/upg-conventions.md": 8213,
+    "snippets/upg-conventions.md": 8484,
     "snippets/venv-resolution.md": 4903,
     "snippets/visual-evidence-lifecycle-contract.md": 27230,
     "snippets/dispatch-brief.md": 20291,
@@ -49,7 +49,7 @@
     "skills/run-harness/SKILL.md": 31533,
     "skills/workflow-chaining/SKILL.md": 12341,
     "skills/_shared/regression-scope.md": 5110,
-    "snippets/test-scope-contract.md": 5410,
+    "snippets/test-scope-contract.md": 5411,
     "snippets/red-evidence-contract.md": 4926
   }
 }

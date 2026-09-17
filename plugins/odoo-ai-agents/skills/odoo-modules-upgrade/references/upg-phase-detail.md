@@ -699,10 +699,18 @@ Per-level green is recorded in `checkpoint.json` (status `installed` per module)
 `install-test.md`.
 
 **Framework-validation gate is MERGED into P5 (no separate phase).** A module that flips
-`installable: False -> True` is scanned by the target's FULL test suite for the first time;
-`base.TestInvisibleField` (every always-invisible view field needs an explanatory XML comment) and
-`hr.TestSelfAccessProfile` (custom `hr.employee` fields need `groups='hr.group_hr_user'`) run in
-that suite. **This gate is an automation-test build, so its demo shape is the automation-test row,
+`installable: False -> True` is scanned by the target's FULL test suite for the first time, AND its
+own `demo/` data is loaded for the first time. Those are TWO builds, never one: where this gate runs
+demo-less, the demo half is a separate install-only build (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`
+Gate 7b) that carries `DEMO: on` and NO `--test-enable`. Do not merge them to save an instance -
+demo rows inside a suite that counts records turn a correct test red, and the repair that then looks
+obvious is to weaken the test. For the suite itself:
+the framework-validation classes run in that suite - `base.TestInvisibleField` (every
+always-invisible view field needs an explanatory XML comment) and the `hr` self-access class (custom
+`hr.employee` fields need `groups='hr.group_hr_user'`). Tag ONLY the ones the target series ships:
+neither spans the whole indexed range, one starts partway through it and the other is removed before
+the end, and a tag for an absent class matches nothing while the run still exits 0
+(${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes). **This gate is an automation-test build, so its demo shape is the automation-test row,
 never an exception to it** - resolve it from
 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Demo data by build PURPOSE. Do NOT request
 demo for this gate on a series where demo defaults off: the test environment there does not accept
@@ -751,8 +759,24 @@ test_tags: <`/<m>` for every module in THIS LEVEL, comma-joined - the same set a
            level's own suites run and the transitive core closure installed in Step 2 does not.
            Untagged here would test every module the level pulled in, `base` upward, on EVERY level.
            SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md>
+GATE_ROLE: node-verify   # REQUIRED on any test-enable dispatch; this is a per-level verification,
+                         # never the run's one designated pre-PR lint gate. Omitting it makes
+                         # `odoo-instance` refuse the dispatch rather than choose for you.
 CONFIRM: "report per-module test result for this level"
 ```
+
+**After the level containing a module whose `installable` this run flipped, run the two
+installable-flip gates as SEPARATE builds - they ADD to Step 3, they never replace it.** Step 3 is
+this pipeline's own per-level regression check and stays tag-scoped; the flip gates reproduce what CI
+does to a module being seen for the first time, and each needs a build shape Step 3 cannot provide:
+
+- **Gate 7** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`) -
+  the full UNTAGGED suite on a FRESH database. Step 3's DB has already installed the module, and
+  Step 3 is deliberately tagged, so neither half of Gate 7's shape can be reached by reusing it.
+- **Gate 7b** (same file) - the install-only demo-load build, `DEMO: on`, no `--test-enable`.
+
+Run them in that order, each on its own instance, and record both verdicts in `install-test.md`
+alongside the level result. A level that passed Step 3 is NOT a level that passed the flip gates.
 
 After each level: write level result to `install-test.md` and update `checkpoint.json`
 (set `installed` for each module in the level that passed). On FAILURE in a level:

@@ -57,7 +57,7 @@ Run untagged only under one of these, and NAME which one in the report:
 
 - **Framework `post_install` classes.** `--test-tags` only FILTERS, never ADDS, so a `/<m>` run
   skips framework classes not tagged with your module. NAME them beside the module tags
-  (`'/sale,base.TestInvisibleField'`); dropping the filter to reach them is not the remedy. Method +
+  (`'/sale,/base:TestInvisibleField'`); dropping the filter to reach them is not the remedy. Method +
   how to resolve the class names: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 - **Lint modules** (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) are selected by tag but run only if INSTALLED, so a
   build that tags them unions them into `-i`/`-u` from the SAME probe - gated on `GATE_ROLE:

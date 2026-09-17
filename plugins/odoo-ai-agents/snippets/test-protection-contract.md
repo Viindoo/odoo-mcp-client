@@ -29,9 +29,12 @@ to find which dependent-module tests reach it.
 **(iii) Framework-validation + lint gates.** Always-on; OSM does NOT index these. Cross-ref
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md` for the
 full gate list + reproduction steps; mark each "verify against live test class":
-- `base.TestInvisibleField` - v18+ always-invisible view fields need an explanatory XML comment.
-- `hr.TestSelfAccessProfile` - custom `hr.employee` fields need `groups=`.
-- `test_lint` - Odoo CE static lint gate (v14+); the authoritative backend code-quality CI gate.
+- `base.TestInvisibleField` - always-invisible view fields need an explanatory XML comment.
+- The `hr` self-access class - custom `hr.employee` fields need `groups=`.
+  NEITHER class spans the whole indexed range, and a tag for an absent class matches nothing without
+  erroring - resolve presence per series from
+  ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes.
+- `test_lint` - Odoo CE static lint gate; the authoritative backend code-quality CI gate.
 - Viindoo's lint module (flake8 + extended static analysis) - present on Viindoo profiles only, and named per series; run alongside core `test_lint`. Which name, and how to resolve it: ${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md.
 
 ## MUST-NOT-BREAK
