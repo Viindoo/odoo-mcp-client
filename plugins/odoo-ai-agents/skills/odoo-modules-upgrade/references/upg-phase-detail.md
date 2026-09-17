@@ -273,14 +273,12 @@ CLASSIFICATION TABLE: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/referenc
 The agent's own Step 1 (upgrade mode) owns reading the module source into a feature inventory and
 the version-anchored deferred-work reconciliation (no separate dispatch: reuses this same
 per-module read for the marker family, VERSION ANCHOR parsing, and DUE/DEFERRED/UNANCHORED
-classification) - do not restate them here (`agents/odoo-diff-comparator.md` § Version-anchored
-deferred-work reconciliation). Its § 3c (Upgrade mode) owns the DATA-AT-RISK CHECK, the
+classification) - do not restate them here. Its § 3c (Upgrade mode) owns the DATA-AT-RISK CHECK, the
 classification-table walk (`check_module_exists`/`module_inspect`/`model_inspect`/
 `api_version_diff` grounded per its own Step 2), the reuse-candidate sweep that reclassifies
 KEEP/REWRITE(api)/REWRITE(model) as RECONCILE, the MANDATORY behavioral-equivalence check before
 any DELETE-absorbed verdict, and the `absorption/<module>.md` output format + Step 4 Upgrade-mode
-return block - do not restate them here (`agents/odoo-diff-comparator.md` § 3c, § Step 4 Upgrade
-mode).
+return block - do not restate them here.
 
 ```
 OUTPUT: write to absorption/<module>.md
@@ -321,8 +319,8 @@ comparator's behavioral-equivalence proof (signal #5), not on a "Standard" gap-a
 Fires per the full design-trigger table in SKILL.md § P2b (SSOT; do not replicate the
 condition list here).
 
-Reuse the non-trivial criterion from `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md`
-§ "When to invoke - and the non-trivial threshold" - do NOT invent a third definition.
+Reuse the SAME non-trivial criterion `odoo-solution-design` applies for its own dispatch -
+do NOT invent a second definition.
 
 Continuation Contract payload (emit verbatim, one route-out per module):
 
@@ -894,12 +892,12 @@ delegate another worktree review here - the final review above already cleared.
 
 ## Reused skill SSOTs (cross-reference only - do NOT copy)
 
-- `odoo-deprecation-audit` protocol: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deprecation-audit/SKILL.md`
-- `odoo-version-diff` output format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/SKILL.md`
-- `odoo-gap-analysis` output format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-gap-analysis/SKILL.md`
-- `odoo-coding` ADAPT tier table: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` Phase 0 step 5
-- `odoo-instance` dispatch: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`
-- `odoo-i18n` reconcile (P5.7): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md`
+- `odoo-deprecation-audit` owns its own protocol - invoke it; do not restate here.
+- `odoo-version-diff` owns its own output format - invoke it; do not restate here.
+- `odoo-gap-analysis` owns its own output format - invoke it; do not restate here.
+- `odoo-coding` owns its own ADAPT tier table - invoke it; do not restate here.
+- `odoo-instance` owns its own dispatch shape - invoke it; do not restate here.
+- `odoo-i18n` owns its own reconcile procedure (P5.7) - invoke it; do not restate here.
 - Concurrency guard (Mode B): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 - Symbol grounding § 2 / § 2.5 (P1d): `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
 - Odoo upgrade conventions: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`

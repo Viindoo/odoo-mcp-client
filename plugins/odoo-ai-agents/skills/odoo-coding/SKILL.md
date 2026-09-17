@@ -120,8 +120,7 @@ from its driver loop, passing that node's slice + that node's worktree path - se
 below), OR via a plan handed straight to a STANDALONE invocation of this skill with no active
 `run-harness` and no `WORKTREE_PATH` (the exact branch § Worktree + commit below self-provisions
 its own worktree for - never a second executor path: `odoo-planning` never dispatches this skill
-directly, its Continuation Contract always emits `next: <return_to>` or `next: odoo-intake`, per
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Continuation Contract) - the **target
+directly, its Continuation Contract always emits `next: <return_to>` or `next: odoo-intake`) - the **target
 node** (its `modules`, in dependency order), the **node DAG**
 (`depends_on` edges between nodes), the **design pointers** (`design_index` / `design_doc` /
 `design_docs`, carrying the per-node stack split + effort), and, when present, the **survey
@@ -148,8 +147,8 @@ this skill decides the actual count + tier at runtime). Trust-but-verify: if a f
 resolved on disk, STOP and report BLOCKED - never silently self-derive a different graph.
 
 **Disjointness self-check - own this whenever `run-harness` is NOT the dispatcher.**
-`run-harness`'s `verify_plan_agreement` check 1 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`
-§ Plan agreement - File-scope disjointness) audits every node's `files-in-scope` for an overlap
+`run-harness`'s `verify_plan_agreement` check 1 (its own Plan agreement - File-scope disjointness
+step) audits every node's `files-in-scope` for an overlap
 BEFORE any worktree is created, but that audit runs ONLY inside `run-harness`'s own driver loop -
 never on a plan fed straight to a standalone invocation of this skill. Whenever Phase 0 has NO
 active run-harness (no named `run-<id>`) AND NO `WORKTREE_PATH` was handed in - exactly the branch
@@ -353,8 +352,8 @@ module it touches to ground the test scope - only write what is NOT already cove
 than one entry, state in the brief, in one line, which assertions (if any) exercise behaviour
 contributed by a LATER module in the node's dependency order (or by a module with no dependency
 edge to the asserting one): `odoo-coder` stages those into the post-install phase
-(`agents/odoo-coder.md` § Cross-module test staging) instead of the default at-install phase,
-where they would run before that module exists.
+(its own Cross-module test staging step) instead of the default at-install phase, where they
+would run before that module exists.
 
 Skip the coverage pre-flight only when OSM is unreachable (standalone/disk fallback, same flag
 as step 4); in that case `odoo-test-writer` works from disk context alone.
@@ -444,7 +443,7 @@ DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by 
 `scripts/lib/allocator.py` call that would bypass them - so the brief never passes a shared
 db/port. `odoo-test-writer` NEVER self-provisions: when confirming RED needs a live run, it relays
 `NEEDS_NEXT: odoo-instance` up to its launcher (`odoo-coder`), which provisions the instance and
-re-launches it (`agents/odoo-coder.md` § NEEDS_NEXT: odoo-instance). A provided handle always wins
+re-launches it. A provided handle always wins
 (consume, never re-provision) - unless the brief carries `SELF_PROVISION: worktree-addons`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
 
@@ -721,14 +720,14 @@ only the grounding degrades. Never ask a human to paste code, field lists, or ma
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. The codegen detail lives on the agents -
-see `agents/odoo-coder.md` (the per-node coordinator - owns the internal WI split + launches THREE
-teammates), `agents/odoo-test-writer.md` (the hard-leaf test author launched FIRST per WI - authors
-the RED test by invoking the `odoo-test-writing` skill inline), `agents/odoo-backend-coder.md`
-(the backend hard-leaf writer + its ORM-validation gate - the lint-class gate moved to
-`run-harness`'s pre-PR tail, see `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
-§ Pre-PR tail), and `agents/odoo-frontend-coder.md` (the frontend hard-leaf writer + its
-zero-toolchain static gate) for the execution detail; agents inherit the full tool surface.
+This skill is part of an agent+skill bundle. Launch `odoo-coder` as the per-node coordinator - it
+owns the internal WI split and launches three teammates: `odoo-test-writer` (the hard-leaf test
+author launched FIRST per WI - authors the RED test by invoking the `odoo-test-writing` skill
+inline), `odoo-backend-coder` (the backend hard-leaf writer + its ORM-validation gate - the
+lint-class gate moved to `run-harness`'s pre-PR tail, see
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail), and
+`odoo-frontend-coder` (the frontend hard-leaf writer + its zero-toolchain static gate). Agents
+inherit the full tool surface.
 
 ## The code -> review+test -> code loop (bounded)
 

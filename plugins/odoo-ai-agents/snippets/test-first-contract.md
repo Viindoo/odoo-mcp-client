@@ -18,7 +18,7 @@ exemption from a missing test.
    **observable outcomes** (return value, state change, contract-level side effect), never
    internals (private method, call counts, variable names). One intent + one expected outcome per
    test. For the version-correct framework/class and OSM grounding, follow
-   `skills/odoo-test-writing/SKILL.md` and `docs/reference/ODOO-TESTING.md` - this contract governs
+   `odoo-test-writing` and `docs/reference/ODOO-TESTING.md` - this contract governs
    the discipline, that governs the shape.
 2. **Prove it can go RED** - a RED is MEASURED or CONSTRUCTED, never asserted. Which proof this
    change owes (`RED_MODE`), and why a `KeyError` / missing-field / 0-selected failure is a broken

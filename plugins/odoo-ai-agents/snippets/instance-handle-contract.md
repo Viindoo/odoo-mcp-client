@@ -25,8 +25,8 @@ multi-agent run shares. It carries exactly:
 - `server_pid` (optional) - the server's process-group id under setsid, when forwarded; null for
   `--stop-after-init` builds (self-terminate)
 
-Field names are the producer's SSOT: `agents/odoo-instance-ops.md`'s canonical `instance-ops`
-output block. `skills/odoo-instance/SKILL.md` relays that block verbatim - do not rename a field
+Field names are the producer's SSOT: `odoo-instance-ops`'s canonical `instance-ops`
+output block. `odoo-instance` relays that block verbatim - do not rename a field
 here without updating both.
 
 ## Provision once, forward everywhere

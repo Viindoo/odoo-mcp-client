@@ -141,7 +141,7 @@ These skills create their own worktree/branch internally, so an orchestrator/dri
 provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
 `odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (Each source-writing node's worktree
 is provisioned by `run-harness` (Hard rule 6), forked from that repo's `run-integration` branch -
-not by a dispatched specialist - see `run-harness` SKILL.md § Run start.)
+not by a dispatched specialist - see `run-harness` § Run start.)
 
 ## Invocation contract
 

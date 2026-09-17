@@ -72,7 +72,7 @@ Read `plan_source` from the dispatch brief; it selects where the module-DAG come
 2. **`plan_source: scope`** (doc-only standalone, dispatched by the `module-packaging` workflow or
    `odoo-doc-illustration` after `odoo-doc-scoper` runs): read the scope block `_scope.md` /
    `scope.yaml` and consume its `modules[]` with per-module `depends_in_scope[]`, `has_ondisk_doc`,
-   and `doc_layer` (SSOT: `agents/odoo-doc-scoper.md` § Step 5, default `both`). Resolve the DAG
+   and `doc_layer` (from `odoo-doc-scoper`, default `both`). Resolve the DAG
    FROM that scope. A `plan_source: design-dag` run has no scoper pass, so its modules carry no
    per-module `doc_layer` - leave the field absent on those entries (§ Round 2 below).
 

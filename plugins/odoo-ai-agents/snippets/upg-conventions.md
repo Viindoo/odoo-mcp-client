@@ -136,5 +136,5 @@ FORMAT) - the same file the P6 gate presents, satisfying the "surface at P6" rul
 separate step.
 
 **(d) Data at risk routes out.** A module the P2 comparator flagged `data_at_risk: true` that receives
-REWRITE(model) or DELETE is already an escalation (`odoo-modules-upgrade/SKILL.md` § Hard rules). Do
+REWRITE(model) or DELETE is already an escalation (`odoo-modules-upgrade` § Hard rules). Do
 not write a migration script to "handle" it here; report and route to `odoo-data-migration`.

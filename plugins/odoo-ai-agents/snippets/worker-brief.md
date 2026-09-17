@@ -32,8 +32,7 @@ and/or `odoo-frontend-coder` (code to green) - per R0
 is woken with each teammate's result), tests the integrated node via `Skill(odoo-instance)` inline,
 and - once the integrated test is green - COMMITS its node by invoking `git-toolkit:git-ops` via the
 Skill tool, then returns the SHA to `odoo-coding` (which collects it and no longer re-commits). It
-NEVER authors the node's source itself: every source file is written by a teammate. See
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
+NEVER authors the node's source itself: every source file is written by a teammate.
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools

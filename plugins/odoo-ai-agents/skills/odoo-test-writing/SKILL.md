@@ -80,8 +80,8 @@ Trigger when the user wants: coverage for a model/computed field/constraint/onch
 **`WORKTREE_PATH`.** The test file(s) are git-tracked, so per
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 Round 4 writes into a dedicated worktree -
 never the principal checkout. When invoked via the `odoo-test-writer` agent, that agent already `cd`s
-into its `WORKTREE_PATH` before invoking this skill inline (`agents/odoo-test-writer.md`) - the paths
-below are relative to that cwd. Invoked standalone (no wrapping agent), require `WORKTREE_PATH`
+into its `WORKTREE_PATH` before invoking this skill inline - the paths below are relative to that
+cwd. Invoked standalone (no wrapping agent), require `WORKTREE_PATH`
 yourself and resolve `<addon>` under it; with none supplied and no worktree already in scope,
 provision one via `git-toolkit:git-ops` before Round 4, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
@@ -164,7 +164,7 @@ A cross-module assertion that fails with `KeyError`/`AttributeError` on a symbol
 this bug, not a code defect: fix the staging, do not chase the symbol. When the caller (a coding
 node's `odoo-coder` coordinator, or `odoo-coding`'s own coverage pre-flight) names which target
 behaviours cross a module boundary, apply the decorator above at authoring time rather than waiting
-for the integrated test to fail (mirrored in `agents/odoo-coder.md` § Cross-module test staging).
+for the integrated test to fail (mirrored in `odoo-coder`'s own Cross-module test staging step).
 
 **One business rule per test.** Each `def test_*` covers exactly one invariant.
 

@@ -8,8 +8,8 @@
 
 # Module Coordination Ledger (cross-run / worktree)
 
-The per-run dependency pre-flight (`agents/odoo-backend-coder.md § Dependency pre-flight`)
-already converts every unresolved `depends` into a graceful `BLOCKED: manifest dependency <D>
+The per-run dependency pre-flight (`odoo-backend-coder` § Dependency pre-flight) already
+converts every unresolved `depends` into a graceful `BLOCKED: manifest dependency <D>
 unresolved on addons-path`. This ledger adds the one thing a single run cannot see: whether `<D>`
 is being built right now by a different run/worktree, was already built elsewhere, or is
 genuinely absent - so `odoo-coding` can turn that raw BLOCKED into a specific, evidence-backed
@@ -173,7 +173,7 @@ value, no release transition.
   heartbeat (absence of evidence, bounded by ticks): a dead-dispatch signal is fresh, provable
   evidence the dispatch ended, so the module never sits at `building` with a live-looking
   heartbeat. (What counts as "resolves without a parseable Continuation Contract"
-  is defined at `skills/odoo-coding/SKILL.md` § Reacting to a dead-dispatch signal.) Fail CLOSED:
+  is defined at `odoo-coding` § Reacting to a dead-dispatch signal.) Fail CLOSED:
   on any doubt whether the dispatch produced a real report, flip to `failed` rather than leave the
   module `building` - never the reverse (never flip a module that DID return a valid report to
   `failed` on a mere suspicion).

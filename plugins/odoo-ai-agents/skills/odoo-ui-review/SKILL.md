@@ -121,7 +121,7 @@ warn the human rather than dispatching a doomed run.
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. See `agents/odoo-ui-reviewer.md` for the full
+This skill is part of an agent+skill bundle. The `odoo-ui-reviewer` agent owns the full
 restricted tool list (OSM + chrome-devtools) and step-by-step execution detail.
 
 ## Continuation Contract

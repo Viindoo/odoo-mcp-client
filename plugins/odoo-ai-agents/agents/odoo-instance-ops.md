@@ -57,7 +57,7 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire \
 Add `--addons-path-override "<comma-joined dirs>"` whenever the brief carries a `WORKTREE_PATH`.
 It REPLACES the catalog addons list for this lease only - `$ALLOC_ADDONS_PATH` and the persisted
 lease both carry the override, so every `--addons "$ALLOC_ADDONS_PATH"` below is already correct and
-needs no per-operation change. Build the value per `odoo-instance/SKILL.md` § WORKTREE_PATH
+needs no per-operation change. Build the value per `odoo-instance`'s own WORKTREE_PATH
 substitution; never edit `instances.toml`, and never pass the flag on a setup-path spin-up (the
 instance IDENTITY token hashes the addons path -
 `docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5, P6 item 2).
@@ -91,7 +91,7 @@ they gate `ephemeral`, so trading isolation away is no way past either. Report `
 Use `--ports 0` only for a run that binds NO HTTP port, and `--ports 1` when a port will be bound. The discriminator is `--test-enable`, NOT `--stop-after-init`: from v8 through v19 Odoo forces `http_spawn()` whenever test mode is on, regardless of `--no-http`/`--no-xmlrpc` and regardless of `--stop-after-init` (`odoo/service/server.py`, the `test_mode or (http_enable and not stop)` line - `openerp/service/server.py` on v8-v9). So ANY `--test-enable` build binds a port and needs `--ports 1`, while a plain `-i`/`-u`/`--load-language` run with `--stop-after-init` genuinely binds none and keeps `--ports 0`. Reserving no port for a test run does not make the run portless - it makes it collide on the config default (8069) with whatever else is up, which on this plugin's concurrent-ephemeral model is a normal operating condition, and costs the whole build plus its lease. A SECOND port is needed ONLY under prefork (`--workers>0`) - never because a browser will drive the instance; the threaded default multiplexes the longpolling/bus over the single http port. That rule and its `--gevent-port`/`--gevent-port-key` pairing live in ONE place: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Prefork (`--workers>0`) needs a second port.
 
 WHICH of these four to acquire for **create-instance** is keyed on the brief's `persist:` field
-(see operation 1 below, and `skills/odoo-instance/SKILL.md`'s dispatch table): `persist: ephemeral`
+(see operation 1 below, and `odoo-instance`'s own dispatch table): `persist: ephemeral`
 -> `ephemeral` here with `--ports 0`; `persist: exclusive-running` -> `ephemeral` here with `--ports
 1`/`2` PLUS `--run-id <run_id>` - the SAME acquire that stamps `owner.run_id`, never a separate
 registration step, and never `readonly`/`shared` for work that mutates; `persist: shared-running`
@@ -540,7 +540,7 @@ paths to pick between:
 **Active wait (HARD RULE):** every branch above launches a build - launch it in the background, then
 BLOCK in the FOREGROUND on `55-instance-ops.sh wait-log --log "<LOG_PATH>"` as your VERY NEXT tool
 call, per "Active-wait on long builds" above; never end a turn before `BUILD_RESULT` is terminal.
-**Log verbosity:** builds run at `--log-level=info` (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § Log verbosity default); pass a different `--log-level` via `--extra` to override it - the default is placed first, so `--extra` wins. Confirm the flag via `cli_help` like any other.
+**Log verbosity:** builds run at `--log-level=info` (SSOT: `odoo-instance`'s own Log verbosity default); pass a different `--log-level` via `--extra` to override it - the default is placed first, so `--extra` wins. Confirm the flag via `cli_help` like any other.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 2. drop-instance
@@ -642,7 +642,7 @@ Install one or more modules into an existing Odoo database.
 
 The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-level=info --log-handler=<ns>.modules.loading:INFO --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above; memory cap - HARD RULE above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
 **Active wait (HARD RULE):** launch in the background, then block in the FOREGROUND on `wait-log --log "<LOG_PATH>"` as your VERY NEXT tool call per "Active-wait on long builds" above; never idle-stall past the tool timeout.
-**Log verbosity:** `--log-level=info` by default (SSOT: SKILL.md § Log verbosity default); override via `--extra`, confirming the flag via `cli_help`.
+**Log verbosity:** `--log-level=info` by default (SSOT: `odoo-instance`'s own Log verbosity default); override via `--extra`, confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` into `--extra` for v8-v18, or run `i18n loadlang` per code for v19+, exactly as create-instance above; `en_US` is never omitted.
 
 ### 4. update-modules
@@ -666,7 +666,7 @@ Update one or more already-installed modules (-u).
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
 
-Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background, then block in the FOREGROUND on `wait-log --log "<LOG_PATH>"` as your VERY NEXT tool call per "Active-wait on long builds" above. **Log verbosity:** as init (SSOT: SKILL.md § Log verbosity default); override via `--extra` when debugging an update.
+Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background, then block in the FOREGROUND on `wait-log --log "<LOG_PATH>"` as your VERY NEXT tool call per "Active-wait on long builds" above. **Log verbosity:** as init (SSOT: `odoo-instance`'s own Log verbosity default); override via `--extra` when debugging an update.
 
 ### 5. run-tests
 
@@ -1210,7 +1210,7 @@ the module list to init/update; demo-data + languages flags; `addons_path`; for 
 `node-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
 designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,
 never guessed either way); the provision-once/forward-everywhere rule per
-`instance-handle-contract.md`). `INPUTS`, any artifact-path field (`DESIGN_DOC` and its kin), `OBJECTIVE`, and `ACCEPTANCE` are NOT keys of this family's brief and are NEVER required here - this family operates live infrastructure, not design docs, and `skills/odoo-instance/SKILL.md` § Brief shape is the exhaustive key list, emitting none of the four. Their absence is NEVER a STOP and never something to go looking for; the required fields above carry that substance. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+`instance-handle-contract.md`). `INPUTS`, any artifact-path field (`DESIGN_DOC` and its kin), `OBJECTIVE`, and `ACCEPTANCE` are NOT keys of this family's brief and are NEVER required here - this family operates live infrastructure, not design docs, and `odoo-instance`'s own Brief shape is the exhaustive key list, emitting none of the four. Their absence is NEVER a STOP and never something to go looking for; the required fields above carry that substance. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing a load-bearing family field from the list above with no safe default (e.g. `GATE_ROLE`

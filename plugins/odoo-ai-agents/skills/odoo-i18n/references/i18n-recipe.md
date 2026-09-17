@@ -40,8 +40,8 @@ cli_help(command='server', flag='--load-language', odoo_version='<target>')  # a
 
 Examples below use `<lang>` as the target-language placeholder. There is no default target
 language: `odoo-i18n` P0 resolves it from explicit input, the machine-global registry, on-disk
-`.po` filenames, or the live instance's active languages (`skills/odoo-i18n/SKILL.md` P0
-tiers 1-4) - a run that resolves none returns `NEEDS_CONTEXT`/escape E3 rather than guessing.
+`.po` filenames, or the live instance's active languages (the same four tiers) - a run that
+resolves none returns `NEEDS_CONTEXT`/escape E3 rather than guessing.
 
 ---
 
@@ -354,8 +354,8 @@ Translate each genuine residual `msgstr` by hand, applying the term policy
    yields a `.pot` with the old term inventory, missing new/renamed strings introduced in the port.
    **Mechanism (this is not advice - without it L2 silently under-merges):** pass `WORKTREE_PATH` to
    `odoo-instance`, which re-roots the instance's addons list onto that worktree
-   (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § WORKTREE_PATH substitution ->
-   `allocator.py acquire --addons-path-override`). An instance whose addons path points at the
+   (its own WORKTREE_PATH substitution -> `allocator.py acquire --addons-path-override`). An
+   instance whose addons path points at the
    principal checkout makes a worktree-only `msgid` surface as NEITHER a removed nor a changed entry,
    so the L2 adjudication loop has nothing to rule on and the loss is committed unseen. Before the L1
    export, apply `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage

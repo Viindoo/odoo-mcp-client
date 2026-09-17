@@ -195,8 +195,8 @@ commit_dump_path: <ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump
 SERIES: <e.g. 17.0>
 SLUG: <slug>
 TASK: Extract this commit's business intent and behavioral contract. GROUNDING MODE above
-      selects this agent's own rebase-mode grounding, write path, and scope boundary
-      (`agents/odoo-intent-extractor.md` § Rebase mode) - no further instruction needed.
+      selects this agent's own rebase-mode grounding, write path, and scope boundary -
+      no further instruction needed.
 OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
 ```
@@ -220,9 +220,8 @@ extractor instances - two independent, concurrently-running instances legitimate
 identical SHA. Without a namespace, both would target the SAME `intents/<sha>.md` path with no
 owner or merge rule - a write race. Set this brief's `SLUG` field to `<slug>/<module>` (the run
 `<slug>` plus this module's own name) for EVERY module's dispatch - the extractor's own
-write-path template (`agents/odoo-intent-extractor.md` § Rebase mode,
-`<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md`, substituted verbatim from this field) then
-resolves per module with no change needed to that agent: module A's instance writes
+write-path template (`<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md`, substituted verbatim
+from this field) then resolves per module with no change needed to that agent: module A's instance writes
 `<ISOLATE_DIR>/git-rebase/<run-slug>/A/intents/<sha>.md`; module B's writes
 `.../B/intents/<sha>.md` for the SAME sha - two distinct files, never a last-write-wins
 collision.
@@ -243,9 +242,8 @@ SERIES: <e.g. 17.0>
 SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
 TASK: For EACH commit in commit_dump_paths (in order), extract its business intent and
       behavioral contract. GROUNDING MODE + the per-module SLUG above select this agent's own
-      rebase-mode grounding and write path per commit
-      (`agents/odoo-intent-extractor.md` § Rebase mode); the agent already notes any
-      same-bundle overlap/revert on its own (§ Step 1, § Module-bundle cross-reference).
+      rebase-mode grounding and write path per commit; the agent already notes any
+      same-bundle overlap/revert on its own.
 OUTPUT FIELDS: sha, intent_file, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
 ```
@@ -330,9 +328,9 @@ status: BLOCKED - <N> non-(a) commit(s) missing a canonical intents/<sha>.md rec
   prior partial copy already landed) before retrying P3.
 ```
 
-This reuses the SAME `BLOCKED` vocabulary `agents/odoo-intent-extractor.md` (Step 1: "neither
-commit_dump_path nor commit_dump_paths provided") and `agents/odoo-diff-comparator.md` (Step 1:
-"diff_path not provided") already return for their own absent-required-input guards - never a
+This reuses the SAME `BLOCKED` vocabulary `odoo-intent-extractor` ("neither commit_dump_path nor commit_dump_paths provided")
+and `odoo-diff-comparator` ("diff_path not provided") already return for their own
+absent-required-input guards - never a
 new status, never a silent pass-through. The orchestrator's response to this `BLOCKED` is
 identical to any other `BLOCKED` return in this pipeline: do not proceed, re-run the named
 remediation (here: the P2 consolidation copy for the listed shas), confirm the gate passes, then
@@ -373,8 +371,7 @@ OUTCOME_CONTRACT: [[rb-intent-4outcome]] (${CLAUDE_PLUGIN_ROOT}/snippets/rb-inte
 ```
 
 The agent's own § Step 3a (rebase mode P3) owns the absorption-failure-mode taxonomy,
-`comparison.md` table shape, and duplicate-behavior risk list - do not restate them here
-(`agents/odoo-diff-comparator.md` § 3a).
+`comparison.md` table shape, and duplicate-behavior risk list - do not restate them here.
 
 ---
 
@@ -824,7 +821,7 @@ PLAN: <ISOLATE_DIR>/git-rebase/<slug>/plan.md
 
 The agent's own § Step 3b (rebase mode P10 verify) owns the range-diff read, the
 OSM-primary/grep-secondary duplicate-behavior guard, and the `verify.md` format - do not
-restate them here (`agents/odoo-diff-comparator.md` § 3b). Its Step 4 return block's
+restate them here. Its Step 4 return block's
 `duplicate_blockers` field gates whether the orchestrator may proceed.
 
 ### B3 - conditional instance verify

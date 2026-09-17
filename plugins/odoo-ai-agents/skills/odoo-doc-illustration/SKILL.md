@@ -24,7 +24,7 @@ and embed them into durable module documentation - `odoo-user-doc-writer` (end-u
 `doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/description/index.html`). "Sole"
 scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
 SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
-code+doc product-lifecycle plan (`agents/odoo-doc-planner.md` documents both dispatch paths).
+code+doc product-lifecycle plan.
 Captured images land in the module's `static/description/` so they survive across sessions and
 git commits. NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
 to EMBED into docs.
@@ -89,8 +89,8 @@ against that module.
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
    `{abs_path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
    **Resume: read `_scope.md` back, do not re-scope.** The scoper writes `_scope.md` under
-   `<SHARE_DIR>/documentation/<slug>-<date>/` (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-doc-scoper.md`).
-   Glob that dir for this slug first; a match is READ and used verbatim - skip the dispatch. The
+   `<SHARE_DIR>/documentation/<slug>-<date>/`. Glob that dir for this slug first; a match is READ
+   and used verbatim - skip the dispatch. The
    per-instance loop reads any scope field it needs from that file, never from a re-dispatch.
    Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
 2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to emit `doc-plan.yaml` -
@@ -289,7 +289,7 @@ feature catalog. `technical` (opt-in via
 `TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
 OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
 of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard
-BLOCK if absent, per `odoo-marketing-writer.md` § Required inputs) - the copy pre-fetch above is
+BLOCK if absent, per its own § Required inputs) - the copy pre-fetch above is
 gated on `TONE: marketing`, so an explicit `TONE: technical` dispatch does NOT trigger it and the
 caller must supply `MARKETING COPY` some other way or the writer BLOCKs. Prefer the `marketing`
 default unless a caller has its own copy-supply path for `technical`.
@@ -351,13 +351,13 @@ disk-UNION). Any other file that describes this resolution order (e.g. `app-stor
 section rather than restate the tiers - do not fork a second copy of this order elsewhere.
 
 Resolve the documentation language list the skill passes as each writer's `LANGUAGES:` in this order
-- first tier that yields a value wins (the same four tiers as `skills/odoo-i18n/SKILL.md` P0):
+- first tier that yields a value wins (the same four tiers as `odoo-i18n`'s own P0):
 1. Explicit `LANGUAGES:` value already in the run / plan
 2. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
 3. Module `i18n/*.po` locales already present
 4. `res.lang` active languages on the live instance
 
-**No tier 5 - no built-in default, same policy as `skills/odoo-i18n/SKILL.md` P0.** When ALL FOUR
+**No tier 5 - no built-in default, same policy as `odoo-i18n`'s own P0.** When ALL FOUR
 tiers above resolve empty, do not guess or silently generate documentation in an unrequested
 locale: return `status: NEEDS_CONTEXT` naming the missing field (`documentation language`). This
 mirrors odoo-i18n's own no-default rule exactly - the two do not diverge on what happens when every

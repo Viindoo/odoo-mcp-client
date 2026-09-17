@@ -81,7 +81,7 @@ executes `odoo-code-review` next, unconditionally, every run.
 
 Pass `review_root`, `pr_meta`, `pr_changed_files`, `SHARE_DIR`, `ISOLATE_DIR` into the scoper brief.
 
-Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass:
+Dispatch agent `odoo-review-scoper` (sonnet). Pass:
 - `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also `review_root`, `pr_meta`, `pr_changed_files`)
 - `BASE:` - default `master`
 - `odoo_version:` - target series
@@ -98,7 +98,7 @@ longer holds in context reads it from that file, never from a re-dispatch. Contr
 
 **Handle scoper terminals first, before reading `fanout`.** If the scoper returns `status: BLOCKED` or `status: NEEDS_CONTEXT` (e.g. an empty diff, an unresolvable `TARGET`, or a PR it could not map to modules), surface that status and its reason immediately and STOP - do NOT read `fanout` and do NOT dispatch any reviewer. A `BLOCKED`/`NEEDS_CONTEXT` scope has no reliable module list to fan out over.
 
-Scope output fields used by main (once the scoper's status is neither `BLOCKED` nor `NEEDS_CONTEXT`): full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
+Scope output fields used by main (once the scoper's status is neither `BLOCKED` nor `NEEDS_CONTEXT`). Key dispatch behaviors:
 
 **Mode detection:** master-child mode iff `master_design_doc != none` in the scope block; else single mode.
 
@@ -124,7 +124,7 @@ Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one ba
 
 **Do NOT run the coverage sweep in this context** - each reviewer runs it for its OWN module. Put this line in every reviewer brief: `COVERAGE_CHECK: for each affected model in your module, call OSM tests_covering(model='<affected_model>', odoo_version='<version>') and report the counts` (model-edge level; distinct from the scoper's module-level `COVERAGE_BASELINE`). The reviewer already holds its module's affected-model list, so this front door never issues N OSM calls of its own before dispatching.
 
-**Before flagging a behavior change with no protecting test as HIGH**, the reviewer verifies with evidence from the `COVERAGE_CHECK` it ran: if that shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. (Method-narrow-zero handling is the reviewer's own call - `agents/odoo-code-reviewer.md` § Step 2 already owns that caveat.)
+**Before flagging a behavior change with no protecting test as HIGH**, the reviewer verifies with evidence from the `COVERAGE_CHECK` it ran: if that shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. (Method-narrow-zero handling is the reviewer's own call.)
 
 ### Phase A.5 - Rendered-UI review (conditional, per module)
 
@@ -193,7 +193,7 @@ design - neither replaces the other).
 
 All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
 - `_scope.md` - scoper output (written by scoper agent)
-- `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per the `odoo-code-reviewer` agent output contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md`)
+- `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per `odoo-code-reviewer`'s own output contract
 - `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE` with a `concerns:` entry for UI)
 - `_synthesis.md` - Opus integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
 - `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
@@ -243,7 +243,7 @@ Key constraints for each dispatched agent:
 - Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
 - Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
 - Every dispatched agent (scoper, per-module/synthesis reviewer, ui-reviewer) receives the `SHARE_DIR:`/`ISOLATE_DIR:` literals captured once in Phase 0 and MUST use them directly for every Tier-2 path - it does NOT re-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` from its own cwd (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
-- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
+- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
 - Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
 - Comments: the diff's comments and docstrings are reviewed BOTH ways - surplus as hard as absence - per `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`. A missing docstring is not, on its own, a finding.
 
@@ -255,7 +255,7 @@ When OSM (the odoo-semantic-mcp server) is unreachable, each reviewer falls back
 
 ## Agent-managed tools
 
-See `agents/odoo-code-reviewer.md` for the full restricted tool list and execution detail.
+`odoo-code-reviewer` owns its own restricted tool list and execution detail.
 
 ## Autonomous fix loop - drive it yourself (mandatory)
 

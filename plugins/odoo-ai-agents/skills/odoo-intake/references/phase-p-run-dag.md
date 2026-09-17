@@ -74,9 +74,8 @@ open a RUN-DAG.
      above - never hand-author the plan inline.
    - **Decision X (node inputs):** each node carries `inputs: {effort, est_agents}` (ADVISORY /
      du kien) and **no binding `model`, and NO `gate_tier`** - the dispatched specialist skill owns
-     the actual model + agent count at runtime, and the tier is a total function resolved at dispatch
-     (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution); the run-node never
-     pins any of the three.
+     the actual model + agent count at runtime, and the tier is a total function `run-harness`
+     resolves at dispatch; the run-node never pins any of the three.
    - **Recon pointer (additive, optional).** When Phase R persisted a findings file, add
      `inputs.recon_findings: <captured ABSOLUTE literal>` to every node that consumes recon. It MUST
      be the captured absolute path - never a `<ISOLATE_DIR>` placeholder and never a relative path: a
@@ -98,8 +97,7 @@ open a RUN-DAG.
    Self-provisioning specialists), set `inputs.needs_worktree: true`. `run-harness` provisions the
    actual worktree/branch at dispatch (its Hard rule 6); Phase P only RECORDS the requirement - it
    does not run git. **Phase P computes NO gate tier, here or anywhere** - the field is deleted from
-   the schema; the tier is a total function resolved at dispatch
-   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution). Do not tag a
+   the schema; the tier is a total function `run-harness` resolves at dispatch. Do not tag a
    `gate_tier` on any node.
 3. Set `autonomy`, `budget` (`max_nodes` ≈ 2× node count), `status: NEEDS_NEXT`.
 4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-harness`,
@@ -108,9 +106,9 @@ open a RUN-DAG.
 **Handoff:** intake writes the file and hands off to `run-harness`, which walks the DAG and
 dispatches each node to specialists (as subagents or Skill-tool invocations). intake
 never spawns the specialists itself here - it persists the plan and yields to the driver.
-Phase P is the SINGLE place the approved plan becomes a `run-<id>.json`. Why `odoo-planning` routes
-its approved plan here (`next: odoo-intake`) and NOT straight to `run-harness`: rationale SSOT is
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-planning/SKILL.md` § Continuation Contract.
+Phase P is the SINGLE place the approved plan becomes a `run-<id>.json`. `odoo-planning` routes its
+approved plan here (`next: odoo-intake`) rather than straight to `run-harness`, because `run-harness`
+walks an EXISTING `run-<id>.json` and cannot ingest a plan `.md` directly.
 
 **Workflow-as-node (G-B):** a workflow-command (e.g. `/odoo-respond-bid`) is ONE node at the
 DAG level - its internal phases are SSOT inside the `.workflow.yaml` (gated by

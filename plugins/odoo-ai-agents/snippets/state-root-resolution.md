@@ -278,5 +278,5 @@ ABSOLUTE strings to EVERY leaf it dispatches (`SHARE_DIR: <abs-path>` / `ISOLATE
 A leaf receiving these fields MUST substitute them directly and MUST NOT re-run the resolver from
 its own cwd - re-resolving independently is exactly what causes the divergence this rule exists to
 prevent. A leaf invoked WITHOUT these fields falls back to the normal protocol, resolving from its
-own cwd. Canonical worked example: `agents/odoo-review-scoper.md` (`review_root`) and the
+own cwd. Canonical worked example: `odoo-review-scoper` (`review_root`) and the
 `odoo-code-review` skill's Phase 0.

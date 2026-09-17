@@ -112,12 +112,12 @@ comparison intent - the IDENTICAL suffix mechanism
 ("so concurrent runs never collide") - minting the 4 random chars ONCE at Round 0 and reusing that
 SAME value for every path this run: never improvise a fresh one per screen, never re-mint the
 random suffix mid-run, and never leave the literal `<slug>` token in a path (same convention as
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-debugger.md` § Round 1). The random suffix is the
+`odoo-ui-debugger`'s own Round 1). The random suffix is the
 disambiguator: `<ISOLATE_DIR>` alone is worktree-keyed, not run-keyed, and this skill is exempt from
 worktree provisioning, so without it two concurrent standalone runs sharing the identical comparison
 intent (a retry, or two callers independently checking the same before/after) would mint the SAME
 slug and collide on `<ISOLATE_DIR>/visual/current/<slug>/` - the defect this section exists to
-close. Example: intent "compare before/after the v17 upgrade" run twice concurrently ->
+close. Example: intent "compare before/after the upgrade" run twice concurrently ->
 `compare-v17-upgrade-20260731-a1b2` and `compare-v17-upgrade-20260731-9f3d` - same intent-slug and
 date, different random suffix, so the two runs write to different directories and neither overwrites
 the other's screenshots.

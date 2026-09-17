@@ -2,8 +2,8 @@
 
 **SSOT owned by `odoo-planning`** (authored by its `odoo-planner` agent). Physically hosted here
 under `skills/odoo-intake/references/` for backward-compat with intake Plan Mode and the
-`docs/reference/workflow-harness.md` labeled-pointer - do NOT relocate it (`agents/odoo-planner.md`
-forbids relocation). Edit the schema here; every other site points at this file.
+`docs/reference/workflow-harness.md` labeled-pointer - do NOT relocate it (`odoo-planner`'s own
+contract forbids relocation). Edit the schema here; every other site points at this file.
 
 Load this when the approved Approach has `output_mode = writes-files` and the plan is being written
 inside Plan Mode (step 3 of the Plan Mode procedure in SKILL.md). The plan MUST contain three
@@ -198,9 +198,8 @@ node shape is incompatible with `run/1.0` and the driver refuses anything older)
 A node's serialized field set is exactly: `id`, `repo`, `approach`, `approach_kind`, `modules`,
 `files_in_scope`, `inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE
 and there is no field that groups, batches, layers, or orders nodes other than `depends_on`.** A node
-carries NO `gate_tier`: the tier is a total function resolved at dispatch
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` section Gate-tier resolution). Writing a tier
-here is a schema violation.
+carries NO `gate_tier`: the tier is a total function `run-harness` resolves at dispatch. Writing a
+tier here is a schema violation.
 
 A second repo adds a second `repos[]` entry AND its own `integrate` node - N repos = N PRs.
 `repo: null` means the node belongs to no repository (chat-only synthesis / routing): it gets no
@@ -259,8 +258,8 @@ regression late would be expensive; each one's `modules` must cover at least the
 transitive dependencies, so scope grows monotonically down the graph.
 
 **Cross-module acceptance-criterion ownership.** A cross-module acceptance criterion - including the
-design's §9 solution-level summary (`agents/odoo-solution-architect.md` §9) - is OWNED by the
-verification node whose `modules` cover EVERY module that criterion spans, whether those modules sit
+design's §9 solution-level summary - is OWNED by the verification node whose `modules` cover EVERY
+module that criterion spans, whether those modules sit
 in one coding node or are split across sibling coding nodes. Name that ownership on the owning
 verification node's Block 3 line (below) - a cross-module criterion is never left unowned because no
 single coding node's own module set happens to cover it.
@@ -273,8 +272,7 @@ skill, never a per-agent `model`, fan-out `count`, or `gate_tier`. For ANY accep
 spans more than one module - whether those modules sit in ONE node or are split across SIBLING
 nodes - state in one line, on the OWNING node's Block 3 line (the verification node named under
 § Cross-module acceptance-criterion ownership above), which of its assertions cross a module
-boundary, so `odoo-coder` knows what to stage
-(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md` section Cross-module test staging). This 3-block plan
+boundary, so `odoo-coder` knows what to stage. This 3-block plan
 is ALWAYS authored by `odoo-planning` (its `odoo-planner`); planning is mandatory for all work -
 `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` section Mandatory-planning rule.
 

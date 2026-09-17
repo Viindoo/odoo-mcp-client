@@ -241,9 +241,13 @@ def test_oracle_contract_allows_design_doc_section9_as_source():
     assert "INDEPENDENCE GUARD" in body, (
         "acceptance-oracle-contract.md must cross-reference the design's own §9 INDEPENDENCE GUARD."
     )
-    assert "odoo-solution-architect.md" in body, (
-        "acceptance-oracle-contract.md must point at agents/odoo-solution-architect.md for the "
+    assert "odoo-solution-architect" in body, (
+        "acceptance-oracle-contract.md must name odoo-solution-architect as the owner of the "
         "§9 INDEPENDENCE GUARD definition."
+    )
+    assert "odoo-solution-architect.md" not in body, (
+        "name the architect, do not path at its file: rule 20 [definition-pointer] bans pointing "
+        "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
     )
 
 
@@ -253,8 +257,12 @@ def test_qa_planner_cross_references_section9_independence_guard():
         "odoo-qa-planner must cross-reference the §9 INDEPENDENCE GUARD when naming DESIGN_DOC §9 "
         "as an allowed input."
     )
-    assert "odoo-solution-architect.md" in body, (
-        "odoo-qa-planner must point at agents/odoo-solution-architect.md §9 for the guard."
+    assert "odoo-solution-architect" in body, (
+        "odoo-qa-planner must name odoo-solution-architect as the owner of the §9 guard."
+    )
+    assert "odoo-solution-architect.md" not in body, (
+        "name the architect, do not path at its file: rule 20 [definition-pointer] bans pointing "
+        "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
     )
     # The pre-existing REQUIREMENT input row must still name DESIGN_DOC §9 (Fix 3 finding).
     assert "DESIGN_DOC" in body and "§9" in body, (

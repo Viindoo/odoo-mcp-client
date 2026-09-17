@@ -7,8 +7,7 @@
 
 The backend code-quality gate is Odoo's own lint test module plus, on a Viindoo profile, Viindoo's
 lint module. This snippet decides WHICH modules the gate is made of. WHETHER the gate runs on a
-given dispatch is a separate decision owned by `GATE_ROLE`
-(`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § Lint modules).
+given dispatch is a separate decision owned by `GATE_ROLE` (`odoo-instance-ops` § Lint modules).
 
 ## Candidate set
 

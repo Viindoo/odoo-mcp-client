@@ -695,7 +695,7 @@ def test_knowhow_boundary_dispositions_live_in_the_authoring_guide():
     guide = (REPO_ROOT / "docs" / "authoring-skills-and-agents.md").read_text(
         encoding="utf-8"
     )
-    assert "What a dispatching skill hands its agent" in guide, (
+    assert "Writing the brief a skill hands an agent it dispatches" in guide, (
         "the authoring guide must carry the dispatching-skill boundary section"
     )
     for disposition in ("KEEP", "MOVE", "DELETE"):
@@ -710,6 +710,17 @@ def test_knowhow_boundary_dispositions_live_in_the_authoring_guide():
         "the guide must state the reverse check too - a skill claiming the "
         "agent owns X when X is absent from that agent leaves the rule "
         "enforced by nobody while reading as covered"
+    )
+    assert "do not replace the removed text with a pointer at the agent file" in guide.lower(), (
+        "deleting know-how but leaving `read agents/<name>.md` behind swaps one defect for "
+        "another. A skill is INVOKED and an agent is LAUNCHED - neither is READ, so that pointer "
+        "hands the reader text meant for whoever runs it and dispatches nothing. The guide must "
+        "say so, or the next sweep re-introduces it"
+    )
+    assert "exist to be read" in guide, (
+        "the guide must also draw the other side of the line, or the rule reads as 'never point "
+        "at anything': snippets/, docs/ and a skill's own references/ are instruction MATERIAL, "
+        "and telling a reader to read one is how that content becomes part of the skill or agent"
     )
 
 

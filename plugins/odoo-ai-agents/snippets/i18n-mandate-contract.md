@@ -33,8 +33,8 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
    rather than fabricate one: `odoo-i18n` P0 still runs its OWN tiers 2-4 (machine-global registry,
    `.po`-filename inference, live `res.lang` query) against whatever IS available, and only records
    escape E3 once ALL of tiers 1-4 come up empty. `odoo-i18n` has no hardcoded target-language
-   default to fall back on - omitting the field never triggers one, inside a mandate or outside it
-   (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md` P0); it only ever reaches escape E3 above.
+   default to fall back on - omitting the field never triggers one, inside a mandate or outside
+   it; it only ever reaches escape E3 above.
 4. Present the returned result at YOUR OWN existing human gate - do NOT let `odoo-i18n` open a separate
    STOP per invocation. A mandated step that always stops is a deadlock.
 5. Hand over an instance BUILT FOR EXPORT - installed WITH DEMO DATA, `en_US` plus the target
@@ -135,8 +135,8 @@ what this run changed. The scan target resolves per caller (same signal table, d
 
 Consider only CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS
 on ANY match; record the fired set as a FIELD, never as raw grep output (discipline:
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-diff-comparator.md`, whose `deferred_work_due` /
-`deferred_work_unanchored` fields are the shape to copy).
+`odoo-diff-comparator`'s `deferred_work_due` / `deferred_work_unanchored` fields are the shape
+to copy).
 
 | # | fires when a changed line ... |
 |---|---|

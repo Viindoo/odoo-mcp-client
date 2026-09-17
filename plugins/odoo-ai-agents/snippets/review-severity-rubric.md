@@ -1,8 +1,7 @@
 <!-- SSOT snippet. Defines the ONE severity scale, the audit-tier mapping, the diff fold-in rule,
      and the ownership-transfer/dedup rule shared by the review-plus-audit pipeline. Referenced
-     (not copy-pasted) by agents/odoo-code-reviewer.md (including its `### Step 3.6 - Audit
-     escalation`) and by skills/odoo-perf-audit/SKILL.md, skills/odoo-security-audit/SKILL.md,
-     and skills/odoo-deprecation-audit/SKILL.md.
+     (not copy-pasted) by `odoo-code-reviewer` (including its Audit escalation step) and by
+     `odoo-perf-audit`, `odoo-security-audit`, and `odoo-deprecation-audit`.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md. -->
 
 # Review Severity Rubric
@@ -13,9 +12,8 @@ and is owned by exactly one producer per pass.
 
 ## 1. The scale (single source)
 
-**CRITICAL / HIGH / MED / LOW** - the scale already defined in `agents/odoo-code-reviewer.md`'s
-`## Severity & scoring` table (D1-D7 dimensions) is the single source. The three dedicated audits do
-not define their own scale; they map their native tiers into this one (`## 2`).
+**CRITICAL / HIGH / MED / LOW** - one scale for the whole review-plus-audit pipeline. The three
+dedicated audits do not define their own; they map their native tiers into it (`## 2`).
 
 ## 2. Audit-tier mapping (version-neutral)
 
@@ -63,6 +61,6 @@ the audit's entry - a collision never resolves to the reviewer's inline entry.
 
 ## 5. One scale, one owner, everywhere
 
-This rubric is referenced by `agents/odoo-code-reviewer.md` and by the three audit skills
-(`skills/odoo-perf-audit/SKILL.md`, `skills/odoo-security-audit/SKILL.md`,
-`skills/odoo-deprecation-audit/SKILL.md`) so one scale and one owner governs the whole pipeline.
+This rubric is referenced by `odoo-code-reviewer` and by the three audit skills
+(`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) so one scale and one owner
+governs the whole pipeline.

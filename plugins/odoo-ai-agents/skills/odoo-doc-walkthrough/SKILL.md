@@ -83,12 +83,11 @@ after every rung it returns `NEEDS_CONTEXT(odoo_version)` before proceeding rath
 one from a manifest `version` string.
 
 Collect `walkthrough.md` and `walkthrough.jsonl` from the agent output path - the agent writes
-both on every run (`agents/odoo-doc-scenarist.md` § Completion returns `jsonl_path`
-unconditionally) - then emit a Continuation Contract per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`.
+both on every run (its own Completion returns `jsonl_path` unconditionally) - then emit a
+Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`.
 
 ## Standalone-first fallback
 
 OSM unreachable -> agent falls back to disk, labels `grounding: local-source`, and emits its own
 warning text; full fallback chain and the `CATALOG_PATH`-absent behavior are owned by
-`agents/odoo-doc-scenarist.md` § Step 1 and § Feature catalog - not restated here.
+`odoo-doc-scenarist`'s own Step 1 and Feature catalog sections - not restated here.

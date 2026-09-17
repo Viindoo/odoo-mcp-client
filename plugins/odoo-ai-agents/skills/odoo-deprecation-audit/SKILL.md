@@ -30,7 +30,7 @@ Developer / Tech Lead
 
 **Default (no `SCOPE_FILES`/`CHANGED_SET` supplied): whole-module pre-upgrade sweep, UNCHANGED** - a standalone invocation, and `odoo-modules-upgrade`/`odoo-forward-port` callers, are unaffected.
 
-When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill diff-scoped, it supplies:
+When a caller (e.g. `odoo-code-reviewer`'s own Audit escalation step) briefs this skill diff-scoped, it supplies:
 - `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files. Restrict authoritative BREAKING/WARN/STYLE findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing deprecated usage) in a separate "Pre-existing / blast-radius" section - never silently dropped.
 - `odoo_version` (the source version) and, optionally, `TARGET_SERIES` (the upgrade target) - version-relative values the brief supplies; use them exactly as Round 0 / Round 1b already do. When absent, resolve the series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. This skill never hardcodes a version number in its own prose - every version is a variable the ladder or the brief resolves.
 

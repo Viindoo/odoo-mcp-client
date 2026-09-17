@@ -67,8 +67,7 @@ never the principal checkout. A caller (forward-port, modules-upgrade, a run-har
 `WORKTREE_PATH` and no worktree of your own -> provision one via `git-toolkit:git-ops` before P2, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. The verification instance must load THAT tree, not
 the principal checkout: pass `WORKTREE_PATH` through to `odoo-instance`
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § WORKTREE_PATH substitution) so the export
-reads the code you are translating.
+(its own WORKTREE_PATH substitution) so the export reads the code you are translating.
 
 ## Out of Scope
 
@@ -213,8 +212,8 @@ target_languages x series + dependency order + language-source tier).
   `i18n: not-applicable (no target language resolvable from tiers 1-4)`, RETURN it, and PROCEED -
   translate nothing, but never stop for it. RETURN the scope summary (or the E3/BLOCKED record) to the
   caller, which presents it at its OWN existing gate alongside its other verdicts (precedent:
-  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P5.8/P6, where the acceptance verdict
-  is presented "ALONGSIDE the P6 sign-off ... so the human sees ONE combined decision").
+  `odoo-modules-upgrade`'s own P5.8/P6, where the acceptance verdict is presented "ALONGSIDE the
+  P6 sign-off ... so the human sees ONE combined decision").
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
@@ -327,8 +326,8 @@ the reconcile would report phantom removals. Pass the model both as a
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
 decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its re-export /
-translate / validate method (incl. when it uses OSM vs shell `odoo-bin`) is its own Rounds 0-5
-(`agents/odoo-translator.md`) - do not restate the procedure here.
+translate / validate method (incl. when it uses OSM vs shell `odoo-bin`) is its own Rounds 0-5 -
+do not restate the procedure here.
 
 ## Artifacts
 

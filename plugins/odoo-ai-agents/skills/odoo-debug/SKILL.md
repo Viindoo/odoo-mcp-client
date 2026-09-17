@@ -195,7 +195,7 @@ in this language; identifiers, file paths, and tool names stay English (per
 `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`, which both debugger agents already consume).
 
 Step 0: pin the OSM version and ground per your own § Standalone-first fallback
-(`agents/odoo-backend-debugger.md` / `agents/odoo-ui-debugger.md`) - its reachability probe,
+(`odoo-backend-debugger` / `odoo-ui-debugger`) - its reachability probe,
 Tier-1-MISS/hybrid-grounding procedure, and HARD LEAF never-spawn rule are not restated here.
 Fill EVERY field of the Output Contract in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md.
 ```
@@ -238,8 +238,8 @@ needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, pa
 root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
 (debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
 to verify"** - its own pipeline already grounds the base class, existing coverage, and the
-version's coding guidelines (`odoo-backend-coder.md` § Round 1; `odoo-test-writing/SKILL.md`) before
-writing, so do not pre-derive `TEST_BASE_CLASS`/`EXISTING_TESTS` here. If a design index exists at `<SHARE_DIR>/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
+version's coding guidelines before writing, so do not pre-derive `TEST_BASE_CLASS`/`EXISTING_TESTS`
+here. If a design index exists at `<SHARE_DIR>/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
 then STOP and escalate. Still emit the Continuation Contract block as the record.
 (For a wider sweep instead of a point fix, route to the relevant audit skill.) The ONLY exception:
 if dispatched by an active run-harness (a `run-<id>` is named), emit `next` (in-block) and

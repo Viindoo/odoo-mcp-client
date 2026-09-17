@@ -387,18 +387,31 @@ def test_the_one_way_ordering_survives_as_a_declaration_pointing_at_its_enforcem
         "node of one. That is the form the schema, the driver and the plan author all enforce."
     )
     # Each enforcement owner is RESOLVED from the tree by the prose that enforces, then required to
-    # be cited here. A surface that moves file makes this demand an updated pointer - it cannot go
-    # green on a stale path.
+    # be cited here - a surface that moves cannot go green on a stale citation.
+    #
+    # An owner that is a SKILL.md or an agents/<name>.md is cited BY NAME, not by path: rule 20
+    # [definition-pointer] bans the path because a skill is invoked and an agent launched, never
+    # read, so the path is an instruction nobody can act on. The name reaches the same actor and is
+    # what a reader would dispatch. Any other owner (a snippet, a reference) is still cited by path,
+    # because reading it IS the way to reach it.
     for label, marker in ENFORCEMENT_MARKERS:
         owners = [rel for rel, txt in _plugin_texts().items() if marker.search(txt)]
         assert len(owners) == 1, (
             f"{label}: expected exactly ONE file under plugins/odoo-ai-agents to carry "
             f"{marker.pattern!r}; found {owners}"
         )
-        assert owners[0] in flat, (
-            f"§ Design precedes planning must point at {label} (`{owners[0]}`) - this section only "
-            f"DECLARES the ordering now, so a reader who wants the rule ENFORCED has nowhere to go "
-            f"without the pointer. That is the 'described, never reached' defect, inverted."
+        owner = owners[0]
+        if owner.startswith("agents/"):
+            citation = Path(owner).stem
+        elif owner.endswith("/SKILL.md"):
+            citation = Path(owner).parent.name
+        else:
+            citation = owner
+        assert citation in flat, (
+            f"§ Design precedes planning must point at {label} (`{owner}`, cited as "
+            f"`{citation}`) - this section only DECLARES the ordering now, so a reader who wants "
+            f"the rule ENFORCED has nowhere to go without the citation. That is the 'described, "
+            f"never reached' defect, inverted."
         )
 
 

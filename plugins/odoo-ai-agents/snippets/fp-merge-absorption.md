@@ -159,8 +159,7 @@ plan gate, and each batch still merges its own range TIP once (§ Git operation 
 commit at a time.
 
 **Delegate the instance - never a raw `allocator.py`/`odoo-bin` invocation.** Provisioning,
-install, and test-run all go through the `odoo-instance` skill
-(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`) via the Skill tool. Only
+install, and test-run all go through the `odoo-instance` skill via the Skill tool. Only
 `odoo-instance-ops` and the instance-touching HARD LEAVES enumerated in
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py` or
 `odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
@@ -261,7 +260,7 @@ Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 The integration worktree branches from the TARGET branch (never the target branch directly -
 no direct commits land there during forward-port). Adapt work happens DIRECTLY in that integration
 worktree - the single open merge window spans the whole range, so no per-module child worktree can
-ever converge back into it (full derivation: `skills/odoo-forward-port/SKILL.md` § Git topology).
+ever converge back into it (full derivation: `odoo-forward-port` § Git topology).
 Only after a human-gated P10 + P11 acceptance + P12 PR review does the human merge
 the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
@@ -271,5 +270,3 @@ the target branch stays consistent even if one WI worktree is abandoned mid-flig
 `snippets/git-safety-contract.md`). All worktree creation, removal, and
 topology changes must be delegated to git-toolkit via the `git-ops` skill. This skill may read topology state (e.g.
 via `git worktree list`) but never mutates it directly.
-
-Full topology: see the forward-port orchestrator skill (`skills/odoo-forward-port/SKILL.md`).

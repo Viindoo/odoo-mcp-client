@@ -47,8 +47,7 @@ conversational text:
 - **Not found AND the change is non-trivial:** recommend running `odoo-gap-analysis` first to
   classify/cost the requirements rather than guessing the tier. Not finding one is NOT a
   blocker: dispatch the architect with the `GAP_MATRIX:` line omitted and it measures the
-  scope itself before designing (`agents/odoo-solution-architect.md`
-  § Round 1 - Gather context). Running the gap analysis here first is still preferable
+  scope itself before designing. Running the gap analysis here first is still preferable
   when a human wants to gate the cost separately - it is a sequencing choice, never a
   precondition you stall on. (Trivial single-approach change: proceed without it.)
 
@@ -82,9 +81,9 @@ Both are values already written in an artifact you have. When the artifact does 
 for that fact in the same short message - never infer it from module names or from the request text.
 
 Module enumeration priority (first available): deep-survey `synthesis.md` → brl `dag.json`
-→ modules-upgrade `graph.md` → fallback: scan each module descriptor (`__manifest__.py`, or
-`__openerp__.py` on v8-v9) + topo-sort `depends`
-(pattern: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P1(a)).
+→ modules-upgrade `graph.md` → fallback: scan each module descriptor (`__manifest__.py` or
+`__openerp__.py`, whichever each module has) + topo-sort `depends`
+(the same pattern `odoo-modules-upgrade` already uses).
 
 When it fires - and ONLY then - ask (never for a single-module or narrowly-scoped design):
 
@@ -103,7 +102,7 @@ scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
 
 **The architect owns the single-vs-master call when the trigger does NOT fire.** The P1 template
 carries no `MODE:` line, so a design dispatched without the scope question still passes through the
-decompose bounce (`agents/odoo-solution-architect.md` § Dispatch modes), which returns `NEEDS_NEXT`
+decompose bounce, which returns `NEEDS_NEXT`
 recommending master-child when the scope genuinely needs splitting. A trigger that stayed silent is
 therefore recoverable at the specialist - which is why this skill never has to pre-judge the
 architecture to protect against it.
@@ -229,7 +228,7 @@ Launch `odoo-solution-architect` as a subagent for **non-trivial** changes. Fire
 - **A refactor** (mixin extraction, module split/merge, inheritance axis change).
 
 The architect surveys **bidirectional impact** and designs **dynamic demo data** for any new
-end-user behavior - see `agents/odoo-solution-architect.md` for the template.
+end-user behavior, per its own template.
 
 **Skip DESIGN for trivial work:** a single Standard/Config field, boilerplate (one computed field,
 a view shell, a security CSV row), or a localized fix with exactly one obvious approach - but still
@@ -288,17 +287,17 @@ route to `odoo-planning`, because planning is mandatory for all work
 
 The design doc is a **contract for the coders**. Eight fixed sections (Intent & Business Value,
 Approach, Data model, Override strategy, Module structure, Sequencing, Test strategy outline, Risks)
-are specified in `agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc template).
+- the architect's own Round 4 owns the template.
 
 On a full-stack design the architect grounds the frontend half against the fidelity contract
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` itself
-(`agents/odoo-solution-architect.md` § Round 2) - nothing to pass in the brief. Full reference (doc
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` itself, at its own Round 2 -
+nothing to pass in the brief. Full reference (doc
 structure, full-stack + master-child dispatch pointers):
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`
 
 Which OSM test tool the architect calls at which round for §7 (`test_base_classes`,
 `find_test_examples`, `tests_covering`, `test_coverage_audit`, incl. the method-narrow-zero
-caveat) is owned by `agents/odoo-solution-architect.md` Round 0 HARD RULE + Round 1 call #5 +
+caveat) is owned by the architect's own Round 0 HARD RULE + Round 1 call #5 +
 Round 2 + Round 4 §7 - not restated here to avoid drift.
 
 **Invariant:** §7 is only valid when grounded per the architect's own Round 0/1/2/4 test-tool
@@ -359,8 +358,8 @@ bouncing back for it. Dispatch is asynchronous: save the doc, dispatch, end your
 The agent inherits the FULL tool surface (it carries no `tools:` allowlist) and stays read-only
 on SOURCE: it never writes production code, and the TDD is always its own work. It MAY invoke
 a grounding skill or launch a read-only analysis/research worker to close a fact gap - that is
-a sanctioned nested spawn, and `agents/odoo-solution-architect.md` § Delegating for grounding
-is the SSOT for which skills are in bounds, the fan-out cap, and the dispatch physics.
+a sanctioned nested spawn, and which skills are in bounds, the fan-out cap, and the dispatch
+physics are the architect's own call.
 
 ### Payload mapping when `return_to` is set (caller-return flow)
 
@@ -388,8 +387,8 @@ to paste code or manifests.
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. See `agents/odoo-solution-architect.md` for the
-full restricted (read-only) tool list and execution detail.
+This skill is part of an agent+skill bundle. `odoo-solution-architect` owns its own restricted
+(read-only) tool list and execution detail.
 
 ## Design-approval gate (who approves: the human)
 

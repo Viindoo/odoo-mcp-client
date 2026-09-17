@@ -26,7 +26,7 @@ does and what the business needs. That gap is the bug. These rules make the orac
    `DESIGN_DOC` §9 Acceptance Criteria (when a design exists) is an explicitly ALLOWED source of
    `expected` - consuming it does NOT violate this invariant, because the ban is on reading the
    IMPLEMENTATION/code, and §9 is itself requirement-derived, never code/OSM-derived, enforced by
-   the design's own INDEPENDENCE GUARD (`agents/odoo-solution-architect.md` §9). Reading §9 is
+   `odoo-solution-architect`'s own INDEPENDENCE GUARD in that document's §9. Reading §9 is
    reading the requirement one hop removed through the design doc, not reading the code.
 2. **Author != coder != adjudicator (three separate contexts).** The agent that writes the oracle
    (`odoo-qa-planner`) is not the coding side that wrote the code (odoo-coding's coder agents - the

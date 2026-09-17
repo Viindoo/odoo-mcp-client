@@ -1,5 +1,5 @@
 <!-- SSOT snippet. RST-validity contract for every third-party `doc/*.rst` an agent writes
-     (currently `agents/odoo-user-doc-writer.md`). Referenced (not copy-pasted) by any writer
+     (currently `odoo-user-doc-writer`). Referenced (not copy-pasted) by any writer
      of Odoo module end-user documentation. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md. -->
 
@@ -9,7 +9,7 @@ Every `doc/*.rst` file you write is rendered by a PLAIN docutils reader - there 
 build step anywhere in this pipeline. A file that only renders under Sphinx-specific roles or
 directives is BROKEN here, even if it looks correct in an editor that assumes a Sphinx project.
 Follow every rule below when you author or edit a `doc/*.rst` file. This contract is enforced
-mechanically - see `agents/odoo-user-doc-writer.md` Step 4.5 (the mandatory docutils
+mechanically - see `odoo-user-doc-writer` Step 4.5 (the mandatory docutils
 self-verify gate): a doc that violates any rule below fails that gate and blocks the agent's
 return until it is fixed.
 
@@ -99,7 +99,7 @@ file, never the third-party deliverable you write.
 
 A `doc/*.rst` that violates any rule above is not a style preference - it is a file a real
 RST renderer refuses to render cleanly, shipping a visibly broken page to an end user.
-`agents/odoo-user-doc-writer.md` Step 4.5 enforces this contract mechanically: it renders
+`odoo-user-doc-writer` Step 4.5 enforces this contract mechanically: it renders
 every `doc/*.rst` it writes through docutils `publish_programmatically` (standalone reader,
 `restructuredtext` parser, `pseudoxml` writer, `report_level=1`, `halt_level=5`) and requires
 `document.findall(nodes.system_message)` to be empty before the agent may return. Any

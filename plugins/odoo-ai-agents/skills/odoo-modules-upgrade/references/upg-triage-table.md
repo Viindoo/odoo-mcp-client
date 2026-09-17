@@ -4,8 +4,8 @@ Used in P4 of `odoo-modules-upgrade` to assign a model tier to each module's ada
 work-item. The orchestrator resolves the tier BEFORE dispatching `odoo-coding` and
 records it in `plan.md` (the tier is part of the approved plan, not a runtime improvisation).
 
-This table reuses the shape of `odoo-coding`'s deterministic tier table (Phase 0, step 5).
-SSOT for the tier definitions and constraints: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md`.
+This table reuses the shape of `odoo-coding`'s deterministic tier table (Phase 0, step 5) - that
+skill owns the tier definitions and constraints; invoke it, do not restate them here.
 The rows below are the UPGRADE-specific instantiations of those same four conditions.
 
 ---
@@ -39,6 +39,6 @@ The rows below are the UPGRADE-specific instantiations of those same four condit
 
 ## Cross-reference
 
-- ADAPT tier definitions and tier constraints (authoritative): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` Phase 0 step 5
+- ADAPT tier definitions and tier constraints (authoritative): `odoo-coding` (Phase 0 step 5) - invoke it; do not restate here.
 - P4 dispatch briefs and child-worktree commands: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
 - Breaking-change catalog (what P4 coders apply): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`

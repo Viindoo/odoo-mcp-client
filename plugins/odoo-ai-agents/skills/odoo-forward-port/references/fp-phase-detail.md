@@ -93,9 +93,8 @@ module map and R2b's per-module cap together mean a commit shared between module
 intentionally dispatched to BOTH modules' single extractor instances - two independent instances
 legitimately process the identical SHA, and would otherwise both write the SAME `intents/<sha>.md`
 path with no owner or merge rule. Set this brief's `SLUG` field to `<slug>/<module>` (the run
-`<slug>` plus this module's own name) - the extractor's own write-path template
-(`agents/odoo-intent-extractor.md` Step 3) then resolves per module automatically, no agent change
-needed. `commit_dump_paths` below is UNCHANGED - those are
+`<slug>` plus this module's own name) - the extractor's own write-path template then resolves
+per module automatically, no agent change needed. `commit_dump_paths` below is UNCHANGED - those are
 already-resolved absolute paths the orchestrator wrote ONCE (single writer, shared read-only),
 keyed by the run-level `<slug>`, never per-module.
 
@@ -111,7 +110,6 @@ commit_dump_paths:
 SOURCE SERIES: <e.g. 16.0>
 SLUG: <slug>/<module>              # PER-MODULE namespace for THIS extractor's own intents/ writes only
 TASK: Extract business intent + behavioral contract for every commit in commit_dump_paths
-      (own method: agents/odoo-intent-extractor.md Steps 1-3).
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -190,8 +188,8 @@ The prober consumes those and returns BOTH:
 
 - `merge_log_line:` - a single-line verdict logged VERBATIM to `merge-log.md`.
 - a structured verdict block - `{ module, installable_false: yes|no, evidence }`. Read that field
-  by its own name and polarity (`agents/odoo-installable-prober.md` § Step 3); it is the single
-  field any consumer reads, and there is no third value - a probe that cannot resolve returns
+  by its own name and polarity; it is the single field any consumer reads, and there is no third
+  value - a probe that cannot resolve returns
   `status: BLOCKED`, never a degraded verdict.
 
 **merge-log row placement.** The prober verdict is its OWN row keyed by module, kept DISTINCT
@@ -211,8 +209,8 @@ to yes or no.
 ## P3 - Design (conditional route-out)
 
 A bucket-(c) "do now" commit that touches a NON-TRIVIAL module routes OUT to
-`odoo-solution-design` instead of being adapted blind. Reuse the non-trivial criterion from
-`skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a third definition. A
+`odoo-solution-design` instead of being adapted blind. Reuse the SAME non-trivial criterion
+`odoo-solution-design` applies for its own dispatch - do NOT invent a second definition. A
 deferred or `installable:False` module needs no design - skip it.
 
 Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-harness
@@ -252,7 +250,7 @@ routed commit. Together `design_slug_hint` gives the design agent a deterministi
 
 `odoo-solution-design` under `return_to` runs its own design + design-approval gate, then emits
 `next: odoo-forward-port` with `design_doc: <path>`; it does NOT enter a code Plan Mode and does
-NOT dispatch a coder (SSOT: `skills/odoo-solution-design/SKILL.md` § Design-approval gate). On
+NOT dispatch a coder. On
 re-entry, read `design_doc` from the returned contract's `inputs`, record it against the commit,
 set checkpoint `status=designed`, and proceed to the P4 plan gate with the design linked - do
 not re-run design. If `design_doc` is ABSENT from the returned inputs (design crashed before
@@ -565,9 +563,9 @@ FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out
 `odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED: launch the
 coordinator once, record the id, resume it across commits - the SAME field shape as 8a, an id your
 own launch returned.**
-`agents/odoo-coder.md` § Cross-round resume confirms the coordinator is round-scoped, not
-single-shot-forever - a caller may resume the SAME coordinator for a LATER commit instead of
-cold-spawning a fresh one, the same mechanism already used for the 8a `odoo-test-writer` above.
+The `odoo-coder` coordinator is round-scoped, not single-shot-forever - a caller may resume the
+SAME coordinator for a LATER commit instead of cold-spawning a fresh one, the same mechanism
+already used for the 8a `odoo-test-writer` above.
 On the module's FIRST commit omit the field and record the coordinator id `odoo-coding` reports back
 for that module in `plan.md`; on every LATER commit touching the same module, carry that recorded
 value as `WORKER_AGENT_ID: <id>` in the brief below - the SAME field label and shape the 8a leg
@@ -592,9 +590,9 @@ BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-c
 FAILING TEST (RED, written by the odoo-test-writer above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
 DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out
-      result, `references/fp-phase-detail.md` P3 - so 8b never adapts blind; `none` when P3 never
-      routed this commit to design; same sentinel shape `odoo-coding`'s own resolution already
-      uses, `skills/odoo-coding/SKILL.md` "DESIGN_DOC: <child TDD path | none>")
+      result, so 8b never adapts blind; `none` when P3 never routed this commit to design; same
+      sentinel shape `odoo-coding`'s own resolution already uses:
+      "DESIGN_DOC: <child TDD path | none>")
 MODULE SCOPE: <name>
   READ/WRITE (in the integration worktree, no separate child worktree): <path>/fp-integration/<module>/
     (merged content; for bucket (b) 3-way+adapt start from these files - they hold the
@@ -690,7 +688,7 @@ block, never a shell recipe run inline.
 `INST_ADDONS_PATH` and `INST_PYTHON` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2. That is a baseline only:
 venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
-own job (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`), never hand-built or hand-verified
+own job, never hand-built or hand-verified
 here. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY repo on disk - a missing
 repo makes a module invisible (silent ImportError / "module not found") to the dispatched instance.
 Confirm every root in that entry's `addons_path` list exists on disk before dispatching; a missing
@@ -700,9 +698,9 @@ repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
 The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
 this phase actually verifies against. This batch adapted `<path>/fp-integration` (the P4 JOB-tier
 integration worktree), so re-root the baseline onto it via the SAME mechanism every other consumer
-uses - `odoo-instance`'s `WORKTREE_PATH` field (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`
-§ WORKTREE_PATH substitution) plus the allocator's `--addons-path-override`: dispatch `odoo-instance`
-(SKILL.md P9) with `WORKTREE_PATH: <path>/fp-integration`, which drops every catalog entry under the
+uses - `odoo-instance`'s `WORKTREE_PATH` field substitution plus the allocator's
+`--addons-path-override`: dispatch `odoo-instance`
+with `WORKTREE_PATH: <path>/fp-integration`, which drops every catalog entry under the
 principal checkout and prepends the equivalent under `<path>/fp-integration` before `acquire`. Do NOT
 hand-build the override yourself and do NOT verify against the catalog `ADDONS_PATH` built above
 directly - that is exactly the un-adapted-code false-green this re-root exists to prevent. Before trusting any
@@ -778,7 +776,7 @@ investigate via `log_path` before reading any test count.
 **Recover a batch stuck mid-run.** Do NOT `pkill` an `odoo-bin` process or call
 `allocator.py release` directly. Dispatch `odoo-instance` with `operation: drop`, passing the
 batch's cached `lease_token`/`run_id` - it stops the bound process group FIRST, then drops the DB
-through Odoo (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § drop-instance); a bare `pkill`
+through Odoo; a bare `pkill`
 risks matching the wrong process or a sibling batch's server. Re-dispatch the Step above for a
 clean retry.
 

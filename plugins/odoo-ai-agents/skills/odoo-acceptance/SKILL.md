@@ -115,7 +115,7 @@ Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - sonnet default; escal
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
 path, and
 `SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`. It returns the immutable, risk-tagged oracle
-- design technique and the anti-bias derivation rule are its own (`agents/odoo-qa-planner.md`).
+- design technique and the anti-bias derivation rule are its own.
 
 ## Phase 2 - provision the cluster (once)
 
@@ -125,8 +125,8 @@ carries demo on every series, per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-p
 data by build PURPOSE; `persist: exclusive-running` - the cluster stays listening across Phase
 2a/2b and the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
 hides. That is ONE dispatch, and the dispatched agent reaches the state in two legs it owns (build
-the database with the whole `install_set`, then launch it listening on the SAME database:
-`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § 1. create-instance) - do not decompose it here, and do
+the database with the whole `install_set`, then launch it listening on the SAME database) -
+do not decompose it here, and do
 not ask for a `--stop-after-init` build, which never listens.
 Ask for the default THREADED instance: one listening port is correct, and the browser-driven Phase
 2b below needs no second one (the longpolling/realtime bus multiplexes over that port) - name
@@ -158,8 +158,7 @@ is about those modules, and an untagged run would spend the sweep re-testing the
 pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **The files this channel leaves
 behind must not depend on demo data**, even though Phase 2's own cluster carries it: they run later
 in the automation-test environment, which on some series has no demo at all. State that constraint in
-the writer's brief; the rule itself is `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/SKILL.md`
-§ The test must build its own data. This channel uses no browser,
+the writer's brief; the rule itself is `odoo-test-writing`'s own. This channel uses no browser,
 parallelizes across ephemeral DBs, feeds CI, and MAY run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
 output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. (Med-tier also gets a
 SEPARATE smoke pass on the live channel below - see the Med-tier depth note in Phase 2b; the two
@@ -181,7 +180,7 @@ overlap Phase 2a, which uses no browser).
   NOT re-resolve), the SAME `SLUG: <slug>` minted at Phase 0 (passed explicitly - the tester's own
   contract only falls back to stripping it off `REPORT_PATH`'s filename when this field is absent),
   and `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md` - execution + adjudication method
-  is its own (`agents/odoo-qa-tester.md`). Optionally, in the same serial slot, dispatch `odoo-ui-reviewer`
+  is its own. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer`
   for that module's screens for the read-only one-screen quality verdict (distinct from the tester's
   behavior verdict; do not duplicate).
 - **Med/Low-tier screens (smoke):** cover the rest of `render_check_set` with a smoke pass - open each
@@ -191,7 +190,7 @@ overlap Phase 2a, which uses no browser).
   the smoke half of its depth (it already got the deep durable regression in Phase 2a above); Med
   getting BOTH is by design, not double-work - full definition + rationale (SSOT, do not restate):
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (tier-assignment section) and
-  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-qa-planner.md`.
+  `odoo-qa-planner`'s own tier-assignment rationale.
 
 Between Phase 2a/2b and Phase 3, call `allocator.py heartbeat <token>` on the cluster's
 `INSTANCE_HANDLE` while the fix-loop below is still iterating. A same-host lease whose owner pid is

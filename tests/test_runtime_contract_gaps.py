@@ -315,8 +315,15 @@ def test_single_unit_collapse_is_unit_agnostic_and_has_one_owner():
         "as an index.lock/concurrency race - dispatch is sequential, so a race reason would be "
         "false and would collapse the moment a reader checked it."
     )
-    for caller in (r"skills/run-harness/SKILL\.md", r"upg-phase-detail\.md"):
+    # The skill caller is named (`run-harness`), not pathed: rule 20 [definition-pointer] bans a
+    # path to a SKILL.md in a runtime file, because a skill is invoked and never read. The
+    # reference file keeps its path - reading IS how you reach a references/ doc.
+    for caller in (r"\brun-harness\b", r"upg-phase-detail\.md"):
         assert re.search(caller, section), (
             f"§ Single-unit collapse must name its caller {caller} - an owner section with no "
             "named readers is how a sole-caller move silently orphans a pipeline."
         )
+    assert not re.search(r"skills/run-harness/SKILL\.md", section), (
+        "name `run-harness`, do not path at its SKILL.md: a bare `SKILL.md` is also wrong here - "
+        "it leaves the reader guessing which skill, which is why this section names the skill."
+    )
