@@ -301,7 +301,10 @@ def test_every_test_enable_example_actually_enables_tests():
         commands.append(current)
         current = ""
     offenders = [
-        c.strip() for c in commands if "--test-tags" in c and "--test-enable" not in c
+        c.strip()
+        for c in commands
+        # Only an actual invocation counts; prose that merely MENTIONS the flag is not a command.
+        if "odoo-bin" in c and "--test-tags" in c and "--test-enable" not in c
     ]
     assert not offenders, (
         "these command lines filter a test run that was never enabled, so they run zero tests and "
@@ -321,13 +324,16 @@ def test_framework_validation_classes_carry_both_boundaries():
     assert "Framework-validation test classes" in text, (
         "pivots must own the framework-validation class boundaries"
     )
-    assert "REMOVED at v19" in text, (
-        "pivots must state that the hr self-access class is removed, not merely 'newer'"
+    assert "RENAMED to `TestSelfAccessPreferences` at v19" in text, (
+        "the hr self-access class was RENAMED at v19, not removed - reading 'the old name is "
+        "absent' as 'the check is gone' silently drops an enforcement that still runs"
     )
+    assert "TestSelfAccessPreferences" in text, "pivots must name the current hr class"
     # Bounds pinned because they were wrong twice: read from each checkout's own addons/ tree.
-    assert "v18+ ONLY" in text, "TestInvisibleField appears at v18, not earlier"
-    assert "v13-v18 ONLY" in text, (
-        "TestSelfAccessProfile spans v13-v18 - a bound starting later drops a gate that exists"
+    assert "v18+ only" in text.lower(), "the base view-arch class appears at v18, not earlier"
+    assert "v13-v18" in text, (
+        "the hr class spans v13-v18 under its old name - a bound starting later drops a gate "
+        "that exists"
     )
     assert "/base:TestInvisibleField" in text and "/hr:TestSelfAccessProfile" in text, (
         "pivots must give the COPYABLE tag spec for each class, colon-separated"
@@ -335,6 +341,40 @@ def test_framework_validation_classes_carry_both_boundaries():
     assert "SILENT no-op, not an error" in text, (
         "pivots must state that tagging an absent class fails silently rather than erroring"
     )
+
+
+def test_framework_class_list_states_its_admission_criteria():
+    """Without a stated boundary the list grows, and every entry is a new rot point.
+
+    Odoo and Viindoo ship hundreds of thousands of tests. This table names two, and the reason it
+    names exactly those two has to be written down - otherwise the next person adds a third.
+    """
+    text = _norm(PIVOTS)
+    section = text[text.index("Framework-validation test classes"):]
+    section = section[: section.index("CLI - server-wide modules")]
+    assert "all three hold" in section, (
+        "the framework-class table must state the admission criteria for a row"
+    )
+    low = section.lower()
+    for condition in ("framework class", "this plugin teaches", "skips it"):
+        assert condition in low, (
+            f"the admission criteria must include {condition!r} - all three are what keep the "
+            "list from growing into a mirror of Odoo's test suite"
+        )
+
+
+def test_untagged_gate_does_not_name_framework_classes():
+    """Naming them inside an already-untagged run adds no coverage and all of the rot.
+
+    The parity gate runs untagged precisely so every framework class runs without being named.
+    A `--test-tags` list there is redundant, and it is the line that rotted twice.
+    """
+    parity = _norm(PLUGIN / "skills/odoo-modules-upgrade/references/runbot-parity-checklist.md")
+    for name in ("TestInvisibleField", "TestSelfAccessProfile", "TestSelfAccessPreferences"):
+        assert name not in parity, (
+            f"the untagged parity gate must not name {name} - it already runs every framework "
+            "class, so the name buys nothing and has to be re-verified every series"
+        )
 
 
 def test_no_test_tags_example_spells_a_class_with_a_dot():

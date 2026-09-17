@@ -705,12 +705,11 @@ demo-less, the demo half is a separate install-only build (`${CLAUDE_PLUGIN_ROOT
 Gate 7b) that carries `DEMO: on` and NO `--test-enable`. Do not merge them to save an instance -
 demo rows inside a suite that counts records turn a correct test red, and the repair that then looks
 obvious is to weaken the test. For the suite itself:
-the framework-validation classes run in that suite - `base.TestInvisibleField` (every
-always-invisible view field needs an explanatory XML comment) and the `hr` self-access class (custom
-`hr.employee` fields need `groups='hr.group_hr_user'`). Tag ONLY the ones the target series ships:
-neither spans the whole indexed range, one starts partway through it and the other is removed before
-the end, and a tag for an absent class matches nothing while the run still exits 0
-(${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes). **This gate is an automation-test build, so its demo shape is the automation-test row,
+the framework-validation checks run in that suite - the `base` view-arch one (every
+always-invisible view field needs an explanatory XML comment) and the `hr` self-access one (custom
+`hr.employee` fields need `groups='hr.group_hr_user'`). This gate is UNTAGGED, so both run without
+being named; name them only in a tag-scoped run elsewhere, resolving each class name for the target
+series first (${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes). **This gate is an automation-test build, so its demo shape is the automation-test row,
 never an exception to it** - resolve it from
 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Demo data by build PURPOSE. Do NOT request
 demo for this gate on a series where demo defaults off: the test environment there does not accept
@@ -808,8 +807,19 @@ per_module:
     install_ok: true | false
     test_result: passed | failed | error
     root_cause: null | "<proven root cause from debugger>"
+flip_gates:            # one entry per module whose `installable` THIS run flipped; omit the key
+  - module: <m>        # entirely when no module flipped
+    gate7: passed | failed | error          # full untagged suite on a fresh DB
+    gate7b: passed | failed | error | n/a   # demo-load build; n/a where gate7 already carried demo
+    notes: null | "<what failed>"
 overall: green | red
 ```
+
+`flip_gates` is a REQUIRED key whenever this run flipped any module's `installable`, and its absence
+there is a red flag, not a pass: those two gates are the only evidence that a module being installed
+for the first time survives the full suite and still loads its own demo data. A verdict recorded as
+free text instead of under this key is not readable by resume or by the PR gate below - both read the
+schema, not the prose around it.
 
 Backward-compat read (one release only): a ledger written before this release carries `waves:` /
 `wave: <wave_number>` instead of `levels:` / `level: <n>` - on resume, read those old keys as

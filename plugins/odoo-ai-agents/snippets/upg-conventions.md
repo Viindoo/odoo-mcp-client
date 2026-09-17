@@ -74,8 +74,8 @@ module's `__manifest__.py`:
 CORE rule - applies to all distributions. Full rule, definition, code example, and test name:
 `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`
 
-Upgrade context: a missing comment causes `base.TestInvisibleField` to fail in the full CI suite
-triggered when a module flips `installable: False -> True` (P5 gate).
+Upgrade context: a missing comment fails the `base` view-arch check in the full CI suite triggered
+when a module flips `installable: False -> True` (P5 gate), on the series that ship it.
 
 ---
 
@@ -84,11 +84,10 @@ triggered when a module flips `installable: False -> True` (P5 gate).
 CORE rule - applies to all distributions. Full rule and code example:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` section "Core test-enforced authoring rules".
 
-Upgrade context: omitting `groups='hr.group_hr_user'` causes the `hr` self-access framework test to
-fail in the full CI suite triggered on installable-flip (the P5 install + test gate) - on the series
-that still ship that class. It is removed at the top of the indexed range, so resolve presence from
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes before
-relying on it as the enforcement; the convention itself stands either way.
+The rule is stated by Odoo itself, in the `hr.employee` model docstring - read it there for the
+target series rather than from any restatement. Upgrade context: omitting the `groups=` fails the
+`hr` self-access check in the full CI suite triggered on installable-flip (the P5 install + test
+gate), on the series that ship it.
 
 ---
 

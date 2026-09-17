@@ -126,23 +126,33 @@ asks for a flag only where one is needed to ADD demo.
 
 ## Framework-validation test classes (named in `--test-tags` beside module tags)
 
-| Class | Tag spec to pass | Present at |
+**Only two classes are listed here, and the list stays that size on purpose.** A class earns a row
+ONLY if all three hold: it is a FRAMEWORK class (lives in `base`/`hr`, not in the module under
+test), it enforces a convention THIS plugin teaches, and a module-scoped `--test-tags /<module>` run
+SKIPS it so nothing else would catch the violation. Odoo and Viindoo ship hundreds of thousands of
+tests; this is not a mirror of them, and a class that fails any of the three does not belong.
+
+| Convention it enforces | Class, per series | Tag spec to pass |
 |---|---|---|
-| `TestInvisibleField` (in `base`) | `/base:TestInvisibleField` | v18+ ONLY - absent below v18 |
-| `TestSelfAccessProfile` (in `hr`) | `/hr:TestSelfAccessProfile` | v13-v18 ONLY - REMOVED at v19, the whole test file is gone |
+| Always-invisible view field needs an explanatory XML comment | `TestInvisibleField` (in `base`), v18+ only - absent below | `/base:TestInvisibleField` |
+| Custom `hr.employee` field needs `groups="hr.group_hr_user"` | in `hr`: `TestSelfAccessProfile` v13-v18, RENAMED to `TestSelfAccessPreferences` at v19 | `/hr:TestSelfAccessProfile` or `/hr:TestSelfAccessPreferences` per series |
+
+> **The `hr` class was RENAMED, not removed.** Its file and its `test_employee_fields_groups` method
+> both still exist at v19 under the new class name, so the enforcement is live there - dropping the
+> tag because the old name no longer resolves silently stops the check. (That method itself only
+> exists from v18; below that the class is present but enforces the convention through other tests.)
 
 > **The class separator in a tag spec is a COLON.** The grammar is `[-][tag][/module][:class][.method]`
 > (`odoo/tests/tag_selector.py`, `filter_spec_re`), so `base.TestInvisibleField` does NOT name a
 > class - it parses as tag `base` plus METHOD `TestInvisibleField`, matches no test method that
-> exists, and selects NOTHING. Spell it `/base:TestInvisibleField`. This is why the tag-spec column
-> above exists: copy it, never re-derive it from the class's dotted name.
+> exists, and selects NOTHING. Copy the tag-spec column; never re-derive it from a dotted name.
 
-> **A tag that matches nothing is a SILENT no-op, not an error** - whether because the spec is
-> misspelled or because the series does not ship that class. The suite then runs whatever else was
-> tagged, possibly nothing at all, and the process still exits 0. So resolve this set PER SERIES and
-> never carry the pair across either boundary: they move in OPPOSITE directions, one appearing
-> partway through the range and the other removed before the end. Class bounds and the selector
-> grammar read from each indexed checkout's own `addons/` and `odoo/tests/`, 2026-09-17.
+> **A tag that matches nothing is a SILENT no-op, not an error** - whether the spec is misspelled or
+> the series ships a different name. The run exits 0 having tested nothing. So CONFIRM the class name
+> against the target build's own `addons/<module>/tests/` before tagging it: this table has been
+> wrong twice, once on a bound and once by reading "the old name is absent" as "the thing is gone".
+> An UNTAGGED run needs none of this - it already includes every framework class - so prefer it
+> wherever the cost of running the full closure is acceptable.
 
 ## CLI - server-wide modules (`--load` / `server_wide_modules`)
 

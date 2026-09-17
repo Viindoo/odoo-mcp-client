@@ -89,7 +89,7 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 | `name_get()` | **REMOVED v18** | `_compute_display_name` (from v12) |
 | `<tree>` view arch tag | still accepted; `<list>` is canonical from v18 | `<list>` |
 | `<div class="oe_chatter">` | deprecated | `<chatter/>` (from v18) |
-| Always-invisible field without XML comment | fails `TestInvisibleField` from v18 | add `<!-- invisible: reason -->` after field |
+| Always-invisible field without XML comment | fails the `base` view-arch check (from the series in `odoo-version-pivots.md` § XML views) | add `<!-- invisible: reason -->` after field |
 | `/** @odoo-module **/` header | optional from v18 (auto-detected) | omit or use `/** @odoo-module ignore **/` to opt out |
 
 ---

@@ -236,21 +236,10 @@ instead, taking its wording from that build's own `load_demo`.
 > installed uses `-u <module>` instead - `-i` on an installed module is a no-op.) Confirm the flags via `cli_help`; see
 > `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
-Additionally run the framework-validation classes THIS SERIES ACTUALLY SHIPS. Neither of them spans
-the whole range - one only starts partway through it and the other is removed before the end - and a
-tag naming a class the series does not have matches nothing while the run still exits 0. Resolve the
-set from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Framework-validation test classes,
-drop any class not present at the target, and skip the `hr.*` one entirely for a module unrelated to
-`hr` (its tests cannot load unless `hr` is installed):
-
-```bash
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-# --test-enable is what turns the suite ON; --test-tags only FILTERS an already-enabled run.
-# Without it this line installs the module, runs zero tests, and still exits 0 having proved nothing.
-odoo-bin --test-enable --test-tags <only the classes resolved as present for THIS series> \
-         -i <module> --stop-after-init <db-options> \
-         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-```
+Do NOT add a `--test-tags` line naming individual framework-validation classes here. This gate is
+already UNTAGGED, so every installed module's suite runs - the `base` and `hr` framework classes
+included. Naming them would add no coverage at all, and would add a name that has to be re-checked
+against every series forever.
 
 See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` (CLI demo flag section) for the
 exact flag semantics per version. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for
