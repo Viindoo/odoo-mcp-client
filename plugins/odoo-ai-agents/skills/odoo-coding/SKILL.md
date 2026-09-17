@@ -593,16 +593,17 @@ BLOCKED, never a false "in progress"; absence is always the honest fallback.
 
 ### Per-node briefs
 
-Each agent launch carries the brief below as its `prompt`. The brief is **run-specific inputs
-only**: every procedure (OSM grounding, coding guidelines, worklog read/append, ORM + static gates,
-demo data, output format, test-first) already lives in the launched agent's system prompt, so do NOT
-re-teach it here - a re-taught copy duplicates the SSOT and drifts. Keep identifiers verbatim. The
-brief goes to the `odoo-coder` COORDINATOR for EVERY node; the coordinator forwards the
-module-scoped fields to whichever worker(s) each of its INTERNAL WIs needs (`odoo-backend-coder` for a
-backend WI, `odoo-frontend-coder` for a frontend WI - it adds `frontendRequest` for a frontend WI).
+Each agent launch carries the brief below as its `prompt`. It is **run-specific inputs only** -
+every procedure (OSM grounding, coding guidelines, worklog, ORM + static gates, demo data, output
+format, test-first) already lives in the launched agent's system prompt. Rule and dispositions:
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § "A brief carries WHAT and WHY, never HOW".
+Keep identifiers verbatim. The brief goes to the `odoo-coder` COORDINATOR for EVERY node; the
+coordinator forwards the module-scoped fields to whichever worker(s) each of its INTERNAL WIs needs
+(`odoo-backend-coder` for a backend WI, `odoo-frontend-coder` for a frontend WI - it adds
+`frontendRequest` for a frontend WI).
 
 **Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Coder family delta;
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Coder family delta;
 never inline that file verbatim into a hard-leaf brief.
 
 Coder brief (target = the `odoo-coder` coordinator for the node):
@@ -610,14 +611,14 @@ Coder brief (target = the `odoo-coder` coordinator for the node):
 ```
 DISPATCH MODEL: <tier>
 NODE: <node-id> - the plan node this dispatch fulfills (or a self-derived node id when standalone).
-WORKER_AGENT_ID: <id> - OPTIONAL. An id the CALLER captured from ITS OWN earlier launch of this node's coordinator in a PRIOR `odoo-coding` invocation (e.g. a forward-port run walking later commits that touch the same node) - never a string anyone invented. Present -> resume that id in step 0/3 below instead of cold-spawning. Absent (today's default) -> cold-spawn.
+WORKER_AGENT_ID: <an id the CALLER captured from ITS OWN earlier launch of this node's coordinator, never a string anyone invented | omit to cold-spawn>
 REQUEST: <the change for this node: target model(s) + constraints (+ frontendRequest for a frontend WI)>
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
-MODULES: <m1>, <m2>, ... @ <path per module>, IN DEPENDENCY ORDER - write ONLY within this module set (+ each module's descriptor / static assets). Resolve each descriptor filename ONCE from disk (`__manifest__.py`, or `__openerp__.py` on v8-v9) and Edit the one the module has; creating the other name beside it makes Odoo load the new file and drop everything the real descriptor declared.
-WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this ONE worktree for the WHOLE node; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the node via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness` cherry-picks it into the run-integration branch. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
-SHARE_DIR: <absolute path> - the run's SHARE dir. Forward the literal your own caller handed you; only when it handed none, capture it ONCE per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § The resolve-capture-substitute protocol, BEFORE any `cd` into a worktree. Never let a leaf re-resolve.
-ISOLATE_DIR: <absolute path> - same rule, and load-bearing: `<ISOLATE_DIR>` keys on the enclosing repository root, so a coordinator or leaf that resolves it after `cd`-ing into WORKTREE_PATH writes the run's worklog into that worktree's OWN tree, orphaned from every sibling (`state-root-resolution.md` § Cross-worktree dispatch). ONE literal, resolved once, forwarded to every node.
-NEW MODULE: <per module: yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
+MODULES: <m1>, <m2>, ... @ <path per module>, IN DEPENDENCY ORDER - write ONLY within this module set (+ each module's descriptor / static assets).
+WORKTREE_PATH: <absolute worktree path> - ONE worktree for the WHOLE node. Never the principal checkout (S9). No value is a load-bearing gap: surface it, never default to the current checkout.
+SHARE_DIR: <absolute path> - one literal, resolved once, forwarded unchanged. Never let a receiver re-resolve.
+ISOLATE_DIR: <absolute path> - same rule; resolve BEFORE any `cd` into a worktree.
+NEW MODULE: <per module: yes | no>
 ODOO VERSION: <version>
 INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/db_port/addons_path/venv_python/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>
 SELF_PROVISION: worktree-addons | none - set `worktree-addons` for EVERY per-node dispatch that names a WORKTREE_PATH (then OMIT INSTANCE_HANDLE above; never send both); `none` only when the forwarded handle's ADDONS_PATH already covers this node's worktree
@@ -628,23 +629,21 @@ SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact groun
   opted-in deep survey (`inputs.survey` on the run-dag node, `phase-p-run-dag.md` § Survey
   pointer); read it once for grounding before authoring if present. ALWAYS state a value - `none`
   when no deep survey ran this session, never omit the field.
-TEST: test-first (universal) - launch `odoo-test-writer` FIRST per WI to author the RED test, then the coder implements to green; the coders do NOT author tests. Forward the coverage pre-flight below to `odoo-test-writer`, INCLUDING which assertions (if any) cross a module boundary within this node (§ Cross-module test staging in `agents/odoo-coder.md`).
-TEST_EXEMPTION: none | <category> - <specifics> - `none` unless THIS node's change cannot go red at all (comment-only, prose-rename, formatting, docs, translation-text); a declared exemption names the category AND what specifically is untestable. Never declare one to move a stuck node along: a behavior change with no test stays refused. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
+TEST: test-first (universal) - RED test before code, per WI.
+TEST_EXEMPTION: none | <category> - <specifics> - declared by THIS caller, never inferred downstream. Never declare one to move a stuck node along: a behavior change with no test stays refused. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
 EXISTING COVERAGE: <tests_covering(model='<primary_model>', odoo_version='<version>') output - TestMethods already covering this model; author ADDITIVE tests only>
 COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>') output per module in this node - fields with zero/partial static-reference coverage (field-level only); prioritise these gaps>
-BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase - cr.commit() FORBIDDEN, isolation is savepoint rollback>
+BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase>
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
 Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
-GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
 
-- **Comments and docstrings are contracted, not left to taste.** Every comment and docstring the
-  node's workers write obeys `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` - default to
-  none, state what the code SERVES rather than what it does, and never address the reviewer. The
-  paths you hand down - `DESIGN_DOC`, `SURVEY`, `WORKLOG`, the state dirs, `WORKTREE_PATH` - are
-  the workers' INPUTS and must never surface in a comment: none of them exists in the repo the code
-  ships in. The leaf coders carry the rules in their own bodies, so do not restate them in the brief.
+- **The paths you hand down never ship.** `DESIGN_DOC`, `SURVEY`, `WORKLOG`, the state dirs and
+  `WORKTREE_PATH` are the workers' INPUTS; none of them exists in the repo the code ships in, so
+  none may surface in a comment. The comment contract itself
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md`) is carried by the leaf coders - do
+  not restate it in the brief.
 
 - **Addons provenance is the DISPATCHER's job.** Each node gets ONE worktree and ONE `addons_path`
   covering its whole module set, so one lease is exactly right for one node. For every per-node
@@ -663,20 +662,15 @@ GUIDELINES: Round 1 owns this - open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/codin
   (§ Worktree-addons carve-out, § Addons coverage assertion).
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
   `snippets/venv-resolution.md` - never assume system `python3`.
-- Frontend WI only: ground styling tokens against `skills/_shared/odoo-frontend-fidelity.md`
-  (no hardcoded hex for themeable colors, no self-referential `--bs-*` shim) - the full method lives
-  in the agent's system prompt.
 
 The `odoo-coder` coordinator (not this skill) launches the `odoo-test-writer` agent per WI FIRST -
 its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S), plus the coverage pre-flight
 fields above) is the coordinator's to assemble; this skill never pre-dispatches a test author and
 the coders never author tests. That FIRST launch is skipped only for a WI covered by a declared
-`TEST_EXEMPTION` - never because a test looked hard to write. `odoo-test-writer` follows `snippets/test-first-contract.md`
-(red-before-green) and `snippets/test-behavior-contract.md` (drive the real workflow -
-action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo(); never
-seed the terminal state with create({state:...})): assert observable behavior not internals; ONE
-intent per test; and `snippets/red-evidence-contract.md` - a RED is MEASURED or CONSTRUCTED, never
-asserted.
+`TEST_EXEMPTION` - never because a test looked hard to write. `odoo-test-writer` carries its own
+authoring contracts: `snippets/test-first-contract.md` (red-before-green),
+`snippets/test-behavior-contract.md` (behavior over internals) and
+`snippets/red-evidence-contract.md` (a RED is MEASURED or CONSTRUCTED, never asserted).
 
 Each hard-leaf coder locates files via Read/Grep, writes its output, and reports the files written
 plus `__manifest__.py` changes - it does NOT run git. The node's `odoo-coder` coordinator

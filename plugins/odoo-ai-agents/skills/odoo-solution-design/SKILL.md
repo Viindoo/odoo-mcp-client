@@ -284,43 +284,32 @@ route to `odoo-planning`, because planning is mandatory for all work
 - `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
 <!-- END GENERATED TOOLS -->
 
-## Brief context
+## Deliverable shape (the TDD)
 
 The design doc is a **contract for the coders**. Eight fixed sections (Intent & Business Value,
 Approach, Data model, Override strategy, Module structure, Sequencing, Test strategy outline, Risks)
 are specified in `agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc template).
 
-For full-stack design, ground the frontend approach in the **fidelity** contract
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Full reference (doc structure,
-frontend-design sources, key failure modes prevented):
+On a full-stack design the architect grounds the frontend half against the fidelity contract
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` itself
+(`agents/odoo-solution-architect.md` § Round 2) - nothing to pass in the brief. Full reference (doc
+structure, full-stack + master-child dispatch pointers):
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`
 
-### Test strategy grounding (§7) - when to use which test tool
+Which OSM test tool the architect calls at which round for §7 (`test_base_classes`,
+`find_test_examples`, `tests_covering`, `test_coverage_audit`, incl. the method-narrow-zero
+caveat) is owned by `agents/odoo-solution-architect.md` Round 0 HARD RULE + Round 1 call #5 +
+Round 2 + Round 4 §7 - not restated here to avoid drift.
 
-Section §7 "Test strategy outline" is the highest-leverage output of the TDD: every downstream
-agent (odoo-test-writing, odoo-qa-planner, odoo-coder) inherits the base classes and behavior list
-it specifies (odoo-qa-planner turns it into the independent acceptance oracle under odoo-acceptance;
-odoo-qa-suite reuses it only as a static release test-plan, never to execute or adjudicate). The architect uses four test tools - already visible in `## MCP tools` below - at
-specific moments in the design rounds:
-
-| Tool | When in the rounds | Why |
-|---|---|---|
-| `test_base_classes(odoo_version='<version>')` | Round 0 HARD RULE, before writing any test class name | Returns authoritative `TransactionCase` / `HttpCase` / `SavepointCase` / `Form` menu for the pinned version + always outputs **`cr.commit()` FORBIDDEN** contract. Never assert a base class from memory. |
-| `find_test_examples(query='<feature>', odoo_version='<version>')` | Round 1, call #5, parallel with `find_examples` | Returns ONLY test chunks (no production code). Seeds the workflow-path shapes that populate §7 rows. Use instead of `find_examples` whenever the intent is to find test patterns. |
-| `tests_covering(model='<model>', odoo_version='<version>')` | Round 2, immediately after `impact_analysis` | Lists test methods that already COVER the target model/field/method. Zero model-level edges = unguarded behavior that §7 must add. Non-zero = existing protection (no need to duplicate). Edge count goes in the Impact matrix and §7 "Already covered?" column. **Caveat:** method-narrow (`method=`) and field-narrow (`field=`) calls frequently return zero edges even for well-tested code because COVERS_METHOD / COVERS_FIELD edges are sparse; prefer the model-level call as the primary signal and treat method-narrow zero as supporting evidence only. |
-| `test_coverage_audit(module='<module>', odoo_version='<version>')` | Round 4, first step before filling §7 rows | Audits the whole module for zero-coverage fields (field-level static-reference; method gaps are NOT reported - use `tests_covering` with `method=` to probe a specific method, but expect sparse results). Each field gap surfaced here that the design introduces or modifies MUST appear as a new test row in §7. |
-
-**Invariant:** §7 is only valid if all four tools were called during the design rounds AND - when
-the design covers more than one module - the table is PARTITIONED PER MODULE (a `### <module>`
-subheading per row of §1's per-module table, mandatory even in single-mode multi-module TDDs). A §7
-written from memory (no `test_base_classes` call) or pooled across modules with no per-module
-partition is a design defect - the wrong base class or an unowned behavior row in the TDD flows
-verbatim into test code.
+**Invariant:** §7 is only valid when grounded per the architect's own Round 0/1/2/4 test-tool
+calls above AND - when the design covers more than one module - the table is PARTITIONED PER MODULE
+(a `### <module>` subheading per row of §1's per-module table, mandatory even in single-mode
+multi-module TDDs). A pooled, module-ambiguous §7 is a design defect.
 
 ## Agent invocation - prompt template (P1)
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 Launch `odoo-solution-architect` as a subagent (single mode, or after the scope question resolved).
@@ -355,16 +344,10 @@ DESIGN_SLUG_HINT: [omit when absent; short slug the caller wants used for the de
 filename, e.g. account-move-fp-18 - the architect uses this as the <slug> when writing
 <SHARE_DIR>/designs/<slug>-<date>.md]
 
-Step 0 (ONLY if mcp__odoo-semantic__* tools are available): call
-set_active_version('<version>'), then proceed through your design rounds. If OSM is
-unavailable, use the Standalone-first fallback (disk-grounded: Read/Grep the repo). If OSM
-is reachable but a SPECIFIC module/model in this request is not in the index (a
-customer-local custom module), that is a Tier-1 MISS, not proof of absence: keep OSM for
-everything it covers and Read/Grep the local addons for just the missed entities, grounding
-the design hybrid (grounded: osm + local-source (hybrid)). Do NOT
-design from memory when OSM is reachable.
+GROUNDING: your own Round 0 HARD RULE + Standalone-first fallback below govern version-pin and
+OSM-degraded grounding - not restated here.
 
-Follow your system-prompt rounds. Write the design doc to <SHARE_DIR>/designs/<slug>-<date>.md.
+Write the design doc to <SHARE_DIR>/designs/<slug>-<date>.md.
 Do NOT write any production source files - the design doc is your only artifact.
 GROUNDING you were not handed is yours to source: when a fact the design turns on is missing
 (no gap matrix for an uncosted requirement list, an unknown current behavior, a bounded

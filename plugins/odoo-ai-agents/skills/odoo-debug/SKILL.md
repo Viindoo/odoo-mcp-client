@@ -161,18 +161,17 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 | need a broad static sweep of code | `odoo-code-review` | Skill tool |
 
 **AccessError routing:** dispatch `odoo-backend-debugger` for EVERY AccessError - it owns the
-`ir.model.access` vs `ir.rule` diagnosis and, once the access layer is confirmed, owns the hand-off
-to `odoo-security-audit` through its own Continuation Contract. Do NOT screen the symptom yourself
-for leak / privilege escalation / injection: that verdict belongs to `odoo-security-audit`. Add it
-as a PARALLEL leg only when the REPORT already states one of those; when the report is silent on it,
-ASK the reporter rather than inferring it from the traceback.
+`ir.model.access` vs `ir.rule` diagnosis. Do NOT screen the symptom yourself for leak / privilege
+escalation / injection: add `odoo-security-audit` as a PARALLEL leg only when the initial REPORT
+already states one of those; when the report is silent on it, ASK the reporter rather than inferring
+it from the traceback.
 
 Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents in the SAME MCP family at once (per-family single-flight; see `## Browser concurrency` above).
 
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-backend-debugger`,
 `odoo-ui-debugger`, or any other specialist agent dispatched below, fill the caller-side skeleton
-in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
 family delta; never inline that file verbatim into a hard-leaf brief.
 
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
@@ -195,13 +194,10 @@ USER LANGUAGE: <lang | omit when the user works in English> - write the summary/
 in this language; identifiers, file paths, and tool names stay English (per
 `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`, which both debugger agents already consume).
 
-Step 0 (if mcp__odoo-semantic__* available): set_active_version('<version>'). If OSM is
-unreachable, use your Standalone-first fallback (disk Read/Grep) and label grounding accordingly.
-If OSM answers but the module under investigation is not in the index (customer-local addon),
-Read/Grep that module's source directly and ground hybrid (osm + local-source) - an index miss
-is not proof of absence.
+Step 0: pin the OSM version and ground per your own § Standalone-first fallback
+(`agents/odoo-backend-debugger.md` / `agents/odoo-ui-debugger.md`) - its reachability probe,
+Tier-1-MISS/hybrid-grounding procedure, and HARD LEAF never-spawn rule are not restated here.
 Fill EVERY field of the Output Contract in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md.
-Do not spawn subagents or invoke skills.
 ```
 
 The agent frontmatter pins `model: sonnet` only as a floor - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
@@ -236,20 +232,14 @@ Compile the final **Output Contract** block from `debug-method.md`: the proven r
 or primary + contributing per the multi-layer merge above), exact fix location, red→green
 regression test.
 
-**Before invoking `odoo-coding`, ground the regression test brief with two OSM calls:**
-
-1. Call `tests_covering(model='<affected_model>', odoo_version='<version>')` to discover existing tests that already cover the broken model/field/method. If tests exist, pass them to `odoo-coding` as `EXISTING_TESTS:` so the coder extends or reuses rather than reinventing. If the result is empty, note "zero existing test edges - new regression test required" in the brief.
-
-2. Call `test_base_classes(odoo_version='<version>')` to obtain the authoritative base class menu and cursor contract for that version. Pass the relevant base class entry to `odoo-coding` as `TEST_BASE_CLASS:`. This enforces the hard rule: **`cr.commit()` is FORBIDDEN inside TransactionCase - isolation is savepoint rollback.** The brief must name the correct base class so the coder does not guess.
-
-Include both results in the `odoo-coding` brief alongside the proven root cause and fix location. Also include in the brief: "open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the 'By task' table for the fix type, read ONLY the mapped files before writing."
-
 **Then drive the fix autonomously (mandatory).** The Skill tool is available here
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause
 needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven
 root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
 (debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
-to verify"**. If a design index exists at `<SHARE_DIR>/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
+to verify"** - its own pipeline already grounds the base class, existing coverage, and the
+version's coding guidelines (`odoo-backend-coder.md` § Round 1; `odoo-test-writing/SKILL.md`) before
+writing, so do not pre-derive `TEST_BASE_CLASS`/`EXISTING_TESTS` here. If a design index exists at `<SHARE_DIR>/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
 then STOP and escalate. Still emit the Continuation Contract block as the record.
 (For a wider sweep instead of a point fix, route to the relevant audit skill.) The ONLY exception:
 if dispatched by an active run-harness (a `run-<id>` is named), emit `next` (in-block) and

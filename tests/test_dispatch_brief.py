@@ -584,8 +584,14 @@ def test_missing_continuation_contract_allowlist_is_shrink_only():
 # ---------------------------------------------------------------------------
 # M4 - Resolved-value dispatch. dispatch-brief.md field 11 (CALLER_ID/
 # REPLY_TO) becomes an address grammar (an ADDRESS, never a name/pointer),
-# and a new "Two rules that decide whether the brief works" section is added.
+# and a "<N> rules that decide whether the brief works" section is added.
 # Guards `12-design-final.md` § M4.
+#
+# The section is located by the stable tail of its heading, never by the
+# COUNT word in front of it: the count is a property of how many rules the
+# contract currently has, and pinning it makes adding a rule look like a
+# regression. What must hold is that every rule the section owns is stated
+# verbatim - asserted one-by-one below.
 # ---------------------------------------------------------------------------
 
 
@@ -632,29 +638,78 @@ def test_no_skeleton_field_is_a_reply_address_under_another_name():
     )
 
 
-def test_dispatch_brief_has_two_rules_section():
+def test_dispatch_brief_has_brief_rules_section():
     text = DISPATCH_BRIEF.read_text(encoding="utf-8")
-    assert "## Two rules that decide whether the brief works" in text, (
-        "dispatch-brief.md must carry the '## Two rules that decide whether "
-        "the brief works' section (resolved-value fields + one-dispatch-one-"
-        "kind) - M4's mechanical companion to the field-11 address grammar"
+    heading = re.search(
+        r"^## \S+ rules that decide whether the brief works$", text, re.M
     )
-    two_rules = _section(
-        text,
-        "## Two rules that decide whether the brief works",
-        "## Role-family deltas",
+    assert heading, (
+        "dispatch-brief.md must carry a '## <N> rules that decide whether the "
+        "brief works' section - M4's mechanical companion to the field-11 "
+        "address grammar"
     )
-    assert "Every field carries a resolved VALUE" in two_rules, (
-        "dispatch-brief.md's two-rules section must state the resolved-value "
-        "rule verbatim"
+    rules = _section(text, heading.group(0), "## Role-family deltas")
+    assert "Every field carries a resolved VALUE" in rules, (
+        "the brief-rules section must state the resolved-value rule verbatim"
     )
-    assert "One dispatch, one KIND of work" in two_rules, (
-        "dispatch-brief.md's two-rules section must state the one-kind-per-"
-        "dispatch rule verbatim"
+    assert "One dispatch, one KIND of work" in rules, (
+        "the brief-rules section must state the one-kind-per-dispatch rule "
+        "verbatim"
     )
-    assert "MUST NOT re-run the resolver" in two_rules, (
-        "dispatch-brief.md's two-rules section must forbid a worker handed a "
-        "resolved value from re-running the resolver itself"
+    assert "MUST NOT re-run the resolver" in rules, (
+        "the brief-rules section must forbid a worker handed a resolved value "
+        "from re-running the resolver itself"
+    )
+    assert "A brief carries WHAT and WHY, never HOW" in rules, (
+        "the brief-rules section must state the know-how boundary verbatim: a "
+        "caller owns outcome/scope/inputs/boundaries, the dispatched agent "
+        "owns its own method. Without it, a skill re-teaches the agent its "
+        "trade and the agent holds two copies of one rule"
+    )
+    assert "do not delegate what nobody owns" in rules.lower(), (
+        "the boundary is bidirectional: a caller that writes \"the agent owns "
+        "X\" without X existing in that agent's body leaves the rule "
+        "unenforced by anyone. That direction must be stated, not implied"
+    )
+    assert "whole brief on one screen" in rules, (
+        "the brief-rules section must state the brevity budget. An over-long "
+        "brief is acted on before it is finished reading, and the tail - "
+        "boundaries and return shape - is never applied. Without a stated "
+        "budget, 'Length is not the constraint' (the split rule, about WHEN to "
+        "split) reads as a licence to send a document"
+    )
+    assert "Exemption - anonymous workers" in rules, (
+        "a skill dispatching an UNNAMED leaf must still paste the procedure "
+        "(the worker cannot resolve CLAUDE_PLUGIN_ROOT to read it). Without "
+        "this carve-out stated here, applying the rule breaks odoo-deep-survey "
+        "and odoo-brl, which are correct as they stand"
+    )
+
+
+def test_knowhow_boundary_dispositions_live_in_the_authoring_guide():
+    """The RULE is runtime (dispatch-brief.md, read by every spawner); the KEEP/MOVE/DELETE
+    PROCEDURE is authoring-time (who edits a skill), so it lives in the authoring guide and
+    stays out of a hot contract 49 files cite. Both halves must exist - a rule with no
+    decision procedure gets applied by taste, and 'just delete it' silently drops a rule the
+    skill held the only copy of."""
+    guide = (REPO_ROOT / "docs" / "authoring-skills-and-agents.md").read_text(
+        encoding="utf-8"
+    )
+    assert "What a dispatching skill hands its agent" in guide, (
+        "the authoring guide must carry the dispatching-skill boundary section"
+    )
+    for disposition in ("KEEP", "MOVE", "DELETE"):
+        assert f"**{disposition}**" in guide, (
+            f"the authoring guide must name the '{disposition}' disposition"
+        )
+    assert "the skill holds the ONLY copy" in guide, (
+        "MOVE must be spelled out as its own disposition: an orphan rule that "
+        "only the skill states is lost, not deduplicated, when it is deleted"
+    )
+    assert "the agent owns" in guide, (
+        "the guide must state the reverse check too - a skill claiming the "
+        "agent owns X when X is absent from that agent leaves the rule "
+        "enforced by nobody while reading as covered"
     )
 
 

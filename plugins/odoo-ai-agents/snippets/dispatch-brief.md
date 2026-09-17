@@ -9,15 +9,15 @@
 
 # Dispatch Brief (caller-side template)
 
-**This file is the SSOT for the CALLER-side dispatch brief - the content of the dispatch
-prompt a spawner sends to a specialist agent.** Fields are content SLOTS in `KEY: value`
-form, not literal headings. Reference existing homes for intent/acceptance/artifacts - `DESIGN_DOC`,
-`ORACLE_PATH`, worklog, etc. - do not restate their content here or in a filled brief.
+**This file is the SSOT for the CALLER-side dispatch brief - the content of the dispatch prompt a
+spawner sends to a specialist agent.** Fields are content SLOTS in `KEY: value` form, not literal
+headings. Reference existing homes for intent/acceptance/artifacts - `DESIGN_DOC`, `ORACLE_PATH`,
+worklog - rather than restating them here or in a filled brief.
 
-This file is **READ BY PATH** by non-leaf spawners while they compose a dispatch prompt. It is
-**NEVER inlined verbatim into a hard-leaf brief**: a leaf self-checks against the family-delta
-field list already carried inline in its own body (see `## Brief self-check` below) - the opposite
-of `worker-brief.md`, which IS inlined into leaves because it is worker-side behavior.
+Non-leaf spawners **READ IT BY PATH** while composing a prompt; it is **NEVER inlined verbatim into
+a hard-leaf brief** (a leaf self-checks against the family-delta field list already inline in its
+own body, `## Brief self-check` below). That is the opposite of `worker-brief.md`, which IS inlined
+into leaves because it is worker-side behavior.
 
 ## Universal skeleton (11 fields)
 
@@ -27,13 +27,13 @@ of `worker-brief.md`, which IS inlined into leaves because it is worker-side beh
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
 | 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when none ran this session), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
-| 5 | `WORKTREE_PATH` (+ `BASE`, `SHARE_DIR`, `ISOLATE_DIR` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode); `SHARE_DIR` + `ISOLATE_DIR` required whenever this row names a root other than your own cwd | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. A `WORKTREE_PATH` always names such a root, so it always drags `SHARE_DIR` + `ISOLATE_DIR` with it: resolve both ONCE against that root and pass the captured absolute strings, or each leaf re-resolves `<ISOLATE_DIR>` from its own cwd into a DIFFERENT tree and the caller's read-back finds nothing (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Cross-worktree dispatch). |
+| 5 | `WORKTREE_PATH` (+ `BASE`, `SHARE_DIR`, `ISOLATE_DIR` COND) | COND - `WORKTREE_PATH` required whenever the task mutates git-tracked files; `BASE` only when the agent must know the base ref (e.g. rebase/adapt mode); `SHARE_DIR` + `ISOLATE_DIR` required whenever this row names a root other than your own cwd | Absolute worktree path + (conditionally) base ref/branch. MUST reuse the literal `WORKTREE_PATH` token (grepped verbatim elsewhere; a new name silently misses consumers). The worker RECEIVES it, never creates it - worktree creation belongs to git-toolkit. A `WORKTREE_PATH` always drags `SHARE_DIR` + `ISOLATE_DIR` with it: resolve both ONCE against that root and pass the captured absolute strings, never letting a leaf re-resolve (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Cross-worktree dispatch). |
 | 6 | `ACCEPTANCE` (by pointer) | ALWAYS | Testable yes/no "done" conditions, given as a POINTER, never restated: coder/designer -> `DESIGN_DOC` S9; QA-tester -> the immutable `ORACLE_PATH`; QA-planner -> the raw `REQUIREMENT`/intent ONLY (never the implementation or a pre-derived oracle - preserves its independence). |
 | 7 | `DELIVERABLE` + `RETURN` | ALWAYS | What artifact(s), where they land, and what the final chat message must contain. Reuse `OUTPUT_DIR`/`REPORT_PATH`/`ARTIFACT_DIR` where a family already names them. |
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
-| 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is what an Odoo lease is acquired under, what the teardown gate correlates a live lease to, and what a leak audit matches on. It used to travel only INSIDE `INSTANCE_HANDLE`, so a brief that said `none provisioned` carried no run id at all - and the agents permitted to self-provision are exactly the ones handed no handle. A grandchild in that position MINTED its own id; the audit caught it only because the invented string happened to share a prefix with the real one. A dispatched agent NEVER invents this value: absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
+| 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is what an Odoo lease is acquired under, what the teardown gate correlates a live lease to, and what a leak audit matches on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
 **No reply-address field exists.** Do not add one under any name. The agent you dispatch returns its
 report as its final message, and you are woken with it once you end that turn - rule:
@@ -43,7 +43,7 @@ report as its final message, and you are woken with it once you end that turn - 
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; ask the caller only for what no rung
 there answers.
 
-## Two rules that decide whether the brief works
+## Three rules that decide whether the brief works
 
 **Every field carries a resolved VALUE.** A field whose value tells the worker to go read a
 document is a hidden sub-task it pays before starting. Resolve at dispatch and pass the value: the
@@ -53,7 +53,29 @@ in place of one. A worker handed resolved paths MUST NOT re-run the resolver fro
 
 **One dispatch, one KIND of work.** Split by kind, not by size. A brief that bundles read prior
 art, edit a view, author a test, provision an instance, run a suite and commit is six kinds and
-will not complete. Length is not the constraint; kind-count is.
+will not complete. SPLIT on kind-count, never on length - which is not a licence to send a long
+brief; shorten it by cutting HOW (next rule), never by splitting one kind in two.
+
+**A brief carries WHAT and WHY, never HOW.** You own outcome, scope, resolved inputs, boundaries;
+the agent owns its method. Re-teaching its trade hands it a SECOND, already-lossy copy and it
+spends the turn deciding which governs. So a brief NEVER carries a step sequence the agent already
+runs, a tool-call chain, a domain heuristic or version fact, an algorithm, a severity rubric, a
+restatement of the agent's own contract (what it spawns, must not write, tears down), or text
+copied from a snippet it Reads. Cite the owner - `agents/<name>.md` § `<heading>`.
+
+This is also what keeps the brief SHORT, which is load-bearing: a brief long enough to skim is one
+the receiver acts on before reaching the end, and the tail - boundaries, return shape - never gets
+applied. Budget: **one line per field, whole brief on one screen (~40 lines).** Over budget cut
+HOW, never a field: a dropped field costs a `NEEDS_CONTEXT` round-trip, a dropped procedure costs
+nothing. A field needing more than a line was never resolved - resolve it (rule 1).
+
+The other direction binds too: **do not delegate what nobody owns.** Before writing "the agent owns
+`<X>`", open that agent and confirm `<X>` is there; if not, put it there or drop the claim.
+
+**Exemption - anonymous workers.** A skill dispatching an UNNAMED leaf (no `agents/<name>.md` holds
+the method) MUST paste the procedure in - that worker cannot resolve `${CLAUDE_PLUGIN_ROOT}` to
+read it. The rule above governs briefs to a NAMED agent; what decides which you are is
+`generator/skill_tool_deps.json` -> `orchestration.<skill>.spawns_agents`.
 
 ## Role-family deltas (additive on the skeleton)
 
@@ -81,29 +103,24 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 - `RED_TEST_PATH` - the failing test(s) `odoo-test-writer` already authored (hand over the failing
   test, not a spec).
 - `RED_MODE` - `constructed` | `measured` | `toggle` | `exempt`, as `odoo-test-writer` declared it,
-  WITH the evidence that mode requires. It travels beside `RED_TEST_PATH`; a resolving path with no
-  `RED_MODE` is not a RED. Contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
+  WITH that mode's evidence. It travels beside `RED_TEST_PATH`; a resolving path with no `RED_MODE`
+  is not a RED. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
 - `TEST_EXEMPTION` - `none` (what an absent key also means), or a caller-DECLARED
   `<category> - <specifics>` for a change that cannot go red; never inferred by the
   receiver. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
-- `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only (the dispatcher's
-  per-node worktree-addons carve-out decision; never a separate field on the leaf coders' own
-  briefs - see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
-  carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is malformed - the
-  receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
+- `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only, never a field on
+  the leaf coders' own briefs (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`
+  § Worktree-addons carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is
+  malformed - the receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
 - `DESIGN_DOC` to follow STRUCTURALLY - never inlined pseudocode.
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
   `none` when no deep survey ran. Same key-must-be-present rule as field 4 `INPUTS`.
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
-  rebase/adapt mode - a normal build's worktree already encodes the base). `SHARE_DIR` +
-  `ISOLATE_DIR` come with it (skeleton field 5) - this family always writes a worklog and always
-  works in a worktree that is not the dispatcher's cwd.
+  rebase/adapt mode). `SHARE_DIR` + `ISOLATE_DIR` come with it (skeleton field 5).
 - `PRIOR ATTEMPT` - COND, on a re-dispatch that SUPERSEDES a failed pass ONLY (omit on a first
   dispatch): what the failed pass returned or omitted, plus the path of the worklog entry it left.
-  A replacement handed an unchanged brief re-derives what its predecessor already ruled out.
 
 ### Reviewer / auditor
 
@@ -149,12 +166,24 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 
 ### Doc-writer
 
-`odoo-user-doc-writer`, `odoo-marketing-writer`, `odoo-doc-scenarist`, `odoo-translator`:
+`odoo-user-doc-writer`, `odoo-marketing-writer`, `odoo-doc-scenarist`:
 
 - Target AUDIENCE/persona.
 - Locale/language list.
 - Grounding source (feature catalog / walkthrough) - never invent claims.
 - Output format (`rst`/`html`/video-plan/`po`/`svg`).
+
+### Translator
+
+`odoo-translator` authors prose but takes NONE of the Doc-writer fields - no audience, no catalog,
+no format choice. Its brief is worktree-and-instance shaped:
+
+- `WORKTREE_PATH` (the `.po`/`.pot` writes land there) - the only `required` key in the registry.
+- ONE target language per dispatch, plus the module/cluster and target series.
+- `GLOSSARY_PATH` - the translation-memory file for that language.
+- The maintained `<lang>.po` and freshly exported `<module>.pot` paths.
+- `INSTANCE_HANDLE` + `BUILD_SHAPE` of the build those artifacts came from - a leaf can only verify
+  the shape it is told.
 
 ### Icon designer
 
@@ -249,11 +278,9 @@ Copy this variant only if you dispatch NAMED leaves whose briefs you fill. A spa
 children are anonymous read-only workers (`odoo-solution-architect`) keeps its own family
 self-check and adds a re-brief rung to it instead.
 
-`odoo-coder` is a node COORDINATOR, not a leaf - `worker-brief.md` explicitly exempts it. Its
-`## Brief self-check` is framed for a spawner: it validates its OWN inbound brief, then RE-BRIEFS
-each leaf it dispatches by reading this file BY PATH. It must NOT contain the leaf-only "STOP and
-return NEEDS_CONTEXT" wording verbatim - that phrasing belongs to a leaf that has no one left to
-re-brief.
+Such a spawner validates its OWN inbound brief, then RE-BRIEFS each leaf by reading this file BY
+PATH. It must NOT carry the leaf-only "STOP and return NEEDS_CONTEXT" wording verbatim - that
+phrasing belongs to a leaf with no one left to re-brief.
 
 ```markdown
 ## Brief self-check

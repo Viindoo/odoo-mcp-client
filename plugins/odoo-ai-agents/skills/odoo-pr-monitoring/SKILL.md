@@ -215,7 +215,7 @@ governs any subagent it cold-spawns). Every delegate (`git-ops`, `odoo-debug`, `
 invoked fresh each turn (Tier-C baseline), so the watch resumes correctly across a session boundary
 by re-reading `run-<id>.json` + the poll-state note. When composing the dispatch prompt for any
 specialist agent you dispatch, fill the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
 family delta; never inline that file verbatim into a hard-leaf brief.
 
 ## Out of Scope

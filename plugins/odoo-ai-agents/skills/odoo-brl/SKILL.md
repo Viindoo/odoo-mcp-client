@@ -324,7 +324,7 @@ Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason
   a fresh Opus `general-purpose` spawn with an explicit brief containing the cluster JSON. Tier C
   is always correct; the worklog is always written regardless of tier.
   Fill the cluster subagent's prompt from the caller-side skeleton in
-  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
   family delta; never inline that file verbatim into a hard-leaf brief.
   Subagent prompt MUST contain the existing leaf restrictions regardless of tier:
   `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`

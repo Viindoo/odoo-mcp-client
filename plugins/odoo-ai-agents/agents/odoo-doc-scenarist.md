@@ -76,7 +76,10 @@ Label the run `catalog: none` in the output header.
 ### Step 1 - version pin + reachability
 Pin version + call `describe_module` to confirm the module exists and collect its surface.
 If OSM is unreachable, fall back to reading the module descriptor (`__manifest__.py`, or
-`__openerp__.py` on v8.0-v9.0 - open whichever the module actually has) and model `.py` files on disk.
+`__openerp__.py` - open whichever the module actually has, never both), model `.py` files, and
+view XML on disk to enumerate menus, models, and key fields; label the grounding
+`local-source` and prefix your output with `WARNING: OSM unreachable - scenario steps inferred
+from disk source; verify labels against a live instance before publishing`.
 
 ### Step 2 - feature enumeration
 From the catalog (preferred) or from `module_inspect`/`model_inspect`: list the PRIMARY
@@ -161,7 +164,7 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
@@ -183,4 +186,4 @@ response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

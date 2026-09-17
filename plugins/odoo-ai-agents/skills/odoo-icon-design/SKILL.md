@@ -59,11 +59,11 @@ not a viewport crop.
 ## Agent invocation
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 `icon.png`/`icon.svg` and the `__manifest__.py` edit are git-tracked writes, so per
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 resolve `WORKTREE_PATH` BEFORE this
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 resolve `WORKTREE_PATH` BEFORE this
 dispatch: reuse the worktree already in scope, else provision one via `git-toolkit:git-ops` - never
 the principal checkout (S9, see § Verify then commit below) - then dispatch `odoo-icon-designer`
 with a brief:
@@ -85,28 +85,19 @@ MCP tool surface for the dispatched agent is the same as `## MCP tools` above - 
 
 ## Design-system contract
 
-The icon deliverable is a rasterized PNG (`static/description/icon.png`, 256x256) - raster pixels,
-not a live-rendered Odoo UI component - so the CSS design-token checks in
-`skills/_shared/odoo-frontend-fidelity.md` (the in-repo frontend fidelity contract, which governs
-RENDERED Odoo screens) do NOT apply to the icon asset itself. Palette is brand-agnostic and
-resolved to CONCRETE hex values via Step 1 of the `odoo-icon-designer` agent (dispatch `BRIEF:`
--> `<SHARE_DIR>/brand-tokens.json` when that file exists (resolve `<SHARE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
-never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) -> module-category hue ->
-Odoo default `#714B67`). Never
-invent CSS custom-property names (e.g. `var(--primary)`) and never hardcode a vendor brand
-(Viindoo) palette in the source SVG or this skill - the SVG is composed with the same resolved hex
-fills, not with design-system token references.
+The icon deliverable is a rasterized PNG (`static/description/icon.png`, 256x256), not a
+live-rendered Odoo UI component - the CSS design-token checks in
+`skills/_shared/odoo-frontend-fidelity.md` (which govern RENDERED Odoo screens) do NOT apply to
+it. Palette resolution (brief -> `brand-tokens.json` -> category hue -> Odoo default) and the
+brand-agnostic, no-vendor-palette rule are owned by `agents/odoo-icon-designer.md` § Step 1 and
+§ Hard constraints - not restated here.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** agent reads `category`, `name`, and `summary` from the module descriptor on
-  disk - `__manifest__.py`, or `__openerp__.py` on v8-v9 - for glyph and palette selection;
-  proceeds without OSM grounding; prefixes output with
-  `WARNING: OSM unreachable - glyph/palette inferred from manifest fields only`.
-- **Rasterizer absent (no rsvg-convert, inkscape, magick/convert, cairosvg, or Pillow):**
-  agent writes `icon.svg` only, emits platform-specific install guidance, and sets
-  `status: NEEDS_CONTEXT(no SVG rasterizer; icon.svg written, icon.png pending)`. Not a hard fail.
+- **OSM unreachable:** agent proceeds disk-only from the manifest descriptor; exact fields read
+  and warning text owned by `agents/odoo-icon-designer.md` § Step 0.
+- **Rasterizer absent:** not a hard fail - `icon.svg` ships alone with install guidance; full
+  fallback behavior owned by `agents/odoo-icon-designer.md` § Step 4.
 
 ## Verify then commit (git-delegation)
 

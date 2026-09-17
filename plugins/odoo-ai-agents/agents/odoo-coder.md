@@ -284,7 +284,7 @@ Validate your OWN inbound dispatch brief carries the
 Coder family's required fields (node module-set / file-set boundary, `ODOO VERSION`, `INSTANCE_HANDLE` or `none provisioned`,
 `SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
 (the key itself must be present - not even the literal `none` may be omitted, same rule as
-`dispatch-brief.md` skeleton field 4 `INPUTS` - forward it unchanged when you re-brief your
+`dispatch-brief.md` skeleton field 4 § Universal skeleton `INPUTS` - forward it unchanged when you re-brief your
 leaves), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are not literal
 dispatch-brief keys - no real dispatch site emits either; the Coder family's own required fields
 above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking
@@ -315,7 +315,7 @@ required inbound; never self-block looking for either in your own brief.
   override as your first output line before re-briefing your leaves.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
-`odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
+`odoo-frontend-coder`): read `dispatch-brief.md` § Universal skeleton BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
 passed through unchanged. Leaf coders (`odoo-backend-coder`/`odoo-frontend-coder`) KEEP
 `RED_TEST_PATH` as a required inbound field in THEIR OWN leaf-variant self-check - only this

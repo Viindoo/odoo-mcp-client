@@ -79,7 +79,7 @@ Migration is needed when a module version bump introduces any of: field rename, 
 ## Method
 
 **`WORKTREE_PATH` is required whenever this skill writes a script.** The migration file is
-git-tracked, so per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 the write happens in
+git-tracked, so per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 the write happens in
 a dedicated worktree - never the principal checkout. A caller (forward-port, modules-upgrade, a
 run-harness node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never under your own cwd.
 Invoked with no `WORKTREE_PATH` and no worktree already in scope -> provision one via

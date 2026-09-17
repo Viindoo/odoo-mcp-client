@@ -32,7 +32,7 @@ exclusivity rule. Provision live execution by invoking the `odoo-instance` skill
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-qa-planner`,
 `odoo-qa-tester`, or any other specialist agent dispatched below, fill the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's family
 delta; never inline that file verbatim into a hard-leaf brief.
 
 ## Out of Scope
@@ -114,9 +114,8 @@ This is the scope every later phase obeys - depth on High tier, smoke on Low.
 Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - sonnet default; escalate ONLY when the requirement spans multiple hard business domains with heavy cross-module coupling, never for cluster width or scenario count alone) with
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
 path, and
-`SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`. It returns the immutable oracle (GWT +
-EP/BVA/negative + role/CRUD/state/search matrices, risk-tagged). The planner derives `expected` from
-the requirement only - it never reads the implementation to decide it.
+`SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`. It returns the immutable, risk-tagged oracle
+- design technique and the anti-bias derivation rule are its own (`agents/odoo-qa-planner.md`).
 
 ## Phase 2 - provision the cluster (once)
 
@@ -181,9 +180,8 @@ overlap Phase 2a, which uses no browser).
   (the tester composes `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` for its own captured evidence - do
   NOT re-resolve), the SAME `SLUG: <slug>` minted at Phase 0 (passed explicitly - the tester's own
   contract only falls back to stripping it off `REPORT_PATH`'s filename when this field is absent),
-  and `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. It drives real
-  CRUD + at least two roles + state transitions + search on each in-scope screen and adjudicates
-  PASS/FAIL/UNVERIFIED with evidence. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer`
+  and `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md` - execution + adjudication method
+  is its own (`agents/odoo-qa-tester.md`). Optionally, in the same serial slot, dispatch `odoo-ui-reviewer`
   for that module's screens for the read-only one-screen quality verdict (distinct from the tester's
   behavior verdict; do not duplicate).
 - **Med/Low-tier screens (smoke):** cover the rest of `render_check_set` with a smoke pass - open each

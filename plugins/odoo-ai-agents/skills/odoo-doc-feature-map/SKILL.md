@@ -64,13 +64,10 @@ what a client's running instance has enabled. It is the canonical input for:
 3. The **walkthrough scenario author** (`odoo-doc-scenarist`): entry points, states, and key fields
    drive the authored happy-path step lists
 
-Grounding is OSM-first (static indexed source), disk fallback (manifest + views + security on
-disk). A live instance is NEVER required for catalog production.
-
 ## Agent invocation
 
 **Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst family
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the Survey/analyst family
 delta; never inline that file verbatim into a hard-leaf brief.
 
 Dispatch `odoo-feature-cataloger` with the following brief (resolve `<SHARE_DIR>` once per
@@ -96,13 +93,12 @@ prefix, which carries no series on a stock checkout.
 
 ## Standalone-first fallback
 
-Odoo Semantic MCP (OSM) is the PRIMARY source. If OSM is unreachable, the agent falls back to
-reading the module descriptor (`__manifest__.py`, or `__openerp__.py` on v8-v9), grepping `views/` and `models/` on disk, and reading
-`security/ir.model.access.csv` directly. Prefix any disk-only output with:
-`WARNING: OSM unreachable - catalog grounded from disk only; verify completeness`.
+OSM unreachable -> agent drops to disk-only grounding (`local-source`) with its own warning text;
+full descriptor/`views`/`models`/`security` fallback chain owned by
+`agents/odoo-feature-cataloger.md` § Step 0 and Steps 2-3 - not restated here.
 
-No browser, no live Odoo instance, no screenshot capture is performed by this skill. If the caller
-needs screenshots or a live UI pass, route to `odoo-doc-illustration` after the catalog is produced.
+No browser, no live Odoo instance, no screenshot capture. Route a screenshot / live-UI need to
+`odoo-doc-illustration` after the catalog is produced.
 
 ## Continuation Contract
 

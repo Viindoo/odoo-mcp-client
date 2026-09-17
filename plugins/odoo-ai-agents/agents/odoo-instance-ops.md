@@ -1199,7 +1199,7 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 
 ## Brief self-check
 
@@ -1223,4 +1223,4 @@ never guessed either way); the provision-once/forward-everywhere rule per
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.

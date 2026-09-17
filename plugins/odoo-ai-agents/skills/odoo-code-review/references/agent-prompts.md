@@ -27,12 +27,8 @@ SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
 ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
 Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, artifacts dir) - do NOT
 re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
-Also do a LIGHT bidirectional-impact pass (${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md):
-the direct upstream it depends on + direct downstream that depends on it - deep transitive closure
-stays the synthesis job, but flag an obvious cross-module break even in single-module review.
-Check the change against ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md
-(multi-company/branch, generic-before-localization, app-menu) and flag a behavior change with no
-protecting test.
+IMPACT DEPTH: light - direct upstream + direct downstream only; the deep transitive closure is the
+synthesis leg's job, not yours.
 DESIGN_DOC: <per-module child TDD path from scope design_doc column | null> (in master-child mode:
 child TDD for this module; in single mode: the shared flat TDD; present only when
 odoo-solution-architect ran). When DESIGN_DOC is provided (non-null): MANDATORY - Read it, verify

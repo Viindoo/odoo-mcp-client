@@ -124,7 +124,7 @@ For phases marked `fanout: true` with a `chunk_by` field:
 4. Aggregate worker results before proceeding.
 
 When composing the dispatch prompt for any specialist agent you dispatch (e.g. a fan-out
-worker), fill the caller-side skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+worker), fill the caller-side skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 (read it by path) plus the target agent's family delta; never inline that file verbatim into a
 hard-leaf brief.
 

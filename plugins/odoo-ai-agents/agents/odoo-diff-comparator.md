@@ -221,6 +221,29 @@ For each feature the custom module provides, propose one classification. Use the
 | `SPLIT` | Feature bundles multiple concerns; split into separate functions for the target |
 | `RECONCILE` | Target-core newly writes/computes the SAME business quantity on the SAME records as the custom code (data-divergence: two SSOTs), OR target-core gained a NEW mechanism/API that can replace or materially simplify the custom implementation (new-feature wire-in). The custom intent survives, but the SSOT/wire-in choice is architectural - MUST route to P2b design (odoo-solution-design); never silently KEEP/coexist |
 
+**Reuse-candidate sweep (RECONCILE detection).** Run this immediately after classification, for
+EVERY feature classified `KEEP` or `REWRITE(api)`/`REWRITE(model)` above:
+
+(a) API-endpoint sweep: reuse the `api_version_diff` result already fetched for this feature in
+Step 2 - do NOT call it again - and inspect its `new` section for a mechanism that replaces or
+simplifies the feature.
+(b) UNCONDITIONAL domain sweep: run `suggest_pattern`/`find_examples` for EVERY `KEEP` feature
+regardless of the `api_version_diff` result. This catches new parallel core mechanisms (a new
+model on the same domain, a new mixin, a new action) that do NOT appear in an endpoint-scoped
+`api_version_diff` but can still replace the custom logic.
+
+For each surviving feature, judge whether a NEW target-core mechanism/API can replace or
+materially simplify it AND still cover the feature's acceptance criteria (evidence: the
+`api_version_diff` `new` items + `suggest_pattern`/`find_examples`/`describe_module`):
+- a new core mechanism wires in and covers the criteria -> reclassify `RECONCILE` (new-feature
+  wire-in); record it in `reuse_candidates[]`.
+- new core ALSO writes/computes the SAME business quantity on the SAME records the custom code
+  writes -> reclassify `RECONCILE` (data-divergence: two SSOTs).
+
+A `RECONCILE` feature sets the module `verdict` to `RECONCILE` (or `MIXED` if other features stay
+`KEEP`/`REWRITE`); that verdict routes to P2b design (`odoo-solution-design`) - never a silent
+`KEEP`.
+
 After classifying every feature, derive ONE per-module `verdict`: if every feature shares one
 class, `verdict` = that class; if classes differ, `verdict` = `MIXED`. Set
 `whole_module_absorbed` = true only when `verdict = DELETE-absorbed` AND every feature is
@@ -412,7 +435,7 @@ ODOO-AI-ETHOS #2 ask-vs-self-decide:
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.
 
 ## You launch nothing
 
@@ -420,5 +443,5 @@ You never launch an agent, so the spawner contracts do not bind you. Your obliga
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` (what you do) and
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your inbound brief is
 checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`.
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton.
 

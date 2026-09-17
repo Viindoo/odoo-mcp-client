@@ -61,7 +61,7 @@ Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY wr
 (§Writer dispatch briefs below) and reuse the SAME captured `ISOLATE_DIR` value - never a fresh
 resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
 cleanup's `rm -rf` target are guaranteed identical. `doc_root` is ALSO this run's `WORKTREE_PATH`
-(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 - each writer is a separate agent context
+(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 - each writer is a separate agent context
 and does not inherit this skill's cwd) - pass it verbatim as `WORKTREE_PATH:` in every writer brief
 alongside `SHARE_DIR:`/`ISOLATE_DIR:`; never let a writer re-derive its module root from its own cwd.
 
@@ -192,13 +192,13 @@ Then emit one aggregate index per run (`doc-run-<run_id>/index.jsonl`) listing e
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-user-doc-writer`,
 `odoo-marketing-writer`, or any other specialist agent dispatched below, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's Doc-writer family delta; never inline that file verbatim into a hard-leaf brief.
 
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
 - the writer resolves the absolute path under `WORKTREE_PATH` (never its own cwd - a dispatched
 agent does not inherit this skill's cwd, per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
-field 5) using `ADDONS_PATH` (resolved per
+field 5 § Universal skeleton) using `ADDONS_PATH` (resolved per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) before falling back to a disk scan. Omitting an axis field
 preserves today's behavior (see Documentation axes). Shared
 browser-capture mechanics (2-tier write, headless/headed, on-theme check per
@@ -282,17 +282,10 @@ RST and deep technical steps out of the HTML - do not duplicate content across t
 
 **TONE (appstore index.html tone).** `marketing` (default when DOC LAYER resolves to `appstore`) =
 `odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
-`references/app-store-template.md` (sanitizer-safe fragment - no `<html>/<head>/<body>`, no JS, no
-external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
-relative image paths). The skill pre-fetches the copy from `odoo-content-draft`; the writer resolves
-`[Image: <slug>]` markers after capture and sources the Key Features grid from the feature catalog.
-The brand PALETTE comes from `<SHARE_DIR>/brand-tokens.json` when that file exists (Tier-2 SHARE;
-resolve `<SHARE_DIR>` via the resolve-capture-substitute protocol in
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) or from the brief; absent both, use the
-Odoo default palette - never hardcode a vendor brand. That file maps a CSS custom-property NAME to a
-COLOUR, so an unfamiliar token NAME is never a miss - read the entry's value. It carries no
-typeface: fonts come from Bootstrap-5 classes plus safe inline `font-weight`/`font-size`
-(`references/app-store-template.md` § Sanitizer Rules). `technical` (opt-in via
+`references/app-store-template.md` (sanitizer rules + brand-token/palette resolution are owned
+there - do not restate them here). The skill pre-fetches the copy from `odoo-content-draft`; the
+writer resolves `[Image: <slug>]` markers after capture and sources the Key Features grid from the
+feature catalog. `technical` (opt-in via
 `TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
 OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
 of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard

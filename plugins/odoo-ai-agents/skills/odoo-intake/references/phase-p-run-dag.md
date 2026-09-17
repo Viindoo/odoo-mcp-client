@@ -89,7 +89,7 @@ open a RUN-DAG.
      explicitly on those same nodes instead of omitting the key: `inputs.recon_findings` is safe to
      omit because the mandatory recon step always scouts for itself when absent, but a downstream
      per-node brief (`odoo-coding`'s `SURVEY:` field) treats an OMITTED artifact-path key as a
-     load-bearing gap (`dispatch-brief.md`'s self-check) rather than "nobody asked" - so this key is
+     load-bearing gap (`dispatch-brief.md` § Universal skeleton's self-check) rather than "nobody asked" - so this key is
      always present, one explicit value or the other. Threaded onward exactly like `design_index`
      above: the receiving skill (`odoo-planner`'s `SURVEY:` field, `odoo-coding`'s per-node
      `SURVEY:` field) reads it by pointer, never re-derives a survey.

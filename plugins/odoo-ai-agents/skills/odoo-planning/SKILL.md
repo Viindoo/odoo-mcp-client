@@ -148,7 +148,7 @@ plan is approved.
 ## Agent invocation - prompt templates (P1: code + doc)
 
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
-skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief. The brief carries no
 reply address: each planner returns its report as its final message, and you are woken with it
 once you have ended the turn that launched
@@ -179,15 +179,11 @@ SURVEY: [none | <SHARE_DIR>/survey/<slug>-<date>/synthesis.md - the deep-survey 
 intake's Proposed Plan `Survey:` field, when one was run this session; explicit `none` when no
 deep survey was opted into - never omit this field, unlike GAP_MATRIX/QA_ORACLE above]
 RETURN_TO: [omit when absent; set to the caller skill name when return routing is requested]
-
-Step 0 (ONLY if mcp__odoo-semantic__* tools are available): set_active_version('<version>'). Then
-read DESIGN_INDEX / GAP_MATRIX / QA_ORACLE / SURVEY by pointer and emit the plan CONFORMING to
-skills/odoo-intake/references/plan-mode-schema.md - § Block 1 + § Block 2 + § Block 3, none
-optional, and § Design is an INPUT to this plan (no node may be a design node). Wire each node to a SKILL (never an
-agent, never the skill's internal coordination). Estimates only (effort + est_agents) - do NOT
-bind a per-agent model or fan-out count (Decision X). Do NOT serialize run-<id>.json (intake
-Phase P owns that). Do NOT write source files. Do NOT spawn subagents or invoke skills.
 ```
+
+(Method - reading inputs, OSM grounding, schema conformance, node/skill wiring, the estimate-only
+constraint, and its own leaf/no-write boundaries - is `agents/odoo-planner.md`'s own Rounds 0-3;
+not restated here.)
 
 ### P1b - Doc plan (odoo-doc-planner)
 
@@ -197,8 +193,8 @@ returns an empty plan) and record "doc plan: none (internal-only)" at the plan g
 dispatch the doc planner whenever there is any store/doc intent - the human still confirms scope at
 the plan-approval gate.
 
-After P1a returns, launch `odoo-doc-planner` as a SEPARATE subagent. It reuses the design DAG
-from DESIGN_INDEX (`plan_source: design-dag`) and does NOT re-derive the module graph.
+After P1a returns, launch `odoo-doc-planner` as a SEPARATE subagent with `plan_source: design-dag`
+(its Round 0 reuses the design DAG from DESIGN_INDEX itself - never re-derived here).
 Model: **sonnet** (the doc planner's frontmatter default).
 
 ```
@@ -206,15 +202,22 @@ DISPATCH MODEL: sonnet
 You are the odoo-doc-planner agent. Produce the DOC-PACKAGE PLAN for:
 
 REQUEST: [same change as P1a]
-DESIGN_INDEX: [same path as P1a - read dag_layers by pointer, do NOT re-derive the graph]
+DESIGN_INDEX: [same path as P1a]
 plan_source: design-dag
-LANGUAGES: [brief-specified list if any; otherwise resolve from registry - English always included]
-
-Apply the scheduling algorithm from skills/_shared/doc-cluster-plan.md. Emit doc-plan.yaml to
-<SHARE_DIR>/plans/<slug>-doc-<date>.yaml covering user-guide (doc/index.rst) AND marketing landing
-(static/description/index.html) for every in-scope module. Estimates only. Do NOT provision any
-instance. Do NOT spawn subagents or invoke skills.
+LANGUAGES: [the resolved list, English always included]
+SHARE_DIR: [the captured absolute SHARE path - same literal P1a got]
+ISOLATE_DIR: [the captured absolute ISOLATE path - same literal P1a got]
+RUN_ID: [the run's id, or the literal `none` when no run owns this planning pass]
 ```
+
+Resolve `LANGUAGES` BEFORE dispatching, and send the same `SHARE_DIR`/`ISOLATE_DIR` literals you
+gave P1a: the doc planner derives its own output path from them, so a brief that omits them leaves
+it with nowhere to write (`snippets/dispatch-brief.md` § Universal skeleton, rule 1 - every field
+carries a resolved value).
+
+(Method - the doc-cluster scheduling algorithm, `doc-plan.yaml`'s path/schema, and the
+never-provision / never-spawn boundaries - is `agents/odoo-doc-planner.md`'s own Rounds 0-2; not
+restated here.)
 
 After both return, stitch their summaries into the combined plan-approval gate (see below).
 Note: the doc plan's EXECUTION is deferred - it runs after the code plan's nodes land.
@@ -279,13 +282,15 @@ The ENTER already happened above (§ Plan Mode guard, after both planners return
 covers what happens next: present the plan, gate on human approval, then `ExitPlanMode`.
 
 When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
-then gate. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
+then gate. Quote each plan path from the planner that RETURNED it - `odoo-doc-planner` picks its
+own path per dispatch path (`agents/odoo-doc-planner.md` § Round 2), so a path restated here is a
+path that goes stale without anything failing. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
 module names, model identifiers, and skill names verbatim):
 
 ```
 Plan ready:
   Code plan:  <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
-  Doc plan:   <SHARE_DIR>/plans/<slug>-doc-<YYYY-MM-DD>.yaml
+  Doc plan:   <the doc-plan.yaml path odoo-doc-planner returned>
 Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one line>)
 Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
 Lifecycle:   <the Terminal stage order constant run-harness owns, rendered in full>

@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 SKILL_MD = PLUGIN / "skills" / "odoo-modules-upgrade" / "SKILL.md"
 PHASE_DETAIL = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
+DIFF_COMPARATOR_AGENT = PLUGIN / "agents" / "odoo-diff-comparator.md"
 
 
 def _body(text: str) -> str:
@@ -52,6 +53,13 @@ def _skill_body() -> str:
 def _phase_detail_text() -> str:
     assert PHASE_DETAIL.exists(), f"upg-phase-detail.md not found at {PHASE_DETAIL}"
     return PHASE_DETAIL.read_text(encoding="utf-8")
+
+
+def _diff_comparator_agent_text() -> str:
+    assert DIFF_COMPARATOR_AGENT.exists(), (
+        f"agents/odoo-diff-comparator.md not found at {DIFF_COMPARATOR_AGENT}"
+    )
+    return DIFF_COMPARATOR_AGENT.read_text(encoding="utf-8")
 
 
 def _paragraphs(text: str) -> list[str]:
@@ -80,8 +88,17 @@ def _norm(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 def test_marker_set_present_in_skill_and_phase_detail():
-    """SKILL.md and phase-detail.md must both name the full marker family."""
-    for label, text in (("SKILL.md", _skill_body()), ("upg-phase-detail.md", _phase_detail_text())):
+    """SKILL.md and the dispatched odoo-diff-comparator agent must both name the full marker
+    family. upg-phase-detail.md's P2 dispatch brief no longer restates this scan procedure -
+    it is a dispatch BRIEF (WHAT/WHY), and the marker family + scan mechanics are the agent's
+    own HOW, owned verbatim in `agents/odoo-diff-comparator.md` Step 1 (upgrade mode). This
+    leg of the guard is re-pointed at that file, the scan's real owner, so the contract stays
+    enforced at the source instead of a caller-side restatement (ODOO-AI-ETHOS #8: a test
+    protects the CONTRACT, not a copy of the current wording)."""
+    for label, text in (
+        ("SKILL.md", _skill_body()),
+        ("agents/odoo-diff-comparator.md", _diff_comparator_agent_text()),
+    ):
         for token in ("`TODO`", "`FIXME`", "`XXX`", "`HACK`", "`@todo`"):
             assert token in text, (
                 f"{label}: marker set is missing {token!r}. The version-anchored "

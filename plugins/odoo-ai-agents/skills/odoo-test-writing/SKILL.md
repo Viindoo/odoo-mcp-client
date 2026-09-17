@@ -37,7 +37,7 @@ Five modes, all governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT
 
 - **Test-first (before the code).** Author a module's failing test BEFORE the implementation, independent from the coder, so the test specifies intended behavior and code is written to green. Used standalone, or when a caller hands off red-first authoring. In the `odoo-coding` loop the `odoo-coder` coordinator launches the dedicated `odoo-test-writer` agent, which invokes THIS skill INLINE to author the RED test - so this capability is the coding loop's test author, reached through that context-isolated agent (coders never author tests).
 - **Coverage (after the code).** Backfill behavior-protecting tests for existing code; the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships with no protecting test.
-- **Adapt (forward-port test translation).** Translate a test file from a source to a target Odoo version (see Adapt mode below). Invoked by the forward-port pipeline (P4a of `odoo-forward-port`) or directly with a source file + version pair.
+- **Adapt (forward-port test translation).** Translate a test file from a source to a target Odoo version (see Adapt mode below). Invoked by the forward-port pipeline (P8a of `odoo-forward-port`) or directly with a source file + version pair.
 - **Performance/load (lightweight).** Author a query-count / bounded-time behavior guard for a stated performance contract (boundary in Out of Scope).
 - **Tour/HttpCase (full-stack UI acceptance).** Write a JS tour registered in `web_tour.tours` (or the version-appropriate registry) driven by a Python `HttpCase.start_tour(...)`, decorated `@tagged('post_install', '-at_install')`. Use when acceptance flows span multiple real browser steps needing an HTTP server, or `odoo-qa-planner` oracle scenarios need browser-level state verification. Do NOT use for non-browser logic (use `TransactionCase`/`Form`) or a JS unit with mocked models (use Hoot - no server, no real browser). Authoring (Rounds 0-4) needs no live instance; execution requires `--http-port` and MUST be delegated per `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
@@ -78,7 +78,7 @@ Trigger when the user wants: coverage for a model/computed field/constraint/onch
 ## Method
 
 **`WORKTREE_PATH`.** The test file(s) are git-tracked, so per
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 Round 4 writes into a dedicated worktree -
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 Round 4 writes into a dedicated worktree -
 never the principal checkout. When invoked via the `odoo-test-writer` agent, that agent already `cd`s
 into its `WORKTREE_PATH` before invoking this skill inline (`agents/odoo-test-writer.md`) - the paths
 below are relative to that cwd. Invoked standalone (no wrapping agent), require `WORKTREE_PATH`

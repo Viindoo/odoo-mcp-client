@@ -78,7 +78,7 @@ Only when the Skill tool is absent from your own toolset and you must launch the
 yourself. Fill every field - never hand a worker your own inbound brief unchanged:
 
 ```
-DISPATCH MODEL: <haiku|sonnet per concurrency-guard.md Model-tier selection>
+DISPATCH MODEL: <the tier YOU picked for this worker - haiku | sonnet>
 You are the odoo-gap-analyzer agent.
 REQUIREMENTS: [the requirement lines of this cluster, verbatim - one per line]
 CLUSTER_LABEL: [short label for this cluster, used in the findings filename]
@@ -252,7 +252,7 @@ The `model_inspect` field/method list is the authoritative vocabulary for EXISTI
 - **API status.** For any core symbol the design leans on, `lookup_core_api(name='<symbol>', odoo_version='<version>')` to confirm stable/deprecated/removed; for upgrade/migration design, `api_version_diff(symbol=<symbol_or_scope>, from_version=<lo>, to_version=<hi>)`. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` (design phase).
 
 Tool routing per design facet:
-- **Frontend portion** → first **invoke skill `odoo-frontend-design`** (view-type selection, form hierarchy, density, semantic tokens, website/portal rules - it injects expertise inline), then `resolve_stylesheet` + `find_style_override` for real design tokens and `find_examples` for widget/OWL/QWeb shapes.
+- **Frontend portion** → first **invoke skill `odoo-frontend-design`** (view-type selection, form hierarchy, density, semantic tokens, website/portal rules - it injects expertise inline), then Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (the fidelity contract your design must conform to), then `resolve_stylesheet` + `find_style_override` for real design tokens and `find_examples` for widget/OWL/QWeb shapes. Your doc names the tokens the coder will use, so name only tokens the target version really emits - never an invented one.
 - **Upgrade/migration/refactor** → `find_deprecated_usage` + `api_version_diff`.
 - **Profile / module-inventory decisions** → `set_active_profile` + `profile_inspect` + `list_available_versions` / `list_available_profiles` + `describe_module`.
 - **CLI considerations** (e.g. a migration's run command) → `cli_help` for the target version's real `odoo-bin` flags.
@@ -411,7 +411,7 @@ never push it anywhere) - and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-
 fan-out cap. Your own obligations are unchanged: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
 (what you do) and `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your
 inbound brief is checked against your own Inputs table below; the caller-side schema is
-`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` - which is also the file you read BY PATH to
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton - which is also the file you read BY PATH to
 RE-BRIEF any worker you dispatch, filling the universal skeleton plus that worker's family delta.
 Never pass your own inbound brief through unchanged.
 
@@ -436,6 +436,6 @@ ask-vs-self-decide:
   override as your first output line. Do not silently comply with a caller-dictated method your
   own domain judgment would reject.
 
-Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md` § Universal skeleton.
 
 A gap this check surfaces is not automatically a `NEEDS_CONTEXT`. Ask first whether it is a fact you can go and MEASURE (an uncosted requirement list, an unknown current behavior, an unanswered external question) - if it is, source it per `## Delegating for grounding` and proceed, stating in your first output line which gap you closed yourself and how. Reserve the STOP above for what no tool can settle: a business decision, a missing requirement, an interface only a human can declare non-negotiable.
