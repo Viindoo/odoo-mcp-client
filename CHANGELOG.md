@@ -6,6 +6,90 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-09-17
+
+### Changed
+
+- `odoo-ai-agents` - **the backend lint gate resolves its module set per series instead of naming
+  it.** Viindoo's lint module is `test_pylint` on one side of a series boundary and
+  `test_viin_pylint` on the other; tagging the retired name selects nothing, installs nothing, and
+  the gate reports a clean pass having checked nothing. Membership now lives in one new snippet
+  (`snippets/lint-gate-modules.md`) which also states the rule that makes this safe: a
+  `check_module_exists` probe answers from the revision it indexed, so it can still report a
+  renamed-away name as present - the SERIES picks the name and the probe only confirms the pinned
+  profile carries it. Two names from one distribution in a single build is a defect, and a module
+  that was tagged but whose tests never loaded makes the gate `tests-inconclusive`, never a pass.
+- `odoo-ai-agents` - **the Viindoo server-wide `--load` set is per-series, and the core default it
+  unions into is not monotonic.** The core default loses a module at v11 and gains one at v12 and
+  again at v19, and the newest addition is one Odoo does NOT re-add when a `--load` omits it - so a
+  set carried forward from another series is silently short by a module, with no error and no log
+  line. `agents/odoo-instance-ops.md` now reads the whole resulting value from the pivots row per
+  series, probes every member of that series' Viindoo set, and treats the set as atomic: all
+  present unions it, none present leaves the series default alone, and a partially-present set is
+  `NEEDS_CONTEXT` rather than a partial `--load`.
+- `odoo-ai-agents` - **demo data is decided by the build's PURPOSE.** The default flips at v19, so
+  an automation-test build there carries no demo and does not accept it, while translation,
+  documentation, demo-recording and acceptance builds must ask for it. The upgrade pipeline's P5
+  install + test gate and the Runbot-parity Gate 7 had prescribed `demo=on` unconditionally, which
+  on v19 puts demo rows inside suites that count records: a correct test goes red and the repair
+  that looks obvious is to weaken the test (#251). Both now take their shape from the
+  automation-test row, and Gate 7 takes it from Runbot's own config where that is available, since
+  deriving a parity gate from our own tables would make it agree with us rather than with CI.
+- `odoo-ai-agents` - **the framework-validation classes named in `--test-tags` are now resolved per
+  series, and spelled correctly.** They move in OPPOSITE directions - one appears partway through
+  the indexed range, the other is removed before the end - so a gate naming the pair unconditionally
+  is testing nothing on one side or the other. Worse, the tag grammar had been wrong everywhere:
+  the class separator is a COLON, so the `module.Class` form every example used parsed as a METHOD
+  name, matched nothing, and exited 0. The plugin's own syntax reference stated the grammar
+  correctly while the examples beside it contradicted it; both the reference in the `odoo-instance`
+  dispatch table and every example now agree, and the boundary section carries a copyable tag spec
+  per class so nobody re-derives it from the dotted name.
+- `odoo-ai-agents` - every restatement of the lint rule, and the `to_base` name-drops in the
+  instance HARD-RULE lists, were replaced by pointers rather than updated in place. Each copy had
+  already gone stale once; a pointer cannot.
+
+### Added
+
+- `odoo-ai-agents` - **Gate 7b, a demo-load check that is its own build** (#251). An
+  installable-flip is the first time a module's `demo/` data is ever loaded, so a suite that runs
+  demo-less proves nothing about it and broken demo XML would ship unnoticed - while the plugin
+  separately requires every user-visible feature to ship demo data. Gate 7b installs with demo and
+  runs NO tests; merging it into the suite is what produced the failure mode above.
+- `odoo-ai-agents` - a rule that a durable test must build its own records and never reference a
+  demo record, including when it is authored against a live demo-carrying instance where that
+  record IS present and the test passes in front of the author. The file it leaves behind runs
+  demo-less in the gate.
+
+### Fixed
+
+- `odoo-ai-agents` - the Runbot-parity framework-validation command carried `--test-tags` without
+  `--test-enable`, so it installed the module and ran zero tests while exiting 0. `--test-tags` only
+  FILTERS a run that is already enabled; it never turns one on.
+- `odoo-ai-agents` - the upgrade pipeline's per-level test dispatch and the parity gate omitted
+  `GATE_ROLE`, which `odoo-instance` refuses rather than defaults - the templates asked for a
+  dispatch the contract they call would reject.
+- `odoo-ai-agents` - the demo-load gate keyed its verdict on the install completing. A demo failure
+  is downgraded to a warning and the install finishes green, so that gate would have passed on the
+  breakage it exists to catch; it now reads the runner's failure signal, and checks first that the
+  manifest still DECLARES demo, since a deleted `demo` key loads nothing and logs nothing.
+- `odoo-ai-agents` - the copy-paste `odoo-bin` template in `agents/odoo-instance-ops.md` spelled
+  the demo enable-flag with a value. It takes none, so the form fails at option parsing before the
+  database is touched and the run produces no build at all - while the same file stated the correct
+  form twice, a few hundred lines above (#252).
+- `odoo-ai-agents` - the per-series `--load` defaults the plugin had been carrying were wrong on
+  four of twelve series, and the claim that the core lint module is present on every series was
+  wrong on two. Both are now read from the indexed checkouts and stamped with the date they were
+  read.
+
+### BREAKING
+
+- `odoo-ai-agents` - the `odoo-instance` `demo` field loses its flat `off` default. An omitted
+  value is DERIVED from the build's purpose, and REFUSED where the purpose does not resolve and the
+  series defaults demo off - because both guesses are silently wrong there: one ships a truncated
+  translation or documentation build, the other hands demo to a build that must not have it. Two
+  further refusals are new: a partially-present server-wide set, and demo requested on an
+  automation-test build.
+
 ## [6.0.0] - 2026-09-02
 
 ### Removed
