@@ -1176,9 +1176,14 @@ def test_the_coder_cites_the_live_ceiling_not_the_deleted_harness_section():
     m = re.search(r"(?i)After the integrated test, RELEASE the instance you self-provisioned\..{0,1400}", flat)
     assert m, "odoo-coder must keep the 'RELEASE the instance you self-provisioned' paragraph"
     para = m.group(0)
-    assert re.search(r"(?i)run-harness/SKILL\.md . Gate-tier resolution", para), (
-        "the instance-release paragraph must cite `run-harness/SKILL.md` § Gate-tier resolution - "
-        "the LIVE owner of the ephemeral ceiling this release upholds"
+    # Cited by NAME (`run-harness`), not by a path to its SKILL.md: rule 20 [definition-pointer]
+    # bans that path in a runtime file, since a skill is INVOKED and never READ. The contract is
+    # unchanged - the paragraph must still name the LIVE owner of the ceiling, not the retired
+    # § 8.4.
+    assert re.search(r"(?i)run-harness.{0,4}Gate-tier resolution", para), (
+        "the instance-release paragraph must cite `run-harness` § Gate-tier resolution - the LIVE "
+        "owner of the ephemeral ceiling this release upholds. Cite it by NAME: rule 20 "
+        "[definition-pointer] bans a path to its SKILL.md in a runtime file"
     )
     assert re.search(r"(?i)ephemeral ceiling", para), (
         "the release paragraph must name the ephemeral ceiling by name"

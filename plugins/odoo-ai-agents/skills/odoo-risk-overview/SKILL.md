@@ -59,14 +59,12 @@ Three risk dimensions for executives:
 
 Risk levels: **Low** (0-2 deprecated APIs, no high-impact fields, all deps stable) / **Medium** (3-10 deprecated APIs, or 1-2 high-impact fields) / **High** (10+ deprecated APIs, or critical business field with wide blast radius - requires dedicated migration project).
 
-Version era multiplier - boundary rows, not a single flat "v12-v19 modern" bucket (SSOT:
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`; align with
-`odoo-deprecation-audit/SKILL.md` §JS patch audit + §JS Test Framework, v14+/v18+ distinct):
-**v8-v14** = legacy AMD/Widget frontend; crossing into **v15+** = OWL frontend-framework shift;
-crossing into **v18+** = Hoot test-framework migration on top of any frontend shift already
-crossed. Within the same era with no boundary crossed (e.g. v16→v17) = Low; crossing exactly ONE
-boundary (e.g. v14→v15 OWL shift, or v17→v18 Hoot shift) = Medium; crossing TWO OR MORE boundaries
-(e.g. v14→v18) or starting pre-v12 OpenERP (v8/v9→anything) = High/Very High.
+Version era multiplier - score by BOUNDARIES CROSSED, never by a single flat "modern" bucket. Which
+series sit on which side of the frontend-framework and test-framework boundaries is owned by
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`: read the crossings from there for the two
+series in play, and do not restate them here. Map what you read onto risk: no boundary crossed =
+Low; exactly ONE = Medium; TWO OR MORE, or an upgrade starting from the pre-split OpenERP era, =
+High/Very High.
 
 Distribution note: modules with consistent naming (e.g. `viin_*`) are distribution-maintained - flag separately; their risk is generally lower than truly custom modules.
 

@@ -252,7 +252,7 @@ fix, not two facts to reconcile.
 **Where the test-running nodes go.** Never open a PR on a red suite. Every repo MUST therefore carry
 at least ONE node whose `approach` is `odoo-instance`, on `integrate@R`'s dependency path, whose
 `modules` cover every module named by any coding node in that repo. `run-harness` refuses to open the
-PR without it (`run-harness/SKILL.md` section integrate readiness), so a plan that omits it BLOCKS
+PR without it (`run-harness` section integrate readiness), so a plan that omits it BLOCKS
 rather than shipping untested code. Place EARLIER `odoo-instance` nodes wherever catching a
 regression late would be expensive; each one's `modules` must cover at least the union over its own
 transitive dependencies, so scope grows monotonically down the graph.

@@ -625,7 +625,7 @@ SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substi
 ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
                                          # creation above); forwarded verbatim as odoo-instance's
-                                         # own WORKTREE_PATH field (odoo-instance/SKILL.md §
+                                         # own WORKTREE_PATH field (`odoo-instance` §
                                          # WORKTREE_PATH substitution), so ALLOCATOR acquires with
                                          # --addons-path-override covering it - this is what P5.7
                                          # depends on ("its addons path MUST cover WORKTREE_PATH")
@@ -761,7 +761,7 @@ TARGET LANGUAGES: <explicit list when this run has one, else omit the field enti
   .po-filename inference / instance query) still attempt resolution from what IS available, and
   record escape E3 (proceed, no stop) only once all four tiers are empty. odoo-i18n has no
   hardcoded target-language default to fall back on - omitting the field never triggers one; it
-  only ever reaches escape E3 above (i18n-mandate-contract.md; odoo-i18n/SKILL.md P0)>
+  only ever reaches escape E3 above (i18n-mandate-contract.md; `odoo-i18n` P0)>
 GATE: do NOT stop separately - return the result; it is presented at the P6 sign-off
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po

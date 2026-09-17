@@ -1,4 +1,4 @@
-<!-- Reference for odoo-forward-port/SKILL.md § Model triage. Loaded as needed.
+<!-- Reference for `odoo-forward-port` § Model triage. Loaded as needed.
      Two deterministic tables: EXTRACT (P0/P1) and ADAPT (P8). -->
 
 # Forward-Port Model Triage - full tables

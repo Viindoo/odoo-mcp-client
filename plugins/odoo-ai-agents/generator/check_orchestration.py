@@ -202,6 +202,7 @@ import json
 import os
 import re
 import sys
+from functools import lru_cache
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
@@ -828,10 +829,24 @@ def _skill_dispatch_surface(skill_name: str) -> list[tuple[str, str]]:
 # Naming an agent or skill is always fine - `dispatch odoo-coder`, `invoke odoo-instance`. What this
 # bans is the PATH to its definition file.
 
-_DEFINITION_FILE = re.compile(
-    r"`?\$?\{?[A-Za-z_]*\}?/?(?:plugins/odoo-ai-agents/)?"
-    r"(agents/[a-z0-9-]+\.md|skills/[a-z0-9-]+/SKILL\.md)`?"
-)
+# The prefix is OPTIONAL on both halves. Writing `odoo-coder.md` or `run-harness/SKILL.md` without
+# `agents/` or `skills/` is the same instruction as the full path, and an earlier revision of this
+# rule matched only the full form - so three separate sweeps had to find the bare variants by
+# reading, and one was reverted because a test pinned it. A guard narrower than the defect is how
+# the defect comes back wearing different spelling.
+#
+# NOT matched, deliberately: a standalone `SKILL.md` inside a skill's own `references/` file. That
+# names the parent the reader already holds (it got there by invoking that skill), so it is an
+# internal cross-reference, not a pointer at someone else's definition.
+@lru_cache(maxsize=1)
+def _definition_file_re() -> re.Pattern[str]:
+    agent_names = "|".join(re.escape(n) for n in sorted(load_agents()))
+    return re.compile(
+        r"(?:plugins/odoo-ai-agents/)?"
+        r"(agents/[a-z0-9-]+\.md"
+        rf"|(?<![-\w/])(?:{agent_names})\.md"
+        r"|(?:skills/)?[a-z0-9-]+/SKILL\.md)"
+    )
 
 
 def _runtime_md_files() -> list[Path]:
@@ -850,7 +865,7 @@ def check_definition_pointers(findings: list[str]) -> None:
     for path in _runtime_md_files():
         rel = path.relative_to(PLUGIN_ROOT).as_posix()
         text = path.read_text(encoding="utf-8")
-        for match in _DEFINITION_FILE.finditer(text):
+        for match in _definition_file_re().finditer(text):
             target = match.group(1)
             if rel.endswith(target):
                 continue  # a file naming itself is not a pointer

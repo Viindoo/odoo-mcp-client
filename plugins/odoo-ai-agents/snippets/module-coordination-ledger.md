@@ -16,7 +16,7 @@ genuinely absent - so `odoo-coding` can turn that raw BLOCKED into a specific, e
 decision.
 
 **Scope note.** Every source-writing node's worktree forks from the ONE `run-integration` branch
-(lineage: `run-harness/SKILL.md` § Run start), so it always CONTAINS its dependencies' committed
+(lineage: `run-harness` § Run start), so it always CONTAINS its dependencies' committed
 source - but that is not the same as the source being on the verification instance's addons-path
 (the allocator's catalog list points at the principal checkout by default). Reaching it is a
 POLICY step: the node's brief carries `WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`
@@ -198,7 +198,7 @@ the leaf coder. Evaluate the cases IN ORDER; first match wins:
 4. **Ledger shows `D` `done` but `D` is NOT on this worktree's addons-path** -> `BLOCKED:
    dependency <D> was built in run <X> - integrate/rebase it onto this worktree before
    continuing`. Fires ONLY cross-run: intra-run the worktree already contains `D`'s committed
-   source (fork-from-integrated-parent lineage, `run-harness/SKILL.md` § Run start), and
+   source (fork-from-integrated-parent lineage, `run-harness` § Run start), and
    `SELF_PROVISION: worktree-addons` re-roots the verification instance onto it - a POLICY
    guarantee (§ Scope note above), not structural.
 5. **Ledger shows `D` `failed`** (THIS run's own sibling OR a different run - a terminally failed

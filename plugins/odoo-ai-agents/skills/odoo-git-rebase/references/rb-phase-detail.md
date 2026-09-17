@@ -1,4 +1,4 @@
-<!-- Reference for odoo-git-rebase/SKILL.md § The pipeline. Loaded as needed.
+<!-- Reference for `odoo-git-rebase` § The pipeline. Loaded as needed.
      Per-phase git commands, dispatch-brief templates, artifact formats, and git/PR conventions.
      The SKILL.md body carries the contract; this file carries the verbatim execution detail. -->
 

@@ -687,7 +687,7 @@ L2 human gate applies) - the same delegation `odoo-modules-upgrade` P5 and `odoo
 provision the cluster ONCE, PASSING `WORKTREE_PATH: <path>/fp-integration` (the SAME P4 JOB-tier
 integration worktree the merge/adapt phases wrote to) in that first dispatch, so `odoo-instance`
 re-roots the addons list onto it via `--addons-path-override`
-(`odoo-instance/SKILL.md` § WORKTREE_PATH substitution) instead of loading the principal checkout -
+(`odoo-instance` § WORKTREE_PATH substitution) instead of loading the principal checkout -
 without this, a "GREEN" result here proves nothing, since it would verify un-adapted code. Then per
 batch dispatch init for the N affected modules followed by run-tests of the target suite, relaying the
 returned `INSTANCE_HANDLE` so later batches reuse the same instance instead of self-provisioning
