@@ -174,13 +174,16 @@ is complete and that skills thread the shared contracts they are required to:
                     so an OSM call shape beside a literal there is still a frozen claim.
  18. version-claim - DIFF-SCOPED, and ADVISORY (never strict-fail) when no merge base resolves.
                     Fires on an Odoo version VALUE that THIS change writes into agent-facing prose.
-                    Measured: tree-wide the same trigger leaves 855 residual hits across 158 files
+                    Measured: tree-wide the same trigger leaves 871 residual hits across 159 files
                     against ~11 real defects, which trains an author to ignore it; scoped to added
                     lines it is roughly one per commit. That residual is a BASELINE, not a
-                    backlog - nothing ratchets it, the diff gate only stops it growing. Five
+                    backlog - nothing ratchets it, the diff gate only stops it growing. Six
                     unit-scoped exemptions: an OSM call shape in the same unit, a boundary-SSOT
-                    pointer, a whole-span scope statement, a `workflows/` routing phrase, and the
-                    boundary SSOT files themselves. Both 17 and 18 scan WHITESPACE-NORMALIZED
+                    pointer (covering only the citation span, so a restatement standing beside
+                    one still fires), a whole-span scope statement, a `workflows/` routing
+                    phrase, the boundary SSOT files themselves, and a value that illustrates a
+                    shape - a caller-filled `<e.g. 17.0>` slot or an `odoo_version='17.0'`
+                    argument literal. Both 17 and 18 scan WHITESPACE-NORMALIZED
                     prose units, never raw lines: the claim this catches most often is one a
                     formatter wrapped across two.
 
@@ -1614,6 +1617,13 @@ VERSION_CLAIM_RE = re.compile(
     r"|(?<![A-Za-z0-9_])Odoo\s+v?(?!0)\d{1,2}(?:\.\d{1,2})?(?!\.?\d)(?!\w)"
     r"|(?<![A-Za-z0-9_])version\s+(?!0)\d{1,2}(?:\.\d{1,2})?(?!\.?\d)(?!\w)"
     r"|(?<![A-Za-z0-9])[a-z][a-z0-9]*(?:_[a-z0-9]+)*_(?:[89]|1[0-9])(?![\d\w])"
+    # A BARE series - `18.0` with no `v`, no `Odoo `, no `version ` in front. This is how an
+    # author writes it by hand ("in versions prior to 18.0"), and the plural `versions` breaks
+    # the `version\s+\d` alternative above, so the most natural spelling was the one the rule
+    # could not read. Two shapes are deliberately NOT claims and the lookarounds exclude both:
+    # a path segment (`coding_guidelines/17.0/naming.md` - reporting it would force an author to
+    # rename a real file to satisfy a lint) and a manifest `version` value (`17.0.1.0.0`).
+    r"|(?<![A-Za-z0-9_./])(?:[89]|1[0-9])\.0(?!\.\d)(?![\d/])"
 )
 
 # The files that ARE allowed to spell a boundary out - the SSOT rows every other file must point
@@ -1714,9 +1724,59 @@ def _is_full_span_scope(unit: str) -> bool:
     )
 
 
+# The citation SPAN of a boundary-SSOT pointer: its path, its filename, and a trailing `§ anchor`
+# naming the row. The anchor may legitimately carry a version (`§ check_access from v18`) - that
+# value IS the pointer, not a restatement - so exemption 2 must read the unit with this span
+# removed rather than silencing the unit whole. The anchor run stops at a hyphen on purpose: in
+# "`odoo-version-pivots.md` § XML views - also known as tree in Odoo 17" the clause AFTER the dash
+# is prose, and swallowing it would re-hide the copy this was written to expose.
+_SSOT_CITATION_RE = re.compile(
+    r"[^\s`]*(?:" + "|".join(re.escape(n) for n in BOUNDARY_SSOT_FILES) + r")`?"
+    r"(?:\s*(?:\u00a7|#)\s*(?:[\w.'\"]+\s+){0,7}[\w.'\"]+)?"
+)
+
+
 def _points_at_boundary_ssot(unit: str) -> bool:
     """Exemption 2: the unit routes the reader to the row that owns the boundary."""
     return any(name in unit for name in BOUNDARY_SSOT_FILES)
+
+
+def _strip_ssot_citations(unit: str) -> str:
+    """`unit` with every boundary-SSOT citation span removed, leaving only its own prose."""
+    return _SSOT_CITATION_RE.sub(" ", unit)
+
+
+# A brief-template SLOT the CALLER fills at dispatch time (`ODOO_VERSION: <e.g. 17.0>`). The value
+# inside is an illustration of the shape, never a boundary this file asserts, and the templates
+# carry these by the dozen - reporting them would make every future template edit noisy.
+_PLACEHOLDER_RE = re.compile(r"<[^<>\n]{0,80}>")
+# `_prose_units` splits on sentence boundaries and the `.` in `<e.g. 17.0>` IS one, so a slot can
+# reach the trigger with its opening bracket left behind in the previous unit. Text that closes a
+# bracket it never opened was inside one.
+_ORPHAN_SLOT_RE = re.compile(r"\A[^<>\n]{0,80}>")
+# A keyword-argument LITERAL (`odoo_version='17.0'`) illustrates the shape of a call, the same way
+# a slot does. It needs its own span because rule 17 scans generated prose with the resolution-call
+# exemption deliberately OFF: all 38 generated `## MCP tools` blocks carry this line verbatim from
+# the JSON SSOT, so without this the rule would gate CI on a sentence no skill author can edit.
+_CALL_ARG_LITERAL_RE = re.compile(r"(?<![\w])[a-z_][a-z0-9_]*\s*=\s*(['\"])[^'\"\n]{0,40}\1")
+
+
+def _placeholder_spans(text: str) -> list[tuple[int, int]]:
+    """Character spans of `text` that illustrate a shape rather than assert a boundary."""
+    spans = [m.span() for m in _PLACEHOLDER_RE.finditer(text)]
+    spans += [m.span() for m in _ORPHAN_SLOT_RE.finditer(text)]
+    spans += [m.span() for m in _CALL_ARG_LITERAL_RE.finditer(text)]
+    return spans
+
+
+def _claim_matches(text: str) -> list[str]:
+    """Version tokens in `text`, minus any sitting inside a caller-filled template slot."""
+    slots = _placeholder_spans(text)
+    return [
+        m.group(0)
+        for m in VERSION_CLAIM_RE.finditer(text)
+        if not any(start <= m.start() and m.end() <= end for start, end in slots)
+    ]
 
 
 def _version_claim_hits(
@@ -1726,13 +1786,19 @@ def _version_claim_hits(
     allow_call_exemption: bool = True,
 ) -> list[str]:
     """The matched version tokens in `unit`, or [] when any exemption applies."""
-    hits = [m.group(0) for m in VERSION_CLAIM_RE.finditer(unit)]
+    hits = _claim_matches(unit)
     if not hits:
         return []
-    if _points_at_boundary_ssot(unit) or _is_full_span_scope(unit):
+    if _is_full_span_scope(unit):
         return []
     if allow_call_exemption and _names_a_resolution_call(unit, tool_names):
         return []
+    if _points_at_boundary_ssot(unit):
+        # Exemption 2 covers the POINTER, never a restatement standing beside it. A unit that
+        # does BOTH - spells the value AND cites its owner - was the shape the blanket form
+        # blessed, and it is the worst one to miss: the closer prose gets to correct SSOT
+        # discipline, the more invisible its drift becomes. Re-scan with the citation removed.
+        hits = _claim_matches(_strip_ssot_citations(unit))
     return hits
 
 
@@ -1906,18 +1972,23 @@ def check_version_claim(findings: list[str], advisory_findings: list[str]) -> No
     already shipped seven times.
 
     DIFF-SCOPED IS NOT A CONVENIENCE - it is the measured deployment. Run tree-wide over the
-    agent-facing corpus the same trigger leaves 855 residual hits across 158 files (measured, after
-    all five exemptions) against ~11 real defects; a rule at that signal-to-noise trains an author
-    to ignore it. Scoped to the lines a change ADDS it is roughly one hit per commit. The tree-wide
-    residual is a BASELINE, not a backlog: nothing ratchets it, the diff gate only stops it
-    growing, and no exemption was added to make that number look better.
+    agent-facing corpus the same trigger leaves 871 residual hits across 159 files (re-measured
+    2026-09-18 with the bare-series alternative live and all six exemptions applied) against ~11
+    real defects; a rule at that signal-to-noise trains an author to ignore it. Scoped to the
+    lines a change ADDS it is roughly one hit per commit. The tree-wide residual is a BASELINE,
+    not a backlog: nothing ratchets it, the diff gate only stops it growing, and no exemption was
+    added to make that number look better.
 
-    Five exemptions, each scoped to the unit (never to the file):
+    Six exemptions, each scoped to the unit (never to the file):
       1. the unit carries an OSM tool CALL SHAPE - the value travels with its resolution;
-      2. the unit names a boundary SSOT file - it points instead of restating;
+      2. the unit POINTS at a boundary SSOT and the value sits inside that citation span - a
+         `§ anchor` may name its row by version. A value standing OUTSIDE the citation is a
+         restatement and still fires, even though the pointer is right there beside it;
       3. the unit states a whole-indexed-span scope, not a boundary (FULL_SPAN_MIN_MAJORS);
       4. the file lives under `workflows/` - those version tokens are ROUTING trigger phrases;
-      5. the file IS a boundary SSOT - it is the one place a value belongs.
+      5. the file IS a boundary SSOT - it is the one place a value belongs;
+      6. the value illustrates a SHAPE rather than asserting a boundary - a caller-filled slot
+         (`<e.g. 17.0>`) or a keyword-argument literal (`odoo_version='17.0'`).
 
     False negative it still misses: a version-dependent claim carrying NO version token at all -
     "the legacy widget path is the right one for that series" - which no syntactic trigger can
