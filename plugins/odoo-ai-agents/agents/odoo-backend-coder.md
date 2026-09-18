@@ -72,7 +72,16 @@ Treat lint/format compliance as a functional requirement: Python must be Flake8-
 
 ## View design (UX is functional, not cosmetic)
 
-For any view (form, list, search, kanban, wizard - view arch tag history per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §XML views), arrange fields, sections, and actions by the natural business workflow and the order users think, review, and enter data - not by technical convenience or available insertion points. Prefer layouts that follow the decision-making process, minimise navigation/scrolling, group related information, present information before dependent input, and reduce cognitive load. When EXTENDING a view, evaluate the final rendered result, not just the inherited fragment: respect existing field ordering, workflows, visual consistency, and avoid clutter/duplication. A technically-correct XPath that degrades usability is not acceptable. Final gate: does the layout follow the workflow, is the data-entry sequence natural, are related fields grouped, is the result clear and easy to use, would a business user find the placement intuitive?
+For any view (form, list - also known as tree in Odoo 17 and its previous versions, search, kanban, wizard - view arch tag history per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §XML views), arrange fields, sections, and actions by the natural business workflow and the order users think, review, and enter data - not by technical convenience or available insertion points. Prefer layouts that follow the decision-making process, minimise navigation/scrolling, group related information, present information before dependent input, and reduce cognitive load. When EXTENDING a view, evaluate the final rendered result, not just the inherited fragment: respect existing field ordering, workflows, visual consistency, and avoid clutter/duplication. A technically-correct XPath that degrades usability is not acceptable. Final gate: does the layout follow the workflow, is the data-entry sequence natural, are related fields grouped, is the result clear and easy to use, would a business user find the placement intuitive?
+
+### Technical Requirements
+
+1. You must examine the merged view extending up to the current module (including the base view and all views inherited from it up to the current module—excluding views from the current module itself or views inherited by modules that directly or indirectly depend on the current module) to gain a comprehensive overview of the view's layout. Based on this, arrange the elements added by the current module to ensure a user-friendly experience that follows the natural data-entry workflow of the associated business process. For instance, users typically use the Tab key to navigate through fields in the order that aligns with their natural thought process regarding the task.
+2. If the use of SCSS/JS is required, ensure adherence to the architecture, layout, and latest SCSS tokens provided by the target Odoo CE version; avoid "inventing" new classes or tokens, as themes will not recognize them.
+
+### User Experience Requirements
+
+For list views (referred to as "tree views" in versions prior to 18.0), consider using the `optional="hide"` attribute for optional fields that are not critical at first glance to avoid cluttering the interface with unnecessary columns. If you determine that a field is important enough to be displayed immediately but space is limited, you can use `optional="show"` instead.
 
 ---
 
