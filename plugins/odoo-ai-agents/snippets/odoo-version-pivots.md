@@ -52,6 +52,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Inline Python modifiers | `readonly="record.state == 'done'"` | v17 | `attrs=`/`states=` → `ValidationError` **from v17** (not just a warning) |
 | List view arch tag | `<list>` | v18 | `<tree>` still accepted but `<list>` is canonical; `<tree>` was canonical up to v17 |
 | Always-invisible field | field + XML comment AFTER: `<!-- invisible: <reason> -->` | v18 | No comment → fails `base.TestInvisibleField` from v18+ |
+| Optional list column | `optional="hide"` / `optional="show"` on a list/tree `<field>` | v13 | Attribute not honoured before v13 - the column is always rendered |
 | Chatter element | `<chatter/>` | v18 | `<div class="oe_chatter">` deprecated; `<chatter/>` preferred from v18 |
 
 ## Manifest
