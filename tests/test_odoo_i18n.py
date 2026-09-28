@@ -50,12 +50,16 @@ def test_recipe_non_destructive_diff_review_no_polib():
 
 
 def test_recipe_skip_auto_install():
-    """Recipe must prescribe --skip-auto-install for Odoo >= 17 isolation."""
+    """Recipe must prescribe --skip-auto-install where the series has it, and isolation by database
+    where it does not, so auto_install siblings never pollute the .pot."""
     assert RECIPE.exists()
     text = RECIPE.read_text(encoding="utf-8")
     assert "--skip-auto-install" in text, (
-        "Recipe must require --skip-auto-install (Odoo >=17) to block auto_install "
+        "Recipe must require --skip-auto-install (where the series has it) to block auto_install "
         "siblings from polluting the .pot"
+    )
+    assert re.search(r"isolate by DATABASE", text), (
+        "where --skip-auto-install does not exist, the recipe must isolate by database instead"
     )
 
 
@@ -95,25 +99,30 @@ def test_recipe_requires_load_language():
     )
 
 
-def test_recipe_covers_v19_subcommand():
-    """Recipe must cover the v19 `odoo-bin i18n` subcommand alongside the server-flag form (KT2).
+# An Odoo export/import/language-load command line in any spelling: the server flags, the `i18n`
+# subcommand, the export-file selector, or a cli_help lookup that grounds one of them.
+_RAW_I18N_COMMAND = re.compile(
+    r"--i18n-(?:export|import)|odoo-bin\s+i18n\b|\bi18n\s+(?:export|import|loadlang)\s+-"
+    r"|--language[=\s<]|\s-l\s+<|command='i18n|ulimit\s+-Sv|--limit-memory-hard"
+)
 
-    Scope, corrected against the odoo-semantic index: what moved at v19 is EXPORT/IMPORT -
-    `cli_help(command='server', flag='--i18n-export', odoo_version='19.0')` reports the flag
-    absent, and `cli_help(command='i18n', ...)` reports the subcommand. Language ACTIVATION did
-    NOT move: `--load-language` is `Status: stable` on every indexed series, 8.0 through 19.0. A
-    recipe that documents only the server-flag export form is wrong for v19; a recipe that treats
-    the whole server-flag surface as gone drops the activation step and silently exports empty
-    msgstrs.
-    """
-    assert RECIPE.exists()
-    text = RECIPE.read_text(encoding="utf-8")
-    assert ("i18n export" in text or "i18n loadlang" in text), (
-        "Recipe must document the v19 `odoo-bin i18n` subcommand form "
-        "(e.g. `i18n export` or `i18n loadlang`), not only the v8-v18 server flag"
+
+def test_export_goes_only_through_instance_i18n_export():
+    """The export tool reads which command line the lease's checkout declares and writes Odoo's own
+    bytes, so an agent that composes an export by hand bypasses the demo/language refusals and the
+    series switch the tool owns. Every file that instructs the export must name the tool and carry
+    no raw export/import command - in prose or in a fenced block."""
+    for path in (RECIPE, SKILL_MD, AGENT_FILE, MANDATE):
+        text = path.read_text(encoding="utf-8")
+        assert "instance_i18n_export" in text, f"{path.name} must route the export through the tool"
+        hits = [m.group(0) for m in _RAW_I18N_COMMAND.finditer(text)]
+        assert not hits, f"{path.name} still composes an Odoo i18n command by hand: {hits}"
+    flat = re.sub(r"\s+", " ", RECIPE.read_text(encoding="utf-8"))
+    assert re.search(r"`job_wait`[^.]*`exports`", flat), (
+        "the recipe must read the written files from job_wait's exports list, not guess the names"
     )
-    assert "19" in text, (
-        "Recipe must name the v19 series so the per-version CLI split is explicit (KT2)"
+    assert re.search(r"refuses[^.]*follow its remedy", flat), (
+        "a refused export means the build is wrong - the recipe must send the reader to the remedy"
     )
 
 
@@ -297,9 +306,17 @@ def test_recipe_kt3_en_us_always_loaded():
     text = RECIPE.read_text(encoding="utf-8")
     assert "KT3" in text, "Recipe must carry a named KT3 callout for the en_US-always rule"
     assert "en_US" in text, "Recipe KT3 must name en_US as the base/source language"
-    assert "--load-language=en_US" in text, (
-        "Recipe L1 example commands must load en_US in the activation set "
-        "(e.g. --load-language=en_US,<lang>), not the target language alone"
+    flat = re.sub(r"\s+", " ", text)
+    assert re.search(r"it adds `en_US` to every build's `languages`", flat), (
+        "KT3 must say the export build's instance_build adds en_US itself, so the caller passes only "
+        "the target codes and en_US can never be left out"
+    )
+    offenders = [ln for ln in _recipe_runnable_lines()
+                 if "--load-language" in ln[1] or "loadlang" in ln[1]]
+    assert not offenders, (
+        "a runnable recipe line activates a language by hand - instance_build refuses "
+        "--load-language in extra_args, and a separate loadlang is a second path that can load the "
+        f"target alone (KT3): {offenders}"
     )
 
 
@@ -695,18 +712,16 @@ def test_every_adjudicating_consumer_cites_the_semantics_ssot():
     assert not missing, f"these must cite snippets/po-entry-semantics.md: {missing}"
 
 
-def test_residual_never_includes_an_artefact_blank():
-    """The second failure mode: a blanked identity entry looks exactly like a new term, so the
-    translate phase picks it up and overwrites a reviewed do-not-localise decision. The two
-    files that own a translate phase must both carve it out."""
-    for path in (
-        PLUGIN / "skills" / "odoo-i18n" / "references" / "i18n-recipe.md",
-        PLUGIN / "agents" / "odoo-translator.md",
-    ):
-        flat = re.sub(r"\s+", " ", path.read_text(encoding="utf-8"))
-        assert re.search(r"ARTEFACT[^.]{0,40}NOT residual|NOT residual", flat, re.I), (
-            f"{path.name}: the translate phase must state that an ARTEFACT blank is NOT residual"
-        )
+def test_translate_phase_never_counts_an_identity_entry_as_residual():
+    """An entry whose correct translation equals its source is DONE when its `msgstr` is empty -
+    that is what Odoo's exporter writes and what it shows at runtime. A translate phase that counts
+    it as residual reports it as missing work and pushes toward writing the `msgid` into it. Both
+    files that own a translate phase must carve it out, in a sentence that names the identity."""
+    for path in (RECIPE, AGENT_FILE):
+        flat = _normalize_ws(path.read_text(encoding="utf-8"))
+        assert re.search(
+            r"(?:identical to|equals?) (?:its|the) (?:`msgid`|source)[^.]{0,120}NOT residual", flat, re.I
+        ), f"{path.name}: the translate phase must state that an identity entry is NOT residual"
 
 
 def test_term_policy_ssot_owns_glossary_layers_and_the_regime_guard():
@@ -796,15 +811,39 @@ def test_recipe_never_disables_demo_in_any_example_command():
     )
 
 
-def test_recipe_v19_example_enables_demo_explicitly():
-    """v19 flipped the demo default to OFF, so v19 is the ONE series where a demo flag is REQUIRED.
+def _recipe_runnable_lines():
+    """(line number, code) for every line inside a fenced block, comments stripped - the lines an
+    agent pastes into a shell. A comment may NAME a flag; a command may not compose it."""
+    out, in_fence = [], False
+    for i, line in enumerate(RECIPE.read_text(encoding="utf-8").splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            code = line.split("#", 1)[0].strip()
+            if code:
+                out.append((i, code))
+    return out
 
-    Carrying the v8-v18 shape forward (pass nothing, demo is on) produces a demo-less build there -
-    the same truncation, reached by doing nothing wrong on any earlier series."""
+
+def test_recipe_export_build_asks_for_demo_on_every_series():
+    """Demo is opt-in on the newest series, so an export build that says nothing about demo is
+    demo-less there - the same truncation, reached by doing nothing wrong on any earlier series.
+
+    The build states `demo` `on` as an instance_build input on EVERY series (the tool spells the
+    series' flag), and no runnable line composes a demo flag by hand - instance_build refuses one in
+    extra_args, and a raw install would bypass the build the handle describes."""
     text = RECIPE.read_text(encoding="utf-8")
-    assert "--with-demo" in text, (
-        "the v19 branch must pass --with-demo explicitly - demo is OFF by default from v19, so "
-        "'omit the flag' (correct up to v18) silently builds without demo there"
+    flat = re.sub(r"\s+", " ", text)
+    l1 = flat[flat.index("## L1 - Build ONE instance"):flat.index("**Export order:")]
+    assert re.search(r"`instance_build` op `init` on every series: [^.]*`demo` `on`", l1), (
+        "L1 must state the export build is one instance_build op init with demo on, on every series"
+    )
+    offenders = [ln for ln in _recipe_runnable_lines()
+                 if "-demo" in ln[1] or re.search(r"odoo-bin\b", ln[1])]
+    assert not offenders, (
+        "a runnable recipe line composes a demo flag or installs the module by hand instead of "
+        f"through the export build: {offenders}"
     )
 
 
@@ -905,4 +944,173 @@ def test_forward_port_does_not_hand_its_verify_instance_to_i18n():
     assert "SELF_PROVISION" in p95, "P9.5 must let odoo-i18n build its own export instance"
     assert re.search(r"NOT hand over the P9 verify instance", flat), (
         "the reuse must be refused by name - it is the cheap move a reader will otherwise take"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Invariant - an entry whose translation equals its source STAYS EMPTY.
+#
+# Odoo's exporter writes such an entry with an empty `msgstr` (identity rule
+# above) and shows the source for it at runtime, so the empty entry IS the
+# correct translation. Behavior protected: nothing in the plugin orders an
+# agent to write the `msgid` back into it ("restore the committed entry"),
+# which edits Odoo's export and re-creates a value Odoo will blank again on the
+# next export.
+# ---------------------------------------------------------------------------
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\s\|\s")
+_NEGATION = re.compile(r"\b(?:never|not|no longer applies|do not|don't|nor)\b", re.I)
+
+
+def _sentences(text: str):
+    """Whitespace-normalized sentences (and table cells), so a hard-wrapped or
+    table-embedded instruction is judged as one unit, whatever its layout."""
+    return _SENTENCE_SPLIT.split(_normalize_ws(text))
+
+
+def test_no_file_orders_restoring_an_identity_entry():
+    """Tree-wide, any phrasing: a sentence that says to RESTORE something while talking about a
+    `.po` entry is the defect, whether it says "restore the committed entry", "restore those" or
+    "restored from the committed .po". Scoped per sentence to the i18n vocabulary so an unrelated
+    "restore" (a git stash, a database backup) is not reported."""
+    i18n_vocab = re.compile(r"msgstr|msgid|ARTEFACT|identity|committed entr|\.po\b", re.I)
+    offenders = []
+    for path, text in _tree_texts():
+        for sentence in _sentences(text):
+            if not (re.search(r"\brestor", sentence, re.I) and i18n_vocab.search(sentence)):
+                continue
+            # Only a negation GOVERNING the verb clears the sentence ("never restore it"); a
+            # "never" elsewhere in it ("which Odoo never re-exports; restore those") does not.
+            if re.search(r"\b(?:never|not|no|don't)\s+(?:\w+\s+){0,2}?restor", sentence, re.I):
+                continue
+            offenders.append(f"{path.relative_to(PLUGIN)}: {sentence[:140]!r}")
+    assert not offenders, (
+        "these sentences order writing a translation back into an entry Odoo exported empty; an "
+        "entry whose translation equals its source stays EMPTY:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_empty_msgstr_rule_translates_and_keeps_identity_empty():
+    """The SSOT rule for an empty `msgstr`: translate the `msgid`; when the correct translation is
+    identical to it, leave the `msgstr` EMPTY, never write the `msgid` into it, and never count it as
+    untranslated. The two consumers that own a translate phase point at that section."""
+    text = PO_SEMANTICS.read_text(encoding="utf-8")
+    heading = "## An empty `msgstr`"
+    assert heading in text, f"po-entry-semantics.md must own the rule under a {heading!r} heading"
+    section = _normalize_ws(text.split(heading, 1)[1].split("\n## ", 1)[0])
+    assert re.search(r"translate the `msgid`", section, re.I), "the default action is to translate"
+    assert re.search(r"identical to[^.]{0,40}`msgid`[^.]{0,80}leave[^.]{0,30}EMPTY", section, re.I), (
+        "an entry whose correct translation equals its source must be left EMPTY"
+    )
+    assert re.search(r"never write the `msgid` into", section, re.I), (
+        "writing msgstr = msgid must be forbidden by name"
+    )
+    assert re.search(r"untranslated", section, re.I), (
+        "the rule must say such an entry never counts as untranslated"
+    )
+    for path in (RECIPE, AGENT_FILE):
+        assert "§ An empty `msgstr`" in path.read_text(encoding="utf-8"), (
+            f"{path.name} owns a translate phase and must point at po-entry-semantics.md "
+            "§ An empty `msgstr` instead of restating it"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant - Odoo's export format is kept: only `msgstr` content changes.
+# ---------------------------------------------------------------------------
+
+_FORMAT_RULE = "only the content of a `msgstr` may change"
+_FORMAT_SECTION = "Keep Odoo's export format"
+
+
+def test_export_format_rule_is_declared_once_and_pointed_at():
+    """One definition (the recipe), every other actor that edits a `.po` points at it."""
+    definers = sorted(
+        str(p.relative_to(PLUGIN)) for p, t in _tree_texts() if _FORMAT_RULE in _normalize_ws(t)
+    )
+    assert definers == ["skills/odoo-i18n/references/i18n-recipe.md"], (
+        f"the export-format rule must be defined exactly once, in the recipe; found in: {definers}"
+    )
+    section = _normalize_ws(RECIPE.read_text(encoding="utf-8").split(_FORMAT_SECTION, 1)[1][:1500])
+    for forbidden in ("wrap", "reorder", "header", "#. module:"):
+        assert forbidden in section, f"the format rule must name {forbidden!r} as untouchable"
+    assert re.search(r"re-export", section), (
+        "a missing `#. module:` comment is fixed at source and re-exported, never hand-added"
+    )
+    for path in (SKILL_MD, AGENT_FILE):
+        assert _FORMAT_SECTION in path.read_text(encoding="utf-8"), (
+            f"{path.name} must point at the recipe's {_FORMAT_SECTION!r} section"
+        )
+
+
+def test_no_file_orders_hand_adding_the_module_comment():
+    """`#. module:` is written by Odoo's exporter for every entry it exports. An instruction to add
+    it by hand edits the export format and hides an entry the export did not produce."""
+    offenders = []
+    for path, text in _tree_texts():
+        if "msgstr" not in text:
+            continue
+        for sentence in _sentences(text):
+            hand_add = re.search(r"add the comment yourself", sentence, re.I) or (
+                "#. module:" in sentence
+                and re.search(r"\b(?:add|hand-add|insert)\b", sentence, re.I)
+                and not _NEGATION.search(sentence)
+            )
+            if hand_add:
+                offenders.append(f"{path.relative_to(PLUGIN)}: {sentence[:140]!r}")
+    assert not offenders, "these sentences order hand-adding `#. module:`:\n  " + "\n  ".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# Invariant - export order: the `.pot` FIRST, then each `.po`, from ONE build.
+# ---------------------------------------------------------------------------
+
+def test_recipe_exports_the_pot_first_from_one_call():
+    """Stated once in the recipe: the `.pot` FIRST, then each `.po`, all from one build. The export
+    tool enforces the order, so the recipe hands the reader its `exports` list (.pot first) instead
+    of an example command whose order someone can get wrong."""
+    text = RECIPE.read_text(encoding="utf-8")
+    flat = _normalize_ws(text)
+    assert re.search(r"Export order[^.]{0,40}`\.pot` FIRST", flat), (
+        "the recipe must state the export order: the .pot first, then each .po"
+    )
+    order = flat[flat.index("**Export order:"):]
+    order = order[:order.index("**KT1")]
+    assert re.search(r"ONE `instance_i18n_export` call", order), (
+        "the export order is met by one instance_i18n_export call on the export build's lease"
+    )
+    assert re.search(r"`exports` list[^.]*`\.pot` first", order), (
+        "the reader takes the written paths from exports, .pot first"
+    )
+    assert not [ln for ln in _recipe_runnable_lines() if re.search(r"\.pot\b|\.po\b", ln[1])], (
+        "no runnable line may export a .pot or .po by hand"
+    )
+    for path in (SKILL_MD, AGENT_FILE):
+        assert "Export order" in path.read_text(encoding="utf-8"), (
+            f"{path.name} must point at the recipe's export-order rule"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant - `--load-language` was NOT removed by the `odoo-bin i18n` subcommand.
+# Read at source: `--load-language` is a server option in odoo/tools/config.py on
+# the newest series as on the oldest; the subcommand replaced the export/import
+# server options (`--i18n-export`, `--i18n-import`, `-l/--language`).
+# ---------------------------------------------------------------------------
+
+def test_no_file_claims_load_language_was_replaced():
+    offenders = []
+    claim = re.compile(r"replac|remov|no longer|gone|dropp", re.I)
+    kept = re.compile(r"\bNOT\b|never|still|stable|did not|\bstays?\b", re.I)
+    # Scoping the flag to the pre-subcommand series is the same claim without a verb.
+    scoped = re.compile(r"--load-language[/\w\- ]{0,40}\(v8-v18\)")
+    for path, text in _tree_texts():
+        for sentence in _sentences(text):
+            if "--load-language" not in sentence:
+                continue
+            if scoped.search(sentence) or (claim.search(sentence) and not kept.search(sentence)):
+                offenders.append(f"{path.relative_to(PLUGIN)}: {sentence[:160]!r}")
+    assert not offenders, (
+        "these sentences say the i18n subcommand replaced --load-language; it replaced only the "
+        "export/import options:\n  " + "\n  ".join(offenders)
     )

@@ -150,8 +150,8 @@ When a module flips `installable: False -> True`, the full gate suite (Gates 1-6
 with `--init <module>`. Its demo shape is the automation-test row of
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, which is the
 RECORDED Runbot shape for each series - and it is also the only shape this gate can actually run,
-because `odoo-instance` REFUSES `DEMO: on` on a `--test-enable` build wherever demo defaults off.
-So do not go looking for a different answer to pass to the dispatch. If you have Runbot's own config
+because a test build takes no `demo`: `instance_build` applies the series default read from the
+lease's checkout. So pass no `DEMO` on this dispatch. If you have Runbot's own config
 for the target series and it DISAGREES with that row, that is a FINDING to report - the row is
 stale and needs correcting at its source - never a reason to request demo on this build:
 
@@ -172,7 +172,7 @@ GATE_ROLE: node-verify
 MODULES: <the flipped module>
 TEST_TAGS: full        # deliberately untagged, see above
 MODE: fresh            # a FRESH database, never the Step 3 one
-# No DEMO field: the automation-test row decides it, and a demo enable on a test build is refused.
+# No DEMO field: a test build runs the series default (the automation-test row).
 ```
 
 **Gate 7b - demo-load check, on any series where the suite above ran demo-less.** An
@@ -225,7 +225,8 @@ instead, taking its wording from that build's own `load_demo`.
 >
 > (The `-i`/`-u` note that follows applies to GATE 7, above, not to Gate 7b: `-i` there reproduces
 > the Runbot FRESH-init scenario, and re-running Gate 7 against a DB where the module is ALREADY
-> installed uses `-u <module>` instead - `-i` on an installed module is a no-op.) Confirm the flags via `cli_help`; see
+> installed uses `-u <module>` instead - `-i` on an installed module runs none of its tests on
+> recent series, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database.) Confirm the flags via `cli_help`; see
 > `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 Do NOT add a `--test-tags` line naming individual framework-validation classes here. This gate is
@@ -233,8 +234,8 @@ already UNTAGGED, so every installed module's suite runs - the `base` and `hr` f
 included. Naming them would add no coverage at all, and would add a name that has to be re-checked
 against every series forever.
 
-See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` (CLI demo flag section) for the
-exact flag semantics per version. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for
+See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply
+for the demo default per series. See `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for
 Viindoo-specific gates (hr.employee groups, always-invisible comment).
 
 ---

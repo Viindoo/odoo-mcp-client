@@ -9,7 +9,8 @@
 #   role<TAB>version<TAB>path<TAB>has_manifest
 #
 # Roles (guessed from directory name heuristics):
-#   core       - The Odoo core repo (has odoo-bin + odoo/release.py)
+#   core       - The Odoo core repo (has odoo-bin + odoo/release.py; on the oldest
+#                series openerp-server + openerp/release.py)
 #   enterprise - Odoo Enterprise addons (dir name contains "enterprise")
 #   theme      - Theming / branding addons (dir name contains theme/branding)
 #   custom     - Everything else (first in addons-path priority)
@@ -152,18 +153,20 @@ _record() {
 }
 
 # ---------------------------------------------------------------------------
-# Phase 1: Detect Odoo core repos (has odoo-bin + odoo/release.py)
+# Phase 1: Detect Odoo core repos: a server launcher next to the core package's
+# release.py - odoo-bin + odoo/ from 10.0, openerp-server + openerp/ before it.
 # ---------------------------------------------------------------------------
 while IFS= read -r odoobin; do
     repo_root="$(dirname "$odoobin")"
     release_py="$repo_root/odoo/release.py"
+    [[ -f "$release_py" ]] || release_py="$repo_root/openerp/release.py"
     [[ -f "$release_py" ]] || continue
 
     if ! _seen "$repo_root"; then
         version="$(_odoo_version_from_release "$release_py")"
         _record "$repo_root" "core" "${version:-unknown}" "yes"
     fi
-done < <(find "$BASE_DIR" -maxdepth 3 -name "odoo-bin" 2>/dev/null)
+done < <(find "$BASE_DIR" -maxdepth 3 \( -name "odoo-bin" -o -name "openerp-server" \) 2>/dev/null)
 
 # ---------------------------------------------------------------------------
 # Phase 2: Discover addon repos via __manifest__.py (v10.0+) or __openerp__.py

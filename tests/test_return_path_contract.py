@@ -1,8 +1,9 @@
-"""Whole-tree guard: a dispatched agent's report is its FINAL MESSAGE, and nothing anywhere
-instructs it to send that report upward.
+"""Whole-tree guard: a dispatched agent hands its report back ONCE, after teardown - as the
+`message` of `SubagentHandback` when that tool is in its toolset, else as its final text - and
+nothing anywhere instructs it to SEND that report upward.
 
-Behavior protected: the launch call's own return value is the harness-designed child->parent
-return path. A launch call cannot name the agent it starts, and the roster an agent is shown
+Behavior protected: the harness-designed child->parent return path is unaddressed - the launch
+call's own return value, or the address-less `SubagentHandback` tool. A launch call cannot name the agent it starts, and the roster an agent is shown
 contains neither itself nor its launcher - so an instruction to "push your report to your
 launcher" asks for a value that cannot exist. An agent following it either guesses (silent
 misdelivery to a context that is not blocking on it) or stalls waiting to be told an address.
@@ -107,9 +108,10 @@ def test_scan_corpus_discovered():
 
 # Base/imperative form ONLY, and only where a sentence start or a second-person / modal lead-in
 # makes it an INSTRUCTION. An inflected third-person form ("a background launch delivers it") is
-# describing the runtime, not telling the agent to act, and must not be read as the defect.
+# describing the runtime, not telling the agent to act, and must not be read as the defect. A clause
+# after a comma ("When finished, message your report to ...") is an imperative too.
 _DELIVERY_VERB_RE = re.compile(
-    r"(?:^|[.;:!?)\]]\s+|\*\*|\b(?:you|then|and|or|also|must|should|shall|always|please|may|can|"
+    r"(?:^|[.;:!?,)\]]\s+|\*\*|\b(?:you|then|and|or|also|must|should|shall|always|please|may|can|"
     r"to|will|it|they|we)\s+)"
     r"(push|send|deliver|relay|forward|hand off|hand back|post|notify|message|escalate|"
     r"report back|report to|report up)\b",
@@ -165,6 +167,20 @@ def _prohibition_binds(text: str, verb_pos: int) -> bool:
     return bool(_PROHIBITION_RE.search(ahead) or _PROHIBITION_RE.search(behind))
 
 
+_HANDBACK_TOOL_RE = re.compile(r"\bSubagentHandback\b")
+_SEND_TOOL_RE = re.compile(r"\bSendMessage\b")
+
+
+def _handback_is_the_vehicle(text: str, verb_pos: int) -> bool:
+    """`SubagentHandback` takes no address: delivering the report as its `message` is the
+    harness's own return path, not a send to a resolved recipient. It exempts a delivery verb only
+    when the SAME sentence names it and names no messaging tool - "deliver it with SendMessage,
+    not SubagentHandback" stays a push."""
+    sent_start, sent_end = _sentence_span(text, verb_pos)
+    sentence = text[sent_start:sent_end]
+    return bool(_HANDBACK_TOOL_RE.search(sentence)) and not _SEND_TOOL_RE.search(sentence)
+
+
 def _report_push_offenders(text: str) -> list[tuple[str, str]]:
     """Every un-exempted (verb, window) pair where the text tells an agent to deliver its report
     to something above it."""
@@ -179,6 +195,8 @@ def _report_push_offenders(text: str) -> list[tuple[str, str]]:
                 continue
             if _prohibition_binds(text, lo + vm.start(1)):
                 continue  # the prohibition governs this verb - this IS the rule
+            if _handback_is_the_vehicle(text, lo + vm.start(1)):
+                continue  # the address-less handback tool IS the return path (R3)
             found.append((verb, window.strip()[:240]))
             break
     return found
@@ -213,6 +231,9 @@ _MUST_CATCH = (
     "Relay your completion report to the orchestrating skill.",
     "Send your completion report to main.",
     "Report back to the dispatching agent.",
+    "Then send your completion report to your caller with SendMessage.",
+    "When finished, message your report to the orchestrating skill.",
+    "Deliver your completion report to your caller with SendMessage, not SubagentHandback.",
 )
 _MUST_NOT_CATCH = (
     # The rule itself, and the runtime description R3 depends on.
@@ -220,6 +241,9 @@ _MUST_NOT_CATCH = (
     "You cannot push your completion report to your launcher.",
     "A brief that asks you to push a report is malformed: ignore it.",
     "That text is what your launcher receives: a background launch delivers it to the launcher.",
+    # R3's handback branch: an address-less tool call, not a send to a resolved recipient.
+    "If your toolset has `SubagentHandback`, deliver the report by calling it with the FULL report "
+    "as `message`. Only that message reaches your launcher; text outside it does not.",
 )
 
 
@@ -266,11 +290,35 @@ def test_nothing_is_addressed_to_a_possessive_upward_role():
 
 def test_the_return_path_rule_is_stated_positively_in_the_ssot():
     """Paired presence assertion: deleting the rule tree-wide must NOT make the absence guard
-    above pass. R3 must carry the positive statement."""
+    above pass. R3 must carry the positive statement - BOTH delivery branches, and the ordering
+    facts that make the handback branch safe: the report is handed over the moment the call runs
+    (so it goes LAST, after teardown), a live unforwarded lease refuses it (so take an exit and
+    call again), and a second call is refused (so nothing after it amends the report). Drop any of
+    those and an agent either hands back a report whose lease then disappears, or ends on plain
+    text that - with the tool present - reaches nobody."""
     low = _norm_text(R3_SSOT).lower()
-    assert "your completion report is the final text of your turn" in low, (
+    assert _DECLARING_SENTENCE in low, (
         "spawner-completion-contract.md R3 must state the return path positively"
     )
+    assert re.search(r"`subagenthandback` is in your toolset\*\* -> deliver the report by "
+                     r"calling it with the full report as `message`", low), (
+        "R3 must name the SubagentHandback branch and put the FULL report in its message"
+    )
+    for shape, why in (
+        (r"closed `continuation` block and any `instance_handle`",
+         "the handback message must carry the closed continuation fence and any INSTANCE_HANDLE"),
+        (r"text outside it does not", "text outside the handback reaches nobody"),
+        (r"call it last, after teardown", "the handback goes last, after teardown"),
+        (r"the call is refused and nothing is delivered: take an exit, then call "
+         r"`subagenthandback` again", "a refused handback means take a teardown exit and retry"),
+        (r"a second `subagenthandback` after a delivered one is refused",
+         "a second handback is refused, so finish everything first"),
+        (r"\*\*otherwise\*\* -> your report is the final text of your turn: emit it and stop",
+         "without the tool, the report is the final text of the turn"),
+        (r"`subagenthandback` takes no address, so it is not a send",
+         "the handback is not a send, so it does not reopen the addressing question"),
+    ):
+        assert re.search(shape, low), f"R3 must state that {why}"
     assert "never send your report to anyone" in low, (
         "spawner-completion-contract.md R3 must state the prohibition positively"
     )
@@ -333,7 +381,10 @@ def test_reply_address_field_is_retired_tree_wide():
 #    that states it must cite the SSOT in the same breath.
 # ---------------------------------------------------------------------------
 
-_DECLARING_SENTENCE = "your completion report is the final text of your turn"
+_DECLARING_SENTENCE = "your launcher receives your completion report once, as the last act of your dispatch"
+# The retired, toolset-blind rule. With `SubagentHandback` in the toolset, text outside the handback
+# reaches nobody, so an unconditional "your report is your final text" strands the report.
+_RETIRED_SENTENCE = "your completion report is the final text of your turn"
 
 
 def test_return_path_rule_declared_exactly_once_per_plugin():
@@ -354,6 +405,20 @@ def test_return_path_rule_declared_exactly_once_per_plugin():
     )
 
 
+def test_the_toolset_blind_return_rule_is_gone_tree_wide():
+    """The old declaring sentence made the final text the ONLY delivery, whatever the toolset. With
+    `SubagentHandback` present the harness delivers only the handback message, so an agent obeying
+    the old sentence ends on text nobody receives. It must survive nowhere - a leftover copy is
+    exactly how a changed rule keeps contradicting itself."""
+    offenders = sorted(
+        _rel(p) for p, text in NORMALIZED.items() if _RETIRED_SENTENCE in text.lower()
+    )
+    assert not offenders, (
+        "the toolset-blind return rule survives - point at "
+        "snippets/spawner-completion-contract.md R3 instead:\n" + "\n".join(offenders)
+    )
+
+
 # ---------------------------------------------------------------------------
 # 4. Every surviving send is justified as a DOWNWARD resume by a captured id.
 # ---------------------------------------------------------------------------
@@ -366,15 +431,83 @@ _DOWNWARD_JUSTIFICATION_RE = re.compile(
 )
 
 
+# A hook is a READER of the transcript, never an instruction to an agent: the teardown and handback
+# gates (hooks/lease-correlation.sh) must parse the harness's peer-message records - a child's
+# `SubagentHandback` report, a caller's resume message - by their envelope. Describing that record
+# names the messaging tool without telling anyone to send. The exemption is bound to BOTH the file
+# kind (a hook script) and the record marker in the same window, so agent-facing prose never
+# inherits it and a hook comment that tells an agent to send is still caught.
+_HOOK_DIR = ODOO_PLUGIN / "hooks"
+_PEER_RECORD_MARKER_RE = re.compile(
+    r"(origin\.kind|\.origin\.from|peer_envelope|origin\.handback|queued_command)"
+)
+
+
+def _is_hook_peer_record_read(path: Path, window: str) -> bool:
+    return (
+        path.suffix == ".sh"
+        and _HOOK_DIR in path.parents
+        and bool(_PEER_RECORD_MARKER_RE.search(window))
+    )
+
+
+def _unjustified_send_mentions(path: Path, text: str) -> list[str]:
+    found = []
+    for window in _windows(text, _MESSAGING_TOOL_RE, 200):
+        if _DOWNWARD_JUSTIFICATION_RE.search(window):
+            continue
+        if _is_hook_peer_record_read(path, window):
+            continue
+        found.append(window.strip()[:240])
+    return found
+
+
+_HOOK_RECORD_READ = (
+    "# A caller's SendMessage to this agent lands as a peer message (origin.kind \"peer\", "
+    "origin.from = the sender's agentId); read its text as part of the brief."
+)
+
+
+def test_hook_may_describe_the_peer_record_it_reads():
+    """The carve-out must hold for a hook that parses the peer record, or the gates that enforce
+    teardown-before-handback cannot document their own input."""
+    hook = _HOOK_DIR / "lease-correlation.sh"
+    assert not _unjustified_send_mentions(hook, " ".join(_HOOK_RECORD_READ.split())), (
+        "a hook describing the peer-message record it parses is flagged as a send instruction"
+    )
+
+
+@pytest.mark.parametrize(
+    "path, text",
+    [
+        # The same record description in agent-facing prose is NOT exempt: the carve-out is for
+        # readers, and an agent body is read as instructions.
+        (ODOO_PLUGIN / "agents" / "odoo-backend-coder.md", _HOOK_RECORD_READ),
+        # A hook comment that instructs a send, with no record marker, is still caught.
+        (_HOOK_DIR / "lease-correlation.sh",
+         "# Then SendMessage your completion report to the caller."),
+        # An agent told to push its report through the messaging tool is caught everywhere.
+        (ODOO_PLUGIN / "snippets" / "worker-brief.md",
+         "When done, use SendMessage to deliver your findings to the lead."),
+    ],
+    ids=["record-description-in-agent-prose", "hook-send-instruction", "agent-push-via-tool"],
+)
+def test_the_hook_carve_out_never_covers_a_send_instruction(path, text):
+    assert _unjustified_send_mentions(path, " ".join(text.split())), (
+        f"{path.name}: {text!r} slipped the messaging-tool guard - the hook peer-record carve-out "
+        "is leaking beyond hook scripts that parse the record"
+    )
+
+
 def test_send_target_is_always_an_id_from_your_own_launch():
     """Positive-justification requirement, not an allowlist: every surviving mention of the
-    messaging tool must sit next to the ONE address source that exists."""
-    offenders = []
-    for path, text in NORMALIZED.items():
-        for window in _windows(text, _MESSAGING_TOOL_RE, 200):
-            if _DOWNWARD_JUSTIFICATION_RE.search(window):
-                continue
-            offenders.append(f"{_rel(path)}: ...{window.strip()[:240]}...")
+    messaging tool must sit next to the ONE address source that exists - except a hook script
+    describing the peer-message record it parses (see `_is_hook_peer_record_read`)."""
+    offenders = [
+        f"{_rel(path)}: ...{window}..."
+        for path, text in NORMALIZED.items()
+        for window in _unjustified_send_mentions(path, text)
+    ]
     assert not offenders, (
         "a messaging-tool mention is not justified by the only address any agent holds - the id "
         "its own launch call returned for a child it launched:\n" + "\n".join(offenders)

@@ -149,7 +149,8 @@ def test_acquire_list_release_round_trip(client, world):
 
     # INSTANCE_HANDLE carries the contract's field names, filled from the lease.
     assert set(handle) == {"db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
-                           "demo", "languages_loaded", "log_path", "lease_token", "run_id", "server_pid"}
+                           "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
+                           "server_pid"}
     assert handle["lease_token"] == lease["token"] and handle["run_id"] == RUN
     assert handle["db_name"] == lease["db_name"] and handle["addons_path"] == str(world["addons"])
 
@@ -276,8 +277,14 @@ def test_park_of_an_unknown_token_is_lease_not_found(client, world):
     assert err["code"] == "LEASE_NOT_FOUND"
 
 
-def test_park_of_a_lease_with_no_running_server_is_refused_by_name(client, world):
+def test_park_of_a_lease_never_served_keeps_it_and_a_second_park_is_refused_by_name(client, world):
+    """A lease built and never served has no server to stop, yet its database is what park keeps
+    (the handback gate offers park for it): the park succeeds. Parking it AGAIN is refused by name
+    - a second park would only re-stamp a fresh budget."""
     token = _ok(_acquire(client, world))["lease"]["token"]
+    parked = _ok(client.call("lease_park", {"lease_token": token, "run_id": RUN}))
+    assert parked["parked_at"] and parked["token"] == token
+    assert _registry(world["home"])["leases"][0]["parked_at"] == parked["parked_at"]
     err = _err(client.call("lease_park", {"lease_token": token, "run_id": RUN}))
     assert err["code"] == "NOT_RUNNING"
     assert "instance_serve" in err["remedy"], "the remedy speaks tool vocabulary"
@@ -524,7 +531,8 @@ def test_a_lease_on_a_row_without_python_is_flagged_and_its_build_refused_as_ven
     assert out["venv_missing"] is True and out["lease"]["venv_python"] == ""
     assert out["warnings"] and "venv" in out["warnings"][0]
     err = _err(client.call("instance_build", {"lease_token": out["lease"]["token"], "op": "init",
-                                              "modules": ["base"], "cwd": str(world["work"])}))
+                                              "modules": ["base"], "demo": "off",
+                                              "cwd": str(world["work"])}))
     assert err["code"] == "VENV_MISSING", "a venv that was never built is not a stale lease"
     assert "venv" in err["remedy"] and "lease_acquire" in err["remedy"]
     jobs_dir = world["home"] / "runtime" / "jobs"

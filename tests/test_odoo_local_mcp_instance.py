@@ -27,6 +27,9 @@ import pytest
 
 from odoo_local_mcp_harness import LIB_DIR, PLUGIN, McpClient, hermetic_env, structured
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import odoo_tree_fixtures as trees  # noqa: E402
+
 SERIES = "17.0"
 RUN = "run-instance-owner"
 STEP50 = PLUGIN / "scripts" / "setup-steps" / "50-instance-spinup.sh"
@@ -74,16 +77,34 @@ def world(tmp_path):
     core = tmp_path / "core"
     addons = core / "addons"
     addons.mkdir(parents=True)
+    # The Odoo checkout the tools read option facts from (demo default, port options, short
+    # options): a fixture of SERIES where the stub odoo-bin lives, as in a real checkout.
+    trees.write_checkout(core, SERIES, with_addons=False)
     # odoo-bin delegates to a behavior file each test writes, so one server serves many scenarios.
     behavior = tmp_path / "odoo-behavior.sh"
     behavior.write_text('echo "odoo.modules.loading: Modules loaded."\nexit 0\n', encoding="utf-8")
     calls = tmp_path / "odoo-bin-calls.log"
-    # A `-c <conf>` launch is the LISTENING server 50-instance-spinup.sh starts: it stays up.
+    # A `-c <conf>` launch WITHOUT --stop-after-init is the LISTENING server
+    # 50-instance-spinup.sh starts: it stays up. Builds and exports carry -c too (a generated conf,
+    # so the operator's ~/.odoorc is never read) but always stop after init; the conf each one was
+    # handed is appended to run-confs.log.
+    confs = tmp_path / "run-confs.log"
+    rc_env = tmp_path / "run-rc-env.log"  # ODOO_RC|OPENERP_SERVER each such launch saw
     odoo_bin = _stub(core / "odoo-bin", textwrap.dedent("""\
         echo "odoo-bin $*" >> "%s"
-        for a in "$@"; do [[ "$a" == "-c" ]] && exec sleep 300; done
+        conf=""; prev=""; stop=""
+        for a in "$@"; do
+            [[ "$prev" == "-c" ]] && conf="$a"
+            [[ "$a" == "--stop-after-init" ]] && stop=1
+            prev="$a"
+        done
+        if [[ -n "$conf" && -z "$stop" ]]; then exec sleep 300; fi
+        if [[ -n "$conf" ]]; then
+            { echo "== $conf"; cat "$conf"; } >> "%s"
+            echo "${ODOO_RC-<unset>}|${OPENERP_SERVER-<unset>}" >> "%s"
+        fi
         exec bash "%s" "$@"
-        """ % (calls, behavior)))
+        """ % (calls, confs, rc_env, behavior)))
 
     fake_py_dir = tmp_path / "venv" / "bin"
     fake_py_dir.mkdir(parents=True)
@@ -134,6 +155,7 @@ def world(tmp_path):
                             SPINUP_TIMEOUT="10", **extra)
 
     w = {"home": home, "work": tmp_path, "addons": addons, "behavior": behavior, "calls": calls,
+         "confs": confs, "rc_env": rc_env,
          "odoo_bin": odoo_bin, "python": fake_py, "curl_mode": curl_mode, "env": env,
          "port_base": port_base}
     yield w
@@ -175,8 +197,14 @@ def _lease(c, world, **over):
 
 
 def _build(c, world, token, **over):
+    """instance_build with demo off by default for op init, which requires it (op test takes no
+    demo: the series default applies); pass demo=None to omit it."""
     args = {"lease_token": token, "op": "init", "modules": ["my_mod"], "cwd": str(world["work"])}
     args.update(over)
+    if args["op"] == "init":
+        args.setdefault("demo", "off")
+    if args.get("demo") is None:
+        args.pop("demo", None)
     return c.call("instance_build", args)
 
 
@@ -194,11 +222,13 @@ def _registry(world):
 def test_build_runs_against_the_leases_coordinates_and_succeeds(client, world):
     lease = _lease(client, world)
     started = time.monotonic()
-    job = _ok(_build(client, world, lease["token"], extra_args=["--without-demo=all"]))
+    job = _ok(_build(client, world, lease["token"], extra_args=["--log-level=debug"]))
     assert time.monotonic() - started < 15, "instance_build must return before the build finishes"
-    assert job["instance_handle"]["log_path"] == job["log_path"]
+    assert "instance_handle" not in job, (
+        "a handle read at the start states the database BEFORE the build changed it")
     done = _wait(client, job["job_id"])
     assert done["result"] == "success", done
+    assert done["instance_handle"]["log_path"] == job["log_path"]
     assert done["exit_code"] == 0 and done["state"] == "exited"
     assert "Modules loaded." in done["marker"]
     assert done["summary"].get("STATUS") == "ok"
@@ -207,7 +237,8 @@ def test_build_runs_against_the_leases_coordinates_and_succeeds(client, world):
     argv = world["calls"].read_text()
     assert "-d %s" % lease["db_name"] in argv and "-i my_mod" in argv
     assert "--addons-path %s" % world["addons"] in argv
-    assert "--without-demo=all" in argv
+    assert "--log-level=debug" in argv
+    assert "--without-demo=True" in argv, "demo off on 17.0 is spelled --without-demo=True by the tool"
 
 
 def test_build_that_silently_skips_a_module_is_a_failure(client, world):
@@ -310,7 +341,7 @@ def test_build_hands_the_script_every_lease_fact_via_the_ops_script_override(wor
         c.initialize()
         lease = _lease(c, world, ports=1)
         job = _ok(_build(c, world, lease["token"], op="test", modules=["a", "b"], test_mode="reuse",
-                         log_mode="debug", extra_args=["--log-level=warn", "--without-demo"]))
+                         log_mode="debug", extra_args=["--log-level=warn", "--workers=0"]))
         done = _wait(c, job["job_id"])
     seen = json.loads(record.read_text())
     argv = seen["argv"]
@@ -323,7 +354,11 @@ def test_build_hands_the_script_every_lease_fact_via_the_ops_script_override(wor
     assert pairs["--version"] == SERIES
     assert pairs["--db-host"] == "localhost" and pairs["--db-user"] == "odoo"
     assert pairs["--mode"] == "reuse" and pairs["--log-mode"] == "debug"
-    assert pairs["--extra"] == "--log-level=warn --without-demo"
+    assert pairs["--extra"] == "--log-level=warn --workers=0"
+    # A test build takes no demo argument: the tool hands the script the series default it read
+    # from the lease's checkout (SERIES loads demo by default).
+    assert pairs["--demo"] == "on" and pairs["--languages"] == "en_US"
+    assert "--load" not in argv, "nothing declared server-wide and no readable core: no --load"
     assert "--db-port" not in argv, "an undeclared db_port is omitted, never invented"
     assert pairs["--http-port"] == str(lease["ports"][0]), "the build binds the lease's own port"
     assert seen["log"] == job["log_path"]
@@ -340,11 +375,13 @@ def _odoo_bin_port_flags(world):
             if w in ("--http-port", "--xmlrpc-port", "--gevent-port", "--longpolling-port")]
 
 
-def _declare_series(world, series):
-    """Re-declare the stubbed world's single catalog row under another series."""
+def _declare_series(world, series, checkout=None):
+    """Re-declare the stubbed world's single catalog row under another series, and make its core
+    dir a checkout of `checkout` (default: the same series)."""
     toml = world["home"] / "instances.toml"
     toml.write_text(toml.read_text().replace('series = "%s"' % SERIES, 'series = "%s"' % series),
                     encoding="utf-8")
+    trees.write_checkout(world["addons"].parent, checkout or series, with_addons=False)
 
 
 @pytest.mark.parametrize("series,flag", [("17.0", "--http-port"), ("11.0", "--http-port"),
@@ -537,14 +574,36 @@ def test_a_two_port_lease_is_served_with_the_series_second_port_key(client, worl
     _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
 
 
-@pytest.mark.parametrize("series,key", [("8.0", "longpolling_port"), ("10.0", "longpolling_port"),
-                                        ("15.0", "longpolling_port"), ("16.0", "gevent_port"),
-                                        ("19.0", "gevent_port"), ("saas~17.2", None), ("", None)])
-def test_second_port_key_follows_the_option_dest_of_each_series(series, key):
-    from odoo_local_mcp_harness import import_package
-    import_package()
-    from odoo_local import tools_instance
-    assert tools_instance.second_port_key(series) == key
+@pytest.mark.parametrize("checkout,key", [("8.0", "longpolling_port"), ("10.0", "longpolling_port"),
+                                          ("15.0", "longpolling_port"), ("16.0", "gevent_port"),
+                                          ("19.0", "gevent_port")])
+def test_the_second_port_key_is_the_option_the_leases_checkout_declares(world, tmp_path, checkout, key):
+    """The catalog says 17.0 throughout; the checkout the lease builds decides the key (its
+    config.py option dest), so a series number can never pick a key the checkout lacks."""
+    _declare_series(world, SERIES, checkout=checkout)
+    stand_in, record = _ops_recorder(tmp_path)
+    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, ports=2)
+        _wait(c, _ok(_build(c, world, lease["token"], op="test", test_tags="/x"))["job_id"])
+    argv = json.loads(record.read_text())["argv"]
+    pairs = dict(zip(argv[1::2], argv[2::2]))
+    assert pairs["--gevent-port"] == str(lease["ports"][1]) and pairs["--gevent-port-key"] == key
+
+
+def test_a_second_port_the_checkout_cannot_name_is_refused_before_anything_starts(world, tmp_path):
+    config = world["addons"].parent / "odoo" / "tools" / "config.py"
+    config.write_text("\n".join(ln for ln in config.read_text().splitlines()
+                                 if "--gevent-port" not in ln and "--longpolling-port" not in ln),
+                      encoding="utf-8")
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world, ports=2)
+        err = _err(_build(c, world, lease["token"], op="test", test_tags="/x"))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "second port" in err["message"]
+    assert "odoo_root" in err["remedy"]
+    jobs_dir = world["home"] / "runtime" / "jobs"
+    assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
 
 
 def test_serve_that_attaches_to_a_port_no_server_of_the_lease_holds_is_a_failure(client, world):
@@ -640,42 +699,71 @@ REFUSED_EXTRA = ["--database=other", "--datab=other", "-d", "-dother", "--db-fil
                  "--pidfile=/x", "--db-template=tpl", "--db_template=tpl", "--db_replica_host=x",
                  "--db_replica_port=1", "--test-file=/x",
                  # "end of options": what follows (the tool's own flags) would become positional
-                 "--"]
-ALLOWED_EXTRA = ["--without-demo=all", "--log-level=debug", "--load=base,web", "--dev=xml",
+                 "--",
+                 # the build facts the tool applies itself (server-wide modules, languages, demo) -
+                 # full names, accepted prefixes, and the short -l in a cluster
+                 "--load=base,web", "--load", "--loa=base", "--load-language=fr_FR",
+                 "--load-lang=fr_FR", "--language=fr_FR", "--lang=fr_FR", "-lfr_FR", "-ldother",
+                 "-l", "-slfr_FR", "--with-demo", "--with", "--without-demo=all",
+                 "--without-demo=True", "--without-demo", "--witho"]
+ALLOWED_EXTRA = ["--log-level=debug", "--dev=xml", "--log-handler=odoo.sql_db:DEBUG",
                  "--http-interface=127.0.0.1", "--workers=0", "--i18n-overwrite",
-                 # -l takes a value, so the rest of the cluster is its value, not options
-                 "-lfr_FR", "-ldother", "--log-handler=odoo.sql_db:DEBUG", "--db_maxconn=4",
-                 "--limit-time-real=600", "debug"]
+                 "--db_maxconn=4", "--limit-time-real=600", "--limit-memory-soft=1",
+                 "--skip-auto-install", "debug"]
 
 
 @pytest.mark.parametrize("token", REFUSED_EXTRA)
 def test_an_extra_arg_setting_a_tool_controlled_flag_is_refused_before_anything_starts(client, world, token):
     lease = _lease(client, world)
-    err = _err(_build(client, world, lease["token"], extra_args=["--without-demo=all", token]))
+    err = _err(_build(client, world, lease["token"], extra_args=["--log-level=debug", token]))
     assert err["code"] == "INVALID_ARGUMENTS" and "arguments.extra_args" in err["message"]
     assert err["diagnostics"]["token"] == token and err["diagnostics"]["flag"] in err["message"]
     jobs_dir = world["home"] / "runtime" / "jobs"
     assert not jobs_dir.is_dir() or not list(jobs_dir.glob("*.json"))
 
 
-def test_ordinary_extra_args_are_not_refused():
+def _shorts(tmp_path, series):
+    """The short-option map a checkout of `series` declares (fixture tree, see odoo_tree_fixtures)."""
     from odoo_local_mcp_harness import import_package
     import_package()
+    from odoo_local import cli
+    return cli.load_lib("odoo_source_facts").short_options(trees.write_checkout(tmp_path / series, series))
+
+
+def test_ordinary_extra_args_are_not_refused(tmp_path):
+    shorts = _shorts(tmp_path, SERIES)
     from odoo_local import tools_instance
-    assert [t for t in ALLOWED_EXTRA if tools_instance.refused_extra_flag(t, SERIES)] == []
+    assert [t for t in ALLOWED_EXTRA if tools_instance.refused_extra_flag(t, shorts)] == []
 
 
 @pytest.mark.parametrize("token,series,flag", [
-    ("-t/x", "17.0", "-t"), ("-t/x", "19.0", "-t"), ("-t/x", None, "-t"),  # --test-tags from 17.0
+    ("-t/x", "17.0", "-t"), ("-t/x", "19.0", "-t"),  # the checkout declares -t as --test-tags
     ("-tEurope/Paris", "8.0", None),   # 8.0: -t is --timezone, a free option taking a value
     ("-tdfoo", "8.0", None),           # ... so "dfoo" is its value, not -d
+    ("-t/x", "16.0", None),            # no -t declared: nothing it could set
     ("-sdfoo", "8.0", "-s"), ("-rodoo", "10.0", "-r"), ("-wx", "20.0", "-w"),
+    ("-sdfoo", "20.0", "-d"),          # 20.0 declares no -s: the -d after it is still read
 ])
-def test_short_option_meaning_follows_the_series(token, series, flag):
-    from odoo_local_mcp_harness import import_package
-    import_package()
+def test_short_option_meaning_follows_the_checkout(tmp_path, token, series, flag):
+    shorts = _shorts(tmp_path, series)
     from odoo_local import tools_instance
-    assert tools_instance.refused_extra_flag(token, series) == flag
+    assert tools_instance.refused_extra_flag(token, shorts) == flag
+    assert tools_instance.refused_extra_flag("--database=x", None) == "--database", (
+        "a long option needs no checkout")
+    with pytest.raises(ValueError):
+        tools_instance.refused_extra_flag(token, None)
+
+
+def test_a_short_extra_arg_with_no_readable_checkout_is_refused_before_anything_starts(world):
+    """What a short option sets depends on the checkout (-t is --timezone or --test-tags or
+    nothing); with no checkout to read, it is refused rather than guessed."""
+    config = world["addons"].parent / "odoo" / "tools" / "config.py"
+    config.unlink()
+    with McpClient(world["env"](), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world)
+        err = _err(_build(c, world, lease["token"], demo=None, op="update", extra_args=["-t/x"]))
+    assert err["code"] == "ODOO_SOURCE_FACT_UNKNOWN" and "short options" in err["message"]
 
 
 # --------------------------------------------------------------------------- #

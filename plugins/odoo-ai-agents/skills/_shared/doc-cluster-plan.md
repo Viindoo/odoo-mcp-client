@@ -104,18 +104,18 @@ on top = most pure); ties break to the earliest instance in the schedule. Three 
   it. When W=1, all paths serialize; the planner records that so the runner reports
   `status: DONE` with `concerns: [W=1: serialized]`.
 
-### 7. Provision flags per install step
+### 7. Build inputs per install step
 
-Every install step keeps three flags, whose exact names are resolved version-aware via OSM
-`cli_help` at runtime (never hardcode a flag spelling):
+Every install step is an `instance_build` op `init` carrying the same three inputs:
 
-- **skip-auto-install** - install ONLY the target + its declared deps; do not let Odoo pull in
-  `auto_install=True` modules whose menus/fields would pollute the doc (see
-  `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md` for demo seeding; a legitimately-required
-  auto-install bridge is added EXPLICITLY to `-i`, never by re-enabling auto-install wholesale).
-- **with-demo** - so scenario/screenshot data exists (default-on many series; force where needed).
-- **load-language=<csv>** - activate every resolved locale so the UI renders per-locale (English
-  mandatory canonical + registry-resolved others).
+- **`demo` `on`** - so scenario/screenshot data exists; the tool spells the series' own flag.
+- **`languages`** = every resolved locale, so the UI renders per-locale (the tool adds `en_US`, the
+  mandatory canonical locale, itself).
+- **skip-auto-install** in `extra_args`, spelled per the series' OSM `cli_help` (never hardcoded) -
+  install ONLY the target + its declared deps; do not let Odoo pull in `auto_install=True` modules
+  whose menus/fields would pollute the doc (see `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`
+  for demo seeding; a legitimately-required auto-install bridge is added EXPLICITLY to `modules`,
+  never by re-enabling auto-install wholesale).
 
 ### 8. Emit `doc-plan.yaml`
 
@@ -180,7 +180,7 @@ parallelism:
     # convergence node mod_a2 runs AFTER branch-1 (inst-c2-b) has doc'd its own modules
 provision_cadence:
   incremental: true                      # keep each instance ALIVE; install the next delta between doc steps
-  per_step_flags: [skip-auto-install, with-demo, "load-language=<csv>"]   # exact flag spelling resolved via cli_help
+  per_step_build: {demo: on, languages: [<locales>], extra_args: [skip-auto-install]}   # instance_build inputs; flag spelled via cli_help
   loop: "per instance: for step in install_doc_sequence: install_delta -> doc(if doc:true) -> verify -> commit; then convergence: reuse -> install_fill -> doc"
 purity: strict-branch                    # (default) linear paths share; independent branches split; convergence reuses+fills. Override: fresh-per-module
 ```

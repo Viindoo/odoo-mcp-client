@@ -66,57 +66,47 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 
 > `adapt_version` above refers to the install-gate version-string validation (v17+ regex enforcement). The same function also series-prefixes the manifest for migration-runner comparison (its second role) - see C2 in `[[fp-merge-absorption]]`.
 
-## CLI - demo flag
+## Build facts the odoo-local tools apply
 
-| Scenario | Flag / behavior | Version range |
-|---|---|---|
-| Disable demo data | `--without-demo` | v8-v19 (present in ALL versions) |
-| `--without-demo` takes a REQUIRED value - bare `--without-demo` is a parse error (`option requires 1 argument`) | `--without-demo=all` | v8-v18 |
-| `--without-demo` takes an OPTIONAL, BOOL-typed value - bare `--without-demo` is valid | `--without-demo` | v19+ |
-| Demo ON is the default; no extra flag needed to get demo | *(default)* | v8-v18 |
-| Enable demo data | `--with-demo` | **v19+ only** - this flag does NOT exist in v8-v18 |
-| Demo default | **ON** when `-i`/`-u` given | v8-v18 |
-| Demo default | **OFF** | v19+ |
+`instance_build` and `instance_serve` apply three build facts themselves, on every series: the
+server-wide modules (`--load`), the languages (`--load-language`) and the series' demo flag. Never
+put any of them in `extra_args` and never compose them by hand. The judgement left to you is which
+`demo` and which `languages` to ask for, and what to do with the warnings `job_wait` reports.
 
-> **The flag's ARITY moved - carrying one spelling across that boundary is a real defect.** In the
-> earlier era it is an ordinary string option (optparse `action="store"`, `nargs=1`), so a value is
-> mandatory and the documented `all` form is the one to use. In the later one it is re-declared onto
-> `dest="with_demo"` with `nargs='?'`, `const=True` and a BOOL type inverted on read: a bare
-> `--without-demo` is the intended spelling, and a module-list value no longer parses (it fails the
-> bool check, logs `invalid boolean value: 'all'`, and only reaches "demo off" via that fallback).
-> Rows above own the boundary; read at `odoo/tools/config.py` across the indexed span (2026-09-02).
+- **Server-wide modules.** The tools load the series' core default (read from the lease's Odoo
+  checkout) plus the `server_wide_modules` of the lease's catalog row, fixed on the lease when it is
+  acquired. A `job_wait` warning that a module must be loaded server-wide means that catalog row is
+  incomplete: follow its remedy (it names the row and its `/odoo-ai-agents:odoo-setup refresh`),
+  then release the lease and acquire a new one before you trust any result from that instance. Never answer it by installing the module with `-i`.
+- **Languages.** Pass the target codes as `languages`; the tool adds `en_US` to every build.
+  `job_wait` reports `languages_loaded` and `languages_failed`, proven from the build log; a code in
+  `languages_failed` is not loaded, whatever you asked for.
+- **Demo.** Pass `demo` (`on` | `off`) on every `init` build by its PURPOSE, per the table below,
+  and never on a test build (the tool applies the series default; `job_wait` reports it). Demo data
+  never leaves a database; `INSTANCE_HANDLE.demo` is the DATABASE's, from any lease.
 
-> `--without-demo=False` is **INVALID** in all versions. Never use it. In the string era the value is
-> only truthiness-tested at the consumption site (`if not tools.config['without_demo']`,
-> `odoo/modules/loading.py`), so `"False"` is TRUE and DISABLES demo - the opposite of how it reads;
-> in the bool era it parses, but the command line still reads as its own opposite. Say what you mean:
-> omit the flag where demo is already on, or pass `--with-demo` where it is not. That same
-> truthiness-only consumption also breaks the help text's per-module promise ("comma-separated, use
-> \"all\" for all modules"): ANY non-empty value disables demo for EVERY module in the build.
+| Series default | Series |
+|---|---|
+| Demo data loaded by default | v8-v18 |
+| NO demo data by default | v19+ |
 
 ### Demo data by build PURPOSE
 
-Because the default flips at v19, the build's PURPOSE decides the flag there. Resolve the purpose
-from the dispatch brief's own signals, never from the operation name alone.
+Resolve the purpose from the dispatch brief's own signals, never from the operation name alone.
 
-| Build purpose - the signal that decides it | `demo` field (what the build REQUIRES, not what the DB ends up with) | v19+ flag | v8-v18 flag |
-|---|---|---|---|
-| Automation test run that gates code - ANY `--test-enable` build, at BOTH `GATE_ROLE: node-verify` and `GATE_ROLE: pre-pr-lint-gate` | `off` | none - already off | none - demo stays ON by default here, and that is correct; do NOT reach for a disable flag |
-| Translation export / `.pot` / `.po` work | `on` | `--with-demo` | none - already on |
-| Documentation capture (`CONTEXT: doc`), demo recording, UI review | `on` | `--with-demo` | none - already on |
-| Acceptance live-UI sweep | `on` | `--with-demo` | none - already on |
-| Demo-load verification - proving a module's own `demo/` data still loads. INSTALL ONLY: this build NEVER carries `--test-enable` | `on` | `--with-demo` | none - already on |
-| Anything whose OUTPUT does not depend on demo records - a debug reproduction, an ensure-up, a language activation, a bare create, a no-code-change smoke run | `off` | none | none |
+| Build purpose - the signal that decides it | `demo` on a series whose default loads demo | `demo` on a series whose default loads none |
+|---|---|---|
+| Automation test run that gates code - ANY `--test-enable` build, at BOTH `GATE_ROLE: node-verify` and `GATE_ROLE: pre-pr-lint-gate` | series default (omit `demo`): demo, as its own CI runs; an `init` a test build reuses passes `on` | series default (omit `demo`): none; an `init` a test build reuses passes `off`; `on` and a demo database (`TEST_DB_HAS_DEMO`) are refused |
+| Translation export / `.pot` / `.po` work | `on` | `on` |
+| Documentation capture (`CONTEXT: doc`), demo recording, UI review | `on` | `on` |
+| Acceptance live-UI sweep | `on` | `on` |
+| Demo-load verification - proving a module's own `demo/` data still loads. INSTALL ONLY: this build NEVER carries `--test-enable` | `on` | `on` |
+| Anything whose OUTPUT does not depend on demo records - a debug reproduction, an ensure-up, a language activation, a bare create, a no-code-change smoke run | `on` - the series default | `off` - the series default |
 
-The last row is the ONLY way a demo-carrying build and a code-gating suite coexist: they are two
-SEPARATE builds, never one build with both flags. Loading demo proves the `demo/` XML still parses
-and installs; running the suite proves the code works - and the moment demo rows enter a DB the
-suite asserts on, a correct test that counts records starts failing, which makes weakening the test
-look like the fix.
-
-`demo: off` states that the build does not REQUIRE demo; it is never an instruction to remove demo
-that the series loads by default. Disabling it changes what the build reproduces, so every row above
-asks for a flag only where one is needed to ADD demo.
+A demo-carrying build and a code-gating test build are two SEPARATE builds on two leases: loading
+demo proves the `demo/` XML installs; the suite proves the code works. Where the default loads no
+demo, never test on a database holding demo (a handle whose `demo` is `true`, an acceptance or
+documentation instance): test on a fresh lease.
 
 > **A v19+ automation-test build carries NO demo data, and the test suite must not want any.** Demo
 > records are absent there, so a test that reads one fails. Every durable test authored for a v19+
@@ -124,6 +114,13 @@ asks for a flag only where one is needed to ADD demo.
 > in `setUpClass` / `setUp` and MUST NOT reference a demo record by xmlid or by name. This holds even
 > when the test was authored while driving a demo-carrying acceptance instance: the file it leaves
 > behind runs demo-less in the gate.
+
+### Test run on an existing database - `-i` vs `-u`
+
+| Database state | Test build (`instance_build` op `test`) | Series |
+|---|---|---|
+| Scope modules NOT installed yet (a new database) | `test_mode` `fresh` (`-i`) | every series |
+| Scope modules ALREADY installed | `test_mode` `reuse` (`-u`) - right on every series | every series; from v19 `-i` skips an installed module and runs none of its tests |
 
 ## Framework-validation test classes (named in `--test-tags` beside module tags)
 
@@ -154,35 +151,6 @@ tests; this is not a mirror of them, and a class that fails any of the three doe
 > wrong twice, once on a bound and once by reading "the old name is absent" as "the thing is gone".
 > An UNTAGGED run needs none of this - it already includes every framework class - so prefer it
 > wherever the cost of running the full closure is acceptable.
-
-## CLI - server-wide modules (`--load` / `server_wide_modules`)
-
-| Series | Core default | Viindoo set to union | Resulting `--load` on a Viindoo profile |
-|---|---|---|---|
-| v8-v10 | `web,web_kanban` | `to_base` | `web,web_kanban,to_base` |
-| v11 | `web` | `to_base` | `web,to_base` |
-| v12-v17 | `base,web` | `to_base` | `base,web,to_base` |
-| v18 | `base,web` | `to_erponline_utility,viin_brand` | `base,web,to_erponline_utility,viin_brand` |
-| v19+ | `base,rpc,web` | `to_erponline_utility,viin_brand` | `base,rpc,web,to_erponline_utility,viin_brand` |
-
-> Core-default column read from `--load`'s `my_default=` in `odoo/tools/config.py` (`openerp/` in the
-> earliest series) across every indexed checkout, 2026-09-17. The core default is NOT monotonic - it
-> loses a module at v11 and gains one at v12 and again at v19 - so it is read per row, never
-> interpolated between rows. The Viindoo column is a Viindoo DEPLOYMENT fact, not a source fact:
-> `grounded: operator-report 2026-09-17`; module presence in a profile cannot confirm it, because
-> every module named here also resolves on series where it is not server-wide.
-
-> **`to_base` leaves the SERVER-WIDE set at v18.** It stays an ordinary installable module there;
-> only its server-wide role ends. A v18+ `--load` that still lists it is wrong even though the
-> module itself resolves.
-
-> **`rpc` is a v19 core addon, absent at v18, and Odoo re-adds only `base` and `web` when a `--load`
-> omits them.** A v19+ `--load` spelled `base,web,...` therefore drops `rpc` with no error and no log
-> line. Spell the whole set for the series; never append to a remembered shorter one.
-
-> `cli_help(command='server', flag='--load', odoo_version='<version>')` returns NO `Default:` line on v19 - silent, not stale.
-> Take the core default from this table and flag `grounded: local-source`; do not read the silence as
-> "no modules load by default".
 
 ## JavaScript / OWL / tests
 

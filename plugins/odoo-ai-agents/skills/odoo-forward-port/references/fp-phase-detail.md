@@ -760,8 +760,9 @@ For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `o
 the SAME `INSTANCE_HANDLE` forwarded, `mode: reuse` (`-u` semantics) and `GATE_ROLE: node-verify`
 on the changed modules only
 - skip re-running the full closure. Behavior rule: once a module is installed in this DB,
-re-running its tests MUST use `reuse`; `fresh`/`-i` on an already-installed module is a no-op
-(confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+re-running its tests MUST use `reuse` (`-u`, right on every series); `fresh`/`-i` on an
+already-installed module runs none of its tests on recent series
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database; confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 Relay the returned `instance-ops` block (`log_path`, `findings_path`, `modules_installed`,
 `failed`/`errors`/`warnings`/`skipped`) into `merge-log.md` verbatim - never trust a bare "tests
@@ -925,7 +926,7 @@ git worktree list          # confirm no dangling fp/<slug>-* child worktrees
 ```
 
 Confirm no instance of this run is still leased: call `mcp__plugin_odoo-ai-agents_odoo-local__lease_list`
-with scope `run` and this run's `run_id`, and `lease_release` any lease the P11 release step left
+with scope `run` and this run's `run_id`, and `lease_release` any lease the P9 instance release step left
 behind - you are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
 Leave `<ISOLATE_DIR>/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and

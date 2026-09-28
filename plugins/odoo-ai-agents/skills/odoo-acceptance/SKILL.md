@@ -75,7 +75,8 @@ happens inside the agents. Fan-out and model-tier policy:
 ## Inputs
 
 A change reference (changed modules / diff / design doc), the `odoo_version`, and a way to reach a
-live instance (`INSTANCE_HANDLE` if a run already provisioned one, else resolve per
+live instance (`INSTANCE_HANDLE` if a run already provisioned one AND its `demo` is `true` - a
+test or verify handle is never an acceptance cluster, so provision per Phase 2 instead; else resolve per
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`, which also yields the `BROWSER_MODE` -
 headed/headless - for the live channel). This run's `slug` is minted at Phase 0 below (after its
 orphan sweep) and reused in every artifact path from there on - including each dispatched
@@ -135,7 +136,9 @@ prefork only if a scenario genuinely requires it.
 final release drops it, which is the intended teardown. Never release it mid-run - a Phase 3 gap
 takes park/resume, per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5.
 Capture `INSTANCE_HANDLE` once and forward it to
-every dispatch below (precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`).
+every dispatch below except the Phase 2a test run (precedence:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`; dispatches sharing it, the Phase 3
+fix-loop's included, follow its § One build or export per database).
 Provisioning and the test-run lifecycle are NOT owned here - the `odoo-instance` SKILL (which dispatches the
 `odoo-instance-ops` agent) owns create/init/run-tests/drop
 and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
@@ -156,7 +159,13 @@ oracle's user-flow scenarios as durable regression, then have `odoo-instance` ru
 `--test-enable`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR lint gate -
 scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
 is about those modules, and an untagged run would spend the sweep re-testing the core closure they
-pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **The files this channel leaves
+pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **That run builds on a FRESH
+lease - `mode: fresh`, no `demo` (a test build runs the series default: the automation-test row of
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE) - and NEVER on
+Phase 2's `INSTANCE_HANDLE`:** that cluster carries demo, and a test build on a series whose
+default loads no demo never runs on a demo database. Do not forward the cluster handle into this
+dispatch (thread the same `WORKTREE_PATH` as Phase 2); the cluster keeps `demo: on` for Phase 2b and
+Phase 3. **The files this channel leaves
 behind must not depend on demo data**, even though Phase 2's own cluster carries it: they run later
 in the automation-test environment, which on some series has no demo at all. State that constraint in
 the writer's brief; the rule itself is `odoo-test-writing`'s own. This channel uses no browser,

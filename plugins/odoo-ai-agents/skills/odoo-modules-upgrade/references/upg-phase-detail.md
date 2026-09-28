@@ -607,8 +607,8 @@ being named; name them only in a tag-scoped run elsewhere, resolving each class 
 series first (${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Framework-validation test classes). **This gate is an automation-test build, so its demo shape is the automation-test row,
 never an exception to it** - resolve it from
 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md § Demo data by build PURPOSE. Do NOT request
-demo for this gate on a series where demo defaults off: the test environment there does not accept
-it, and the `odoo-instance` dispatch refuses the request rather than honouring it. These framework
+demo for this gate: a test build takes no `demo` - the tool applies the series default, and where
+demo defaults off it refuses demo on and any database a build filled with demo. These framework
 classes do not need a demo build to run - their base class creates the demo user itself when the
 database has none (`odoo/addons/base/tests/common.py`, `TransactionCaseWithUserDemo.setUpClass`),
 so read that base class for the target series rather than assuming a demo build is required. The
@@ -620,15 +620,15 @@ Step 1 - create instance (once):
 ```
 operation: create
 series: <target_version>
-demo: <resolve from the automation-test row of § Demo data by build PURPOSE for this series - see note above; never `on` where demo defaults off>
+demo: <the series default: the automation-test row of § Demo data by build PURPOSE - this database hosts every level's test run, which runs the series default; never `on` where demo defaults off>
 SHARE_DIR: <the SAME literal resolved at P0 intake, per `## Base` above - substitute it>
 ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-resolve>
 WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
                                          # creation above); forwarded verbatim as odoo-instance's
                                          # own WORKTREE_PATH field (`odoo-instance` §
                                          # WORKTREE_PATH substitution), so lease_acquire's
-                                         # addons_path covers it - this is what P5.7
-                                         # depends on ("its addons path MUST cover WORKTREE_PATH")
+                                         # addons_path covers it and every level tests the
+                                         # adapted tree, not the principal checkout
 ```
 
 For each dependency level in topo_order (leaves first), run Steps 2-3 before moving to the next level:
@@ -637,6 +637,7 @@ Step 2 - init (install) this level's modules:
 ```
 operation: init
 series: <target_version>
+demo: <the SAME value as Step 1 - the level's test run reuses this database>
 modules: <FULL transitive closure of THIS LEVEL's modules - including external/core deps from
           graph.md P1a's full closure - plus all previously installed modules, comma-separated;
           re-specifying deps ensures Odoo's dep-order logic holds and no external dep is skipped>
@@ -674,8 +675,8 @@ alongside the level result. A level that passed Step 3 is NOT a level that passe
 Each flip-gate instance was provisioned for THIS run and handed back UP, so you are its run-level
 owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once its verdict is recorded, call
 `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with its `lease_token` and `run_id`. The
-Step 1 instance is different - every level and P5.8 reuse it, so keep it until P5.8 has returned,
-then release it the same way (the P5.8 release step).
+Step 1 instance is different - every level reuses it, so keep it until the last level is green,
+then release it the same way (the P5 instance release step).
 
 After each level: write level result to `install-test.md` and update `checkpoint.json`
 (set `installed` for each module in the level that passed). On FAILURE in a level:
@@ -745,15 +746,11 @@ strings changed. The ONLY skips are the enumerated escapes in
 When it runs:
 ```
 SKILL: odoo-i18n
-INSTANCE: DECIDE, never assume - the export needs a DEMO-CARRYING build, because demo-owned records
-          carry translatable terms and a demo-less build ships a truncated catalog (i18n caller
-          obligation 5; `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4).
-          P5's instance is an AUTOMATION-TEST build, so whether it carries demo depends on the
-          series (§ Demo data by build PURPOSE). Inherit the P5 ephemeral instance ONLY when that
-          row says the test build carries demo - its addons path MUST then cover WORKTREE_PATH
-          (established at P5 Step 1's own WORKTREE_PATH field, above). Where the test build is
-          demo-less, this dispatch MUST use SELF_PROVISION and build its own demo-carrying instance
-          instead - never inherit a demo-less build for an export, and never ask P5 to turn demo on
+INSTANCE: SELF_PROVISION - odoo-i18n builds its own export instance: demo on, en_US + every target
+          language, and the .pot and every .po exported from that ONE build (i18n caller obligation 5;
+          `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4). Never inherit the
+          P5 instance: it is an automation-test build without the target languages, and demo
+          loads at install only, so it cannot be turned into an export build
 MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
@@ -775,9 +772,9 @@ STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
      `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` (apply the ARTEFACT test BEFORE ruling
      WRONG, or an entry whose translation equals its source blocks a correct run) - preserves every
      existing msgstr except an adjudicated-CORRECT loss
-  3. hand-translate ONLY the genuinely NEW residual entries - a blank `msgstr` may instead be an
-     entry whose translation equals its source, which Odoo never re-exports; restore those
-     rather than translating them (`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`)
+  3. translate every entry left with an empty `msgstr`; one whose correct translation equals its
+     `msgid` stays EMPTY and is not residual - never write the `msgid` into it
+     (`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`)
   4. reload with `-u <module>` on the instance and confirm the catalog loads
 ```
 Output: `i18n-reconcile.md` (per-module: residual count, translated count, skipped?).

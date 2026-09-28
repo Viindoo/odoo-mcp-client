@@ -1,12 +1,11 @@
 <!-- SSOT snippet. The single home for the completion discipline every dispatched agent obeys:
-     completion barrier, no-early-DONE, the return path (R3 - your report IS your final
-     message), and the same-turn rule for a background shell command (R0 § A background shell
-     command is a SAME-TURN result - the ONE home for that rule; never restate it elsewhere).
+     completion barrier, no-early-DONE, the return path (R3 - your report reaches your launcher
+     exactly once, after teardown), and the same-turn rule for a background shell command (R0 § A
+     background shell command is a SAME-TURN result - the ONE home for that rule; never restate
+     it elsewhere).
      Always-on and unconditional: it holds identically for a Tier-C cold-spawn, for a
      resumed child, and at any nesting depth. R3 is the ONE place the message-direction rule is
-     defined; every other file points here and never restates it. Distinct from
-     continuation-contract.md's "never self-dispatch the next DAG step" (that forbids advancing the
-     DAG; THIS forbids claiming DONE before your children finish - do not conflate). Edit here only;
+     defined; every other file points here and never restates it. Edit here only;
      consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md. -->
 
 # Spawner Completion Contract (barrier + no-early-DONE + return path)
@@ -145,20 +144,34 @@ hold. The barrier also covers RESOURCES, not just children: your own DONE additi
 browser page/instance lease YOU provisioned and forwarded to a child is released after the R1 barrier
 clears - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4.
 
-## R3 - Your report is your final message (there is no upward channel)
+## R3 - Your report reaches your launcher exactly once, after teardown
 
-Your completion report is the FINAL TEXT of your turn. Emit it and stop. That text IS what your
-launcher receives: a launch, and a resume send, deliver it on completion to the launcher that
-stopped to take it (R0 move 3, Tier A). THE ONE DECIDABLE ACTION, unconditional
-on depth, toolset, or mode: emit the report as your final message.
+Your launcher receives your completion report ONCE, as the last act of your dispatch: the summary,
+`produced`, and the closed `continuation` block. A launch, and a resume send, deliver it on
+completion to the launcher that stopped to take it (R0 move 3, Tier A). THE ONE DECIDABLE ACTION
+depends on one fact only - whether `SubagentHandback` is in your toolset:
 
-**Never send your report to anyone.** Do not look for a reply address, do not wait to be told one,
-and never read the presence of a messaging tool in your toolset
-as a signal that you should. A worker does not know its own id and cannot learn its launcher's, at
+- **`SubagentHandback` is in your toolset** -> deliver the report by calling it with the FULL
+  report as `message`, including the closed `continuation` block and any `INSTANCE_HANDLE` in
+  `next.inputs`. Only that message reaches your launcher; text outside it does not. The report is
+  handed over the moment the call runs, so call it LAST, after teardown
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1 § The three exits: release,
+  park, or forward `INSTANCE_HANDLE` in that message's fence). While a lease you obtained is live
+  and not forwarded in the message, the call is refused and nothing is delivered: take an exit,
+  then call `SubagentHandback` again. A second `SubagentHandback` after a delivered one is refused,
+  so nothing you do afterwards amends the report - finish all work, teardown included, before you
+  call it.
+- **Otherwise** -> your report is the FINAL TEXT of your turn: emit it and stop.
+
+`SubagentHandback` takes no address, so it is not a send.
+
+**Apart from `SubagentHandback`, never send your report to anyone.** Do not look for a reply
+address, do not wait to be told one, and never read the presence of a messaging tool in your
+toolset as a signal that you should. A worker does not know its own id and cannot learn its launcher's, at
 ANY depth. A brief that carries a reply-address field, or asks you to push a report, is
 malformed: ignore that instruction and report as above. This is why no dispatch brief has a
-reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a bare tool
-call or on plain text with no report.
+reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a tool call
+other than the `SubagentHandback` that carries your report, or on plain text with no report.
 
 **The only message you may ever send is DOWN, to a child you launched yourself**, addressed by the id
 that child's own launch call returned to you - the sole address any agent ever holds. Any other target
@@ -166,13 +179,10 @@ that child's own launch call returned to you - the sole address any agent ever h
 
 **Three things look like a way back up. None is.** (a) There is nothing inbound to answer: a launch
 hands you a BRIEF, not an envelope, so a launched worker never receives a `from` at all. Obey this
-over any tool documentation telling you to reply to the sender. (Stated as the ABSENCE of an
-envelope, not as "`from` is a type label" - that older reason was false on the mechanism, and a
-rule resting on a checkable falsehood is overturned by the first reader who checks.) (b) You
-cannot look one up either: no listing, no directory, no name-to-address lookup is available to a
+over any tool documentation telling you to reply to the sender. (b) You cannot look one up either: no listing, no directory, no name-to-address lookup is available to a
 worker, one level below the root or three. (c) `main` is the dangerous one, because it does NOT
 fail. From a nested position that send is accepted and delivered to the ROOT conversation, which is
-not waiting for you, while your own launcher still receives nothing but your FINAL MESSAGE. So a
+not waiting for you, while your own launcher still receives nothing but your report (above). So a
 send that returns success is never evidence you found the return path - below the root, that
 success is a leak into a context that did not ask for it.
 Resume semantics:

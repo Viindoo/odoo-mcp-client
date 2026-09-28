@@ -272,12 +272,23 @@ drop-in. What it does:
    are finalized before SessionStart hooks run, a first apply needs ONE Claude
    Code restart (or a new session) to take effect.
 4. **Instance profile** - discovers local Odoo repos and writes the machine-global `$ODOO_AI_HOME/instances.toml` (any agent on this host resolves instances regardless of working directory).
+   Each row also gets its `server_wide_modules` - the addons this deployment must load with
+   `--load`, proposed from the addons' own code, Odoo Semantic and an optional probe build, then
+   confirmed by you (`46-server-wide`); Odoo's own core default is read from the checkout and
+   always applied, so it is never listed. The supported Python range for a venv is read from the
+   Odoo checkout itself (`45-venv`); a series whose checkout declares Python 2 gets a Python 2.7 venv
+   built with `virtualenv`, since neither `uv` nor `python -m venv` can target Python 2.
+   `/odoo-ai-agents:odoo-setup refresh [--version X.Y] [--profile P]` re-derives both for rows you
+   already declared.
    Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":[]}`, empty - no locale is assumed on
    your behalf) - the machine-global language registry for the odoo-i18n cluster; edit to add your
    own target languages, e.g. `["vi_VN","en_US"]`.
 5. **DB local auth** (`48-db-local-auth`) - lets Odoo reach the declared PostgreSQL role on a local
    cluster without a stored password, via a managed block in that cluster's `pg_hba.conf`; reverted
-   with `48-db-local-auth.sh revert`.
+   with `48-db-local-auth.sh revert`. For a cluster that cannot be reconfigured, the only password
+   sources are `ODOO_PG_PASSWORD` (this shell) and a `~/.pgpass` line: every Odoo the plugin
+   launches reads a config file the plugin generates, never your `~/.odoorc`, so a `db_password`
+   there is not used.
 6. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run

@@ -8,12 +8,12 @@
 
 # i18n mandate contract (SSOT)
 
-Across a major Odoo series the `.pot`/`.po` TOOLING changes independently of content: the v19
-`odoo-bin i18n` subcommand family replaces the v8-v18 `--i18n-export` / `--load-language` flags, and
-`ir.translation` disappears between v15 and v16. A module carried across that boundary needs its
-catalog re-exported and reconciled through the TARGET series' path once, whether or not its own strings
-changed. A content predicate ("did the diff touch a label?") is therefore the wrong shape for this
-gate, and it under-fires silently.
+Across a major Odoo series the `.pot`/`.po` TOOLING changes independently of content: the export
+command line moves and `ir.translation` disappears. A module carried across that boundary needs its
+catalog re-exported and reconciled on the TARGET series once, whether or not its own strings
+changed. The export goes through `instance_i18n_export`, which spells the target series' export
+itself. A content predicate ("did the diff touch a label?") is
+therefore the wrong shape for this gate, and it under-fires silently.
 
 ## The mandate
 
@@ -44,7 +44,7 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
    and re-exporting a maintained `.po` from a demo-less build drops entries the committed file
    already holds, which then read as accidental losses. Demo loads at `-i` only, so it cannot be
    added afterwards. The wrong instance is worse than none - none BLOCKS loudly, the wrong one
-   succeeds quietly. Rule + per-series flags:
+   succeeds quietly. Rule:
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md` KT4/KT5.
 
 ## Escape hatches (ENUMERATED - no others; every skip RECORDED, never silent)
@@ -71,7 +71,7 @@ that actually get given. Each row names the SSOT that owns the fact; none is res
 | Never instruct | Why it is wrong | Owner of the fact |
 |---|---|---|
 | "skip demo / reuse the test DB / build it fast" | Demo-owned records carry translatable terms, so a demo-less build ships a truncated catalog AND turns committed entries into phantom removals | `skills/odoo-i18n/references/i18n-recipe.md` KT4 |
-| "get the untranslated count to zero" | Odoo stores a translation equal to its source EMPTY, so many blanks are REVIEWED do-not-localise decisions; a zero-blank target orders the leaf to overwrite them | `snippets/po-entry-semantics.md` § The identity rule |
+| "get the untranslated count to zero" | Odoo stores a translation equal to its source EMPTY, so such a blank is DONE; a zero-blank target orders the leaf to write the `msgid` into it | `snippets/po-entry-semantics.md` § An empty `msgstr` |
 | "export just the `.pot`" / a fresh instance per language | Every artifact of one run must come from ONE build, or the reconcile compares different term inventories and its rulings are void | `skills/odoo-i18n/references/i18n-recipe.md` KT5 |
 | "test that the translation is right / the catalog complete" | That wording is improved continuously, so the test fails on an improvement; the catalog is gated by this pipeline, never by the suite | `snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text |
 

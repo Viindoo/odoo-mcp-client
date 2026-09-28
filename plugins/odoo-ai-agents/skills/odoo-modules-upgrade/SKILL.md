@@ -320,6 +320,13 @@ feed the diagnosis back to P4 for the affected module. Resume P5 from the
 failing level (skip already-green levels per `checkpoint.json`). Loop until all levels green.
 Output: `install-test.md` - {per-level + per-module install ok?, test result, root-cause if red}.
 
+**P5 instance release [MANDATORY].** Once every level is green (and its installable-flip gates are
+recorded), no later stage needs the P5 test instance - P5.7 i18n and P5.8 acceptance never reuse
+it. This skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
+before P5.7. Call `lease_park` instead only when a named later step of this run still needs the
+database. Never release it between levels - every level reuses it.
+
 **P5.7 - i18n reconcile [MANDATORY, narrow escape only].**
 Goal: keep translations intact across the upgrade WITHOUT regenerating them. MANDATORY for every
 SURVIVING module (KEEP / REWRITE / MERGE / SPLIT / RECONCILE) - a content diff is NOT the gate,
@@ -329,8 +336,8 @@ own strings changed. Skip only via an enumerated escape, recorded in `install-te
 `odoo-i18n` skill (no new i18n logic) against a fresh instance with the existing `.po` loaded:
 re-export -> git-ops diff-review each `.po` against its committed version + adjudicate every loss
 (NEVER blind-regenerate - a fresh-DB export with no load step destroys existing msgstr) ->
-hand-translate only the genuinely NEW residual entries (a blank `msgstr` can be an identity entry
-Odoo never re-exports - `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`) -> reload with `-u`. Detail: phase-detail § P5.7.
+translate every entry left with an empty `msgstr` (one whose correct translation equals its `msgid`
+stays empty - `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`) -> reload with `-u`. Detail: phase-detail § P5.7.
 
 **P5.8 - Acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape only].**
 Goal: prove the whole upgraded cluster works end-to-end on a real running instance/UI - the SAME
@@ -344,9 +351,10 @@ MERGE/SPLIT) module in `plan.md`; the dependent-module reverse-closure comes for
 Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole cluster (never per
 module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by
 path): `INPUTS` = the `changed_set` above, `scope_hint` = `graph.md` + `absorption/*.md`,
-`odoo_version` = target series; `INSTANCE_HANDLE` from P5 if still live (reuse - never
-re-provision; else pass `none provisioned` and `odoo-acceptance` still scopes + plans its oracle,
-then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) = each surviving module's
+`odoo_version` = target series; `INSTANCE_HANDLE: none provisioned` - NEVER the P5 test handle:
+that database carries the series' test-build demo shape (none where demo is opt-in), while
+acceptance runs on a demo-carrying cluster that `odoo-acceptance` provisions on its own fresh lease
+(its Phase 2). `ACCEPTANCE` (by pointer) = each surviving module's
 business behavior recorded in `absorption/<module>.md` and any P2b design doc's §9 - NEVER a
 pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own Phase 1 from
 that requirement/intent, the same oracle-independence guarantee the new-module lifecycle
@@ -362,11 +370,6 @@ Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-e
 the P6 sign-off below so the human sees ONE combined decision, not a surprise extra step later.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `install-test.md`.
-**P5.8 release [MANDATORY].** Once P5.8 has returned (or its narrow escape is recorded), no later
-stage needs the P5 instance: this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
-`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
-before P6. Call `lease_park` instead only when a named later step of this run still needs the
-database. Never release it between levels - every level and P5.8 reuse it.
 
 **P6 - Gate [STOP, human sign-off].**
 Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the list of

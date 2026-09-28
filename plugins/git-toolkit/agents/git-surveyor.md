@@ -90,8 +90,8 @@ verdict: <PASS | FAIL | n/a> (- one-line reason if a verify)
 Never include diff hunks, file contents, or stack traces in the return - the findings file carries
 the detail.
 
-Write the findings file first, then emit this result block (plus the findings-file path) as your
-final message and stop - never send it to anyone, never end on a bare tool call or plain text:
+Write the findings file first; this result block (plus the findings-file path) is your completion
+report - deliver it once, last, never by sending it to anyone:
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language

@@ -49,6 +49,7 @@ from shutil import which
 
 import pytest
 
+import odoo_tree_fixtures as trees
 from conftest import real_python3
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -134,6 +135,9 @@ class Sandbox:
         )
         self.odoo_bin = tmp_path / "odoo-bin"
         _write_stub(self.odoo_bin, "exit 0\n")
+        # The launcher's directory is an Odoo checkout, as a real one is: the spin-up reads the
+        # main-port option and the --dev shape from its config.py.
+        trees.write_checkout(tmp_path, "17.0", with_addons=False)
 
         # curl answers 200 only once a launch has happened. That keeps every `apply` on the
         # SOURCE spin-up branch (which is where the conf is written) instead of short-circuiting

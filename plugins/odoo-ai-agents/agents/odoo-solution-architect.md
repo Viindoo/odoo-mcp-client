@@ -406,8 +406,8 @@ When you finish (single mode), append a Continuation Contract block per `${CLAUD
 You launch read-only grounding workers (`## Delegating for grounding`), so the spawner tier binds
 you directly: `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` - R0 for the dispatch
 physics, R1 for the barrier (your design is not finished while a child you launched is still
-running; hold, do not paper over it), R3 for the return path (your report IS your final message -
-never push it anywhere) - and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` for the
+running; hold, do not paper over it), R3 for the return path (how and when your report reaches your
+launcher - never push it anywhere) - and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` for the
 fan-out cap. Your own obligations are unchanged: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
 (what you do) and `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (how you report). Your
 inbound brief is checked against your own Inputs table below; the caller-side schema is

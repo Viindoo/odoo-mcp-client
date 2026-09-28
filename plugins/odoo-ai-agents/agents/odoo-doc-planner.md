@@ -93,8 +93,8 @@ Apply, do not restate:
   fill); `doc_owner` dedup (`doc:false` for shared deps, convergence-fill modules already doc'd, and
   `has_ondisk_doc` unless `REDOC`); inter-instance parallelism W with `within_path: sequential`
   (the W formula + fan-out/browser/instance-lease envelope is defined in that same SSOT - do not
-  restate it here); and the per-step provision flags (skip-auto-install / with-demo /
-  load-language, exact spelling resolved via `cli_help` at runtime).
+  restate it here); and the per-step build inputs (`demo` on, `languages`, skip-auto-install
+  spelled via `cli_help`).
 
 ## Round 2 - Write `doc-plan.yaml` (CONFORM to the schema)
 

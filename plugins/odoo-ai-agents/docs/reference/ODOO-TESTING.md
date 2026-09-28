@@ -41,11 +41,11 @@ below; neither of those restates them.
 
 **Fresh DB vs re-run - `-i` vs `-u`.** The example above is the **fresh-DB** case: `-i` installs
 the not-yet-installed module and runs its `at_install` tests in one pass. To RE-RUN the suite on a
-DB where the module is **already installed**, use `-u <module> --test-enable` instead - `-i` on an
-already-installed module is a no-op, so the install-time tests silently do **not** re-run. So: a
-fresh DB / not-yet-installed module uses `-i ... --test-enable` (init + test in one pass); an
-already-installed DB uses `-u ... --test-enable`. Confirm the exact flag semantics via `cli_help`
-for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
+DB where the module is **already installed**, use `-u <module> --test-enable` instead - it re-runs
+them on every series, while `-i` on an already-installed module runs none of its tests on recent
+series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database). So: a fresh DB / not-yet-installed module uses
+`-i ... --test-enable` (init + test in one pass); an already-installed DB uses
+`-u ... --test-enable`. Confirm the exact flag semantics via `cli_help` for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.)
 
 > **Under concurrency, `<DB>` must be an ISOLATED database, never the shared declared one** - a
@@ -144,8 +144,7 @@ each lint module must be INSTALLED, not merely tagged:
 
 1. Resolve and probe the module set per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`.
 2. For every module it resolves as present, UNION it into the `-i`/`-u` INSTALL list for that build
-   (exactly as `en_US` is unioned into the language activation set - see `agents/odoo-instance-ops.md`
-   "en_US - always loaded on every build (HARD RULE)"), AND append its tag to `--test-tags`.
+   AND append its tag to `--test-tags`.
 3. The install set and the tag set MUST come from the SAME probe. Never tag a module that was not
    also installed - its tests will not load, and the run will report a false-clean pass.
 

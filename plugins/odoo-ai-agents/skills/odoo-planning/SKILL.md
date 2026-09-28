@@ -149,7 +149,7 @@ plan is approved.
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief. The brief carries no
-reply address: each planner returns its report as its final message, and you are woken with it
+reply address: each planner hands its report back once, and you are woken with it
 once you have ended the turn that launched
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 

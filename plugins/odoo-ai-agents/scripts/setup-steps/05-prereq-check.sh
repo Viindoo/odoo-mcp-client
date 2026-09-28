@@ -76,10 +76,13 @@ _cc_version_ok() {
     [[ "$(printf '%s\n%s\n' "$CC_MIN_VERSION" "$v" | sort -V | head -1)" == "$CC_MIN_VERSION" ]]
 }
 
-# 0 = at least one Odoo repo (odoo-bin or __manifest__.py) under ODOO_GIT_BASE.
+# 0 = at least one Odoo repo under ODOO_GIT_BASE: a server launcher (odoo-bin, or
+# openerp-server on the oldest series) or an addon descriptor (__manifest__.py, or
+# __openerp__.py on the oldest series).
 _repos_present() {
     [[ -d "$ODOO_GIT_BASE" ]] || return 1
-    find "$ODOO_GIT_BASE" -maxdepth 4 \( -name odoo-bin -o -name __manifest__.py \) \
+    find "$ODOO_GIT_BASE" -maxdepth 4 \( -name odoo-bin -o -name openerp-server \
+        -o -name __manifest__.py -o -name __openerp__.py \) \
         -print -quit 2>/dev/null | grep -q .
 }
 
@@ -284,17 +287,12 @@ for it in instances_io.load_instances(toml):
 PY
 }
 
-# Locate odoo-bin for a comma-delimited addons_path (ODOO_BIN wins, else scan).
+# Locate the Odoo server launcher for a comma-delimited addons_path (ODOO_BIN
+# wins) through the shared locator - odoo-bin, or openerp-server on the oldest series.
 _find_odoo_bin_in() {
-    local addons_path="$1" p
-    if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then echo "$ODOO_BIN"; return 0; fi
-    _addons_path_to_array _paths "${addons_path}"
-    for p in "${_paths[@]}"; do
-        [[ -n "$p" ]] || continue
-        if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
-        if [[ -x "$(dirname "$p")/odoo-bin" ]]; then echo "$(dirname "$p")/odoo-bin"; return 0; fi
-    done
-    return 1
+    # The shared locator (resolve_instances.sh): $ODOO_BIN, else odoo-bin - or
+    # openerp-server on the oldest series - at the addons_path / odoo_root.
+    _odoo_find_launcher "$1"
 }
 
 # HARD GATE: every DECLARED source-mode instance must have a WORKING venv -

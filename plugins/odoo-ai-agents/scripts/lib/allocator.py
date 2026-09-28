@@ -136,9 +136,13 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # OR --mode is readonly, which is lease-free and exempt from both.
                  # Echoes ALLOC_TOKEN, ALLOC_MODE, ALLOC_DB_NAME, ALLOC_PORTS,
                  # ALLOC_RUN_ID, ALLOC_PYTHON, ALLOC_ADDONS_PATH, ALLOC_DB_HOST,
-                 # ALLOC_DB_USER, ALLOC_DB_PORT, ALLOC_SERIES, ALLOC_PROFILE
-                 # (+ ALLOC_ATTACHED for shared). Records `profile` (the RESOLVED
-                 # catalog profile, "" when unprofiled - `list` returns it),
+                 # ALLOC_DB_USER, ALLOC_DB_PORT, ALLOC_SERIES, ALLOC_PROFILE,
+                 # ALLOC_SERVER_WIDE_MODULES (+ ALLOC_ATTACHED for shared).
+                 # Records `profile` (the RESOLVED catalog profile, "" when
+                 # unprofiled - `list` returns it), `server_wide_modules` (the
+                 # catalog row's DECLARED server-wide modules, [] when none - the
+                 # series' core default is read from the checkout by its
+                 # consumers, never stored),
                  # owner.session (the caller's anchor), owner.via ("mcp" when
                  # ODOO_AI_VIA=mcp, else "cli") and owner.acquired_by
                  # (ODOO_AI_CALLER_AGENT_ID/_TYPE). Every acquire that writes a
@@ -207,22 +211,34 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # upsert the live server pid (+ its fingerprint, + the caller's
                  # session anchor) onto an EXISTING lease, so release/gc can stop
                  # the whole process GROUP before dropping the DB.
+    allocator.py record-build <token> [--demo on|off] [--languages <a,b>]
+                 # record what a build put into the lease's database, under the
+                 # row's `built` key: `built.demo` is STICKY - once a build ran
+                 # with demo on it stays true (demo data is never removed), `off`
+                 # only sets it while it is unset or false; `built.languages` is
+                 # the UNION of every language a build proved loaded. Token-
+                 # possession, like bind (the build tools hold the token). Emits
+                 # ALLOC_BUILT_DEMO=true|false|'' and ALLOC_BUILT_LANGUAGES.
+                 # Exit 1 LEASE_NOT_FOUND on an unknown token. Readers that
+                 # predate the key ignore it.
     allocator.py park <token> --run-id <id> [--park-ttl <s>] [--force]
-                 # SUSPEND a RUNNING lease without destroying anything it holds.
+                 # SUSPEND a lease without destroying anything it holds.
                  # Ownership is release's rule, checked FIRST under the lock
                  # (`_ownership_refusal`): a lease that records an owner run is
                  # parked ONLY by that run (any other --run-id, AND an absent one,
                  # is refused: exit 1 NOT_OWNER, nothing stopped); an UNOWNED
                  # lease parks on token-possession; --force overrides loudly.
-                 # Stops the owner's process GROUP first (park holds DISK, never
-                 # MEMORY), clears the recorded server (PID_OWNER_KEYS), and stamps
+                 # Stops the owner's process GROUP first when one runs (park holds
+                 # DISK, never MEMORY; a RESERVED lease - built, never served - has
+                 # none and is parked as it stands, with a stderr note), clears the
+                 # recorded server (PID_OWNER_KEYS), and stamps
                  # parked_at + park_ttl_s (default 48h) + parked_boot_id. db_name,
                  # ports and drop_on_release are left untouched. EMITS that
                  # drop_on_release (ALLOC_DROP_ON_RELEASE) and, when true, says on
                  # STDERR that the final `release` still drops that database: park
                  # DEFERS a throwaway, it never makes one durable. Refuses a
-                 # `shared` lease (exit 3) and a lease that is not RUNNING (exit 4 -
-                 # no owner pid recorded).
+                 # `shared` lease (exit 3) and an already-parked lease, or an
+                 # orphaned one with no server (exit 4 NOT_RUNNING).
     allocator.py resume <token> --pid <server_pid>
                  # The atomic PARKED -> RUNNING compare-and-set, under ONE registry
                  # hold: NOT parked with no live same-host owner is the ordinary
@@ -2949,8 +2965,9 @@ ERROR_CODES = {
     "SHARED_NOT_PARKABLE": {"rc": 3, "summary": "a shared lease cannot be parked",
                             "remedy": "leave it for its readers; gc reclaims it once its "
                                       "server is gone"},
-    "NOT_RUNNING": {"rc": 4, "summary": "the lease records no server pid",
-                    "remedy": "bind a pid first, or release the lease"},
+    "NOT_RUNNING": {"rc": 4, "summary": "the lease is already parked (or orphaned with no "
+                                        "server): nothing left to suspend",
+                    "remedy": "resume it by serving it, or release the lease"},
     "NOT_PARKED": {"rc": 3, "summary": "the lease is not parked and no live server holds it",
                    "remedy": "bind the pid instead"},
     "RESUME_RACE": {"rc": 6, "summary": "another caller already resumed this lease",
@@ -3214,6 +3231,7 @@ def _emit_instance_common(inst, addons_csv):
     _emit("ALLOC_DB_PORT", inst.get("db_port", ""))
     _emit("ALLOC_SERIES", instances_io.series_of(inst))
     _emit("ALLOC_PROFILE", instances_io.profile_of(inst))
+    _emit("ALLOC_SERVER_WIDE_MODULES", instances_io.server_wide_modules_of(inst))
 
 
 def cmd_acquire(opts):
@@ -3359,6 +3377,12 @@ def cmd_acquire(opts):
                 # a row written before profiles were recorded gets the resolved one.
                 if profile or "profile" not in existing:
                     existing["profile"] = instances_io.profile_of(inst)
+                # The declared server-wide set: refreshed when this call registers
+                # a (re)launched server (--pid - the spin-up launched it from the
+                # catalog row just read), otherwise only filled on a row that
+                # predates the key: a running server keeps what it was started with.
+                if pid_opt or "server_wide_modules" not in existing:
+                    existing["server_wide_modules"] = instances_io.server_wide_modules_of(inst)
             else:
                 token = uuid.uuid4().hex
                 new_lease = {
@@ -3383,6 +3407,7 @@ def cmd_acquire(opts):
                 if ttl_opt is not None:
                     new_lease["ttl_explicit"] = True
                 new_lease["profile"] = instances_io.profile_of(inst)
+                new_lease["server_wide_modules"] = instances_io.server_wide_modules_of(inst)
                 reg["leases"].append(new_lease)
             _shed_gone_servers(reg, now)
             _write_registry(reg)
@@ -3596,6 +3621,11 @@ def cmd_acquire(opts):
                     # later consumer re-selects the same catalog row (python,
                     # addons) instead of the series' first one.
                     "profile": instances_io.profile_of(inst),
+                    # The catalog row's DECLARED server-wide modules ([] = none):
+                    # the build and serve tools apply them on top of the core
+                    # default they read from the checkout, so both legs of one
+                    # lease load the same set even if the catalog changes later.
+                    "server_wide_modules": instances_io.server_wide_modules_of(inst),
                     "db_name": db_name,
                     # drop_on_release replaces the old created_db flag.  It marks whether
                     # release/gc must drop the DB (ephemeral=True, shared/exclusive=False).
@@ -3932,8 +3962,45 @@ def cmd_bind(opts):
     return 0
 
 
+_DEMO_VALUES = ("on", "off")
+
+
+def cmd_record_build(opts):
+    """Record what a build put into the lease's database (`built`, see the CLI
+    block). The values only ever GROW: demo data is never removed from a
+    database, so `demo` is sticky-true, and a language proved loaded stays
+    loaded - a later build that proves less never erases what an earlier one
+    proved."""
+    token = opts.get("token")
+    demo = (opts.get("demo") or "").strip().lower()
+    langs = instances_io.split_module_list(opts.get("languages"))
+    if not token or (demo and demo not in _DEMO_VALUES) or not (demo or langs):
+        sys.stderr.write("Usage: allocator.py record-build <token> [--demo on|off] "
+                         "[--languages <a,b>] (at least one)\n")
+        return _fail("USAGE", 2)
+    with _locked():
+        reg = _read_registry()
+        lease = next((lz for lz in reg["leases"] if lz.get("token") == token), None)
+        if lease is None:
+            sys.stderr.write(f"allocator: no lease with token {token!r} to record a build on.\n")
+            return _fail("LEASE_NOT_FOUND", 1)
+        built = lease.get("built") if isinstance(lease.get("built"), dict) else {}
+        if demo == "on":
+            built["demo"] = True
+        elif demo == "off" and built.get("demo") is not True:
+            built["demo"] = False
+        known = [str(x) for x in (built.get("languages") or []) if str(x)]
+        built["languages"] = known + [x for x in langs if x not in known]
+        lease["built"] = built
+        _write_registry(reg)
+    _emit("ALLOC_BUILT_DEMO", "" if built.get("demo") is None else
+          ("true" if built["demo"] else "false"))
+    _emit("ALLOC_BUILT_LANGUAGES", built["languages"])
+    return 0
+
+
 def cmd_park(opts):
-    """SUSPEND a RUNNING lease: stop its server, keep everything it reserved.
+    """SUSPEND a lease: stop its server if it has one, keep everything it reserved.
 
     The state this file was missing. Before `park` existed a caller that was
     finished with an instance for NOW - but not finished with the DATABASE it
@@ -3953,13 +4020,16 @@ def cmd_park(opts):
          `query --series` gives for a series; a parked twin would make that rung
          two-valued, and the shared row is already immune to the pid arms
          anyway, so parking it would buy nothing and cost the invariant.
-      2. REFUSE a lease that is not RUNNING (exit 4) - no `owner.pid` recorded.
-         That covers a still-RESERVED lease, an already-parked one (park cleared
-         its pid, so a second park is refused rather than silently re-stamping a
-         fresh budget onto an old park), and the `--stop-after-init` build shape
-         that never binds a pid at all: none of them has a process to stop or a
-         listening state worth preserving.
-      3. STOP THE OWNER'S PROCESS GROUP FIRST, through the same
+      2. REFUSE an already-parked lease (exit 4 NOT_RUNNING): a second park is
+         refused rather than silently re-stamping a fresh budget onto an old
+         park. An `orphaned` row with no pid (a capacity reclaim stopped its
+         server and gave its ports back) is refused the same way.
+         A still-RESERVED lease - the `--stop-after-init` build shape that never
+         binds a pid, a database built and never served - IS parkable: there is
+         no process to stop, but its database is exactly what park keeps, and the
+         handback / teardown gates offer park as the way to keep a built
+         database past the session. Its later serve resumes it like any park.
+      3. STOP THE OWNER'S PROCESS GROUP FIRST (a RUNNING lease), through the same
          `_stop_owner_group_if_local` gate `release` and `gc` use - so an
          unproven pid is still never signalled. Park holds DISK, never MEMORY.
          Doing this before the pid is cleared is not an ordering nicety: the pid
@@ -4032,22 +4102,33 @@ def cmd_park(opts):
             return _fail("SHARED_NOT_PARKABLE", 3)
         # A row whose server exited under a live session had its pid shed
         # (`_shed_gone_server`); it was RUNNING, and parking it (keep the
-        # database past the session) is still meaningful.
+        # database past the session) is still meaningful. A RESERVED row (built,
+        # never served) has no server to stop and is parked as it stands.
         target_owner = target.get("owner") or {}
-        if target_owner.get("pid") is None and not target_owner.get(SERVER_GONE_KEY):
+        state = _lease_state(target)
+        if state == STATE_PARKED or (state == STATE_ORPHANED
+                                     and target_owner.get("pid") is None):
             sys.stderr.write(
-                "allocator: REFUSING to park the lease on database {db!r} - it records no owner "
-                "pid, so it is not RUNNING: there is no server process to stop and nothing to "
-                "resume into. (An already-parked lease lands here too, because park cleared its "
-                "pid; use `resume <token> --pid <server_pid>` to bring it back, or `release` to "
-                "finish with it.)\n".format(db=target.get("db_name"))
+                "allocator: REFUSING to park the lease on database {db!r} - it is already {st}, "
+                "so there is nothing left to suspend (a second park would only re-stamp a fresh "
+                "budget onto the old one). Use `resume <token> --pid <server_pid>` to bring a "
+                "parked lease back, or `release` to finish with it.\n".format(
+                    db=target.get("db_name"), st=state)
             )
             return _fail("NOT_RUNNING", 4)
+        served = target_owner.get("pid") is not None
         # Park holds DISK, never MEMORY - stop the group BEFORE the pid that
         # names it is cleared.
-        _stop_owner_group_if_local(target)
+        if served:
+            _stop_owner_group_if_local(target)
         _stamp_park(target, park_ttl)
         _write_registry(reg)
+    if not served:
+        sys.stderr.write(
+            "allocator: parked the lease on database {db!r} as it stood - it had no server "
+            "running, so nothing was stopped. Its database, filestore and ports are kept; serving "
+            "it later resumes it.\n".format(db=target.get("db_name", ""))
+        )
     _emit("ALLOC_TOKEN", token)
     _emit("ALLOC_PARKED_AT", target["parked_at"])
     _emit("ALLOC_PARK_TTL_S", park_ttl)
@@ -5152,6 +5233,7 @@ _FLAG_KEYS = {
     "--addons-path-override": "addons_path_override", "--min-age-s": "min_age_s",
     "--park-ttl": "park_ttl", "--state": "state", "--older-than": "older_than",
     "--scope": "scope", "--anchor": "anchor", "--tokens": "tokens", "--format": "format",
+    "--demo": "demo", "--languages": "languages",
 }
 _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
@@ -5167,7 +5249,7 @@ OUTPUT_FORMATS = ("shell", "json")
 VERBS = (
     "acquire", "release", "bind", "park", "resume", "heartbeat", "adopt", "gc",
     "reap-orphans", "list", "query", "assert-droppable", "can-createdb",
-    "db-preflight", "anchor",
+    "db-preflight", "anchor", "record-build",
 )
 # Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
 # two conventional Unix forms. This is the SSOT the regression test derives its
@@ -5204,7 +5286,7 @@ def _parse(argv):
 
 
 def _dispatch(cmd, opts, pos):
-    token_verbs = ("release", "heartbeat", "bind", "park", "resume", "adopt")
+    token_verbs = ("release", "heartbeat", "bind", "park", "resume", "adopt", "record-build")
     if cmd in token_verbs:
         opts.setdefault("token", pos[0] if pos else None)
     handlers = {
@@ -5213,7 +5295,7 @@ def _dispatch(cmd, opts, pos):
         "gc": cmd_gc, "reap-orphans": cmd_reap_orphans, "list": cmd_list,
         "query": cmd_query, "can-createdb": cmd_can_createdb,
         "db-preflight": cmd_db_preflight, "assert-droppable": cmd_assert_droppable,
-        "anchor": cmd_anchor,
+        "anchor": cmd_anchor, "record-build": cmd_record_build,
     }
     handler = handlers.get(cmd)
     if handler is None:

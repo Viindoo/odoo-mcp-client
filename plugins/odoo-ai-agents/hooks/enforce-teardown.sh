@@ -14,14 +14,17 @@
 #     ANY terminal status: a completion claim, `NEEDS_NEXT` with no handle forwarded,
 #     an out-of-enum status, NO `continuation` status at all, AND a `BLOCKED` /
 #     `NEEDS_CONTEXT` stopped-run report. Only two things pass - the lease is GONE
-#     from the ledger (released or parked), or a T4 named handoff forwards
-#     `INSTANCE_HANDLE`. The gate is STATUS-BLIND on purpose: a dispatch that cannot
+#     from the ledger (released or parked), or a T4 named handoff forwards THAT lease's
+#     `INSTANCE_HANDLE` (its own lease_token, in next.inputs - per lease: one forwarded handle
+#     never clears a second live lease). The gate is STATUS-BLIND on purpose: a dispatch that cannot
 #     RELEASE can always still NAME a catcher, so `BLOCKED` is no longer a door the
 #     lease escapes through unowned. A lease the caller PARKED is not a
 #     live lease at all for this purpose: park already stopped its process group, so it
 #     leaks no RAM, and the allocator's verdict reports it as `state: parked`. Its three
 #     exits (release / park / forwarded INSTANCE_HANDLE) are the ones the block message
-#     names.
+#     names - except after a DELIVERED SubagentHandback, when the report and its fence are final
+#     (a second handback is refused, and R3 forbids carrying a report in any other message), so the
+#     block names release and park only.
 #   - WHOSE lease: only the lease TOKENS this subagent itself obtained, read from its OWN
 #     transcript (see "Token correlation" below) - never a run id. A run id is shared by
 #     the parent and every sibling of one run BY DESIGN, so correlating on it ordered a
@@ -41,12 +44,20 @@
 #     pages to whichever subagent stopped next. It is read only on Stop, where the
 #     session transcript IS the stopping agent's. Same rule, same reason as
 #     enforce-background-wait.sh.
+#   - WHICH text is the report: the one the caller actually received - the message of a
+#     DELIVERED `SubagentHandback` call, else the final message (the payload's
+#     last_assistant_message; hooks/final-report.sh). The status and the forwarded handles are read from that
+#     report's closed continuation fence, never from assistant text the caller never saw.
+#   - A report handed back through SubagentHandback is delivered BEFORE this hook runs, so this
+#     block alone arrives too late for it. block-handback-with-live-lease.sh (PreToolUse) runs the
+#     SAME check (hooks/teardown-check.sh) at the handback itself; this gate remains the backstop
+#     for a lease obtained after the handback and for a report delivered as plain text.
 #   - Self-gates (clone of enforce-grounding.sh): missing jq / missing transcript
 #     / stop_hook_active=true / a non-teardown-shaped subagent -> silent exit 0.
 #   - Block form (instances, SubagentStop only): {"decision":"block","reason":...}.
 #   - Advisory form (browsers): {"continue":true,"systemMessage":...}.
 #   - Degrades to exit 0 on ANY uncertainty (no jq/python3/allocator, parse error,
-#     no verdict, no correlated token). This is the ONLY hard-block gate in the system: a false
+#     no verdict, no correlated token, an unreadable shared helper). A hard-block gate: a false
 #     block halts real work, so every branch prefers a FALSE-NEGATIVE over a
 #     false-positive - never block on ambiguity.
 
@@ -63,34 +74,28 @@ STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/
 
 EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 
+# Shared helpers: hooks/final-report.sh (which transcript, what the agent REPORTED, its fence) and
+# hooks/teardown-check.sh (the allocator-verdict check and its refusal). Resolved relative to THIS
+# script. Either unreadable -> fail open, the convention every hook in this plugin follows.
+_HOOK_DIR="${BASH_SOURCE[0]%/*}"
+for _lib in final-report.sh teardown-check.sh lease-correlation.sh; do
+  [[ -r "$_HOOK_DIR/$_lib" ]] || _pass
+  # shellcheck source=/dev/null
+  . "$_HOOK_DIR/$_lib"
+done
+
 # The subagent's OWN transcript on SubagentStop; the session transcript only on Stop (see
 # CONTRACT). A SubagentStop without agent_transcript_path is uncertainty -> pass, never a
 # fallback onto the session transcript (that fallback IS the defect).
-if [[ "$EVENT" == "SubagentStop" ]]; then
-  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)"
-else
-  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
-fi
-[[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || _pass
+TRANSCRIPT="$(_hook_transcript "$INPUT")"
+[[ -n "$TRANSCRIPT" ]] || _pass
 
-# --- Normalize the subagent's own transcript (ASSISTANT-authored only) -----------------------
-# Same posture as enforce-grounding.sh: tool CALLS are counted from real `tool_use`
-# blocks and run-id / continuation signals are read only from the assistant's own
-# text - never from an injected brief/tool_result that quotes a handle or a command.
-# tool_use -> "CALL\t<name>\t<command-or-path>" (newlines in the command field are
-# squashed to spaces so each CALL stays exactly one line for grep -c). text -> raw
-# (newlines preserved) so the ```continuation block parses line-by-line.
-NORM="$(jq -rR 'fromjson? | (.message // .) as $m
-  | (($m.role // .type) // "") as $role
-  | select($role == "assistant")
-  | ($m.content // [])
-  | (if type == "array" then .[] else empty end)
-  | if (.type == "tool_use") then
-        "CALL\t" + ((.name // "")|tostring) + "\t"
-          + (((.input.command // .input.file_path // .input.path // "")|tostring) | gsub("\n";" "))
-    elif (.type == "text") then
-        "TEXT\t" + ((.text // "")|tostring)
-    else empty end' "$TRANSCRIPT" 2>/dev/null || true)"
+# --- The subagent's own activity (ASSISTANT-authored only) -----------------------------------
+# Tool CALLS are counted from real `tool_use` blocks - never from an injected brief/tool_result
+# that quotes a tool name. One "CALL\t<name>\t<command-or-path>" line per call (final-report.sh
+# _assistant_signals).
+LAST_MESSAGE="$(_hook_last_message "$INPUT")"
+NORM="$(_assistant_signals "$TRANSCRIPT" "$LAST_MESSAGE")"
 
 _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' || true; }
 
@@ -147,25 +152,23 @@ _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; e
 [[ "$RECORD" -gt "$STOP_REC" ]] && \
   _add_note "$RECORD record_page vs $STOP_REC stop_recording - stop the pagecast recording before your terminal status"
 
-# --- Continuation status + INSTANCE_HANDLE forwarding (assistant text only) -------------------
-# Capture the body of the LAST ```continuation fenced block (reuse parse-continuation.sh's fence
-# detection), then derive status + handle-forwarding from that body. Keeping it a single captured
-# block means an INSTANCE_HANDLE mentioned in prose OUTSIDE the block never counts as a forward.
-CONT_BLOCK="$(printf '%s\n' "$NORM" | awk '
-  /```[ \t]*continuation/ { incont=1; buf=""; next }
-  incont && /```/         { incont=0; last=buf; next }
-  incont                  { buf=buf $0 "\n" }
-  END { printf "%s", last }' 2>/dev/null || true)"
-STATUS="$(printf '%s\n' "$CONT_BLOCK" | awk '
-  /status:/ { line=$0; sub(/.*status:[ \t]*/,"",line); sub(/[ \t].*/,"",line); last=line }
-  END { print last }' 2>/dev/null || true)"
-# Normalize to a comparable KEY before any classification: uppercase, then keep only the leading
-# [A-Z_] token. The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic
-# spelling (`status: `BLOCKED``, `status: blocked`, a trailing comma) must never be what turns a
-# declared non-completion status into a hard block. Empty KEY = no machine-readable status.
-STATUS_KEY="$(printf '%s' "$STATUS" | tr 'a-z' 'A-Z' | sed -E 's/^[^A-Z_]*//; s/[^A-Z_].*$//' 2>/dev/null || true)"
-FWD_HANDLE=0
-printf '%s' "$CONT_BLOCK" | grep -q 'INSTANCE_HANDLE' 2>/dev/null && FWD_HANDLE=1
+# --- Continuation status + INSTANCE_HANDLE forwarding (the REPORT only) ----------------------
+# Read from the report the caller actually received (final-report.sh _final_report_text): the
+# delivered SubagentHandback message, else the final message
+# (the payload's last_assistant_message - the transcript file may not hold it yet).
+# Then the body of its LAST CLOSED ```continuation block, and status + the per-lease handle
+# forwarding (next.inputs) from that body. A single captured block means an INSTANCE_HANDLE mentioned in prose OUTSIDE the block, or
+# in an earlier turn the caller never received, never counts as a forward.
+REPORT="$(_final_report_text "$TRANSCRIPT" "$LAST_MESSAGE")"
+CONT_BLOCK="$(_continuation_block "$REPORT")"
+STATUS="$(_continuation_status "$CONT_BLOCK")"
+# The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic spelling must never be
+# what turns a declared status into a hard block: compare the normalized KEY. Empty = no status.
+STATUS_KEY="$(_continuation_status_key "$STATUS")"
+# Was the report already DELIVERED through the SubagentHandback tool? Then a second handback is
+# refused by the harness, and the block below must not send the agent to hand back again.
+HANDED_BACK=0
+_handback_delivered "$TRANSCRIPT" && HANDED_BACK=1
 
 # --- Token correlation (ONLY leases THIS subagent itself obtained) ----------------------------
 # "Which leases did THIS dispatch obtain?" is answered by hooks/lease-correlation.sh, the ONE
@@ -173,13 +176,11 @@ printf '%s' "$CONT_BLOCK" | grep -q 'INSTANCE_HANDLE' 2>/dev/null && FWD_HANDLE=
 # which calls count, and why serving or resuming a forwarded token and a time window never do). A
 # shared copy is what keeps the two gates from disagreeing: this gate orders a release that the
 # mutation gate must then allow. Helper unreadable -> no correlated token -> fail open.
-_LEASE_LIB="${BASH_SOURCE[0]%/*}/lease-correlation.sh"
 OWN_TOKENS=""
-if [[ -r "$_LEASE_LIB" ]]; then
-  # shellcheck source=/dev/null
-  . "$_LEASE_LIB"
-  declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
-fi
+declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
+# The handoff is PER LEASE: each obtained token the report's fence forwards in its OWN
+# INSTANCE_HANDLE (next.inputs) has a named catcher; every other one is still this dispatch's.
+UNFWD_TOKENS="$(_continuation_unforwarded_tokens "$CONT_BLOCK" "$OWN_TOKENS")"
 
 # Self-gate (clone of enforce-grounding.sh's "non-Odoo subagent" gate): no browser activity AND
 # no lease this subagent obtained -> not a teardown-shaped subagent -> stay out of the way. A pure
@@ -189,22 +190,13 @@ if [[ "$BROWSER_ANY" -eq 0 && -z "$OWN_TOKENS" ]]; then
 fi
 
 # --- Instance check: BLOCKING, SubagentStop only, named handoff excepted ----------------------
-# Ground truth is the allocator's own VERDICT (`list --with-verdict`), never the transcript and
-# never a liveness rule copied into this file: the verdict is the SSOT for "would anything
-# reclaim this lease", and a second copy here is what drifted before (a hard-coded TTL fallback
-# that silently disagreed with the allocator the day its default changed). Emits the ONE hard
-# block in the system; everything above is advisory.
-_alloc_list_json() {
-  # One `allocator.py list` call, JSON envelope in, the lease array out ("" on any failure).
-  local out
-  out="$(timeout 5 python3 "$ALLOC" list --with-verdict --show-tokens --format json "$@" \
-         2>/dev/null || true)"
-  printf '%s' "$out" | jq -c 'select(.ok == true) | (.fields.leases // [])' 2>/dev/null || true
-}
-
+# The allocator-verdict check and its refusal text live in hooks/teardown-check.sh, shared with
+# block-handback-with-live-lease.sh (the PreToolUse gate that stops the same lease from riding out
+# inside a SubagentHandback report, which is delivered BEFORE this hook runs). This is the hard
+# block; the browser findings above are advisory.
 _instance_block_reason() {
-  # Requires: SubagentStop event, python3 + allocator.py, a correlated token, no
-  # forwarded handle. Prints the block reason on success; prints nothing (rc!=0) to fall through.
+  # Requires: SubagentStop event, a correlated token whose own handle the report does not forward,
+  # and the allocator's verdict that the lease is live. Prints the block reason on success; nothing (rc!=0) otherwise.
   [[ "$EVENT" == "SubagentStop" ]] || return 1
   # The gate is STATUS-BLIND. It asks ONE question - "is a live lease this dispatch obtained
   # still in the ledger, with nobody named to take it?" - and `status` is not part of the answer.
@@ -230,73 +222,26 @@ _instance_block_reason() {
   # the block message below names it, so satisfying this gate never invents a fictional catcher.
   # T4's exception is read from the SAME fence-scoped extraction as the status (never from free
   # prose - a handle promised in prose forwards nothing a consumer can act on).
-  [[ "$FWD_HANDLE" == "1" ]] && return 1   # INSTANCE_HANDLE forwarded in next.inputs -> handoff -> pass
-  [[ -n "$OWN_TOKENS" ]] || return 1
-  command -v python3 >/dev/null 2>&1 || return 1
-  ALLOC="${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/allocator.py"
-  [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$ALLOC" ]] || return 1
-
-  # Candidate rows: exactly the leases named by the tokens this subagent obtained.
-  local cand="[]" part
-  part="$(_alloc_list_json --tokens "$(printf '%s\n' "$OWN_TOKENS" | paste -sd, -)")"
-  [[ -n "$part" ]] && cand="$part"
-
-  # LIVE, per the allocator's verdict: running or reserved (never parked / orphaned /
-  # reclaiming), not a shared render server (cross-session by design, never one consumer's to
-  # drop - which is also why the lease a LAUNCHING series-mode instance_serve registers never
-  # reaches this list: that path only ever registers a `shared` lease; the correlation still counts
-  # it for block-unowned-lease-mutation.sh arm A4, so its launcher may stop it on an explicit user
-  # request), and not something the AUTOMATIC reclaim would take anyway (`condemn_auto` set: a dead
-  # or recycled server pid, an ended session past its grace) - such a lease leaks nothing a
-  # dispatch could still fix. A PARKED lease is skipped on purpose, not as a hole: park already did
-  # the RAM half of teardown, and blocking it would refuse the very exit this gate permits. A row
-  # with no verdict at all (an allocator too old to give one) is uncertainty -> not blocked.
-  local rows
-  rows="$(printf '%s' "$cand" | jq -r '
-      unique_by(.token) | .[]
-      | select((.mode // "") != "shared")
-      | select(.verdict != null)
-      | select((.verdict.state // "") == "running" or (.verdict.state // "") == "reserved")
-      | select(.verdict.condemn_auto == null)
-      | [(.token // ""), ((.owner.run_id // .owner.session_id // "") | tostring),
-         (.verdict.state // ""), (.verdict.protected_by // "none")]
-      | map(if . == "" then "-" else . end) | @tsv' 2>/dev/null || true)"
-  [[ -n "$rows" ]] || return 1
-
-  # NOTE on the TSV shape: every field is forced NON-EMPTY ("-" stands for empty). `read` with a
-  # whitespace IFS (tab included) silently SQUASHES an empty middle field into its neighbour.
-  local lines n token rid state prot rid_arg mcp_rid
-  lines=""
-  n=0
-  while IFS=$'\t' read -r token rid state prot; do
-    [[ -n "$token" && "$token" != "-" ]] || continue
-    n=$(( n + 1 ))
-    if [[ "$rid" == "-" ]]; then rid_arg=""; mcp_rid=""; else rid_arg=" --run-id $rid"; mcp_rid=", run_id: \"$rid\""; fi
-    lines="$lines"$'\n'"  lease token $token (owner run ${rid/#-/<none>}, $state, protected by $prot)"
-    lines="$lines"$'\n'"    release: mcp__plugin_odoo-ai-agents_odoo-local__lease_release {lease_token: \"$token\"$mcp_rid}   |   park instead: mcp__plugin_odoo-ai-agents_odoo-local__lease_park {lease_token: \"$token\"$mcp_rid}"
-    lines="$lines"$'\n'"    CLI fallback (only when the odoo-local tools are unavailable): python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token$rid_arg   |   python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" park $token$rid_arg"
-  done <<< "$rows"
-
-  [[ "$n" -gt 0 ]] || return 1
+  # Per lease: forwarding ONE lease's handle clears that lease only, never its siblings.
+  [[ -n "$UNFWD_TOKENS" ]] || return 1   # every obtained lease forwarded in next.inputs -> handoff -> pass
 
   # Name what this turn actually did, so the fix is unambiguous for every shape: a declared status
   # needs the release or the handoff; a turn with no status needs the release AND the missing block.
-  local claim
+  local claim closing=""
   if [[ -n "$STATUS_KEY" ]]; then
-    claim="ended its dispatch on \`status: $STATUS_KEY\` with no \`INSTANCE_HANDLE\` forwarded"
+    claim="ended its dispatch on \`status: $STATUS_KEY\` with no \`INSTANCE_HANDLE\` forwarded for the lease(s) below"
   else
     claim='ended its dispatch with NO `status` in a closed `continuation` block (a SubagentStop IS the end of your dispatch - not a pause, and nothing runs later on your behalf)'
   fi
-
-  # THREE exits satisfy this gate, and all three are named here on purpose. The set is the one
-  # declared in snippets/resource-teardown-contract.md T1 section "The three exits" (SSOT); this is a
-  # SECOND COPY of it, kept in lockstep by tests/test_enforce_teardown.py rather than rendered from
-  # the markdown at hook time. Naming only `release` would tell an agent that preserving a
-  # just-built database is impossible, which is how instances got destroyed and rebuilt every
-  # dispatch.
-  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) that THIS subagent obtained itself (acquired or adopted by your own calls - read from your own tool calls and their results, never from a run id and never from a lease_token you were handed and merely served or resumed, so a lease of your parent or a sibling is never listed here and is not yours to release) are still held in the allocator ledger. Each is a detached Odoo server process or database that outlives this dispatch until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park the lease (`lease_park`, or `allocator.py park`; NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it reports the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values. If exits 1 and 2 are UNAVAILABLE to you - the allocator errored, a process refuses to die, or the HARNESS DENIED the give-back call before it ran - do NOT fall back to a bare stopped-run report. Exit 3 is always available: it is text in your own continuation fence, needs no tool, no permission and no live process, and when teardown is what failed the named catcher is your DISPATCHING CALLER. Forward INSTANCE_HANDLE (lease_token + run_id) in next.inputs to it, state in your report that teardown was denied and quote the exact refusal, and keep your BLOCKED or NEEDS_CONTEXT status - the status is not what this gate reads.' \
-    "$claim" "$n" "$lines"
-  return 0
+  # A report already handed back cannot be handed back again (the harness refuses a second
+  # SubagentHandback) and nothing else may carry it (R3), so its fence - handoff included - is
+  # final: only release or park is offered (`give-back`), never the handoff or a new report.
+  local exits=all
+  if [[ "$HANDED_BACK" == "1" ]]; then
+    exits=give-back
+    closing='Your report was ALREADY handed back through SubagentHandback, so it is final: a second SubagentHandback is refused, nothing can be added to its continuation fence, and no other message may carry it or an amendment, whatever that refusal suggests (snippets/spawner-completion-contract.md R3). To clear this lease now, release or park is the only way. If both are refused, stop anyway: nothing you write now reaches your caller, and the lease is reclaimed when this session ends.'
+  fi
+  _teardown_block_reason "$UNFWD_TOKENS" "$claim" "$closing" "$exits"
 }
 
 if REASON="$(_instance_block_reason)"; then

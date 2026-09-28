@@ -55,6 +55,36 @@ _addons_path_to_array() {
     IFS="$ADDONS_PATH_SEP" read -ra "$1" <<<"$_aptoa_norm"
 }
 
+# _odoo_find_launcher <addons_path> [odoo_root]
+#   Print the absolute path of the Odoo server launcher to run, or return 1.
+#   $ODOO_BIN wins when it names an executable. Otherwise the ONE locator,
+#   scripts/lib/odoo_source_facts.py locate-launcher, answers: `odoo-bin`, or
+#   `openerp-server` on the series whose core package is `openerp/`, at the
+#   declared odoo_root or at an addons_path entry / its parent / its grandparent.
+#   Every setup step that needs the launcher calls this - never its own
+#   `-x "$p/odoo-bin"` scan, which cannot see the oldest series.
+_odoo_find_launcher() {
+    if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then
+        echo "$ODOO_BIN"
+        return 0
+    fi
+    local _ofl_facts _ofl_line
+    _ofl_facts="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/odoo_source_facts.py"
+    local -a _ofl_args=()
+    [[ -n "${2:-}" ]] && _ofl_args+=(--odoo-root "$2")
+    local -a _ofl_paths=()
+    _addons_path_to_array _ofl_paths "${1:-}"
+    _ofl_args+=("${_ofl_paths[@]+"${_ofl_paths[@]}"}")
+    [[ "${#_ofl_args[@]}" -gt 0 ]] || return 1
+    while IFS= read -r _ofl_line; do
+        if [[ "$_ofl_line" == ODOO_LAUNCHER=* ]]; then
+            echo "${_ofl_line#ODOO_LAUNCHER=}"
+            return 0
+        fi
+    done < <(python3 "$_ofl_facts" locate-launcher "${_ofl_args[@]}" 2>/dev/null || true)
+    return 1
+}
+
 # Strip ALL trailing "/" from $1 - mirrors resolve_project_dir.sh's
 # `_project_dir_rstrip_slashes` / paths.py's + allocator.py's `_home()`
 # EXACTLY (parity invariant: all four converge on the same $ODOO_AI_HOME

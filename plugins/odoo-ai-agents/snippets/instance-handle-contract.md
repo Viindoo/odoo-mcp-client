@@ -1,6 +1,5 @@
 <!-- SSOT snippet. The INSTANCE_HANDLE contract: one provisioned instance per run,
-     forwarded to every downstream brief. Referenced by odoo-git-rebase, odoo-coding,
-     odoo-instance, and odoo-instance-ops. Edit here only; consumers point at
+     forwarded to every downstream brief. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md. -->
 
 # Instance Handle Contract
@@ -15,17 +14,20 @@ multi-agent run shares. It carries exactly:
   it - never assume `5432`)
 - `addons_path` - the comma-separated addons path (Odoo's own `--addons-path` format)
 - `venv_python` - the Python interpreter of the target series
-- `demo` - whether demo data is loaded (`true`/`false`)
-- `languages_loaded` - the locales confirmed active in `res.lang` (always includes `en_US`)
+- `demo` - whether the DATABASE holds demo data (`null` = not known)
+- `languages_loaded` - the languages active in the DATABASE (every tool build loads `en_US`)
+- `facts_source` - who answered `demo` / `languages_loaded`: `database` (read from it) or
+  `leases` (it could not be read, so the builds its leases recorded)
 - `log_path` - the persistent build/test log path
 - `lease_token` - the lease that owns the instance lifecycle
 - `run_id` - the run that owns the lease
 - `server_pid` (optional) - the server's process-group id; null for a build that does not listen
 
 Field names are the producer's SSOT: `odoo-instance-ops`'s `instance-ops` output block, relayed
-verbatim by `odoo-instance` - rename in both or neither. `lease_token` and `run_id` come
-from `lease_acquire`'s `instance_handle`; `log_path` and `server_pid` from `instance_build` /
-`instance_serve`.
+verbatim by `odoo-instance` - rename in both or neither. Copy every field from the latest
+`instance_handle` a tool returned (after a build, the final `job_wait`'s). `demo` and
+`languages_loaded` are facts of the database, whichever lease built it; the tools enforce them
+from the database too.
 
 ## Provision once, forward everywhere
 
@@ -37,15 +39,11 @@ brief that touches code or tests (coder, test-author, verify, debug).
 
 An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation (confirm-by-toggle,
 `init` / `update`, `test`) by passing its `lease_token` to `instance_build` / `instance_serve`, and
-MUST NOT call `lease_acquire`, invent a `db_name` or port, or re-derive `addons_path`. Only an
-isolated lease (`lease_acquire` mode `ephemeral`: its own database and pooled ports, owned by its
-`run_id`) prevents a collision outright; a `shared` lease is deliberately one database and port for
-many readers.
+MUST NOT call `lease_acquire`, invent a `db_name` or port, or re-derive `addons_path`.
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context (an `ephemeral` lease by default; a listening one when the process must stay up), applying
-the instance HARD RULES (`en_US` union, Viindoo `--load`, lint-module install, per-version
-`cli_help` grounding) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance
-allocation. A provided handle always wins (consume, never re-provision) - with exactly ONE
+the instance HARD RULES per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo
+instance allocation. A provided handle always wins (consume, never re-provision) - with exactly ONE
 exception, § Worktree-addons carve-out below. (`odoo-instance` may lease a test port on the
 handle's database; it never releases or parks the handle's lease.)
 
@@ -90,14 +88,18 @@ assert it against `instance_serve`'s `served_addons_path`.
 This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
 a `db_name` or a port (`lease_acquire` mints both), MUST NOT re-derive `addons_path` from the
 catalog, and MUST NOT self-provision to change the series, add a module, or because a handle looks
-stale. `lease_acquire`'s worktree refusal never inspects the CONTENT of an `addons_path` you pass,
-so a wrong-but-present `addons_path` is caught only by this assertion.
+stale.
+
+## One build or export per database (ONE rule, every parallel fan-out points here)
+
+Workers sharing ONE database (one forwarded handle) never build or export on it at the same time.
+When a tool reports the database busy, `job_wait` the job it names, then retry the call. Never
+release or park a lease you do not own to free the database.
 
 ## Prefork (`--workers>0`) needs a second port
 
-The default THREADED mode (`workers=0`) multiplexes the longpolling/realtime bus over the single
-`http_port` - no second port needed. Any use of prefork (`--workers>0`) MUST acquire with `ports` 2;
-`instance_serve` derives both conf keys from the series. Prefork stays OPT-IN, never default.
+The default threaded mode (`workers=0`) needs one port. Prefork (`--workers>0`) MUST acquire with
+`ports` 2; `instance_serve` derives both conf keys from the series. Prefork stays OPT-IN.
 
 ## Lifecycle
 

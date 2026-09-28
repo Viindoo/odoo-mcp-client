@@ -50,7 +50,7 @@ AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 TOOLKIT = REPO_ROOT / "plugins" / "git-toolkit"
 
 # git-toolkit's OWN, provider-agnostic completion-reporting snippet: it tells a git-toolkit agent
-# how to end its turn (emit the report as its final message, never send it), naming NO consumer.
+# how to end its turn (hand the report back once, last, never send it), naming NO consumer.
 # Guarded for existence + anchors here; the independence scan below additionally proves it names no
 # odoo-ai-agents artifact.
 COMPLETION_REPORTING = TOOLKIT / "snippets" / "completion-reporting.md"
@@ -178,8 +178,9 @@ def test_denylist_is_populated():
 def test_completion_reporting_snippet_exists():
     """git-toolkit's completion-reporting SSOT snippet must exist and carry its anchor tokens.
 
-    The snippet's contract: a git-toolkit agent ends its turn by emitting its report as its FINAL
-    MESSAGE and never sending it anywhere - it cannot address the context that dispatched it, and a
+    The snippet's contract: a git-toolkit agent hands its report back once, last - as the
+    `SubagentHandback` message when that tool is in its toolset, else as its FINAL TEXT - and never
+    sends it anywhere - it cannot address the context that dispatched it, and a
     messaging tool being in its toolset is not an instruction to try. The anchors guard exactly
     that. This complements the independence scan: that test proves the snippet names no consumer,
     this one proves the snippet still says what it must (the two together stop it from being
@@ -191,7 +192,8 @@ def test_completion_reporting_snippet_exists():
     # The first entry is asserted verbatim ON PURPOSE: it is the identity marker
     # test_return_path_contract.py counts to prove the rule has exactly one home per plugin.
     # The rest are SHAPES, so a rewording that preserves the rule still passes.
-    assert "your completion report is the final text of your turn" in low, (
+    declaring = "your launcher receives your completion report once, as the last act of your dispatch"
+    assert declaring in low, (
         "completion-reporting.md must carry the declaring sentence verbatim - it is the marker "
         "the single-home guard counts"
     )
@@ -200,6 +202,8 @@ def test_completion_reporting_snippet_exists():
         r"cannot address the [\w-]+ that dispatched you|no agent can address",
         r"(?:is not|never) an instruction to (?:try|use one|use it)",
         r"never end a turn on a bare tool call",
+        r"`subagenthandback` is in your toolset\*\* -> call it once with the full report",
+        r"otherwise\*\* -> your report is the final text of your turn",
     ):
         assert re.search(shape, low), (
             f"completion-reporting.md: no text matches the required rule shape {shape!r}"

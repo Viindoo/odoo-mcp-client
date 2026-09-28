@@ -797,7 +797,7 @@ without error. SSOT for the tier conditions, fallback rules, and async semantics
 
 The `handoff` field in `generator/skill_tool_deps.json` records the preferred tier per skill
 (`send-message | fork | fresh`) and is surfaced as a column in `docs/reference/ORCHESTRATION-MAP.md`.
-The channel is one-way DOWN: a dispatched agent returns its report as its final message and never
+The channel is one-way DOWN: a dispatched agent hands its report back once and never
 sends one up, so no brief carries a reply address
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
 

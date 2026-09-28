@@ -693,7 +693,9 @@ batch dispatch init for the N affected modules followed by run-tests of the targ
 (`GATE_ROLE: node-verify` - a per-batch verify is never the pre-PR lint gate), relaying the
 returned `INSTANCE_HANDLE` so later batches reuse the same instance instead of self-provisioning
 (`odoo-instance-ops` resolves odoo-bin flags per series via `cli_help`, performs Odoo create-on-init,
-and drops the DB through Odoo on release). The executor returns a structured result block (per-test
+and drops the DB through Odoo on release). Every build on that ONE database (a batch's verify, a
+clean-tip re-run) follows `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build
+or export per database. The executor returns a structured result block (per-test
 pass/fail + the instance log path), NOT the raw firehose. From that block THIS skill stays the
 adjudicator of FP intent: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta tests
 only, triaging each red test as FP-delta vs pre-existing (re-run it on clean target tip via the same
@@ -744,6 +746,13 @@ in the integration worktree, as always - § Git topology) -> P9 verify -> P10 ga
 batch. Re-entering P5 for a single source commit, or committing part-way through a batch's range,
 is Hard rule 2's banned shape and produces the merge-commit sprawl this pipeline exists to avoid.
 
+**P9 instance release [MANDATORY].** Once the P10 loop has closed (the last batch passed its gate),
+no later stage needs the P9 verify instance - P11 acceptance never reuses it. This skill is its
+run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
+before P11. Call `lease_park` instead only when a named later step of this run still needs the
+database. Never release it between batches - every batch reuses it.
+
 **P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
 only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
 commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
@@ -768,9 +777,9 @@ Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch
 or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 (read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
 `merge-log.md` + each touched module's own `<module>/intents/<sha>.md` (§ P1 write path), `odoo_version`
-= target series; `INSTANCE_HANDLE` from P9 if
-still live (reuse - never re-provision; else pass `none provisioned` and `odoo-acceptance` still
-scopes + plans its oracle, then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) =
+= target series; `INSTANCE_HANDLE: none provisioned` - NEVER P9's verify handle: that database
+carries the series' test-build demo shape (none where demo is opt-in), while acceptance runs on a
+demo-carrying cluster that `odoo-acceptance` provisions on its own fresh lease (its Phase 2). `ACCEPTANCE` (by pointer) =
 each ported commit's behavioral contract recorded in the touched module's own `<module>/intents/<sha>.md`
 and any P3 design doc's §9
 - NEVER a pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own
@@ -789,12 +798,6 @@ review findings, and acceptance verdict together), not a surprise extra step aft
 already requested.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.
-**P11 release [MANDATORY].** Once P11 has returned (or its narrow escape is recorded), no later
-stage needs the P9 instance: this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
-`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
-before P12. Call `lease_park` instead only when a named later step of this run still needs the
-database. Never release it between batches - every batch and P11 reuse it.
-
 **P12 - PR + review [runs AFTER P11 acceptance clears].** Push `fp/<slug>` (invoke
 `git-toolkit:git-ops`; resolve origin URL via `git remote get-url origin`). Run `odoo-code-review`
 inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
@@ -945,7 +948,7 @@ handle as-is. A resume that spans a session boundary reuses it only through
 `instance_serve`; `found=false` means the recorded instance is gone - provision a fresh one via
 `odoo-instance`, and never release or park the recorded token you did not adopt. P9 delegates the RUN, but the lease was
 provisioned for THIS run and handed back UP, so this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1)
-and releases it per § P11 release.
+and releases it per § P9 instance release.
 
 ## Frontend / i18n / data-XML caveats
 

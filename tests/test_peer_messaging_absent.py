@@ -53,6 +53,25 @@ def _rel(path: Path) -> str:
     return str(path.relative_to(REPO_ROOT))
 
 
+# A hook script READS the transcript; it instructs no agent. The teardown and handback gates
+# (hooks/lease-correlation.sh) must parse the harness's peer-message records - a child's
+# `SubagentHandback` report, a caller's resume message - by their envelope, and describing that
+# record is not peer messaging. The exemption is bound to BOTH the file kind (a hook script) and a
+# peer-record marker in the same window, so agent-facing prose never inherits it.
+HOOK_DIR = ODOO_PLUGIN / "hooks"
+_PEER_RECORD_MARKER_RE = re.compile(
+    r"(origin\.kind|\.origin\.from|peer_envelope|origin\.handback|queued_command)"
+)
+
+
+def _is_hook_peer_record_read(path: Path, window: str) -> bool:
+    return (
+        path.suffix == ".sh"
+        and HOOK_DIR in path.parents
+        and bool(_PEER_RECORD_MARKER_RE.search(window))
+    )
+
+
 def test_scan_corpus_discovered():
     assert len(SCANNED) >= 200, (
         f"expected >=200 scanned files under plugins/, found {len(SCANNED)}"
@@ -71,11 +90,19 @@ _SIBLING_FIELD_RE = re.compile(
 )
 
 
+def _sibling_field_offenders(path: Path, text: str) -> list[str]:
+    return [
+        m.group(0)
+        for m in _SIBLING_FIELD_RE.finditer(text)
+        if not _is_hook_peer_record_read(path, text[max(0, m.start() - 160): m.end() + 160])
+    ]
+
+
 def test_no_sibling_address_field_anywhere():
     offenders = [
-        f"{_rel(path)}: {m.group(0)!r}"
+        f"{_rel(path)}: {hit!r}"
         for path, text in NORMALIZED.items()
-        for m in _SIBLING_FIELD_RE.finditer(text)
+        for hit in _sibling_field_offenders(path, text)
     ]
     assert not offenders, (
         "sibling-addressing machinery survives. A lead cannot broker a sibling address (it cannot "
@@ -115,11 +142,13 @@ _SEND_BAN_RE = re.compile(
 )
 
 
-def _peer_send_offenders(text: str) -> list[str]:
+def _peer_send_offenders(text: str, path: Path | None = None) -> list[str]:
     found = []
     for m in _SEND_TOKEN_RE.finditer(text):
         window = text[max(0, m.start() - 160): m.end() + 160]
         if _SEND_BAN_RE.search(window):
+            continue
+        if path is not None and _is_hook_peer_record_read(path, window):
             continue
         found.append(window.strip()[:240])
     return found
@@ -133,7 +162,7 @@ def test_no_send_is_paired_with_a_peer_or_sibling():
     offenders = [
         f"{_rel(path)}: ...{window}..."
         for path, text in NORMALIZED.items()
-        for window in _peer_send_offenders(text)
+        for window in _peer_send_offenders(text, path)
     ]
     assert not offenders, (
         "lateral peer/sibling messaging survives:\n" + "\n".join(offenders)
@@ -165,6 +194,45 @@ def test_peer_guard_catches_lateral_coordination_without_a_tool_name(phrasing):
 def test_peer_guard_allows_the_prohibition_itself(phrasing):
     assert not _peer_send_offenders(" ".join(phrasing.split())), (
         f"the peer guard flags {phrasing!r}, which states the rule"
+    )
+
+
+# A hook that parses a peer record describes it in the words the guard watches for - and must be
+# allowed to, or the gates cannot document their own input. The same words stay an offence
+# anywhere an agent reads them as instructions, and in a hook with no peer-record marker.
+_HOOK_RECORD_READ = (
+    "# A caller's resume message to the peer agent lands as origin.kind \"peer\" "
+    "(peer: the sender's agentId); read its text as part of the brief."
+)
+
+
+def test_hook_may_describe_the_peer_record_it_reads():
+    hook = HOOK_DIR / "lease-correlation.sh"
+    text = " ".join(_HOOK_RECORD_READ.split())
+    assert not _peer_send_offenders(text, hook), (
+        "a hook describing the peer-message record it parses is flagged as peer messaging"
+    )
+    assert not _sibling_field_offenders(hook, text), (
+        "a hook naming a peer-record field is flagged as a sibling-address brief field"
+    )
+
+
+@pytest.mark.parametrize(
+    "path, text",
+    [
+        (ODOO_PLUGIN / "agents" / "odoo-solution-architect.md", _HOOK_RECORD_READ),
+        (HOOK_DIR / "lease-correlation.sh",
+         "# Then message the peer agent with your proposal before finishing (peer: its name)."),
+    ],
+    ids=["record-description-in-agent-prose", "hook-without-record-marker"],
+)
+def test_the_hook_carve_out_never_covers_peer_messaging(path, text):
+    text = " ".join(text.split())
+    assert _peer_send_offenders(text, path), (
+        f"{path.name}: {text!r} slipped the peer guard - the hook carve-out is leaking"
+    )
+    assert _sibling_field_offenders(path, text), (
+        f"{path.name}: {text!r} slipped the sibling-field guard - the hook carve-out is leaking"
     )
 
 

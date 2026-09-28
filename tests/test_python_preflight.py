@@ -42,6 +42,7 @@ CATALOG_STEPS = (
     "48-db-local-auth.sh",
     "05-prereq-check.sh",
     "45-venv.sh",
+    "46-server-wide.sh",
     "40-instance-profile.sh",
     "47-instance-reset.sh",
 )

@@ -30,12 +30,13 @@ removed/changed entry before commit (no `polib`), into the THREE buckets of
 `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § Adjudicating a removed or changed entry.
 
 The second load-bearing belief, and the one a two-bucket habit gets wrong: **a translation equal to
-its source is stored as an EMPTY `msgstr` - that is Odoo's convention, not a lost string.** Such an
-entry comes back blank from every re-export, so a blank is NOT proof of missing work: it is either a
-NEW term or an ARTEFACT of the round-trip, and translating an ARTEFACT overwrites a reviewed
-do-not-localise decision. Both rules, with the test that separates them, are in
+its source is stored as an EMPTY `msgstr` - that is Odoo's convention, not a lost string.** An entry
+whose correct translation equals its `msgid` stays empty: it is done, never counted as untranslated,
+and never filled with its `msgid`, so "zero empty `msgstr`" is never a goal. The rules are in
 `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`; term choice is
-`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`. Neither is restated in this skill.
+`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`; the export order and the rule that only
+`msgstr` content may change after an export are `references/i18n-recipe.md` § Export order and
+§ Keep Odoo's export format. None is restated in this skill.
 
 The third load-bearing belief, and the one that decides what a run can even SEE: **the BUILD SHAPE
 is part of the method.** The catalog is bounded by what is in the database, so the export instance
@@ -44,7 +45,7 @@ filters by module alone), must have `en_US` plus every target language active, a
 build every artifact of the run - the `.pot` and each `.po` - is exported from. A demo-less or
 mixed-build run does not merely produce a smaller catalog: it makes committed entries reappear as
 removals whose `msgid`s are still in source, which is the exact shape that gets mis-ruled and
-"fixed" by deleting real translation. Grounded, per-series flags and the gate that checks it:
+"fixed" by deleting real translation. The rule and the gate that checks it:
 `references/i18n-recipe.md` KT4/KT5 + Validation gate 6.
 
 A clean export + a green
@@ -101,8 +102,7 @@ the principal checkout: pass `WORKTREE_PATH` through to `odoo-instance`
 
 ## Standalone-first fallback
 
-i18n REQUIRES a running Odoo instance with the target module installed. Export (`--i18n-export`)
-walks the live registry to enumerate translatable terms, and validation reloads the module against a
+i18n REQUIRES a running Odoo instance with the target module installed. Export walks the live registry to enumerate translatable terms, and validation reloads the module against a
 real DB - both need an instance. There is NO no-DB workaround: babel or a raw PO parser alone cannot discover a
 module's translatable terms the way Odoo's registry does, so every "translate without an instance"
 path produces an INCOMPLETE or WRONG result and must be refused.
@@ -111,16 +111,7 @@ When no instance is available, BLOCK with status `NEEDS_CONTEXT` (Continuation C
 `blocked_reason`); do not improvise a partial export. Acquire an instance by invoking the `odoo-instance` skill
 (never the raw `odoo-instance-ops` agent) per
 `docs/reference/INSTANCE-LIFECYCLE.md` § Decision tree, and resume at P2.
-Ground the exact odoo-bin export/reload flags for the target series before invoking - the CLI
-surface differs per version (server flags v8-v18 vs the `i18n` subcommand v19+):
-
-```
-cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag)
-cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
-```
-
-When OSM itself is unreachable, flag-grounding falls back to the instance's own `odoo-bin --help`;
-the instance requirement is absolute and never degrades to a no-DB path.
+The instance requirement is absolute and never degrades to a no-DB path.
 
 ## The 6-phase pipeline
 
@@ -149,7 +140,9 @@ then echo which source was used:
 2. Machine-global registry: read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` and use its
    `default_languages` array if present and non-empty.
 3. Infer from existing `<lang>.po` filenames in each module's `i18n/` directory
-   (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists.
+   (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists. A stem is either the
+   full language code or Odoo's export name, the language's ISO code: resolve an ISO-code stem to
+   its language code before passing it to a build, and confirm when more than one code fits.
 4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
 
 **No tier 5 - the target language is a REQUIRED input with NO built-in default.** This is a public,
@@ -179,8 +172,8 @@ generate Vietnamese (or any other) catalogs for a user who did not ask for them.
 `activation_languages = {"en_US"} union target_languages`. `en_US` (Odoo's base/source language) is
 ALWAYS loaded into the DB alongside every target language (recipe KT3) - none of the tiers above can
 produce it (Odoo ships no `en_US.po`), so it MUST be added here. This governs the DB-activation set
-passed to every `--load-language`/`loadlang` call ONLY; it does NOT add `en_US` as a translation
-deliverable (no `en_US.po` is exported or merged).
+- the export build's `languages` and the `languages_loaded` its `INSTANCE_HANDLE` must show - ONLY;
+it does NOT add `en_US` as a translation deliverable (no `en_US.po` is exported or merged).
 
 Echo the resolved language list (target languages + the `activation_languages` set) AND the source tier
 that produced it in the scope summary.
@@ -234,16 +227,21 @@ Dispatch `odoo-instance` with a build shape that is not negotiable and not defau
 | Field | Value | Why it is not optional |
 |---|---|---|
 | `demo` | `on` | Demo-owned records carry translatable terms and the exporter filters by module ALONE - no demo predicate. State it explicitly rather than relying on the dispatch to infer a translation build: a build that reaches the exporter without demo truncates the catalog and turns the P3 reconcile into mass phantom removals (recipe KT4) |
-| `languages` | the full `activation_languages` set from P0 | Every target language active in the SAME build, so no `.po` needs a second provision (recipe KT1 + KT3). The skill unions `en_US` before dispatch |
+| `languages` | the full `activation_languages` set from P0 | Every target language active in the SAME build, so no `.po` needs a second provision (recipe KT1 + KT3). `instance_build` adds `en_US` to every build |
 | `skip_auto_install` | `true` where the series has it | Keeps `auto_install` siblings' terms out of the catalog |
 | `WORKTREE_PATH` | the run's worktree | The export must read the code being translated, not the principal checkout |
 
-Then, from THAT database: export the `.pot` TEMPLATE once per module, and one `<lang>.po` per target
-language. Never export over a maintained `.po`. ALWAYS re-export the `.pot` FRESH from the
-currently-installed code on every invocation - never reuse a committed or prior-run `.pot` already
-on disk (a stale template misses the run's new/renamed terms and silently under-merges; recipe
-gate 5). The `.pot` is language-agnostic - one FRESH export per module per run, not per language -
-and having target languages active in the build does not leak into it.
+Then export from THAT database with `mcp__plugin_odoo-ai-agents_odoo-local__instance_i18n_export`
+on the build's `lease_token` - one call, every target language - and `job_wait` it until its `result`
+is not `timeout`. It follows the recipe's Export order itself (the `.pot` TEMPLATE first, once per
+module, then one `<lang>.po` per target language); its `exports` list is the run's artifact paths.
+Never compose an `odoo-bin` export. When the tool refuses the call or fails the job, follow its
+remedy (recipe L1): a demo or language refusal means the build is wrong (KT1 / KT4) - fix the build,
+never the route to the export. The export replaces the working-tree `.po`; the committed one at HEAD stays the P3 diff-review baseline, so nothing reaches a
+commit unadjudicated. ALWAYS re-export the `.pot` FRESH from the currently-installed code on every
+invocation - never reuse a committed or prior-run `.pot` already on disk (a stale template misses the run's new/renamed terms and silently
+under-merges; recipe gate 5). The `.pot` is language-agnostic - one FRESH export per module per run,
+not per language - and having target languages active in the build does not leak into it.
 
 **Every artifact of one run comes from ONE build (recipe KT5).** Do not provision a second instance
 for the `.pot`, or a fresh one per language: two builds that differ in demo, `skip_auto_install`,
@@ -251,16 +249,16 @@ addons path or code state describe different term inventories, and the P3 diff-r
 differences that belong to neither the code nor the translation. Record the `INSTANCE_HANDLE` every
 artifact came from and pass the SAME one to every P3 leaf.
 
-The per-version flags and their rationale - `--load-language` (activate in DB) vs `--language`/`-l`
-(select export file), the demo flag's default and arity moving at v19, `--skip-auto-install` v17+,
-one fresh DB per module v8-v16, the `odoo-bin i18n` subcommand v19+ - live in the recipe; ground the
-exact form via `cli_help` above (`command='i18n-export'` v8-v18, `command='i18n'` v19+).
+Why a language must be loaded by the build rather than named to the export, where
+`--skip-auto-install` applies and when to isolate by database: recipe KT1 and § Isolate the term
+inventory.
 
 **P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent as a
 subagent launch for EACH (module-cluster × language) pair - the Cartesian product of module
 clusters and target languages. Each leaf carries exactly ONE language; never bundle multiple
 languages in a single leaf. Each leaf runs the L2 re-export + diff-review reconcile and L3 hand-translation of the
-residual for its specific language. Loop order: see `## Multi-language loop order` in
+residual for its specific language. The leaves, and your own P4 reloads, share ONE database: they
+follow `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database. Loop order: see `## Multi-language loop order` in
 `references/i18n-recipe.md` (`.pot` exported once per module, `.po`/glossary/validate per-lang).
 See the dispatch contract below for the model and brief.
 
@@ -271,10 +269,11 @@ run the git-ops diff-review adjudication on `<lang>.po` (BLOCK on any un-adjudic
 loss - that means an overwrite slipped through without the load step), the per-entry placeholder-integrity check,
 the build-shape gate (recipe gate 6: the export build carried demo data, and the `.pot` plus every
 `.po` came from that ONE build - a mismatch voids the adjudication rulings above, so re-export and
-re-adjudicate rather than commit),
+re-adjudicate rather than commit), the export-format gate (recipe gate 7: only `msgstr` content
+differs from Odoo's export),
 and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each language's reload: the
-target language must be LOADED in the DB first (`--load-language=<lang>`, or `i18n loadlang
--l <lang>` in the subcommand form); an absent language makes the reload pass silently while
+target language must be LOADED in the DB first (listed in the export build's `languages_loaded`);
+an absent language makes the reload pass silently while
 translations stay inactive
 - a false pass. `en_US` (the base language) MUST be active too (KT3) - confirm BOTH `en_US` and each
 `<lang>`, never the target language alone. Also verify the `.pot` consumed was re-exported THIS run
@@ -297,9 +296,9 @@ translated modules for EACH target language separately. This phase is **ADVISORY
 blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
 auto-dedup. The independent-regime guard binds it (`${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md`
 § Independent-regime guard): regimes that are legally independent MUST NOT be deduped even when
-their `msgid`s match. An entry whose `msgstr` equals its `msgid` is likewise never an
-inconsistency to report - it is a deliberate do-not-localise decision (`po-entry-semantics.md`
-§ The identity rule). Write findings per language to
+their `msgid`s match. An entry left with an empty `msgstr` because its translation equals its
+source is likewise never an inconsistency or a gap to report (`po-entry-semantics.md`
+§ An empty `msgstr`). Write findings per language to
 `<ISOLATE_DIR>/i18n/<slug>-<date>/consistency-audit-<lang>.md` (one file per target language).
 
 ## Dispatch contract -> odoo-translator
@@ -316,15 +315,15 @@ context that does NOT inherit your cwd); `SHARE_DIR` + `ISOLATE_DIR` as the abso
 captured at P0 (field 5 again - the leaf roots itself at `WORKTREE_PATH`, so re-resolving
 `<ISOLATE_DIR>` from its own cwd would land its worklog in that worktree and orphan the glossary
 read from yours); the target module(s), the single target language, series; the
-glossary TM path for that language (`glossary-tm-<lang>.json`) from P1; the maintained `<lang>.po` and
-fresh `<module>.pot` paths; and the validation gates the leaf must self-check.
+glossary TM path for that language (`glossary-tm-<lang>.json`) from P1; the `<lang>.po` and fresh
+`<module>.pot` paths from the P2 `exports`; and the validation gates the leaf must self-check.
 
 Also carry, verbatim, the P2 build the artifacts came from: `INSTANCE_HANDLE` (the SAME handle for
 every leaf of the run - see KT5 above) plus `BUILD_SHAPE: demo=on, languages=<activation set>,
-skip_auto_install=<bool>`. The leaf re-exports from that build, so it can only verify the shape it
-is told; omit these and it has to trust an unstated one. A leaf that receives a `BUILD_SHAPE` with
+skip_auto_install=<bool>`. The leaf reconciles what that build exported, so it can only verify the
+shape it is told; omit these and it has to trust an unstated one. A leaf that receives a `BUILD_SHAPE` with
 `demo` anything but `on`, or that cannot corroborate demo records for a module whose manifest
-declares `demo` files, returns BLOCKED rather than exporting - the catalog would be truncated and
+declares `demo` files, returns BLOCKED rather than reconciling - the catalog would be truncated and
 the reconcile would report phantom removals. Pass the model both as a
 `DISPATCH MODEL:` line in the brief and as the Agent `model` parameter:
 
@@ -333,8 +332,8 @@ the reconcile would report phantom removals. Pass the model both as a
   circulars, statutory report labels) where a wrong term has compliance cost.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
-decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its re-export /
-translate / validate method (incl. when it uses OSM vs shell `odoo-bin`) is its own Rounds 0-5 -
+decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its reconcile /
+translate / validate method (incl. what it uses OSM for) is its own Rounds 0-5 -
 do not restate the procedure here.
 
 ## Artifacts
@@ -347,7 +346,7 @@ All under `<ISOLATE_DIR>/i18n/<slug>-<date>/`:
 - `translation-report-<lang>.json` - per-module diff-review adjudication log (removed/changed/added
   msgids + CORRECT/ARTEFACT/WRONG rulings) for each language. An un-adjudicated entry or a WRONG
   ruling is a BLOCK; an ARTEFACT ruling is neither a block nor residual - it records an identity
-  entry restored from the committed `.po`
+  entry that keeps the empty `msgstr` Odoo exported
 - `consistency-audit-<lang>.md` - the advisory P5 findings per language
 
 ## Continuation Contract

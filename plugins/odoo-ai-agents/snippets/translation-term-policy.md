@@ -2,7 +2,7 @@
      layers and their precedence, and the independent-regime guard.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/translation-term-policy.md.
      BOUNDARY - this file decides WHICH WORDS. What a `.po` entry MEANS (identity rule, empty-msgstr
-     origins, adjudication buckets, fuzzy, placeholders) is owned by
+     rule, adjudication buckets, fuzzy, placeholders) is owned by
      ${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md; what you DO and in what ORDER is owned by
      ${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md. Neither is restated here. -->
 
@@ -45,7 +45,7 @@ and a shared entry would then be wrong in one of them with nothing to flag it.
 ## A term that must NOT be localised
 
 Keeping the source wording IS a translation decision - a proper noun, protocol name, acronym,
-product or vendor name. Record it in the project glossary so the next translator inherits the
-decision instead of re-litigating it. How Odoo then stores such an entry, and why it comes back
-blank from a re-export, is `${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md`
-§ The identity rule - do not act on a blank one without reading that rule first.
+product or vendor name - and applies only when it is the correct translation, never because a word
+looks technical. Record it in the project glossary so the next translator inherits the decision
+instead of re-litigating it. Such an entry stays an EMPTY `msgstr`:
+`${CLAUDE_PLUGIN_ROOT}/snippets/po-entry-semantics.md` § An empty `msgstr`.

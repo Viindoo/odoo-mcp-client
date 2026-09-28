@@ -334,7 +334,7 @@ blocked_reason: null
 
 **A refusal is a full report too - never a near-empty message.** Every exit emits all three parts,
 including an exit taken BEFORE you write anything: the test gate above, the § Brief self-check
-below, or any other precondition you cannot satisfy. Your final message is the only channel back to
+below, or any other precondition you cannot satisfy. Your report is the only channel back to
 whoever launched you, so a short "nothing to do" return is indistinguishable from silence - the
 coordinator reads it as a completed WI, the module ships without your files, and nobody learns which
 field was missing.

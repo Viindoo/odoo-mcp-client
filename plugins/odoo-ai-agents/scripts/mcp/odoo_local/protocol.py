@@ -546,13 +546,14 @@ class Server(object):
 
 def build_registry(ctx):
     """The registry with every tool group. Adding a group = one import + one register() call."""
-    from . import tools_catalog, tools_instance, tools_lease
+    from . import tools_catalog, tools_i18n, tools_instance, tools_lease
 
     registry = ToolRegistry()
     register_core_tools(registry, ctx)
     tools_catalog.register(registry, ctx)
     tools_lease.register(registry, ctx)
     tools_instance.register(registry, ctx)
+    tools_i18n.register(registry, ctx)
     return registry
 
 

@@ -17,7 +17,11 @@ The contract, stated as behavior - for rows written by THIS allocator:
     by master once any current-version write (the session heartbeat, another
     session's acquire) has run - and it can still be parked;
   - master's acquire (its machine-wide sweep) reclaims none of them and drops
-    nothing.
+    nothing;
+  - the build facts this version records on a row (`server_wide_modules`,
+    `built`) survive every verb master runs on it, and a row master wrote
+    without them reads here as "nothing declared, nothing recorded" (the last
+    section, which runs against master's CURRENT allocator whatever it is).
 
 Master's allocator is taken from git (`git show master:<path>`) into a temp dir at
 test time; the tests skip when git or the master branch is unavailable. Every
@@ -358,3 +362,214 @@ def test_an_ended_sessions_lease_and_a_live_server_are_left_as_they_are(world):
         assert world.lease(live_token)["owner"].get("pid") == live.pid
     finally:
         _stop(live)
+
+
+# --------------------------------------------------------------------------- #
+# Build facts on the lease row (server_wide_modules, built) under the RELEASED
+# allocator - the session-anchored one on master, whatever it is. Every verb it
+# runs against a row this version wrote must keep both keys intact and must not
+# choke on them: its sessions share the registry with this one.
+# --------------------------------------------------------------------------- #
+RELEASED_FILES = MASTER_FILES + ("session_anchor.py",)
+BUILD_FACTS = {"server_wide_modules": ["to_base", "viin_brand"],
+               "built": {"demo": True, "languages": ["en_US", "vi_VN"]}}
+
+
+@pytest.fixture(scope="module")
+def released_lib(tmp_path_factory):
+    """master's allocator and siblings, taken as they are (no pre-anchor skip)."""
+    if shutil.which("git") is None:
+        pytest.skip("git is not available")
+    dest = tmp_path_factory.mktemp("released_lib")
+    for name in RELEASED_FILES:
+        text = _git_show("master:{lib}/{name}".format(lib=LIB_REL, name=name))
+        if text is None:
+            pytest.skip("master:{lib}/{name} is not available".format(lib=LIB_REL, name=name))
+        (dest / name).write_text(text, encoding="utf-8")
+    return dest
+
+
+def _released(world, lib, env, *args):
+    return subprocess.run([sys.executable, str(lib / "allocator.py"), *args], capture_output=True,
+                          text=True, env=env, timeout=60)
+
+
+def _row_with_build_facts(world, env, *extra):
+    """A lease written by THIS allocator carrying both new keys (server_wide_modules from the
+    catalog at acquire, built from record-build)."""
+    world.toml.write_text(world.toml.read_text(encoding="utf-8")
+                          + 'server_wide_modules = ["to_base", "viin_brand"]\n', encoding="utf-8")
+    p, out = world.acquire(env, "--no-create", *extra)
+    assert p.returncode == 0, p.stderr
+    token = out["ALLOC_TOKEN"]
+    for args in (("--demo", "on"), ("--languages", "en_US,vi_VN")):
+        p = world.run(env, "record-build", token, *args)
+        assert p.returncode == 0, p.stderr
+    row = world.lease(token)
+    assert {k: row[k] for k in BUILD_FACTS} == BUILD_FACTS
+    return token
+
+
+def test_the_released_allocator_keeps_the_build_facts_through_its_own_writes(world, released_lib):
+    a = world.session("sess-A")
+    env = world.env(a)
+    server = _server()
+    try:
+        token = _row_with_build_facts(world, env)
+        for args in (("heartbeat", token), ("heartbeat", "--session", "mine"),
+                     ("bind", token, "--pid", str(server.pid)),
+                     ("acquire", "--series", "17.0", "--mode", "ephemeral", "--no-create",
+                      "--run-id", "run-old"),
+                     ("park", token, "--run-id", "run-A")):
+            p = _released(world, released_lib, env, *args)
+            assert p.returncode == 0, (args, p.stderr)
+            row = world.lease(token)
+            assert row is not None, "the released allocator removed the row on %r" % (args,)
+            assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS, args
+        assert world.drops() == []
+    finally:
+        _stop(server)
+
+
+def test_the_released_allocator_lists_and_releases_a_row_with_the_build_facts(world, released_lib):
+    a = world.session("sess-A")
+    env = world.env(a)
+    token = _row_with_build_facts(world, env)
+    listed = json.loads(_released(world, released_lib, env, "list", "--show-tokens").stdout)
+    row = next(lz for lz in listed["leases"] if lz["token"] == token)
+    assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS
+    p = _released(world, released_lib, env, "release", token, "--run-id", "run-A")
+    assert p.returncode == 0, p.stderr
+    assert world.lease(token) is None
+    assert world.drops() == [], "a --no-create lease created no database to drop"
+
+
+def test_a_row_the_released_allocator_wrote_reads_as_no_build_facts_here(world, released_lib):
+    """The other direction: a row without the keys (acquired by the released allocator) is read
+    by this version as `nothing declared, nothing recorded`, and record-build fills it."""
+    a = world.session("sess-A")
+    env = world.env(a)
+    p = _released(world, released_lib, env, "acquire", "--series", "17.0", "--mode", "ephemeral",
+                  "--no-create", "--run-id", "run-A")
+    assert p.returncode == 0, p.stderr
+    token = _kv(p.stdout)["ALLOC_TOKEN"]
+    assert "server_wide_modules" not in world.lease(token) and "built" not in world.lease(token)
+    p = world.run(env, "record-build", token, "--demo", "off")
+    assert p.returncode == 0, p.stderr
+    assert world.lease(token)["built"] == {"demo": False, "languages": []}
+
+
+def _declare_server_wide_once(world):
+    text = world.toml.read_text(encoding="utf-8")
+    if "server_wide_modules" not in text:
+        world.toml.write_text(text + 'server_wide_modules = ["to_base", "viin_brand"]\n',
+                              encoding="utf-8")
+
+
+def _row_with_build_facts_again(world, env, *extra):
+    """Another row carrying both keys (the catalog key is declared once)."""
+    _declare_server_wide_once(world)
+    p, out = world.acquire(env, "--no-create", *extra)
+    assert p.returncode == 0, p.stderr
+    token = out["ALLOC_TOKEN"]
+    assert world.run(env, "record-build", token, "--demo", "on", "--languages",
+                     "en_US,vi_VN").returncode == 0
+    row = world.lease(token)
+    assert {k: row[k] for k in BUILD_FACTS} == BUILD_FACTS
+    return token
+
+
+def _databases_exist(world):
+    """The stub cluster answers `exists` with true: these rows' databases were built."""
+    text = world.py.read_text(encoding="utf-8")
+    assert "exists) echo false" in text, "test setup: the World stub changed shape"
+    world.py.write_text(text.replace("exists) echo false", "exists) echo true"), encoding="utf-8")
+
+
+def _assert_clean(args, p, codes=(0,)):
+    assert "Traceback" not in p.stderr, (args, p.stderr)
+    assert p.returncode in codes, (args, p.returncode, p.stderr)
+
+
+def test_the_released_allocators_gc_query_and_reap_run_cleanly_on_rows_with_build_facts(
+        world, released_lib):
+    """The released allocator's read-and-judge verbs (gc in each scope, query in each form,
+    reap-orphans listing and dropping) meet rows carrying `built` / `server_wide_modules` on
+    every host that runs two plugin versions: none may crash on them, reclaim a live session's
+    row because of them, or strip them."""
+    _databases_exist(world)
+    a = world.session("sess-A")
+    env = world.env(a)
+    server = _server()
+    try:
+        _declare_server_wide_once(world)
+        bound = _row_with_build_facts_again(world, env, "--pid", str(server.pid))
+        reserved = _row_with_build_facts_again(world, env)
+        parked = _row_with_build_facts_again(world, env)
+        assert world.run(env, "park", parked, "--run-id", "run-A").returncode == 0
+        # The cluster lists every lease's database plus one old, unreferenced orphan: reap must
+        # see the build-fact rows as lease references and name the orphan alone. LIST mode only:
+        # the released reap's `--yes` drops through the host's raw psql/dropdb, not the stub,
+        # so it would reach a real cluster (and blocks on one that prompts).
+        orphan = "odoo_17_0_t_0badf00d"
+        names = [world.lease(t)["db_name"] for t in (bound, reserved, parked)] + [orphan]
+        text = world.py.read_text(encoding="utf-8")
+        world.py.write_text(text.replace(
+            "    exists) echo true; exit 0 ;;\n",
+            "    exists) echo true; exit 0 ;;\n"
+            "    list-databases) printf '%s\\n' " + " ".join(names) + "; exit 0 ;;\n"
+            "    db-age-s) echo 999999; exit 0 ;;\n"), encoding="utf-8")
+        other = world.env(world.session("sess-B"))
+        runs = [
+            (("gc", "--dry-run"), (0,)),
+            (("gc",), (0,)),
+            (("gc", "--scope", "dead-sessions"), (0,)),
+            (("query", "--series", "17.0"), (0, 1)),  # no shared server: NOT_FOUND
+            (("query", "--series", "17.0", "--state", "parked", "--run-id", "run-A"), (0,)),
+            (("reap-orphans", "--min-age-s", "0"), (0,)),
+        ]
+        for args, codes in runs:
+            p = _released(world, released_lib, other, *args)
+            _assert_clean(args, p, codes)
+            if args[:3] == ("query", "--series", "17.0") and "--state" in args:
+                assert _kv(p.stdout).get("ALLOC_TOKEN") == parked, p.stdout
+            if args[0] == "reap-orphans":
+                cands = [ln.split("=", 1)[1].strip("'").split()[0]
+                         for ln in p.stdout.splitlines() if ln.startswith("REAP_CANDIDATE=")]
+                assert cands == [orphan], "reap named %r, not the orphan alone" % cands
+            for token in (bound, reserved, parked):
+                row = world.lease(token)
+                assert row is not None, "the released %r removed a live session's row" % (args,)
+                assert {k: row.get(k) for k in BUILD_FACTS} == BUILD_FACTS, args
+        assert world.drops() == [], "the released allocator dropped a database"
+        assert server.poll() is None, "the released allocator stopped a live server"
+    finally:
+        _stop(server)
+
+
+def test_a_lease_parked_before_it_was_ever_served_is_safe_under_the_released_allocator(
+        world, released_lib):
+    """`park` now accepts a RESERVED lease (built, never served). The row it writes must read as
+    an ordinary parked lease to the released allocator: not condemned by its gc or its acquire
+    sweep, found by its `query --state parked`, and its database never dropped."""
+    _databases_exist(world)
+    a = world.session("sess-A")
+    env = world.env(a)
+    token = _row_with_build_facts_again(world, env)
+    p = world.run(env, "park", token, "--run-id", "run-A")
+    assert p.returncode == 0, p.stderr
+    a.end()  # the owning session is gone: only the park budget protects the row now
+    other = world.env(world.session("sess-B"))
+    for args in (("gc",), ("gc", "--scope", "dead-sessions"),
+                 ("acquire", "--series", "17.0", "--mode", "ephemeral", "--no-create",
+                  "--run-id", "run-old")):
+        p = _released(world, released_lib, other, *args)
+        _assert_clean(args, p)
+        row = world.lease(token)
+        assert row is not None and row.get("parked_at") is not None, (
+            "the released %r reclaimed a parked lease:\n%s" % (args, p.stderr))
+    p = _released(world, released_lib, other, "query", "--series", "17.0", "--state", "parked",
+                  "--run-id", "run-A")
+    _assert_clean("query parked", p)
+    assert _kv(p.stdout).get("ALLOC_TOKEN") == token
+    assert world.drops() == []

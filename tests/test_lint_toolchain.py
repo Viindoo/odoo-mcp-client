@@ -263,18 +263,33 @@ def test_an_uninstalled_pin_is_reported_rather_than_left_deceptive(tree):
 # wiring - a helper nothing calls protects nothing
 # --------------------------------------------------------------------------- #
 
+def _launch_subshells(text):
+    """The body of every ulimit-scoped odoo-bin launch subshell: from its `(` to its `) >>"$logf"`."""
+    marker = 'resource_limit_is_uncapped || ulimit -Sv'
+    out, pos = [], 0
+    while (hit := text.find(marker, pos)) != -1:
+        start = text.rfind("(\n", 0, hit)
+        end = text.find(') >>"$logf"', hit)
+        out.append(text[start:end])
+        pos = hit + len(marker)
+    return out
+
+
 def test_every_odoo_bin_launch_applies_the_toolchain():
-    """The launch sites must actually call it, once per odoo-bin invocation that can run tests.
-    The count is tied to the ulimit-scoped subshells, so a new verb added without the call goes
-    red here instead of silently linting with the OS toolchain."""
+    """The launch sites must actually call it, once per odoo-bin invocation that can run tests: one
+    that passes --test-enable, or that appends caller-supplied flags (${arg_extra}), which can. A
+    launch with neither (the i18n export: a fixed argv that exports and exits) runs no test, so it
+    needs no lint toolchain. Tied to the ulimit-scoped subshells, so a new test-capable verb added
+    without the call goes red here instead of silently linting with the OS toolchain."""
     text = OPS.read_text(encoding="utf-8")
     assert "source \"$LIB_DIR/lint_toolchain.sh\"" in text, "55-instance-ops.sh must source the lib"
-    launches = text.count('resource_limit_is_uncapped || ulimit -Sv')
-    applies = text.count("lint_toolchain_export ")
-    assert applies == launches, (
-        f"{applies} toolchain applications for {launches} odoo-bin launch subshells - "
-        "every launch that can run tests must apply it"
-    )
+    launches = _launch_subshells(text)
+    can_test = [b for b in launches if "--test-enable" in b or "arg_extra" in b]
+    assert len(can_test) >= 3, "init, update and test each launch odoo-bin with caller flags"
+    missing = [b.splitlines()[1].strip() for b in can_test if "lint_toolchain_export " not in b]
+    assert not missing, "test-capable launches without the toolchain: %s" % missing
+    assert text.count("lint_toolchain_export ") == len(can_test), (
+        "the toolchain is applied once per test-capable launch, nowhere else")
 
 
 def test_the_script_that_never_runs_tests_does_not_wire_it():

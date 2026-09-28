@@ -78,8 +78,8 @@ output. The generator is idempotent: a clean tree must produce zero diff.
 ### The `odoo-local` MCP server (local runtime)
 
 `plugins/odoo-ai-agents/.mcp.json` registers `odoo-local`, a stdio MCP server
-(`scripts/mcp/odoo_local_server.py` + `scripts/mcp/odoo_local/`) exposing the lease, instance and
-catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`. Rules:
+(`scripts/mcp/odoo_local_server.py` + `scripts/mcp/odoo_local/`) exposing the lease, instance,
+translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`. Rules:
 
 - **Claude Code only.** Its command resolves `${CLAUDE_PLUGIN_ROOT}`, so `gen_mcp_manifests.py`
   excludes it from the Codex/Gemini manifests; those runtimes use the allocator CLI.
@@ -98,6 +98,32 @@ catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`. Ru
 - **Several plugin versions share one machine-global lease registry** (each session keeps the
   allocator it started with): rows must stay safe for older readers (`INSTANCE-ALLOCATION-RECLAIM.md`
   §7.4, `tests/test_allocator_cross_version.py`), and users restart sessions after updating.
+- **Odoo facts come from the checkout, deployment facts from the catalog.** Every series-dependent
+  fact (option spellings, the demo default, the core `--load` default, the supported Python range,
+  the translation-export command line) is read from the Odoo checkout's source TEXT by
+  `scripts/lib/odoo_source_facts.py` (never imported, never executed) - never keyed on a series
+  number or kept in a hand-written table, so a new Odoo series needs no plugin edit. A fact the
+  checkout does not state is refused (`ODOO_SOURCE_FACT_UNKNOWN`), never guessed. Which addons a
+  site loads server-wide is a deployment fact: the catalog row's `server_wide_modules`, proposed and
+  operator-confirmed by `/odoo-ai-agents:odoo-setup` (step `46-server-wide`, or `refresh`).
+- **The tools apply the build facts; agents never compose them.** `instance_build` / `instance_serve`
+  pass `--load` (core default + the row's list), `--load-language` (`en_US` + `languages`) and the
+  series' demo flag (from `demo`, on `init` only); `extra_args` refuses those flags.
+  `instance_i18n_export` runs Odoo's own exporter (`.pot` first, then one `.po` per language, from
+  one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
+- **Tool-launched Odoo never reads `~/.odoorc`.** Every `odoo-bin` the scripts launch reads a
+  generated config file, named by `-c` and by `$ODOO_RC` (`scripts/lib/odoo_cli_facts.sh`
+  `odoo_isolated_rc_env` - where Odoo loads its default rc file at import time, `-c` alone does not
+  keep it out). The Postgres password comes only from `ODOO_PG_PASSWORD` or `~/.pgpass`; the plugin
+  never writes one.
+- **Hooks gate what a subagent does with a lease.** `hooks/hooks.json` registers exactly THREE
+  PreToolUse hard denies - coordinator source writes, an unowned lease mutation, and a
+  `SubagentHandback` while a lease the subagent obtained is still live and not forwarded
+  (`block-handback-with-live-lease.sh`: a handback delivers the report before SubagentStop, so the
+  SubagentStop teardown gate alone came too late; both share `hooks/teardown-check.sh`). Its
+  `description` states that count and tests pin it - a new deny updates both. Every hook that reads
+  a subagent's report reads it through `hooks/final-report.sh` (the `SubagentHandback` message, else
+  the final message).
 - Agent-facing prose names the tool and states the rule; it never restates a tool's schema, flags
   or error codes. Human reference (tool -> allocator verb index, CLI, error codes, liveness model):
   `plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md` and

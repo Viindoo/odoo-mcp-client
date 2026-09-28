@@ -101,9 +101,15 @@ def _write_transcript(tmp_path: Path, lines: list[str]) -> Path:
 
 
 def _run_hook(env: dict, transcript_path: Path | None = None, stop_hook_active: bool = False):
-    payload = {"stop_hook_active": stop_hook_active}
+    # The real SubagentStop payload: the subagent's OWN transcript is agent_transcript_path, and
+    # transcript_path is the whole session's (an empty decoy here).
+    payload = {"hook_event_name": "SubagentStop", "stop_hook_active": stop_hook_active}
     if transcript_path is not None:
-        payload["transcript_path"] = str(transcript_path)
+        session = transcript_path.parent / "session-transcript.jsonl"
+        if not session.exists():
+            session.write_text("", encoding="utf-8")
+        payload["transcript_path"] = str(session)
+        payload["agent_transcript_path"] = str(transcript_path)
     proc = subprocess.run(
         [_BASH, str(HOOK)], input=json.dumps(payload), capture_output=True, text=True,
         timeout=30, env=env,

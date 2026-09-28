@@ -38,9 +38,9 @@ yields an instance, surface a single clarifying request for the instance URL rat
 
 **Agents: self-provision via `Skill(odoo-instance)`, not the lease tools directly** (this binds
 every agent except `odoo-instance-ops`, the executor that skill dispatches). The
-`odoo-instance` skill calls `lease_acquire` INTERNALLY and applies the instance HARD RULES
-(`en_US` union, Viindoo `--load` union, lint-module install union, per-version `cli_help`
-grounding) that a bare `lease_acquire` + `instance_build` skips.
+`odoo-instance` skill calls `lease_acquire` INTERNALLY and applies the instance HARD RULES (demo
+by build purpose, lint-module install union, per-version `cli_help` grounding) that a bare
+`lease_acquire` + `instance_build` skips.
 
 The resolution above is for a **read-only** need (a URL to open / query a running server - many
 agents may share it). For any MUTATION - tests, `init` / `update`, a migration, a throwaway server -

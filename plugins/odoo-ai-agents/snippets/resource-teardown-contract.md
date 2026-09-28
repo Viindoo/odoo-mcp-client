@@ -80,11 +80,10 @@ emits, and a guard asserts the two sets are equal.
 - **`release`** - `lease_release`: stops the server's whole process group, then drops the DB of
   an `ephemeral` lease. Use it when a database you own is finished with: "finished with" is a fact
   about your own lease, never a licence over anyone else's.
-- **`park`** - `lease_park`: stops the SAME process group, so it frees the RAM exactly as
-  `release` does, but KEEPS the database, filestore and ports for a later resume
-  (T3). Use it when the instance is done for now and the database is
-  still wanted. Park defers the drop, it never cancels it; a server that is not running cannot be
-  parked - release it instead.
+- **`park`** - `lease_park`: stops the SAME process group if any, so it frees the RAM exactly as
+  `release` does, but KEEPS the database, filestore and ports for a later resume (T3); a lease
+  built and never served parks too. Use it when the instance is done for now and the database is
+  still wanted. Park defers the drop, it never cancels it.
 - **`handoff`** - forward `INSTANCE_HANDLE` to a NAMED catcher in your continuation `next.inputs`
   (T4). The only exit that leaves the server RUNNING, and the only one needing a named owner.
 

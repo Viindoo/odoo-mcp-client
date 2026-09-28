@@ -59,14 +59,52 @@
 # call - a `cat` of some log that happens to contain one proves nothing about this agent.
 #
 # WHAT COUNTS AS HANDED UP (_lease_handed_up_text) - the report a CHILD this agent dispatched
-# returned to it: the tool_result of its own synchronous `Agent` / `Task` call, or the harness's
+# returned to it: the tool_result of its own synchronous `Agent` / `Task` call; the harness's
 # `task-notification` record (origin.kind) whose <tool-use-id> is one of its own Agent/Task calls,
-# <result> body only. An ASYNC launch result is excluded on purpose: it echoes the PROMPT this agent
-# sent DOWN, and a token forwarded down to a grandchild is still not this agent's.
+# <result> body only; and a PEER message from that child (origin.kind "peer", origin.from = the
+# child's agentId). A child whose report travels in the `SubagentHandback` tool reaches
+# its caller ONLY as a peer message (origin.handback true) - the Agent result and the notification
+# then just point at it - and any later message from that child arrives the same way, so both
+# count. The harness writes a peer message either as a `user` record
+# carrying `origin`, or, while the caller is blocked on a synchronous Agent call, as an
+# `attachment` record of type `queued_command` carrying `attachment.origin`. A child is identified
+# by the `agentId` its launch result (toolUseResult) reports for one of this agent's OWN Agent/Task
+# calls - a peer message from anyone else (the caller, a sibling) is never a hand-up. An ASYNC
+# launch result's TEXT is excluded on purpose: it echoes the PROMPT this agent sent DOWN, and a
+# token forwarded down to a grandchild is still not this agent's.
 #
 # WHAT COUNTS AS FORWARDED DOWN (_lease_brief_text) - the user-role text this agent was GIVEN: its
-# dispatch brief and any later message from its caller (never a tool_result, never a notification).
-# Used only to word a refusal; being named there is never ownership.
+# dispatch brief and any later message from its caller, including a peer message (either record
+# shape above) from anyone who is NOT a child it dispatched (never a tool_result, never a
+# notification, never a child's hand-up). Used only to word a refusal; being named there is never
+# ownership.
+
+# Shared jq prelude for the two functions above: $L = every record, $ids = this agent's own
+# Agent/Task tool_use ids, $kids = the agentIds of the children those calls launched, and
+# `peer_envelope` = a record's peer-message envelope ({from, text}) in either on-disk shape, or null.
+_LEASE_JQ_KIDS='
+  def blocktext: if type == "string" then . elif type == "array" then (map(.text? // "" | strings) | join("\n")) else "" end;
+  def peer_envelope: if ((.origin.kind // "") == "peer") then
+              {from: ((.origin.from // "") | tostring),
+               text: ([(.origin.body // empty), ((.message // .).content // "" | blocktext)]
+                      | map(strings) | join("\n"))}
+            elif ((.attachment.type // "") == "queued_command" and ((.attachment.origin.kind // "") == "peer")) then
+              {from: ((.attachment.origin.from // "") | tostring),
+               text: ([(.attachment.origin.body // empty), (.attachment.prompt // empty)]
+                      | map(strings) | join("\n"))}
+            else null end;
+  [split("\n")[] | fromjson? | objects] as $L
+  | ([ $L[]
+       | (.message // .) as $m | select((($m.role // .type) // "") == "assistant")
+       | ($m.content // []) | (if type == "array" then .[] else empty end)
+       | select(.type == "tool_use" and (((.name // "") | tostring) | test("^(Agent|Task)$")))
+       | (.id // "") | select(. != "") ]) as $ids
+  | ([ $L[] | . as $r
+       | (($r.message // $r).content // []) | (if type == "array" then .[] else empty end)
+       | select(.type == "tool_result" and ((.tool_use_id // "") as $x | ($ids | any(. == $x))))
+       | ($r.toolUseResult.agentId // $r.toolUseResult.agent_id // empty) | strings
+       | select(. != "") ]) as $kids
+'
 
 _lease_owned_tokens() {
   local transcript="$1"
@@ -126,16 +164,12 @@ _lease_handed_up_text() {
   local transcript="$1"
   command -v jq >/dev/null 2>&1 || return 0
   [[ -n "$transcript" && -r "$transcript" ]] || return 0
-  jq -rRs '
-  def blocktext: if type == "string" then . elif type == "array" then (map(.text? // "" | strings) | join("\n")) else "" end;
-  [split("\n")[] | fromjson? | objects] as $L
-  | ([ $L[]
-       | (.message // .) as $m | select((($m.role // .type) // "") == "assistant")
-       | ($m.content // []) | (if type == "array" then .[] else empty end)
-       | select(.type == "tool_use" and (((.name // "") | tostring) | test("^(Agent|Task)$")))
-       | (.id // "") | select(. != "") ]) as $ids
+  jq -rRs "$_LEASE_JQ_KIDS"'
   | $L[] | . as $r
-  | if (($r.origin.kind // "") == "task-notification") then
+  | ($r | peer_envelope) as $p
+  | if $p != null then
+      select($p.from != "" and ($kids | any(. == $p.from))) | $p.text
+    elif (($r.origin.kind // "") == "task-notification") then
       (($r.message // $r).content // "" | blocktext) as $t
       | ($t | [scan("<tool-use-id>([^<]+)</tool-use-id>") | .[0]]) as $tids
       | select(any($tids[]; . as $x | ($ids | any(. == $x))))
@@ -154,13 +188,17 @@ _lease_brief_text() {
   local transcript="$1"
   command -v jq >/dev/null 2>&1 || return 0
   [[ -n "$transcript" && -r "$transcript" ]] || return 0
-  jq -rRs '
-  [split("\n")[] | fromjson? | objects] as $L
+  jq -rRs "$_LEASE_JQ_KIDS"'
   | $L[] | . as $r
-  | select((($r.origin.kind // "") != "task-notification"))
-  | ($r.message // $r) as $m | select((($m.role // $r.type) // "") == "user")
-  | ($m.content // "")
-  | if type == "string" then . elif type == "array" then (.[] | select(.type == "text") | (.text // "")) else empty end
+  | ($r | peer_envelope) as $p
+  | if $p != null then
+      select(($kids | any(. == $p.from)) | not) | $p.text
+    else
+      select((($r.origin.kind // "") != "task-notification"))
+      | ($r.message // $r) as $m | select((($m.role // $r.type) // "") == "user")
+      | ($m.content // "")
+      | if type == "string" then . elif type == "array" then (.[] | select(.type == "text") | (.text // "")) else empty end
+    end
   ' "$transcript" 2>/dev/null || true
 }
 

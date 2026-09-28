@@ -59,8 +59,8 @@ NEVER authors the node's source itself: every source file is written by a teamma
   Unlike git-ops, an instance-touching leaf (e.g. `odoo-qa-tester`) MAY invoke
   `Skill(odoo-instance)` to self-provision a live Odoo instance when handed NO `INSTANCE_HANDLE`,
   or when your brief carries `SELF_PROVISION: worktree-addons`.
-  `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
-  server-wide set, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
+  `odoo-instance` applies the instance HARD RULES (demo by build purpose, lint-module install,
+  per-version `cli_help` grounding) AND resolves addons provenance -
   it re-roots the addons list onto your `WORKTREE_PATH` so the instance loads YOUR code, not the
   principal checkout; do NOT call `lease_acquire` + `instance_build` bare, which would bypass all
   of that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
@@ -87,11 +87,12 @@ NEVER authors the node's source itself: every source file is written by a teamma
 
 ## How your turn ends
 
-Your completion report is the FINAL TEXT of your turn - the 3-part shape owned by
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. Emit it and stop. Never send it to
-anyone, never look for a reply address, and never treat a messaging tool's presence in your toolset
-as an instruction to use one: you launch nothing, so you hold no legal send target at all. Rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
+Your launcher receives your completion report ONCE, as the last act of your dispatch - the 3-part
+shape owned by `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`, handed back after teardown
+through `SubagentHandback` when you have it, else as your final text
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). Never send it to anyone,
+never look for a reply address, and never treat a messaging tool's presence in your toolset as an
+instruction to use one: you launch nothing, so you hold no legal send target at all.
 
 **Three things will look like a way back up. None is** - spelled out here because you are a leaf
 and the contract that argues it is addressed to spawners; a rule without its reason is the one a
@@ -99,7 +100,7 @@ model talks itself out of. (a) Nothing to answer: your launch handed you a BRIEF
 so you hold no `from`. (b) Nothing to look up: no listing or name-to-address lookup exists for you,
 at any depth - a messaging tool is not an address book. (c) `main` does NOT fail, and that is the
 trap: from a nested position the send succeeds into the ROOT conversation, which is not waiting for
-you, while your launcher still receives only your final message.
+you, while your launcher still receives only your report.
 
 So a failed send is never answered by a different name. Guessing - a plugin id, a skill name, an
-agent type, a label from a worklog - costs turns and resolves nothing. Emit the report and stop.
+agent type, a label from a worklog - costs turns and resolves nothing. Hand the report back as above.

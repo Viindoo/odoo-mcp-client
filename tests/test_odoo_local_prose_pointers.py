@@ -6,6 +6,8 @@ workflows, docs) names those tools. Contracts protected:
 
   - every tool name the prose mentions is a tool the server registers: a renamed or removed tool
     cannot leave an agent calling something that does not exist;
+  - every argument a prose call form passes (`instance_serve(lease_token)`) is an input the tool
+    takes: a removed input cannot leave an agent writing a call the tool refuses;
   - every registered tool documents itself for an executing agent (a description of at least 80
     chars, a description on every input property);
   - every registered tool is listed in the human reference's tool index
@@ -151,6 +153,47 @@ def test_every_non_tool_exemption_is_still_written_and_is_not_a_tool(registry, p
     assert not NON_TOOL_IDENTIFIERS & set(registry.names()), "an exempted word became a real tool"
     unused = sorted(NON_TOOL_IDENTIFIERS - seen)
     assert not unused, "exemptions nobody writes any more (drop them): %s" % unused
+
+
+# A call written the way agent prose writes one: `instance_serve(lease_token)`,
+# `lease_park(lease_token, run_id[, park_ttl_s])`, `lease_find(series, state parked, run_id)`. Each
+# argument is the first identifier of a comma/bracket-separated piece.
+_CALL_ARG_RE = re.compile(r"\s*`?([a-z_][a-z0-9_]*)")
+
+
+def call_arguments(text, tool_names):
+    """(tool, argument) pairs of every `tool(arg, ...)` call form in `text`."""
+    call_re = re.compile(r"(?<![\w-])(%s)\(([^()]*)\)" % "|".join(sorted(tool_names)))
+    flat = " ".join(text.split())
+    for m in call_re.finditer(flat):
+        for piece in re.split(r"[,\[\]]", m.group(2)):
+            arg = _CALL_ARG_RE.match(piece)
+            if arg:
+                yield m.group(1), arg.group(1)
+
+
+def test_call_argument_matcher_reads_the_prose_call_shapes():
+    tools = {"lease_park", "lease_find", "instance_serve"}
+    text = ("`lease_park(lease_token, run_id[, park_ttl_s])` then lease_find(series, state parked,\n"
+            "run_id) and instance_serve(lease_token, load_modules)")
+    assert set(call_arguments(text, tools)) == {
+        ("lease_park", "lease_token"), ("lease_park", "run_id"), ("lease_park", "park_ttl_s"),
+        ("lease_find", "series"), ("lease_find", "state"), ("lease_find", "run_id"),
+        ("instance_serve", "lease_token"), ("instance_serve", "load_modules"),
+    }
+
+
+def test_every_argument_a_prose_call_passes_is_a_tool_input(registry, prose):
+    """A call form in prose is copied by the executing agent. An argument the tool does not take
+    (a removed input such as instance_serve's `load_modules`) is refused as an unknown field, so
+    the prose must never write one."""
+    inputs = {n: set((registry.get(n).input_schema.get("properties") or {})) for n in registry.names()}
+    unknown = []
+    for path, text in prose.items():
+        for tool, arg in call_arguments(text, inputs):
+            if arg not in inputs[tool]:
+                unknown.append("%s: %s(%s)" % (path.relative_to(PLUGIN), tool, arg))
+    assert not unknown, "prose calls pass arguments the tool does not accept:\n" + "\n".join(unknown)
 
 
 # --------------------------------------------------------------------------- #

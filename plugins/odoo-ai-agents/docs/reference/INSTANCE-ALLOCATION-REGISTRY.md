@@ -36,15 +36,21 @@ Per `[[instance]]`, add OPTIONAL fields (absent = derive a default; old files st
 | `port_pool_size` | `10` | how many ports the allocator may hand out from `http_port_base` (version-agnostic numbers; the consumer maps each to a CLI flag via `cli_help`) |
 | `db_name_prefix` | `db_name` | prefix for ephemeral DBs: `<prefix>_t_<uuid8>` |
 | `db_port` | absent | optional Postgres port when the cluster is not on the libpq/`PGPORT` default; ABSENT is valid and MUST NOT be fabricated as `5432` - an emitted default would silently override `PGPORT` |
-| `odoo_root` | absent | the core checkout root that makes `import odoo` resolve for a SOURCE instance (a venv alone does not: `odoo-bin` works only because it puts the repo root on `sys.path[0]`). Recorded by `45-venv.sh` from the repo whose `odoo-bin --version` passed |
+| `odoo_root` | absent | the core checkout root that makes `import odoo` resolve for a SOURCE instance (a venv alone does not: `odoo-bin` works only because it puts the repo root on `sys.path[0]`). Recorded by `45-venv.sh` from the repo whose server launcher (`odoo-bin`, or `openerp-server` on the series whose core package is `openerp/`) passed `--version` |
 | `db_run_mode` | absent | how POSTGRES is reached: `native` \| `docker` \| `tcp-only`. Vocabulary SSOT: `scripts/lib/pg_mode.sh` header. Distinct from `run_mode`, which describes ODOO. Consulted by every client-binary consumer (the raw-drop fallback, the spin-up preflight) AND, as the SECOND route only, by the CREATEDB check when the instance declares no `python` of its own (`INSTANCE-ALLOCATION-API.md` §6.6) - the answer is then a POSITIVE query put to the cluster, never an inference from which binaries happen to be installed |
 | `db_container` | absent | `docker` mode only: the `docker exec` handle, derived ONCE at registration from `db_port` (`docker ps --filter publish=<db_port>`), never guessed - an ambiguous match, a `docker ps` that could not be asked, or a matching container that exists but is not RUNNING all refuse and record nothing |
+| `server_wide_modules` | absent | TOML array of module names: the DEPLOYMENT's server-wide (`--load`) additions for this row, e.g. `["my_server_wide_module"]`. Odoo's own core default is NOT listed here - it is a source fact read from the checkout (`scripts/lib/odoo_source_facts.py`), and every build and serve loads core default + this list. Proposed by `46-server-wide.sh propose` (addons that check their own name against `server_wide_modules`, Odoo Semantic, a probe build's warnings) and written only after the operator confirms, by `46-server-wide.sh record` (`/odoo-setup` AI-6 or `refresh`). `[]` = a confirmed none; absent = never confirmed (`46-server-wide.sh check` lists such rows) - both load the core default only |
 
 `instances_io.py` must tolerate unknown/old keys (it already defaults missing fields).
 
 The venv for each instance is built per-profile via `45-venv.sh create-venv --series <X.Y>
 --profile <name>` and lives under `venvs/<series>-<profile>`. The gate for recording the
 `python` field is `odoo-bin --version` (not `import odoo`) - see AI-4 in `commands/odoo-setup.md`.
+
+Every setup step that records a fact on an EXISTING row (`45-venv.sh`, `46-server-wide.sh`)
+writes through ONE writer, `config_merge.py toml-upsert-instance-keys`: it replaces or inserts
+only the named keys (strings or string arrays, a multi-line array replaced whole), keeps every
+other line byte for byte, and publishes atomically. Step `40` only appends new rows.
 
 ### 4.2 Lease registry format
 
@@ -65,6 +71,8 @@ v2 row simply lacks the v3 keys and is judged by the legacy liveness rungs
     "db_host": "localhost", "db_user": "odoo", "db_port": "<port|absent>",
     "_pg": { "host": "...", "user": "...", "port": "..." },   // cluster coordinates (every mode, shared included)
     "addons_path": "<comma-joined dirs>",
+    "server_wide_modules": ["<module>", ...],   // the catalog row's set at acquire; [] = none declared
+    "built": { "demo": true|false, "languages": ["en_US", ...] },   // record-build; absent until a build records
     "ports": [8170, 8172],        // [] with --ports 0; N pooled ports otherwise
     "owner": { "host": "<hostname>", "run_id": "<run-id>", "started_at": <epoch>,
                "pid": <server pid|absent>, "pid_started": "<legacy lstart|absent>",
@@ -102,6 +110,22 @@ condemning, from reclaiming a lease its session still uses; this allocator's own
 unchanged (session-protected, state `reserved`). `park` reads it as "this lease was running" and
 accepts it; any later write of a server pid (`bind`, `resume`, `acquire --pid`) and `park` itself
 remove it.
+
+**`server_wide_modules`** is copied from the catalog row (§4.1) at acquire, for every mode, and is
+what `instance_build` / `instance_serve` add to the series' core default as `--load`: a catalog
+change reaches only a lease acquired after it (`ALLOC_SERVER_WIDE_MODULES`). **`built`** records
+what builds put into the lease's database, written by `allocator.py record-build` (the build tools
+call it): `demo` is sticky-true (a build with demo on sets it; `off` sets `false` only while it is
+not `true` - demo data never leaves a database), `languages` is the union of every language a
+finished build proved loaded. Demo and the active languages are facts of the DATABASE, so the tools
+read them from the database itself (`odoo_db.py db-facts`: `ir_module_module.demo` of the installed
+modules, the active `res_lang` codes; a database that does not exist holds nothing) for
+`INSTANCE_HANDLE.demo` / `languages_loaded`, the test-build refusal on a series whose default loads
+no demo (`TEST_DB_HAS_DEMO`) and the `instance_i18n_export` gate. `built` answers only when the
+database cannot be read, merged from EVERY row naming the same database (same `db_name`, and the
+same Postgres host/port wherever both rows state one); `facts_source` (`database` | `leases`) on the
+handle and in the refusals' diagnostics says which answered. Nothing is copied between rows, and
+readers that predate either key ignore it.
 
 `odoo_root`, `db_run_mode` and `db_container` are copied from the catalog row at acquire for every leased mode but `shared` (empty on
 a catalog that predates them) and, with `python` and `_pg`, let the through-Odoo drop and the raw

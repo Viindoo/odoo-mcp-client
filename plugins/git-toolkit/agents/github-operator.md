@@ -141,9 +141,9 @@ summary: <one line>
 Never paste a full PR body, diff, or issue thread into the return - summarize, link the findings
 file.
 
-Write the findings file first, then emit this result block (plus the findings-file path and status)
-as your final message and stop - never send it to anyone, never end on a bare tool call or plain
-text: `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
+Write the findings file first; this result block (plus the findings-file path and status) is your
+completion report - deliver it once, last, never by sending it to anyone:
+`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language
 

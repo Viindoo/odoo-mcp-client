@@ -28,9 +28,9 @@ parameters - hand them over, get back a structured `instance-ops` block.
 
 **Single owner of instance provisioning.** This skill is the SINGLE PLACE that OWNS Odoo instance
 fan-out: any component needing a live instance routes here via the Skill tool instead of driving
-the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (`en_US`
-union, the Viindoo server-wide `--load` set, the GATE_ROLE-conditioned lint-module install, per-version `cli_help`
-grounding) are enforced in one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
+the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (demo by
+build purpose, the GATE_ROLE-conditioned lint-module install, per-version `cli_help` grounding) are
+enforced in one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
 agent-role SSOT, `generator/skill_tool_deps.json`), this skill MUST provision INLINE (see "Inline
 leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline leaf-mode is
 mandatory for a leaf caller, not a judgment call. For a spawner/coordinator/skill caller, provision
@@ -61,15 +61,15 @@ When invoked, gather the following from the caller's request:
 | `park_ttl_s` | optional for `park` - how long the suspended database is kept before a gc may reclaim it. Omitted keeps the tool's default; the budget is DISK-scoped, so state it in the relay when the caller did not name one |
 | `persist` | What a CALLER may request: `ephemeral` (default) / `exclusive-running` / `shared-running`. What each one means, plus the `exclusive-parked` state a suspended instance sits in (park keeps its db + ports; resume brings it back), is spelled out in ONE place - `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - and is deliberately NOT restated here; read it there before choosing. The one consequence this dispatch table must state itself, because it decides whether a caller may safely run mutating work: an `exclusive-running` instance never converges on `8069` (its port comes from the allocator pool), a `shared-running` one is shared by every reader on that series |
 | `run_id` | the caller's run id - threaded into every brief and passed to every lease tool as the lease owner. Release and park are refused to anyone but the owning run, and a lease tool called with no `run_id` is refused (`RUN_ID_REQUIRED`). Never invent one: a caller that gave none gets `NEEDS_CONTEXT(RUN_ID)` |
-| `PROFILE` | Tenant profile name (the exact name a profile listing returns, e.g. `<distribution>_<series>`); this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's server-wide-module and lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
+| `PROFILE` | Tenant profile name (the exact name a profile listing returns, e.g. `<distribution>_<series>`); this skill resolves it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` (rung 2 returns the exact declared `profile` for the `[[instance]]` covering this repo - use it verbatim, never invent or abbreviate it) and threads it through - the caller never sets this manually. Judge the FACT, not the instance match: rung 2 exits 0 and returns an EMPTY `INST_PROFILE` when the matched `[[instance]]` declares no `profile` key, so "an instance covers this repo" and "that instance names a profile" are DIFFERENT conditions. An empty value counts as rung 2 not having answered THIS fact - fall through to the rungs below, and if none names one, OMIT the field entirely rather than send `PROFILE: ''`. A sibling fact stays authoritative regardless: an empty `INST_PROFILE` never discards `INST_SERIES`. REQUIRED input for the agent's lint-module HARD RULE below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here |
-| `demo` | `on` / `off` - whether this build must carry demo data. It states what the build NEEDS, not a flag: which flag (or none) expresses that need moves across the span, and the dispatched agent resolves it. Set it from the build's PURPOSE per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. **There is no flat default** - omitting it makes the agent derive the value from the purpose, and BLOCK where the purpose does not resolve and the series defaults demo off; a remembered default of `off` would silently ship a demo-less translation or documentation build. Same section states the one hard prohibition: a `--test-enable` build never asks for demo on a series where demo defaults off, and the agent refuses rather than honours such a request |
+| `demo` | `on` / `off` - whether an `init` / `create` build must carry demo data; it reaches `instance_build` as its `demo` argument, which spells the series' own flag. Set it from the build's PURPOSE per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. **There is no flat default** - omitting it makes the agent derive the value from the purpose, and BLOCK where the purpose does not resolve and the output depends on demo; a remembered default of `off` would silently ship a demo-less translation or documentation build. `run-tests` takes NO `demo`: a test build runs the series default, which `instance_build` reads from the lease's checkout (and refuses demo on where that default loads none) - so never set it for a test dispatch |
 | `test_tags` | `run-tests` scope selector - the OTHER half of `modules` (`-i`/`-u` builds the registry, `test_tags` decides whose tests run). Pass the caller's resolved blast radius, normally `/<m>` per module in `modules` (e.g. `/sale,/account`), narrowable to a class or method (`/module:ClassName.method_name` - the CLASS separator is a COLON; a dot there is parsed as a METHOD name and silently selects nothing) for a focused re-run. `full` = run untagged ON PURPOSE (release sweep, CI/Runbot parity, no-code-change smoke) - an explicit declaration, not a blank. OMITTED / `none` = not supplied, and the agent DERIVES `/<m>` per module rather than running untagged; a `-i sale --test-enable` with no tags runs every installed module's suite from `base` up, which is the defect this field exists to prevent. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`; which modules belong in the set: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` |
 | `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions the lint-class modules into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own RED-test confirmation, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
-| `mode` | `fresh` / `reuse` (`run-tests` only) - decided on the DATABASE: `reuse` whenever the target database already has the modules installed, `fresh` only for the FIRST install onto a brand-new database; `fresh` -> `-i` (init+test), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
+| `mode` | `fresh` / `reuse` (`run-tests` only) - decided on the DATABASE: `reuse` whenever the target database already has the modules installed, `fresh` only for the FIRST install onto a brand-new database; `fresh` -> `-i` (init+test), `reuse` -> `-u` (re-runs the tests of installed modules on every series, where `-i` runs none of them on recent series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database) |
 | `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
 | `fresh_venv` | `true` / `false` (default `false` - build on the venv the catalog declares for the series). `true` makes the executor rebuild the series' venv before it acquires a lease; a catalog row with no venv at all gets one built the same way without asking. Never combine `true` with a forwarded `INSTANCE_HANDLE`: that lease fixes the interpreter |
-| `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` - this skill ALWAYS unions `en_US` into the activation set before dispatch (see "en_US is mandatory on every build" below), so the caller never needs to add it; omit / pass `none` to activate `en_US` alone |
+| `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` / `run-tests`. It reaches `instance_build` as its `languages` argument; the tool adds `en_US` to every build, so neither the caller nor this skill adds it; omit / pass `none` for `en_US` alone |
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - the executor adds the skip-auto-install flag to every build of the dispatch, where the series' `cli_help` lists it, so `auto_install` modules do not install alongside the target |
 | `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
 | `mode_hint` | `path-incremental` / `default` (default `default`). `path-incremental` = ONE lease held across a sequential delta-install loop on ONE DB (dependency-cluster documentation). It ALWAYS runs INLINE in the driving skill's context per § Inline leaf-mode `MODE_HINT: path-incremental` below and is NEVER dispatched to `odoo-instance-ops` |
@@ -129,33 +129,23 @@ instance is READY when `instance_serve` returns its URL (it blocks, bounded, unt
 `odoo-instance-ops`'s own "Deterministic completion contract" and
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` item 14.
 
-**`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
-base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate
-it in the target DB. Before building the brief, compute
-`activation_languages = {"en_US"} union languages` (omitted / `none` = empty set) and pass that
-UNIONED csv as the brief's `LANGUAGES:` field. This BUILD-TIME guarantee is owned entirely by this skill - no downstream consumer
-(translation, doc capture, QA, module reload) may find `en_US` missing. `odoo-i18n` unions `en_US`
-into its own activation set too (recipe KT3) because it issues `--load-language` / `i18n loadlang`
-directly against `odoo-bin` OUTSIDE this skill's dispatch - a second, independent enforcement point,
-not a duplicate.
+**Build facts the tools apply.** `instance_build` loads the series' server-wide modules, the
+requested `languages` (always with `en_US`) and the series' demo flag itself, so every build has
+`en_US` active without anyone composing a flag. Pass `languages` as a dispatch field, `demo` only
+for an `init` / `create` build (a test build runs the series default), and never put those flags in
+extra flags. The rules - including what to do with a `job_wait` warning
+that a module must be loaded server-wide - are stated once in
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
 
-**Agent-side unions this skill does not compute itself.** This skill resolves `PROFILE` (per
+**Agent-side union this skill does not compute itself.** This skill resolves `PROFILE` (per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; an empty resolved value is treated as
 unanswered and the field is omitted, never sent empty) and threads it into the brief. The
-dispatched `odoo-instance-ops` agent then PINS that profile (`set_active_profile` + explicit
+dispatched `odoo-instance-ops` agent PINS that profile (`set_active_profile` + explicit
 `profile_name=` on every probe - never profile-less, and never with an empty `profile_name`: an
-absent `PROFILE` field is what triggers the agent's own vanilla-profile resolution) and performs two further DATA-DRIVEN unions
-before building the `odoo-bin` command, on top of the `en_US` union above:
-- **The Viindoo server-wide set on `--load`.** Callers pass nothing extra for this one - it is
-  unconditional for every `create`/`init`/`update`/`run-tests` build. WHICH modules that set contains
-  depends on the series and is NOT the same on all of them, so the agent reads the row for the target
-  series from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules,
-  pins the resolved profile (brief `PROFILE`, or the series' vanilla profile when absent, or
-  `NEEDS_CONTEXT`), probes every member of that set, and unions the whole set into the server-wide
-  `--load` list (never as an ordinary `-i`) when all of them are present, per
-  `odoo-instance-ops`'s own "Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)".
-- **Lint modules for `run-tests` - GATED, never unconditional.** This union is NOT automatic like
-  the server-wide set above - it fires ONLY when this dispatch's `GATE_ROLE` (resolved above) is
+absent `PROFILE` field is what triggers the agent's own vanilla-profile resolution) before one
+DATA-DRIVEN union:
+- **Lint modules for `run-tests` - GATED, never unconditional.** It fires ONLY when this dispatch's
+  `GATE_ROLE` (resolved above) is
   `pre-pr-lint-gate`. For that ONE role, the agent reuses the pinned profile to resolve and probe the
   lint-class modules per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, and unions every
   present one into BOTH the `-i`/`-u` install list and `--test-tags`. For `GATE_ROLE: node-verify`
@@ -190,7 +180,7 @@ PROFILE: <the NON-EMPTY profile name this skill already resolved before composin
   omit the field entirely when the resolved value is empty or no rung named one -
   never emit PROFILE: '' and never forward a pointer for the agent to go re-resolve>
 MODULES: <comma-separated list or 'none'>
-DEMO: <on|off>
+DEMO: <on|off>                # init/create only; omitted on run-tests - the series default applies
 TEST_TAGS: <the resolved scope tags (normally `/<m>` per module in MODULES), or 'full' to run
   untagged on purpose; 'none'/omitted means NOT SUPPLIED and the agent derives `/<m>` per module -
   it never means "run every installed module's suite">
@@ -203,7 +193,7 @@ LEASE_TOKEN: <token of the lease to suspend>            # park only - REQUIRED t
 PARK_TTL_S: <seconds or 'default'>                      # park only; 'default' keeps the tool's own budget
 RUN_ID: <the caller's run id>                           # ALWAYS set - the lease-ownership identity; never invent one
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
-LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'none' -> en_US alone>
+LANGUAGES: <csv target locales, or 'none'; the tool adds en_US to every build>
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent re-roots its lease's addons list onto it
@@ -264,8 +254,9 @@ gevent_port: <port or null (omit if not bound)>
 db_port: <resolved port or empty>
 run_id: <owning run id or empty>
 modules_installed: [<list or null>]
-demo: <true|false>
-languages_loaded: [<list or null>]      # load-language: locales verified active in res.lang
+demo: <true|false|null>                 # whether the DATABASE holds demo data
+languages_loaded: [<list or null>]      # the DATABASE's active languages
+facts_source: <database|leases>         # who answered demo / languages_loaded
 venv_python: <path>
 addons_path: <comma-separated path>
 log_path: <log file path>
@@ -340,19 +331,18 @@ Run these steps in order, honoring the SAME HARD RULES as the agent (single sour
    `venv_missing: true` is a lease no build can use: release it, build the venv, acquire again.
 2. **Pin series + ground CLI flags** - `set_active_version` then `cli_help` per the agent's "Common
    preamble" Steps A-B (every flag from this series' `cli_help`, never from memory).
-3. **Apply the HARD RULES** as the agent does - `en_US` union
-   (`odoo-instance-ops`'s own "en_US - always loaded on every build"),
-   the Viindoo server-wide set unioned into `--load` (its own "Server-wide modules (`--load`) on
-   a Viindoo profile (HARD RULE)"), and lint-module install for a test-run build ONLY when `GATE_ROLE:
-   pre-pr-lint-gate` (its own "Lint modules - installed ONLY for the designated pre-PR lint gate
-   (HARD RULE)"). A HARD LEAF self-provisioning here (e.g. `odoo-test-writer` confirming RED via a
+3. **Apply the HARD RULES** as the agent does - `languages` and (never on a test build) `demo` passed as build arguments
+   and every `job_wait` warning acted on (`odoo-instance-ops`'s own "Demo, languages and
+   server-wide modules (HARD RULE)"), and lint-module install for a test-run build ONLY when
+   `GATE_ROLE: pre-pr-lint-gate` (its own "Lint modules - installed ONLY for the designated pre-PR
+   lint gate (HARD RULE)"). A HARD LEAF self-provisioning here (e.g. `odoo-test-writer` confirming RED via a
    live run) is never the run's designated pre-PR lint gate, so it always self-resolves
    `GATE_ROLE: node-verify` per the resolution rule above before this step - it never installs
    or tags any lint-class module. Resolve + PIN the profile before any probe; never probe
    profile-less.
-4. **Run the operation** - `instance_build` (op `init` / `update` / `test`, the resolved flags as
-   `extra_args`; a test build also forwards the lease's port as the series' HTTP-port flag and
-   carries the resolved `test_tags`), then `job_wait(job_id)` as the VERY NEXT call, re-called
+4. **Run the operation** - `instance_build` (op `init` / `update` / `test`, `demo` on `init` only, `languages`,
+   only `cli_help`-grounded flags in `extra_args` and never a port flag - the build binds the
+   lease's own port; a test build carries the resolved `test_tags`), then `job_wait(job_id)` as the VERY NEXT call, re-called
    while `result` is `timeout`, every response carrying a tool call until the result is terminal;
    only `success` passes. Serve a listening instance with `instance_serve(lease_token)` (no `profile`)
    only after its build succeeded. Report the same run-tests scope figures (`TEST_TAGS_USED`,
@@ -378,8 +368,9 @@ each step below does exactly one thing and returns the `instance-ops` block.
   (`odoo-instance-ops`'s own "Doc-context provision"), `job_wait`, then `instance_serve(lease_token)`.
   Do NOT run step 5: hold the `lease_token` and return the block as the path's `INSTANCE_HANDLE`.
 - **B. Init-delta.** `instance_build` op `init` for the next module on the HELD `lease_token`, with
-  the skip-auto-install flag AND the no-HTTP flag in `extra_args` on EVERY delta (the served process
-  already holds the lease's port), then `job_wait`. Never acquire a second lease for the path.
+  the SAME demo as step A, and with the skip-auto-install flag AND the no-HTTP flag in `extra_args`
+  on EVERY delta (the served process already holds the lease's port), then `job_wait`. Never
+  acquire a second lease for the path.
 - **C. Ensure-up.** `instance_serve(lease_token)` on the held token, when the driving skill asks.
 - **D. Convergence-fill** (branching clusters only). ONE delta build installing exactly the
   still-missing modules the plan lists, same flags as B, then C.
@@ -402,7 +393,9 @@ families available; state-mutating scenario drives stay <= 2 simultaneous. Brows
 `createdb`/`dropdb` raw - always through Odoo and the lease tools. `W` is per-family, RAM-permitting
 (never a global single-flight across families): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 § Browser exclusivity is the SSOT for the `W` number; full exclusivity rule + rationale:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. Callers that share ONE
+database follow `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export
+per database.
 
 ## Out of Scope
 
@@ -427,10 +420,6 @@ declares no instance for the series at all (`catalog_read` returns no row), noth
 scratch: surface ONE `NEEDS_CONTEXT` naming exactly what is missing and route the human to
 `/odoo-ai-agents:odoo-setup`, which declares the instance. Never guess an addons path, a DB host or
 an interpreter.
-
-For `load-language`: when OSM is unreachable the executor confirms the language-loading flag from
-the local Odoo source and proceeds; the `res.lang` active-verification step (needs the live Odoo
-MCP) is skipped and flagged `grounded: log-signal (not live-verified)` in the output notes.
 
 ## MCP tools
 

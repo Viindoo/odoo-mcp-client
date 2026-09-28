@@ -161,8 +161,8 @@ commit at a time.
 **Delegate the instance - never a bare lease tool or `odoo-bin` invocation.** Provisioning,
 install, and test-run all go through the `odoo-instance` skill via the Skill tool. A bare
 `lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer bypasses the
-instance HARD RULES `odoo-instance` enforces (`en_US` union, the Viindoo server-wide set,
-lint-module install, per-version `cli_help` grounding) and, for forward-port specifically, the
+instance HARD RULES `odoo-instance` enforces (demo by build purpose, lint-module install,
+per-version `cli_help` grounding) and, for forward-port specifically, the
 `WORKTREE_PATH` re-root that keeps verification pointed at the adapted worktree instead of the
 principal checkout.
 
@@ -181,9 +181,10 @@ principal checkout.
 3. For a re-verify after a fix inside the SAME batch, or for a SUBSEQUENT batch touching only a
    subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE`, `mode: reuse`
    (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only - skip the full reinstall.
-4. Release the instance once no later step of this run needs it - after the LAST batch AND the
-   P11 acceptance stage (which reuses the same `INSTANCE_HANDLE`) have returned, never between
-   batches: call `lease_release` with the cached `lease_token`/`run_id`. The lease was provisioned for YOUR run and handed back to you, so you
+4. Release the instance once no later step of this run needs it - after the LAST batch has passed
+   its gate, never between batches. P11 acceptance never reuses this handle: its database carries the series'
+   test-build demo shape (none where demo is opt-in), and acceptance provisions its own
+   demo-carrying cluster on a fresh lease. Call `lease_release` with the cached `lease_token`/`run_id`. The lease was provisioned for YOUR run and handed back to you, so you
    are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). It
    stops the bound process group first, then drops the DB - never a raw `dropdb` or a `pkill`.
 

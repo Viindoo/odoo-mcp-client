@@ -18,6 +18,12 @@ Subcommands:
       comments and formatting) and create a backup first.
       Requires py3.11+ for tomllib; falls back to text scan on older Python.
 
+  toml-upsert-instance-keys <instances.toml> <series> <profile> PAIR...
+      Insert-or-replace keys on the ONE [[instance]] block matching
+      (series, profile). PAIR is KEY=VALUE (a TOML string) or KEY[]=A,B (a TOML
+      array of strings; KEY[]= is the empty array). Unknown keys, comments and
+      other blocks are kept byte for byte; atomic write. See its docstring.
+
   json-ensure-allow <settings.json> <prefix>
       Idempotently append a permission prefix into permissions.allow[].
       Mirrors the exact logic from odoo-semantic-mcp/commands/connect.md
@@ -93,6 +99,11 @@ Usage examples:
   # Idempotently add a permission prefix
   python3 config_merge.py json-ensure-allow ~/.claude/settings.json mcp__odoo-semantic
 """
+
+# Annotations stay strings: the builtin-generic / `X | None` forms below would
+# otherwise be EVALUATED at import and crash every subcommand on Python < 3.10
+# (3.8/3.9 hosts run the JSON-only setup steps through this file too).
+from __future__ import annotations
 
 import json
 import os
@@ -493,6 +504,274 @@ def cmd_toml_append_array_item(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: toml-upsert-instance-keys
+# ---------------------------------------------------------------------------
+
+def _toml_basic_string(value: str) -> str:
+    """`value` as a TOML BASIC string literal.
+
+    Unescaped, a single `"` closes the string early and the whole catalog stops
+    parsing - not one field: every instances_io.load_instances consumer (the
+    allocator, every setup step, the teardown hook) then fails until a human
+    repairs the file by hand. A backslash is the quieter variant: `\\t` decodes to
+    a TAB, so the recorded value is silently WRONG instead of loudly broken.
+    Backslash FIRST, or the escapes introduced for `"` get escaped again.
+    """
+    return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _toml_value_span(src_lines: list, idx: int) -> int:
+    """Index of the LAST line of the assignment starting at `idx`: the same line,
+    unless its value opens an array that closes on a later line."""
+    depth = 0
+    quote = None
+    j = idx
+    text = src_lines[idx].split("=", 1)[1]
+    while True:
+        k = 0
+        while k < len(text):
+            ch = text[k]
+            if quote:
+                if ch == "\\" and quote == '"':
+                    k += 2
+                    continue
+                if ch == quote:
+                    quote = None
+            elif ch in "\"'":
+                quote = ch
+            elif ch == "#":
+                break
+            elif ch == "[":
+                depth += 1
+            elif ch == "]":
+                depth -= 1
+            k += 1
+        if depth <= 0 or j + 1 >= len(src_lines):
+            return j
+        j += 1
+        text = src_lines[j]
+
+
+def _inline_comment(text: str) -> str:
+    """The trailing `# ...` comment of one TOML line (with the whitespace before
+    it and without the newline), or "" - a `#` inside a quoted string is not one."""
+    quote = None
+    k = 0
+    while k < len(text):
+        ch = text[k]
+        if quote:
+            if ch == "\\" and quote == '"':
+                k += 2
+                continue
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#":
+            start = k
+            while start > 0 and text[start - 1] in " \t":
+                start -= 1
+            return text[start:].rstrip("\r\n")
+        k += 1
+    return ""
+
+
+def _kept_comment(src_lines: list, first: int, last: int) -> str:
+    """The inline comment a replaced assignment keeps: the one after its value
+    (on its last line), else the one on its first line. Comments on the inner
+    lines of a multi-line array annotate items that the new value replaces."""
+    tail = _inline_comment(src_lines[last] if last != first
+                           else src_lines[first].split("=", 1)[1])
+    if tail or last == first:
+        return tail
+    return _inline_comment(src_lines[first].split("=", 1)[1])
+
+
+def _atomic_replace(path: str, text: str) -> None:
+    """Publish `text` as the new content of `path` atomically, KEEPING what the
+    file already is: a symlink stays a symlink (its TARGET is replaced, in the
+    target's directory), and the target's permission bits carry over (a 0600
+    catalog must not come back world-readable). Raises OSError; the temp file is
+    removed on failure."""
+    real = os.path.realpath(path)
+    try:
+        mode = os.stat(real).st_mode & 0o7777
+    except FileNotFoundError:
+        mode = None
+    tmp = "%s.tmp.%d" % (real, os.getpid())
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+            if mode is not None:
+                os.fchmod(fh.fileno(), mode)
+        os.replace(tmp, real)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _scan_instance_blocks(src_lines: list) -> list:
+    """[{series, profile, last_kv, keys: {key: (first, last)}}] per [[instance]]
+    block. A multi-line array value is ONE assignment spanning several lines, so
+    a continuation line is never mistaken for a key or a table header."""
+    blocks, cur = [], None
+    idx = 0
+    while idx < len(src_lines):
+        s = src_lines[idx].strip()
+        if s == "[[instance]]":
+            if cur:
+                blocks.append(cur)
+            cur = {"series": "", "profile": "", "last_kv": idx, "keys": {}}
+            idx += 1
+            continue
+        if s.startswith("["):
+            if cur:
+                blocks.append(cur)
+                cur = None
+            idx += 1
+            continue
+        if cur is not None and "=" in s and not s.startswith("#"):
+            key = s.split("=", 1)[0].strip()
+            last = _toml_value_span(src_lines, idx)
+            val = s.split("=", 1)[1].split("#", 1)[0].strip().strip('"').strip("'")
+            cur["keys"].setdefault(key, (idx, last))
+            cur["last_kv"] = last
+            if key == "series":
+                cur["series"] = val
+            elif key == "profile":
+                cur["profile"] = val
+            idx = last + 1
+            continue
+        idx += 1
+    if cur:
+        blocks.append(cur)
+    return blocks
+
+
+_TOML_BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def cmd_toml_upsert_instance_keys(args: list[str]) -> int:
+    """toml-upsert-instance-keys <instances.toml> <series> <profile> PAIR [PAIR ...]
+
+    INSERT-OR-REPLACE every key on the ONE [[instance]] block matching
+    (series, profile), in place. A PAIR is either
+      KEY=VALUE     -> KEY = "VALUE"              (a TOML string)
+      KEY[]=A,B,C   -> KEY = ["A", "B", "C"]      (a TOML array of strings;
+                       `KEY[]=` records the EMPTY array - a declared "none")
+    An existing assignment of KEY is replaced whole, a multi-line array
+    included; when KEY is ABSENT it is inserted after the block's last
+    assignment, so a catalog written before a key existed GAINS it. Every other
+    line - unknown keys, comments, other blocks - is kept byte for byte.
+    An empty <profile> selects the unprofiled block. Refuses (exit 1, file
+    untouched) when the series has only profiled blocks and no profile was
+    given, and when no block matches. A replaced assignment keeps its own
+    indentation and its inline comment. The new catalog is published atomically
+    (sibling temp file + os.replace), never truncated in place: a crash in an
+    in-place write loses every declared instance on the host. The file keeps
+    its permission bits, and a symlinked catalog stays a symlink (its target is
+    what is replaced) - see _atomic_replace.
+    """
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_toml_upsert_instance_keys.__doc__)
+        return 0
+    if len(args) < 3:
+        print("Usage: config_merge.py toml-upsert-instance-keys "
+              "<instances.toml> <series> <profile> KEY=VALUE|KEY[]=A,B ...", file=sys.stderr)
+        return 1
+    path, series, profile = args[0], args[1], args[2]
+
+    pairs = []
+    for raw in args[3:]:
+        if "=" not in raw:
+            print("x internal: expected KEY=VALUE or KEY[]=A,B, got %r" % raw, file=sys.stderr)
+            return 2
+        key, _, value = raw.partition("=")
+        if key.endswith("[]"):
+            key = key[:-2]
+            items = [v.strip() for v in value.split(",") if v.strip()]
+            rendered = "[%s]" % ", ".join(_toml_basic_string(v) for v in items)
+            shown = "[%s]" % ",".join(items)
+        else:
+            rendered = _toml_basic_string(value)
+            shown = value
+        if not _TOML_BARE_KEY.match(key):
+            print("x internal: %r is not a bare TOML key" % key, file=sys.stderr)
+            return 2
+        pairs.append((key, rendered, shown))
+    if not pairs:
+        return 0
+
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines(keepends=True)
+    except OSError as exc:
+        print("x cannot read %s: %s" % (path, exc), file=sys.stderr)
+        return 1
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+
+    blocks = _scan_instance_blocks(lines)
+    same_series = [b for b in blocks if b["series"] == series]
+    if profile == "":
+        matches = [b for b in same_series if not b["profile"]]
+        if same_series and not matches:
+            print(
+                "x series %r has only profile-specific [[instance]] blocks but no --profile "
+                "was given. Pass --profile <name> to select the correct block. Nothing was "
+                "recorded." % series,
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        matches = [b for b in same_series if b["profile"] == profile]
+    label = "%s:%s" % (series, profile) if profile else series
+    if not matches:
+        print(
+            "x no [[instance]] block matches %s in %s - declare it first (step 40). "
+            "Nothing was recorded." % (label, path),
+            file=sys.stderr,
+        )
+        return 1
+
+    block = matches[0]
+    probe = lines[block["last_kv"]] if block["keys"] else ""
+    indent = probe[: len(probe) - len(probe.lstrip())]
+
+    out = list(lines)
+    replacements, inserted = [], []
+    for key, rendered, _shown in pairs:
+        line = "%s%s = %s\n" % (indent, key, rendered)
+        if key in block["keys"]:
+            first, last = block["keys"][key]
+            own = lines[first]
+            own_indent = own[: len(own) - len(own.lstrip())]
+            line = "%s%s = %s%s\n" % (own_indent, key, rendered,
+                                     _kept_comment(lines, first, last))
+            replacements.append((first, last, line))
+        else:
+            inserted.append(line)
+    # Insert after the block's last assignment FIRST: every replaced span lies at
+    # or before that line, so the insertion shifts none of them.
+    at = block["last_kv"] + 1
+    out[at:at] = inserted
+    for first, last, line in sorted(replacements, reverse=True):
+        out[first:last + 1] = [line]
+
+    try:
+        _atomic_replace(path, "".join(out))
+    except OSError as exc:
+        print("x cannot write %s: %s. Nothing was recorded." % (path, exc), file=sys.stderr)
+        return 1
+    print("  recorded %s for %s" % (", ".join("%s=%s" % (k, s) for k, _r, s in pairs), label))
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: json-ensure-allow
 # ---------------------------------------------------------------------------
 
@@ -745,6 +1024,7 @@ SUBCOMMANDS = {
     "json-merge": cmd_json_merge,
     "toml-ensure-table": cmd_toml_ensure_table,
     "toml-append-array-item": cmd_toml_append_array_item,
+    "toml-upsert-instance-keys": cmd_toml_upsert_instance_keys,
     "json-ensure-allow": cmd_json_ensure_allow,
     "json-prune-allow": cmd_json_prune_allow,
     "json-rule-covered": cmd_json_rule_covered,

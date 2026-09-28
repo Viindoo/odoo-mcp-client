@@ -53,6 +53,7 @@ from shutil import which
 
 import pytest
 
+import odoo_tree_fixtures as trees
 from conftest import real_python3
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -256,6 +257,10 @@ def _run_verb(tmp_path: Path, verb: str, *, db: str, lines: list[str],
     work = tmp_path / f"work-{db}"
     work.mkdir(parents=True, exist_ok=True)
     fake_bin = work / "odoo-bin"
+    # The launcher's directory is a checkout of the run's series (the script reads its logger
+    # namespace and option facts there); 17.0 when the run names none.
+    checkout = (version or "17.0").lstrip("0")
+    trees.write_checkout(work, checkout if checkout in trees.SERIES else "17.0", with_addons=False)
     payload = "\n".join(lines)
     _write_stub(fake_bin, f'cat <<"ODOO_LOG_EOF"\n{payload}\nODOO_LOG_EOF\nexit {exit_code}\n')
     fake_py = work / "python"

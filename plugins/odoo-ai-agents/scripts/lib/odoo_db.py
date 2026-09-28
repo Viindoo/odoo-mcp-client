@@ -80,6 +80,45 @@ CLI contract
   python3 odoo_db.py db-size-bytes <db> [conn flags] [--odoo-root R]
       Print pg_database_size in bytes. Exit 1 on any failure. Reporting only.
 
+  python3 odoo_db.py db-facts <db> [--modules m,n] [conn flags] [--odoo-root R]
+      What the NAMED database holds, read from the database itself - the source
+      of truth the build tools prefer over any record of what a build did:
+          DB_EXISTS=1
+          DEMO=1|0              1 when any installed module has demo data loaded
+                                (ir_module_module.demo - one boolean per module,
+                                set when its demo data loads and cleared on
+                                uninstall, on every series)
+          LANGUAGES=en_US,vi_VN the active res_lang codes, in creation order
+          MODULE=<name> STATE=<state> DEMO=1|0
+                                with --modules only: one per requested module
+                                ir_module_module knows (none for an unknown one),
+                                its state and its OWN demo flag - DEMO above is
+                                the whole database's, which says nothing about
+                                one module
+      ONE connection to that database. When that connection fails,
+      the maintenance database is asked whether it exists at all: absent ->
+      `DB_EXISTS=0` (it holds nothing) and exit 0. Otherwise nothing on stdout
+      and the classified exit (8 / 9 / 10 / 1), so "could not read" is never
+      reported as "no demo".
+
+  python3 odoo_db.py i18n-state <db> [--languages a,b] [--modules m,n] [conn flags]
+                                     [--odoo-root R]
+      Asked of the NAMED database (never the maintenance one), for an i18n
+      export about to run on it. Prints, in that order:
+          LANG=<code> ISO=<iso_code> ACTIVE=1|0     one per requested language
+                                                    res_lang knows
+          MODULE=<name> STATE=<state> DEMO=1|0      one per requested module
+                                                    ir_module_module knows;
+                                                    DEMO = its own demo flag
+      A language or module the database does not know prints NO line: the
+      caller treats absence as "not active" / "not installed", never as a value.
+      ISO is the name Odoo gives that language's file (`<iso_code>.po`, what
+      Odoo's own `i18n export` writes); a row that stores no iso_code (the column
+      is optional on the oldest series) reports its code, a name every series'
+      loader also reads. At least one of --languages / --modules.
+      Exit 0 when answered; 8 / 9 / 10 / 1 like the other read-only queries,
+      with NOTHING on stdout.
+
 Password resolution (mirrors allocator._pg_env)
 -------------------------------------------------
   1. --db-password CLI flag (highest priority)
@@ -194,6 +233,8 @@ _FLAG_KEYS = {
     "--db-port": "db_port",
     "--db-password": "db_password",
     "--odoo-root": "odoo_root",
+    "--languages": "languages",
+    "--modules": "modules",
 }
 
 
@@ -239,6 +280,18 @@ def _apply_odoo_root(opts):
         sys.path.insert(0, root)
 
 
+def _empty_rc():
+    """The config file named to Odoo as its ONLY one - ``os.devnull``, an empty file every series
+    reads as "no options" (its loader ignores a file with no [options] section) - through $ODOO_RC
+    (read first from 10.0) or, on the ``openerp`` package, $OPENERP_SERVER: before 19.0 Odoo loads
+    its default config file (~/.odoorc) when its config module is IMPORTED, and any db_host /
+    db_port / db_password it states would answer wherever this script passes no flag - while the
+    builds (55-instance-ops.sh, odoo_isolated_rc_env) never read that file, so the two would talk
+    to different clusters. On the ``odoo`` package OPENERP_SERVER is set empty: never read there,
+    and 19.0+ warns only when it is non-empty."""
+    return os.devnull
+
+
 def _import_odoo(opts=None):
     """Import the Odoo package (supports the openerp v8/v9 namespace) AND the
     submodules this script dereferences.
@@ -254,9 +307,13 @@ def _import_odoo(opts=None):
     source-checkout sys.path insert with no second call site to keep in sync.
     """
     _apply_odoo_root(opts or {})
+    rc = _empty_rc()
+    os.environ["ODOO_RC"] = rc
+    os.environ["OPENERP_SERVER"] = ""
     try:
         import odoo
     except ImportError:
+        os.environ["OPENERP_SERVER"] = rc
         try:
             import openerp as odoo  # v8/v9
         except ImportError:
@@ -312,15 +369,16 @@ def _get_service_db(odoo):
     return odoo.service.db
 
 
-def _sql_connect_postgres(odoo):
-    """A connection to the maintenance database through Odoo's OWN connection
-    layer (odoo.sql_db, openerp.sql_db on v8-v9), so every question asked here
-    resolves the connection EXACTLY like drop/exists do - one resolution path,
-    never a second psycopg2 call with hand-rolled parameters. Imported via the
-    RESOLVED package name (importlib) for the same reason ``.tools`` and
-    ``.service.db`` are: a bare base-package import does not bind submodules."""
+def _sql_connect_postgres(odoo, db_name="postgres"):
+    """A connection to the maintenance database (or to ``db_name``) through
+    Odoo's OWN connection layer (odoo.sql_db, openerp.sql_db on v8-v9), so every
+    question asked here resolves the connection EXACTLY like drop/exists do - one
+    resolution path, never a second psycopg2 call with hand-rolled parameters.
+    Imported via the RESOLVED package name (importlib) for the same reason
+    ``.tools`` and ``.service.db`` are: a bare base-package import does not bind
+    submodules."""
     import importlib
-    return importlib.import_module(odoo.__name__ + ".sql_db").db_connect("postgres")
+    return importlib.import_module(odoo.__name__ + ".sql_db").db_connect(db_name)
 
 
 def _pin_c_messages():
@@ -558,9 +616,9 @@ _STATE_EXITS = {
 }
 
 
-def _query_postgres_ex(opts, sql, params=None):
+def _query_postgres_ex(opts, sql, params=None, db_name="postgres"):
     """(rows, exit_code, state, detail): run one read-only query on the
-    maintenance database, CLASSIFYING any failure.
+    maintenance database (or on ``db_name``), CLASSIFYING any failure.
 
     `state` is "ok" when the query ran, "no-venv" when the package could not be
     imported, else one of _classify_conn_error's three states. Every caller that
@@ -576,9 +634,13 @@ def _query_postgres_ex(opts, sql, params=None):
     _pin_c_messages()
     cr = None
     try:
-        cr = _sql_connect_postgres(odoo).cursor()
-        cr.execute(sql, params or ())
-        rows = cr.fetchall()
+        cr = _sql_connect_postgres(odoo, db_name).cursor()
+        rows = []
+        for one_sql, one_params in (sql if isinstance(sql, list) else [(sql, params)]):
+            cr.execute(one_sql, one_params or ())
+            rows.append(cr.fetchall())
+        if not isinstance(sql, list):
+            rows = rows[0]
     except Exception as exc:
         state, detail = _classify_conn_error(exc, opts)
         sys.stderr.write(
@@ -597,7 +659,7 @@ def _query_postgres_ex(opts, sql, params=None):
     return rows, EXIT_OK, "ok", ""
 
 
-def _query_postgres(opts, sql, params=None):
+def _query_postgres(opts, sql, params=None, db_name="postgres"):
     """(rows, exit_code): run one read-only query on the maintenance database.
 
     Returns (rows, EXIT_OK) when the query ran, or (None, <non-zero>) with a
@@ -606,7 +668,7 @@ def _query_postgres(opts, sql, params=None):
     negative answer - and the code says WHICH failure: 8 authentication refused,
     9 cluster unreachable, 10 venv unavailable, 1 anything else.
     """
-    rows, code, _state, _detail = _query_postgres_ex(opts, sql, params)
+    rows, code, _state, _detail = _query_postgres_ex(opts, sql, params, db_name)
     return rows, code
 
 
@@ -759,6 +821,84 @@ def cmd_db_size_bytes(db_name, opts):
     return EXIT_OK
 
 
+_DB_FACTS_SQL = (
+    "SELECT (SELECT bool_or(demo) FROM ir_module_module "
+    "WHERE state IN ('installed', 'to upgrade', 'to remove')), "
+    "(SELECT string_agg(code, ',' ORDER BY id) FROM res_lang WHERE active)")
+
+
+_MODULES_SQL = ("SELECT name, state, demo FROM ir_module_module WHERE name = ANY(%s) "
+                "ORDER BY name")
+
+
+def _module_lines(rows, mods):
+    """`MODULE=<name> STATE=<state> DEMO=1|0` per requested module the database knows, in the
+    requested order; an unknown module prints nothing."""
+    found = {row[0]: row for row in rows}
+    return ["MODULE={m} STATE={s} DEMO={d}".format(m=m, s=found[m][1], d=1 if found[m][2] else 0)
+            for m in mods if m in found]
+
+
+def cmd_db_facts(db_name, opts):
+    """Print what ``db_name`` holds (see the CLI block): DB_EXISTS, DEMO, LANGUAGES, and with
+    --modules each named module's MODULE line - all on one connection."""
+    mods = [x for x in (opts.get("modules") or "").split(",") if x]
+    queries = [(_DB_FACTS_SQL, None)]
+    if mods:
+        queries.append((_MODULES_SQL, (mods,)))
+    results, rc, _state, _detail = _query_postgres_ex(opts, queries, db_name=db_name)
+    if rc == EXIT_OK:
+        rows = results[0]
+        demo, langs = (rows[0] if rows else (None, None))
+        print("DB_EXISTS=1")
+        print("DEMO={d}".format(d=1 if demo else 0))
+        print("LANGUAGES={l}".format(l=langs or ""))
+        if mods:
+            for line in _module_lines(results[1], mods):
+                print(line)
+        return EXIT_OK
+    if rc == EXIT_NO_VENV:
+        return rc
+    # The connection to the database failed: tell "it does not exist" (it holds nothing) from
+    # "could not ask", by asking the maintenance database - never by reading the server's
+    # message, which arrives in the server's own language.
+    found, rc2 = _query_postgres(opts, "SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+    if rc2 == EXIT_OK and not found:
+        print("DB_EXISTS=0")
+        return EXIT_OK
+    return rc
+
+
+def cmd_i18n_state(db_name, opts):
+    """What an i18n export needs to know about ``db_name`` (see the CLI block):
+    the requested languages res_lang knows (active flag + ISO code) and the
+    requested modules ir_module_module knows (state). Both queries run on ONE
+    connection to that database; any failure prints nothing."""
+    langs = [x for x in (opts.get("languages") or "").split(",") if x]
+    mods = [x for x in (opts.get("modules") or "").split(",") if x]
+    queries = []
+    if langs:
+        queries.append(("SELECT code, iso_code, active FROM res_lang WHERE code = ANY(%s) "
+                        "ORDER BY id", (langs,)))
+    if mods:
+        queries.append((_MODULES_SQL, (mods,)))
+    results, rc = _query_postgres(opts, queries, db_name=db_name)
+    if rc != EXIT_OK:
+        return rc
+    lines = []
+    if langs:
+        found = {row[0]: row for row in results.pop(0)}
+        for code in langs:
+            if code in found:
+                lines.append("LANG={c} ISO={i} ACTIVE={a}".format(
+                    c=code, i=found[code][1] or code, a=1 if found[code][2] else 0))
+    if mods:
+        lines += _module_lines(results.pop(0), mods)
+    for line in lines:
+        print(line)
+    return EXIT_OK
+
+
 def cmd_drop(db_name, opts):
     try:
         odoo = _import_odoo(opts)
@@ -885,9 +1025,24 @@ def main(argv):
             return EXIT_USAGE
         return cmd_db_size_bytes(pos[0], opts)
 
+    if cmd == "db-facts":
+        if not pos:
+            sys.stderr.write("Usage: odoo_db.py db-facts <db> [--modules m,n] [--db-host H] [--db-user U] "
+                             "[--db-port P] [--db-password P] [--odoo-root R]\n")
+            return EXIT_USAGE
+        return cmd_db_facts(pos[0], opts)
+
+    if cmd == "i18n-state":
+        if not pos or not (opts.get("languages") or opts.get("modules")):
+            sys.stderr.write("Usage: odoo_db.py i18n-state <db> [--languages a,b] [--modules m,n] "
+                             "(at least one) [--db-host H] [--db-user U] [--db-port P] "
+                             "[--db-password P] [--odoo-root R]\n")
+            return EXIT_USAGE
+        return cmd_i18n_state(pos[0], opts)
+
     sys.stderr.write(
         "odoo_db: unknown subcommand {cmd!r}. Use preflight|drop|exists|can-createdb|"
-        "list-databases|db-age-s|db-size-bytes.\n".format(cmd=cmd)
+        "list-databases|db-age-s|db-size-bytes|db-facts|i18n-state.\n".format(cmd=cmd)
     )
     return EXIT_USAGE
 

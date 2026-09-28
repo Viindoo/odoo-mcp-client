@@ -80,13 +80,18 @@ def _text(s):
 
 
 def _cont(status, forward_handle=False):
-    """A ```continuation fenced block with the given status; optionally forwarding INSTANCE_HANDLE."""
+    """A ```continuation fenced block with the given status; optionally forwarding INSTANCE_HANDLE.
+
+    `forward_handle` is True (forward DEFAULT_TOKEN's lease) or the lease token to forward. The
+    handoff clears only the lease whose OWN lease_token the handle carries, so the handle must name
+    the real token - a placeholder forwards nobody's lease."""
     body = f"```continuation\nstatus: {status}\n"
     if forward_handle:
+        tok = DEFAULT_TOKEN if forward_handle is True else forward_handle
         body += (
             "next:\n"
             "  - skill: odoo-coding\n"
-            "    inputs: {INSTANCE_HANDLE: {db_name: x, lease_token: t, run_id: run-abc}}\n"
+            f"    inputs: {{INSTANCE_HANDLE: {{db_name: x, lease_token: {tok}, run_id: run-abc}}}}\n"
         )
     else:
         body += "produced: []\nnext: []\n"

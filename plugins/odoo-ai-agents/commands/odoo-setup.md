@@ -1,7 +1,7 @@
 ---
 name: odoo-setup
-argument-hint: "[optional: focus area]"
-description: One-shot, idempotent setup for the Odoo visual workflow - wire the browser MCP families (one eager chrome-devtools + five opt-in) across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare + spin up local Odoo instances
+argument-hint: "[all|browser|runtime|permissions|instance|refresh] [--version X.Y] [--profile P]"
+description: One-shot, idempotent setup for the Odoo visual workflow - wire the browser MCP families (one eager chrome-devtools + five opt-in) across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare, refresh + spin up local Odoo instances
 ---
 # /odoo-ai-agents:odoo-setup
 
@@ -30,9 +30,15 @@ What it sets up:
 4. **Instance profile** - discovers local Odoo repos via OSM-grounded propose-then-confirm,
    writes the machine-global `$ODOO_AI_HOME/instances.toml` (resolvable from any cwd by any agent
    on this host; see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` for the full
-   Tier-1/SHARE/ISOLATE convention).
+   Tier-1/SHARE/ISOLATE convention). Each row also records its operator-confirmed
+   `server_wide_modules` (the deployment's `--load` additions; step `46-server-wide`), and
+   `refresh` re-derives a declared row's venv facts and server-wide set. A venv's supported Python
+   range is read from the row's Odoo checkout (`45-venv`); a checkout that declares Python 2 gets a
+   Python 2.7 venv built with `virtualenv`.
 5. **DB local auth** - makes a LOCAL cluster accept the declared PostgreSQL role without a stored
    password, so every build can open Odoo's own connection; reverted with `48-db-local-auth.sh revert`.
+   Otherwise the only password sources are `ODOO_PG_PASSWORD` and `~/.pgpass`: a tool-launched Odoo
+   never reads the operator's `~/.odoorc`.
 6. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
@@ -48,7 +54,8 @@ menu" below).
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
-| `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-5 + `40-instance-profile` + optional `45-venv` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
+| `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
+| `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`). Declares nothing new. |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -71,14 +78,17 @@ Which parts of the Odoo visual workflow would you like to set up?
 
 [ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
     flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
-    (runs steps AI-1..AI-5 + 40 + optional 45 + 48 + 50)
+    (runs steps AI-1..AI-6 + 40 + optional 45 + 46 + 48 + 50)
+
+[ ] Refresh declared instances - re-derive each declared row's venv facts
+    and confirm its server-wide modules (equivalent to refresh)
 
 [ ] Reset instances.toml - backup then clean the instance registry
     (runs step 47 only; equivalent to --reset)
 ```
 
 Map each ticked option to its filter in the table above (`browser`, `instance`,
-`--reset`); with several ticked, run them in that order. Confirm the plan before
+`refresh`, `--reset`); with several ticked, run them in that order. Confirm the plan before
 executing - the per-step [Y/n] gates still apply.
 
 ## Steps for the AI agent
@@ -127,8 +137,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      etc. - and lists the items only you can confirm (build deps, an Odoo venv).
    - Then require an explicit choice from the user before continuing:
      - `ready` → all required items are satisfied; proceed.
-     - `skip instance` → run only browser/permissions steps; skip AI-1..AI-5 and
-       `40`, `45`, `48`, `50`. `48` edits a live cluster's `pg_hba.conf`, so it is
+     - `skip instance` → run only browser/permissions steps; skip AI-1..AI-6 and
+       `40`, `45`, `46`, `48`, `50`. `48` edits a live cluster's `pg_hba.conf`, so it is
        never reached by a run the user asked to skip.
      - `cancel` → stop, make no changes.
    - Any REQUIRED auto-detected item shown as missing (marked `[ -- ]`) must be
@@ -154,8 +164,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
 2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-5).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
-   numbered step scripts `40`/`45`/`48`/`50` and drives them with confirmed data.
-   AI-5 is INSIDE this cluster: stopping after AI-4 leaves step `48` unrun and
+   numbered step scripts `40`/`45`/`46`/`48`/`50` and drives them with confirmed data.
+   AI-5 and AI-6 are INSIDE this cluster: stopping after AI-4 leaves step `48` unrun and
    every later build refused on authentication.
 
    **AI-1 - OSM version + profile probe (CONFIRM #1)**
@@ -252,7 +262,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    nothing). Try Probe 1 first; fall back to Probe 2 when the core repo is not
    available. They are NOT equivalent - Probe 1 exercises the source checkout
    path while Probe 2 requires a pip-installed package:
-   - **Probe 1** - `<venv>/bin/python <core-repo>/odoo-bin --version`
+   - **Probe 1** - `<venv>/bin/python <core-repo>/odoo-bin --version` (the core repo's
+     launcher is `openerp-server` instead on the series whose core package is `openerp/`)
      (`<core-repo>` = the repo with role `core` confirmed in CONFIRM #3 - the
      last entry in the addons_path order own-repos-first -> ancestor -> core-last).
      Authoritative: works for a source checkout that was never pip-installed.
@@ -315,9 +326,63 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    NEVER ask for it, echo it, or put it on a command line. When you do not control
    the shell that runs `50 apply` - the normal case - name the durable route instead:
    one `${PGPASSFILE:-~/.pgpass}` line for that host/port/user, which libpq resolves
-   in every later process with no export at all. Then continue.
+   in every later process with no export at all. Those two are the only password sources: the
+   odoo-local tools never let Odoo read the operator's `~/.odoorc`, so a `db_password` there is not
+   used - never propose it. Then continue.
 
-   **CONFIRM #6 - choose the series and profile to spin up**
+   **AI-6 - Server-wide modules (CONFIRM #6)**
+
+   Which addons a site loads server-wide (`--load`) is a deployment fact kept on each catalog
+   row as `server_wide_modules`; Odoo's own core default is a source fact the odoo-local tools
+   read from the checkout. Every build and serve applies core default + the row's list, so an
+   agent never composes `--load` - and a module missing from the row is missing from every
+   build. For EVERY series (and profile) in the confirmed spec, after AI-4 recorded
+   `odoo_root`:
+
+   1. **Local evidence.** Run `"$STEPS_DIR/46-server-wide.sh" propose --series <X.Y>
+      [--profile <name>]`. Read its facts: `CORE_SERVER_WIDE_MODULES` (applied by the tools,
+      never recorded), `SELF_DECLARED_SERVER_WIDE` (addons on the row's addons_path whose own
+      code tests their name against `server_wide_modules`), `CURRENT_SERVER_WIDE_MODULES` and
+      `UNDETECTED_CURRENT` (already declared, and which of those nothing re-found - typically an
+      operator's own addition: keep it unless the operator drops it), and
+      `PROPOSED_SERVER_WIDE_MODULES`. `CORE_READABLE=0` means the checkout is not readable:
+      fix `odoo_root` (AI-4) first - the tools refuse a declared list whose core default they
+      cannot read.
+   2. **Odoo Semantic evidence** (skip on the user-declared path, and say so). Call
+      `mcp__odoo-semantic__find_examples(query='server_wide_modules', odoo_version=<X.Y>,
+      profile_name=<profile>, limit=20)` and take every module whose code tests ITS OWN name
+      against `server_wide_modules`. Such checks usually run at import time in a module's
+      `__init__.py`, which the index may not cover: an empty answer is normal and never
+      evidence of "none" - step 1 is the primary source. Then, for every candidate from any
+      source, call `mcp__odoo-semantic__check_module_exists(name=<module>,
+      odoo_version=<X.Y>, profile_name=<profile>)` and flag a candidate the profile does not
+      contain.
+   3. **Probe build (optional - offer it; needs AI-5 done and a runnable venv).** It catches a
+      module whose self-check step 1 could not read, from Odoo's own log line. This command is
+      the run that owns the probe, so it names the run: `run_id` =
+      `odoo-setup-<X.Y>-<UTC yyyymmddHHMMSS>`. Call the odoo-local tools
+      `lease_acquire` (the series and profile, mode `ephemeral`, that run_id, `cwd`, ports 0),
+      `instance_build` (op `init`, demo `off`, modules = the candidates so far plus the
+      modules the operator deploys on this profile - ask which), then `job_wait` until its
+      result is not `timeout`. A module Odoo asked to load server-wide is named in `warnings`;
+      re-run step 1 with `--log <the build's log_path>` so it joins the proposal. ALWAYS
+      `lease_release` the lease afterwards, whatever the result - this command provisioned it,
+      so this command releases it (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+      T3). A build applies what the row
+      already declares, so a probe reports only what is still missing.
+   4. **CONFIRM #6.** Present the proposal with each module's evidence (self-check, Odoo
+      Semantic, probe warning, already declared) and the core default (applied automatically,
+      not recorded). Ask the operator to confirm, remove entries, and ADD any module detection
+      cannot see - one that needs `--load` but leaves no trace in its code or in the log, or any
+      module when Odoo Semantic lacks the profile. Wait for the answer, then run
+      `"$STEPS_DIR/46-server-wide.sh" record --series <X.Y> [--profile <name>] --modules
+      <confirmed,comma,list>` (`--modules ""` records a confirmed "none"). It upserts that one
+      key and keeps every other line of the catalog. Never record an unconfirmed list.
+
+   A lease keeps the set it was acquired with: a lease or served instance acquired before the
+   record keeps the old set until it is released and acquired again.
+
+   **CONFIRM #7 - choose the series and profile to spin up**
 
    Present the list of series (and profiles, if any were selected in AI-1) in
    the confirmed spec and ask the user which one to launch now. Do not silently
@@ -343,7 +408,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
-        one at CONFIRM #6 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
+        one at CONFIRM #7 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
         target). Surface the stderr verbatim and STOP that step; do not retry,
         do not delete anything.
@@ -356,6 +421,26 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    (already done)` / `skipped (declined)` / `failed`. Then remind the user:
    > MCP servers do NOT hot-reload - restart your Claude Code / Codex / Gemini
    > session for the newly wired browser servers and permissions to take effect.
+
+## Refresh mode (`refresh [--version X.Y] [--profile P]`)
+
+Re-derives the facts a DECLARED catalog row carries, without re-declaring it (step `40` only
+adds rows and never overwrites one). Use it after a venv, checkout or addons change, and when a
+build's `warnings` names a module that must be loaded server-wide.
+
+1. Preflight Gate #1, SOFT: without Odoo Semantic, AI-6 step 2 is skipped with a warning.
+2. Read the declared rows with the odoo-local `catalog_read` tool; keep those matching
+   `--version` / `--profile` when given (none given = every row). Show the list and confirm it.
+3. For each row, run `"$STEPS_DIR/45-venv.sh" record-env --series <X.Y> [--profile <name>]`
+   and forward its output: it re-records only verified facts (`python`, `odoo_root`,
+   `db_run_mode`/`db_container`) and warns when the venv's Python lies outside the range the
+   checkout declares. Then show `"$STEPS_DIR/45-venv.sh" suggest <X.Y> [--profile <name>]`.
+   When the venv is outside the range or `record-env` could not verify it, offer
+   `45-venv.sh create-venv` (it builds only on the operator's yes).
+4. For each row, run AI-6 (the same evidence, optional probe and CONFIRM #6 gate).
+5. Summarize per row: the venv facts recorded, and `server_wide_modules` before -> after.
+   Remind the operator that leases and served instances acquired earlier keep their old set
+   until released and acquired again.
 
 ## Per-runtime native MCP provisioning
 
@@ -455,7 +540,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   each Odoo series supports only certain Python versions, so a source instance
   needs a matching interpreter. After `40` declares the profile, offer this flow
   for the series the user wants to spin up:
-  1. Show the recommended Python: `"$STEPS_DIR/45-venv.sh" suggest <series>`.
+  1. Show the supported range and recommended Python:
+     `"$STEPS_DIR/45-venv.sh" suggest <series> [--profile <name>]`. The range is read from the
+     instance's own Odoo checkout (its `odoo_root`, else the core repo on its addons_path);
+     `scripts/lib/odoo-python-matrix.json` answers only when no checkout is readable, and the
+     output says which source answered. `create-venv` defaults `--python` to the same
+     recommendation and warns when an explicit `--python` lies outside the range.
   2. Then let the user choose:
      - **Reuse an existing venv** - set the `python` field on the matching
        `[[instance]]` in `$ODOO_AI_HOME/instances.toml`, or export `ODOO_PYTHON`.
@@ -472,6 +562,14 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   the suggestion and move on - step 50 will fall back to `python3`.
   `record-env` runs as part of the numbered flow after CONFIRM #4 (see there);
   re-run it by hand after any change to the venv or the Postgres container.
+- **46-server-wide** *(instance sub-step - AI-6, and refresh)* - `propose` prints the
+  evidence for a declared row's server-wide modules: Odoo's core default read from the
+  checkout, addons whose own code checks their name against `server_wide_modules`, the
+  "should be loaded in server wide mode" warnings of any `--log` it is given, and what the row
+  already declares; `record --modules <list>` upserts the operator-CONFIRMED list as the row's
+  `server_wide_modules` TOML array (other keys, comments and rows untouched; atomic write;
+  `--modules ""` = a confirmed none). `check` exits 0 when every declared row carries the key;
+  `apply` only prints the proposals and writes nothing - confirmation is the operator's.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): removes entries whose addons paths
@@ -504,7 +602,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   whatever the credentials are. On a refused connection it prints the refusal and
   launches NOTHING. On pass: generates a temp `odoo.conf`, launches Odoo
   (`odoo-bin --dev=all` or `docker compose up -d`), polls `/web/login` to HTTP
-  200, prints the URL. The series comes from CONFIRM #6 (never silently
+  200, prints the URL. The series comes from CONFIRM #7 (never silently
   defaulted). The Python interpreter comes from the instance `python` field /
   `$ODOO_PYTHON` / `python3`.
 
@@ -528,7 +626,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   the whole command must be a no-op when everything is already configured.
 - **Spawn a HAIKU subagent ONLY for read-only local filesystem scans** (repo →
   local path mapping in AI-3, venv → series mapping in AI-4). Every file
-  mutation goes through the deterministic `*.sh` step scripts (40/45/47/50),
+  mutation goes through the deterministic `*.sh` step scripts (40/45/46/47/48/50),
   NEVER through a subagent. The HAIKU subagent reads; the shell scripts write.
 
 ## Standalone / fallback

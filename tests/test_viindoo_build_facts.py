@@ -1,15 +1,18 @@
-"""Behavioral gate: the three build facts an executing agent must get right per series.
+"""Behavioral gate: the build facts an executing agent must get right per series.
 
-An agent composes its own `odoo-bin` command from this plugin's prose, so a fact that is
-stale here becomes a wrong command with no error: a lint gate that tags a module the series
-renamed away goes GREEN having checked nothing; a `--load` missing a server-wide module boots
-a registry unlike every other build; a demo flag spelled with a value dies at option parsing
-before the database is touched.
+Three facts decide what an Odoo build reproduces: which lint modules the backend gate is made of,
+which modules load server-wide (`--load`), and whether the database carries demo data. The last
+two are applied by the odoo-local tools (instance_build / instance_serve read the server-wide set
+from the lease's catalog row and spell the series' demo flag from a `demo` argument - proven in
+tests/test_odoo_local_mcp_build_facts.py); what the prose still owns is the JUDGEMENT: which demo
+shape each build purpose needs, what to do when a build warns that a module must load server-wide,
+and never teaching a second, hand-composed path. The first is still resolved by the agent.
 
-These assertions lock in (1) which modules the backend lint gate is made of per series,
-(2) the per-series server-wide `--load` set, and (3) demo data decided by build purpose.
-All three are single-sourced in snippets/odoo-version-pivots.md; the negative sweeps below
-are what stop a consumer from re-growing its own stale copy.
+These assertions lock in (1) the lint gate membership per series, (2) the server-wide rule stated
+once and no per-series module table left for an agent to copy, (3) demo decided by build purpose,
+with a test build never running on demo data where the series' default loads none, and (4) the
+series-correct `-i`/`-u` rule for a test run on an existing database. The facts are single-sourced
+in snippets/odoo-version-pivots.md; the negative sweeps stop a consumer re-growing a stale copy.
 
 Run: python -m pytest tests/test_viindoo_build_facts.py -v
 """
@@ -131,51 +134,92 @@ def test_no_file_restates_a_stale_lint_module_version_claim():
 # --- (2) server-wide modules on --load --------------------------------------------------
 
 
-def test_pivots_states_every_server_wide_load_set():
-    """One row per era, each giving the WHOLE resulting --load, not a fragment to append to."""
+def _pivot_section(start: str, end: str) -> str:
     text = _norm(PIVOTS)
-    for expected in (
-        "web,to_base",
-        "base,web,to_base",
-        "base,web,to_erponline_utility,viin_brand",
-        "base,rpc,web,to_erponline_utility,viin_brand",
-    ):
-        assert expected in text, f"pivots must state the resulting --load `{expected}`"
+    s = text.find(start)
+    assert s != -1, f"pivots section {start!r} not found - re-anchor this test"
+    e = text.find(end, s + 1)
+    return text[s: e if e != -1 else len(text)]
 
 
-def test_pivots_warns_that_rpc_is_dropped_when_omitted():
-    """Odoo re-adds base and web but not rpc, so a carried-forward set loses it silently."""
-    text = _norm(PIVOTS)
-    assert "rpc" in text, "pivots must name the addon that is not re-added"
-    assert "silently" in text.lower() or "no error" in text.lower(), (
-        "pivots must state that omitting it fails silently rather than erroring"
+def test_pivots_states_the_tools_apply_the_build_facts():
+    """The rule is stated once: the tools apply --load, the languages and the demo flag."""
+    facts = _pivot_section("## Build facts the odoo-local tools apply", "### Demo data by build PURPOSE")
+    for fact in ("`--load`", "`--load-language`", "demo flag"):
+        assert fact in facts, f"the build-facts SSOT must name {fact} as applied by the tools"
+    assert "never compose them by hand" in facts and "`extra_args`" in facts, (
+        "the SSOT must forbid composing the build facts in extra_args"
+    )
+    assert "core default (read from the lease's Odoo checkout)" in facts, (
+        "the core server-wide default is a source fact the tool reads, not a table to copy"
+    )
+    assert "fixed on the lease when it is acquired" in facts, (
+        "a catalog change only reaches a lease acquired after it - the remedy depends on that"
     )
 
 
-def test_pivots_states_to_base_leaves_the_server_wide_set():
-    """It remains installable, so 'the module resolves' is not evidence it still belongs."""
-    text = _norm(PIVOTS)
-    assert "to_base" in text and "SERVER-WIDE set at v18" in text, (
-        "pivots must state that to_base leaves the server-wide set, not the addons path"
+def test_server_wide_warning_is_remedied_through_the_catalog_and_a_new_lease():
+    """A build that silently ran without a server-wide module still 'succeeds' - only job_wait's
+    warning shows it, so the prose must say what to do with it: fix the catalog row, re-acquire,
+    and never work around it with an ordinary install."""
+    facts = _pivot_section("## Build facts the odoo-local tools apply", "### Demo data by build PURPOSE")
+    assert "/odoo-ai-agents:odoo-setup refresh" in facts, "the remedy must name the setup refresh"
+    assert re.search(r"release the lease and acquire a new one", facts), (
+        "the remedy must re-acquire: the server-wide set is fixed at acquire"
+    )
+    assert re.search(r"Never answer it by installing the module with `-i`", facts), (
+        "an ordinary -i install misses the boot-time patch point; the prose must forbid it"
+    )
+    rule = _norm(AGENT_MD)
+    rule = rule[rule.index("## Demo, languages and server-wide modules (HARD RULE)"):]
+    rule = rule[: rule.index("## Lint modules")]
+    assert re.search(r"must be loaded server-wide means the catalog row lacks it", rule), (
+        "the agent must treat a server-wide warning as an untrusted instance"
+    )
+    assert "NEEDS_CONTEXT" in rule and "tests-inconclusive" in rule, (
+        "the agent must not report a build or a test run green while that warning stands"
     )
 
 
-def test_agent_refuses_a_partially_present_server_wide_set():
-    """A half-applied server-wide set boots a registry unlike every other build, silently."""
-    text = _norm(AGENT_MD)
-    assert "Some Yes, some No" in text, (
-        "the agent must handle a partially-present Viindoo server-wide set explicitly"
+def test_no_agent_facing_file_carries_a_server_wide_module_table():
+    """The per-series core default and the deployment set used to be a table agents copied into
+    --load. The core default is now read from the checkout and the deployment set lives in the
+    catalog row, so any copy left in prose is a second, rotting source for a flag the tool
+    refuses anyway."""
+    stale = re.compile(
+        r"base,rpc,web|web,web_kanban|to_erponline_utility,viin_brand|CLI - server-wide modules"
+        r"|Viindoo set to union|Some Yes, some No"
     )
-    assert "Never build a partial `--load`" in text, (
-        "the agent must refuse a partial --load rather than proceed with it"
+    offenders = [
+        str(p.relative_to(REPO_ROOT))
+        for p in _agent_facing_md()
+        if "scripts" not in p.relative_to(PLUGIN).parts and stale.search(_norm(p))
+    ]
+    assert not offenders, (
+        "these files still carry the per-series server-wide module table or its probe rule; the "
+        f"tools apply --load from the lease's catalog row: {offenders}"
     )
+
+
+def test_no_agent_facing_prose_passes_load_modules():
+    """instance_serve's `load_modules` input was removed; a call written with it is refused.
+
+    Only a statement that the input is GONE ("no `load_modules`") may still name it."""
+    passes = re.compile(r"(?<!no )(?<!no `)\bload_modules\b")
+    offenders = [
+        str(p.relative_to(REPO_ROOT))
+        for p in _agent_facing_md()
+        if "scripts" not in p.relative_to(PLUGIN).parts
+        and passes.search(_norm(p))
+    ]
+    assert not offenders, f"these files still pass instance_serve a load_modules argument: {offenders}"
 
 
 # --- (3) demo data by build purpose -----------------------------------------------------
 
 
 def test_pivots_states_demo_by_build_purpose():
-    """Which purposes carry demo is the decision; the flag spelling only expresses it."""
+    """Which purposes carry demo is the decision; the tool only spells the flag."""
     text = _norm(PIVOTS)
     assert "Demo data by build PURPOSE" in text, (
         "pivots must carry the purpose-keyed demo section"
@@ -183,6 +227,34 @@ def test_pivots_states_demo_by_build_purpose():
     assert "GATE_ROLE: node-verify" in text and "GATE_ROLE: pre-pr-lint-gate" in text, (
         "the automation-test row must name both gate roles, so neither is read as an exception"
     )
+    table = _pivot_section("### Demo data by build PURPOSE", "### Test run on an existing database")
+    rows = {cells[0]: cells[1:] for cells in (
+        [c.strip() for c in ln.split("|")[1:-1]] for ln in
+        PIVOTS.read_text(encoding="utf-8").splitlines() if ln.startswith("| ")
+    ) if len(cells) == 3}
+    def row(prefix):
+        hit = [v for k, v in rows.items() if k.startswith(prefix)]
+        assert hit, f"the purpose table must carry a row starting {prefix!r}"
+        return hit[0]
+    test_default_demo, test_no_demo = row("Automation test run")
+    for cell in (test_default_demo, test_no_demo):
+        assert cell.startswith("series default (omit `demo`)"), (
+            "a test build never passes demo on any series: it runs the series default the tool "
+            "reads from the checkout, so neither cell may name a value to pass"
+        )
+    assert "`TEST_DB_HAS_DEMO`" in test_no_demo and "passes `off`" in test_no_demo, (
+        "where the series' default loads no demo, a test build never runs on a demo DB, and the "
+        "init its database comes from passes off"
+    )
+    assert "passes `on`" in test_default_demo, (
+        "where the series' default loads demo, the init a test build reuses keeps it - disabling "
+        "it would change what that series' own CI reproduces"
+    )
+    for purpose in ("Translation export", "Acceptance live-UI sweep", "Documentation capture"):
+        assert all(v.startswith("`on`") for v in row(purpose)), (
+            f"{purpose} builds carry demo on every series"
+        )
+    assert "`demo` on a series whose default loads none" in table
 
 
 def test_pivots_forbids_demo_dependent_tests_where_demo_is_off():
@@ -196,14 +268,113 @@ def test_pivots_forbids_demo_dependent_tests_where_demo_is_off():
     )
 
 
-def test_agent_refuses_demo_on_an_automation_test_build():
-    """The test environment does not accept demo, so the request is an error, not a preference."""
+def test_agent_never_passes_demo_on_an_automation_test_build():
+    """A test build runs the series default the tool reads from the checkout, so the agent passes
+    no demo there and does not apply a brief's DEMO. A forwarded demo database is never planned as a
+    reuse target, and when the tool refuses one (it reads demo from the DATABASE, whichever lease
+    built it) the agent falls back to a fresh run on its own lease instead of retrying."""
     text = _norm(AGENT_MD)
-    assert "Demo data on a build (HARD RULE)" in text, (
-        "the agent must own a demo HARD RULE section"
+    assert "Demo, languages and server-wide modules (HARD RULE)" in text, (
+        "the agent must own the build-facts HARD RULE section"
     )
-    assert "demo requested on an automation-test build" in text, (
-        "the agent must refuse demo on a test build with a NEEDS_CONTEXT reason"
+    rule = text[text.index("## Demo, languages and server-wide modules (HARD RULE)"):]
+    rule = rule[: rule.index("## Lint modules")]
+    assert "Never pass `demo` on a test build" in rule and "omit `demo` on op `test`" in rule, (
+        "the agent must omit demo on every test build - the series default applies"
+    )
+    assert re.search(r"A `DEMO:` field on a run-tests dispatch is never applied", rule), (
+        "a brief's DEMO on a test dispatch must not reach instance_build"
+    )
+    assert not re.search(r"Pass `demo` on every `init` and `test` build", rule), (
+        "the old rule told the agent to pass demo on test builds"
+    )
+    run_tests = text[text.index("### 5. run-tests"):text.index("### 6.")]
+    call = re.search(r"Then `instance_build` \(op `test`[^)]*\)", run_tests)
+    assert call and re.search(r"no `demo`", call.group(0)), (
+        "the run-tests instance_build call must say it passes no demo"
+    )
+    assert re.search(r"whose `demo` is `true` is never a `reuse` target", text), (
+        "a forwarded demo handle must stay out of the reuse plan - a refused build costs a round trip"
+    )
+    assert re.search(r"refuses a test build on any database holding demo[^.]*forwarded one included"
+                     r"[^.]*`TEST_DB_HAS_DEMO`\): on that refusal, run `fresh` on your own ephemeral lease",
+                     rule), "rule 2 must match the tool: it refuses a forwarded demo database, and the "\
+        "agent answers the refusal with a fresh run on its own lease"
+    assert "this check is yours" not in rule and "records none" not in rule, (
+        "the tool now sees a forwarded database's demo; the rule must not claim the check is the agent's alone"
+    )
+
+
+def test_acceptance_durable_run_never_reuses_the_demo_cluster():
+    """Acceptance provisions its cluster WITH demo; its tour/HttpCase run must not execute there."""
+    text = _norm(PLUGIN / "skills/odoo-acceptance/SKILL.md")
+    phase = text[text.index("## Phase 2a"):text.index("## Phase 2b")]
+    assert re.search(r"builds on a FRESH lease", phase), "Phase 2a's test run needs its own lease"
+    assert "NEVER on Phase 2's `INSTANCE_HANDLE`" in phase, (
+        "Phase 2a must not run the suite on the demo-carrying cluster handle"
+    )
+    phase2 = text[text.index("## Phase 2 - provision the cluster"):text.index("## Phase 2a")]
+    assert "`demo: on`" in phase2, "the acceptance cluster itself keeps demo on"
+    assert "except the Phase 2a test run" in phase2, (
+        "the handle-forwarding rule must carve out the durable test run it would contradict"
+    )
+
+
+def test_acceptance_never_runs_on_a_test_or_verify_handle():
+    """Acceptance instances carry demo; a test/verify build carries the series default, which is no
+    demo where demo is opt-in. So no pipeline may forward its verify handle into odoo-acceptance,
+    and acceptance itself must refuse a forwarded handle that holds no demo."""
+    fp = _norm(PLUGIN / "skills/odoo-forward-port/SKILL.md")
+    p11 = fp[fp.index("**P11 - End-to-end acceptance"):fp.index("**P12 - PR + review")]
+    assert "`INSTANCE_HANDLE: none provisioned` - NEVER P9's verify handle" in p11, (
+        "forward-port P11 must not forward the P9 verify handle into acceptance"
+    )
+    assert "`INSTANCE_HANDLE` from P9" not in fp, "the old reuse instruction must be gone"
+    fpm = _norm(PLUGIN / "snippets/fp-merge-absorption.md")
+    assert "which reuses the same `INSTANCE_HANDLE`" not in fpm, (
+        "the verify protocol must not say P11 acceptance reuses the per-batch verify handle"
+    )
+    assert "P11 acceptance never reuses this handle" in fpm
+    up = _norm(PLUGIN / "skills/odoo-modules-upgrade/SKILL.md")
+    p58 = up[up.index("**P5.8 - Acceptance"):up.index("**P6 - Gate")]
+    assert "`INSTANCE_HANDLE: none provisioned` - NEVER the P5 test handle" in p58, (
+        "modules-upgrade P5.8 must not forward the P5 test handle into acceptance"
+    )
+    assert "`INSTANCE_HANDLE` from P5" not in up
+    detail = _norm(PLUGIN / "skills/odoo-modules-upgrade/references/upg-phase-detail.md")
+    p57 = detail[detail.index("## P5.7 - i18n reconcile"):]
+    assert "INSTANCE: SELF_PROVISION" in p57 and "Inherit the P5" not in p57, (
+        "the P5.7 export build needs demo AND the target languages from ONE build - never the P5 "
+        "test instance"
+    )
+    acc = _norm(PLUGIN / "skills/odoo-acceptance/SKILL.md")
+    inputs = acc[acc.index("## Inputs"):acc.index("## Phase 0")]
+    assert re.search(r"`INSTANCE_HANDLE` if a run already provisioned one AND its `demo` is `true`",
+                     inputs), "acceptance must refuse a forwarded handle that holds no demo"
+
+
+# --- (4) test run on an existing database -----------------------------------------------
+
+
+def test_pivots_states_the_series_correct_reuse_rule():
+    """`-u` re-runs an installed module's tests on every series; `-i` stops doing so at a boundary."""
+    section = _pivot_section("### Test run on an existing database", "## Framework-validation")
+    assert re.search(r"`test_mode` `reuse` \(`-u`\) - right on every series", section)
+    assert re.search(r"from v\d+ `-i` skips an installed module and runs none of its tests", section)
+
+
+def test_no_file_claims_i_on_an_installed_module_is_a_no_op_everywhere():
+    """That claim is true from one series on only; stated flat it teaches the wrong reason for a
+    rule whose conclusion (use -u) is right everywhere."""
+    pattern = re.compile(r"`?-i`? on an (?:already[- ])?installed module is a no-op", re.I)
+    offenders = [
+        str(p.relative_to(REPO_ROOT))
+        for p in _agent_facing_md()
+        if pattern.search(_norm(p))
+    ]
+    assert not offenders, (
+        "these files state flatly that -i on an installed module is a no-op; point at "
+        f"odoo-version-pivots.md § Test run on an existing database instead: {offenders}"
     )
 
 
@@ -351,7 +522,7 @@ def test_framework_class_list_states_its_admission_criteria():
     """
     text = _norm(PIVOTS)
     section = text[text.index("Framework-validation test classes"):]
-    section = section[: section.index("CLI - server-wide modules")]
+    section = section[: section.index("## JavaScript / OWL / tests")]
     assert "all three hold" in section, (
         "the framework-class table must state the admission criteria for a row"
     )
@@ -448,3 +619,23 @@ def test_no_file_spells_the_demo_enable_flag_with_a_value():
         "`--with-demo` takes no value; these files spell it with one and would fail at "
         f"option parsing: {offenders}"
     )
+
+
+def test_handle_demo_and_languages_are_facts_of_the_database():
+    """A handle forwarded on another lease of the same database must state what that database
+    holds: the tools refuse a test build or an i18n export by the DATABASE's demo and languages, so
+    prose that ties the facts to one lease teaches an agent to trust a handle the tools reject."""
+    handle = _norm(PLUGIN / "snippets/instance-handle-contract.md")
+    assert "`demo` - whether the DATABASE holds demo data" in handle
+    assert "`languages_loaded` - the languages active in the DATABASE" in handle
+    assert re.search(r"`facts_source` - who answered `demo` / `languages_loaded`: `database` [^-]*"
+                     r"or `leases`", handle), (
+        "the handle must carry facts_source: the tools answer from the database itself and fall "
+        "back to the leases' build records only when it cannot be read"
+    )
+    assert "facts of the database, whichever lease built it" in handle
+    offenders = [str(p.relative_to(REPO_ROOT)) for p in _agent_facing_md()
+                 if "scripts" not in p.relative_to(PLUGIN).parts
+                 and re.search(r"the lease records it|lease you take on a forwarded database records",
+                               _norm(p))]
+    assert not offenders, f"these files still tie demo to the lease that built it: {offenders}"
