@@ -122,8 +122,8 @@ path, and
 Provision the live instance via `odoo-instance` with the FULL `install_set` co-installed as ONE
 cluster (`demo: on` - an acceptance sweep drives real screens, so it is one of the purposes that
 carries demo on every series, per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo
-data by build PURPOSE; `persist: exclusive-running` - the cluster stays listening across Phase
-2a/2b and the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
+data by build PURPOSE; this run's `run_id`, never an invented one; `persist: exclusive-running` -
+the cluster stays listening across Phase 2a/2b and the Phase 3 fix-loop) - co-installing surfaces MRO / load-order breaks a single-module install
 hides. That is ONE dispatch, and the dispatched agent reaches the state in two legs it owns (build
 the database with the whole `install_set`, then launch it listening on the SAME database) -
 do not decompose it here, and do
@@ -153,7 +153,8 @@ verbatim - never default to the catalog/principal checkout when one was supplied
 For High- AND Med-tier modules in `test_set`, launch the `odoo-test-writer` agent (mode tour/HttpCase;
 it authors by invoking the `odoo-test-writing` skill inline, in its own context) to realize the
 oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
-`--test-enable`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
+`--test-enable`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR lint gate -
+scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
 is about those modules, and an untagged run would spend the sweep re-testing the core closure they
 pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **The files this channel leaves
 behind must not depend on demo data**, even though Phase 2's own cluster carries it: they run later
@@ -192,13 +193,6 @@ overlap Phase 2a, which uses no browser).
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (tier-assignment section) and
   `odoo-qa-planner`'s own tier-assignment rationale.
 
-Between Phase 2a/2b and Phase 3, call `allocator.py heartbeat <token>` on the cluster's
-`INSTANCE_HANDLE` while the fix-loop below is still iterating. A same-host lease whose owner pid is
-verified alive is protected from reaping regardless of heartbeat freshness; heartbeat still matters
-here because it is what protects THIS run on the residual case the allocator cannot verify liveness
-for at all (a different host, or no pid recorded), and it is cheap enough to call unconditionally
-rather than branch on which case applies. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
-
 ## Phase 3 - ADJUDGE + fix-loop (bounded)
 
 Read the tester report and durable results, reconcile them against the oracle, and produce the
@@ -219,10 +213,11 @@ escalated as BLOCKED.
 
 **Release on the final verdict (conditions DONE).** Once the verdict is final (ACCEPTED, or the
 3-iteration escalation STOP), RELEASE the Phase 2 cluster instance you provisioned - via
-`odoo-instance` or `allocator.py release <token> --run-id <id>` - before emitting your terminal
+`odoo-instance` or `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the handle's `lease_token` and this run's run_id -
+before emitting your terminal
 status. Do NOT release between iterations of the fix-loop above (the re-runs need the same live
 cluster); release exactly once, after the verdict is final. `DONE` is not valid while that instance
-is still leased. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
+is still leased. If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
 
 ## Output
 

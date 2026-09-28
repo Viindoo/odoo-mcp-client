@@ -11,9 +11,10 @@
 #
 # NOT a PreToolUse deny on the backgrounding itself. Backgrounding is a WORKING pattern
 # here: a subagent may start a long command and then wait for it INSIDE THE SAME TURN with
-# foreground calls (that is exactly how odoo-instance-ops drives every long Odoo build -
-# background launch, then a blocking foreground `wait-log`). The failure moment is not the
-# start, it is the TURN END with the command still live, so the gate sits at the turn end.
+# foreground calls. (Long Odoo builds no longer take this path at all: odoo-instance-ops runs
+# them through the odoo-local `instance_build` tool, which returns a job_id, and blocks on
+# `job_wait` - no background shell is involved.) The failure moment is not the start, it is the
+# TURN END with the command still live, so the gate sits at the turn end.
 #
 # CONTRACT (Claude Code SubagentStop): stdin JSON carries session_id, transcript_path (the
 # SESSION transcript), cwd, permission_mode, hook_event_name, stop_hook_active,

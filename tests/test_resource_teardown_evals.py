@@ -232,6 +232,37 @@ def test_eval_a_releasing_the_forwarded_lease_fails_direction_two(tmp_path):
     assert any("release/drop token" in t for t in failed_texts)
 
 
+@pytest.mark.parametrize("tool", [
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_release",
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_park",
+])
+def test_eval_a_lease_tool_call_on_the_forwarded_handle_fails_direction_two(tmp_path, tool):
+    """FAIL direction 2 through the PRIMARY path: the agent closes its page, then releases (or
+    parks) the forwarded lease with the odoo-local tool. Holding the handle's token and run_id
+    makes the call succeed, so only the grader can catch it."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__new_page")]),
+        _line(content=[_tu("mcp__chrome-devtools__close_page", pageId=1)]),
+        _line(content=[_tu(tool, token="odoo_17_0_doc:8172", run_id="doc-run-42")]),
+        _line(content=[_text("status: DONE")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["close_call"] is not None, "the page WAS correctly closed - only the lease call should fail this"
+    assert [h["token"] for h in out["forbidden_hits"]] == [tool.rsplit("__", 1)[1]]
+
+
+def test_eval_a_reading_the_lease_list_is_not_a_violation(tmp_path):
+    """Listing leases changes nothing; only release/park touch the forwarded instance."""
+    lines = [
+        _line(content=[_tu("mcp__plugin_odoo-ai-agents_odoo-local__lease_list", scope="mine")]),
+        _line(content=[_tu("mcp__chrome-devtools__close_page", pageId=1)]),
+        _line(content=[_text("status: doc-complete")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is True, out
+
+
 def test_eval_a_operation_drop_prose_also_fails(tmp_path):
     """FAIL direction 2, alternate token: the ban can also be violated in prose, not just a Bash call."""
     lines = [

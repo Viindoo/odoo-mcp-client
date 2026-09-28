@@ -13,7 +13,7 @@ later phase can look it up instead of re-deriving it.
 `worklog/` is Tier-2 **ISOLATE** (per-run execution log; parallel runs must not interleave) - full
 policy + classification tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Resolve
 the ISOLATE dir ONCE via that file's mandatory resolve-capture-substitute protocol
-(`scripts/lib/resolve_project_dir.sh isolate`, captured as a literal absolute path - never a bare
+(`project_dir` axis `isolate`, captured as a literal absolute path - never a bare
 `.odoo-ai/...` string in a Read/Write/Edit call), then place the worklog under it:
 
 ```

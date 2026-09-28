@@ -52,7 +52,7 @@ not merely a value that happens to print in 4 hex digits.
 
 **Fit for purpose, not a security token.** This is a same-day, same-intent, concurrent-run
 DISAMBIGUATOR, never a security/secrecy boundary - nothing in this plugin treats the slug as
-a capability token (contrast `run_id`, which `assert-droppable`/`release` treat as
+a capability token (contrast `run_id`, which `lease_release`/`lease_park` treat as
 "semi-discoverable", never as a secret either). `$RANDOM`'s pseudo-randomness (seeded per bash
 process) is more than adequate for this: the failure mode being avoided is two concurrent runs
 on the identical intent the same day picking the IDENTICAL 4-char suffix, not an adversary
@@ -130,7 +130,7 @@ find <ISOLATE_DIR>/visual/<subdir>/ -mindepth 1 -maxdepth 1 -type d -mmin +<boun
 (mmin +43200), `odoo-ui-review` sweeps `visual/screenshots/` (mmin +43200) - each at its own
 Phase/Round 0, each scoped to only its OWN subdirectory, never a sibling it does not own.
 Enforcer: whoever executes that skill next, unconditionally, every run - not a separate
-cleanup agent or cron; no hook tracks a filesystem directory the way the allocator ledger
+cleanup agent or cron; no hook tracks a filesystem directory the way the lease registry
 tracks an instance lease.
 
 **Concurrency protection (the dangerous failure mode).** The sweep can NEVER delete a
@@ -318,8 +318,8 @@ Fail-closed on every axis, all collapsing to "skip, never delete": no correlatin
 at all, the file exists but is not valid JSON, `.status` is absent/empty, `.status` is
 `NEEDS_NEXT` (mid-flight, possibly mid-pause), or `jq` itself is unavailable. Only a POSITIVELY
 confirmed terminal top-level status on the run whose id matches the candidate directory's own
-name authorizes deletion - mirroring `reap-orphans`' own age-unknown-means-not-reaped convention
-(`scripts/lib/allocator.py` `_reap_candidates`) and the resolve-or-refuse discipline this contract
+name authorizes deletion - mirroring the lease tools' own age-unknown-means-not-reaped convention
+(`lease_gc` never reclaims what it cannot prove dead) and the resolve-or-refuse discipline this contract
 already applies to `run-<id>.json` itself (§ 3.3). This is deliberately NOT a bare one-liner like
 the other 14 rows - it trades that uniformity for the one property that actually matters here: it
 can never delete a live paused run's evidence. Wired at `run-harness` § Run start
@@ -336,7 +336,7 @@ stale while still alive, which a long-running listener's conf or an active build
 Both are instead reclaimed by `prune_stale_run_artifacts` (`scripts/lib/state_reclaim.sh`): its
 `_LOG_RETENTION_DAYS` mtime bound (that constant owns the number; never restate it) PLUS a
 lease-registry reachability guard (`_leased_db_names`) - stale by age AND unreachable from any
-leased instance, never by age alone. Called from `55-instance-ops.sh` (`_open_log`, every build)
-and `50-instance-spinup.sh` (every listener spin-up); the conf contract itself is
+leased instance, never by age alone. Called on every build and every
+listener spin-up (the scripts behind `instance_build` / `instance_serve`); the conf contract itself is
 `docs/reference/INSTANCE-ALLOCATION-GUARDS.md` § 6.2, not restated here. This keeps § 3.1/§ 3.2's
 exhaustiveness claim true (exhaustive over the ISOLATE table, which `logs/`/`conf/` are not in).

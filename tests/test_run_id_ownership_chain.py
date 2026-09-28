@@ -91,3 +91,24 @@ def test_the_one_production_caller_that_wants_an_ownerless_lease_says_so():
     assert re.search(r"INST_RUN_ID.*\n.*args\+=\(--run-id", src) or "--run-id \"${INST_RUN_ID}\"" in src, (
         "and must still prefer a real owner whenever the caller supplied one"
     )
+
+
+ERRORS = PLUGIN / "scripts" / "mcp" / "odoo_local" / "errors.py"
+
+
+def test_the_lease_tool_and_the_worker_brief_name_the_same_exit_for_a_missing_run_id():
+    """Agents acquire through the odoo-local `lease_acquire` tool, which refuses a missing run id
+    with RUN_ID_REQUIRED and a remedy. That remedy and worker-brief.md are two statements of ONE
+    rule; if they named different exits, a leaf would get one instruction from its brief and
+    another from the tool it is calling, and the likeliest resolution is inventing an id."""
+    src = ERRORS.read_text(encoding="utf-8")
+    match = re.search(r'"RUN_ID_REQUIRED":\s*"([^"]+)"', src)
+    assert match, "errors.py must carry a remedy for RUN_ID_REQUIRED"
+    remedy = match.group(1)
+    assert "Never invent one" in remedy, "the tool's remedy must forbid inventing the run id"
+    assert "NEEDS_CONTEXT(RUN_ID)" in remedy and "NEEDS_CONTEXT(RUN_ID)" in _norm(WORKER), (
+        "the tool remedy and worker-brief.md must name the same exit, NEEDS_CONTEXT(RUN_ID)"
+    )
+    assert "run_id" in _norm(WORKER), (
+        "worker-brief.md must tie the brief's RUN_ID to the run_id of the lease calls it makes"
+    )

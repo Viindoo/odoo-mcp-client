@@ -16,10 +16,11 @@ a shared environment config: the allocator reserves a UNIQUE database name (`<pr
 Two distinct paths exist in the current implementation, and BOTH satisfy the isolation contract by
 construction:
 
-- **`55-instance-ops.sh`-backed operations** (create/init/update/run-tests - the primary
-  `odoo-instance-ops` path) pass ALL parameters as explicit CLI flags and read NO shared config
+- **`55-instance-ops.sh`-backed operations** (create/init/update/run-tests - what
+  `instance_build` runs) pass ALL parameters as explicit CLI flags and read NO shared config
   file at all: no `-c`/`--config` flag, no reliance on `$ODOO_RC`.
-- **`50-instance-spinup.sh`-backed operations** (the "stay-running" apply path, and `ensure-up`) DO
+- **`50-instance-spinup.sh`-backed operations** (the "stay-running" apply path that
+  `instance_serve` runs, and `ensure-up`) DO
   materialise an `odoo.conf` for the launched server. That file MUST live at a DETERMINISTIC path
   keyed by the RESOURCE - `$ODOO_AI_HOME/conf/<db_name>-<port>.conf` - NEVER the environment's
   default `odoo.conf` / `$ODOO_RC`, and MUST NOT mutate any project file. `db_name` and `port` are
@@ -49,58 +50,69 @@ applies identically across all versions (v8-v19).
 Consumers point back here rather than restating the contract: `agents/odoo-instance-ops.md`
 ("Through-Odoo DB lifecycle") and `skills/odoo-instance/SKILL.md`.
 
-### 6.3 Ownership guard (run/session)
+### 6.3 Ownership guard (run_id)
 
-`owner.run_id` is the canonical ownership key stamped at `acquire`
-(`INSTANCE-ALLOCATION-REGISTRY.md` §4.2); the legacy
-`owner.session_id` field is no longer written on new leases and is read only as a fallback on
-leases minted before `run_id` existed.
+`owner.run_id` is the ownership key stamped at `acquire` (`INSTANCE-ALLOCATION-REGISTRY.md` §4.2);
+the legacy `owner.session_id` field is read only as a fallback on rows minted before `run_id`
+existed. Ownership (who may destroy a lease) and liveness (what keeps it from being reclaimed - the
+session anchor, `INSTANCE-ALLOCATION-RECLAIM.md` §7.1) are separate facts: sharing a session does
+not confer ownership, and owning a run does not keep a lease alive.
 
-**`release` belongs to the run that ACQUIRED the lease.** `release <token> --run-id <id>` refuses
-the release whenever the lease's `owner.run_id` (or its legacy `session_id` fallback) is non-empty
-and the caller's `--run-id` does not equal it - and an ABSENT `--run-id` is one of those cases, not
-an exemption from them. "No run id forwarded" is not "the owner forgot a flag"; it is ownership NOT
-ESTABLISHED, and a call that stops a server and drops a database may not proceed on a guess. The
-rightful owner is never blocked by this: it threads the id its own `acquire` echoed as
-`ALLOC_RUN_ID` (`INSTANCE_HANDLE.run_id` downstream). A caller that cannot produce one did not
-acquire this lease - holding the token is not ownership. `--force` proceeds anyway and logs the
-foreign run id it overrode; it is a human's override, never a dispatched agent's way around a
-refusal. The check runs inside the same `flock` critical section as the release itself, so it is
-race-free. This is the same predicate shape `assert-droppable` (below) has always used.
+**Release and park belong to the run that ACQUIRED the lease.** `release <token> --run-id <id>`
+(`lease_release`) is refused whenever the lease's `owner.run_id` (or its legacy `session_id`
+fallback) is non-empty and the caller's run id does not equal it - and an ABSENT run id is one of
+those cases: ownership NOT ESTABLISHED, never ownership assumed. The rightful owner is never blocked:
+it passes the run id its own acquire returned (`INSTANCE_HANDLE.run_id` downstream). Holding the
+token is not ownership. `--force` proceeds anyway and logs the foreign run id it overrode; it is a
+human's override, never a dispatched agent's way around a refusal. The check runs inside the same
+`flock` critical section as the release itself. `park <token> --run-id <id>` (`lease_park`) applies
+the same rule, through the same helper, under the lock and before any signal (an unowned lease parks
+on the token alone), and `adopt` (`lease_adopt`) requires the recorded owner run too.
 
-An UNOWNED lease - no owner run recorded at all - still releases on token possession. That is a
-deliberate NON-import of P5.8 below: P5.8 guards a BARE-NAME drop, which carries no ownership
-evidence whatsoever, whereas `release` requires the token; and since `release` is the only correct
-teardown path, refusing unowned leases here would leave every pre-`run_id` lease with no exit but
-`--force`. Thread `--run-id` at `acquire` and the lease is never in that class.
+The PreToolUse hook `hooks/block-unowned-lease-mutation.sh` (matcher: `Bash` and the MCP
+`lease_release` / `lease_park` / `lease_adopt` tools) enforces this for SUBAGENT callers only - the
+main context is never denied:
 
-**Superseded, and deleted from this section:** the earlier rule "in every other case (no run id
-forwarded, ...) the release proceeds on token possession alone ... a caller that never forwards a
-run id is NEVER blocked from releasing its own lease". It was written to protect the owner and
-instead licensed a stranger: an `and caller_run` conjunct made an un-threaded release short-circuit
-the whole ownership comparison, so a dispatch that had acquired nothing released a live acceptance
-lease whose token it merely knew, and `drop_on_release: true` destroyed the database. Do not
-reinstate it in any wording. If a legitimate caller is blocked, thread its run id - do not widen
-the predicate.
+- **A1** - a Bash `allocator.py release|park|adopt` naming no `--run-id` (nor `--session`). A
+  python interpreter's own options before the script (`python3 -u`, `-X dev`, `-W error`, a cluster
+  like `-uB`) are skipped, so they never hide an invocation from any arm; `-c` / `-m` run something
+  else and are left alone.
+- **A2** - `--force` / `--force-forget` on release or park, `reap-orphans --yes`, `acquire
+  --allow-unowned`.
+- **A3** - `allocator.py gc` without `--dry-run`.
+- **A4** - a release, park or adopt (Bash or MCP) of a token the caller does not hold: the token must
+  appear in the caller's OWN transcript as OBTAINED (a `lease_acquire` or `lease_adopt` result, a
+  series-mode `instance_serve` result reporting `state: launched`, or the Bash receipt line
+  `allocator: acquired|adopted lease <token>`) or HANDED UP in the report of a child it dispatched.
+  NOT obtainment: an `attached` series-mode serve (it joined a server another run started), a serve
+  or resume of a token passed in, and a `lease_find` / `lease_list` result. An adopt may also use a
+  token its own `lease_find` returned, which is the only resume path from a new session:
+  `lease_find` (parked, run_id) -> `lease_adopt` -> `instance_serve`; a found token is never
+  released or parked before that adopt. A token that only arrived in the brief is refused as
+  forwarded. The
+  correlation is `hooks/lease-correlation.sh`, shared with `enforce-teardown.sh`. The arm fails open
+  (a stderr line) when the transcript is unreadable or a Bash token is not a literal; command
+  substitutions (`eval "$(...)"`) are checked like direct calls.
 
-**A leased (managed) DB MUST be dropped via `release`, never by bare name.** Bare
-`odoo_db.py drop` / `55-instance-ops.sh drop` are for UNMANAGED databases only - one with no
-lease has nothing to orphan. Before a bare drop, confirm the DB is unmanaged with
-`assert-droppable --db-name <db> [--run-id <id>]`; it exits non-zero (and names the owning run)
-when a fresh foreign lease exists, so the caller routes to `release` instead. `--force` on the
-drop path is the explicit override for reaping a foreign or stale lease. This is an
-accident-prevention layer, not a security boundary - `run_id` is a semi-discoverable slug
-(worklog paths), and `assert-droppable` + the drop remain two separate processes, so a lease
-minted in the gap between them is not covered; managed DBs never take the bare-drop path, so
-this bounded TOCTOU window does not apply to them.
+An agent that CONSUMES a forwarded `INSTANCE_HANDLE` never releases or parks it - only its owner
+does (`snippets/resource-teardown-contract.md` T1). A launched series-mode serve makes the SHARED
+lease it registered pass A4 for its launcher, but that lease is multi-reader and never anyone's
+teardown (`INSTANCE-ALLOCATION-MODES.md` §5 `shared-running`); `park` refuses it outright.
 
-**P5.8: an UNOWNED-but-fresh lease is ALSO refused, not just a foreign one.** Before this fix,
-`assert-droppable` treated an empty `owner.run_id` as `always droppable` - which is exactly what let
-one session bare-drop another session's live instance whenever the OWNING acquire never threaded
-`--run-id` (the `_register_shared` gap P5.5 closes). A fresh (non-stale) lease with NO recorded owner
-at all now ALSO requires `--force` to drop, same as a fresh foreign-owned one; an own-lease or a
-stale lease remains droppable with no `--force`, unchanged. Covered by
-`test_allocator.py::test_assert_droppable_refuses_unowned_fresh_lease_without_force`.
+An UNOWNED lease - no owner run recorded at all - still releases on token possession: `release`
+requires the token, and it is the only correct teardown path for a row minted before `run_id`
+existed. Acquire with a run id and a lease is never in that class (`acquire` without `--run-id`
+exits 10 unless `--allow-unowned` states the lack deliberately).
+
+**A leased (managed) database MUST be dropped via `release`, never by bare name.** Bare
+`odoo_db.py drop` / `55-instance-ops.sh drop` are for UNMANAGED databases only. Before a bare drop,
+confirm the database is unmanaged with `assert-droppable --db-name <db> [--run-id <id>]`; it exits
+non-zero when a FRESH lease on that database is owned by another run (naming the owning run) OR is
+unowned - unowned does not mean "safe to drop". An own lease, a condemned lease or no lease is
+droppable; `--force` is the explicit override. This is an accident-prevention layer, not a security
+boundary: `run_id` is a semi-discoverable slug, and `assert-droppable` and the drop are two separate
+processes, so a lease minted in the gap between them is not covered; managed databases never take
+the bare-drop path, so this window does not apply to them.
 
 ### 6.4 Addons-path worktree-mismatch guard (false-green prevention)
 

@@ -18,7 +18,7 @@ decision.
 **Scope note.** Every source-writing node's worktree forks from the ONE `run-integration` branch
 (lineage: `run-harness` § Run start), so it always CONTAINS its dependencies' committed
 source - but that is not the same as the source being on the verification instance's addons-path
-(the allocator's catalog list points at the principal checkout by default). Reaching it is a
+(the catalog's `addons_path` points at the principal checkout by default). Reaching it is a
 POLICY step: the node's brief carries `WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out), set by
 `odoo-coding` on every source-writing dispatch naming a `WORKTREE_PATH`. With that step taken,
@@ -27,12 +27,12 @@ false BLOCKED no longer fires.
 
 ## Location and why the SHARE dir
 
-Resolve the ledger root ONCE per run via the Tier-2 SHARE resolver (policy + tables:
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), following its
-resolve-capture-substitute protocol:
+Resolve the ledger root ONCE per run with `project_dir` (axis `share`, `cwd` = your worktree;
+policy + tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), capture the returned
+path, and substitute it literally:
 
 ```bash
-SHARE_DIR="$(bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share)"
+SHARE_DIR="<path returned by project_dir axis share>"
 LEDGER_ROOT="$SHARE_DIR/coordination/modules"
 ```
 
@@ -43,9 +43,10 @@ path for every linked worktree, so a per-worktree ISOLATE dir (blind to a siblin
 not fit. Do NOT collapse this to a bare `$ODOO_AI_HOME/coordination/` - two unrelated repos on
 one host would then see each other's claims.
 
-**No git repo, no project marker (resolver refuses).** If `resolve_project_dir.sh share` fails,
-degrade to per-run behavior with NO ledger (the per-run pre-flight still produces graceful
-BLOCKEDs) and LOG that the ledger was unavailable. Never fabricate a ledger location.
+**No git repo, no project marker (resolver refuses).** If `project_dir` returns
+`PROJECT_DIR_UNRESOLVED`, degrade to per-run behavior with NO ledger (the per-run pre-flight still
+produces graceful BLOCKEDs) and LOG that the ledger was unavailable. Never fabricate a ledger
+location.
 
 ## Entry schema
 

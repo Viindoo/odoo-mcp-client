@@ -17,10 +17,13 @@ plugins** under `plugins/`:
   front-door skill (`git-ops`) + 4 agents that run git/github work safely in a delegated context.
   Declares `github` as a dependency; not under the SSOT generator.
 
-There is almost no application logic here. The repo is a **routing + orchestration layer made of
-Markdown** (skills/agents/commands are prose with YAML frontmatter); all knowledge and computation
-live on the OSM server. The Python under `generator/` and `tests/` exists to *validate and generate*
-that Markdown, not to run at user time.
+Most of the repo is a **routing + orchestration layer made of Markdown** (skills/agents/commands
+are prose with YAML frontmatter), and all Odoo source knowledge lives on the OSM server. The
+exception is a small **local runtime** that `odoo-ai-agents` ships and runs at user time: the
+instance allocator (`plugins/odoo-ai-agents/scripts/lib/allocator.py` + siblings, which leases
+databases/ports and anchors each lease to the owning session) and the `odoo-local` stdio MCP server
+that wraps it (`scripts/mcp/odoo_local_server.py`). The Python under `generator/` and `tests/`
+exists to *validate and generate* the Markdown, not to run at user time.
 
 ## Commands
 
@@ -71,6 +74,34 @@ Generated content lives **between `<!-- BEGIN GENERATED TOOLS -->` / `<!-- END G
 markers**. Editing inside the markers is wasted work - `make gen-check` (and CI) will revert it.
 To change tool descriptions, edit the JSON SSOT and run `make gen`, then commit the regenerated
 output. The generator is idempotent: a clean tree must produce zero diff.
+
+### The `odoo-local` MCP server (local runtime)
+
+`plugins/odoo-ai-agents/.mcp.json` registers `odoo-local`, a stdio MCP server
+(`scripts/mcp/odoo_local_server.py` + `scripts/mcp/odoo_local/`) exposing the lease, instance and
+catalog tools agents call as `mcp__plugin_odoo-ai-agents_odoo-local__<tool>`. Rules:
+
+- **Claude Code only.** Its command resolves `${CLAUDE_PLUGIN_ROOT}`, so `gen_mcp_manifests.py`
+  excludes it from the Codex/Gemini manifests; those runtimes use the allocator CLI.
+- **stdlib only**, and the entry point stays parseable by old Python 3 (it reports
+  `PYTHON_TOO_OLD` instead of failing to start).
+- **Tool names, descriptions and schemas live in the server** (`tools_*.py` `registry.add(...)`) -
+  they are the SSOT and are NOT generated from `generator/server-surface.json` (that file is the
+  OSM surface only). The allocator owns every rule; the server only translates.
+- **`LOCAL_SERVERS` in `scripts/lib/plugin_mcp_servers.py` is the SSOT** for which bundled servers
+  are local; the browser permission prefixes, the manifest generator and
+  `hooks/auto-approve-local.sh` all read it. Add a local server there and in `.mcp.json` together.
+- **Threading.** A tool registered `long_running=True` (it can block on a build, a probe, a server
+  stop or a database drop) runs on a thread of its own, so it never queues behind another call;
+  every other tool runs on a small bounded pool. Register any tool that can block as long-running,
+  and make a tool that only waits poll `protocol.cancel_event()` so a cancelled call stops early.
+- **Several plugin versions share one machine-global lease registry** (each session keeps the
+  allocator it started with): rows must stay safe for older readers (`INSTANCE-ALLOCATION-RECLAIM.md`
+  §7.4, `tests/test_allocator_cross_version.py`), and users restart sessions after updating.
+- Agent-facing prose names the tool and states the rule; it never restates a tool's schema, flags
+  or error codes. Human reference (tool -> allocator verb index, CLI, error codes, liveness model):
+  `plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md` and
+  `INSTANCE-ALLOCATION-RECLAIM.md`.
 
 ### Three layers, distinguished by name morphology
 

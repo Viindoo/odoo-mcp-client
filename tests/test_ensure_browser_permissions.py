@@ -114,6 +114,21 @@ def test_every_mcp_server_gets_a_prefix(settings):
         )
 
 
+def test_local_server_is_not_seeded_as_a_browser_permission(settings):
+    """Negative case: odoo-local is bundled in the SAME .mcp.json as chrome-devtools, but it is
+    a LOCAL (non-browser) server (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS) - some of its
+    tools are destructive (lease_release, an applied lease_gc), so it must never be seeded as a
+    browser-style allow-prefix. Approval for it is auto-approve-local.sh's job (in-session,
+    PermissionRequest), never this SessionStart durable-settings self-apply."""
+    r = _run(settings)
+    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    assert f"mcp__plugin_{NAME}_odoo-local" not in allow, (
+        f"odoo-local must not get a browser allow-prefix; allow={allow}"
+    )
+    assert "mcp__odoo-local" not in allow
+
+
 def test_idempotent(settings):
     _run(settings)
     first = _allow(settings)

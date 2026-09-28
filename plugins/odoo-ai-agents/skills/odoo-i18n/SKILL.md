@@ -281,8 +281,16 @@ translations stay inactive
 (recipe gate 5), not a stale on-disk template. A clean reload with no translation error in the log is the pass signal per language.
 See `docs/reference/INSTANCE-LIFECYCLE.md` § `-i` vs `-u` semantics for the reload semantics. Each per-language `-u
 <module>` reload must run against the SAME lease as the P2/L1 `-i` install that created the DB
-via Odoo create-on-init, or `--mode exclusive` on a declared DB with the module pre-installed -
+via Odoo create-on-init, or mode `exclusive` on a declared DB with the module pre-installed -
 never a fresh `ephemeral` lease (reserve-only = uncreated DB, `-u` will fail).
+
+**Release the export instance [MANDATORY, after the last P4 reload].** When THIS skill provisioned
+the P2 build (standalone, or `SELF_PROVISION`), the lease was handed back UP to you, so you are its
+run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once every P3
+leaf has returned and the last per-language reload is done, call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with its `lease_token` and `run_id` - or
+`lease_park` when the user or a named next step still wants that database. An `INSTANCE_HANDLE`
+your caller forwarded DOWN to you is never yours to release or park - leave it to its owner.
 
 **P5 - Consistency audit + report [sonnet default; opus ONLY when the in-scope terminology is domain/legal/regulatory (e.g. accounting circulars) - never for module or language count alone; ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. This phase is **ADVISORY and NEVER

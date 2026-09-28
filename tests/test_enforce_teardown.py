@@ -6,11 +6,12 @@ the business rule it locks in and fails for exactly one reason: that rule change
 
 The NAMED DESIGN RULE under test (a future contributor must not invert it):
 - INSTANCES (detached OS processes that outlive the session) = HARD BLOCK, and only on the
-  PROVABLE ledger lie: a live, non-shared allocator lease owned by this run, still held at a turn
-  end that neither reported a stopped run (`status: BLOCKED` / `NEEDS_CONTEXT`) nor forwarded
-  INSTANCE_HANDLE inside its continuation fence (the named-catcher handoff exception). The gate is
-  NOT keyed on the literal `DONE`: every other status, an out-of-enum value, and a turn carrying no
-  machine-readable status at all are gated too. SubagentStop only.
+  PROVABLE ledger lie: a lease THIS subagent obtained itself (its token, read from its OWN
+  transcript - `agent_transcript_path` - never correlated by the run id it shares with its parent
+  and siblings) that the allocator's verdict still reports live and non-shared, at a turn end that
+  does not forward INSTANCE_HANDLE inside its continuation fence (the named-catcher handoff
+  exception). The gate is STATUS-BLIND: DONE, NEEDS_NEXT, BLOCKED, NEEDS_CONTEXT, an out-of-enum
+  value, and a turn carrying no machine-readable status at all are gated alike. SubagentStop only.
 - BROWSERS (pages/recordings that die WITH the session's MCP server) = ADVISORY ONLY, keyed on the
   fuzzy transcript open/close count, on BOTH SubagentStop and Stop. NEVER `decision: block`.
 
@@ -93,15 +94,54 @@ def _cont(status, forward_handle=False):
     return _text(body)
 
 
-def _acquire(run_id="run-abc"):
-    """An assistant Bash tool_use that self-provisions a lease under run_id (the provisioner proof)."""
-    return _tu(
-        "Bash",
-        command=(
-            f"python3 ${{CLAUDE_PLUGIN_ROOT}}/scripts/lib/allocator.py acquire "
-            f"--series 17.0 --mode ephemeral --ports 1 --run-id {run_id}"
-        ),
+DEFAULT_TOKEN = "de" * 16
+_TU_SEQ = iter(range(1, 10**9))
+
+
+def _tool_use_line(name, inp, *, ts=None):
+    """(line, tool_use_id): one assistant record carrying one tool_use with a unique id."""
+    tid = f"toolu_{next(_TU_SEQ):06d}"
+    rec = {"type": "assistant",
+           "message": {"role": "assistant",
+                       "content": [{"type": "tool_use", "id": tid, "name": name, "input": inp}]}}
+    if ts:
+        rec["timestamp"] = ts
+    return json.dumps(rec), tid
+
+
+def _tool_result_line(tid, content, *, is_error=False, ts=None, tool_use_result=None):
+    """The harness-authored `user` record answering tool_use `tid`."""
+    block = {"type": "tool_result", "tool_use_id": tid, "content": content}
+    if is_error:
+        block["is_error"] = True
+    rec = {"type": "user", "message": {"role": "user", "content": [block]}}
+    if ts:
+        rec["timestamp"] = ts
+    if tool_use_result is not None:
+        rec["toolUseResult"] = tool_use_result
+    return json.dumps(rec)
+
+
+def _acquired(run_id="run-abc", token=DEFAULT_TOKEN, *, command=None, is_error=False):
+    """A Bash `allocator.py acquire` the subagent ran ITSELF, plus the tool_result that handed it
+    the token - the two lines that prove "this dispatch obtained lease <token>"."""
+    cmd = command or (
+        f"python3 ${{CLAUDE_PLUGIN_ROOT}}/scripts/lib/allocator.py acquire "
+        f"--series 17.0 --mode ephemeral --ports 1 --run-id {run_id}"
     )
+    use, tid = _tool_use_line("Bash", {"command": cmd})
+    out = "Error: Exit code 10" if is_error else f"ALLOC_TOKEN={token}\nALLOC_RUN_ID={run_id}\n"
+    return [use, _tool_result_line(tid, out, is_error=is_error)]
+
+
+def _mcp_acquired(token, run_id="run-abc", prefix="mcp__plugin_odoo-ai-agents_odoo-local__"):
+    """The same proof through the odoo-local MCP tool: the result text is the tool's JSON."""
+    use, tid = _tool_use_line(prefix + "lease_acquire",
+                              {"series": "17.0", "mode": "ephemeral", "run_id": run_id,
+                               "cwd": "/w"})
+    payload = {"lease": {"token": token, "run_id": run_id, "db_name": "odoo_17_0_t_x"}}
+    return [use, _tool_result_line(tid, [{"type": "text", "text": json.dumps(payload)}],
+                                   tool_use_result={"structuredContent": payload})]
 
 
 def _seed_ledger(home: Path, leases):
@@ -134,21 +174,39 @@ def _lease(run_id="run-abc", mode="exclusive", pid=None, host=None, fresh=True, 
     }
 
 
-def _run(tmp_path, lines, stop_hook_active=False, event="SubagentStop", leases=None):
-    """Invoke enforce-teardown.sh with a crafted transcript + a seeded ledger; return (rc, parsed)."""
-    home = tmp_path / "home"
-    _seed_ledger(home, leases or [])  # empty ledger by default -> no instance ever matches
+def _run(tmp_path, lines, stop_hook_active=False, event="SubagentStop", leases=None,
+         session_lines=None, home=None, with_agent_path=True, extra_env=None):
+    """Invoke enforce-teardown.sh with a crafted transcript + a ledger; return (rc, parsed).
+
+    On SubagentStop `lines` is the SUBAGENT's own transcript (`agent_transcript_path`) and
+    `session_lines` the whole session's (`transcript_path`, parent + siblings) - the two files the
+    real payload carries. On Stop `lines` is the session transcript. `home` reuses a ledger a test
+    built with the real allocator; otherwise `leases` are seeded into a fresh one."""
+    import os
+    if home is None:
+        home = tmp_path / "home"
+        _seed_ledger(home, leases or [])  # empty ledger by default -> no instance ever matches
     tpath = tmp_path / "transcript.jsonl"
     tpath.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    stdin = json.dumps(
-        {"transcript_path": str(tpath), "stop_hook_active": stop_hook_active,
-         "hook_event_name": event}
-    )
-    import os
+    payload = {"stop_hook_active": stop_hook_active, "hook_event_name": event}
+    if event == "SubagentStop":
+        spath = tmp_path / "session-transcript.jsonl"
+        spath.write_text("\n".join(session_lines or []) + "\n", encoding="utf-8")
+        payload["transcript_path"] = str(spath)
+        if with_agent_path:
+            payload["agent_transcript_path"] = str(tpath)
+    else:
+        payload["transcript_path"] = str(tpath)
+    stdin = json.dumps(payload)
     env = dict(os.environ)
+    env.pop("CLAUDE_PID", None)
+    env.pop("CLAUDE_CODE_SESSION_ID", None)
     env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
     env["ODOO_AI_HOME"] = str(home)
     env["HOME"] = str(home)  # isolate any ~/.odoo-ai fallback
+    # The hook's allocator read must not discover the REAL session running this suite.
+    env.setdefault("ODOO_AI_SESSION_ANCHOR", "none")
+    env.update(extra_env or {})
     proc = subprocess.run(
         ["bash", str(HOOK)], input=stdin, capture_output=True, text=True, timeout=30, env=env
     )
@@ -296,8 +354,8 @@ def test_browser_advisory_fires_on_stop_event_too(tmp_path):
 # BLOCKED / NEEDS_CONTEXT stop-report or a forwarded INSTANCE_HANDLE - never keyed on `DONE`.
 # --------------------------------------------------------------------------- #
 def test_live_owned_lease_at_done_without_handle_is_blocked(tmp_path):
-    """The one hard block: a live non-shared lease owned by this run + DONE + no handoff -> BLOCK."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    """The one hard block: a live non-shared lease THIS subagent acquired + DONE + no handoff."""
+    lines = [*_acquired("run-abc", "ab" * 16), _line(content=[_cont("DONE")])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="ab" * 16)])
     assert out is not None and out.get("decision") == "block", (
         "a live owned instance lease at a DONE claim is a provable leak -> must block"
@@ -309,22 +367,20 @@ def test_live_owned_lease_at_done_without_handle_is_blocked(tmp_path):
     )
 
 
-def test_acquire_with_addons_override_still_correlates_a_run_id(tmp_path):
-    """CS-C2's --addons-path-override flag must not break the teardown gate's
-    run-id correlation. HARD CONSTRAINT 1: the hook derives the run-id by
-    grepping the transcript for a literal `allocator.py` + `acquire` CALL line
-    (enforce-teardown.sh :149-151); adding a flag to `acquire` is safe, but
-    wrapping the call in a helper or renaming the verb is not - this test is
-    the fence that makes that constraint testable."""
-    acquire_with_override = _tu(
-        "Bash",
-        command=(
+def test_acquire_with_addons_override_still_correlates_its_token(tmp_path):
+    """CS-C2's --addons-path-override flag must not break the teardown gate's token
+    correlation: the hook pairs the subagent's own Bash `allocator.py acquire` call with the
+    `ALLOC_TOKEN=` its tool_result carried, so adding a flag to `acquire` is safe, while
+    wrapping the call in a helper or renaming the verb is not - this test is the fence that
+    makes that constraint testable."""
+    lines = [
+        *_acquired("run-abc", "cd" * 16, command=(
             "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire "
             "--series 17.0 --mode ephemeral --ports 1 --run-id run-abc "
             "--addons-path-override /tmp/wt"
-        ),
-    )
-    lines = [_line(content=[acquire_with_override]), _line(content=[_cont("DONE")])]
+        )),
+        _line(content=[_cont("DONE")]),
+    ]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="cd" * 16)])
     assert out is not None and out.get("decision") == "block", (
         "a live owned lease at a DONE claim must still block even when the "
@@ -337,8 +393,9 @@ def test_acquire_with_addons_override_still_correlates_a_run_id(tmp_path):
 
 
 def test_all_matching_leases_are_listed_in_the_block_reason(tmp_path):
-    """A run holding MORE THAN ONE live lease must get every token + release command, not just one."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    """A subagent holding MORE THAN ONE live lease must get every token + release command."""
+    lines = [*_acquired("run-abc", "aa" * 16), *_acquired("run-abc", "bb" * 16),
+             _line(content=[_cont("DONE")])]
     leases = [
         _lease(run_id="run-abc", token="aa" * 16),
         _lease(run_id="run-abc", token="bb" * 16),
@@ -355,7 +412,7 @@ def test_all_matching_leases_are_listed_in_the_block_reason(tmp_path):
 def test_block_reason_also_carries_browser_advisory(tmp_path):
     """When a subagent both leaks an instance AND left a page open, the block surfaces both."""
     lines = [
-        _line(content=[_acquire("run-abc")]),
+        *_acquired("run-abc"),
         _line(content=[_tu("mcp__chrome-devtools__new_page")]),
         _line(content=[_cont("DONE")]),
     ]
@@ -368,7 +425,7 @@ def test_block_reason_also_carries_browser_advisory(tmp_path):
 
 def test_forwarded_handle_is_a_legitimate_handoff_pass(tmp_path):
     """Same live lease, but INSTANCE_HANDLE forwarded in next.inputs -> named-catcher handoff -> pass."""
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc"),
              _line(content=[_cont("DONE", forward_handle=True)])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
     assert out is None, "a forwarded INSTANCE_HANDLE is a legitimate handoff - never block it"
@@ -376,36 +433,42 @@ def test_forwarded_handle_is_a_legitimate_handoff_pass(tmp_path):
 
 def test_shared_lease_is_never_dropped_pass(tmp_path):
     """A shared lease is a many-reader render target, never a single-consumer drop -> pass."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", mode="shared")])
     assert out is None, "a shared lease must never be blocked as a leak"
 
 
 def test_instance_block_is_subagentstop_only_not_stop(tmp_path):
     """Instance leaks hard-block only on SubagentStop; the main-agent Stop must never be trapped."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
     _, out = _run(tmp_path, lines, event="Stop", leases=[_lease(run_id="run-abc")])
     assert out is None or out.get("decision") != "block", (
         "the instance gate must not block the main agent on Stop (only browsers are advised there)"
     )
 
 
-def test_foreign_run_lease_is_not_correlated_pass(tmp_path):
-    """A live lease owned by a DIFFERENT run than this transcript's run_id must not block."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
-    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-OTHER")])
+def test_a_lease_this_subagent_did_not_obtain_is_not_correlated_pass(tmp_path):
+    """A live lease whose token this subagent never obtained must not block - whatever its run.
+    The subagent's own lease is already released (gone from the ledger); a lease of another run,
+    and one of the SAME run minted by someone else, are both still live and both not its leak."""
+    lines = [*_acquired("run-abc", DEFAULT_TOKEN), _line(content=[_cont("DONE")])]
+    leases = [_lease(run_id="run-OTHER", token="0f" * 16),
+              _lease(run_id="run-abc", token="1f" * 16)]
+    # The session transcript carries the same acquire (the pre-fix hook read that file): a
+    # run-id correlation would reach the `1f` lease from it; a token correlation never does.
+    _, out = _run(tmp_path, lines, leases=leases, session_lines=lines)
     assert out is None or out.get("decision") != "block", (
-        "run_id correlation must be precise - a foreign run's lease is not this subagent's leak"
+        "correlation is by token - a lease this dispatch did not obtain is not its leak"
     )
 
 
 def test_pure_consumer_echoing_forwarded_run_id_is_not_blocked(tmp_path):
     """BLOCKER regression: a subagent that RECEIVES a forwarded handle, runs NO allocator command,
     and merely quotes the forwarded run_id in its own report (exactly as agents/odoo-qa-tester.md
-    instructs - 'this was forwarded to me, I am NOT releasing it') must NOT be hard-blocked. run_id
-    is correlated ONLY from this subagent's own owning-action allocator commands (acquire/bind/
-    heartbeat), never from free report text - so quoting a forwarded run_id can never trigger the
-    one blocking gate in the system."""
+    instructs - 'this was forwarded to me, I am NOT releasing it') must NOT be hard-blocked. The
+    gate correlates only the TOKENS this subagent's own acquire/adopt/serve calls obtained, never
+    free report text - so quoting a forwarded run_id can never trigger the one blocking gate in
+    the system."""
     report = (
         "INSTANCE_HANDLE was forwarded to me by the orchestrator "
         "(run_id: run-abc, lease_token: t). I ran the acceptance scenarios against it and I am "
@@ -420,7 +483,7 @@ def test_pure_consumer_echoing_forwarded_run_id_is_not_blocked(tmp_path):
 
 def test_dead_pid_same_host_lease_is_stale_pass(tmp_path):
     """A recorded pid on THIS host that is dead means the process exited (no RAM leak) -> pass."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
     dead = _lease(run_id="run-abc", pid=2147480000, host=socket.gethostname())
     _, out = _run(tmp_path, lines, leases=[dead])
     assert out is None or out.get("decision") != "block", (
@@ -440,7 +503,7 @@ def test_g4_alive_pid_past_ttl_still_blocks(tmp_path):
     MUST FAIL on the pre-fix hook (measured: no block was emitted here)."""
     import os
 
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
     alive_but_ttl_expired = _lease(
         run_id="run-abc", pid=os.getpid(), host=socket.gethostname(), fresh=False,
     )
@@ -480,7 +543,7 @@ def test_every_status_blocks_when_a_live_lease_is_unforwarded(tmp_path):
     MUST FAIL on the pre-fix hook for BLOCKED / NEEDS_CONTEXT (measured: both were an
     unconditional pass, which is the door the leaked lease escaped through)."""
     for status in sorted(STATUS_ENUM_EXPECTED) + ["WEDGED"]:
-        lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(status)])]
+        lines = [*_acquired("run-abc"), _line(content=[_cont(status)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is not None and out.get("decision") == "block", (
             f"status={status} holds a live unforwarded lease - the gate must block it"
@@ -492,7 +555,7 @@ def test_every_status_passes_when_the_handle_is_forwarded(tmp_path):
     INSTANCE_HANDLE clears the gate on EVERY status, including the stopped-run reports. An agent
     whose teardown was denied is never stuck - it names its dispatching caller and ends."""
     for status in sorted(STATUS_ENUM_EXPECTED):
-        lines = [_line(content=[_acquire("run-abc")]),
+        lines = [*_acquired("run-abc"),
                  _line(content=[_cont(status, forward_handle=True)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is None or out.get("decision") != "block", (
@@ -505,7 +568,7 @@ def test_stop_report_still_passes_when_no_lease_is_live(tmp_path):
     (or never held) one is reporting a stopped run with nothing outstanding - it must sail
     through, or every unrelated failure would be trapped by a resource gate."""
     for status in ("BLOCKED", "NEEDS_CONTEXT"):
-        lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(status)])]
+        lines = [*_acquired("run-abc"), _line(content=[_cont(status)])]
         _, out = _run(tmp_path, lines, leases=[])
         assert out is None or out.get("decision") != "block", (
             f"status={status} with no live lease must not be blocked by the instance gate"
@@ -518,7 +581,7 @@ def test_needs_next_without_a_forwarded_handle_blocks(tmp_path):
     release" T4 names as the leak this contract exists to close - nobody has been handed the
     lease, so nobody releases it.
     MUST FAIL on the pre-fix hook (measured: NEEDS_NEXT was an unconditional pass)."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("NEEDS_NEXT")])]
+    lines = [*_acquired("run-abc", "9a" * 16), _line(content=[_cont("NEEDS_NEXT")])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="9a" * 16)])
     assert out is not None and out.get("decision") == "block", (
         "NEEDS_NEXT with a live lease and no forwarded handle is an unforwarded lease -> block"
@@ -533,7 +596,7 @@ def test_needs_next_without_a_forwarded_handle_blocks(tmp_path):
 def test_needs_next_with_a_forwarded_handle_passes(tmp_path):
     """The legitimate T4 handoff: NEEDS_NEXT forwarding INSTANCE_HANDLE to a named catcher in
     next.inputs keeps the lease alive on purpose - it must never be blocked."""
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc"),
              _line(content=[_cont("NEEDS_NEXT", forward_handle=True)])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
     assert out is None, "a forwarded INSTANCE_HANDLE under NEEDS_NEXT is the sanctioned handoff"
@@ -549,7 +612,7 @@ def test_handle_named_only_in_prose_is_not_a_handoff(tmp_path):
         "The instance stays up for the next step - INSTANCE_HANDLE (lease_token, run_id) is in "
         "my summary above and odoo-qa-tester can pick it up from there."
     )
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc"),
              _line(content=[promise]),
              _line(content=[_cont("NEEDS_NEXT")])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
@@ -579,7 +642,7 @@ def test_turn_end_with_no_declared_status_blocks_a_live_lease(tmp_path, shape):
     later allocator call. The pre-fix gate keyed on the literal `DONE`, so this - the worst of
     the four cases - was the only one that passed silently.
     MUST FAIL on the pre-fix hook (measured: no block emitted for any of the four shapes)."""
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc", "ef" * 16),
              _line(content=[NO_STATUS_SHAPES[shape]])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="ef" * 16)])
     assert out is not None and out.get("decision") == "block", (
@@ -602,7 +665,7 @@ def test_out_of_enum_completion_claim_is_gated_too(tmp_path):
     reserved = _vocab("reserved_tokens")
     assert reserved, "the vocabulary SSOT lost its reserved_tokens list"
     for status in reserved:
-        lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(status)])]
+        lines = [*_acquired("run-abc"), _line(content=[_cont(status)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is not None and out.get("decision") == "block", (
             f"status={status} is not a declared non-completion value - it must not buy a pass "
@@ -616,13 +679,13 @@ def test_cosmetic_spelling_never_moves_a_status_out_of_its_tier(tmp_path):
     decorated stop report with a live unforwarded lease still blocks (no spelling buys back the
     old unconditional pass), and a decorated status with its handle forwarded still passes."""
     for raw in ("`BLOCKED`", "blocked", "NEEDS_CONTEXT,", "**needs_context**"):
-        lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont(raw)])]
+        lines = [*_acquired("run-abc"), _line(content=[_cont(raw)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is not None and out.get("decision") == "block", (
             f"status={raw!r} holds a live unforwarded lease - decoration must not buy a pass"
         )
     for raw in ("`NEEDS_NEXT`", "needs_next", "**NEEDS_NEXT**"):
-        lines = [_line(content=[_acquire("run-abc")]),
+        lines = [*_acquired("run-abc"),
                  _line(content=[_cont(raw, forward_handle=True)])]
         _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
         assert out is None or out.get("decision") != "block", (
@@ -634,7 +697,7 @@ def test_no_status_on_main_agent_stop_never_blocks(tmp_path):
     """A main agent ends nearly every turn with no continuation block at all - that is normal,
     not a leak claim. The instance block stays SubagentStop-only; widening the status predicate
     must not leak the hard block onto Stop."""
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc"),
              _line(content=[_text("Waiting for the background run to complete...")])]
     _, out = _run(tmp_path, lines, event="Stop", leases=[_lease(run_id="run-abc")])
     assert out is None or out.get("decision") != "block", (
@@ -645,7 +708,7 @@ def test_no_status_on_main_agent_stop_never_blocks(tmp_path):
 def test_no_status_without_a_live_lease_is_not_a_block(tmp_path):
     """The LEDGER is the trigger, the status only decides whether to consult it: a no-status
     turn whose run holds nothing live must pass silently (no ledger lie, nothing to release)."""
-    lines = [_line(content=[_acquire("run-abc")]),
+    lines = [*_acquired("run-abc"),
              _line(content=[_text("Waiting for the background run to complete...")])]
     _, out = _run(tmp_path, lines, leases=[])
     assert out is None, "no live owned lease means there is nothing to gate on"
@@ -653,7 +716,7 @@ def test_no_status_without_a_live_lease_is_not_a_block(tmp_path):
 
 def test_stop_hook_active_never_re_blocks(tmp_path):
     """stop_hook_active=true means we already forced one continue -> loop-safe silent pass."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
     _, out = _run(tmp_path, lines, stop_hook_active=True, leases=[_lease(run_id="run-abc")])
     assert out is None, "with stop_hook_active=true the hook must stay out of the way (no loop)"
 
@@ -685,7 +748,7 @@ def test_a_parked_lease_never_blocks_the_subagent_that_parked_it(tmp_path):
 
     The exemption is safe only because `resume` DELETES `parked_at`; the sibling
     below is the half that proves it does not outlive the park."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc", "ef" * 16), _line(content=[_cont("DONE")])]
     parked = _lease(run_id="run-abc", token="ef" * 16)
     parked["parked_at"] = int(time.time())
     parked["park_ttl_s"] = 86400
@@ -701,13 +764,439 @@ def test_the_parked_exemption_dies_with_the_park_not_with_the_lease(tmp_path):
     the SAME lease WITHOUT `parked_at` - i.e. after a resume - blocks again. If
     the exemption keyed on anything more durable than the park keys (a mode, a
     flag, the token), a resumed live server would be exempt forever."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc", "ef" * 16), _line(content=[_cont("DONE")])]
     resumed = _lease(run_id="run-abc", token="ef" * 16)
     resumed.pop("parked_at", None)
     _, out = _run(tmp_path, lines, leases=[resumed])
     assert out is not None and out.get("decision") == "block", (
         "once the park keys are gone the lease is an ordinary live lease again and "
         "must be gated again"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# WHOSE lease - the subagent's own tokens, never its run id (real allocator, real verdict)
+#
+# A run id is shared by the parent and every sibling of one run BY DESIGN. The gate used to read
+# the payload's `transcript_path` (the WHOLE session's transcript) and then block on every live
+# lease carrying the run id it found there, so a child was ordered to release its parent's and its
+# siblings' live instances. Every test below builds its ledger with the REAL allocator, anchored
+# to a live stand-in session process, so "live" is the allocator's own verdict, not a fixture's.
+# --------------------------------------------------------------------------- #
+_CATALOG = """\
+[[instance]]
+series = "17.0"
+addons_path = ["/srv/odoo/addons"]
+run_mode = "source"
+http_port = 8069
+http_port_base = 8170
+port_pool_size = 10
+db_name = "odoo_17_0"
+db_name_prefix = "odoo_17_0"
+db_host = "localhost"
+db_user = "odoo"
+python = "/nonexistent/python"
+"""
+
+
+class _Ledger:
+    """A temp ODOO_AI_HOME whose leases are written by the real allocator, anchored to a live
+    `sleep` standing in for the Claude Code session (ODOO_AI_SESSION_ANCHOR)."""
+
+    def __init__(self, tmp_path):
+        import os
+        import sys
+        self.home = tmp_path / "ledger-home"
+        self.home.mkdir()
+        self.toml = tmp_path / "instances.toml"
+        self.toml.write_text(_CATALOG, encoding="utf-8")
+        self.session = subprocess.Popen(["sleep", "600"], start_new_session=True)
+        self.py = sys.executable
+        self._os = os
+
+    def env(self, anchor=None):
+        e = dict(self._os.environ)
+        e.pop("CLAUDE_PID", None)
+        e.pop("CLAUDE_CODE_SESSION_ID", None)
+        e["ODOO_AI_HOME"] = str(self.home)
+        e["ODOO_AI_INSTANCES"] = str(self.toml)
+        e["HOME"] = str(self.home)
+        e["ODOO_AI_SESSION_ANCHOR"] = anchor or str(self.session.pid)
+        return e
+
+    def alloc(self, *args, anchor=None):
+        return subprocess.run([self.py, str(ALLOC), *args], capture_output=True, text=True,
+                              env=self.env(anchor), timeout=60)
+
+    def acquire(self, run_id="run-abc", mode="ephemeral", anchor=None, extra=()):
+        p = self.alloc("acquire", "--series", "17.0", "--mode", mode, "--no-create",
+                       "--ports", "1", "--run-id", run_id, *extra, anchor=anchor)
+        assert p.returncode == 0, f"test setup: acquire failed: {p.stderr}"
+        return re.search(r"^ALLOC_TOKEN=(\S+)$", p.stdout, re.M).group(1)
+
+    def tokens(self):
+        reg = json.loads((self.home / "runtime" / "leases.json").read_text(encoding="utf-8"))
+        return {lz["token"] for lz in reg["leases"]}
+
+    def close(self):
+        if self.session.poll() is None:
+            self.session.kill()
+        self.session.wait(timeout=10)
+
+
+@pytest.fixture
+def ledger(tmp_path):
+    led = _Ledger(tmp_path)
+    try:
+        yield led
+    finally:
+        led.close()
+
+
+def _run_live(tmp_path, ledger, lines, **kw):
+    """Run the hook against the real-allocator ledger. The hook itself is given the stand-in
+    session's anchor, as it would inherit the live session's identity in production."""
+    kw.setdefault("extra_env", {"ODOO_AI_SESSION_ANCHOR": str(ledger.session.pid)})
+    return _run(tmp_path, lines, home=ledger.home, **kw)
+
+
+def test_the_child_is_blocked_only_on_its_own_lease_never_its_parents(tmp_path, ledger):
+    """THE DEFECT, reproduced whole. The parent acquired lease P under run R and dispatched a
+    child; the child acquired lease C under the SAME run R and ended without teardown. The
+    session transcript (`transcript_path`) carries the parent's acquire; the child's own
+    transcript (`agent_transcript_path`) carries only its own. Both leases are live.
+    The block must name C, and must never name P - the parent's instance is not the child's to
+    release. MUST FAIL on the pre-fix hook (measured: it read the session transcript, correlated
+    by run id, and ordered the child to release P as well)."""
+    parent_tok = ledger.acquire("run-R")
+    child_tok = ledger.acquire("run-R")
+    session_lines = [*_acquired("run-R", parent_tok), _line(content=[_text("dispatching child")])]
+    child_lines = [*_acquired("run-R", child_tok), _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, child_lines, session_lines=session_lines)
+    assert out is not None and out.get("decision") == "block", (
+        "the child's own live lease at a DONE claim is its leak - it must be blocked"
+    )
+    reason = out["reason"]
+    assert child_tok in reason, "the block must name the lease the child acquired"
+    assert parent_tok not in reason, (
+        "the parent's lease shares the run id but was never the child's - naming it orders the "
+        "child to destroy an instance its parent is still using"
+    )
+
+
+def test_the_child_is_blocked_only_on_its_own_mcp_acquired_lease(tmp_path, ledger):
+    """Same rule through the odoo-local MCP tool: the child's lease_acquire result carries the
+    token, and that token - not the run id - is what the gate correlates."""
+    parent_tok = ledger.acquire("run-R")
+    child_tok = ledger.acquire("run-R")
+    session_lines = [*_mcp_acquired(parent_tok, "run-R")]
+    child_lines = [*_mcp_acquired(child_tok, "run-R"), _line(content=[_cont("NEEDS_NEXT")])]
+    _, out = _run_live(tmp_path, ledger, child_lines, session_lines=session_lines)
+    assert out is not None and out.get("decision") == "block"
+    assert child_tok in out["reason"] and parent_tok not in out["reason"]
+
+
+def test_a_child_that_only_consumed_a_forwarded_handle_is_never_blocked(tmp_path, ledger):
+    """The consumer case, against a LIVE lease of the child's own run: the parent acquired P and
+    forwarded its INSTANCE_HANDLE; the child built on it and quoted it, but obtained nothing
+    itself. Nothing it did makes P its lease, so its turn end must pass untouched."""
+    parent_tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__instance_build",
+                              {"lease_token": parent_tok, "op": "test", "modules": ["sale"]})
+    child_lines = [
+        use, _tool_result_line(tid, [{"type": "text", "text": '{"job_id": "j1"}'}]),
+        _line(content=[_text(f"Ran the tests on the forwarded instance (lease_token: "
+                             f"{parent_tok}, run_id: run-R). I did not provision it and I am "
+                             f"NOT releasing it.")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    session_lines = [*_acquired("run-R", parent_tok)]
+    _, out = _run_live(tmp_path, ledger, child_lines, session_lines=session_lines)
+    assert out is None, "a pure consumer of a forwarded handle obtained no lease - never block it"
+
+
+def test_a_child_that_adopted_a_lease_owns_its_teardown(tmp_path, ledger):
+    """Adopting a lease is a deliberate take-over (it re-anchors onto the caller): the dispatch
+    that did it holds a live process nobody else is told about, so it must release, park or
+    forward it."""
+    tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__lease_adopt",
+                              {"lease_token": tok, "run_id": "run-R"})
+    lines = [use, _tool_result_line(tid, [{"type": "text", "text": '{"ok": true}'}]),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is not None and out.get("decision") == "block", f"lease_adopt obtained {tok}"
+    assert tok in out["reason"]
+
+
+def test_serving_a_forwarded_handle_is_consumption_not_obtainment(tmp_path, ledger):
+    """THE CONSUMER DEFECT, reproduced whole. The parent acquired P under run R and forwarded its
+    INSTANCE_HANDLE; the child, as the instance-handle contract tells it to, ensured the instance
+    was up with `instance_serve {lease_token: P}` and ended DONE. It obtained nothing: P is the
+    parent's, and since the child shares run R a release it was told to run would SUCCEED and
+    destroy the parent's instance. The turn end must pass, and P must never be named.
+    MUST FAIL on the pre-fix hook (measured: it counted the serve's input lease_token as the
+    child's own and blocked, ordering lease_release of P)."""
+    parent_tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__instance_serve",
+                              {"lease_token": parent_tok, "run_id": "run-R", "cwd": "/w"})
+    result = {"state": "running", "url": "http://localhost:8170", "lease_token": parent_tok,
+              "instance_handle": {"lease_token": parent_tok, "run_id": "run-R"}}
+    child_lines = [use,
+                   _tool_result_line(tid, [{"type": "text", "text": json.dumps(result)}],
+                                     tool_use_result={"structuredContent": result}),
+                   _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, child_lines, session_lines=[*_acquired("run-R", parent_tok)])
+    assert out is None or parent_tok not in json.dumps(out), (
+        "serving a forwarded lease_token is consumption - the parent's lease must never be named"
+    )
+    assert out is None, "a consumer that only served its forwarded handle obtained nothing"
+
+
+def test_bash_resume_of_a_forwarded_token_is_consumption_not_obtainment(tmp_path, ledger):
+    """The CLI spelling of the same consumption: `allocator.py resume <P>` on a handed-over token
+    moves no lease into this dispatch's hands."""
+    parent_tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("Bash", {"command": (
+        f'python3 "${{CLAUDE_PLUGIN_ROOT}}/scripts/lib/allocator.py" resume {parent_tok} '
+        f'--run-id run-R')})
+    lines = [use, _tool_result_line(tid, "ok"), _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None, "resuming a forwarded token obtained nothing"
+
+
+def test_a_launching_series_serve_is_never_ordered_to_tear_down_its_shared_server(tmp_path, ledger):
+    """A series-mode `instance_serve` that LAUNCHED the server registers a SHARED lease for it (the
+    only kind series mode registers). That lease is a multi-reader render server - no single
+    consumer's teardown, its launcher included (resource-teardown-contract.md, shared row) - so the
+    turn end must pass even though the correlation counts the token (it does, for arm A4 of
+    block-unowned-lease-mutation.sh, so the launcher may stop it on an explicit user request). The
+    ledger row is live, so only the shared-mode exemption can keep this gate quiet."""
+    tok = ledger.acquire("run-R", mode="shared")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__instance_serve",
+                              {"series": "17.0", "run_id": "run-R", "cwd": "/w"})
+    result = {"state": "launched", "lease_token": tok}
+    lines = [use, _tool_result_line(tid, [{"type": "text", "text": json.dumps(result)}]),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None or tok not in json.dumps(out), (
+        "a shared render server is never one dispatch's to release - not even its launcher's"
+    )
+
+
+def test_the_block_message_names_only_obtainment_paths_that_can_be_listed(tmp_path, ledger):
+    """The gate lists only non-shared leases, and a launching series-mode serve only ever registers
+    a shared one - so the block message must not tell an agent a serve it LAUNCHED is among the
+    leases it has to clear (that clause sent agents hunting for a server the gate never lists)."""
+    tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire",
+                              {"series": "17.0", "run_id": "run-R"})
+    result = {"lease": {"token": tok}}
+    lines = [use, _tool_result_line(tid, [{"type": "text", "text": json.dumps(result)}]),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is not None and out.get("decision") == "block" and tok in out["reason"]
+    assert "instance_serve that LAUNCHED" not in out["reason"]
+
+
+def test_attaching_to_a_running_shared_server_is_not_obtainment(tmp_path, ledger):
+    """A series-mode serve that ATTACHED joined a server another run started. Counting the token
+    its result reports made that run's server this dispatch's to release - and a release stops it
+    under everyone still using it. The ledger row here is deliberately exclusive + live, so the
+    only thing that can keep the gate quiet is the attach not being counted. MUST FAIL on the
+    pre-fix correlation (it counted every series-mode serve result's lease_token)."""
+    tok = ledger.acquire("run-OTHER")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__instance_serve",
+                              {"series": "17.0", "run_id": "run-R", "cwd": "/w"})
+    result = {"state": "attached", "lease_token": tok, "url": "http://localhost:8170"}
+    lines = [use, _tool_result_line(tid, [{"type": "text", "text": json.dumps(result)}],
+                                    tool_use_result={"structuredContent": result}),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None, "attaching to someone else's server obtained nothing - never order its release"
+
+
+def _resume_lines(tok, *, adopt=True):
+    """The resume path of a parked lease of the caller's own run: lease_find(parked) ->
+    [lease_adopt] -> instance_serve(lease_token)."""
+    mcp = "mcp__plugin_odoo-ai-agents_odoo-local__"
+    find, fid = _tool_use_line(mcp + "lease_find", {"series": "17.0", "state": "parked", "run_id": "run-R"})
+    found = {"found": True, "state": "parked", "lease": {"token": tok, "run_id": "run-R", "yours": True}}
+    lines = [find, _tool_result_line(fid, [{"type": "text", "text": json.dumps(found)}],
+                                     tool_use_result={"structuredContent": found})]
+    if adopt:
+        ad, aid = _tool_use_line(mcp + "lease_adopt", {"lease_token": tok, "run_id": "run-R"})
+        adopted = {"lease": {"token": tok, "run_id": "run-R"}, "anchor": "123"}
+        lines += [ad, _tool_result_line(aid, [{"type": "text", "text": json.dumps(adopted)}],
+                                        tool_use_result={"structuredContent": adopted})]
+    serve, sid = _tool_use_line(mcp + "instance_serve", {"lease_token": tok, "cwd": "/w"})
+    served = {"state": "launched", "resumed": True, "lease_token": tok, "url": "http://localhost:8170"}
+    lines += [serve, _tool_result_line(sid, [{"type": "text", "text": json.dumps(served)}],
+                                       tool_use_result={"structuredContent": served})]
+    return lines
+
+
+def test_a_resumed_parked_lease_is_held_by_the_dispatch_that_adopted_it(tmp_path, ledger):
+    """lease_find(parked) -> lease_adopt -> instance_serve leaves a RUNNING server. The adopt is the
+    take-over, so the resumer must park, release or hand it off - otherwise the resumed server runs
+    on with no gate holding anyone to stopping it."""
+    tok = ledger.acquire("run-R")
+    _, out = _run_live(tmp_path, ledger, [*_resume_lines(tok), _line(content=[_cont("DONE")])])
+    assert out is not None and out.get("decision") == "block", "the resumer owns the resumed server"
+    assert tok in out["reason"]
+
+
+def test_a_failed_acquire_obtained_nothing(tmp_path, ledger):
+    """An error result handed the caller no lease. Correlating it anyway would pin whatever the
+    ledger holds under that token on a dispatch that never got it."""
+    tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire",
+                              {"series": "17.0", "run_id": "run-R"})
+    lines = [use,
+             _tool_result_line(tid, [{"type": "text", "text": json.dumps({"lease": {"token": tok}})}],
+                               is_error=True),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None, "an is_error result obtained nothing"
+
+
+_EVAL_ACQUIRE = ('eval "$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" acquire '
+                 '--series 17.0 --mode ephemeral --ports 1 --run-id run-R)"')
+
+
+def _eval_acquired(token, run_id="run-R"):
+    """The eval shape: stdout is consumed by the shell, so the tool_result carries ONLY the
+    allocator's stderr receipt line - the contract the allocator emits on every acquire."""
+    use, tid = _tool_use_line("Bash", {"command": _EVAL_ACQUIRE})
+    receipt = f"allocator: acquired lease {token} run_id={run_id}\n"
+    return [use, _tool_result_line(tid, receipt,
+                                   tool_use_result={"stdout": "", "stderr": receipt})]
+
+
+def test_the_eval_shape_acquire_is_correlated_by_its_stderr_receipt(tmp_path, ledger):
+    """`eval "$(allocator.py acquire ...)"` prints nothing to stdout - the token lands in a shell
+    variable - but the allocator's stderr receipt names the token that very call obtained. The
+    child's lease is named; the parent's lease of the same run is not."""
+    parent_tok = ledger.acquire("run-R")
+    child_tok = ledger.acquire("run-R")
+    lines = [*_eval_acquired(child_tok), _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines, session_lines=[*_acquired("run-R", parent_tok)])
+    assert out is not None and out.get("decision") == "block"
+    assert child_tok in out["reason"] and parent_tok not in out["reason"]
+
+
+def test_parallel_siblings_acquiring_in_the_same_second_each_own_only_their_lease(tmp_path, ledger):
+    """Two siblings of ONE run acquire through the eval shape within the same second. Each child
+    must be named only on its own lease. MUST FAIL on the pre-fix hook (measured: its +/-5 s
+    acquisition-time window over the run's leases attributed BOTH leases to each sibling)."""
+    tok_a = ledger.acquire("run-R")
+    tok_b = ledger.acquire("run-R")
+    for mine, theirs in ((tok_a, tok_b), (tok_b, tok_a)):
+        lines = [*_eval_acquired(mine), _line(content=[_cont("DONE")])]
+        _, out = _run_live(tmp_path, ledger, lines)
+        assert out is not None and out.get("decision") == "block"
+        assert mine in out["reason"], "each sibling is blocked on the lease its own call obtained"
+        assert theirs not in out["reason"], "a parallel sibling's lease is never this child's"
+
+
+def test_an_eval_acquire_without_a_receipt_correlates_nothing(tmp_path, ledger):
+    """No receipt, no proof: an eval-shape acquire whose result carries no token (an allocator
+    that predates the receipt) is a false negative, never a guess over the run's leases."""
+    ledger.acquire("run-R")
+    use, tid = _tool_use_line("Bash", {"command": _EVAL_ACQUIRE})
+    lines = [use, _tool_result_line(tid, ""), _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None, "the time-window heuristic is gone - nothing is attributed by timing"
+
+
+def test_a_receipt_quoted_by_an_unrelated_command_proves_nothing(tmp_path, ledger):
+    """A receipt line is read only from an allocator acquire/adopt call's own result: a `cat` of
+    a log that contains another dispatch's receipt is not this dispatch obtaining that lease."""
+    tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("Bash", {"command": "cat /tmp/some-run.log"})
+    lines = [use, _tool_result_line(tid, f"allocator: acquired lease {tok} run_id=run-R\n"),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is None
+
+
+def test_a_bash_adopt_receipt_is_correlated(tmp_path, ledger):
+    """`allocator.py adopt` is a deliberate take-over; its token (argument and receipt) is owned."""
+    tok = ledger.acquire("run-R")
+    use, tid = _tool_use_line("Bash", {"command": (
+        f'python3 "${{CLAUDE_PLUGIN_ROOT}}/scripts/lib/allocator.py" adopt {tok} --run-id run-R')})
+    lines = [use, _tool_result_line(tid, f"allocator: adopted lease {tok} run_id=run-R\n"),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is not None and out.get("decision") == "block"
+    assert tok in out["reason"]
+
+
+def test_subagentstop_never_reads_the_session_transcript(tmp_path, ledger):
+    """The session transcript is the parent's and the siblings' record. A SubagentStop whose own
+    transcript obtained nothing passes, whatever the session transcript shows - and one whose
+    payload carries no `agent_transcript_path` at all passes too (uncertainty), rather than
+    falling back onto the session transcript, which IS the defect."""
+    parent_tok = ledger.acquire("run-R")
+    session_lines = [*_acquired("run-R", parent_tok), _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, [_line(content=[_cont("DONE")])],
+                       session_lines=session_lines)
+    assert out is None, "the child obtained nothing in its own transcript"
+    _, out = _run_live(tmp_path, ledger, session_lines, session_lines=session_lines,
+                       with_agent_path=False)
+    assert out is None, "no agent_transcript_path -> pass, never a fallback to transcript_path"
+
+
+def test_liveness_is_the_allocators_verdict_not_a_copy(tmp_path, ledger):
+    """The session anchor, not a server pid or a TTL, is what keeps an anchored lease alive - and
+    only the allocator knows that. A lease whose anchoring session is alive blocks even though no
+    server pid was ever recorded; the SAME lease shape whose session has ended is reclaimable and
+    does not. The pre-fix hook carried its own jq copy of the liveness rule, which knew nothing of
+    session anchors."""
+    live_tok = ledger.acquire("run-R")
+    ended = subprocess.Popen(["sleep", "600"], start_new_session=True)
+    ended_tok = ledger.acquire("run-R", anchor=str(ended.pid))
+    ended.kill()
+    ended.wait(timeout=10)
+    # Past the automatic grace window, so the allocator's automatic reclaim WOULD take it.
+    path = ledger.home / "runtime" / "leases.json"
+    reg = json.loads(path.read_text(encoding="utf-8"))
+    for lz in reg["leases"]:
+        if lz["token"] == ended_tok:
+            lz["heartbeat_at"] = lz["owner"]["started_at"] = int(time.time()) - 7 * 86400
+            lz["owner"]["session"]["seen_at"] = int(time.time()) - 7 * 86400
+    path.write_text(json.dumps(reg), encoding="utf-8")
+
+    lines = [*_acquired("run-R", live_tok), *_acquired("run-R", ended_tok),
+             _line(content=[_cont("DONE")])]
+    _, out = _run_live(tmp_path, ledger, lines)
+    assert out is not None and out.get("decision") == "block"
+    assert live_tok in out["reason"], "a lease its live session protects is live"
+    assert ended_tok not in out["reason"], (
+        "a lease whose session ended long ago is the allocator's to reclaim, not a leak this "
+        "dispatch can fix"
+    )
+
+
+def test_the_block_offers_the_mcp_tool_first_and_the_cli_as_fallback(tmp_path, ledger):
+    """The odoo-local tools are the primary surface; the CLI is the fallback. The block must name
+    the MCP give-back calls with the exact token and run id, BEFORE the CLI spelling."""
+    tok = ledger.acquire("run-R")
+    _, out = _run_live(tmp_path, ledger, [*_acquired("run-R", tok), _line(content=[_cont("DONE")])])
+    reason = out["reason"]
+    mcp = reason.index("odoo-local__lease_release")
+    assert "odoo-local__lease_park" in reason
+    assert f'lease_release {{lease_token: "{tok}", run_id: "run-R"}}' in reason, (
+        "the MCP remedy must spell the argument the tool requires (lease_token); a bare `token` "
+        "is refused with INVALID_ARGUMENTS, so the remedy would fail when followed"
+    )
+    assert f'lease_park {{lease_token: "{tok}", run_id: "run-R"}}' in reason
+    assert "{token:" not in reason
+    cli = reason.index(f"allocator.py\" release {tok} --run-id run-R")
+    assert mcp < cli, "the MCP tool must be offered first, the CLI only as its fallback"
+    assert f"allocator.py\" park {tok} --run-id run-R" in reason, (
+        "the CLI park fallback must name the owner exactly as release does - the allocator refuses "
+        "an un-named park of an owned lease (NOT_OWNER), so a bare `park <token>` fails when followed"
     )
 
 
@@ -755,7 +1244,7 @@ def test_the_hook_block_names_every_exit_the_contract_declares(tmp_path):
     whole feature exists to end. Naming the exits in the contract while the hook
     stays silent about them is therefore not a documentation gap; it is the defect
     with a document in front of it."""
-    lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]
+    lines = [*_acquired("run-abc", "12" * 16), _line(content=[_cont("DONE")])]
     _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="12" * 16)])
     assert out is not None and out.get("decision") == "block", (
         "test setup: this scenario must produce a block, or there is no message to check"
@@ -775,12 +1264,18 @@ def test_the_hook_block_names_every_exit_the_contract_declares(tmp_path):
 # --------------------------------------------------------------------------- #
 # session-end-gc.sh - crash backstop (L1.3)
 # --------------------------------------------------------------------------- #
-def _run_gc(plugin_root: Path):
+def _run_gc(plugin_root: Path, stdin="{}", extra_env=None):
+    """Run the SessionEnd hook. The session identity is neutralised by default so the hook never
+    discovers the REAL session running this suite as the one that is ending."""
     import os
     env = dict(os.environ)
+    for name in ("CLAUDE_PID", "CLAUDE_CODE_SESSION_ID"):
+        env.pop(name, None)
+    env["ODOO_AI_SESSION_ANCHOR"] = "none"
     env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+    env.update(extra_env or {})
     return subprocess.run(
-        ["bash", str(GC_HOOK)], input="{}", capture_output=True, text=True, timeout=20, env=env
+        ["bash", str(GC_HOOK)], input=stdin, capture_output=True, text=True, timeout=20, env=env
     )
 
 
@@ -803,23 +1298,35 @@ def test_session_end_gc_exits_zero_with_no_allocator(tmp_path):
     assert proc.stdout.strip() == "", "SessionEnd gc must be silent"
 
 
-def test_session_end_gc_invokes_allocator_gc_when_present(tmp_path):
-    """A present allocator.py must be invoked with the `gc` subcommand."""
+def test_session_end_gc_never_runs_the_unscoped_machine_wide_gc(tmp_path):
+    """The registry is MACHINE-GLOBAL: every concurrent session on this host writes the same
+    leases.json. A bare `gc` (scope all, TTL arm included) at the end of ONE session is a sweep
+    over every other session's work in progress, so the hook may only run the automatic scope
+    (`dead-sessions`) and the ending session's own (`anchor`) - never a bare `gc`.
+    MUST FAIL on the pre-fix hook (measured: it ran exactly `gc`, scope all)."""
     libdir = tmp_path / "scripts" / "lib"
     libdir.mkdir(parents=True)
+    marker = libdir / "calls.txt"
     (libdir / "allocator.py").write_text(
         "import sys, pathlib\n"
-        "pathlib.Path(pathlib.Path(__file__).parent / 'gc-called.txt')"
-        ".write_text(' '.join(sys.argv[1:]))\n",
+        "with (pathlib.Path(__file__).parent / 'calls.txt').open('a') as fh:\n"
+        "    fh.write(' '.join(sys.argv[1:]) + '\\n')\n",
         encoding="utf-8",
     )
     proc = _run_gc(tmp_path)
     assert proc.returncode == 0, f"stderr={proc.stderr!r}"
-    marker = libdir / "gc-called.txt"
-    assert _wait_for_file(marker), "session-end-gc.sh must invoke the allocator"
-    assert marker.read_text(encoding="utf-8").strip() == "gc", (
-        "the allocator must be called with exactly the `gc` subcommand"
-    )
+    deadline = time.monotonic() + 30.0
+    calls = []
+    while time.monotonic() < deadline and not any(c.startswith("gc") for c in calls):
+        if marker.is_file():
+            calls = [ln for ln in marker.read_text(encoding="utf-8").splitlines() if ln.strip()]
+        time.sleep(0.05)
+    gc_calls = [c for c in calls if c.split()[0] == "gc"]
+    assert "gc --scope dead-sessions" in gc_calls, f"the automatic sweep must run; calls={calls!r}"
+    for call in gc_calls:
+        assert "--scope dead-sessions" in call or "--scope anchor" in call, (
+            f"an unscoped gc reaches every session's leases on this host: {call!r}"
+        )
 
 
 def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_path):
@@ -855,7 +1362,7 @@ def test_session_end_gc_wires_reap_orphans_list_only_and_persists_the_log(tmp_pa
 
     gc_marker = libdir / "gc-called.txt"
     assert _wait_for_file(gc_marker), "gc must still be invoked (unchanged L1.3 behavior)"
-    assert gc_marker.read_text(encoding="utf-8").strip() == "gc"
+    assert gc_marker.read_text(encoding="utf-8").strip() == "gc --scope dead-sessions"
 
     reap_marker = libdir / "reap-orphans-called.txt"
     assert _wait_for_file(reap_marker), "session-end-gc.sh must now invoke reap-orphans (#185)"
@@ -977,6 +1484,121 @@ def test_session_end_gc_reaping_bounds_are_not_squeezed_under_the_hook_timeout()
     assert bounds["REAP_TIMEOUT_S"] <= bounds["GC_TIMEOUT_S"], (
         "reap-orphans is the read-only half and must never outrank gc's bound"
     )
+
+
+# --------------------------------------------------------------------------- #
+# session-end-gc.sh - WHAT it reclaims (real hook, real allocator, real ledger)
+#
+# The registry is machine-global. The contract: at a session's end, reclaim that session's own
+# running/reserved leases once its anchor process is provably gone, plus leases whose owner is
+# provably dead (the automatic `dead-sessions` scope) - and nothing a live session, a park, or a
+# merely-unprovable lease still holds.
+# --------------------------------------------------------------------------- #
+def _session_end(ledger, tmp_path, *, reason="prompt_input_exit", anchor_pid=None,
+                 session_id="", extra_env=None):
+    """Run the REAL SessionEnd hook as the session anchored at `anchor_pid` would."""
+    empty = tmp_path / "empty-instances.toml"
+    empty.write_text("# no [[instance]] declared\n", encoding="utf-8")
+    env = {
+        "ODOO_AI_HOME": str(ledger.home),
+        "HOME": str(ledger.home),
+        # gc of these no-drop leases needs no catalog, and an empty one keeps the list-only
+        # reap-orphans away from any real cluster.
+        "ODOO_AI_INSTANCES": str(empty),
+        "ODOO_AI_SESSION_ANCHOR": str(anchor_pid or ledger.session.pid),
+    }
+    env.update(extra_env or {})
+    stdin = json.dumps({"hook_event_name": "SessionEnd", "reason": reason,
+                        "session_id": session_id})
+    proc = _run_gc(PLUGIN_ROOT, stdin=stdin, extra_env=env)
+    assert proc.returncode == 0 and proc.stdout.strip() == "", proc.stderr
+    return ledger.home / "runtime" / "reap-orphans-candidates.log"
+
+
+def _wait_worker_done(candidates_log, timeout_s=90.0):
+    """The worker's LAST step writes the list-only reap-orphans log; its content means every
+    gc step before it has finished."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if candidates_log.is_file() and "nothing to reap" in candidates_log.read_text(
+                encoding="utf-8", errors="replace"):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _age_lease(ledger, token, seconds, **fields):
+    path = ledger.home / "runtime" / "leases.json"
+    reg = json.loads(path.read_text(encoding="utf-8"))
+    for lz in reg["leases"]:
+        if lz["token"] == token:
+            past = int(time.time()) - seconds
+            lz["heartbeat_at"] = lz["owner"]["started_at"] = past
+            if lz["owner"].get("session"):
+                lz["owner"]["session"]["seen_at"] = past
+            lz.update(fields)
+    path.write_text(json.dumps(reg), encoding="utf-8")
+
+
+def test_session_end_reclaims_only_the_ending_sessions_own_running_leases(tmp_path, ledger):
+    """THE CONTRACT. The ending session A holds a running lease and a PARKED one; a concurrent
+    live session B holds a lease; an unanchored, pid-less lease is days past its TTL (liveness
+    unprovable, NOT provably dead). A's process exits after the hook fires, as `claude` does.
+    Only A's running lease may go. MUST FAIL on the pre-fix hook (measured: it ran a bare `gc`
+    over the machine-global registry, whose TTL arm reclaimed the unprovable lease too)."""
+    other = subprocess.Popen(["sleep", "600"], start_new_session=True)
+    try:
+        a_run = ledger.acquire("run-A", mode="exclusive")
+        a_parked = ledger.acquire("run-A", mode="exclusive", extra=("--db-name", "odoo_a_parked"))
+        _age_lease(ledger, a_parked, 0, parked_at=int(time.time()), park_ttl_s=172800)
+        b_run = ledger.acquire("run-B", mode="exclusive", anchor=str(other.pid),
+                               extra=("--db-name", "odoo_b"))
+        unprovable = ledger.acquire("run-U", mode="exclusive", anchor="none",
+                                    extra=("--db-name", "odoo_u"))
+        _age_lease(ledger, unprovable, 3 * 86400)
+
+        log = _session_end(ledger, tmp_path)
+        ledger.close()  # the ending session's process exits, after the hook fired
+        assert _wait_worker_done(log), "the detached worker never finished"
+        remaining = ledger.tokens()
+        assert a_run not in remaining, "the ended session's own running lease must be reclaimed"
+        assert remaining == {a_parked, b_run, unprovable}, (
+            "only the ended session's RUNNING lease may go: its park survives by design, a live "
+            "session's lease is work in progress, and an unprovable lease is a human's call"
+        )
+    finally:
+        other.kill()
+        other.wait(timeout=10)
+
+
+def test_session_end_destroys_nothing_while_the_anchor_is_still_alive(tmp_path, ledger):
+    """A session whose process outlives the wait (a SessionEnd that did not end the process) keeps
+    every lease: the hook asks without --force and the allocator refuses a live anchor."""
+    a_run = ledger.acquire("run-A", mode="exclusive")
+    log = _session_end(ledger, tmp_path, extra_env={"ODOO_AI_SESSION_END_ANCHOR_WAIT_S": "1"})
+    assert _wait_worker_done(log), "the detached worker never finished"
+    assert a_run in ledger.tokens(), "a live session's lease must survive its SessionEnd"
+    diag = (ledger.home / "logs" / "allocator-stderr.log")
+    assert diag.is_file() and "still ALIVE" in diag.read_text(encoding="utf-8"), (
+        "the anchor step must have ASKED and been refused - not silently skipped"
+    )
+
+
+@pytest.mark.parametrize("case", ["clear", "foreign-session-id"])
+def test_session_end_leaves_a_session_it_cannot_prove_ended_alone(tmp_path, ledger, case):
+    """`/clear` ends a session inside a process that keeps running; and an anchor that reports a
+    DIFFERENT session id than the payload is not provably the ending session's. Neither may
+    reclaim that anchor's leases, even once the process is gone (the automatic `dead-sessions`
+    grace window still protects a freshly-ended session)."""
+    a_run = ledger.acquire("run-A", mode="exclusive")
+    kw = {"reason": "clear"} if case == "clear" else {
+        "session_id": "the-ending-session",
+        "extra_env": {"CLAUDE_CODE_SESSION_ID": "some-other-session"}}
+    log = _session_end(ledger, tmp_path, **kw)
+    ledger.close()
+    assert _wait_worker_done(log), "the detached worker never finished"
+    assert a_run in ledger.tokens(), f"{case}: not provably this session's end - keep its leases"
+
 
 
 def test_session_end_gc_never_passes_yes_to_reap_orphans():

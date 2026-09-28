@@ -158,10 +158,14 @@ def _wt_key(cwd: str | None = None) -> str | None:
     return _hash12(os.path.realpath(top))
 
 
-def _no_marker_message(var: str) -> str:
+def _no_marker_message(var: str, root: str | None = None) -> str:
+    """The refusal text. Names the directory the walk actually STARTED from -
+    `root` when the caller passed one, else the cwd - so a caller resolving on
+    behalf of another tree is told which tree had no marker."""
+    start = root if root is not None else os.getcwd()
     return (
         "not inside a git repo and no project marker (__manifest__.py, "
-        f"__openerp__.py, or .odoo-ai-root) found walking up from {os.getcwd()}. "
+        f"__openerp__.py, or .odoo-ai-root) found walking up from {start}. "
         f"Set ${var} to an explicit absolute path."
     )
 
@@ -192,7 +196,7 @@ def share_dir(root: str | None = None) -> str:
         raise ProjectDirError(f"resolve_project_dir: --root {root} is not a directory.")
     key = _repo_key(root)
     if key is None:
-        raise ProjectDirError(_no_marker_message("ODOO_AI_PROJECT_DIR"))
+        raise ProjectDirError(_no_marker_message("ODOO_AI_PROJECT_DIR", root))
     d = os.path.join(_home(), "projects", key)
     os.makedirs(d, exist_ok=True)
     return d
@@ -215,7 +219,7 @@ def isolate_dir(root: str | None = None) -> str:
     share = share_dir(root)
     key = _wt_key(root)
     if key is None:
-        raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR"))
+        raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR", root))
     d = os.path.join(share, "worktrees", key)
     os.makedirs(d, exist_ok=True)
     return d

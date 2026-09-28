@@ -81,6 +81,13 @@
 #              SERVED_ADDONS_PATH / SERVED_ADDONS_SOURCE /
 #              SERVED_SERVER_WIDE_MODULES - so a caller can verify the served
 #              tree without parsing Odoo's own startup log.
+#              A successful apply ends with its RESULT as stdout facts too:
+#              SERVE_STATE=attached|launched, SERVE_HTTP_PORT, SERVE_URL,
+#              SERVER_PID (empty on attach / docker), SERVE_RESUMED=0|1 (1 when
+#              a parked --alloc-token lease was resumed), and on the shared path
+#              SHARED_LEASE_TOKEN (EMPTY + SHARED_LEASE_ERROR=<reason> + a stderr
+#              warning when registration was refused - the server is up but
+#              unleased).
 #
 # HARD RULES:
 #   - Never writes a password into the generated conf. A local developer cluster is
@@ -137,6 +144,10 @@ source "$SCRIPT_DIR/../lib/pg_mode.sh"
 # every spin-up, just before it writes this instance's conf.
 # shellcheck source=../lib/state_reclaim.sh
 source "$SCRIPT_DIR/../lib/state_reclaim.sh"
+# Main-port option name per series (odoo_http_port_key) - one rule shared with
+# 55-instance-ops.sh.
+# shellcheck source=../lib/odoo_port_keys.sh
+source "$SCRIPT_DIR/../lib/odoo_port_keys.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 ODOO_DB_PY="$SCRIPT_DIR/../lib/odoo_db.py"
@@ -380,6 +391,56 @@ sys.exit(1)
 
 _lease_addons_path() {
     _lease_field "${1:-}" "${2:-}" addons_path
+}
+
+_lease_is_unserved_reservation() {
+    # $1 = allocator path, $2 = token. Exit 0 when the lease row is readable, NOT parked and
+    # records NO server pid - the ordinary first launch, where `resume` can only refuse (exit 3,
+    # "not parked") and `bind` is the answer. Non-zero otherwise, INCLUDING an unreadable row:
+    # a parked row needs `resume`, and a row that records a pid needs resume's race arbitration
+    # (exit 6 when another live server already holds it) - so only a POSITIVE read skips it.
+    local alloc="${1:-}" token="${2:-}" registry=""
+    [[ -n "$alloc" && -f "$alloc" && -n "$token" ]] || return 1
+    registry="$(python3 "$alloc" list --show-tokens --tokens "$token" 2>/dev/null)" || return 1
+    [[ -n "$registry" ]] || return 1
+    printf '%s' "$registry" | python3 -c '
+import json, sys
+try:
+    registry = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for lease in registry.get("leases") or []:
+    if lease.get("token") == sys.argv[1]:
+        owner = lease.get("owner") or {}
+        sys.exit(0 if lease.get("parked_at") is None and owner.get("pid") is None else 1)
+sys.exit(1)
+' "$token"
+}
+
+_lease_launch_facts() {
+    # $1 = allocator path, $2 = token. Prints `<field>=<value>` for each LAUNCH fact the lease row
+    # records non-empty - python, odoo_root, db_host, db_user, db_port: the facts the build leg
+    # (55-instance-ops.sh) was handed from the same row. One registry read for all of them.
+    # Non-zero when the registry cannot be read or carries no such token.
+    local alloc="${1:-}" token="${2:-}" registry=""
+    [[ -n "$alloc" && -f "$alloc" && -n "$token" ]] || return 1
+    registry="$(python3 "$alloc" list --show-tokens 2>/dev/null)" || return 1
+    [[ -n "$registry" ]] || return 1
+    printf '%s' "$registry" | python3 -c '
+import json, sys
+try:
+    registry = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+for lease in registry.get("leases") or []:
+    if lease.get("token") == sys.argv[1]:
+        for field in ("python", "odoo_root", "db_host", "db_user", "db_port"):
+            value = str(lease.get(field) or "")
+            if value and "\n" not in value:
+                print("%s=%s" % (field, value))
+        sys.exit(0)
+sys.exit(1)
+' "$token"
 }
 
 # ---------------------------------------------------------------------------
@@ -673,6 +734,9 @@ cmd_apply() {
     # second, SHARED lease would be both redundant and wrong (shared leases are
     # never exclusive-DB, but this DB genuinely is).
     local alloc_py="${ODOO_AI_ALLOCATOR-$SCRIPT_DIR/../lib/allocator.py}"
+    # 1 once _bind_exclusive has RESUMED a parked lease (reported as
+    # SERVE_RESUMED by _emit_serve_facts); 0 for a first launch or an attach.
+    local _serve_resumed=0
 
     # ---- ONE DATABASE, BOTH LEGS -----------------------------------------
     # An isolated listening instance is built in two legs: `55-instance-ops.sh
@@ -703,6 +767,30 @@ cmd_apply() {
             return 1
         fi
     fi
+    # ---- THE LEASE'S OWN INTERPRETER AND CLUSTER --------------------------
+    # The catalog row read above is chosen by series (+ --profile when given);
+    # on a series declaring several profiles, a caller that omits --profile gets
+    # the FIRST row - another venv than the one the build leg used. The lease
+    # named by --alloc-token recorded the python / odoo_root / Postgres
+    # coordinates it was acquired with, and 55-instance-ops.sh built from
+    # exactly those, so they outrank the catalog row here: the listening leg
+    # runs the same interpreter against the same cluster as the build leg. A
+    # field the row does not record leaves the catalog value in place; an
+    # unreadable lease is the served-tree resolution's refusal below.
+    if [[ -n "${ARG_ALLOC_TOKEN:-}" ]]; then
+        local _lf_line _lf_key _lf_val
+        while IFS= read -r _lf_line; do
+            _lf_key="${_lf_line%%=*}"; _lf_val="${_lf_line#*=}"
+            case "$_lf_key" in
+                python) INST_PYTHON="$_lf_val" ;;
+                odoo_root) INST_ODOO_ROOT="$_lf_val" ;;
+                db_host) INST_DB_HOST="$_lf_val" ;;
+                db_user) INST_DB_USER="$_lf_val" ;;
+                db_port) INST_DB_PORT="$_lf_val" ;;
+            esac
+        done < <(_lease_launch_facts "$alloc_py" "$ARG_ALLOC_TOKEN" 2>/dev/null || true)
+    fi
+
     _alloc_diag_target() {
         # The ONE place this script resolves where an allocator call's STDERR is
         # kept - the Tier-1 log the SessionEnd hook appends to too
@@ -726,10 +814,29 @@ cmd_apply() {
     _register_shared() {
         # $1 = optional live server pid. The pid is recorded only when it is
         # still alive, so a concurrent loser (whose odoo-bin lost the port bind
-        # and exited) cannot overwrite the live winner's pid. created_db is
+        # and exited) cannot overwrite the live winner's pid. drop_on_release is
         # always False on a shared lease, so gc never drops the declared DB.
+        #
+        # OUTCOME IS REPORTED, never swallowed: on success SHARED_LEASE_TOKEN=
+        # <token> is printed on stdout; on any refusal SHARED_LEASE_TOKEN= is
+        # printed EMPTY, SHARED_LEASE_ERROR=<reason> names why, and a loud
+        # `x WARNING` line goes to stderr. The spin-up itself still succeeds -
+        # the server IS up - but a caller can no longer mistake an unregistered
+        # render server (invisible to `query`, to gc and to the teardown gate)
+        # for a registered one.
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
-        local args=(acquire --series "${INST_SERIES:-}" --mode shared
+        # The series is REQUIRED by acquire (exit 2 SERIES_REQUIRED - nothing is
+        # picked for it). INST_SERIES is the catalog row's own series; the
+        # --version this run was asked for is the fallback for a row that
+        # declares none. Neither -> refuse loudly instead of calling acquire.
+        local _series="${INST_SERIES:-$VERSION}"
+        if [[ -z "$_series" ]]; then
+            echo "SHARED_LEASE_TOKEN="
+            echo "SHARED_LEASE_ERROR=series-unresolved"
+            echo "x WARNING: the shared lease was NOT registered - the catalog row declares no series and no --version was given, so acquire cannot name one. The server is up but unleased: other sessions cannot discover it and nothing will reclaim it. Pass --version X.Y." >&2
+            return 0
+        fi
+        local args=(acquire --series "$_series" --mode shared
                     --port "$port" --db-name "$db_name")
         [[ -n "${INST_PROFILE:-}" ]] && args+=(--profile "${INST_PROFILE}")
         # P5.5: owner-stamp the shared lease with the caller's run id (sourced
@@ -750,16 +857,25 @@ cmd_apply() {
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             args+=(--pid "$1")
         fi
-        # This acquire runs the allocator's DESTRUCTIVE gc sweep as a side effect
-        # (cmd_acquire -> _gc over the whole shared registry), so it is one of the
-        # plugin's two largest reclaimers - and it used to discard the only
-        # account of what it destroyed. STDOUT stays /dev/null (acquire's stdout
-        # is the `eval $(allocator.py acquire ...)` PROTOCOL, and this call site
-        # evals nothing); STDERR is APPENDED to the Tier-1 log the SessionEnd hook
-        # writes too - see _alloc_diag_target above for where it goes and why.
-        local _diag
+        # acquire reclaims nothing implicitly any more, but it CAN take capacity
+        # from provably-dead leases (allocator.py "RECLAMATION"), and every
+        # reclamation is reported on its STDERR - so that stream is APPENDED to
+        # the Tier-1 log the SessionEnd hook writes too (see _alloc_diag_target
+        # for where it goes and why it must not reach this script's own stderr).
+        # STDOUT is the shell KEY=VALUE protocol: captured, and only the token is
+        # relayed, as SHARED_LEASE_TOKEN.
+        local _diag _out="" _rc=0 _token=""
         _diag="$(_alloc_diag_target)"
-        python3 "$alloc_py" "${args[@]}" >/dev/null 2>>"$_diag" || true
+        _out="$(python3 "$alloc_py" "${args[@]}" 2>>"$_diag")" || _rc=$?
+        _token="$(printf '%s\n' "$_out" | sed -n 's/^ALLOC_TOKEN=//p' | head -n 1)"
+        _token="${_token//\'/}"
+        if [[ "$_rc" -ne 0 || -z "$_token" ]]; then
+            echo "SHARED_LEASE_TOKEN="
+            echo "SHARED_LEASE_ERROR=acquire-exit-${_rc}"
+            echo "x WARNING: the shared lease was NOT registered - allocator.py acquire --mode shared exited ${_rc} (series ${_series}). The server is up but unleased. The allocator's reason is in ${_diag}." >&2
+            return 0
+        fi
+        echo "SHARED_LEASE_TOKEN=${_token}"
     }
 
     _bind_exclusive() {
@@ -800,9 +916,19 @@ cmd_apply() {
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             local _resume_rc=0 _diag
             _diag="$(_alloc_diag_target)"
-            python3 "$alloc_py" resume "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" \
-                || _resume_rc=$?
-            if [[ "$_resume_rc" -eq 3 ]]; then
+            # A first launch on a fresh reservation skips `resume`: it could only answer exit 3
+            # ("not parked") and log a REFUSING line into the allocator stderr log on every
+            # ordinary serve - noise that buries the refusals that matter. Exit 3 is exactly the
+            # branch to `bind`, so the outcome is unchanged (_lease_is_unserved_reservation).
+            if _lease_is_unserved_reservation "$alloc_py" "${ARG_ALLOC_TOKEN}"; then
+                _resume_rc=3
+            else
+                python3 "$alloc_py" resume "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" \
+                    || _resume_rc=$?
+            fi
+            if [[ "$_resume_rc" -eq 0 ]]; then
+                _serve_resumed=1
+            elif [[ "$_resume_rc" -eq 3 ]]; then
                 python3 "$alloc_py" bind "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>>"$_diag" || true
             elif [[ "$_resume_rc" -ne 0 ]]; then
                 echo "" >&2
@@ -824,6 +950,19 @@ cmd_apply() {
                 return 1
             fi
         fi
+    }
+
+    _emit_serve_facts() {
+        # $1 = attached|launched, $2 = the launched server pid (empty when this
+        # run attached to a server it did not start, or launched via docker).
+        # The machine-readable result of a successful apply - one KEY=value per
+        # line on stdout, the same channel as LOG_PATH / SERVED_ADDONS_PATH - so
+        # a caller reads the outcome instead of parsing the `ok ...` prose.
+        echo "SERVE_STATE=$1"
+        echo "SERVE_HTTP_PORT=$port"
+        echo "SERVE_URL=http://localhost:$port"
+        echo "SERVER_PID=${2:-}"
+        echo "SERVE_RESUMED=${_serve_resumed}"
     }
 
     _stop_group_local() {
@@ -1039,6 +1178,7 @@ cmd_apply() {
     if _probe_ready "$port"; then
         if _identity_ok "$port" "$_id_expected" "${INST_ADDONS_PATH:-}"; then
             [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
+            _emit_serve_facts attached ""
             echo "ok Instance ${INST_SERIES} already up at http://localhost:$port$_last_ready_path"
             return 0
         fi
@@ -1117,20 +1257,9 @@ cmd_apply() {
                 # local arithmetic below never runs for that path.
                 _port_key="$ARG_PORT_KEY"
             else
-                # FALLBACK for the shared/declared spin-up path only (no
-                # --port-key override): v8/9/10 use xmlrpc_port; v11+ renamed
-                # it to http_port. Derive from INST_SERIES (the full series
-                # string, e.g. "17.0", "10.0") - the major version is the
-                # integer before the first dot. NOT the authoritative SSOT
-                # (that is OSM cli_help - agents/odoo-instance-ops.md); kept
-                # here only so existing callers that never pass --port-key are
-                # unaffected (P5 §6 risk-4 mitigation: no behavior change
-                # until a caller opts in).
-                if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 11 )); then
-                    _port_key="xmlrpc_port"
-                else
-                    _port_key="http_port"
-                fi
+                # No --port-key override: the series' era rule
+                # (scripts/lib/odoo_port_keys.sh, shared with 55-instance-ops.sh).
+                _port_key="$(odoo_http_port_key "$INST_SERIES")"
             fi
 
             # ---- PREFLIGHT: PostgreSQL, per declared surface -----------------
@@ -1406,6 +1535,7 @@ cmd_apply() {
         # The exclusive lease was already bound immediately after launch above;
         # the shared render target registers its lease only after readiness.
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared "$odoo_pid"
+        _emit_serve_facts launched "$odoo_pid"
         echo "ok Odoo ${INST_SERIES} is up: http://localhost:$port/web/login"
         return 0
     fi

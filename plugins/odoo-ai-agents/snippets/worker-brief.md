@@ -62,8 +62,8 @@ NEVER authors the node's source itself: every source file is written by a teamma
   `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
   server-wide set, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
   it re-roots the addons list onto your `WORKTREE_PATH` so the instance loads YOUR code, not the
-  principal checkout; do NOT call `scripts/lib/allocator.py` directly, which would bypass all of
-  that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
+  principal checkout; do NOT call `lease_acquire` + `instance_build` bare, which would bypass all
+  of that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
   carries `SELF_PROVISION: worktree-addons`
   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
   you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
@@ -74,15 +74,16 @@ NEVER authors the node's source itself: every source file is written by a teamma
   `odoo-instance` run - the lint-class gate runs ONCE at
   `run-harness`'s pre-PR tail, never inside either leaf. Contract:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
-  **Self-provisioning carries teardown:** what you acquire under this carve-out you release
-  before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
-  T1/T3.
+  **Self-provisioning carries teardown:** what you acquire under this carve-out you
+  `lease_release` (or `lease_park`) before your terminal status -
+  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
 
   **It also requires a `RUN_ID`, and no handle does not mean no owner.** Acquire under the
-  `RUN_ID` your brief carries. If it carries none, STOP with `NEEDS_CONTEXT(RUN_ID)` - do not
-  invent one and do not acquire without one. An invented id is worse than none: the lease looks
-  owned to the registry while being invisible to the only run that could release it, so it
-  survives every audit and every janitor until a human finds it.
+  `RUN_ID` your brief carries (the `run_id` of every lease call you make). If it carries none,
+  STOP with `NEEDS_CONTEXT(RUN_ID)` - do not invent one and do not acquire without one. An
+  invented id is worse than none: the lease looks owned to the registry while being invisible to
+  the only run that could release it, so it survives every audit and every janitor until a human
+  finds it.
 
 ## How your turn ends
 

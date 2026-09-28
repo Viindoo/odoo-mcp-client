@@ -20,7 +20,7 @@ else
     | sed 's/"permission_mode"[[:space:]]*:[[:space:]]*"//;s/"$//' || echo "")
 fi
 
-# --- Guard: slash command → emit nothing, let it run ---
+# --- Guard: slash command -> emit nothing, let it run ---
 case "${_prompt}" in
   /*)
     exit 0
@@ -270,7 +270,7 @@ case "${_domain}" in
     # odoo-coding/odoo-debug/odoo-ui-review is wrong for a domain-bucket match with no actual
     # Odoo/Viindoo anchor in the prompt (e.g. a non-Odoo "review this contract" false match).
     if [ "${_odoo_anchor}" = "true" ]; then
-      _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
+      _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work -> odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity -> see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
       _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
     fi
     ;;
@@ -280,7 +280,7 @@ case "${_domain}" in
     # bucket names the two commands that actually persist environment state, so the signal reaches
     # an action instead of stopping at a domain label.
     if [ "${_odoo_anchor}" = "true" ]; then
-      _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) → /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Registering the Odoo Semantic MCP server URL + API key → /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
+      _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) -> /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Registering the Odoo Semantic MCP server URL + API key -> /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
       _osm_context="${_osm_context:+${_osm_context}\n}${_setup_hint}"
     fi
     ;;
@@ -296,7 +296,7 @@ case "${_domain}" in
     ;;
 esac
 
-# If intent is specific (long + has action verb) AND no OSM context to emit → exit early
+# If intent is specific (long + has action verb) AND no OSM context to emit -> exit early
 if [ "${_is_vague}" = "false" ] && [ -z "${_osm_context}" ]; then
   exit 0
 fi

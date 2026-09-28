@@ -158,33 +158,34 @@ pass, one gate, one merge commit; splitting into several batches is a human deci
 plan gate, and each batch still merges its own range TIP once (§ Git operation above), never one
 commit at a time.
 
-**Delegate the instance - never a raw `allocator.py`/`odoo-bin` invocation.** Provisioning,
-install, and test-run all go through the `odoo-instance` skill via the Skill tool. Only
-`odoo-instance-ops` and the instance-touching HARD LEAVES enumerated in
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py` or
-`odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
-allocator/odoo-bin call from this orchestration layer bypasses the instance HARD RULES `odoo-instance`
-enforces (`en_US` union, the Viindoo server-wide set, lint-module install, per-version `cli_help` grounding)
-and, for forward-port specifically, the `WORKTREE_PATH` re-root that keeps verification pointed at
-the adapted worktree instead of the principal checkout.
+**Delegate the instance - never a bare lease tool or `odoo-bin` invocation.** Provisioning,
+install, and test-run all go through the `odoo-instance` skill via the Skill tool. A bare
+`lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer bypasses the
+instance HARD RULES `odoo-instance` enforces (`en_US` union, the Viindoo server-wide set,
+lint-module install, per-version `cli_help` grounding) and, for forward-port specifically, the
+`WORKTREE_PATH` re-root that keeps verification pointed at the adapted worktree instead of the
+principal checkout.
 
 1. Collect the batch (module set = every module touched by the batch's commits).
-2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `persist: ephemeral`,
+2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `GATE_ROLE: node-verify`
+   (a per-batch verify, never the pre-PR lint gate), `persist: ephemeral`,
    `modules: <the batch's affected modules>`, `test_tags: <`/<m>` per module in that list - the
    install closure and the tag set are two sides of one scope;
    `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`>`, `mode: fresh` (install + test in one pass - Odoo
-   create-on-init builds the DB; the allocator only reserves the DB name/ports, it never runs
+   create-on-init builds the DB; the lease only reserves the DB name/ports, it never runs
    `createdb` directly). Memory-cap is applied automatically inside `odoo-instance-ops` - no
    separate field to pass (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). For the
    forward-port-specific `WORKTREE_PATH` re-root, see
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9 for the
    concrete dispatch brief.
 3. For a re-verify after a fix inside the SAME batch, or for a SUBSEQUENT batch touching only a
-   subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE` and `mode: reuse`
-   (`-u` semantics) on the changed modules only - skip the full reinstall.
-4. Release the instance when the batch is done: dispatch `odoo-instance` with `operation: drop`,
-   passing the batch's `lease_token`/`run_id`. This stops any bound process first, then drops the
-   DB through Odoo - never a raw `dropdb` or a bare `allocator.py release`.
+   subset, re-dispatch `odoo-instance` with the SAME returned `INSTANCE_HANDLE`, `mode: reuse`
+   (`-u` semantics) and `GATE_ROLE: node-verify` on the changed modules only - skip the full reinstall.
+4. Release the instance once no later step of this run needs it - after the LAST batch AND the
+   P11 acceptance stage (which reuses the same `INSTANCE_HANDLE`) have returned, never between
+   batches: call `lease_release` with the cached `lease_token`/`run_id`. The lease was provisioned for YOUR run and handed back to you, so you
+   are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). It
+   stops the bound process group first, then drops the DB - never a raw `dropdb` or a `pkill`.
 
 Cache the returned `lease_token`/`run_id` in the batch's worklog entry (see [[worklog-contract]])
 so a crash during the batch can release the DB (step 4) rather than leaving it orphaned.
@@ -246,14 +247,12 @@ security/safety); an inherited bug carried faithfully + routed upstream is corre
 
 An `ephemeral` acquire either returns an ISOLATED throwaway DB or FAILS - it never silently shares
 the declared database, so two parallel batches can never collide on one DB unnoticed.
-On any acquire refusal - exit 6, 7, 8 or 9, the complete set - STOP. For 6 (the role lacks
-`CREATEDB`) or 7 (undeterminable): either have a human grant `CREATEDB`, or re-dispatch `--mode
-exclusive` and run the remaining batches ONE AT A TIME, stating in your report that isolation was not
-provided. For 8/9 (Odoo cannot authenticate / the cluster did not answer) `exclusive` is gated too -
-fix the cluster first; no mode gets past them.
-Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
-§ Allocate; the refusal codes and their remedies:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.6.
+On any `lease_acquire` refusal, STOP and act on the named error code's remedy (`db_preflight`
+diagnoses it). When the role cannot create databases, either have a human grant `CREATEDB`, or
+re-dispatch with mode `exclusive` and run the remaining batches ONE AT A TIME, stating in your
+report that isolation was not provided. When Odoo cannot authenticate or the cluster does not
+answer, every mode is refused - fix the cluster first.
+Allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate.
 
 ## Git topology - two-tier worktrees (summary)
 

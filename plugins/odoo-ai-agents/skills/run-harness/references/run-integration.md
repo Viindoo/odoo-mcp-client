@@ -202,9 +202,9 @@ live INCLUDING ones no run of yours owns - and SIZE THE BATCH TO WHAT IS ACTUALL
 "dispatch everything READY"; headroom you did not measure admits ONE node, not a guess.
 
 **Headroom is a CORRECTNESS bound, not a performance one.** Under memory pressure an Odoo request
-stalls, a watchdog fires, the reload loses its environment and the lease reaper finishes the job: A
-DATABASE IS DROPPED out from under a suite that is still running, and the loss lands on a SIBLING,
-not on the over-eager batch. Per-run isolated leases (`concurrency-guard.md` § Odoo instance
+stalls, a watchdog fires, the reload loses its environment or the kernel OOM-kills a server: a
+suite that is still running DIES MID-RUN, and the loss lands on a SIBLING, not on the over-eager
+batch. Per-run isolated leases (`concurrency-guard.md` § Odoo instance
 allocation) partition names and ports; they are NOT a memory allowance. An over-large batch does not run
 slower, it destroys work.
 
@@ -372,8 +372,8 @@ Fail-closed on every axis, all collapsing to "skip, never delete": no correlatin
 at all, the file exists but is not valid JSON, `.status` is absent/empty, `.status` is
 `NEEDS_NEXT` (mid-flight, possibly mid-pause), or `jq` itself is unavailable. Only a POSITIVELY
 confirmed terminal top-level status (`DONE`/`BLOCKED`/`NEEDS_CONTEXT`) on the run whose id matches
-the candidate directory's own name authorizes deletion - mirroring `reap-orphans`'
-age-unknown-means-not-reaped convention (`scripts/lib/allocator.py` `_reap_candidates`) and the
+the candidate directory's own name authorizes deletion - mirroring the lease tools'
+age-unknown-means-not-reaped convention (`lease_gc` never reclaims what it cannot prove dead) and the
 resolve-or-refuse discipline this contract already applies to `run-<id>.json` itself (§ 3.3).
 
 **Enforcer and placement.** Run this ONCE, unconditionally, as the FIRST action inside `SKILL.md`
@@ -846,8 +846,8 @@ checks - none of these are lint-class and none run here).
 
 **Worktree targeting is explicit, never inferred from cwd (mandatory).** This gate's ephemeral
 instance MUST load `run-integration`'s tree, not the principal checkout - the SAME requirement
-Example 3 below states for a cross-node verification instance ("the allocator emits the CATALOG
-addons list, which points at the principal checkout"). State `WORKTREE_PATH: <path>/run-integration`
+Example 3 below states for a cross-node verification instance ("a lease without `addons_path`
+carries the CATALOG addons list, which points at the principal checkout"). State `WORKTREE_PATH: <path>/run-integration`
 on the provisioning dispatch: when this gate runs INLINE in run-harness's own context, pass
 `WORKTREE_PATH: <path>/run-integration` directly on the `odoo-instance` skill dispatch (a field
 `odoo-instance` already defines on its own Dispatch); when run-harness
@@ -855,13 +855,13 @@ instead dispatches a bounded subagent for this gate, carry `WORKTREE_PATH: <path
 PLUS `SELF_PROVISION: worktree-addons` in that subagent's brief - the SAME two fields § Node
 Invocation Brief Template above and Example 3 below already use for a worktree-rooted instance
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). This is
-not cosmetic: `WORKTREE_PATH` is what makes the `acquire` call carry `--addons-path-override`, and
-`--addons-path-override` is the ONE thing that satisfies the allocator's
-`_addons_path_worktree_mismatch` guard (`scripts/lib/allocator.py`) - the guard engages ONLY when NO
-override is passed. Omitting `WORKTREE_PATH` here means one of two failures depending on the
+not cosmetic: `WORKTREE_PATH` is what makes the `lease_acquire` call carry `cwd` and
+`addons_path` naming that tree, and a passed `addons_path` is the ONE thing that satisfies
+`lease_acquire`'s worktree refusal (`ADDONS_PATH_WORKTREE_MISMATCH`) - the refusal engages ONLY when
+NO `addons_path` is passed. Omitting `WORKTREE_PATH` here means one of two failures depending on the
 dispatching agent's cwd (never a safe default either way): the instance silently loads the CATALOG
-addons path and the gate reports clean regardless of what `run-integration` actually contains, or the
-guard refuses the `acquire` outright (rc 5) and the now-sole lint gate hard-blocks every run.
+addons path and the gate reports clean regardless of what `run-integration` actually contains, or
+`lease_acquire` refuses outright and the now-sole lint gate hard-blocks every run.
 
 **Gate role is explicit too, never inferred from "this is the last stage" (mandatory).** This
 `run-tests` dispatch ALSO carries `GATE_ROLE: pre-pr-lint-gate` - the ONE explicit signal
@@ -991,8 +991,8 @@ it consumes it from the plan.
 A later node depends on an earlier node's module.
 Action: the earlier node's cherry-picked code is already on the single run-integration branch, so the
 later node's worktree - forked from run-integration - CONTAINS the dependency's source. It is NOT on
-the verification instance's addons-path by default: the allocator emits the CATALOG addons list,
-which points at the principal checkout. The node's brief therefore carries `WORKTREE_PATH` and
+the verification instance's addons-path by default: a lease without `addons_path`
+carries the CATALOG addons list, which points at the principal checkout. The node's brief therefore carries `WORKTREE_PATH` and
 `SELF_PROVISION: worktree-addons` so the coordinator provisions an instance rooted on its own
 worktree (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
 With that in place there is no intermediate PR and no "dependency absent" BLOCKED path.

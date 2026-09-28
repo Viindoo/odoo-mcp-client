@@ -20,11 +20,13 @@ flowchart TD
         skills["odoo-ai-agents<br/>51 skills / 26 agents / 8 commands"]
         fp["odoo-forward-port<br/>forward-port pipeline"]
         mcp["odoo-semantic-mcp<br/>MCP connection"]
+        local["odoo-local MCP server<br/>(Claude Code only)<br/>leases + local Odoo instances"]
         intake --> wfrunner --> skills
         intake --> skills
         skills --> fp
         skills -. depends on .-> mcp
         fp -. depends on .-> mcp
+        skills --> local
     end
 
     server["OSM MCP Server (AGPL-3.0)<br/>31 tools / 9 resources · Odoo v8+"]
@@ -37,7 +39,7 @@ flowchart TD
     server --> out
 ```
 
-_All knowledge and computation live on the OSM server; this repo is a thin routing and orchestration layer._
+_All Odoo source knowledge lives on the OSM server; this repo is the routing and orchestration layer, plus a small local runtime (the instance allocator and the Claude Code-only `odoo-local` MCP server) that provisions Odoo instances on your machine._
 
 ## What is in this repo
 

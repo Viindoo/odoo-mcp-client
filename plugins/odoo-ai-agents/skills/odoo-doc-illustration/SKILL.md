@@ -52,11 +52,9 @@ cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - 
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch, resolve
 `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to the run's target root (`doc_root` from the
 scoper for multi-module; the module's own containing repo root for the single-module path),
-and CAPTURE both absolute paths for the rest of the run:
-```
-bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
-bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
-```
+and CAPTURE both absolute paths for the rest of the run: call
+`mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice with `cwd` = `<doc_root>`, once with
+`axis` `share` and once with `axis` `isolate`.
 Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY writer dispatch brief
 (§Writer dispatch briefs below) and reuse the SAME captured `ISOLATE_DIR` value - never a fresh
 resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
@@ -110,13 +108,15 @@ PARALLEL across independent instance-paths up to
 `W`; HARD GUARD: never run two paths on the same browser family or the same instance):
 
 1. **Provision once at the leaf.** Invoke `Skill(odoo-instance)` INLINE in your own context
-   (NEVER dispatch the `odoo-instance-ops` agent - the product of this step is a VALUE this
-   skill must hold, and a dispatched agent cannot hand a value back without a relay hop that
-   loses it), with (
-   `CONTEXT: doc, MODE: path-incremental`, `--skip-auto-install --with-demo --load-language=<csv>`,
-   EXCLUSIVE lease, `--ports 1`). THIS SKILL (not instance-ops) reads back
-   `INSTANCE_HANDLE = <db>:<port>` PLUS `addons_path` from the returned instance-ops block (the full
-   descriptor per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) and forwards
+   (NEVER dispatch the `odoo-instance-ops` agent, for this step or any later one - this skill must
+   hold the lease across the whole path, and the `odoo-instance` skill's path-incremental branch
+   defines steps A-E), with `CONTEXT: doc` (demo on + skip-auto-install), `MODE_HINT: path-incremental`,
+   `LANGUAGES: <csv>`, this run's `RUN_ID`, and `WORKTREE_PATH: <doc_root>` when `doc_root` is a
+   worktree (else `none`) so the instance loads the tree being documented. Lease mode, ports and
+   flags are the executor's (`odoo-instance`); never name them here. THIS SKILL (not instance-ops)
+   reads back the returned `instance-ops` block VERBATIM as `INSTANCE_HANDLE` (the full descriptor
+   per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`, `lease_token` and `run_id`
+   included - never a `<db>:<port>` shorthand) and forwards
    `addons_path` as `ADDONS_PATH:` to every writer (§Writer dispatch briefs) so each can run the
    Addons coverage assertion against `WORKTREE_PATH` instead of trusting an unverified handle.
 2. **Walk `install_doc_sequence[]`** (each module M, leaf-dependency-first). For `M.doc == true`:
@@ -154,14 +154,12 @@ PARALLEL across independent instance-paths up to
       completion block (files exist at the reported paths), then COMMIT M's docs via git-toolkit
       `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
-3. **Advance.** Tell `odoo-instance` to install the next delta (`init-delta` on the SAME DB) +
-   `ensure-up`, then repeat step 2 for M+1. Convergence reuse+fill per `doc-plan.yaml`. THE SKILL
-   decides WHEN to advance and WHEN to release the lease; instance-ops only executes each atomic op
-   and returns its block. Between advances, call `allocator.py heartbeat <token>`. A same-host
-   lease whose owner pid is verified alive is protected from reaping regardless of heartbeat
-   freshness; keep calling it anyway - it is what protects this long-lived path-incremental run on
-   the residual case the allocator cannot verify liveness for at all (a different host, or no pid
-   recorded) - full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
+3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
+   delta (step B, init-delta on the SAME DB) then ensure-up (step C), and repeat step 2 for M+1.
+   Convergence reuse+fill (step D) per `doc-plan.yaml`. THIS SKILL decides WHEN to advance and WHEN
+   to release; each step only executes and returns its block. Never acquire a second lease for the
+   path. The lease stays protected for the whole session across advances; nothing needs refreshing
+   between them.
 
 Order per module: **install -> pre-fetch copy (marketing) -> pre-fetch walkthrough (scenarios) ->
 capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
@@ -181,9 +179,10 @@ the run-scoped staging loses nothing.
 **Files vs teardown (distinct steps - do all three, in order).** The staging `rm -rf` above handles
 FILES only - it is NOT resource teardown; see
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3 for pages and the lease. Before
-emitting the aggregate index, also: (a) RELEASE the path-incremental instance lease via `odoo-instance`
-(operation E / `allocator.py release <token> --run-id <id>`) - never leave the last module's instance
-leased; (b) CLOSE every browser page a writer opened this run (`list_pages`, then `close_page` for
+emitting the aggregate index, also: (a) RELEASE EVERY path-incremental lease this run provisioned (one per
+instance-path, so one per independent branch) via `odoo-instance` step E (or
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with each handle's `lease_token` and this
+run's run_id) - never leave any path's last instance leased (If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md); (b) CLOSE every browser page a writer opened this run (`list_pages`, then `close_page` for
 any stray this run created).
 
 Then emit one aggregate index per run (`doc-run-<run_id>/index.jsonl`) listing every output path.
@@ -224,7 +223,7 @@ RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes th
 WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
 SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
-INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
+INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>   # absent = writer self-checks install
 ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.2) when not already supplied
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
@@ -242,7 +241,7 @@ RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes th
 WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
 SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
-INSTANCE_HANDLE: <db>:<port>
+INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>
 ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
@@ -316,7 +315,7 @@ Degraded paths).
 ## Provisioning, parallel cap, degraded paths
 
 **Precondition provisioning (route to `odoo-instance`).** Before any capture the instance must be
-provisioned cleanly: module installed `--with-demo` (sample data for scenarios), every resolved
+provisioned cleanly: module installed with demo data (sample data for scenarios), every resolved
 locale loaded (per-locale UI), and auto-install side modules skipped (docs show only the target
 module's surface). Resolve the exact flags via OSM `cli_help` at runtime (version-aware - never
 hardcode flag names). The skill VERIFIES this precondition; if not met, it routes to `odoo-instance`
@@ -386,7 +385,7 @@ step; English first and in full) - see `references/capture-mechanics.md`.
 ## INSTANCE_HANDLE + cross-reference
 
 **INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions once, reads
-back `INSTANCE_HANDLE = <db>:<port>` plus `addons_path` from the instance-ops block, and passes both
+back the instance-ops block verbatim as `INSTANCE_HANDLE`, plus its `addons_path`, and passes both
 (the latter as `ADDONS_PATH:`) to each writer. A writer with `INSTANCE_HANDLE` uses that DB/port
 directly and does NOT self-provision; after its
 writes it emits a path-incremental completion block so the skill can verify, commit, and advance to

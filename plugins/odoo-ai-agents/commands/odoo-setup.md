@@ -294,7 +294,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    It asks nothing and records only VERIFIED facts (`python`, `odoo_root`,
    `db_run_mode`/`db_container`). Never skip it: `create-venv` records those keys
    only for a venv it just built, so a reused venv gets them from nowhere else and
-   an `ephemeral` acquire then refuses with exit 7 forever. A non-zero exit names
+   an `ephemeral` acquire then refuses with `CREATEDB_UNDETERMINABLE` forever. A non-zero exit names
    the fact it could not determine, records no guess - report and continue.
 
    **AI-5 - DB local auth (CONFIRM #5)**

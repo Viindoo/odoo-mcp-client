@@ -309,7 +309,7 @@ write/compute override on a widely-used core model. Cross-ref
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`.
 Dispatch `odoo-instance` (via Skill tool, L2 human gate applies). Create the instance
 once; then for each dependency level: dispatch init for that level's modules, then run-tests for
-that level. Record per-level green in `checkpoint.json` (status `installed`) and `install-test.md`.
+that level with `GATE_ROLE: node-verify` (a per-level verification, never the pre-PR lint gate). Record per-level green in `checkpoint.json` (status `installed`) and `install-test.md`.
 On failure in a level, dispatch `odoo-backend-debugger` or `odoo-ui-debugger` to diagnose
 to root cause (pass `ISOLATE_DIR:` - the SAME literal resolved at P0 intake - so `odoo-ui-debugger`
 can place its captured evidence under `<ISOLATE_DIR>/visual/debug/<cluster>-level<n>/`
@@ -362,6 +362,11 @@ Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-e
 the P6 sign-off below so the human sees ONE combined decision, not a surprise extra step later.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `install-test.md`.
+**P5.8 release [MANDATORY].** Once P5.8 has returned (or its narrow escape is recorded), no later
+stage needs the P5 instance: this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
+before P6. Call `lease_park` instead only when a named later step of this run still needs the
+database. Never release it between levels - every level and P5.8 reuse it.
 
 **P6 - Gate [STOP, human sign-off].**
 Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the list of

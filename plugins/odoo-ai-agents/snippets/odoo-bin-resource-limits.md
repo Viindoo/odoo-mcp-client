@@ -8,6 +8,9 @@
 
 # odoo-bin resource limits
 
+`instance_build` / `instance_serve` apply this policy for you; to override the cap for one build,
+pass `--limit-memory-hard=<bytes>` in `extra_args` (it wins, § Override precedence).
+
 ## The one canonical default
 
 `ODOO_AI_LIMIT_MEMORY_HARD` (bytes) resolves to `floor(MemTotal_bytes * 0.5)`, floored at
@@ -18,9 +21,8 @@ ONLY in `scripts/lib/resource_limits.sh` (`resource_limit_hard_bytes` / `resourc
 
 ## Why re-pinning Odoo's stock default fixes nothing
 
-Odoo's own `--limit-memory-hard` default is 2.5 GiB (`2684354560`) on every version. Passing that
-same number back is a no-op. The problem is that 2.5 GiB is too tight for a large install/update, and
-the fix is a GENEROUS, OVERRIDABLE cap - not re-declaring the stock number.
+Odoo's own `--limit-memory-hard` default is 2.5 GiB (`2684354560`) on every version - too tight
+for a large install/update. The fix is a GENEROUS, OVERRIDABLE cap, not re-passing the stock number.
 
 ## The v12.0 enforcement boundary
 
@@ -42,8 +44,7 @@ a stable `server` option v8-v19), but ENFORCEMENT does:
 value - `ulimit -Sv "$(resource_limit_hard_kib)"` immediately before the odoo-bin invocation, PLUS
 `--limit-memory-hard=$(resource_limit_hard_bytes)` on the command line. Each is a no-op where the
 other version's code path already handles it, and load-bearing where it doesn't. No prose
-version-branching is needed - `cli_help` grounding (already required of `odoo-instance-ops`)
-is a defensive confirm only.
+version-branching is needed - `cli_help` grounding is a defensive confirm only.
 
 ## Uncapped escape hatch
 
@@ -93,9 +94,8 @@ workers.
 
 The resolved `--limit-memory-hard=<value>` flag (and any other resource-limit default) MUST be placed
 in the command line BEFORE the caller-supplied `--extra` / `${arg_extra}` slot. Odoo's argument parser
-takes the LAST occurrence of a repeated flag, so a caller who explicitly passes a different
-`--limit-memory-hard` in `--extra` always wins - this file's default is a floor, never a ceiling the
-caller cannot raise or lower.
+takes the LAST occurrence of a repeated flag, so a caller's own `--limit-memory-hard` always wins -
+this default is never a ceiling the caller cannot raise or lower.
 
 ## `RLIMIT_AS` is virtual, not physical
 
@@ -103,6 +103,6 @@ caller cannot raise or lower.
 does not prevent the KERNEL from OOM-killing the box under aggregate multi-session RAM pressure (many
 capped processes can still sum to more RAM than the machine has) - what it DOES do is convert a
 single oversized install from an ugly, untraceable kernel-OOM-kill into a clean, in-process
-`MemoryError`, which `55-instance-ops.sh`'s `_INSTALL_FAIL_RE` already classifies as `STATUS=error`.
+`MemoryError`, which the build script classifies as an error (a `failure` result).
 Set the cap generously enough to avoid false positives; do not treat it as a substitute for
 provisioning enough RAM for however many concurrent sessions you actually run.

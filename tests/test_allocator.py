@@ -480,7 +480,7 @@ def test_gc_keeps_a_live_default_lease(fixt):
 # (process group killed + DB dropped) the moment nobody called `heartbeat`
 # within `ttl_s` (2h default) - "work in progress gets cleaned up mid-run".
 # These call `_is_stale` directly (fast, no subprocess) with a monkeypatched
-# `_host`/`_pid_alive`/`_pid_fingerprint` so each scenario is deterministic and
+# `_host`/`_pid_alive`/`_fp_verdict` so each scenario is deterministic and
 # does not depend on real OS process timing.
 # --------------------------------------------------------------------------- #
 def test_is_stale_alive_verified_pid_survives_expired_ttl(monkeypatch):
@@ -492,7 +492,8 @@ def test_is_stale_alive_verified_pid_survives_expired_ttl(monkeypatch):
     alloc = _import_allocator()
     monkeypatch.setattr(alloc, "_host", lambda: "thishost")
     monkeypatch.setattr(alloc, "_pid_alive", lambda pid: True)
-    monkeypatch.setattr(alloc, "_pid_fingerprint", lambda pid: "FP-A")
+    monkeypatch.setattr(alloc, "_fp_verdict",
+                        lambda expected, pid: "match" if expected == "FP-A" else "mismatch")
     lease = {
         "owner": {"host": "thishost", "pid": 4242, "pid_started": "FP-A", "started_at": 0},
         "ttl_s": 1, "heartbeat_at": 0,  # heartbeat is ancient; ttl is long expired
@@ -555,7 +556,8 @@ def test_is_stale_recycled_pid_is_condemned_not_protected(monkeypatch):
     alloc = _import_allocator()
     monkeypatch.setattr(alloc, "_host", lambda: "thishost")
     monkeypatch.setattr(alloc, "_pid_alive", lambda pid: True)
-    monkeypatch.setattr(alloc, "_pid_fingerprint", lambda pid: "FP-IMPOSTOR")
+    monkeypatch.setattr(alloc, "_fp_verdict",
+                        lambda expected, pid: "match" if expected == "FP-IMPOSTOR" else "mismatch")
     now = alloc._now()
     lease = {
         "owner": {"host": "thishost", "pid": 4242, "pid_started": "FP-ORIGINAL", "started_at": now},
@@ -1648,11 +1650,14 @@ def test_list_redacts_tokens_by_default_full_with_show_tokens(fixt):
 # --------------------------------------------------------------------------- #
 # registry schema_version stamp
 # --------------------------------------------------------------------------- #
-def test_registry_stamps_schema_version_2(fixt):
+def test_registry_stamps_schema_version_3(fixt):
+    """v3 is the session-anchor schema (owner.session / via / acquired_by). A
+    written registry names it, so a reader can tell a v3 row's missing anchor
+    (an unanchored caller) from a pre-v3 row that could never have carried one."""
     env, _, _ = fixt
     _acquire(env, "--mode", "ephemeral", "--no-create")
     reg = json.loads(_run(env, "list", "--show-tokens").stdout)
-    assert reg.get("schema_version") == 2, "a written registry must be stamped schema_version: 2"
+    assert reg.get("schema_version") == 3, "a written registry must be stamped schema_version: 3"
 
 
 # --------------------------------------------------------------------------- #
@@ -2892,14 +2897,17 @@ def test_release_force_forget_never_loses_a_database_silently(tmp_path):
 # --------------------------------------------------------------------------- #
 # gc runs INSIDE acquire, and acquire has early returns after it.
 # --------------------------------------------------------------------------- #
-def test_gc_result_survives_an_exclusive_conflict_exit(tmp_path):
-    """A lease whose DB gc already DROPPED must not still be listed.
+def test_an_exclusive_conflict_drops_nothing_and_keeps_every_row(tmp_path):
+    """NON-DESTRUCTIVE ACQUIRE. An acquire that ends in an exclusive conflict
+    must leave the registry exactly as it found it: a STALE ephemeral lease of
+    another run (which an explicit `gc` would condemn and drop) keeps its row
+    and its database, and the holder it conflicts with - reserved, with no pid
+    and no session anchor, so nothing PROVES its owner is gone - is not
+    reclaimed either.
 
-    `acquire` gc's under the lock and then may return 3 (exclusive conflict) or 4
-    (port pool exhausted) - both BEFORE the single registry write. The drop has
-    already happened by then, so the registry keeps advertising a lease whose
-    database is gone: `release` on it then fails, and every reader sees a
-    resource that does not exist.
+    Before, `acquire` ran the whole-registry sweep first: it dropped the stale
+    lease's database as a side effect of a request that then failed, which is
+    how one run's acquire destroyed another run's instance.
     """
     calls = tmp_path / "odoo_db_argv.log"
     py = _make_fake_venv_python(tmp_path / "fakebin", log=calls, drop_rc=0)
@@ -2913,11 +2921,11 @@ def test_gc_result_survives_an_exclusive_conflict_exit(tmp_path):
     now = int(time.time())
     host = socket.gethostname()
     _seed_registry(env, [
-        {  # STALE ephemeral lease: gc will drop its DB and reclaim it.
+        {  # STALE ephemeral lease of another run: an explicit gc would drop it.
             "token": "11" * 16, "mode": "ephemeral", "series": "17.0",
             "db_name": "odoo_17_0_t_abcdef01", "drop_on_release": True,
             "python": str(py), "db_host": "localhost", "db_user": "odoo", "db_port": "",
-            "owner": {"host": host, "pid": None, "run_id": "", "started_at": 0},
+            "owner": {"host": host, "pid": None, "run_id": "other-a", "started_at": 0},
             "ttl_s": 1, "heartbeat_at": 0,
         },
         {  # FRESH exclusive lease on the declared DB: forces the exit-3 path.
@@ -2931,14 +2939,16 @@ def test_gc_result_survives_an_exclusive_conflict_exit(tmp_path):
     p = _run(env, "acquire", "--series", "17.0", "--mode", "exclusive", "--ports", "0",
              timeout=60)
     assert p.returncode == 3, f"test setup: expected an exclusive conflict; got {p.returncode}"
-    assert calls.exists() and "drop odoo_17_0_t_abcdef01" in calls.read_text(encoding="utf-8"), (
-        "test setup: gc must have dropped the stale lease's database"
+    assert not (calls.exists() and " drop " in f" {calls.read_text(encoding='utf-8')} "), (
+        "an acquire must never drop a database - that is `gc`'s job, on request"
     )
-
-    remaining = {lz["db_name"] for lz in _leases(env)}
-    assert "odoo_17_0_t_abcdef01" not in remaining, (
-        "a lease whose database gc already dropped must not survive the early "
-        f"return; registry still lists {sorted(remaining)}"
+    remaining = {lz["token"] for lz in _leases(env)}
+    assert remaining == {"11" * 16, "22" * 16}, (
+        f"a failed acquire must leave every row in place; registry holds {sorted(remaining)}"
+    )
+    assert "RECLAIMED" not in p.stderr, f"nothing may be reported reclaimed:\n{p.stderr}"
+    assert "held by lease 22222222" in p.stderr, (
+        f"the refusal must name the holder standing in the way:\n{p.stderr}"
     )
 
 

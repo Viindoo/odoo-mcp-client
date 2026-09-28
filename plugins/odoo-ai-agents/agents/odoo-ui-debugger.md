@@ -90,7 +90,7 @@ Resolve, per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` and `s
    Never truncate the ladder to its first rungs and never substitute a default series - a wrong
    series silently applies the wrong era's selectors and registries. The ladder terminates on its
    own; STOP is not an outcome you choose here.
-2. `instance_base_url`: from `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`), then the request.
+2. `instance_base_url`: the brief's value; else the `lease.url` of the live shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` (state `shared`) returns for the series, or `mcp__plugin_odoo-ai-agents_odoo-local__instance_status`'s `url`; else `http://localhost:<http_port>` of the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns (see `snippets/instance-resolution.md`); then the request. Never derive it from a lease token.
 3. `instance_login`: the brief's value, else `admin`. The password is not stored in this repo or in
    project state: use the value the brief supplies, and when the brief supplies none, ask for it
    ONCE. Never guess a password and never reuse a database credential for the web login.

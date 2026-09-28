@@ -20,6 +20,15 @@ is harmless; missing one for a family the user just opted into is a bug. This is
 the single source of truth both hooks (auto-approve, ensure-permissions) and the
 30-permissions setup step read.
 
+LOCAL (non-browser) servers are explicitly EXCLUDED, never unioned in. The
+plugin also bundles LOCAL stdio MCP servers (e.g. ``odoo-local``) whose tools
+talk to this machine's own on-disk state (allocator leases, instance lifecycle)
+rather than a browser - some of those tools are destructive, so a blanket
+"browser" auto-allow would be a category error. ``scripts/lib/plugin_mcp_servers.py``
+(``LOCAL_SERVERS``) is the SSOT for that set; this module subtracts it from the
+union below so a local server appearing in .mcp.json never gains a browser
+allow-prefix and never satisfies ``_matches()``.
+
 stdlib-only (no jq, no 3rd-party). Two CLI modes used by callers:
 
     python3 browser_prefixes.py prefixes
@@ -37,6 +46,15 @@ from pathlib import Path
 
 # scripts/lib/browser_prefixes.py -> plugin_root is two dirs up (lib -> scripts -> root).
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Sibling-module import (same pattern allocator.py uses for instances_io.py): resolve
+# plugin_mcp_servers.py by this file's own directory so it also works when this module is
+# loaded directly via importlib.util.spec_from_file_location (as the test suite does),
+# not just as a package member.
+_LIB_DIR = str(Path(__file__).resolve().parent)
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+import plugin_mcp_servers  # noqa: E402  (sibling lib; resolves via the path insert above)
 
 # The STATIC full six-family server list (three backends x headless+headed). This
 # is the permission SSOT: every family gets an allow-prefix regardless of whether
@@ -73,13 +91,17 @@ def _read_plugin_name(plugin_root: Path) -> str:
 
 
 def _all_servers(plugin_root: Path) -> list:
-    """The static full six-family SSOT UNION the live .mcp.json keys.
+    """The static full six-family SSOT UNION the live .mcp.json keys, MINUS any
+    LOCAL (non-browser) server.
 
     Static families come first (stable order); any live-only extra (a family
     added to .mcp.json but not yet in STATIC_SERVERS) is appended so it is still
     covered. Decoupling from the eager set is the whole point: the five opt-in
     families keep their allow-prefix even though only chrome-devtools is in
-    .mcp.json today.
+    .mcp.json today. A LOCAL server (plugin_mcp_servers.LOCAL_SERVERS, e.g.
+    ``odoo-local``) is filtered back out even though it lives in the same
+    .mcp.json - it is not a browser family and must never gain a browser
+    allow-prefix (see the module docstring).
     """
     servers = list(STATIC_SERVERS)
     seen = set(servers)
@@ -91,7 +113,7 @@ def _all_servers(plugin_root: Path) -> list:
                 servers.append(s)
     except Exception:
         pass
-    return servers
+    return [s for s in servers if s not in plugin_mcp_servers.LOCAL_SERVERS]
 
 
 def browser_prefixes(plugin_root: Path = PLUGIN_ROOT) -> list:

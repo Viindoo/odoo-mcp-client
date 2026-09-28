@@ -8,13 +8,16 @@ playwright[-headed], pagecast[-headed]) are OPT-IN - wired on demand by the
 odoo-setup steps and asserted in `test_setup_wiring.py`, NOT here.
 
 Contract this file protects:
-  - `.mcp.json` ships exactly ONE eager server;
+  - `.mcp.json` ships exactly ONE eager BROWSER server (LOCAL, non-browser servers -
+    e.g. `odoo-local` - are a separate concern, tracked by scripts/lib/plugin_mcp_servers.py's
+    LOCAL_SERVERS SSOT, and are excluded from this file's browser-only assertions);
   - it is `chrome-devtools`, headless, `--isolated`;
   - it is a local stdio-npx server (portable across Claude/Codex/Gemini);
   - its package is version-PINNED (never `@latest`, so a session is reproducible).
 
 Stdlib-only so it runs anywhere `python3 -m pytest` works.
 """
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -30,6 +33,20 @@ SKILLS_MANIFEST = SKILLS_PLUGIN / ".claude-plugin" / "plugin.json"
 EAGER_SERVER = "chrome-devtools"
 
 
+def _local_servers() -> frozenset:
+    """scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS - the SSOT for which bundled
+    .mcp.json servers are LOCAL (non-browser), e.g. `odoo-local`. This file only
+    asserts the BROWSER-family contract, so a local server must be subtracted
+    before checking "exactly one eager server" - it is a different category
+    entirely, not a second eager browser family."""
+    spec = importlib.util.spec_from_file_location(
+        "plugin_mcp_servers", SKILLS_PLUGIN / "scripts" / "lib" / "plugin_mcp_servers.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.LOCAL_SERVERS
+
+
 @pytest.fixture(scope="module")
 def mcp():
     assert BROWSER_MCP.is_file(), f"missing browser MCP config: {BROWSER_MCP}"
@@ -39,10 +56,27 @@ def mcp():
 
 def test_exactly_one_eager_server(mcp):
     servers = mcp.get("mcpServers", {})
-    assert set(servers) == {EAGER_SERVER}, (
-        f"expected exactly one eager server {{{EAGER_SERVER!r}}}, got {set(servers)}. "
-        "The other five families are opt-in and must NOT be in .mcp.json."
+    browser_servers = set(servers) - _local_servers()
+    assert browser_servers == {EAGER_SERVER}, (
+        f"expected exactly one eager BROWSER server {{{EAGER_SERVER!r}}}, got {browser_servers} "
+        f"(all .mcp.json keys: {set(servers)}). The other five browser families are opt-in and "
+        "must NOT be in .mcp.json; a LOCAL server (plugin_mcp_servers.LOCAL_SERVERS) is a "
+        "different category and is subtracted here, not counted as a second eager browser family."
     )
+
+
+def test_local_servers_are_not_counted_as_browser_servers(mcp):
+    """Negative case: a LOCAL server (e.g. odoo-local) may coexist in .mcp.json, but it must
+    never be mistaken for a browser family - it gets no browser allow-prefix (see
+    test_browser_prefixes.py) and is not approved by auto-approve-browser.sh (see
+    test_auto_approve_browser.py)."""
+    local = _local_servers()
+    servers = set(mcp.get("mcpServers", {}))
+    assert local & servers, (
+        f"premise failed: no local server from {sorted(local)} found in .mcp.json "
+        f"(got {sorted(servers)}) - this test would otherwise pass vacuously"
+    )
+    assert not (local & {EAGER_SERVER}), "a local server must never equal the eager browser server"
 
 
 def test_eager_server_is_local_stdio_npx(mcp):

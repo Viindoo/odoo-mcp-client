@@ -4,6 +4,9 @@
 
 ```
 TARGET: <local | worktree:<abs-path> | pr:<number-or-url>>
+review_root: <abs-path of the PR worktree - TARGET=pr only>
+pr_meta: <PR metadata from git-ops - TARGET=pr only>
+pr_changed_files: <PR changed-file list from git-ops - TARGET=pr only>
 BASE: <base-ref, default master>
 odoo_version: <e.g. 17.0>
 USER LANGUAGE: <e.g. Vietnamese>

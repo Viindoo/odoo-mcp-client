@@ -20,9 +20,8 @@ deliberately runs concurrent ephemeral instances, so the collision is a normal o
 rather than an edge case. The lesson was even recorded in this machine's own instance catalog by an
 earlier run and never reached the plugin.
 
-The flag NAME is series-dependent and this test does not restate it - `agents/odoo-instance-ops.md`
-already owns that table (`--xmlrpc-port` v8-v10, `--http-port` v11+, legacy aliases REMOVED at
-v19), and restating it here is how the two copies drift.
+The port reaches odoo-bin through the lease: `instance_build` sets it and refuses a port flag in
+`extra_args`, so the agent's job is only to lease one (`ports 1`) for every test build.
 
 Run: python -m pytest tests/test_test_run_binds_a_port.py -v
 """
@@ -51,27 +50,58 @@ def test_the_hard_rule_names_test_enable_as_the_discriminator():
     assert re.search(r"discriminator is `--test-enable`, NOT `--stop-after-init`", text), (
         "the ports HARD RULE must state which flag actually decides, not just which value to pass"
     )
-    assert "v8 through v19" in text or "v8-v19" in text, (
+    assert re.search(r"on every (Odoo )?series Odoo forces `http_spawn\(\)`", text), (
         "the rule must say the behaviour spans every supported series - a reader who thinks it is "
-        "one series' quirk will re-derive the exception"
+        "one series' quirk will re-derive the exception. It says so without spelling a version "
+        "range: agent prose may not carry one (check_orchestration [version-claim])"
     )
     assert "http_spawn()" in text, "the rule must cite the mechanism it rests on"
 
 
-def test_the_run_tests_operation_leases_and_forwards_a_port():
-    """Reserving a port and never passing it to odoo-bin leaves the build on the config default,
-    which is the same collision with an extra step. `55-instance-ops.sh` carries no port plumbing,
-    so `--extra` is the entire path by which a test build learns its port."""
+def _section(text: str, heading: str) -> str:
+    start = text.find(heading)
+    assert start >= 0, f"the {heading!r} section moved - re-anchor this test"
+    nxt = text.find(" ### ", start + len(heading))
+    return text[start: nxt if nxt >= 0 else len(text)]
+
+
+def test_the_run_tests_operation_leases_a_port_the_build_binds():
+    """Reserving a port the build never binds leaves it on the config default, which is the same
+    collision with an extra step. `instance_build` sets the lease's port itself and REFUSES a port
+    flag in `extra_args` (INVALID_ARGUMENTS), so the agent must lease a port in BOTH modes,
+    `fresh` and `reuse`, and must never be told to forward it as a flag."""
     text = _norm(AGENT)
-    mech = text[text.find("**Mechanism:** `fresh` -> run Steps A-D"):][:1400]
-    assert mech, "the run-tests Mechanism paragraph moved - re-anchor this test"
-    assert "--ports 1" in mech, "a test run must lease a port"
-    assert "--ports 0" not in mech, "the test run must not be told to lease no port"
-    assert "--extra" in mech, "the leased port must be forwarded to odoo-bin"
-    assert "HTTP port" in mech and "cli_help" in mech, (
-        "the port flag NAME is series-dependent; the mechanism must point at the version table "
-        "and at cli_help rather than hardcoding one spelling"
+    mech = text[text.find("**Mechanism.** A test build binds an HTTP port"):][:2200]
+    assert mech.startswith("**Mechanism.**"), "the run-tests Mechanism paragraph moved - re-anchor this test"
+    fresh = mech[mech.find("`fresh` ->"): mech.find("`reuse` ->")]
+    reuse = mech[mech.find("`reuse` ->"): mech.find("Then `instance_build`")]
+    assert fresh and reuse, "the Mechanism must name what `fresh` and `reuse` each lease"
+    for name, leg in (("fresh", fresh), ("reuse", reuse)):
+        assert "`lease_acquire`" in leg and "ports 1" in leg, f"a `{name}` test run must lease a port"
+    assert not re.search(r"`?ports`? 0", mech), "the test run must not be told to lease no port"
+    assert "`instance_build` binds that lease's port" in mech, (
+        "the mechanism must say the build binds the leased port itself"
     )
+    assert "never a port flag" in mech, (
+        "instance_build refuses a port flag in extra_args - the mechanism must not forward one"
+    )
+    assert not re.search(r"--<HTTP-port flag>|HTTP-port flag>=", text), (
+        "the retired `--<HTTP-port flag>=<lease port>` extra_args recipe is back"
+    )
+
+
+def test_a_reuse_run_gets_its_own_port_even_on_a_serving_handle():
+    """A `reuse` run targets a forwarded handle's database, which may be SERVING: its server holds
+    the handle's port. Building on that port collides; refusing the run loses a capability the
+    agent had. The run takes its own `exclusive`, `no_create` lease on the handle's database - a
+    fresh pooled port, nothing created or dropped - and leaves the handle's lease alone."""
+    text = _norm(AGENT)
+    mech = text[text.find("**Mechanism.** A test build binds an HTTP port"):][:2200]
+    reuse = mech[mech.find("`reuse` ->"): mech.find("Then `instance_build`")]
+    assert "mode `exclusive`" in reuse and "`db_name` = the handle's `db_name`" in reuse
+    assert "`no_create` true" in reuse, "the reuse lease must never create or drop the handle's database"
+    assert "never release or park it" in reuse, "the handle's lease stays the caller's"
+    assert "NEEDS_CONTEXT" not in reuse, "a serving handle is no reason to refuse the run"
 
 
 def test_no_document_pairs_ports_zero_with_a_test_run():
@@ -93,7 +123,7 @@ def test_no_document_pairs_ports_zero_with_a_test_run():
     offenders = []
     for path in (AGENT, MODES, TESTING, REGISTRY):
         text = _norm(path)
-        for m in re.finditer(r"--ports 0", text):
+        for m in re.finditer(r"(?:--)?`?\bports`?:? ?0\b", text):
             window = text[max(0, m.start() - 200): m.end() + 200]
             if not re.search(r"--test-enable|\btests?\b|run-tests", window, re.I):
                 continue
@@ -122,10 +152,10 @@ def test_the_false_invariant_is_gone_from_its_ssot():
 def test_the_non_test_paths_keep_ports_zero():
     """Scope discipline, and the inverted defect this could easily become: an `-i`/`-u`/
     `--load-language` pass with `--stop-after-init` genuinely binds nothing, and rewriting those
-    to `--ports 1` would waste a pooled port on every install for no reason."""
+    to lease a port would waste a pooled port on every install for no reason."""
     text = _norm(AGENT)
-    for context in ("init-modules", "load-language"):
-        assert context in text, f"expected the {context} operation to still exist"
-    assert "`exclusive` lease and `--ports 0` (no HTTP port needed)" in text, (
-        "the load-language path binds no port and must keep --ports 0"
-    )
+    for heading in ("### 3. init-modules", "### 7. load-language"):
+        section = _section(text, heading)
+        assert re.search(r"`lease_acquire`\s*\(`series`, mode `exclusive`, `db_name`, `no_create` true, ports 0\)",
+                         section), f"{heading}: an existing-database build binds no port and leases ports 0"
+        assert "ports 1" not in section, f"{heading}: must not lease a port it never binds"

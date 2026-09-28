@@ -13,8 +13,35 @@ Because it is a plain script run via Bash, ANY agent at ANY depth can call it
 (no subagent spawn, no Skill tool).
 
 Runtime state lives under  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/ :
-    leases.json      - the single registry (atomic read-modify-write under flock)
+    leases.json      - the single registry (atomic read-modify-write under flock),
+                       schema_version 3; older rows are read leniently
     registry.lock    - the fcntl.flock file guarding the critical section
+
+CROSS-VERSION: the registry is machine-global, and a session keeps running the
+allocator of the plugin version it started with - an OLDER allocator reads, and
+on every acquire SWEEPS, the rows this one writes. So every row stays safe under
+the pre-anchor (schema 2) reader: `owner.pid_started` keeps that reader's exact
+shape (bare `ps -o lstart=` in the ambient TZ, compared with `==`) while the
+TZ-free fingerprint lives in `owner.pid_fp` (+ `owner.pid_fp_pid`, the pid it was
+measured on - see PID_OWNER_KEYS); `ttl_s` is at least 24h on a row without an
+explicit --ttl; and `heartbeat` refreshes `heartbeat_at`, the only stamp that
+reader's TTL arm looks at. That reader also knows nothing of the session anchor:
+a bound server pid that died (or was recycled) under a still-live session is
+`owner-pid-dead` to it, and its acquire sweep would drop the database. So every
+locked write (`heartbeat` - including `heartbeat --session mine`, which the
+odoo-local MCP server runs every 10 minutes - `acquire`, `bind`, `gc`, `adopt`)
+SHEDS such a pid from every row of the machine (`_shed_gone_server`): the pid
+keys are cleared and `heartbeat_at` refreshed, so the older reader's TTL arm
+protects the row while this allocator still protects it by its anchor. RESIDUAL
+WINDOW: between the server dying and the next such write (at most one heartbeat
+interval while any session on the machine runs the MCP server; unbounded on a
+machine where only the CLI is used and nothing new-version writes) the dead pid
+is still on the row, and an older allocator's acquire in that window reclaims
+it. Only a long-lived server pid is ever recorded (`acquire --pid` / `bind`
+from the serve path, after `kill -0`; build pids never are), so the window opens
+only when a served instance dies unexpectedly. A row with an explicit --ttl
+shorter than the heartbeat interval can still lapse under the older reader's
+TTL arm once shed. Guard: tests/test_allocator_cross_version.py.
 
 Modes:
     readonly   - attach a running instance; NO lease (shared, lease-free)
@@ -34,183 +61,278 @@ Modes:
     exclusive  - the declared (or named) DB held under an exclusive lease.
     shared     - a long-lived, NON-exclusive lease for the visual stack's live
                  render server: many readers attach to ONE lease (never blocked),
-                 created_db is ALWAYS False (gc reclaims a dead-server row but
-                 NEVER drops the declared DB), and the actual bound --port + the
-                 long-lived server --pid are recorded so `query` can find it and
-                 `gc` can reclaim it. The port is recorded verbatim (not pooled).
+                 drop_on_release is ALWAYS False (a reclaim removes a dead-server
+                 row but NEVER drops the declared DB), and the actual bound --port
+                 + the long-lived server --pid are recorded so `query` can find it.
+                 A shared row is judged by its SERVER pid only - it is
+                 cross-session by design, so no session anchor protects it.
 
-CLI:
+LIVENESS - what protects a lease, and what condemns it (`_judge`, in order):
+    1. PARKED: its own park budget (default 48h, `park --park-ttl`); a reboot
+       while parked does not consume it.
+    2. SESSION ANCHOR (not `shared`): every lease records the acquiring agent
+       session's long-lived process (`owner.session`, see session_anchor.py:
+       ODOO_AI_SESSION_ANCHOR, else CLAUDE_PID, else a claude/codex/gemini
+       ancestor). While that process lives the lease is PROTECTED - whatever
+       its server pid and TTL say. Once it is provably dead the lease is
+       `owner-session-ended`, unless the caller is the same session resumed
+       (same CLAUDE_CODE_SESSION_ID), which re-anchors it. The automatic paths
+       wait ANCHOR_GRACE_S (30 min) after the session's last touch.
+    3. LEGACY / UNANCHORED: a dead server pid on this host condemns
+       (`owner-pid-dead`), a fingerprint proving pid recycling condemns
+       (`owner-pid-recycled`), a matching fingerprint protects; otherwise
+       liveness is unprovable and only an EXPLICIT `gc` (scope all) may apply
+       the TTL arm (`ttl-expired-liveness-unprovable`): the lease's explicit
+       --ttl, or at least 24h. The automatic paths never do.
+    Pid fingerprints are timezone- and locale-independent
+    (`proc:<boot_id>:<starttime>` / `ps:<UTC lstart>`, `owner.pid_fp`, trusted
+    while `owner.pid_fp_pid` equals `owner.pid`); otherwise `owner.pid_started`
+    is used - a LEGACY bare-lstart fingerprint is compared in the local zone and
+    UTC and never counts as a mismatch.
+
+RECLAMATION - who may destroy what:
+    acquire  reclaims NOTHING implicitly. Only when it cannot otherwise be
+             served (port pool exhausted, or an exclusive conflict) does it
+             take CAPACITY from leases whose owner is PROVABLY gone
+             (owner-session-ended past the grace window, owner-pid-dead,
+             owner-pid-recycled; never TTL, parked or shared): it stops their
+             server group and frees their ports, marking the row `orphaned`
+             (an exclusive holder's row is deleted - it never drops anything).
+             It NEVER drops a database. Recorded as by_verb=acquire-capacity,
+             dropped_db=false. When that reclaim stopped a server, the freed
+             ports are re-picked for up to PORT_FREE_WAIT_S before giving up.
+             Still exhausted -> exit 4 naming the holders; with NO holder at all
+             it carries fields.reason `ports-busy-outside-registry` and that
+             reason's own remedy (ERROR_CODES). Ports are probed the way Odoo
+             binds them (SO_REUSEADDR + bind + listen), so a port in TIME_WAIT
+             is usable and a LISTENING one is not.
+    gc       the only verb that drops a lease it does not own: stop group ->
+             drop through Odoo -> delete row. EXCEPT a lease that was resumed or
+             adopted out of a deliberate park (`owner.return_to_park`): when its
+             new owner is provably gone (session ended, server dead/recycled) gc
+             PARKS it again - stops the group, keeps the database, the filestore
+             and the ports, restores the park budget it had
+             (`owner.return_park_ttl_s`) - instead of dropping it.
+    release  the owner's teardown: the same stop -> drop -> delete.
+    All three are TWO-PHASE on one primitive: the rows are marked `reclaiming`
+    under the registry lock, the servers are stopped (and, for gc/release, the
+    databases dropped) OUTSIDE it, and the rows are settled under the lock
+    again - so no stop or drop ever stalls another session's acquire/list. A
+    marked row keeps its ports until settled; a marker whose process died is
+    ignored, so the next gc/release/acquire retakes the row.
+    Every reclamation is reported per lease on STDERR (never stdout, which is
+    the eval protocol) and appended to $ODOO_AI_HOME/logs/allocator-reclaimed.jsonl.
+
+CLI (every verb also takes --format json, see OUTPUT):
     allocator.py acquire --series <X.Y> --mode <readonly|ephemeral|exclusive|shared>
-                 [--ports N] [--port P] [--ttl <s>] [--run-id <id>] [--db-name <name>]
-                 [--pid <pid>] [--no-create] [--instances <path>]
+                 [--run-id <id> | --allow-unowned]
+                 [--ports N] [--port P] [--ttl <s>] [--db-name <name>] [--pid <pid>]
+                 [--profile <P>] [--no-create] [--instances <path>]
                  [--addons-path-override <csv-or-colon-paths>]
-                 # --run-id is the canonical ownership key; --session is a back-compat
-                 # alias. acquire echoes ALLOC_RUN_ID + ALLOC_DB_PORT.
-                 # With NO --addons-path-override, acquire refuses (non-zero) instead
-                 # of silently defaulting ALLOC_ADDONS_PATH when the caller's cwd is a
-                 # git worktree of the SAME repo as a catalog addons_path entry but at
-                 # a DIFFERENT checkout - the false-green shape where a fix living in a
-                 # worktree gets silently verified against the principal checkout's
-                 # (pre-fix) code instead. Pass --addons-path-override to state the
-                 # tree explicitly (see _addons_path_worktree_mismatch).
+                 # --series is REQUIRED (exit 2 SERIES_REQUIRED; nothing is picked
+                 # for you). --run-id is the canonical ownership key (--session is
+                 # a back-compat alias); without it acquire exits 10 unless
+                 # --allow-unowned states deliberately that the lease has no owner
+                 # OR --mode is readonly, which is lease-free and exempt from both.
+                 # Echoes ALLOC_TOKEN, ALLOC_MODE, ALLOC_DB_NAME, ALLOC_PORTS,
+                 # ALLOC_RUN_ID, ALLOC_PYTHON, ALLOC_ADDONS_PATH, ALLOC_DB_HOST,
+                 # ALLOC_DB_USER, ALLOC_DB_PORT, ALLOC_SERIES, ALLOC_PROFILE
+                 # (+ ALLOC_ATTACHED for shared). Records `profile` (the RESOLVED
+                 # catalog profile, "" when unprofiled - `list` returns it),
+                 # owner.session (the caller's anchor), owner.via ("mcp" when
+                 # ODOO_AI_VIA=mcp, else "cli") and owner.acquired_by
+                 # (ODOO_AI_CALLER_AGENT_ID/_TYPE). Every acquire that writes a
+                 # lease (not readonly) also writes ONE line to STDERR:
+                 #   allocator: acquired lease <full-token> run_id=<id>
+                 # - it reaches the caller's transcript even when stdout is
+                 # consumed by `eval "$(...)"`; stdout is unchanged.
+                 # With NO --addons-path-override, acquire refuses (exit 5) instead
+                 # of silently defaulting ALLOC_ADDONS_PATH when the caller's cwd is
+                 # a git worktree of the SAME repo as a catalog addons_path entry
+                 # but at a DIFFERENT checkout - the false-green shape where a fix
+                 # living in a worktree gets verified against the principal
+                 # checkout's (pre-fix) code instead.
     allocator.py query --series <X.Y> [--state parked] [--run-id <id>] [--force-attach]
                  # DEFAULT (no --state): the live shared render server for a
-                 # series, if any - unchanged, so no existing caller moves.
+                 # series, if any (exit 1 NOT_FOUND otherwise).
                  # --state parked: the resumable PARKED lease for that series
                  # (ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS/
-                 # ALLOC_PARKED_AT), so a returning agent finds the instance it
-                 # (or an earlier run on this host) suspended instead of building
-                 # a new one. A parked lease has NO live owner by construction, so
-                 # it is HOST-and-SERIES scoped, not run-scoped: this run's own
+                 # ALLOC_PARKED_AT). A parked lease has NO live owner by
+                 # construction, so it is HOST-and-SERIES scoped: this run's own
                  # parked lease is returned silently; another run's parked lease
-                 # on THIS host is returned WITH ALLOC_ATTACHED_FROM_RUN so the
-                 # attach is reported rather than gated; a parked lease on a
-                 # DIFFERENT host needs --force-attach (its database may live on
-                 # another cluster entirely). A same-host row whose database is
-                 # PROVABLY gone is SKIPPED, not offered, and `release <token>` is
-                 # named - this is the PRE-LAUNCH probe, and the only one that can
-                 # be pre-launch (resume needs a live pid, so it necessarily runs
-                 # after the launch). "Could not look" is not "absent" and is
-                 # still offered.
+                 # on THIS host is returned WITH ALLOC_ATTACHED_FROM_RUN; a parked
+                 # lease on a DIFFERENT host needs --force-attach. A same-host row
+                 # whose database is PROVABLY gone is SKIPPED, not offered, and
+                 # `release <token>` is named. "Could not look" is not "absent"
+                 # and is still offered.
     allocator.py can-createdb --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print CREATEDB=true|false|undeterminable (+ CREATEDB_WHY
-                 # when undeterminable) and exit 0|6|7 - the SAME ladder and the SAME
-                 # codes `acquire --mode ephemeral` gates on, so a reporting caller
-                 # never re-implements the question. Exits 8/9 when the connection
-                 # Odoo itself opens is provably refused / the cluster is absent:
-                 # the capability was then never answered, and no client surface may
-                 # overrule a fact about that connection. Writes NO lease.
+                 # when undeterminable) and exit 0|6|7 - the SAME ladder and codes
+                 # `acquire --mode ephemeral` gates on. Exits 8/9 when the
+                 # connection Odoo itself opens is provably refused / the cluster is
+                 # absent. Writes NO lease.
     allocator.py db-preflight --series <X.Y> [--profile <P>] [--instances <path>]
                  # read-only: print DB_AUTH=ok|denied|unreachable|unknown +
                  # DB_AUTH_WHY, then CREATEDB + CREATEDB_WHY, and exit 0|6|7|8|9.
-                 # DB_AUTH is evaluated FIRST: a capability answer describes a role,
-                 # while DB_AUTH describes the connection every build opens, so
-                 # CREATEDB=true is never emitted beside a proven refusal. This is
-                 # the ONE question every reporting caller asks (05-prereq-check.sh,
-                 # 45-venv.sh) instead of re-deriving half of it. Writes NO lease.
+                 # DB_AUTH is evaluated FIRST, so CREATEDB=true is never emitted
+                 # beside a proven refusal. Writes NO lease.
     allocator.py release <token> --run-id <id> [--force] [--force-forget]
                  [--instances <path>]
-                 # a lease that records an owner run is released ONLY by that run:
-                 # any other --run-id, AND an absent one, is refused (an absent
-                 # caller run is not ownership unproven-but-assumed, it is
-                 # ownership not established - same shape as assert-droppable).
-                 # An UNOWNED lease (no owner run recorded) still releases on
-                 # token-possession; --force overrides loudly.
-                 # A drop that FAILS keeps the lease (so gc / a later retry can
-                 # finish it) - and the drop surface is re-resolved from the
-                 # CURRENT catalog on every attempt, so `45-venv.sh record-env`
-                 # repairs an EXISTING lease, not just future ones.
-                 # A drop that did not happen is CLASSIFIED before anything is
-                 # named: a database PROVABLY absent releases the lease cleanly
-                 # (ALLOC_FORGOTTEN_DB, exit 0 - the drop had nothing to do in
-                 # Postgres, and its FILESTORE is removed on that path because
-                 # neither reaper could find it once the lease is gone), one
-                 # observed PRESENT keeps it, and one whose existence cannot be
-                 # determined keeps it too.
-                 # --force-forget is the documented escape when nothing on this
-                 # host can ever drop the DB: it removes the lease and NAMES what
-                 # was left behind - ALLOC_ABANDONED_DB when the database was
-                 # observed present, ALLOC_FORGOTTEN_DB when it provably does not
-                 # exist, ALLOC_UNVERIFIED_DB when that could not be confirmed. It
-                 # never reports a teardown that did not happen, and never claims a
-                 # cluster fact it did not observe.
+                 # a lease that records an owner run is released ONLY by that run
+                 # (any other --run-id, AND an absent one, is refused: exit 1
+                 # NOT_OWNER); an UNOWNED lease releases on token-possession;
+                 # --force overrides loudly (`_ownership_refusal`, shared with
+                 # park). Stops the server group, then drops a
+                 # throwaway DB through Odoo. A drop that FAILS keeps the lease
+                 # (exit 1 DROP_FAILED_KEPT) - the drop surface is re-resolved from
+                 # the CURRENT catalog on every attempt, so `45-venv.sh record-env`
+                 # repairs an EXISTING lease. A database PROVABLY absent releases
+                 # cleanly (ALLOC_FORGOTTEN_DB, exit 0, filestore removed).
+                 # --force-forget removes an un-droppable lease and NAMES what was
+                 # left behind: ALLOC_ABANDONED_DB (observed present),
+                 # ALLOC_FORGOTTEN_DB (provably absent), ALLOC_UNVERIFIED_DB (could
+                 # not be confirmed). An unknown token exits 0 (already released)
+                 # and emits ALLOC_ALREADY_ABSENT=1; a release that deleted the
+                 # row ITSELF emits ALLOC_RELEASED=<token> (both also in JSON
+                 # `fields`), so a racing release is told apart from its winner.
+                 # A row another gc/release is reclaiming right now: exit 11.
+                 # The stop + drop run OUTSIDE the registry lock (the row is
+                 # marked `reclaiming` meanwhile and keeps its ports).
     allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]
-                 # read-only: non-zero if a FRESH lease on <db> is owned by a
-                 # DIFFERENT run, OR is UNOWNED (no run_id recorded at all -
-                 # P5.8: unowned is no longer a synonym for "safe to drop");
-                 # 0 otherwise (own lease, stale lease, no lease, or --force).
+                 # read-only: exit 1 if a FRESH lease on <db> is owned by a
+                 # DIFFERENT run (DB_HELD_BY_OTHER_RUN) or is UNOWNED
+                 # (DB_HELD_UNOWNED); 0 otherwise (own lease, stale lease, no lease,
+                 # or --force).
     allocator.py bind <token> --pid <server_pid>
-                 # upsert the live server pid onto an EXISTING lease (the
-                 # exclusive-running path: acquire reserves the lease, the
-                 # spin-up binds the launched pid) so release/gc can stop the
-                 # whole process GROUP before dropping the DB.
-    allocator.py park <token> [--park-ttl <s>]
+                 # upsert the live server pid (+ its fingerprint, + the caller's
+                 # session anchor) onto an EXISTING lease, so release/gc can stop
+                 # the whole process GROUP before dropping the DB.
+    allocator.py park <token> --run-id <id> [--park-ttl <s>] [--force]
                  # SUSPEND a RUNNING lease without destroying anything it holds.
+                 # Ownership is release's rule, checked FIRST under the lock
+                 # (`_ownership_refusal`): a lease that records an owner run is
+                 # parked ONLY by that run (any other --run-id, AND an absent one,
+                 # is refused: exit 1 NOT_OWNER, nothing stopped); an UNOWNED
+                 # lease parks on token-possession; --force overrides loudly.
                  # Stops the owner's process GROUP first (park holds DISK, never
-                 # MEMORY), clears owner.pid/owner.pid_started, and stamps
-                 # parked_at + park_ttl_s + parked_boot_id. db_name, ports and
-                 # drop_on_release are left untouched, so the database, the
-                 # filestore and the port reservation all survive and the lease
-                 # can be resumed. EMITS that untouched drop_on_release
-                 # (ALLOC_DROP_ON_RELEASE) and, when it is true, says on STDERR
-                 # that the final `release` still drops that database: park
-                 # DEFERS a throwaway, it never makes one durable, and the silent
-                 # version of that gap is how a caller parks to SAVE a database
-                 # and loses it later anyway. Refuses a `shared` lease (exit 3 - the shared
-                 # row is already immune to the pid arms and is the ONE answer
-                 # `query --series` gives for a series; a parked twin would make
-                 # that rung two-valued) and a lease that is not RUNNING (exit 4 -
-                 # no owner pid recorded: nothing to stop, nothing to resume).
+                 # MEMORY), clears the recorded server (PID_OWNER_KEYS), and stamps
+                 # parked_at + park_ttl_s (default 48h) + parked_boot_id. db_name,
+                 # ports and drop_on_release are left untouched. EMITS that
+                 # drop_on_release (ALLOC_DROP_ON_RELEASE) and, when true, says on
+                 # STDERR that the final `release` still drops that database: park
+                 # DEFERS a throwaway, it never makes one durable. Refuses a
+                 # `shared` lease (exit 3) and a lease that is not RUNNING (exit 4 -
+                 # no owner pid recorded).
     allocator.py resume <token> --pid <server_pid>
-                 # The atomic PARKED -> RUNNING compare-and-set, under ONE
-                 # registry hold: the lease must BE parked - NOT parked with no
-                 # live same-host owner is the ordinary first launch (exit 3, the
-                 # branch back to `bind`), while NOT parked because a LIVE
-                 # same-host server already holds it is the resume RACE the first
-                 # caller won (exit 6, never a bind: stop the server you just
-                 # launched) - its database must not have been dropped underneath
-                 # it (exit 5, naming `release` as the next step), and the named
-                 # pid must be alive on this host AND corroborated as this
-                 # lease's own server by _ownership_proof (exit 4). Only then does it
-                 # DELETE parked_at/park_ttl_s/parked_boot_id and write
-                 # owner.pid/owner.pid_started + a fresh heartbeat. Deleting the
-                 # park keys is what puts the resumed lease back under the pid
-                 # arms (and back under the SubagentStop teardown gate) instead
-                 # of leaving it governed by a park budget forever.
-    allocator.py heartbeat <token>
-                 # refresh the lease's heartbeat, and BACKFILL owner.pid_started
-                 # on an older row when - and only when - ownership of its pid is
-                 # corroborated right then (_backfill_pid_fingerprint).
-    allocator.py gc [--instances <path>]
+                 # The atomic PARKED -> RUNNING compare-and-set, under ONE registry
+                 # hold: NOT parked with no live same-host owner is the ordinary
+                 # first launch (exit 3 NOT_PARKED - the branch back to `bind`);
+                 # NOT parked because a LIVE same-host server already holds it is
+                 # the resume RACE (exit 6 - stop the server you just launched);
+                 # a database dropped under the park is exit 5 DB_GONE; the named
+                 # pid must be alive on this host AND corroborated as this lease's
+                 # own server (exit 4 WRONG_HOST / PID_NOT_ALIVE /
+                 # OWNERSHIP_UNPROVEN). Then it DELETES parked_at/park_ttl_s/
+                 # parked_boot_id and writes the pid, its fingerprints, the
+                 # caller's anchor, a fresh heartbeat, and owner.return_to_park +
+                 # owner.return_park_ttl_s (the budget it had), so the resuming
+                 # session's end parks it again (see RECLAMATION / gc).
+    allocator.py heartbeat <token> | heartbeat --session mine
+                 # refresh heartbeat_at (and the anchor's seen_at when the caller
+                 # is the lease's session); BACKFILL the fingerprints of an older
+                 # row when - and only when - ownership of its pid is corroborated
+                 # right then (and move a TZ-free value an earlier build wrote into
+                 # pid_started over to pid_fp once it is proven to match).
+                 # `--session mine` touches every lease of the caller's session in
+                 # one registry hold - heartbeat_at included, because an older
+                 # allocator judges a pid-less row by that stamp alone.
+    allocator.py adopt <token> --run-id <id>
+                 # re-anchor a lease onto the CALLER's session (a hand-over inside
+                 # one run). Requires the recorded owner run (exit 1 NOT_OWNER),
+                 # the same host (exit 4 WRONG_HOST) and an anchored caller (exit 5
+                 # NO_ANCHOR). Changes who vouches for liveness, nothing else
+                 # (adopting a PARKED lease also sets owner.return_to_park).
+                 # Writes `allocator: adopted lease <token> run_id=<id>` to STDERR.
+    allocator.py anchor [--print]
+                 # print the caller's session anchor, shell-eval-able:
+                 # ODOO_AI_SESSION_ANCHOR=<pid>:<fingerprint>, ODOO_AI_SESSION_ID,
+                 # ODOO_AI_ANCHOR_SOURCE, ODOO_AI_ANCHOR_STATE. Exit 5 NO_ANCHOR
+                 # outside an agent session.
+    allocator.py gc [--scope all|dead-sessions|anchor] [--anchor <pid:fingerprint>]
+                 [--dry-run] [--force] [--run-id <id>] [--instances <path>]
+                 # all (default): every condemn arm, including the TTL arm.
+                 # dead-sessions: the automatic semantics - ended sessions past the
+                 # grace window, dead/recycled server pids, expired parks; never TTL.
+                 # anchor: the running/reserved leases (never parked, never shared)
+                 # of ONE session anchor (--anchor, default the caller's own); the
+                 # anchor must no longer be alive (exit 3 ANCHOR_ALIVE; --force
+                 # overrides; exit 2 ANCHOR_REQUIRED when there is none).
+                 # --dry-run: emit ALLOC_WOULD_RECLAIM=<token> per candidate (JSON
+                 # candidates carry `action`: reclaim|park) and change nothing.
+                 # Otherwise ALLOC_RECLAIMED=<token> per lease plus a `# reclaimed N
+                 # stale lease(s)` line, and ALLOC_PARKED=<token> (JSON `parked`)
+                 # per lease returned to its park.
     allocator.py reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]
                  # lists (default) or drops (--yes) ephemeral-shaped databases
                  # (<prefix>_t_<hex8>, never a named/declared instance) that carry
-                 # NO lease reference at all - live or stale - across every
-                 # declared cluster. Ownership predicate (see _reap_candidates):
-                 # naming shape + zero lease reference + a POSITIVELY PROVEN age
-                 # >= --min-age-s (default 24h; an unmeasurable age is treated as
-                 # NOT old enough, fail-closed). A DB referenced by any lease -
-                 # even stale - is release/gc's job, never this one's. Emits
-                 # REAP_CANDIDATE / REAP_SKIPPED / REAP_DROPPED lines.
-    allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
+                 # NO lease reference at all - live or stale - across every declared
+                 # cluster: naming shape + zero lease reference + a POSITIVELY
+                 # PROVEN age >= --min-age-s (default 48h; an unmeasurable age is
+                 # NOT old enough, fail-closed). Emits REAP_CANDIDATE / REAP_SKIPPED
+                 # / REAP_DROPPED lines; exit 1 REAP_DROP_FAILED when a drop failed.
+    allocator.py list [--show-tokens] [--run-id <id>] [--older-than <s>]
+                 [--tokens <t1,t2>] [--session <pid:fingerprint|mine>] [--with-verdict]
+                 # the registry as JSON. Tokens are fingerprinted to 8 chars unless
+                 # --show-tokens. --tokens matches full tokens or >=8-char prefixes.
+                 # --session filters by anchor (`mine` also matches the caller's
+                 # session id; any other value is the legacy --run-id alias).
+                 # --with-verdict adds `verdict` {state: running|reserved|parked|
+                 # orphaned|reclaiming, protected_by: session|server-pid|park|ttl|
+                 # none, condemn, condemn_auto, return_to_park, anchor_state,
+                 # anchor_alive} - the SSOT a consumer reads instead of re-deriving
+                 # liveness. Every row carries `profile`.
 
-Every process signal release/gc/acquire/park can send goes through ONE gate
-(`_stop_owner_group_if_local`): the pid must be on THIS host, alive, AND PROVEN
-to belong to the lease - by a matching `owner.pid_started` fingerprint, or by an
-independent corroborating observation (an Odoo command line naming this lease's
-own database, or the process group listening on a port this lease reserved). An
-unproven pid is NEVER signalled and the refusal is reported with its evidence:
-pids are recycled, so "alive" alone is equally true of an unrelated shell whose
-whole group a GROUP signal would take down. Refusing to signal never blocks
-reclamation - the lease row and its database are reclaimed exactly as before, so
-the worst case is a REPORTED process leak, never a lost lease.
+Every process signal release/gc/park/acquire-capacity can send goes through ONE
+gate (`_stop_owner_group_if_local`): the pid must be on THIS host, alive, AND
+PROVEN to belong to the lease - by a matching recorded fingerprint, or
+by an independent corroborating observation (an Odoo command line naming this
+lease's own database, or the process group listening on a port this lease
+reserved). An unproven pid is NEVER signalled and the refusal is reported with
+its evidence: pids are recycled, so "alive" alone is equally true of an unrelated
+shell whose whole group a GROUP signal would take down.
 
-All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
-instances_io.py's INST_* convention. acquire prints ALLOC_*.
-
-RECLAMATION IS ALWAYS ON THE RECORD. `acquire` runs the same destructive sweep
-`gc` does (`_gc`: stop the owner's process group, drop the database, delete the
-row), so every command that reclaims a lease reports each one - which lease,
-whose run, which database, which owner pid, and WHICH ARM condemned it (see
-CONDEMN_REASONS) - on STDERR, plus an append-only JSONL record under
-`$ODOO_AI_HOME/logs/` (RECLAIM_LOG_BASENAME) that outlives the process. Never on
-stdout: that stream is a protocol for `eval $(allocator.py acquire ...)`. Read
-the GC section header for why the silent version of this was worse than the data
-loss it caused.
+OUTPUT:
+    Default (--format shell): shell-eval-able KEY=VALUE lines (shlex.quote'd) on
+    stdout, mirroring instances_io.py's INST_* convention; prose goes to stderr.
+    --format json: exactly ONE JSON object on stdout,
+        {"ok": bool, "rc": int, "error": {"code": str, "message": str} | null,
+         "fields": {...}}
+    where `fields` carries the same KEY names with typed values (ALLOC_PORTS is a
+    list), repeatable keys as lists (ALLOC_RECLAIMED, ALLOC_WOULD_RECLAIM,
+    REAP_*), and structured payloads: `leases` (list), `candidates` /
+    `reclaimed` (gc), `holders` (a refused acquire), `touched` (heartbeat),
+    `notes` (the `#` comment lines). Every non-zero exit carries a named
+    `error.code` from ERROR_CODES (each code always pairs with one exit code);
+    a code with a narrower cause adds `fields.reason` + `fields.remedy` (the
+    code's `reasons` table). A missing or unreadable instance catalog is
+    NO_INSTANCE_CATALOG (exit 1) on every verb that reads it.
 
 acquire exit codes:
     0 acquired as requested (a lease is written)
-    1 no instance for that series in the catalog
-    2 usage / unknown --mode
-    3 exclusive conflict - the db is already exclusively held
-    4 port pool exhausted
-    5 addons_path worktree mismatch (pass --addons-path-override)
-    6 `ephemeral` REFUSED: the role positively LACKS CREATEDB
-    7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE
-    8 REFUSED: Odoo cannot AUTHENTICATE to the cluster (`ephemeral`+`exclusive`)
-    9 REFUSED: the cluster did not answer at all (`ephemeral`+`exclusive`)
-   10 REFUSED: no --run-id and no --allow-unowned (ownership not established)
-Every non-zero exit writes NO lease.
+    1 no instance for that series in the catalog                      NO_INSTANCE
+      / no readable catalog at all                                    NO_INSTANCE_CATALOG
+    2 usage: unknown --mode / non-integer flag / missing --series     USAGE,
+      / invalid --addons-path-override        SERIES_REQUIRED, ADDONS_PATH_OVERRIDE_INVALID
+    3 exclusive conflict - the db is already exclusively held         EXCLUSIVE_CONFLICT
+    4 port pool exhausted                                             PORT_POOL_EXHAUSTED
+    5 addons_path worktree mismatch (pass --addons-path-override)     ADDONS_PATH_WORKTREE_MISMATCH
+    6 `ephemeral` REFUSED: the role positively LACKS CREATEDB         NO_CREATEDB
+    7 `ephemeral` REFUSED: CREATEDB capability UNDETERMINABLE         CREATEDB_UNDETERMINABLE
+    8 REFUSED: Odoo cannot AUTHENTICATE to the cluster                DB_AUTH_DENIED
+    9 REFUSED: the cluster did not answer at all                      DB_UNREACHABLE
+   10 REFUSED: no --run-id and no --allow-unowned                     RUN_ID_REQUIRED
+Every non-zero exit writes NO lease (a capacity reclaim that ran before an exit
+3/4 is persisted and reported - it never drops anything).
 `--mode` accepts ONLY the four values in "Modes" above. `exclusive-running` is a
 `persist:` value - the skill/agent lifecycle vocabulary, NOT a fifth mode - and
 it maps onto `--mode ephemeral` (docs/reference/INSTANCE-ALLOCATION-MODES.md
@@ -223,11 +345,11 @@ instance to launch; it never sets, changes or upgrades the lease's mode or its
 that way in the first place (`--mode exclusive` / `shared`, both
 `drop_on_release: False`) - no later command converts a throwaway into a durable
 one.
-6 and 7 stay distinct because the remedy
-differs: 6 is fixed by granting the role CREATEDB, 7 by declaring a working
-`python` + `odoo_root` (45-venv.sh record-env), by declaring a `db_run_mode`
-client surface (the route a compose-run instance takes - it declares no
-`python` of its own), or by starting the cluster.
+6 and 7 stay distinct because the remedy differs: 6 is fixed by granting the role
+CREATEDB, 7 by declaring a working `python` + `odoo_root` (45-venv.sh
+record-env), by declaring a `db_run_mode` client surface (the route a
+compose-run instance takes - it declares no `python` of its own), or by starting
+the cluster.
 8 and 9 are checked BEFORE 6/7 and for every mode that will build: Odoo's CLI
 opens the maintenance-database connection for every `-d <name>` run before any
 module loads, so a cluster that refuses Odoo kills the build whatever the role's
@@ -257,40 +379,55 @@ import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import instances_io  # noqa: E402  (sibling lib; resolves via the path insert above)
+import session_anchor  # noqa: E402  (sibling lib; process identity + session anchor)
 
 DEFAULT_POOL_SIZE = 10
-# TTL now governs ONLY the "liveness unprovable" residual - a lease on a
-# DIFFERENT host, one that never recorded an owner pid, or one whose recorded
-# pid fingerprint could not be re-verified (see `_is_stale`). A same-host lease
-# with a VERIFIED-alive owner pid is protected forever regardless of this
-# value; it no longer needs `heartbeat` to survive at all. Reconsidered down
-# from the pre-fix 7200s (2h) to 3600s (1h): that longer number was calibrated
-# for a risk this constant no longer carries (killing a live, verified,
-# same-host process - that path is now immune to TTL by construction), so
-# holding it at the old value would only widen the orphan-leak window for
-# exactly the leases this constant still governs - the very ones we CANNOT
-# verify at all. 1h stays generous relative to every documented heartbeat
-# cadence (agents heartbeat between phases/scenarios, not between seconds), so
-# a caller that follows that convention is never caught out; it is not pushed
-# lower still because the "do not reap when unsure" bias (see `_is_stale`)
-# argues against being aggressive on the one bucket that is already the
-# hardest to get right.
-DEFAULT_TTL_S = 7200
+# After acquire's capacity reclaim STOPPED a server holding this pool, the freed
+# ports are re-picked every PORT_RETRY_INTERVAL_S for up to PORT_FREE_WAIT_S
+# before the pool is reported exhausted: a server that was just SIGTERMed/KILLed
+# can still hold its listening socket for a moment.
+PORT_FREE_WAIT_S = 5
+PORT_RETRY_INTERVAL_S = 0.25
+# PORT_POOL_EXHAUSTED's `reason` when NO lease holds a port of the pool (see
+# ERROR_CODES): the ports are busy outside the registry.
+PORTS_BUSY_OUTSIDE_REGISTRY = "ports-busy-outside-registry"
+# The registry's current schema. v3 adds `owner.session` (the session anchor),
+# `owner.via`, `owner.acquired_by`, `ttl_explicit`, and the `orphaned` /
+# `reclaiming` row markers. Readers stay lenient: a v1/v2 row simply lacks those
+# keys and is judged by the legacy arms. There is no bulk migration.
+SCHEMA_VERSION = 3
+# The TTL arm now governs ONLY a lease whose liveness cannot be proven at all -
+# UNANCHORED (no live session on record: CI, a human shell, a row written before
+# anchoring existed) AND with no verifiable owner pid - and it is consulted ONLY
+# by an explicit `gc` (scope `all`). The automatic paths (`gc --scope
+# dead-sessions`, acquire's capacity reclaim) never take it: 44 real reclaims of
+# live instances came from exactly this arm, because the runners that hold
+# pid-less build leases never heartbeat.
+# A row whose ttl_s was not set EXPLICITLY (`acquire --ttl`) is judged against
+# at least this floor, so every pre-v3 row that merely carries the old 7200
+# default gets the 24h window too; an explicit --ttl is honoured as given.
+LEGACY_UNPROVABLE_TTL_S = 24 * 3600
+DEFAULT_TTL_S = LEGACY_UNPROVABLE_TTL_S
+# How long an anchored lease whose session is PROVABLY dead is still spared by the
+# automatic paths, measured from the later of its heartbeat and its anchor's
+# `seen_at`. A session that crashed may be resumed (`claude --resume` keeps the
+# session id, which re-anchors the lease on its next touch); an explicit `gc`
+# (scope `all`) does not wait.
+ANCHOR_GRACE_S = 1800
 # reap-orphans default minimum PROVABLE age (seconds) before a lease-free
-# ephemeral-shaped DB is even proposed as a candidate. Conservative on purpose:
-# a DB that appeared moments ago (a narrow acquire-then-crash race, or a lease
-# write still in flight) must never be mistaken for an abandoned orphan just
+# ephemeral-shaped DB is even proposed as a candidate: 48h. Conservative on
+# purpose: a DB that appeared moments ago (a narrow acquire-then-crash race, or a
+# lease write still in flight) must never be mistaken for an abandoned orphan just
 # because a reap-orphans sweep happened to run at the wrong instant.
-DEFAULT_REAP_MIN_AGE_S = 24 * DEFAULT_TTL_S
+DEFAULT_REAP_MIN_AGE_S = 48 * 3600
 # How long a PARKED lease keeps its database, filestore and ports with no owner
-# process at all. This is a DISK budget, not a RAM one, and that is why it is an
-# order of magnitude looser than DEFAULT_TTL_S: `park` stops the owner's process
-# group BEFORE it clears the pid, so a parked lease costs no memory - only the
-# database and the port reservation. It is deliberately the same 24h figure as
-# DEFAULT_REAP_MIN_AGE_S above, the file's other disk-scoped budget, so the two
-# "how long may abandoned disk survive" answers do not drift apart. Overridable
-# per lease with `park --park-ttl <s>`.
-DEFAULT_PARK_TTL_S = 24 * DEFAULT_TTL_S
+# process at all: 48h. This is a DISK budget, not a RAM one: `park` stops the
+# owner's process group BEFORE it clears the pid, so a parked lease costs no
+# memory - only the database and the port reservation. It is deliberately the
+# same figure as DEFAULT_REAP_MIN_AGE_S above, the file's other disk-scoped
+# budget, so the two "how long may abandoned disk survive" answers do not drift
+# apart. Overridable per lease with `park --park-ttl <s>`.
+DEFAULT_PARK_TTL_S = DEFAULT_REAP_MIN_AGE_S
 # SSOT for the "no declared port" fallback (Odoo's own stock default). Also
 # referenced by instances_io.py's INST_HTTP_PORT fallback so both Python
 # consumers converge on one literal (P5.9 8069-fallback consolidation).
@@ -418,7 +555,7 @@ def _write_registry(reg):
     # Stamp the current schema version on every write. Readers stay lenient (a
     # missing schema_version is treated as v1), so this is explicitness for
     # test anchoring, not a load-bearing gate.
-    reg["schema_version"] = 2
+    reg["schema_version"] = SCHEMA_VERSION
     path = _registry_path()
     tmp = f"{path}.tmp.{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -435,9 +572,6 @@ def _now():
 
 def _host():
     return socket.gethostname()
-
-
-_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
 
 
 def _boot_id():
@@ -458,12 +592,11 @@ def _boot_id():
     compares only when BOTH sides have a value, so an unreadable (or
     container-shared) boot id leaves the plain TTL comparison in charge instead
     of manufacturing either a condemn or a permanent reprieve.
+
+    The read itself lives in `session_anchor.boot_id` (the SSOT the pid
+    fingerprint scheme shares); this name stays as the park arm's seam.
     """
-    try:
-        with open(_BOOT_ID_PATH, "r", encoding="utf-8") as fh:
-            return fh.read().strip() or None
-    except OSError:
-        return None
+    return session_anchor.boot_id()
 
 
 def _pid_alive(pid):
@@ -480,47 +613,97 @@ def _pid_alive(pid):
 
 def _pid_fingerprint(pid):
     """A fingerprint of the process CURRENTLY running at `pid`, good enough to
-    detect pid recycling - `ps -o lstart=` (the process's wall-clock start
-    time), portable across Linux/macOS/BSD (unlike `/proc`, which is
-    Linux-only). A bare `os.kill(pid, 0)` only proves SOME process holds this
-    pid right now; it cannot distinguish the process a lease originally
-    recorded from an unrelated one the OS later handed the same (recycled)
-    pid to. A process's start time is fixed for its whole lifetime, so
-    comparing it at check-time against the value captured when the pid was
-    first recorded is what actually proves "same process", not just "same
-    pid number".
+    detect pid recycling - delegated to `session_anchor.fingerprint` (the SSOT):
+    `proc:<boot_id>:<starttime>` on Linux, else `ps:<lstart>` measured with
+    TZ=UTC LC_ALL=C. Both are independent of the caller's timezone and locale;
+    the old bare `ps -o lstart=` string was not, so a live server fingerprinted
+    under one TZ and re-measured under another read as "recycled" and was
+    killed.
 
-    Returns None when the pid is not currently running or `ps` cannot report
-    it (missing binary, transient failure, permission) - callers MUST treat
-    None as "cannot verify", never as a match or a mismatch.
-
-    Second-granularity (not a cryptographic identity): two unrelated processes
-    that happen to start within the same wall-clock second and later collide
-    on a recycled pid would fool this check. That residual risk is accepted -
-    it is astronomically narrower than the bare-pid check it replaces, and
-    catching it would need a portable pid+start-time-plus-more source that
-    does not exist across Linux/macOS/BSD without extra dependencies.
+    Returns None when the pid is not currently running or nothing could measure
+    it - callers MUST treat None as "cannot verify", never as a match or a
+    mismatch. Comparisons go through `_fp_verdict`, never `==`: a recorded value
+    may be a LEGACY bare lstart, which only `session_anchor.fp_verdict` knows how
+    to compare safely. Recorded as `owner.pid_fp`; `owner.pid_started` keeps the
+    legacy shape for older allocators (see PID_OWNER_KEYS).
     """
-    rc, out, _ = _run(["ps", "-o", "lstart=", "-p", str(pid)])
-    if rc != 0:
-        return None
-    out = out.strip()
-    return out or None
+    return session_anchor.fingerprint(pid)
+
+
+def _fp_verdict(expected, pid):
+    """"match" | "mismatch" | "unknown" - the ONE comparison of a recorded
+    `pid_started` against the live process (see `session_anchor.fp_verdict`)."""
+    return session_anchor.fp_verdict(expected, pid)
+
+
+def _pid_legacy_fingerprint(pid):
+    """The LEGACY bare `ps -o lstart=` of `pid` in the ambient TZ/locale
+    (`session_anchor.legacy_lstart`) - the exact shape an OLDER allocator reads
+    from `owner.pid_started` and compares with `==`."""
+    return session_anchor.legacy_lstart(pid)
+
+
+# The owner keys that describe the recorded server process. They are written and
+# cleared TOGETHER (`_pid_owner_fields`), never one at a time.
+#   pid          the server pid
+#   pid_started  LEGACY bare `ps -o lstart=` (ambient TZ) - kept in exactly the
+#                shape an older allocator sharing this registry compares with
+#                `==`; writing anything else there makes that allocator read a
+#                live server as "recycled" and reap it (it drops the database of
+#                a drop_on_release lease).
+#   pid_fp       the TZ- and locale-free fingerprint (`_pid_fingerprint`) this
+#                allocator prefers
+#   pid_fp_pid   the pid `pid_fp` was measured on. An older allocator's `bind` /
+#                `resume` rewrites pid + pid_started and knows nothing of pid_fp,
+#                so a pid_fp is trusted only while pid_fp_pid == pid; otherwise
+#                the reader falls back to pid_started.
+PID_OWNER_KEYS = ("pid", "pid_started", "pid_fp", "pid_fp_pid")
 
 
 def _pid_owner_fields(pid):
-    """{'pid': int, 'pid_started': fingerprint-or-None} for recording onto a
-    lease's `owner` at the moment a stable pid is learned (acquire's
-    shared/exclusive/ephemeral paths, and `bind`). Capturing the fingerprint
-    HERE - immediately after the pid is learned, while it still names the
-    process we intend to remember - is what makes the later liveness check in
-    `_is_stale` resistant to pid recycling. {'pid': None, 'pid_started': None}
-    when `pid` is falsy (0/""/None), matching the existing "no stable pid
-    supplied" case exactly."""
+    """{pid, pid_started, pid_fp, pid_fp_pid} (see PID_OWNER_KEYS) for recording
+    onto a lease's `owner` at the moment a stable pid is learned (acquire's
+    shared/exclusive/ephemeral paths, `bind`, `resume`, the heartbeat backfill).
+    Capturing the fingerprints HERE - immediately after the pid is learned, while
+    it still names the process we intend to remember - is what makes the later
+    liveness check in `_judge` resistant to pid recycling. Every key is None when
+    `pid` is falsy (0/""/None): the "no stable pid supplied" case, and what
+    `park` writes to clear the recorded server."""
     if not pid:
-        return {"pid": None, "pid_started": None}
+        return {key: None for key in PID_OWNER_KEYS}
     pid = int(pid)
-    return {"pid": pid, "pid_started": _pid_fingerprint(pid)}
+    fingerprint = _pid_fingerprint(pid)
+    return {
+        "pid": pid,
+        # None (never "") when unmeasurable: an older allocator compares a
+        # non-None value with `==`, so an empty string would read as "recycled".
+        "pid_started": _pid_legacy_fingerprint(pid) or None,
+        "pid_fp": fingerprint,
+        "pid_fp_pid": pid if fingerprint else None,
+    }
+
+
+def _recorded_fingerprint(owner, pid):
+    """(fingerprint, key) - the fingerprint recorded for the process at `pid`,
+    and the owner key it was read from; (None, None) when none is recorded.
+
+    `owner.pid_fp` wins while it was measured on this same pid (`pid_fp_pid`);
+    otherwise `owner.pid_started` (legacy bare lstart, or a scheme-prefixed value
+    an earlier build of this allocator wrote there) - `_fp_verdict` compares
+    either shape safely."""
+    owner = owner or {}
+    fp = owner.get("pid_fp")
+    if fp:
+        try:
+            same_pid = int(owner.get("pid_fp_pid")) == int(pid)
+        except (TypeError, ValueError):
+            same_pid = False
+        if same_pid:
+            return fp, "owner.pid_fp"
+    legacy = owner.get("pid_started")
+    if legacy:
+        return legacy, "owner.pid_started"
+    return None, None
 
 
 # --------------------------------------------------------------------------- #
@@ -534,12 +717,13 @@ def _pid_owner_fields(pid):
 # it then and nothing gets "cleaned up": a bystander is killed, and because the
 # signal goes to the GROUP it takes that bystander's whole session with it.
 #
-# `owner.pid_started` (see `_pid_owner_fields`) settles the question whenever it
-# is present AND re-measurable. Two populations are left over:
-#   (a) rows written before that field existed - `leases.json` is at
-#       schema_version 2 and readers stay deliberately lenient, so a row
-#       carrying `pid` and no `pid_started` is a legal, expected shape, not a
-#       corrupt one;
+# A recorded fingerprint (`owner.pid_fp`, else `owner.pid_started` - see
+# `_recorded_fingerprint`) settles the question whenever it is present AND
+# re-measurable. Two populations are left over:
+#   (a) rows written before any fingerprint existed - readers of `leases.json`
+#       stay deliberately lenient across SCHEMA_VERSION bumps (there is no bulk
+#       migration), so a row carrying `pid` and no fingerprint is a legal,
+#       expected shape, not a corrupt one;
 #   (b) rows whose fingerprint cannot be re-measured this second (a `ps` that is
 #       missing, slow, or refused).
 # Neither may be signalled on the strength of "the pid is alive": that is the
@@ -870,25 +1054,26 @@ def _ownership_proof(lease, pid):
     """
     owner = lease.get("owner", {}) or {}
     db_name = lease.get("db_name", "") or ""
-    expected_fp = owner.get("pid_started")
+    expected_fp, fp_key = _recorded_fingerprint(owner, pid)
     if expected_fp is not None:
-        current_fp = _pid_fingerprint(pid)
-        if current_fp is not None:
-            if current_fp == expected_fp:
-                return "fingerprint", (
-                    "the process holding that pid still reports the start time recorded "
-                    "on the lease (owner.pid_started), so it is the very process the "
-                    "lease named"
-                )
+        verdict = _fp_verdict(expected_fp, pid)
+        if verdict == session_anchor.VERDICT_MATCH:
+            return "fingerprint", (
+                "the process holding that pid still reports the start time recorded "
+                f"on the lease ({fp_key}), so it is the very process the "
+                "lease named"
+            )
+        if verdict == session_anchor.VERDICT_MISMATCH:
             return None, (
                 "the process holding that pid reports a DIFFERENT start time than the "
-                "lease recorded (owner.pid_started), which proves the pid was recycled "
+                f"lease recorded ({fp_key}), which proves the pid was recycled "
                 "onto an unrelated process - this lease's own server already exited"
             )
         unprovable = (
-            "the lease's owner.pid_started fingerprint could not be re-measured just "
-            "now (`ps` gave no answer), so the pid cannot be matched to the recorded "
-            "process"
+            f"the lease's {fp_key} fingerprint could not be matched just now "
+            "(not re-measurable, or a legacy timezone-dependent value that matches "
+            "neither the local timezone nor UTC), so the pid cannot be tied to the "
+            "recorded process"
         )
     else:
         unprovable = (
@@ -961,18 +1146,18 @@ def _backfill_pid_fingerprint(lease):
     backfill is the same bug wearing a helpful face. Fingerprinting whatever
     process happens to hold the pid would stamp a RECYCLED bystander's start
     time onto the lease, turning an honestly-unprovable row into a wrongly-
-    PROVEN one - and every later check, including `_is_stale`'s protect arm and
+    PROVEN one - and every later check, including `_judge`'s protect arm and
     the signal path, would then trust it. Stamping only a corroborated pid means
     the value recorded is the leased server's own, which is what makes the cheap
     fingerprint check usable on that row from then on and shrinks the unprovable
     population instead of letting it persist forever.
 
     Consequence worth naming: a row that gains a fingerprint also gains
-    `_is_stale`'s TTL immunity while that process lives - which is correct, and
+    `_judge`'s TTL immunity while that process lives - which is correct, and
     exactly the protection an `acquire --pid`/`bind` row has had all along.
     """
     owner = lease.get("owner") or {}
-    if owner.get("pid_started") is not None or owner.get("host") != _host():
+    if owner.get("host") != _host():
         return False
     pid = owner.get("pid")
     if pid is None:
@@ -983,13 +1168,29 @@ def _backfill_pid_fingerprint(lease):
         return False
     if not _pid_alive(pid):
         return False
+    recorded, _key = _recorded_fingerprint(owner, pid)
+    if recorded is not None:
+        # A present fingerprint is judged by `_fp_verdict` where it is used and is
+        # never overwritten on corroboration alone. The one rewrite: a
+        # scheme-prefixed value an earlier build wrote into `pid_started`, which an
+        # older allocator compares with `==` and reads as "recycled". A MATCH is
+        # the proof that it names this very process, so it moves to `pid_fp` and
+        # `pid_started` gets the legacy shape back.
+        if (not owner.get("pid_fp") and str(recorded).startswith(
+                (session_anchor.SCHEME_PROC, session_anchor.SCHEME_PS))
+                and _fp_verdict(recorded, pid) == session_anchor.VERDICT_MATCH):
+            owner["pid_fp"], owner["pid_fp_pid"] = recorded, pid
+            owner["pid_started"] = _pid_legacy_fingerprint(pid) or None
+            lease["owner"] = owner
+            return True
+        return False
     proof, detail = _ownership_proof(lease, pid)
     if proof is None:
         return False
-    fingerprint = _pid_fingerprint(pid)
-    if not fingerprint:
+    fields = _pid_owner_fields(pid)
+    if not (fields["pid_fp"] or fields["pid_started"]):
         return False
-    owner["pid_started"] = fingerprint
+    owner.update(fields)
     lease["owner"] = owner
     sys.stderr.write(
         "allocator: recorded the missing owner.pid_started fingerprint for pid {pid} on "
@@ -1050,7 +1251,7 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
 
     Three gates, in order, each of them a fact about the pid rather than a
     default:
-      1. SAME HOST - mirrors `_is_stale`'s `owner.host` check. A pid integer
+      1. SAME HOST - mirrors `_judge`'s `owner.host` check. A pid integer
          recorded on another host names an unrelated LOCAL process here.
       2. ALIVE - a dead pid has nothing to stop (silent: it is the trivially
          safe no-op, not a decision anyone needs to audit).
@@ -1067,7 +1268,7 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
     same channel every other refusal in this file uses - so an un-reclaimed
     process is a REPORTED leak rather than a mystery, and it can be finished by
     hand. Reclamation of the lease ROW is the caller's business and is
-    deliberately unaffected: `_gc` still reclaims and still drops, so refusing
+    deliberately unaffected: `gc` still reclaims and still drops, so refusing
     to signal leaks at most a process, never a lease or a database.
     """
     owner = lease.get("owner", {})
@@ -1105,11 +1306,20 @@ def _stop_owner_group_if_local(lease, timeout_s=10):
 
 
 def _port_bindable(port):
-    """True if `port` can be bound right now (free on this host)."""
+    """True if an Odoo server could bind `port` right now.
+
+    Probed the way Odoo's own HTTP server binds (SO_REUSEADDR, bind, listen), not
+    with a plain bind(): a port whose last connection is in TIME_WAIT - every port
+    that just served HTTP, for ~60s after its server stopped - refuses a plain
+    bind() but is perfectly usable by Odoo, so a plain probe made a freshly
+    reclaimed pool look exhausted. A port some process is LISTENING on still
+    refuses (SO_REUSEADDR does not allow two listeners)."""
     for family, addr in ((socket.AF_INET, ("", port)),):
         s = socket.socket(family, socket.SOCK_STREAM)
         try:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind(addr)
+            s.listen(1)
         except OSError:
             return False
         finally:
@@ -1118,11 +1328,25 @@ def _port_bindable(port):
 
 
 def _ports_in_use(reg):
+    """Every port any registry row reserves - INCLUDING a row marked
+    `reclaiming`, whose server may still be stopping while gc/release/acquire
+    works on it outside the lock (an orphaned row has already given its ports
+    back)."""
     used = set()
     for lease in reg["leases"]:
-        for p in lease.get("ports", []):
-            used.add(int(p))
+        for p in lease.get("ports", []) or []:
+            try:
+                used.add(int(p))
+            except (TypeError, ValueError):
+                continue
     return used
+
+
+def _port_in_pool(port, base, size):
+    try:
+        return base <= int(port) < base + size
+    except (TypeError, ValueError):
+        return False
 
 
 def _pick_ports(reg, base, size, n, reserved=()):
@@ -1288,6 +1512,11 @@ class _ConnBlocked(object):
     @property
     def exit_code(self):
         return EXIT_AUTH_DENIED if self.state == "denied" else EXIT_UNREACHABLE
+
+
+def _conn_blocked_code(blocked):
+    """The named failure code (ERROR_CODES) of a `_ConnBlocked` verdict."""
+    return "DB_AUTH_DENIED" if blocked.state == "denied" else "DB_UNREACHABLE"
 
 
 def _can_createdb_via_python(inst, host, user, port):
@@ -1867,56 +2096,201 @@ def _drop_through_odoo(lease, instances_path=None):
 
 
 # --------------------------------------------------------------------------- #
+# Session anchor + the owner block every lease row carries
+#
+# A lease is ANCHORED to the long-lived agent process of the session that
+# acquired it (see scripts/lib/session_anchor.py for how the anchor is found and
+# fingerprinted). While that process lives, the lease is protected - whatever
+# its server pid and whatever its TTL - because a session that is still running
+# is, by definition, a session whose work is still in progress. That single
+# fact replaces the heartbeat discipline no runner ever followed: pid-less build
+# leases (`--stop-after-init`), docker-run instances and servers restarted
+# without a re-bind all used to live on a TTL nobody refreshed.
+# --------------------------------------------------------------------------- #
+VIA_ENV = "ODOO_AI_VIA"
+CALLER_AGENT_ID_ENV = "ODOO_AI_CALLER_AGENT_ID"
+CALLER_AGENT_TYPE_ENV = "ODOO_AI_CALLER_AGENT_TYPE"
+
+_ANCHOR_CACHE = {}
+
+
+def _caller_anchor():
+    """This process's session anchor (`session_anchor.discover_anchor`), memoised
+    per value of the three env vars that decide it, so one command resolves it
+    once while an in-process caller that changes its env still gets a fresh
+    answer."""
+    key = tuple(os.environ.get(name, "") for name in (
+        session_anchor.ANCHOR_ENV, session_anchor.CLAUDE_PID_ENV,
+        session_anchor.SESSION_ID_ENV))
+    if key not in _ANCHOR_CACHE:
+        _ANCHOR_CACHE[key] = session_anchor.discover_anchor()
+    return _ANCHOR_CACHE[key]
+
+
+def _caller_session_id():
+    return os.environ.get(session_anchor.SESSION_ID_ENV, "") or ""
+
+
+def _session_block(anchor, now):
+    return {
+        "pid": anchor.get("pid"),
+        "started": anchor.get("started"),
+        "session_id": anchor.get("session_id", "") or "",
+        "source": anchor.get("source", "") or "",
+        "seen_at": now,
+    }
+
+
+def _owner_block(run_id="", pid=None, base=None, now=None):
+    """The `owner` object of a lease row - the ONE constructor, shared by acquire
+    (every mode), bind and resume, so no path writes a differently-shaped owner.
+
+    With no `base` it mints a fresh owner: host, run_id, started_at, the server
+    pid + its fingerprint, `via` ("mcp" when ODOO_AI_VIA=mcp, else "cli"),
+    `acquired_by` {agent_id, agent_type} when ODOO_AI_CALLER_AGENT_ID/_TYPE are
+    set, and `session` (the caller's anchor + seen_at) when the caller has one.
+    With a `base` (bind/resume) it keeps the acquisition identity - host, run_id,
+    started_at, acquired_by - and refreshes the pid, `via` and, when the caller
+    is anchored, `session`: the process that launched the server is the one whose
+    liveness now matters. An unanchored caller never ERASES a recorded anchor."""
+    now = _now() if now is None else now
+    if base is None:
+        owner = {"host": _host(), "run_id": run_id, "started_at": now}
+        agent_id = os.environ.get(CALLER_AGENT_ID_ENV, "")
+        agent_type = os.environ.get(CALLER_AGENT_TYPE_ENV, "")
+        if agent_id or agent_type:
+            owner["acquired_by"] = {"agent_id": agent_id, "agent_type": agent_type}
+    else:
+        owner = dict(base)
+    if pid or base is None:
+        owner.update(_pid_owner_fields(pid))
+    if pid:
+        owner.pop(SERVER_GONE_KEY, None)
+    owner["via"] = "mcp" if os.environ.get(VIA_ENV, "") == "mcp" else "cli"
+    anchor = _caller_anchor()
+    if anchor:
+        owner["session"] = _session_block(anchor, now)
+    return owner
+
+
+def _is_callers_session(session):
+    """True when the recorded anchor belongs to the CALLER's session: the same
+    anchor process, or - after `claude --resume`, which starts a new process
+    under the same session id - the same non-empty session id."""
+    if not session:
+        return False
+    if session_anchor.same_anchor(session, _caller_anchor()):
+        return True
+    sid = _caller_session_id()
+    return bool(sid) and session.get("session_id") == sid
+
+
+def _touch_session(lease, now=None):
+    """Re-anchor `lease` onto the caller's anchor when the lease belongs to the
+    caller's session (see `_is_callers_session`) and the caller has an anchor;
+    mutates in place and returns True when it did. The caller owns the write."""
+    owner = lease.get("owner") or {}
+    session = owner.get("session")
+    anchor = _caller_anchor()
+    if not anchor or not _is_callers_session(session):
+        return False
+    owner["session"] = _session_block(anchor, _now() if now is None else now)
+    lease["owner"] = owner
+    return True
+
+
+# --------------------------------------------------------------------------- #
 # GC
 #
-# Reclaiming is DESTRUCTIVE and mostly IMPLICIT. For every condemned lease `_gc`
-# stops the owner's process GROUP and DROPS the database, then removes the row -
-# and the registry was the only place those coordinates existed. `gc` (the verb a
-# human deliberately types) reported what it took; the two `acquire` passes -
-# called by every build, every test run, every subagent dispatch - ran the same
-# destruction as a side effect and said NOTHING. That asymmetry is backwards, and
-# it is worse than a plain data loss: the victim does not see "something reclaimed
-# my lease", it sees a suite that suddenly cannot connect or a setUpClass failing
-# on a database the previous command created successfully. The natural inference
-# is a regression in the code under test, so an unattributable deletion does not
-# merely lose data - it MANUFACTURES A FALSE HYPOTHESIS and sends the debugging
-# somewhere else entirely. Reclamation is also cross-tenant by construction (`_gc`
-# walks the whole shared registry), so one run's `acquire` destroys another run's
-# state, and neither side could learn what happened.
+# Reclaiming is DESTRUCTIVE: for every condemned lease `gc` stops the owner's
+# process GROUP and DROPS the database, then removes the row - and the registry
+# was the only place those coordinates existed. It used to be IMPLICIT too:
+# `acquire` ran the same sweep over the whole machine-global registry as a side
+# effect, so one run's acquire destroyed another run's live instance (113 of 134
+# real reclaims happened inside an acquire). `acquire` no longer sweeps. The only
+# destruction an acquire can perform is the narrow CAPACITY reclaim (see
+# `_capacity_reclaim`): when it cannot otherwise be served, it stops the servers
+# of leases whose owner is PROVABLY gone and frees their ports - it never drops a
+# database and never deletes an ephemeral row.
 #
-# So every reclamation now leaves a RECORD, and `_gc` itself emits it (rather than
-# each call site being trusted to) - a future fourth call site cannot reintroduce
-# the silence, and `verb` is a REQUIRED argument so it cannot be added without
-# saying whose output the record belongs to. Two channels, both outliving the
-# registry row:
-#   - one line per reclaimed lease on STDERR, the same channel every other
-#     refusal in this file uses. NEVER stdout: `cmd_acquire`'s stdout is a
-#     PROTOCOL (`eval $(allocator.py acquire ...)`), so a prose line interleaved
-#     there would be executed by the caller's shell.
-#   - the same record appended to the evidence log (see RECLAIM_LOG_BASENAME),
+# Every reclamation still leaves a RECORD, emitted by the reclaiming code itself
+# (never trusted to each call site), on two channels that outlive the row:
+#   - one line per reclaimed lease on STDERR. NEVER stdout: `cmd_acquire`'s
+#     stdout is a PROTOCOL (`eval $(allocator.py acquire ...)`), so a prose line
+#     interleaved there would be executed by the caller's shell.
+#   - the same record appended to the evidence log (RECLAIM_LOG_BASENAME),
 #     because a subagent's stderr is frequently not what the human ends up
 #     reading.
+#
+# `gc`, `release` and acquire's capacity reclaim are TWO-PHASE so the registry
+# lock is never held while a server is stopped (up to ~10s per group) or a
+# database is dropped (minutes) - every acquire/release/park/list on the machine
+# waits on that lock: phase A marks the targets `reclaiming` under the lock
+# (`_mark_reclaiming`), phase B stops (+ drops) outside it (`_stop_and_drop`,
+# `_capacity_reclaim`), phase C deletes the finished rows, clears the marker of
+# a failed one, or frees an orphan's ports, under the lock again
+# (`_settle_marked`). A `reclaiming` row keeps its ports reserved until phase C,
+# so no acquire can be handed a port a server that is still being stopped is
+# listening on; park/resume/adopt/release refuse it (RECLAIM_IN_PROGRESS) and
+# gc skips it while its marker's process lives.
 # --------------------------------------------------------------------------- #
 
 # Condemn-reason vocabulary - the SSOT for WHY a lease was condemned: exactly one
-# string per condemn arm of `_condemn_reason` below, and the only values that ever
-# reach a notice, the evidence log, or an operator's grep. The reason is the part
-# of the record that CANNOT be reconstructed after the fact: a lease's token, db
-# and ports can still be recovered from the caller's earlier ALLOC_* block, but
-# once the row is gone nothing on the machine remembers which arm judged it.
+# string per condemn arm of `_judge` below, and the only values that ever reach a
+# notice, the evidence log, or an operator's grep. The reason is the part of the
+# record that CANNOT be reconstructed after the fact.
+CONDEMN_SESSION_ENDED = "owner-session-ended"
 CONDEMN_PID_DEAD = "owner-pid-dead"
 CONDEMN_PID_RECYCLED = "owner-pid-recycled"
 CONDEMN_TTL_UNPROVABLE = "ttl-expired-liveness-unprovable"
 CONDEMN_PARK_EXPIRED = "park-budget-expired"
 CONDEMN_REASONS = (
-    CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED, CONDEMN_TTL_UNPROVABLE, CONDEMN_PARK_EXPIRED,
+    CONDEMN_SESSION_ENDED, CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED,
+    CONDEMN_TTL_UNPROVABLE, CONDEMN_PARK_EXPIRED,
 )
+# The only reasons the automatic CAPACITY reclaim may act on: the owner is
+# PROVABLY gone (its session ended, or its server pid is dead / recycled). A TTL
+# expiry is an absence of evidence, and a park budget is not acquire's business.
+CAPACITY_REASONS = (CONDEMN_SESSION_ENDED, CONDEMN_PID_DEAD, CONDEMN_PID_RECYCLED)
+
+# `protected_by` vocabulary of `_verdict` (what, if anything, keeps a lease).
+PROTECTED_BY_SESSION = "session"
+PROTECTED_BY_SERVER_PID = "server-pid"
+PROTECTED_BY_PARK = "park"
+PROTECTED_BY_TTL = "ttl"
+PROTECTED_BY_NONE = "none"
+
+# `state` vocabulary of `_verdict`.
+STATE_RUNNING = "running"
+STATE_RESERVED = "reserved"
+STATE_PARKED = "parked"
+STATE_ORPHANED = "orphaned"
+STATE_RECLAIMING = "reclaiming"
+
+# `gc --scope` vocabulary.
+GC_SCOPE_ALL = "all"
+GC_SCOPE_DEAD_SESSIONS = "dead-sessions"
+GC_SCOPE_ANCHOR = "anchor"
+GC_SCOPES = (GC_SCOPE_ALL, GC_SCOPE_DEAD_SESSIONS, GC_SCOPE_ANCHOR)
+
+# What gc does to a target (`_gc_action`): reclaim it (stop, drop, delete), or
+# return a lease resumed out of a deliberate park to that park.
+GC_ACTION_RECLAIM = "reclaim"
+GC_ACTION_PARK = "park"
+
+# `by_verb` of a capacity reclaim's record - distinct from "acquire" on purpose:
+# a record with by_verb=acquire would mean the old implicit sweep came back.
+CAPACITY_VERB = "acquire-capacity"
+
+# A `reclaiming` marker whose owner cannot be probed (another host) is honoured
+# for this long, then treated as abandoned.
+RECLAIM_MARKER_OFFHOST_S = 3600
 
 # The evidence log, appended under `$ODOO_AI_HOME/logs/` (Tier-1: machine-global
 # flat, exactly like the registry it outlives - see snippets/state-root-resolution.md).
 # JSONL so a consumer parses it without a format of its own, and append-only so
 # concurrent allocators cannot lose each other's lines (one short line per O_APPEND
-# write, and `_gc` holds the registry flock anyway).
+# write).
 #
 # ITS NAME IS DELIBERATELY OUTSIDE the run-artifact globs `prune_stale_run_artifacts`
 # (`scripts/lib/state_reclaim.sh`) sweeps - `*.log`, `*.findings.md`, `*.conf` - so
@@ -1924,10 +2298,8 @@ CONDEMN_REASONS = (
 # mtime-plus-lease-reachability policy is right for a per-run build log, and
 # precisely wrong here: this file is the ONLY surviving evidence that a database
 # was destroyed, so an mtime bound would delete exactly the record needed to
-# explain a deletion older than the bound - an evidence log that deletes itself
-# defeats its own purpose. Nothing else reclaims it either, which is affordable
-# because it grows ONLY when something was actually destroyed (one line per
-# reclaimed lease, a few hundred bytes), never per acquire.
+# explain a deletion older than the bound. Nothing else reclaims it either, which
+# is affordable because it grows ONLY when something was actually reclaimed.
 RECLAIM_LOG_BASENAME = "allocator-reclaimed.jsonl"
 
 # The record's fields, in the order the stderr notice prints them: identity first
@@ -1936,130 +2308,287 @@ RECLAIM_LOG_BASENAME = "allocator-reclaimed.jsonl"
 # themselves in the same line.
 _RECLAIM_NOTICE_FIELDS = (
     "token", "run_id", "db_name", "mode", "series", "owner_pid", "owner_host",
-    "reason", "dropped_db", "by_verb", "by_pid", "by_run_id", "at_utc",
+    "reason", "action", "dropped_db", "by_verb", "by_pid", "by_run_id", "at_utc",
 )
 
 
-def _condemn_reason(lease):
-    """The ARM that condemns `lease`, or None when the lease is protected.
+def _ttl_threshold(lease):
+    """The TTL arm's bound for `lease`: its own ttl_s when that was set
+    EXPLICITLY (`acquire --ttl`), else at least LEGACY_UNPROVABLE_TTL_S."""
+    try:
+        ttl = int(lease.get("ttl_s", DEFAULT_TTL_S))
+    except (TypeError, ValueError):
+        ttl = DEFAULT_TTL_S
+    if lease.get("ttl_explicit"):
+        return ttl
+    return max(ttl, LEGACY_UNPROVABLE_TTL_S)
 
-    Liveness is AUTHORITATIVE, not merely a condemn-only signal.
 
-    Direction matters (state it explicitly so a future edit does not invert
-    it): for reaping, the safe default is to NOT reap when unsure - an
-    un-reaped orphan only costs RAM, but a wrongly-reaped lease kills a live
-    server and destroys the owner's in-progress work. So:
-      - A PARKED lease (`parked_at` present) is judged FIRST, by its own
-        budget, and by nothing else. Park CLEARS the owner pid on purpose after
-        stopping that process group, so every pid arm below would read the row
-        as "no pid recorded" and hand it straight to TTL - reclaiming a
-        deliberately suspended instance, and dropping its database, for the
-        very act of suspending it. `resume` DELETES `parked_at`, which is what
-        returns a resumed lease to the pid arms below (and to the SubagentStop
-        teardown gate) rather than leaving it governed by a park budget for the
-        rest of its life.
-      - A DEAD pid on THIS host is an unambiguous, TTL-independent condemn:
-        the recorded owner is provably gone: reclaim now (RAM matters, and
-        there is nothing left to protect).
-      - A LIVE pid on THIS host PROTECTS the lease - but only when we can
-        prove it is the SAME process the lease recorded, not a pid-recycled
-        impostor (pids are reused; a bare `os.kill(pid, 0)` cannot tell the
-        two apart). Proof is the `pid_started` fingerprint captured at
-        record time (see `_pid_owner_fields`/`_pid_fingerprint`): if it
-        still matches, the lease is protected REGARDLESS of TTL - a
-        long-running, healthy process is never reaped just because nobody
-        called `heartbeat`. If it POSITIVELY mismatches (the pid was
-        recycled onto a different process), the recorded owner is exactly as
-        gone as a dead pid: condemn now, same as the dead-pid arm.
-      - Every case where liveness cannot be proven - a DIFFERENT host (the
-        pid integer is meaningless off-host), no pid ever recorded, or a
-        fingerprint that could not be re-measured just now (a `ps` hiccup,
-        not a proven mismatch) - falls through to the TTL/heartbeat check,
-        exactly as before this fix. TTL is now scoped to precisely this
-        residual "cannot verify" case; see DEFAULT_TTL_S for why its value
-        was reconsidered under that narrower scope.
+def _last_touch(lease):
+    """The latest moment anything vouched for this lease: its heartbeat or its
+    anchor's `seen_at` (falling back to when it was acquired)."""
+    owner = lease.get("owner") or {}
+    session = owner.get("session") or {}
+    stamps = [lease.get("heartbeat_at"), session.get("seen_at"), owner.get("started_at")]
+    values = []
+    for stamp in stamps:
+        try:
+            values.append(int(stamp))
+        except (TypeError, ValueError):
+            continue
+    return max(values) if values else 0
 
-    Each condemn arm returns its OWN reason from CONDEMN_REASONS rather than a
-    bare True, because that verdict is the one fact about a reclaimed lease that
-    no later reader can re-derive - the row, the process and the database are all
-    gone by the time anyone asks. `_is_stale` is the boolean face of this
-    function for the callers that only need the predicate.
+
+def _judge(lease, auto=False):
+    """(reason, protected_by, anchor_state) - the ONE liveness judgment.
+
+    `reason` is the ARM that condemns `lease` (a CONDEMN_REASONS value) or None
+    when it is protected. `auto` selects the AUTOMATIC semantics (`gc --scope
+    dead-sessions`, acquire's capacity reclaim): no TTL arm, and a grace window
+    after a session ends. `anchor_state` is "alive" | "dead" | "unknown", or None
+    for an unanchored row.
+
+    Order, and why each rung sits where it does - for reaping, the safe default
+    is to NOT reap when unsure: an un-reaped orphan costs RAM, a wrongly-reaped
+    lease kills a live server and destroys work in progress.
+      1. PARKED (`parked_at` present): judged by its own budget and nothing else.
+         Park clears the owner pid on purpose, so every pid arm below would read
+         it as "no pid" and hand it to the TTL arm - reclaiming a deliberately
+         suspended instance for the act of suspending it. A reboot while parked
+         does not consume the budget (`parked_boot_id`).
+      2. ANCHORED on this host (not `shared` - a shared render server is
+         cross-session by design and is judged by its server pid alone):
+           alive -> PROTECTED, whatever the server pid and the TTL say.
+           dead  -> the caller's own session (a resumed session: same session id)
+                    re-anchors it and protects it; otherwise
+                    CONDEMN_SESSION_ENDED - under `auto` only once
+                    ANCHOR_GRACE_S has passed since its last touch.
+           unknown -> fall through: the anchor could not be proven either way.
+      3. LEGACY / UNANCHORED:
+           a dead server pid on this host   -> CONDEMN_PID_DEAD
+           its fingerprint proves recycling -> CONDEMN_PID_RECYCLED
+           its fingerprint matches          -> PROTECTED
+           otherwise liveness is UNPROVABLE -> the TTL arm, bounded by
+           `_ttl_threshold`, and NEVER under `auto`.
     """
     parked_at = lease.get("parked_at")
     if parked_at is not None:
-        # FIRST arm, before the host/pid block, and the position is load-bearing
-        # twice over. (a) A parked lease is pid-less by construction, so without
-        # this early return control would fall through to the TTL comparison and
-        # condemn every parked lease the moment its ORDINARY ttl_s lapsed.
-        # (b) Keeping it ahead of - rather than inside - the host/pid block is
-        # what leaves that block's behavior untouched for every NON-parked
-        # pid-less lease, which is the shape
-        # `test_is_stale_unprovable_liveness_still_governed_by_ttl` pins.
         recorded_boot = lease.get("parked_boot_id")
         current_boot = _boot_id()
         if recorded_boot and current_boot and recorded_boot != current_boot:
-            # The host rebooted while this lease was parked, so the park budget
-            # was never CONSUMED - it only elapsed on a machine that was off.
-            # Treat it as not started: protect the row and let `resume`
-            # re-stamp the current boot id. Comparing only when BOTH sides have
-            # a value is deliberate - an absent or unreadable boot id (not
-            # Linux, or a container reporting the host's) degrades to the plain
-            # budget comparison below, never to a condemn on ambiguity and
-            # never to a permanent reprieve.
-            return None
-        if _now() - parked_at > int(lease.get("park_ttl_s", DEFAULT_PARK_TTL_S)):
-            return CONDEMN_PARK_EXPIRED
-        return None
-    owner = lease.get("owner", {})
-    if owner.get("host") == _host():
-        pid = owner.get("pid")
+            # The host rebooted while parked, so the budget was never CONSUMED -
+            # it only elapsed on a machine that was off. Comparing only when BOTH
+            # sides have a value is deliberate: an unreadable boot id degrades to
+            # the plain budget comparison, never to a condemn on ambiguity.
+            return None, PROTECTED_BY_PARK, None
+        try:
+            budget = int(lease.get("park_ttl_s", DEFAULT_PARK_TTL_S))
+        except (TypeError, ValueError):
+            budget = DEFAULT_PARK_TTL_S
+        if _now() - int(parked_at) > budget:
+            return CONDEMN_PARK_EXPIRED, PROTECTED_BY_NONE, None
+        return None, PROTECTED_BY_PARK, None
+
+    owner = lease.get("owner") or {}
+    here = _host()
+    anchor_state = None
+    session = owner.get("session")
+    if session and lease.get("mode") != "shared":
+        anchor_state = session_anchor.anchor_state(session, owner.get("host"), here)
+        if anchor_state == session_anchor.STATE_ALIVE:
+            return None, PROTECTED_BY_SESSION, anchor_state
+        if anchor_state == session_anchor.STATE_DEAD:
+            if _is_callers_session(session):
+                # A resumed session (new process, same session id) or this very
+                # session: re-anchor in memory; a caller holding the lock persists it.
+                _touch_session(lease)
+                return None, PROTECTED_BY_SESSION, anchor_state
+            if auto and _now() - _last_touch(lease) <= ANCHOR_GRACE_S:
+                return None, PROTECTED_BY_SESSION, anchor_state
+            return CONDEMN_SESSION_ENDED, PROTECTED_BY_NONE, anchor_state
+
+    if owner.get("host") == here and owner.get("pid") is not None:
+        try:
+            pid = int(owner.get("pid"))
+        except (TypeError, ValueError):
+            pid = None
         if pid is not None:
-            pid = int(pid)
             if not _pid_alive(pid):
-                # condemn arm: unambiguous, no fingerprint needed
-                return CONDEMN_PID_DEAD
-            expected_fp = owner.get("pid_started")
-            if expected_fp is not None:
-                current_fp = _pid_fingerprint(pid)
-                if current_fp is not None:
-                    if current_fp == expected_fp:
-                        return None  # PROVEN alive: protected, TTL not consulted
-                    # PROVEN recycled: owner is as gone as a dead pid
-                    return CONDEMN_PID_RECYCLED
-                # current_fp is None: could not re-measure right now - not a
-                # proven mismatch, so do not condemn on ambiguity; fall through.
-            # else: no fingerprint was ever recorded for this lease (an older
-            # allocator, or `ps` was unavailable at record time) - liveness is
-            # UNPROVABLE here; fall through to TTL, same as a different host.
-    ttl = lease.get("ttl_s", DEFAULT_TTL_S)
-    if _now() - lease.get("heartbeat_at", lease.get("owner", {}).get("started_at", 0)) > ttl:
-        return CONDEMN_TTL_UNPROVABLE
-    return None
+                return CONDEMN_PID_DEAD, PROTECTED_BY_NONE, anchor_state
+            expected, _key = _recorded_fingerprint(owner, pid)
+            verdict = _fp_verdict(expected, pid) if expected is not None \
+                else session_anchor.VERDICT_UNKNOWN
+            if verdict == session_anchor.VERDICT_MATCH:
+                return None, PROTECTED_BY_SERVER_PID, anchor_state
+            if verdict == session_anchor.VERDICT_MISMATCH:
+                return CONDEMN_PID_RECYCLED, PROTECTED_BY_NONE, anchor_state
+            # unknown: not a proven mismatch - never condemn on ambiguity.
+
+    if auto:
+        return None, PROTECTED_BY_NONE, anchor_state
+    if _now() - _last_touch(lease) > _ttl_threshold(lease):
+        return CONDEMN_TTL_UNPROVABLE, PROTECTED_BY_NONE, anchor_state
+    return None, PROTECTED_BY_TTL, anchor_state
+
+
+def _condemn_reason(lease, *, auto=False):
+    """The ARM that condemns `lease` (a CONDEMN_REASONS value), or None when it
+    is protected. See `_judge` for the order of the arms and what `auto` means."""
+    return _judge(lease, auto=auto)[0]
 
 
 def _is_stale(lease):
-    """Boolean face of `_condemn_reason` - true when SOME arm condemns the lease.
-
-    Kept as its own name because most callers (`cmd_query`, `cmd_assert_droppable`)
-    only ask the yes/no question; only the reclaiming path needs to know WHICH arm
-    answered. One predicate, one implementation: a second copy of this judgment is
-    how the shell half and the python half drift apart.
-    """
+    """Boolean face of `_condemn_reason` (manual semantics) - true when SOME arm
+    condemns the lease. Kept as its own name because most callers (`cmd_query`,
+    `cmd_assert_droppable`) only ask the yes/no question. One predicate, one
+    implementation."""
     return _condemn_reason(lease) is not None
 
 
-def _reclaim_record(lease, reason, verb, run_id=""):
+def _reclaim_in_progress(lease):
+    """True while another live process holds this row's `reclaiming` marker. A
+    marker left by a process that died mid-reclaim (gc, release or an acquire's
+    capacity reclaim) is ignored, so the row is retaken by the next gc/release
+    instead of being stuck forever."""
+    mark = lease.get("reclaiming")
+    if not isinstance(mark, dict):
+        return False
+    if mark.get("host") and mark.get("host") != _host():
+        try:
+            return _now() - int(mark.get("at", 0)) < RECLAIM_MARKER_OFFHOST_S
+        except (TypeError, ValueError):
+            return False
+    try:
+        return _pid_alive(int(mark.get("by_pid")))
+    except (TypeError, ValueError):
+        return False
+
+
+def _lease_state(lease):
+    if _reclaim_in_progress(lease):
+        return STATE_RECLAIMING
+    if lease.get("parked_at") is not None:
+        return STATE_PARKED
+    if lease.get("orphaned"):
+        return STATE_ORPHANED
+    if (lease.get("owner") or {}).get("pid") is not None:
+        return STATE_RUNNING
+    return STATE_RESERVED
+
+
+def _verdict(lease):
+    """The SSOT answer to "what is this lease, and would anything reclaim it?" -
+    consumed by `list --with-verdict` (the teardown hook, the MCP server) so no
+    consumer re-derives liveness.
+
+    {state, protected_by, condemn, condemn_auto, anchor_state, anchor_alive}:
+    `condemn` is the explicit-`gc` verdict, `condemn_auto` the automatic one
+    (dead-sessions / capacity), `anchor_alive` None for an unanchored row."""
+    reason, protected_by, anchor_state = _judge(lease, auto=False)
+    auto_reason = _judge(lease, auto=True)[0]
+    return {
+        "state": _lease_state(lease),
+        "protected_by": protected_by,
+        "condemn": reason,
+        "condemn_auto": auto_reason,
+        # True when a gc that condemns this lease for its owner being gone would
+        # PARK it again instead of reclaiming it (see `_gc_action`).
+        "return_to_park": bool((lease.get("owner") or {}).get("return_to_park")),
+        "anchor_state": anchor_state or "none",
+        "anchor_alive": (None if anchor_state is None
+                         else anchor_state == session_anchor.STATE_ALIVE),
+    }
+
+
+# `owner.server_gone` - left on a row whose bound server exited while its session
+# still lives (`_shed_gone_server`): {pid, reason, at}. Evidence only; nothing
+# judges liveness from it. `park` reads it as "this lease was RUNNING", and any
+# write of a fresh server pid (`_owner_block`) or a park (`_stamp_park`) clears it.
+SERVER_GONE_KEY = "server_gone"
+
+
+def _shed_gone_server(lease, now=None):
+    """Clear the recorded server of a SESSION-PROTECTED lease whose server is
+    provably gone, so an OLDER allocator protects the row too. Mutates `lease`
+    in place and returns True when it did; the caller holds the lock and owns
+    the write.
+
+    Why: this allocator protects such a row by its live session anchor (`_judge`
+    rung 2) and ignores the dead pid. A pre-anchor allocator knows nothing of the
+    anchor: it reads `owner.pid` dead (or its fingerprint mismatched) as
+    `owner-pid-dead` / `owner-pid-recycled`, and its acquire sweep reclaims the
+    row - dropping a drop_on_release database under a session that is still
+    using it. A row with NO pid is judged by that reader's TTL arm alone
+    (`ttl_s` against `heartbeat_at`), which the session's heartbeat keeps fresh.
+    So the pid keys (PID_OWNER_KEYS) are cleared, `heartbeat_at` is refreshed
+    (the live anchor vouches for the row right now), and `owner.server_gone`
+    records what was shed. Nothing is lost: a dead or recycled pid is never
+    signalled (`_stop_owner_group_if_local`), and this allocator's own verdict
+    for the row is unchanged (still `session`-protected; state `reserved`).
+
+    Only when ALL hold: not parked (already pid-less), not shared (judged by its
+    server pid alone, in every version), not being reclaimed, recorded on THIS
+    host, its anchor PROVABLY alive, and its pid dead or proven recycled. An
+    unknown anchor or an unmeasurable fingerprint sheds nothing."""
+    if lease.get("parked_at") is not None or lease.get("mode") == "shared":
+        return False
+    if _reclaim_in_progress(lease):
+        return False
+    owner = lease.get("owner") or {}
+    here = _host()
+    if owner.get("host") != here or owner.get("pid") is None:
+        return False
+    try:
+        pid = int(owner.get("pid"))
+    except (TypeError, ValueError):
+        return False
+    session = owner.get("session")
+    if not session or session_anchor.anchor_state(
+            session, owner.get("host"), here) != session_anchor.STATE_ALIVE:
+        return False
+    if not _pid_alive(pid):
+        reason = CONDEMN_PID_DEAD
+    else:
+        expected, _key = _recorded_fingerprint(owner, pid)
+        if expected is None or _fp_verdict(expected, pid) != session_anchor.VERDICT_MISMATCH:
+            return False
+        reason = CONDEMN_PID_RECYCLED
+    now = _now() if now is None else now
+    owner.update(_pid_owner_fields(None))
+    owner[SERVER_GONE_KEY] = {"pid": pid, "reason": reason, "at": now}
+    lease["owner"] = owner
+    lease["heartbeat_at"] = now
+    sys.stderr.write(
+        "allocator: the server (pid {pid}) of the lease on database {db!r} is gone "
+        "({reason}) while its session is alive - cleared the server pid so the lease "
+        "stays protected under every allocator version; the database and ports are "
+        "kept.\n".format(pid=pid, db=lease.get("db_name"), reason=reason))
+    return True
+
+
+def _shed_gone_servers(reg, now=None):
+    """`_shed_gone_server` over every row of `reg`; the number of rows changed.
+    Called under the lock by the paths that already write the registry."""
+    return sum(1 for lease in reg.get("leases", []) if _shed_gone_server(lease, now))
+
+
+def _reclaim_record(lease, reason, verb, run_id="", action="deleted", dropped_db=None):
     """The full, self-contained account of ONE reclamation.
 
     Self-contained is the whole point: it is read AFTER the registry row it
-    describes has been deleted, so every coordinate a reader might need - lease,
-    run, database, ports, owner - is copied out here rather than referenced.
-    `by_*` names the reclaimer, which is what makes a cross-tenant reclamation
-    attributable in both directions: the victim learns who took its lease, and the
-    caller learns it destroyed state it never asked about.
-    """
+    describes has been deleted (or its ports freed), so every coordinate a reader
+    might need - lease, run, database, ports, owner - is copied out here rather
+    than referenced. `by_*` names the reclaimer, which is what makes a
+    cross-tenant reclamation attributable in both directions. `action` says what
+    happened to the row ("deleted", or "orphaned" = server stopped + ports freed,
+    row and database KEPT); `dropped_db` defaults to "a drop_on_release lease
+    whose row was deleted"."""
     owner = lease.get("owner", {}) or {}
     at = _now()
+    if dropped_db is None:
+        dropped_db = bool(lease.get("drop_on_release") and lease.get("db_name")
+                          and action == "deleted")
+    session = owner.get("session") or {}
     return {
         "at": at,
         "at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(at)),
@@ -2070,9 +2599,11 @@ def _reclaim_record(lease, reason, verb, run_id=""):
         "series": lease.get("series", ""),
         "owner_pid": owner.get("pid"),
         "owner_host": owner.get("host", ""),
+        "owner_session_id": session.get("session_id", ""),
         "ports": lease.get("ports", []),
         "reason": reason,
-        "dropped_db": bool(lease.get("drop_on_release") and lease.get("db_name")),
+        "action": action,
+        "dropped_db": bool(dropped_db),
         "by_verb": verb,
         "by_pid": os.getpid(),
         "by_run_id": run_id,
@@ -2093,11 +2624,9 @@ def _notice_value(value):
 def _reclaim_notice(rec):
     """One line, `key=value` with shell-quoted values: greppable by a human who
     only has a scrollback, and parseable by anything else. The full token is
-    printed (not the 8-char fingerprint `cmd_list` redacts to) because a reclaimed
-    token is DEAD - it can no longer be handed to `release` - and matching it
-    against the caller's own earlier `ALLOC_TOKEN=` is how an operator identifies
-    which of their runs just lost its database. `cmd_gc`'s long-standing
-    `ALLOC_RECLAIMED=` emission already prints it in full for the same reason."""
+    printed (not the 8-char fingerprint `cmd_list` redacts to) because matching
+    it against the caller's own earlier `ALLOC_TOKEN=` is how an operator
+    identifies which of their runs just lost its instance."""
     fields = " ".join(
         "{k}={v}".format(k=key, v=shlex.quote(_notice_value(rec.get(key))))
         for key in _RECLAIM_NOTICE_FIELDS
@@ -2111,10 +2640,9 @@ def _reclaim_log_path():
 
 def _append_reclaim_log(rec):
     """Append one JSON record to the evidence log. Best-effort but never SILENT:
-    a record that cannot be persisted is itself reported on stderr, because the
-    one thing this whole path exists to prevent is a destruction nobody can
-    attribute. Never fatal - failing to write the account of a reclamation must
-    not fail the acquire that already performed it."""
+    a record that cannot be persisted is itself reported on stderr. Never fatal -
+    failing to write the account of a reclamation must not fail the command that
+    already performed it."""
     path = _reclaim_log_path()
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -2135,65 +2663,433 @@ def _report_reclaimed(rec):
     _append_reclaim_log(rec)
 
 
-def _gc(reg, verb, instances_path=None, run_id=""):
-    """Reclaim stale leases (drop their ephemeral DB via through-Odoo path),
-    REPORTING each one. Mutates reg; returns the reclaim records.
+def _capacity_reason(lease):
+    """The reason `lease` may be touched by acquire's CAPACITY reclaim, or None.
 
-    `verb` is required, and is the command whose output must carry the record
-    (`acquire`, `gc`, ...). It has no default on purpose: a new call site cannot
-    reintroduce the silent-destruction bug this reporting exists to close, because
-    it cannot call this function at all without naming itself.
-    """
-    kept, reclaimed = [], []
+    Only a lease whose owner is PROVABLY gone under the automatic semantics
+    (CAPACITY_REASONS); never a `shared` row, a parked row, a row another
+    process is already reclaiming, or one already orphaned."""
+    if (lease.get("mode") == "shared" or lease.get("parked_at") is not None
+            or lease.get("orphaned") or _reclaim_in_progress(lease)):
+        return None
+    reason = _condemn_reason(lease, auto=True)
+    return reason if reason in CAPACITY_REASONS else None
+
+
+# ---- the ONE two-phase reclaim primitive (gc, release, acquire-capacity) ----
+# Phase A (`_mark_reclaiming`, under the lock) claims a row for this process;
+# phase B (`_stop_and_drop` / `_capacity_reclaim`, OUTSIDE the lock) does the
+# slow part on a detached snapshot; phase C (`_settle_marked`, under the lock
+# again) applies each outcome - but only to a row that still carries THIS
+# process's marker. A marked row keeps its ports reserved throughout
+# (`_ports_in_use`), and a marker whose process died is ignored by
+# `_reclaim_in_progress`, so a crash between phases leaves a row the next
+# gc/release/acquire simply retakes.
+SETTLE_DELETE = "delete"   # the row goes
+SETTLE_KEEP = "keep"       # the marker is cleared, the row stays as it was
+SETTLE_ORPHAN = "orphan"   # the marker is cleared, the ports are freed, the row stays
+SETTLE_PARK = "park"       # the marker is cleared, the row is PARKED again (db + ports kept)
+
+
+def _mark_reclaiming(lease, reason, verb, now=None):
+    """Phase A: mark `lease` as being reclaimed by this process (`verb` says
+    which: gc, release, acquire-capacity). The caller holds the registry lock and
+    owns the write. Returns a DETACHED snapshot for phase B to work from, so
+    nothing outside the lock ever touches a registry object."""
+    lease["reclaiming"] = {"by_pid": os.getpid(), "host": _host(),
+                           "at": _now() if now is None else now,
+                           "reason": reason, "by_verb": verb}
+    return json.loads(json.dumps(lease))
+
+
+def _reclaimer_desc(lease):
+    """Who holds a row's `reclaiming` marker, for a RECLAIM_IN_PROGRESS refusal."""
+    mark = lease.get("reclaiming") or {}
+    return "pid {p} ({v})".format(p=mark.get("by_pid"), v=mark.get("by_verb") or "gc")
+
+
+def _stop_and_drop(lease, instances_path=None):
+    """Phase B of gc and release, OUTSIDE the lock: stop the owner's process group
+    FIRST, then drop a throwaway database through Odoo. The order is mandatory: a
+    listening Odoo master + workers hold open DB connections, and an active
+    backend blocks `DROP DATABASE` (odoo_db.py's pg_terminate_backend stays as a
+    second belt). The stop is a no-op for a lease with no live, proven-owned
+    local pid. Returns False ONLY for a genuine drop failure - the database is
+    then still there - and True otherwise (dropped, or nothing to drop)."""
+    _stop_owner_group_if_local(lease)
+    if lease.get("drop_on_release") and lease.get("db_name"):
+        return _drop_through_odoo(lease, instances_path)
+    return True
+
+
+def _stamp_park(lease, park_ttl_s):
+    """Write the PARKED state onto `lease`: clear the recorded server
+    (PID_OWNER_KEYS) and stamp parked_at + park_ttl_s + parked_boot_id. The one
+    writer of those keys, shared by `park` and gc's return-to-park."""
+    owner = lease.setdefault("owner", {})
+    owner.update(_pid_owner_fields(None))
+    owner.pop(SERVER_GONE_KEY, None)
+    lease["parked_at"] = _now()
+    lease["park_ttl_s"] = park_ttl_s
+    boot = _boot_id()
+    if boot:
+        lease["parked_boot_id"] = boot
+    else:
+        # Absent, not empty: `_judge` compares only when BOTH sides carry a
+        # value, so an absent key degrades to the plain budget comparison
+        # instead of reading as a mismatch.
+        lease.pop("parked_boot_id", None)
+
+
+def _mark_return_to_park(lease, park_ttl_s):
+    """Record on `lease` that it was taken out of a deliberate park: the owner
+    keys `return_to_park` (True) and `return_park_ttl_s` (the budget it had).
+    `_gc_action` then parks it again when its new owner goes away."""
+    owner = lease.setdefault("owner", {})
+    owner["return_to_park"] = True
+    try:
+        owner["return_park_ttl_s"] = int(park_ttl_s)
+    except (TypeError, ValueError):
+        owner["return_park_ttl_s"] = DEFAULT_PARK_TTL_S
+
+
+def _repark(lease):
+    """Put a resumed lease back in the park with its original budget, measured
+    from now; its db_name, ports and drop_on_release are untouched."""
+    owner = lease.setdefault("owner", {})
+    budget = owner.pop("return_park_ttl_s", None) or DEFAULT_PARK_TTL_S
+    owner.pop("return_to_park", None)
+    # A capacity reclaim may have orphaned it first (server stopped, ports given
+    # back); it is parked now, whatever ports it still holds.
+    lease.pop("orphaned", None)
+    _stamp_park(lease, budget)
+
+
+def _settle_marked(reg, outcomes):
+    """Phase C: apply `outcomes` {token: SETTLE_*} to the rows THIS process
+    marked. The caller holds the lock and owns the write. A row whose marker is
+    no longer ours (or that is gone) is left exactly as it is. Returns the set of
+    tokens settled."""
+    me, here = os.getpid(), _host()
+    settled, kept = set(), []
     for lease in reg["leases"]:
-        reason = _condemn_reason(lease)
-        if reason is not None:
-            # Reap the ORPHAN before reclaiming: a lease can be stale by ttl while
-            # its server process is STILL alive (the box did not crash, the owner
-            # just went away). Stop that process group first so we free RAM AND so
-            # the drop below is not blocked by a live backend. A dead pid here is a
-            # no-op (the same-host + liveness guard short-circuits).
-            _stop_owner_group_if_local(lease)
-            if lease.get("drop_on_release") and lease.get("db_name"):
-                drop_ok = _drop_through_odoo(lease, instances_path)
-                if not drop_ok:
-                    # Genuine drop failure: retain the lease so a human / next gc
-                    # can retry.  Do not count it as reclaimed, and do not report
-                    # it as reclaimed either - the row and the database both still
-                    # exist, so a record here would be a false account.
-                    kept.append(lease)
-                    continue
-            record = _reclaim_record(lease, reason, verb, run_id)
-            reclaimed.append(record)
-            # Per lease, as it is reclaimed, NOT after the loop: if this process
-            # dies part-way through a sweep, every lease it already destroyed has
-            # already been accounted for, and the ones it has not reached are
-            # still in the registry (which is only written after this returns).
-            _report_reclaimed(record)
-        else:
+        token = lease.get("token", "")
+        mark = lease.get("reclaiming") or {}
+        if (token not in outcomes or mark.get("by_pid") != me
+                or mark.get("host", here) != here):
             kept.append(lease)
+            continue
+        settled.add(token)
+        outcome = outcomes[token]
+        if outcome == SETTLE_DELETE:
+            continue
+        lease.pop("reclaiming", None)
+        if outcome == SETTLE_ORPHAN:
+            lease["orphaned"] = {"at": _now(), "reason": mark.get("reason"),
+                                 "by_verb": mark.get("by_verb"),
+                                 "ports": list(lease.get("ports") or [])}
+            lease["ports"] = []
+        elif outcome == SETTLE_PARK:
+            _repark(lease)
+        kept.append(lease)
     reg["leases"] = kept
-    return reclaimed
+    return settled
+
+
+def _capacity_mark(reg, candidates):
+    """Phase A of acquire's CAPACITY reclaim, under the lock: mark every candidate
+    whose owner is provably gone (`_capacity_reason`). Returns [(snapshot,
+    reason)]; empty when nothing may be taken. The caller owns the write."""
+    now = _now()
+    work = []
+    for lease in list(candidates):
+        reason = _capacity_reason(lease)
+        if reason is not None:
+            work.append((_mark_reclaiming(lease, reason, CAPACITY_VERB, now), reason))
+    return work
+
+
+def _capacity_reclaim(work, run_id="", delete=False):
+    """Phase B of acquire's CAPACITY reclaim, OUTSIDE the lock: stop each marked
+    owner's process group (through the same ownership-proof gate every signal
+    uses) and report the reclamation. Returns the phase-C outcomes the acquire
+    settles at the top of its next critical section.
+
+    NON-DESTRUCTIVE by construction: the outcome is either SETTLE_ORPHAN - the
+    row's ports are freed and it is marked `orphaned` {at, reason, by_verb,
+    ports}; the row AND its database are KEPT, so the owner (or an explicit
+    `gc`) still finishes it properly - or, with `delete` (an exclusive conflict:
+    that row reserves a DECLARED database and never drops it, so removing the
+    row loses nothing), SETTLE_DELETE. It NEVER drops a database. The stop is
+    bounded (`_stop_group`) and, being outside the lock, stalls no other
+    session; the marked rows keep their ports until phase C, so no other acquire
+    can be handed a port a server that is still stopping listens on.
+
+    Returns (outcomes, stopped): `stopped` counts the server groups actually
+    signalled - what opens acquire's short port-free retry window."""
+    outcomes, stopped = {}, 0
+    for lease, reason in work:
+        if _stop_owner_group_if_local(lease):
+            stopped += 1
+        _report_reclaimed(_reclaim_record(
+            lease, reason, CAPACITY_VERB, run_id,
+            action="deleted" if delete else "orphaned", dropped_db=False))
+        outcomes[lease.get("token", "")] = SETTLE_DELETE if delete else SETTLE_ORPHAN
+    return outcomes, stopped
+
+
+def _holder_summary(lease):
+    """What a refused acquire says about a lease standing in its way."""
+    owner = lease.get("owner") or {}
+    verdict = _verdict(lease)
+    try:
+        age = max(0, _now() - int(owner.get("started_at") or 0))
+    except (TypeError, ValueError):
+        age = None
+    return {
+        "token8": (lease.get("token") or "")[:8],
+        "mode": lease.get("mode", ""),
+        "db_name": lease.get("db_name", ""),
+        "run_id": owner.get("run_id", ""),
+        "state": verdict["state"],
+        "session_alive": verdict["anchor_alive"],
+        "age_s": age,
+        "ports": list(lease.get("ports") or []),
+    }
+
+
+def _report_holders(holders):
+    """Name the leases a refused acquire could not reclaim: stderr in shell mode
+    (stdout is the eval protocol and a refusal writes nothing there), a
+    structured `holders` field in JSON mode."""
+    rows = [_holder_summary(lz) for lz in holders]
+    _payload("holders", rows)
+    for row in rows:
+        sys.stderr.write(
+            "allocator:   held by lease {t} mode={m} db={d} run={r} state={s} "
+            "session_alive={a} age_s={g}\n".format(
+                t=row["token8"], m=row["mode"], d=row["db_name"], r=row["run_id"] or "-",
+                s=row["state"], a=_notice_value(row["session_alive"]) or "unanchored",
+                g=_notice_value(row["age_s"]))
+        )
 
 
 # --------------------------------------------------------------------------- #
-# Emit
+# Output: the shell-eval protocol, or one JSON object (`--format json`)
+#
+# Every command speaks through `_emit` / `_note` / `_payload` / `_fail` and never
+# prints directly, so `--format json` can collect the SAME facts into
+# {"ok", "rc", "error": {"code", "message"} | null, "fields": {...}} without a
+# second implementation of any command. Without --format json the shell protocol
+# is byte-identical to what it always was.
 # --------------------------------------------------------------------------- #
-def _emit(name, value):
+_OUT = {"json": False, "fields": {}, "error": None}
+
+# Named failure codes - the SSOT. Every non-zero exit of every verb carries
+# exactly one of these (`_fail`), each code always pairs with the same exit
+# code, and `--format json` reports it as `error.code`. The stdio MCP server
+# imports this table rather than re-declaring it.
+ERROR_CODES = {
+    "USAGE": {"rc": 2, "summary": "invalid arguments",
+              "remedy": "fix the flags named in the message (see `allocator.py --help`)"},
+    "SERIES_REQUIRED": {"rc": 2, "summary": "acquire needs --series <X.Y>",
+                        "remedy": "pass the series you mean; nothing is picked for you"},
+    "ADDONS_PATH_OVERRIDE_INVALID": {"rc": 2,
+                                     "summary": "--addons-path-override is empty or names "
+                                                "missing directories",
+                                     "remedy": "pass existing directories"},
+    "NO_INSTANCE": {"rc": 1, "summary": "no instance for that series/profile in the catalog",
+                    "remedy": "declare one with /odoo-ai-agents:odoo-setup or pass --instances"},
+    "NO_INSTANCE_CATALOG": {"rc": 1, "summary": "the instance catalog (instances.toml) is "
+                                                "missing or unreadable",
+                            "remedy": "run /odoo-ai-agents:odoo-setup to declare an instance, "
+                                      "or pass --instances <path to instances.toml>"},
+    "EXCLUSIVE_CONFLICT": {"rc": 3, "summary": "the database is already held exclusively",
+                           "remedy": "retry later, use --mode ephemeral, or ask its owner to "
+                                     "release it"},
+    "PORT_POOL_EXHAUSTED": {"rc": 4, "summary": "no free port in the instance's pool",
+                            "remedy": "release or park a lease you own; see `holders`",
+                            # A refinement `_fail(..., reason=)` reports as
+                            # fields.reason + fields.remedy: same code and exit,
+                            # different cause and fix.
+                            "reasons": {
+                                PORTS_BUSY_OUTSIDE_REGISTRY: {
+                                    "summary": "no lease holds a port of this pool, yet no "
+                                               "port in it can be bound",
+                                    "remedy": "the ports are bound by processes outside the "
+                                              "lease registry (or are still being released "
+                                              "by a server that was just stopped): retry "
+                                              "shortly; if it persists, find the listener "
+                                              "(`ss -ltnp`) or widen the pool "
+                                              "(port_pool_size / http_port_base)"}}},
+    "ADDONS_PATH_WORKTREE_MISMATCH": {"rc": 5, "summary": "cwd is a different worktree of a "
+                                                          "catalog addons_path repo",
+                                      "remedy": "pass --addons-path-override <the tree to "
+                                                "build>"},
+    "NO_CREATEDB": {"rc": 6, "summary": "the role lacks CREATEDB",
+                    "remedy": "grant CREATEDB, or use --mode exclusive, or --no-create"},
+    "CREATEDB_UNDETERMINABLE": {"rc": 7, "summary": "CREATEDB could not be determined",
+                                "remedy": "45-venv.sh record-env, declare db_run_mode, or "
+                                          "start the cluster"},
+    "DB_AUTH_DENIED": {"rc": 8, "summary": "Odoo cannot authenticate to the cluster",
+                       "remedy": "run /odoo-ai-agents:odoo-setup or export ODOO_PG_PASSWORD"},
+    "DB_UNREACHABLE": {"rc": 9, "summary": "the database cluster did not answer",
+                       "remedy": "start the cluster"},
+    "RUN_ID_REQUIRED": {"rc": 10, "summary": "no --run-id (ownership not established)",
+                        "remedy": "pass the run id you were given; never invent one"},
+    "RECLAIM_IN_PROGRESS": {"rc": 11, "summary": "another process is reclaiming this lease",
+                            "remedy": "wait for that gc/release to finish, then re-check"},
+    "LEASE_NOT_FOUND": {"rc": 1, "summary": "no lease with that token",
+                        "remedy": "check the token (`list --tokens`)"},
+    "NOT_OWNER": {"rc": 1, "summary": "the lease is owned by a different run",
+                  "remedy": "only the run that acquired a lease may release, park, or adopt it"},
+    "DROP_FAILED_KEPT": {"rc": 1, "summary": "the drop failed; the lease is kept",
+                         "remedy": "fix the drop surface (45-venv.sh record-env) and retry, or "
+                                   "--force-forget"},
+    "SHARED_NOT_PARKABLE": {"rc": 3, "summary": "a shared lease cannot be parked",
+                            "remedy": "leave it for its readers; gc reclaims it once its "
+                                      "server is gone"},
+    "NOT_RUNNING": {"rc": 4, "summary": "the lease records no server pid",
+                    "remedy": "bind a pid first, or release the lease"},
+    "NOT_PARKED": {"rc": 3, "summary": "the lease is not parked and no live server holds it",
+                   "remedy": "bind the pid instead"},
+    "RESUME_RACE": {"rc": 6, "summary": "another caller already resumed this lease",
+                    "remedy": "stop the server you launched and attach to the running one"},
+    "DB_GONE": {"rc": 5, "summary": "the parked lease's database no longer exists",
+                "remedy": "release the lease, then build a fresh instance"},
+    "WRONG_HOST": {"rc": 4, "summary": "the lease was recorded on another host",
+                   "remedy": "operate on it from the host that holds it"},
+    "PID_NOT_ALIVE": {"rc": 4, "summary": "the named pid is not a live process here",
+                      "remedy": "pass the pid of the server you launched"},
+    "OWNERSHIP_UNPROVEN": {"rc": 4, "summary": "the pid is not proven to be this lease's server",
+                           "remedy": "launch the server for this lease's database/port"},
+    "NOT_FOUND": {"rc": 1, "summary": "no matching lease",
+                  "remedy": "acquire one"},
+    "DB_HELD_BY_OTHER_RUN": {"rc": 1, "summary": "a fresh lease owned by another run holds "
+                                                 "the database",
+                             "remedy": "route the drop through `release <token>`"},
+    "DB_HELD_UNOWNED": {"rc": 1, "summary": "a fresh unowned lease holds the database",
+                        "remedy": "pass --force deliberately, or leave it"},
+    "REAP_DROP_FAILED": {"rc": 1, "summary": "at least one orphan drop failed",
+                         "remedy": "see the stderr account"},
+    "ANCHOR_REQUIRED": {"rc": 2, "summary": "--scope anchor needs an anchor",
+                        "remedy": "pass --anchor <pid:fingerprint> (see `anchor --print`)"},
+    "ANCHOR_ALIVE": {"rc": 3, "summary": "that session anchor is still alive",
+                     "remedy": "wait for the session to end, or pass --force deliberately"},
+    "NO_ANCHOR": {"rc": 5, "summary": "the caller has no session anchor",
+                  "remedy": "run inside an agent session or export ODOO_AI_SESSION_ANCHOR"},
+    "UNSPECIFIED": {"rc": 1, "summary": "the command failed", "remedy": "see stderr"},
+}
+
+
+class _UsageError(Exception):
+    """A malformed argument - reported as USAGE (exit 2), never a traceback."""
+
+
+def _reset_output(json_mode=False):
+    _OUT["json"] = bool(json_mode)
+    _OUT["fields"] = {}
+    _OUT["error"] = None
+
+
+def _emit(name, value, multi=False):
+    """One protocol fact. Shell mode: a `NAME=<shlex-quoted>` line on stdout (a
+    list is space-joined). JSON mode: `fields[NAME]` keeps the typed value;
+    `multi` names a key that may repeat and is always a list in JSON."""
+    if _OUT["json"]:
+        if multi:
+            _OUT["fields"].setdefault(name, []).append(value)
+        else:
+            _OUT["fields"][name] = value
+        return
     if isinstance(value, list):
         value = " ".join(str(x) for x in value)
     print(f"{name}={shlex.quote(str(value))}")
 
 
+def _payload(name, value):
+    """A structured fact that exists only in JSON mode (lists of leases,
+    candidates, holders) - the shell protocol has no spelling for it."""
+    if _OUT["json"]:
+        _OUT["fields"][name] = value
+
+
+def _note(text):
+    """A `# ...` comment line of the shell protocol; JSON mode keeps it in
+    `fields.notes` instead of printing it."""
+    if _OUT["json"]:
+        _OUT["fields"].setdefault("notes", []).append(text)
+        return
+    print(text)
+
+
+def _fail(code, rc=None, msg=None, reason=None):
+    """Record the named failure `code` and return its exit code. `msg`, when
+    given, is written to stderr as `allocator: <msg>`; call sites that already
+    wrote their own (longer) refusal pass none, so stderr stays byte-identical.
+
+    `reason` names one of the code's `reasons` in ERROR_CODES (a narrower cause
+    with its own remedy): it is reported as `fields.reason` + `fields.remedy`
+    (JSON) and as one stderr line, and its summary becomes the message."""
+    spec = ERROR_CODES.get(code) or ERROR_CODES["UNSPECIFIED"]
+    rc = spec["rc"] if rc is None else rc
+    sub = (spec.get("reasons") or {}).get(reason) if reason else None
+    if msg:
+        sys.stderr.write("allocator: {m}\n".format(m=msg))
+    if sub:
+        _payload("reason", reason)
+        _payload("remedy", sub["remedy"])
+        sys.stderr.write("allocator: {c} ({r}): {s} - {rem}\n".format(
+            c=code, r=reason, s=sub["summary"], rem=sub["remedy"]))
+    _OUT["error"] = {"code": code,
+                     "message": msg or (sub or {}).get("summary") or spec["summary"]}
+    return rc
+
+
+# The one success line a teardown hook keys on. STDERR, never stdout: under
+# `eval "$(allocator.py acquire ...)"` the shell consumes stdout, while stderr
+# still reaches the caller's transcript (a Bash tool result).
+def _announce_lease(verb, token, run_id):
+    """`allocator: <verb> lease <full-token> run_id=<id>` on stderr."""
+    sys.stderr.write("allocator: {v} lease {t} run_id={r}\n".format(
+        v=verb, t=token, r=run_id or ""))
+
+
+def _int_opt(opts, key, flag, default=None):
+    """opts[key] as an int, `default` when absent/empty, _UsageError otherwise."""
+    raw = opts.get(key)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        raise _UsageError("{f} must be an integer, got {v!r}".format(f=flag, v=raw))
+
+
 # --------------------------------------------------------------------------- #
 # Commands
 # --------------------------------------------------------------------------- #
+class _CatalogUnavailable(Exception):
+    """The instance catalog could not be read (missing file, bad TOML) - reported
+    as NO_INSTANCE_CATALOG by `_run_command`, never a traceback."""
+
+
+def _load_catalog(path):
+    """instances_io.load_instances(path), with an unreadable catalog raised as
+    `_CatalogUnavailable` (the ONE place a verb that needs the catalog reads it)."""
+    try:
+        return instances_io.load_instances(path)
+    except (OSError, ValueError) as exc:
+        raise _CatalogUnavailable("cannot read the instance catalog {p}: {e}".format(
+            p=path, e=exc))
+
+
 def _resolve_instance(path, series, profile=None):
-    items = instances_io.load_instances(path)
+    items = _load_catalog(path)
     inst, _ = instances_io.select_instance(items, series or None, profile=profile or None)
     # Return the FULL catalog alongside the selected instance: cmd_acquire needs
     # every declared http_port (not just the selected one) to close the
-    # boundary off-by-one (P2 §2.3) - this is the same load_instances() call
+    # pool-boundary off-by-one - this is the same load_instances() call
     # (no second read), so callers get it for free.
     return inst, items
 
@@ -2322,20 +3218,39 @@ def _emit_instance_common(inst, addons_csv):
 
 def cmd_acquire(opts):
     path = resolve_instances_path(opts.get("instances"))
-    series = opts.get("series", "")
+    series = (opts.get("series") or "").strip()
     profile = opts.get("profile", "")
+    # --series is REQUIRED. Without it `select_instance` silently picks the
+    # catalog's HIGHEST series - an instance the caller never named - and every
+    # later build, test and drop runs against it.
+    if not series:
+        try:
+            declared = sorted({instances_io.series_of(it)
+                               for it in instances_io.load_instances(path)} - {""})
+        except (OSError, ValueError):
+            declared = []
+        return _fail("SERIES_REQUIRED", 2, (
+            "acquire requires --series <X.Y> - nothing is picked for you (the old "
+            "default silently took the highest declared series). Declared: {d}.".format(
+                d=", ".join(declared) or "<none>")))
+    # Integer flags are validated up front: a malformed value is a usage error,
+    # never a traceback half-way through an allocation.
+    n_ports = _int_opt(opts, "ports", "--ports", 0)
+    ttl_opt = _int_opt(opts, "ttl", "--ttl", None)
+    port_opt = _int_opt(opts, "port", "--port", None)
+    pid_opt = _int_opt(opts, "pid", "--pid", None)
     inst, catalog_items = _resolve_instance(path, series, profile=profile or None)
     if inst is None:
         sys.stderr.write(
             f"allocator: no instance for series {series!r} in {path}. "
             "Declare one via /odoo-setup or pass --instances.\n"
         )
-        return 1
+        return _fail("NO_INSTANCE", 1)
 
     addons_csv, addons_err = _resolve_addons_csv(inst, opts.get("addons_path_override"))
     if addons_err:
         sys.stderr.write(f"allocator: {addons_err}\n")
-        return 2
+        return _fail("ADDONS_PATH_OVERRIDE_INVALID", 2)
 
     mode = opts.get("mode", "ephemeral")
     host = inst.get("db_host", "localhost")
@@ -2372,7 +3287,7 @@ def cmd_acquire(opts):
             "      invisible to the run that would have to clean up after you; or\n"
             "    - pass --allow-unowned to state deliberately that this lease has no owner.\n"
         )
-        return 10
+        return _fail("RUN_ID_REQUIRED", 10)
 
     # readonly: lease-free; just surface the running instance's coordinates.
     if mode == "readonly":
@@ -2406,7 +3321,7 @@ def cmd_acquire(opts):
                 "--addons-path-override naming the checkout you actually "
                 "intend, explicitly.\n"
             )
-            return 5
+            return _fail("ADDONS_PATH_WORKTREE_MISMATCH", 5)
 
     # shared: a long-lived, NON-exclusive render-server lease (the visual stack's
     # live target). Attach to the existing lease for (series, db_name) when one is
@@ -2416,15 +3331,12 @@ def cmd_acquire(opts):
     if mode == "shared":
         db_name = opts.get("db_name") or inst.get("db_name", "odoo")
         series_c = instances_io.series_of(inst)
-        port = opts.get("port")
-        ports = [int(port)] if port else []
+        ports = [port_opt] if port_opt else []
         attached = 0
         with _locked():
             reg = _read_registry()
-            # Reports every lease it reclaims on stderr + the evidence log (see the
-            # GC section header); the return value is unused HERE only because this
-            # path writes the registry unconditionally below.
-            _gc(reg, "acquire", path, run_id)
+            # NO sweep here (see the GC section header): registering a shared
+            # render target must never reclaim another run's lease.
             existing = next(
                 (lz for lz in reg["leases"]
                  if lz.get("mode") == "shared"
@@ -2436,16 +3348,17 @@ def cmd_acquire(opts):
             if existing is not None:
                 attached = 1
                 token = existing.get("token")
-                if opts.get("pid"):
-                    existing.setdefault("owner", {}).update(_pid_owner_fields(opts["pid"]))
+                if pid_opt:
+                    existing.setdefault("owner", {}).update(_pid_owner_fields(pid_opt))
                 if ports:
                     existing["ports"] = ports
                 else:
                     ports = existing.get("ports", [])
                 existing["heartbeat_at"] = now
-                # Refresh profile when caller supplies it (idempotent re-register).
-                if profile:
-                    existing["profile"] = profile
+                # Refresh profile when caller supplies it (idempotent re-register);
+                # a row written before profiles were recorded gets the resolved one.
+                if profile or "profile" not in existing:
+                    existing["profile"] = instances_io.profile_of(inst)
             else:
                 token = uuid.uuid4().hex
                 new_lease = {
@@ -2458,25 +3371,22 @@ def cmd_acquire(opts):
                     "drop_on_release": False,
                     "ports": ports,
                     "db_port": db_port,
-                    "owner": {
-                        "host": _host(),
-                        # run_id is the CANONICAL ownership key; the dead
-                        # standalone session_id is no longer written on new leases.
-                        "run_id": run_id,
-                        "started_at": now,
-                        # pid + pid_started (recycling-resistant fingerprint,
-                        # see _pid_owner_fields/_is_stale) - {None, None} when
-                        # the caller passes no --pid.
-                        **_pid_owner_fields(opts.get("pid")),
-                    },
-                    "ttl_s": int(opts.get("ttl", DEFAULT_TTL_S)),
+                    # run_id is the CANONICAL ownership key; pid + pid_started
+                    # ({None, None} without --pid) and the session anchor come
+                    # from the ONE owner constructor. A shared row is judged by
+                    # its server pid only - the anchor is recorded, not trusted.
+                    "owner": _owner_block(run_id, pid_opt, now=now),
+                    "ttl_s": ttl_opt if ttl_opt is not None else DEFAULT_TTL_S,
                     "heartbeat_at": now,
                     "_pg": {"host": host, "user": user, "port": db_port},
                 }
-                if profile:
-                    new_lease["profile"] = profile
+                if ttl_opt is not None:
+                    new_lease["ttl_explicit"] = True
+                new_lease["profile"] = instances_io.profile_of(inst)
                 reg["leases"].append(new_lease)
+            _shed_gone_servers(reg, now)
             _write_registry(reg)
+        _announce_lease("acquired", token, run_id)
         _emit("ALLOC_TOKEN", token)
         _emit("ALLOC_MODE", "shared")
         _emit("ALLOC_DB_NAME", db_name)
@@ -2488,9 +3398,7 @@ def cmd_acquire(opts):
 
     if mode not in ("ephemeral", "exclusive"):
         sys.stderr.write(f"allocator: unknown --mode {mode!r}\n")
-        return 2
-
-    n_ports = int(opts.get("ports", 0))
+        return _fail("USAGE", 2)
     # P5 port-uniqueness gate: the declared HTTP port is reserved for the
     # shared/declared render target (readonly/shared modes above) and must
     # NEVER be handed out as a pooled ephemeral/exclusive port - not even when
@@ -2504,7 +3412,7 @@ def cmd_acquire(opts):
     size = int(inst.get("port_pool_size", DEFAULT_POOL_SIZE))
     prefix = inst.get("db_name_prefix", inst.get("db_name", "odoo"))
 
-    # P2 §2.3 boundary off-by-one fix: reserve EVERY catalog-declared http_port,
+    # Pool-boundary off-by-one fix: reserve EVERY catalog-declared http_port,
     # not just the acquiring instance's own. Declared ports step by 10
     # (40-instance-profile.sh) while a pool spans DEFAULT_POOL_SIZE=10 ports
     # starting at declared+1, so instance-0's pool would otherwise end AT
@@ -2549,7 +3457,8 @@ def cmd_acquire(opts):
                     m=mode, series=instances_io.series_of(inst), state=auth_state,
                     why=auth_why or "no detail reported")
             )
-            return EXIT_AUTH_DENIED if auth_state == "denied" else EXIT_UNREACHABLE
+            return (_fail("DB_AUTH_DENIED", EXIT_AUTH_DENIED) if auth_state == "denied"
+                    else _fail("DB_UNREACHABLE", EXIT_UNREACHABLE))
 
     if mode == "ephemeral" and not opts.get("no_create"):
         verdict, why = _can_createdb(inst, host, user, db_port)
@@ -2561,7 +3470,7 @@ def cmd_acquire(opts):
                 "{why}\n".format(series=instances_io.series_of(inst),
                                  state=verdict.state, why=why)
             )
-            return verdict.exit_code
+            return _fail(_conn_blocked_code(verdict), verdict.exit_code)
         if verdict is False:
             sys.stderr.write(
                 "allocator: REFUSING ephemeral acquire - role {user!r} on {host}:{port} may not "
@@ -2573,7 +3482,7 @@ def cmd_acquire(opts):
                 "    - pass --no-create if this run creates no database at all.\n".format(
                     user=user, host=host, port=db_port or "libpq-default")
             )
-            return 6
+            return _fail("NO_CREATEDB", 6)
         if verdict is None:
             sys.stderr.write(
                 "allocator: REFUSING ephemeral acquire - CREATEDB capability is UNDETERMINABLE "
@@ -2589,111 +3498,159 @@ def cmd_acquire(opts):
                 "say so in your report).\n".format(
                     series=instances_io.series_of(inst), why=why, hint=_RECORD_ENV_HINT)
             )
-            return 7
+            return _fail("CREATEDB_UNDETERMINABLE", 7)
 
     if mode == "ephemeral":
         db_name = f"{prefix}_t_{uuid.uuid4().hex[:8]}"
     else:
         db_name = opts.get("db_name") or inst.get("db_name", "odoo")
 
-    with _locked():
-        reg = _read_registry()
-        # Each reclaimed lease is reported (stderr + evidence log) by `_gc` itself;
-        # the records are truth-tested here only to decide the immediate persist.
-        if _gc(reg, "acquire", path, run_id):
-            # PERSIST THE GC OUTCOME IMMEDIATELY. `_gc` has already DROPPED the
-            # reclaimed leases' databases, and the paths below can still return
-            # 3 (exclusive conflict) or 4 (port pool exhausted) before the single
-            # registry write at the end - which would leave the registry
-            # advertising a lease whose database no longer exists.
-            _write_registry(reg)
-
-        if mode == "exclusive":
-            for lease in reg["leases"]:
-                if lease.get("mode") == "exclusive" and lease.get("db_name") == db_name:
+    # NO sweep here (see the GC section header). The only thing an acquire may
+    # reclaim is CAPACITY it cannot otherwise get, and only from leases whose
+    # owner is PROVABLY gone (`_capacity_mark`): a conflicting exclusive holder,
+    # or the holders of this instance's port pool. It is the same two-phase shape
+    # as gc/release: the candidates are MARKED under the lock, their servers are
+    # stopped OUTSIDE it (`_capacity_reclaim` - up to 10s per lease, which would
+    # otherwise stall every session's acquire/list on the machine), and the next
+    # pass of this loop settles them and retries in ONE critical section, so the
+    # freed ports go to this acquire and never to a racer. Each kind of capacity
+    # (the exclusive hold, the port pool) is reclaimed at most once: the loop is
+    # bounded at three passes.
+    pending, delete, reclaimed = {}, False, set()
+    # Set once a PORT capacity reclaim has stopped a server: the freed ports can
+    # stay unbindable for a moment while the stopped process's sockets close, so
+    # the pick is retried until this deadline before the pool is called exhausted.
+    port_wait_until = None
+    while True:
+        work = []
+        wait_for_ports = False
+        with _locked():
+            reg = _read_registry()
+            if pending:
+                _settle_marked(reg, pending)
+                pending = {}
+                # Persisted at once: the servers are already stopped, whatever the
+                # retry below decides.
+                _write_registry(reg)
+            if mode == "exclusive":
+                holders = [lz for lz in reg["leases"]
+                           if lz.get("mode") == "exclusive" and lz.get("db_name") == db_name]
+                if holders and "exclusive" not in reclaimed:
+                    reclaimed.add("exclusive")
+                    work, delete = _capacity_mark(reg, holders), True
+                if holders and not work:
                     sys.stderr.write(
                         f"allocator: database {db_name!r} is already held by an "
-                        f"exclusive lease (token {lease.get('token')}). Retry later "
+                        f"exclusive lease (token {holders[0].get('token')}). Retry later "
                         "or use --mode ephemeral.\n"
                     )
-                    return 3
+                    _report_holders(holders)
+                    return _fail("EXCLUSIVE_CONFLICT", 3)
 
-        try:
-            ports = _pick_ports(reg, base, size, n_ports, reserved=reserved_ports)
-        except RuntimeError as exc:
-            sys.stderr.write(f"allocator: {exc}\n")
-            return 4
+            if not work:
+                try:
+                    ports = _pick_ports(reg, base, size, n_ports, reserved=reserved_ports)
+                except RuntimeError as exc:
+                    in_pool = [lz for lz in reg["leases"]
+                               if any(_port_in_pool(p, base, size)
+                                      for p in (lz.get("ports") or []))]
+                    if "ports" not in reclaimed:
+                        reclaimed.add("ports")
+                        work, delete = _capacity_mark(reg, in_pool), False
+                    if not work and port_wait_until is not None \
+                            and time.time() < port_wait_until:
+                        wait_for_ports = True
+                    elif not work:
+                        sys.stderr.write(f"allocator: {exc}\n")
+                        _report_holders(in_pool)
+                        if not in_pool:
+                            # Nothing in the registry holds a port of this pool:
+                            # the ports are bound by processes the allocator does
+                            # not know about (or are still being released). No
+                            # lease to release or park would help.
+                            return _fail("PORT_POOL_EXHAUSTED", 4,
+                                         reason=PORTS_BUSY_OUTSIDE_REGISTRY)
+                        return _fail("PORT_POOL_EXHAUSTED", 4)
 
-        # drop_on_release: True for ephemeral leases where the caller will create
-        # the DB via Odoo create-on-init and we must drop it at release/gc.
-        # False when --no-create is passed (caller declared they won't create the
-        # DB, so there is nothing to drop), and always False for shared/exclusive
-        # (those DBs must survive beyond the lease lifetime).
-        drop_on_release = (mode == "ephemeral" and not opts.get("no_create"))
+            if wait_for_ports:
+                pass  # nothing to write: sleep outside the lock, then re-pick
+            elif work:
+                _write_registry(reg)  # the marks - phase A
+            else:
+                # drop_on_release: True for ephemeral leases where the caller will create
+                # the DB via Odoo create-on-init and we must drop it at release/gc.
+                # False when --no-create is passed (caller declared they won't create the
+                # DB, so there is nothing to drop), and always False for shared/exclusive
+                # (those DBs must survive beyond the lease lifetime).
+                drop_on_release = (mode == "ephemeral" and not opts.get("no_create"))
 
-        token = uuid.uuid4().hex
-        ttl = int(opts.get("ttl", DEFAULT_TTL_S))
-        now = _now()
-        series_val = instances_io.series_of(inst)
-        reg["leases"].append({
-            "token": token,
-            "mode": mode,
-            "series": series_val,
-            "db_name": db_name,
-            # drop_on_release replaces the old created_db flag.  It marks whether
-            # release/gc must drop the DB (ephemeral=True, shared/exclusive=False).
-            "drop_on_release": drop_on_release,
-            # Drop context: venv interpreter + connection params so _drop_through_odoo
-            # can invoke odoo_db.py under the right Odoo installation at release/gc
-            # time, even if the caller process is long gone.  Password is NOT stored
-            # here - read from ODOO_PG_PASSWORD at drop time.
-            "python": inst.get("python", ""),
-            # odoo_root makes `import odoo` resolve for a source checkout (the
-            # through-Odoo drop's precondition); db_run_mode/db_container decide
-            # how a client binary is reached if the raw fallback is ever taken.
-            # All three are empty on a catalog that predates them - handled, and
-            # never a reason to invent a value.
-            "odoo_root": inst.get("odoo_root", ""),
-            "db_run_mode": inst.get("db_run_mode", ""),
-            "db_container": inst.get("db_container", ""),
-            # addons_path is forward-context only (for future tooling that may want
-            # to launch odoo-bin from the lease); the drop path never reads it.
-            # Odoo's --addons-path/addons_path takes COMMA-separated directories
-            # (never colon - that is PATH/PYTHONPATH style, not Odoo's addons-path
-            # syntax), matching ALLOC_ADDONS_PATH above - so any future consumer can
-            # forward this value to odoo-bin verbatim, with no extra conversion step.
-            "addons_path": addons_csv,
-            "db_host": host,
-            "db_user": user,
-            # db_port travels top-level beside db_host/db_user; empty when undeclared.
-            "db_port": db_port,
-            "ports": ports,
-            "owner": {
-                "host": _host(),
-                # run_id is the CANONICAL ownership key; the dead standalone
-                # session_id is no longer written on new leases (read as a
-                # compat fallback only, on pre-existing leases).
-                "run_id": run_id,
-                "started_at": now,
-                # pid + pid_started are a FAST-PATH reclaim/protect signal only -
-                # recorded solely when the caller passes a stable, long-lived
-                # --pid. We never default to the transient bash pid (it dies
-                # right after this call returns, which would let the next gc
-                # wrongly CONDEMN a lease whose DB is still in use - the dead-pid
-                # arm of `_is_stale` would fire on that transient pid). With no
-                # --pid, staleness falls back entirely to ttl_s + heartbeat
-                # (liveness is unprovable without one). pid_started is the
-                # recycling-resistant fingerprint `_is_stale` needs to PROTECT
-                # (not just condemn) a verified-alive owner - see
-                # `_pid_owner_fields`.
-                **_pid_owner_fields(opts.get("pid")),
-            },
-            "ttl_s": ttl,
-            "heartbeat_at": now,
-            "_pg": {"host": host, "user": user, "port": db_port},
-        })
-        _write_registry(reg)
+                token = uuid.uuid4().hex
+                ttl = ttl_opt if ttl_opt is not None else DEFAULT_TTL_S
+                now = _now()
+                series_val = instances_io.series_of(inst)
+                new_lease = {
+                    "token": token,
+                    "mode": mode,
+                    "series": series_val,
+                    # The RESOLVED catalog profile ("" when unprofiled), so every
+                    # later consumer re-selects the same catalog row (python,
+                    # addons) instead of the series' first one.
+                    "profile": instances_io.profile_of(inst),
+                    "db_name": db_name,
+                    # drop_on_release replaces the old created_db flag.  It marks whether
+                    # release/gc must drop the DB (ephemeral=True, shared/exclusive=False).
+                    "drop_on_release": drop_on_release,
+                    # Drop context: venv interpreter + connection params so _drop_through_odoo
+                    # can invoke odoo_db.py under the right Odoo installation at release/gc
+                    # time, even if the caller process is long gone.  Password is NOT stored
+                    # here - read from ODOO_PG_PASSWORD at drop time.
+                    "python": inst.get("python", ""),
+                    # odoo_root makes `import odoo` resolve for a source checkout (the
+                    # through-Odoo drop's precondition); db_run_mode/db_container decide
+                    # how a client binary is reached if the raw fallback is ever taken.
+                    # All three are empty on a catalog that predates them - handled, and
+                    # never a reason to invent a value.
+                    "odoo_root": inst.get("odoo_root", ""),
+                    "db_run_mode": inst.get("db_run_mode", ""),
+                    "db_container": inst.get("db_container", ""),
+                    # addons_path is forward-context only (for future tooling that may want
+                    # to launch odoo-bin from the lease); the drop path never reads it.
+                    # Odoo's --addons-path/addons_path takes COMMA-separated directories
+                    # (never colon - that is PATH/PYTHONPATH style, not Odoo's addons-path
+                    # syntax), matching ALLOC_ADDONS_PATH above - so any future consumer can
+                    # forward this value to odoo-bin verbatim, with no extra conversion step.
+                    "addons_path": addons_csv,
+                    "db_host": host,
+                    "db_user": user,
+                    # db_port travels top-level beside db_host/db_user; empty when undeclared.
+                    "db_port": db_port,
+                    "ports": ports,
+                    # The ONE owner constructor (`_owner_block`): run_id (the CANONICAL
+                    # ownership key), started_at, and pid + pid_started only when the
+                    # caller passes a stable, long-lived --pid - never the transient bash
+                    # pid, which dies right after this call and would read as a dead
+                    # owner. What protects a pid-less lease now is `owner.session`: the
+                    # caller's session anchor, alive for as long as the session is.
+                    "owner": _owner_block(run_id, pid_opt, now=now),
+                    "ttl_s": ttl,
+                    "heartbeat_at": now,
+                    "_pg": {"host": host, "user": user, "port": db_port},
+                }
+                if ttl_opt is not None:
+                    new_lease["ttl_explicit"] = True
+                reg["leases"].append(new_lease)
+                _shed_gone_servers(reg, now)
+                _write_registry(reg)
+        if wait_for_ports:
+            time.sleep(PORT_RETRY_INTERVAL_S)
+            continue
+        if not work:
+            break
+        pending, stopped = _capacity_reclaim(work, run_id, delete=delete)  # phase B, unlocked
+        if stopped and "ports" in reclaimed and port_wait_until is None:
+            port_wait_until = time.time() + PORT_FREE_WAIT_S
 
+    _announce_lease("acquired", token, run_id)
     _emit("ALLOC_TOKEN", token)
     _emit("ALLOC_MODE", mode)
     _emit("ALLOC_DB_NAME", db_name)
@@ -2703,192 +3660,238 @@ def cmd_acquire(opts):
     return 0
 
 
+def _ownership_refusal(lease, opts, verb, consequence):
+    """The ownership rule of every verb that STOPS a lease's server - `release`
+    and `park` - in ONE place. Returns None when the caller may proceed, else
+    the `_fail("NOT_OWNER", 1)` exit code to return. Call it UNDER the registry
+    lock, before anything is signalled: a check made outside the lock (or by a
+    wrapper before it invokes the verb) is a race window, and the Bash fallback
+    path has no wrapper at all.
+
+    It asks the ONE question such a site must answer: did this caller ACQUIRE
+    this lease? `owner.run_id` is the answer, so a lease that records one is
+    stopped only by the run it names.
+    An EMPTY caller run is refused WITH the mismatches, not exempted from them.
+    It does not mean "the rightful owner forgot a flag"; it means ownership
+    cannot be established at all - and a call that is about to stop a server
+    (and, for release, DROP a database) is the last place to guess. The rightful
+    owner is never stuck by this: it already holds the run id (`ALLOC_RUN_ID`
+    from its own acquire, `INSTANCE_HANDLE.run_id` downstream) and threads it; a
+    caller that cannot produce one did not acquire this lease.
+    This is the shape `cmd_assert_droppable` has used from the start.
+    `cmd_release` was once the outlier: its extra `and caller_run` conjunct read
+    as leniency towards the owner while actually licensing a stranger - an
+    un-threaded release short-circuited the whole comparison, and one such call
+    destroyed a live acceptance database (113 modules + demo data) that a peer
+    session had built minutes earlier. `cmd_park` had no check at all, so any
+    token holder could stop a peer's live server through it.
+    An UNOWNED lease (no run_id recorded at all) proceeds on token-possession.
+    That is a deliberate NON-import of `assert_droppable`'s P5.8 arm: P5.8
+    guards a BARE-NAME drop, which carries no evidence of ownership whatsoever,
+    while these verbs require the token; refusing unowned leases here would
+    leave every pre-run_id and never-threaded lease with no exit but `--force`.
+    `--force` overrides loudly - it is the human's override, never a dispatched
+    agent's way around a refusal.
+    `cmd_adopt` deliberately does NOT use this: it re-anchors WHO vouches for a
+    lease rather than stopping anything, and it refuses an unowned lease too."""
+    caller_run = opts.get("run_id") or opts.get("session", "")
+    owner = lease.get("owner") or {}
+    owner_run = owner.get("run_id") or owner.get("session_id", "")
+    if not owner_run or owner_run == caller_run:
+        return None
+    caller_desc = repr(caller_run) if caller_run else "NOT NAMED (no --run-id passed)"
+    if not opts.get("force"):
+        sys.stderr.write(
+            "allocator: REFUSING to {verb} the lease for db {db!r}: it is owned by run "
+            "{owner!r} and this caller's run is {caller}. A {verb} must name the run that "
+            "ACQUIRED the lease - thread the --run-id your own acquire echoed as "
+            "ALLOC_RUN_ID (INSTANCE_HANDLE.run_id downstream). If you did not acquire this "
+            "lease, leave it alone: holding the token is not ownership, and {consequence}\n"
+            .format(verb=verb, db=lease.get("db_name"), owner=owner_run, caller=caller_desc,
+                    consequence=consequence))
+        return _fail("NOT_OWNER", 1)
+    sys.stderr.write(
+        f"allocator: force-{verb}ing run {owner_run!r}'s lease (caller run {caller_desc}).\n")
+    return None
+
+
 def cmd_release(opts):
+    """Release a lease: validate ownership, stop the server, drop a throwaway
+    database through Odoo, delete the row.
+
+    TWO-PHASE, on the same primitive as `gc` (see the GC section header): phase A
+    validates ownership and marks the row `reclaiming` under the registry lock;
+    phase B stops the server group and drops the database OUTSIDE it (a stop can
+    take ~10s and a drop minutes - every acquire/list on the machine waits on
+    that lock); phase C deletes the row, or clears the marker of a kept one,
+    under the lock again. While marked, the row keeps its ports reserved and
+    park/resume/adopt/gc refuse or skip it; a release that dies mid-way leaves a
+    marker whose dead pid lets the next release or gc take over."""
     token = opts.get("token")
     if not token:
         sys.stderr.write("Usage: allocator.py release <token> --run-id <id>\n")
-        return 2
+        return _fail("USAGE", 2)
+    instances_path = opts.get("instances")
+    # ---- phase A: validate + mark, under the lock -----------------------------
     with _locked():
         reg = _read_registry()
-        kept, found = [], None
-        for lease in reg["leases"]:
-            if lease.get("token") == token:
-                found = lease
-            else:
-                kept.append(lease)
+        found = next((lz for lz in reg["leases"] if lz.get("token") == token), None)
         if found is None:
             sys.stderr.write(f"allocator: no lease with token {token!r} (already released?).\n")
+            _emit("ALLOC_ALREADY_ABSENT", 1)
             return 0
+        if _reclaim_in_progress(found):
+            return _fail("RECLAIM_IN_PROGRESS", 11, (
+                "lease {t} is being reclaimed right now by {who}; NOTHING was "
+                "stopped or dropped by this release.".format(
+                    t=token, who=_reclaimer_desc(found))))
 
-        # Ownership guard - it asks the ONE question a release site must answer:
-        # did this caller ACQUIRE this lease? `owner.run_id` is the answer, so a
-        # lease that records one is released only by the run it names.
-        # An EMPTY caller run is refused WITH the mismatches, not exempted from
-        # them. It does not mean "the rightful owner forgot a flag"; it means
-        # ownership cannot be established at all - and a call that is about to
-        # stop a server and DROP a database is the last place to guess. The
-        # rightful owner is never stuck by this: it already holds the run id
-        # (`ALLOC_RUN_ID` from its own acquire, `INSTANCE_HANDLE.run_id`
-        # downstream) and threads it; a caller that cannot produce one did not
-        # acquire this lease and has nothing here to release.
-        # This is the shape `cmd_assert_droppable` has used from the start.
-        # `cmd_release` was the outlier: its extra `and caller_run` conjunct read
-        # as leniency towards the owner while actually licensing a stranger - an
-        # un-threaded release short-circuited the whole comparison, and one such
-        # call destroyed a live acceptance database (113 modules + demo data) that
-        # a peer session had built minutes earlier.
-        # An UNOWNED lease (no run_id recorded at all) still releases on
-        # token-possession. That is a deliberate NON-import of
-        # `assert_droppable`'s P5.8 arm: P5.8 guards a BARE-NAME drop, which
-        # carries no evidence of ownership whatsoever, while `release` requires
-        # the token; refusing unowned leases here would leave every pre-run_id
-        # and never-threaded lease with no exit but `--force`, and `release` is
-        # the only correct teardown path there is.
-        # `--force` overrides loudly - it is the human's override, never a
-        # dispatched agent's way around a refusal.
-        caller_run = opts.get("run_id") or opts.get("session", "")
-        owner = found.get("owner", {})
-        owner_run = owner.get("run_id") or owner.get("session_id", "")
-        force = opts.get("force")
-        if owner_run and owner_run != caller_run:
-            caller_desc = repr(caller_run) if caller_run else "NOT NAMED (no --run-id passed)"
-            if not force:
-                sys.stderr.write(
-                    "allocator: REFUSING to release the lease for db "
-                    f"{found.get('db_name')!r}: it is owned by run {owner_run!r} and "
-                    f"this caller's run is {caller_desc}. A release must name the run "
-                    "that ACQUIRED the lease - thread the --run-id your own acquire "
-                    "echoed as ALLOC_RUN_ID (INSTANCE_HANDLE.run_id downstream). If you "
-                    "did not acquire this lease, leave it alone: holding the token is not "
-                    "ownership, and this lease may be about to drop a live database. "
-                    "--force overrides. The DB is NOT dropped and the lease is KEPT.\n"
-                )
-                return 1
-            sys.stderr.write(
-                f"allocator: force-releasing run {owner_run!r}'s lease "
-                f"(caller run {caller_desc}).\n"
-            )
+        # Ownership guard: `_ownership_refusal` owns the rule (and why it is
+        # the rule); release and park share that ONE implementation.
+        refused = _ownership_refusal(found, opts, "release", (
+            "this lease may be about to drop a live database. --force overrides. "
+            "The DB is NOT dropped and the lease is KEPT."))
+        if refused is not None:
+            return refused
 
-        # Teardown ORDER is mandatory (L1.2): stop the server's process group
-        # FIRST, THEN drop the DB. A listening Odoo master + workers hold open DB
-        # connections, and an active backend blocks `DROP DATABASE`; stopping the
-        # group closes those connections (odoo_db.py's pg_terminate_backend stays
-        # as a second belt). No-op for a lease with no live local pid (legacy
-        # pre-setsid / shared / already-dead), so this is always safe to call.
-        _stop_owner_group_if_local(found)
-
-        if found.get("drop_on_release") and found.get("db_name"):
-            drop_ok = _drop_through_odoo(found, opts.get("instances"))
-            if not drop_ok:
-                # The drop did not happen. Before NAMING anything, ask whether the
-                # database is even there: "abandoned" is a claim about the cluster,
-                # and a build that crashed before creating anything leaves a lease
-                # whose drop can only ever "fail" - un-releasable from both ends.
-                db_name = found.get("db_name", "")
-                present = _db_present(found, opts.get("instances"))
-                cluster = "{user}@{host}:{port}".format(
-                    user=found.get("db_user", "odoo"),
-                    host=found.get("db_host", "localhost"),
-                    port=found.get("db_port") or "libpq-default")
-                if present is False:
-                    # PROVABLY absent: the drop had nothing to do IN POSTGRES, so
-                    # this is a clean release, not a failure. The other half of the
-                    # leak.
-                    # The FILESTORE is a separate object with its own lifetime, and
-                    # this path is reached exactly when the database went away
-                    # without Odoo dropping it - a deleted container volume takes
-                    # every ephemeral database with it and leaves every filestore
-                    # directory behind. Releasing the lease here puts that
-                    # directory beyond BOTH reapers at once: `gc` is lease-driven
-                    # and the lease is about to be gone, `reap-orphans` is
-                    # pg_database-driven and there is no row. So it is removed
-                    # here, before the lease is dropped, or "NOTHING was left
-                    # behind" would be false by one directory per run, forever.
-                    _drop_filestore(db_name)
-                    sys.stderr.write(
-                        "allocator: {db} does not exist on {cluster}, so there was "
-                        "nothing to drop in PostgreSQL - its filestore directory was "
-                        "removed here (no lease and no pg_database row would be left "
-                        "for either reaper to find it by), the lease is released and "
-                        "NOTHING was left behind.\n".format(db=db_name, cluster=cluster))
-                    _emit("ALLOC_FORGOTTEN_DB", db_name)
-                elif not opts.get("force_forget"):
-                    # Present, or unverifiable: retain the lease so gc can retry.
-                    if present is None:
-                        sys.stderr.write(
-                            "allocator: whether {db} exists on {cluster} could NOT be "
-                            "determined, so its lease is treated as live.\n".format(
-                                db=db_name, cluster=cluster))
-                    sys.stderr.write(
-                        "allocator: the lease for {db} is KEPT because the database is still "
-                        "there. Fix the drop surface (see the message above; `45-venv.sh "
-                        "record-env` re-declares it and is re-read on every retry), or - when "
-                        "nothing on this host can ever drop it - pass --force-forget to give "
-                        "up the lease and have the abandoned database named for manual "
-                        "cleanup.\n".format(db=db_name)
-                    )
-                    reg["leases"] = kept + [found]
-                    _write_registry(reg)
-                    return 1
-                elif present is True:
-                    # --force-forget: the DOCUMENTED escape from an un-droppable
-                    # lease. It never pretends the teardown happened - the database,
-                    # its cluster, and the manual step are all named, and the name is
-                    # also emitted machine-readably for a caller's report. The word
-                    # ABANDONED is now EARNED: the database was observed present.
-                    sys.stderr.write(
-                        "allocator: FORCE-FORGETTING the lease for {db} - the database was "
-                        "NOT dropped and is now ABANDONED on {cluster}. Drop it by "
-                        "hand once a client surface exists; nothing will retry it.\n".format(
-                            db=db_name, cluster=cluster)
-                    )
-                    _emit("ALLOC_ABANDONED_DB", db_name)
-                else:
-                    # --force-forget with existence UNVERIFIABLE. The lease is gone
-                    # either way, so say exactly that and no more: claiming the
-                    # database was abandoned would assert a cluster fact nothing
-                    # here observed.
-                    sys.stderr.write(
-                        "allocator: FORCE-FORGETTING the lease for {db} - the lease is "
-                        "gone, and whether the database still exists on {cluster} could "
-                        "NOT be confirmed from this host. Check by hand; nothing will "
-                        "retry it.\n".format(db=db_name, cluster=cluster)
-                    )
-                    _emit("ALLOC_UNVERIFIED_DB", db_name)
-        reg["leases"] = kept
+        lease = _mark_reclaiming(found, "released", "release")
         _write_registry(reg)
-    return 0
+
+    # ---- phase B: stop + drop, OUTSIDE the lock -------------------------------
+    # Teardown ORDER (L1.2) - stop the group FIRST, then drop - lives in
+    # `_stop_and_drop`, the one implementation gc uses too. Every probe and
+    # filestore removal below also runs unlocked.
+    outcome, rc = SETTLE_DELETE, 0
+    if not _stop_and_drop(lease, instances_path):
+        # The drop did not happen. Before NAMING anything, ask whether the
+        # database is even there: "abandoned" is a claim about the cluster,
+        # and a build that crashed before creating anything leaves a lease
+        # whose drop can only ever "fail" - un-releasable from both ends.
+        db_name = lease.get("db_name", "")
+        present = _db_present(lease, instances_path)
+        cluster = "{user}@{host}:{port}".format(
+            user=lease.get("db_user", "odoo"),
+            host=lease.get("db_host", "localhost"),
+            port=lease.get("db_port") or "libpq-default")
+        if present is False:
+            # PROVABLY absent: the drop had nothing to do IN POSTGRES, so
+            # this is a clean release, not a failure. The other half of the
+            # leak.
+            # The FILESTORE is a separate object with its own lifetime, and
+            # this path is reached exactly when the database went away
+            # without Odoo dropping it - a deleted container volume takes
+            # every ephemeral database with it and leaves every filestore
+            # directory behind. Releasing the lease here puts that
+            # directory beyond BOTH reapers at once: `gc` is lease-driven
+            # and the lease is about to be gone, `reap-orphans` is
+            # pg_database-driven and there is no row. So it is removed
+            # here, before the lease is dropped, or "NOTHING was left
+            # behind" would be false by one directory per run, forever.
+            _drop_filestore(db_name)
+            sys.stderr.write(
+                "allocator: {db} does not exist on {cluster}, so there was "
+                "nothing to drop in PostgreSQL - its filestore directory was "
+                "removed here (no lease and no pg_database row would be left "
+                "for either reaper to find it by), the lease is released and "
+                "NOTHING was left behind.\n".format(db=db_name, cluster=cluster))
+            _emit("ALLOC_FORGOTTEN_DB", db_name)
+        elif not opts.get("force_forget"):
+            # Present, or unverifiable: retain the lease so gc can retry.
+            if present is None:
+                sys.stderr.write(
+                    "allocator: whether {db} exists on {cluster} could NOT be "
+                    "determined, so its lease is treated as live.\n".format(
+                        db=db_name, cluster=cluster))
+            sys.stderr.write(
+                "allocator: the lease for {db} is KEPT because the database is still "
+                "there. Fix the drop surface (see the message above; `45-venv.sh "
+                "record-env` re-declares it and is re-read on every retry), or - when "
+                "nothing on this host can ever drop it - pass --force-forget to give "
+                "up the lease and have the abandoned database named for manual "
+                "cleanup.\n".format(db=db_name)
+            )
+            outcome, rc = SETTLE_KEEP, _fail("DROP_FAILED_KEPT", 1)
+        elif present is True:
+            # --force-forget: the DOCUMENTED escape from an un-droppable
+            # lease. It never pretends the teardown happened - the database,
+            # its cluster, and the manual step are all named, and the name is
+            # also emitted machine-readably for a caller's report. The word
+            # ABANDONED is now EARNED: the database was observed present.
+            sys.stderr.write(
+                "allocator: FORCE-FORGETTING the lease for {db} - the database was "
+                "NOT dropped and is now ABANDONED on {cluster}. Drop it by "
+                "hand once a client surface exists; nothing will retry it.\n".format(
+                    db=db_name, cluster=cluster)
+            )
+            _emit("ALLOC_ABANDONED_DB", db_name)
+        else:
+            # --force-forget with existence UNVERIFIABLE. The lease is gone
+            # either way, so say exactly that and no more: claiming the
+            # database was abandoned would assert a cluster fact nothing
+            # here observed.
+            sys.stderr.write(
+                "allocator: FORCE-FORGETTING the lease for {db} - the lease is "
+                "gone, and whether the database still exists on {cluster} could "
+                "NOT be confirmed from this host. Check by hand; nothing will "
+                "retry it.\n".format(db=db_name, cluster=cluster)
+            )
+            _emit("ALLOC_UNVERIFIED_DB", db_name)
+
+    # ---- phase C: settle the row, under the lock ------------------------------
+    with _locked():
+        reg = _read_registry()
+        settled = _settle_marked(reg, {token: outcome})
+        _write_registry(reg)
+    if outcome == SETTLE_DELETE and token in settled:
+        # THIS call deleted the row (a racing gc/release that took the row over
+        # settles it itself, and this call then says nothing).
+        _emit("ALLOC_RELEASED", token)
+    return rc
 
 
 def cmd_heartbeat(opts):
     """Refresh a lease's heartbeat - and, while the row is open under the lock,
-    BACKFILL the `owner.pid_started` fingerprint it may be missing.
+    BACKFILL the `owner.pid_started` fingerprint it may be missing and refresh
+    its anchor's `seen_at` when the caller belongs to the lease's session.
 
     Heartbeat is the right (and only) home for the backfill: it is the periodic
     touch by the owner itself, it already writes the registry, and it is the one
     place where recording proof does not race a decision that is being taken
-    right now. `acquire --pid` and `bind` already capture the fingerprint at
-    record time; `gc`/`release` are deciding the lease's fate as they read it, so
-    stamping a row that is about to be removed would buy nothing. The backfill is
-    corroboration-gated - see `_backfill_pid_fingerprint` for why an ungated one
-    would manufacture false proof."""
+    right now. The backfill is corroboration-gated - see
+    `_backfill_pid_fingerprint` for why an ungated one would manufacture false
+    proof.
+
+    `heartbeat --session mine` (no token) touches EVERY lease of the caller's
+    session in one registry hold - the call a long-lived session process (the
+    stdio MCP server) makes periodically so `seen_at` stays fresh."""
     token = opts.get("token")
-    if not token:
-        sys.stderr.write("Usage: allocator.py heartbeat <token>\n")
-        return 2
+    session_filter = _session_filter(opts)
+    if not token and session_filter is None:
+        sys.stderr.write("Usage: allocator.py heartbeat <token> | heartbeat --session mine\n")
+        return _fail("USAGE", 2)
+    now = _now()
     with _locked():
         reg = _read_registry()
-        hit = False
+        hits = []
         for lease in reg["leases"]:
-            if lease.get("token") == token:
-                lease["heartbeat_at"] = _now()
-                _backfill_pid_fingerprint(lease)
-                hit = True
-        if hit:
+            if token and lease.get("token") != token:
+                continue
+            if session_filter is not None and not session_filter(lease):
+                continue
+            lease["heartbeat_at"] = now
+            _backfill_pid_fingerprint(lease)
+            _touch_session(lease, now)
+            hits.append(lease.get("token", ""))
+        # Every row of the machine, not only the caller's: the MCP server runs
+        # this every HEARTBEAT interval, which bounds how long a gone server's
+        # pid stays on a live session's row for an older allocator to condemn.
+        shed = _shed_gone_servers(reg, now)
+        if hits or shed:
             _write_registry(reg)
-        else:
+        elif token:
             sys.stderr.write(f"allocator: no lease with token {token!r}.\n")
-            return 1
+            return _fail("LEASE_NOT_FOUND", 1)
+    _payload("touched", [t[:8] for t in hits])
     return 0
 
 
@@ -2900,29 +3903,32 @@ def cmd_bind(opts):
     pid (plus its recycling-resistant `pid_started` fingerprint, see
     `_pid_owner_fields`) onto the SAME `owner.pid`/`owner.pid_started` slots the
     shared-acquire path already writes, so release/gc can stop the whole
-    process group before the drop (L1.1), and so `_is_stale` can PROTECT this
+    process group before the drop (L1.1), and so `_judge` can PROTECT this
     lease once it is verified alive. Refuses an unknown token and a missing
     --pid; reuses the token-scan + write helpers (no second ledger path)."""
     token = opts.get("token")
     if not token:
         sys.stderr.write("Usage: allocator.py bind <token> --pid <server_pid>\n")
-        return 2
-    pid = opts.get("pid")
+        return _fail("USAGE", 2)
+    pid = _int_opt(opts, "pid", "--pid", None)
     if not pid:
         sys.stderr.write("Usage: allocator.py bind <token> --pid <server_pid>\n")
-        return 2
+        return _fail("USAGE", 2)
     with _locked():
         reg = _read_registry()
         hit = False
         for lease in reg["leases"]:
             if lease.get("token") == token:
-                lease.setdefault("owner", {}).update(_pid_owner_fields(pid))
+                # The ONE owner constructor: refreshes pid + fingerprint, `via`,
+                # and the anchor of the caller that launched the server.
+                lease["owner"] = _owner_block(pid=pid, base=lease.get("owner") or {})
                 hit = True
         if hit:
+            _shed_gone_servers(reg)
             _write_registry(reg)
         else:
             sys.stderr.write(f"allocator: no lease with token {token!r} to bind.\n")
-            return 1
+            return _fail("LEASE_NOT_FOUND", 1)
     return 0
 
 
@@ -2938,6 +3944,11 @@ def cmd_park(opts):
 
     `park` is the third exit. Order inside the single lock, and it is the whole
     safety argument:
+      0. REFUSE a caller that did not acquire the lease (exit 1 NOT_OWNER) -
+         release's rule, from the same `_ownership_refusal`. Park stops a live
+         server, so it is as destructive to a peer's session as release is; the
+         check runs HERE, under the lock, because a pre-check by a wrapper is a
+         race window and the Bash fallback path has no wrapper at all.
       1. REFUSE a `shared` lease (exit 3). The shared row is the ONE answer
          `query --series` gives for a series; a parked twin would make that rung
          two-valued, and the shared row is already immune to the pid arms
@@ -2949,7 +3960,7 @@ def cmd_park(opts):
          that never binds a pid at all: none of them has a process to stop or a
          listening state worth preserving.
       3. STOP THE OWNER'S PROCESS GROUP FIRST, through the same
-         `_stop_owner_group_if_local` gate `release` and `_gc` use - so an
+         `_stop_owner_group_if_local` gate `release` and `gc` use - so an
          unproven pid is still never signalled. Park holds DISK, never MEMORY.
          Doing this before the pid is cleared is not an ordering nicety: the pid
          IS the only handle on that process group, so clearing it first would
@@ -2965,7 +3976,7 @@ def cmd_park(opts):
     But it IS park's business to REPORT that fate, which is why the emissions
     below carry `ALLOC_DROP_ON_RELEASE` and a `drop_on_release=true` lease also
     gets an explicit stderr line. Park DEFERS a throwaway database, it does not
-    make it durable: the drop still fires at the final `release` (and in `_gc`),
+    make it durable: the drop still fires at the final `release` (and in `gc`),
     so a caller that parked in order to SAVE a database it spent minutes
     building gets exactly what it asked for now and loses it later - with no
     signal in between unless park emits one. `drop_on_release` is written ONCE,
@@ -2975,17 +3986,18 @@ def cmd_park(opts):
     do NOT turn it into a mode-gated refusal: the isolated running lease park
     exists to suspend IS the `ephemeral` one (`persist: exclusive-running` maps
     onto allocator `ephemeral` - docs/reference/INSTANCE-ALLOCATION-MODES.md
-    §5), so refusing that mode would refuse park's only intended client.
+    section 5), so refusing that mode would refuse park's only intended client.
     """
     token = opts.get("token")
     if not token:
-        sys.stderr.write("Usage: allocator.py park <token> [--park-ttl <s>]\n")
-        return 2
+        sys.stderr.write("Usage: allocator.py park <token> --run-id <id> [--park-ttl <s>] "
+                         "[--force]\n")
+        return _fail("USAGE", 2)
     try:
         park_ttl = int(opts.get("park_ttl") or DEFAULT_PARK_TTL_S)
     except (TypeError, ValueError):
         sys.stderr.write("allocator: --park-ttl must be an integer number of seconds.\n")
-        return 2
+        return _fail("USAGE", 2)
     with _locked():
         reg = _read_registry()
         target = None
@@ -2995,18 +4007,34 @@ def cmd_park(opts):
                 break
         if target is None:
             sys.stderr.write(f"allocator: no lease with token {token!r} to park.\n")
-            return 1
+            return _fail("LEASE_NOT_FOUND", 1)
+        if _reclaim_in_progress(target):
+            return _fail("RECLAIM_IN_PROGRESS", 11,
+                         "lease {t} is being reclaimed right now by {who}; it was NOT "
+                         "parked.".format(t=token, who=_reclaimer_desc(target)))
+        # Park STOPS the owner's process group, so it answers release's
+        # ownership question - decided here, under the lock, before any other
+        # refusal can leak the lease's state to a stranger and before any signal.
+        refused = _ownership_refusal(target, opts, "park", (
+            "parking it would stop a server a peer session is using. --force overrides. "
+            "NOTHING was stopped and the lease is unchanged."))
+        if refused is not None:
+            return refused
         if target.get("mode") == "shared":
             sys.stderr.write(
                 "allocator: REFUSING to park the `shared` lease on database {db!r}. The shared "
                 "render target is the single answer `query --series {series}` gives for a series, "
                 "and it is already immune to the owner-pid arms - a parked twin would make that "
-                "lookup two-valued and protect nothing. Release it when the render server is "
-                "genuinely finished with.\n".format(
+                "lookup two-valued and protect nothing. Leave it for its readers: it needs no "
+                "teardown, and gc reclaims it once its server is gone.\n".format(
                     db=target.get("db_name"), series=target.get("series"))
             )
-            return 3
-        if (target.get("owner") or {}).get("pid") is None:
+            return _fail("SHARED_NOT_PARKABLE", 3)
+        # A row whose server exited under a live session had its pid shed
+        # (`_shed_gone_server`); it was RUNNING, and parking it (keep the
+        # database past the session) is still meaningful.
+        target_owner = target.get("owner") or {}
+        if target_owner.get("pid") is None and not target_owner.get(SERVER_GONE_KEY):
             sys.stderr.write(
                 "allocator: REFUSING to park the lease on database {db!r} - it records no owner "
                 "pid, so it is not RUNNING: there is no server process to stop and nothing to "
@@ -3014,23 +4042,11 @@ def cmd_park(opts):
                 "pid; use `resume <token> --pid <server_pid>` to bring it back, or `release` to "
                 "finish with it.)\n".format(db=target.get("db_name"))
             )
-            return 4
+            return _fail("NOT_RUNNING", 4)
         # Park holds DISK, never MEMORY - stop the group BEFORE the pid that
         # names it is cleared.
         _stop_owner_group_if_local(target)
-        owner = target.setdefault("owner", {})
-        owner["pid"] = None
-        owner["pid_started"] = None
-        target["parked_at"] = _now()
-        target["park_ttl_s"] = park_ttl
-        boot = _boot_id()
-        if boot:
-            target["parked_boot_id"] = boot
-        else:
-            # Absent, not empty: `_condemn_reason` compares only when BOTH sides
-            # carry a value, so an absent key degrades to the plain budget
-            # comparison instead of reading as a mismatch.
-            target.pop("parked_boot_id", None)
+        _stamp_park(target, park_ttl)
         _write_registry(reg)
     _emit("ALLOC_TOKEN", token)
     _emit("ALLOC_PARKED_AT", target["parked_at"])
@@ -3115,7 +4131,7 @@ def cmd_resume(opts):
     Step 4's DELETE is the non-negotiable half. A resume that left `parked_at`
     behind would hand a live, healthy server a park budget as its only
     governor: `_condemn_reason`'s park arm would return CONDEMN_PARK_EXPIRED the
-    moment that budget lapsed, `_gc` would stop the group and drop the database
+    moment that budget lapsed, `gc` would stop the group and drop the database
     under a running instance, and the SubagentStop teardown gate's parked
     exemption would go on exempting that live lease forever - reopening the RAM
     leak. Both harms, from one missing `del`.
@@ -3124,12 +4140,12 @@ def cmd_resume(opts):
     pid = opts.get("pid")
     if not token or not pid:
         sys.stderr.write("Usage: allocator.py resume <token> --pid <server_pid>\n")
-        return 2
+        return _fail("USAGE", 2)
     try:
         pid = int(pid)
     except (TypeError, ValueError):
         sys.stderr.write("allocator: --pid must be an integer process id.\n")
-        return 2
+        return _fail("USAGE", 2)
     with _locked():
         reg = _read_registry()
         target = None
@@ -3139,7 +4155,12 @@ def cmd_resume(opts):
                 break
         if target is None:
             sys.stderr.write(f"allocator: no lease with token {token!r} to resume.\n")
-            return 1
+            return _fail("LEASE_NOT_FOUND", 1)
+        if _reclaim_in_progress(target):
+            return _fail("RECLAIM_IN_PROGRESS", 11,
+                         "lease {t} is being reclaimed right now by {who}; it was NOT "
+                         "resumed - stop the server you launched.".format(
+                             t=token, who=_reclaimer_desc(target)))
         if target.get("parked_at") is None:
             holder = _live_owner_pid(target)
             if holder is not None and holder != pid:
@@ -3152,14 +4173,14 @@ def cmd_resume(opts):
                     "attach to the running one instead.\n".format(
                         db=target.get("db_name"), pid=pid, holder=holder)
                 )
-                return 6
+                return _fail("RESUME_RACE", 6)
             sys.stderr.write(
                 "allocator: REFUSING to resume the lease on database {db!r} - it is NOT parked, "
                 "and no live server holds it either. This is the ordinary first launch: bind the "
                 "pid with `bind <token> --pid <server_pid>` instead.\n".format(
                     db=target.get("db_name"))
             )
-            return 3
+            return _fail("NOT_PARKED", 3)
         present = _db_present(target, opts.get("instances"))
         if present is False:
             sys.stderr.write(
@@ -3169,7 +4190,7 @@ def cmd_resume(opts):
                 "lease and its filestore up correctly.\n".format(
                     db=target.get("db_name"), token=token)
             )
-            return 5
+            return _fail("DB_GONE", 5)
         owner_host = (target.get("owner") or {}).get("host", "")
         if owner_host and owner_host != _host():
             sys.stderr.write(
@@ -3178,14 +4199,14 @@ def cmd_resume(opts):
                 "and that lease's database may live on another cluster entirely.\n".format(
                     db=target.get("db_name"), owner_host=owner_host, here=_host())
             )
-            return 4
+            return _fail("WRONG_HOST", 4)
         if not _pid_alive(pid):
             sys.stderr.write(
                 "allocator: REFUSING to resume the lease on database {db!r} with pid {pid} - that "
                 "pid is not a live process on this host, so it cannot be the server this lease is "
                 "resuming into.\n".format(db=target.get("db_name"), pid=pid)
             )
-            return 4
+            return _fail("PID_NOT_ALIVE", 4)
         proof, detail = _ownership_proof(target, pid)
         if proof is None:
             sys.stderr.write(
@@ -3195,13 +4216,20 @@ def cmd_resume(opts):
                 "did not spawn is how an unrelated session gets killed.\n".format(
                     db=target.get("db_name"), pid=pid, detail=detail)
             )
-            return 4
+            return _fail("OWNERSHIP_UNPROVEN", 4)
         # The set half of the compare-and-set. The three park keys go together:
         # a survivor of any one of them re-governs a live lease by a park budget.
+        park_budget = target.get("park_ttl_s")
         target.pop("parked_at", None)
         target.pop("park_ttl_s", None)
         target.pop("parked_boot_id", None)
-        target.setdefault("owner", {}).update(_pid_owner_fields(pid))
+        # The ONE owner constructor: the resuming caller's anchor now vouches for
+        # the lease (a parked lease may be resumed by a later session).
+        target["owner"] = _owner_block(pid=pid, base=target.get("owner") or {})
+        # Someone parked this lease ON PURPOSE. The resuming session's end
+        # (`gc --scope anchor`, or the automatic session-ended arm) must put it
+        # back in the park, not drop the database its owner chose to keep.
+        _mark_return_to_park(target, park_budget)
         target["heartbeat_at"] = _now()
         _write_registry(reg)
     sys.stderr.write(
@@ -3215,19 +4243,218 @@ def cmd_resume(opts):
     return 0
 
 
+def _anchor_arg(value):
+    """(anchor, is_anchor_spelling) for a `--session` / `--anchor` value.
+
+    `mine` is the caller's own anchor (an empty dict when the caller has none,
+    which then matches only by session id); `<pid>:<fingerprint>` is an explicit
+    anchor. Anything else is NOT an anchor spelling - for `list`/`release` the
+    `--session` flag is also the historical alias of `--run-id`, and a value
+    that is not an anchor keeps that meaning."""
+    value = (value or "").strip()
+    if value == "mine":
+        return dict(_caller_anchor() or {}), True
+    if ":" in value:
+        parsed = session_anchor.parse_anchor(value)
+        if parsed is not None:
+            return {"pid": parsed[0], "started": parsed[1]}, True
+    return None, False
+
+
+def _lease_of_anchor(lease, anchor, by_session_id=""):
+    """True when `lease` is anchored to `anchor` (same pid AND fingerprint; pid
+    alone when the anchor names no fingerprint), or - with `by_session_id` - to
+    that session id."""
+    session = (lease.get("owner") or {}).get("session")
+    if not session:
+        return False
+    if anchor and anchor.get("pid") is not None:
+        if anchor.get("started"):
+            if session_anchor.same_anchor(session, anchor):
+                return True
+        else:
+            try:
+                if int(session.get("pid")) == int(anchor.get("pid")):
+                    return True
+            except (TypeError, ValueError):
+                pass
+    return bool(by_session_id) and session.get("session_id") == by_session_id
+
+
+def _session_filter(opts):
+    """A predicate for `--session <pid:fingerprint|mine>`, or None when the flag
+    is absent or carries a (legacy) run id instead."""
+    anchor, is_anchor = _anchor_arg(opts.get("session"))
+    if not is_anchor:
+        return None
+    sid = _caller_session_id() if (opts.get("session") or "").strip() == "mine" else ""
+    return lambda lease: _lease_of_anchor(lease, anchor, sid)
+
+
+def _gc_targets(reg, scope, anchor):
+    """[(lease, reason)] this gc pass will reclaim, in registry order."""
+    targets = []
+    for lease in reg["leases"]:
+        if _reclaim_in_progress(lease):
+            continue  # another live gc owns it
+        if scope == GC_SCOPE_ANCHOR:
+            if not _lease_of_anchor(lease, anchor):
+                continue
+            # Only what the ended session was RUNNING or holding in reserve: a
+            # parked lease was deliberately preserved past the session, and a
+            # shared render server is cross-session by design.
+            if lease.get("parked_at") is not None or lease.get("mode") == "shared":
+                continue
+            targets.append((lease, CONDEMN_SESSION_ENDED))
+            continue
+        reason = _condemn_reason(lease, auto=(scope == GC_SCOPE_DEAD_SESSIONS))
+        if reason is not None:
+            targets.append((lease, reason))
+    return targets
+
+
+def _gc_action(lease, reason):
+    """GC_ACTION_PARK when `lease` goes back to the park instead of being
+    reclaimed: it was resumed/adopted out of a deliberate park
+    (`owner.return_to_park`) and what ended is its OWNER (session ended, server
+    gone), not its park budget. Otherwise GC_ACTION_RECLAIM."""
+    if ((lease.get("owner") or {}).get("return_to_park")
+            and reason in CAPACITY_REASONS and lease.get("mode") != "shared"):
+        return GC_ACTION_PARK
+    return GC_ACTION_RECLAIM
+
+
+def _gc_candidate(lease, reason):
+    owner = lease.get("owner") or {}
+    return {
+        "token": lease.get("token", ""),
+        "reason": reason,
+        "db_name": lease.get("db_name", ""),
+        "mode": lease.get("mode", ""),
+        "run_id": owner.get("run_id", ""),
+        "state": _lease_state(lease),
+        "action": _gc_action(lease, reason),
+        "drops_db": bool(lease.get("drop_on_release") and lease.get("db_name")
+                         and _gc_action(lease, reason) == GC_ACTION_RECLAIM),
+    }
+
+
 def cmd_gc(opts):
+    """Reclaim condemned leases: stop the owner's process group, drop a throwaway
+    database through Odoo, delete the row - and report each one.
+
+    --scope all (default)     every arm of `_judge`, including the TTL arm.
+    --scope dead-sessions     the AUTOMATIC semantics: an ended session (after
+                              ANCHOR_GRACE_S), a dead or recycled server pid, an
+                              expired park; never the TTL arm.
+    --scope anchor            the running/reserved (never parked, never shared)
+                              leases of ONE session anchor - `--anchor
+                              <pid:fingerprint>`, default the caller's own. The
+                              anchor must no longer be alive (`--force` overrides).
+    --dry-run                 list what would be reclaimed; change nothing.
+
+    Two-phase (see the GC section header): the registry lock is NOT held while a
+    server is stopped or a database is dropped."""
+    scope = (opts.get("scope") or GC_SCOPE_ALL).strip()
+    if scope not in GC_SCOPES:
+        return _fail("USAGE", 2, "unknown --scope {s!r}; one of: {all}".format(
+            s=scope, all=", ".join(GC_SCOPES)))
+    dry_run = bool(opts.get("dry_run"))
+    run_id = opts.get("run_id") or opts.get("session", "")
+    instances_path = opts.get("instances")
+    anchor = None
+    if scope == GC_SCOPE_ANCHOR:
+        if opts.get("anchor"):
+            anchor, is_anchor = _anchor_arg(opts.get("anchor"))
+            if not is_anchor:
+                return _fail("USAGE", 2, "--anchor takes <pid>:<fingerprint> (see `anchor "
+                                         "--print`) or `mine`")
+        else:
+            anchor = _caller_anchor()
+        if not anchor or anchor.get("pid") is None:
+            return _fail("ANCHOR_REQUIRED", 2, "--scope anchor needs --anchor "
+                                               "<pid>:<fingerprint> (the caller has none)")
+        if not dry_run and not opts.get("force") \
+                and session_anchor.anchor_state(anchor) == session_anchor.STATE_ALIVE:
+            return _fail("ANCHOR_ALIVE", 3, (
+                "session anchor {a} is still ALIVE - reclaiming a live session's leases "
+                "would destroy work in progress. NOTHING was reclaimed. Wait for the "
+                "session to end, or pass --force deliberately.".format(
+                    a=session_anchor.format_anchor(anchor["pid"], anchor.get("started")))))
+
+    # ---- phase A: choose + mark, under the lock -------------------------------
     with _locked():
         reg = _read_registry()
-        reclaimed = _gc(reg, "gc", opts.get("instances"),
-                        opts.get("run_id") or opts.get("session", ""))
+        targets = _gc_targets(reg, scope, anchor)
+        if dry_run:
+            candidates = [_gc_candidate(lease, reason) for lease, reason in targets]
+            for cand in candidates:
+                _emit("ALLOC_WOULD_RECLAIM", cand["token"], multi=True)
+            _payload("candidates", candidates)
+            _payload("scope", scope)
+            _note(f"# would reclaim {len(candidates)} lease(s) (dry-run, scope {scope}; "
+                  "nothing was changed)")
+            return 0
+        now = _now()
+        work = []
+        for lease, reason in targets:
+            work.append((_mark_reclaiming(lease, reason, "gc", now), reason))
+        _shed_gone_servers(reg, now)
+        # Also persists any re-anchoring `_judge` did for a resumed session.
         _write_registry(reg)
-    # The explicit verb keeps its long-standing PROTOCOL output byte-for-byte (a
-    # consumer evals it): one ALLOC_RECLAIMED= line per lease plus the count. The
-    # per-lease account of WHY each one was condemned went to stderr + the evidence
-    # log as it happened, exactly as it now does for the implicit acquire passes.
+
+    # ---- phase B: stop + drop, OUTSIDE the lock -------------------------------
+    outcomes, records, reparked = {}, {}, []
+    for lease, reason in work:
+        token = lease.get("token", "")
+        if _gc_action(lease, reason) == GC_ACTION_PARK:
+            # Back to the park: stop the server (park holds DISK, never MEMORY),
+            # keep the database, the filestore and the ports.
+            _stop_owner_group_if_local(lease)
+            _report_reclaimed(_reclaim_record(lease, reason, "gc", run_id,
+                                              action="parked", dropped_db=False))
+            outcomes[token] = SETTLE_PARK
+            reparked.append(token)
+            continue
+        # Reap the ORPHAN before reclaiming: a condemned lease's server may still
+        # be alive. Stopping its group first frees the RAM and unblocks the drop
+        # (a live backend blocks DROP DATABASE). Unproven ownership signals
+        # nothing and is reported (`_stop_owner_group_if_local`).
+        if not _stop_and_drop(lease, instances_path):
+            # Genuine drop failure: the row and the database both still exist,
+            # so it is NOT reported as reclaimed; phase C clears the marker so
+            # a later gc (or the owner's release) can retry.
+            outcomes[token] = SETTLE_KEEP
+            continue
+        record = _reclaim_record(lease, reason, "gc", run_id)
+        # Reported as soon as the destruction happened, not after phase C: if this
+        # process dies before C, the account already exists and the row (still
+        # marked by a dead pid) is simply retaken by the next gc.
+        _report_reclaimed(record)
+        outcomes[token], records[token] = SETTLE_DELETE, record
+
+    # ---- phase C: settle the rows, under the lock -----------------------------
+    reclaimed, settled = [], set()
+    if work:
+        with _locked():
+            reg = _read_registry()
+            settled = _settle_marked(reg, outcomes)
+            _write_registry(reg)
+        reclaimed = [rec for token, rec in records.items() if token in settled]
+    parked_back = [t for t in reparked if t in settled]
+    for token in parked_back:
+        _emit("ALLOC_PARKED", token, multi=True)
+    _payload("parked", parked_back)
+    # The long-standing PROTOCOL output, byte-for-byte (a consumer evals it): one
+    # ALLOC_RECLAIMED= line per lease plus the count. The per-lease account of WHY
+    # went to stderr + the evidence log as it happened.
     for rec in reclaimed:
-        _emit("ALLOC_RECLAIMED", rec.get("token", ""))
-    print(f"# reclaimed {len(reclaimed)} stale lease(s)")
+        _emit("ALLOC_RECLAIMED", rec.get("token", ""), multi=True)
+    _payload("reclaimed", reclaimed)
+    _payload("scope", scope)
+    _note(f"# reclaimed {len(reclaimed)} stale lease(s)")
+    if parked_back:
+        _note(f"# returned {len(parked_back)} resumed lease(s) to the park")
     return 0
 
 
@@ -3376,12 +4603,16 @@ def _db_size_bytes(cluster, db_name):
 
 def cmd_reap_orphans(opts):
     path = resolve_instances_path(opts.get("instances"))
-    items = instances_io.load_instances(path)
+    items = _load_catalog(path)
     if not items:
         sys.stderr.write(f"allocator: no instances declared in {path}; nothing to reap.\n")
         return 0
 
-    min_age_s = float(opts.get("min_age_s") or DEFAULT_REAP_MIN_AGE_S)
+    try:
+        min_age_s = float(opts.get("min_age_s") or DEFAULT_REAP_MIN_AGE_S)
+    except ValueError:
+        raise _UsageError("--min-age-s must be a number of seconds, got {v!r}".format(
+            v=opts.get("min_age_s")))
     yes = bool(opts.get("yes"))
 
     # Every prefix ANY declared instance could mint an ephemeral DB under - a
@@ -3452,13 +4683,14 @@ def cmd_reap_orphans(opts):
         )
 
     for name, reason in all_skipped:
-        _emit("REAP_SKIPPED", f"{name}: {reason}")
+        _emit("REAP_SKIPPED", f"{name}: {reason}", multi=True)
 
     dropped, failed = [], []
     for db in all_candidates:
         age_h = (db["age_s"] or 0) / 3600
         size_mb = (db["size_bytes"] or 0) / (1024 * 1024)
-        _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}")
+        _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}",
+              multi=True)
         if yes:
             if _dropdb(db["host"], db["user"], db["name"], db["port"],
                        db.get("db_run_mode", ""), db.get("db_container", "")):
@@ -3469,11 +4701,11 @@ def cmd_reap_orphans(opts):
 
     if yes:
         for name in dropped:
-            _emit("REAP_DROPPED", name)
-        print(f"# reaped {len(dropped)} orphan(s), {len(failed)} failure(s)")
-        return 1 if failed else 0
+            _emit("REAP_DROPPED", name, multi=True)
+        _note(f"# reaped {len(dropped)} orphan(s), {len(failed)} failure(s)")
+        return _fail("REAP_DROP_FAILED", 1) if failed else 0
 
-    print(f"# {len(all_candidates)} orphan candidate(s) found (list-only - pass --yes to drop)")
+    _note(f"# {len(all_candidates)} orphan candidate(s) found (list-only - pass --yes to drop)")
     return 0
 
 
@@ -3497,7 +4729,7 @@ def cmd_db_preflight(opts):
     inst, _items = _resolve_instance(path, series, profile=profile or None)
     if inst is None:
         sys.stderr.write(f"allocator: no instance for series {series!r} in {path}.\n")
-        return 1
+        return _fail("NO_INSTANCE", 1)
     host = inst.get("db_host", "localhost")
     user = inst.get("db_user", "odoo")
     port = inst.get("db_port", "")
@@ -3506,7 +4738,8 @@ def cmd_db_preflight(opts):
     _emit("DB_AUTH", auth_state)
     _emit("DB_AUTH_WHY", auth_why)
     if auth_state in ("denied", "unreachable"):
-        return EXIT_AUTH_DENIED if auth_state == "denied" else EXIT_UNREACHABLE
+        return (_fail("DB_AUTH_DENIED", EXIT_AUTH_DENIED) if auth_state == "denied"
+                else _fail("DB_UNREACHABLE", EXIT_UNREACHABLE))
 
     verdict, why = _can_createdb(inst, host, user, port)
     if isinstance(verdict, _ConnBlocked):
@@ -3515,16 +4748,16 @@ def cmd_db_preflight(opts):
         # The connection verdict still wins over any client surface.
         _emit("CREATEDB", "undeterminable")
         _emit("CREATEDB_WHY", why)
-        return verdict.exit_code
+        return _fail(_conn_blocked_code(verdict), verdict.exit_code)
     if verdict is True:
         _emit("CREATEDB", "true")
         return 0
     if verdict is False:
         _emit("CREATEDB", "false")
-        return 6
+        return _fail("NO_CREATEDB", 6)
     _emit("CREATEDB", "undeterminable")
     _emit("CREATEDB_WHY", why)
-    return 7
+    return _fail("CREATEDB_UNDETERMINABLE", 7)
 
 
 def cmd_can_createdb(opts):
@@ -3545,7 +4778,7 @@ def cmd_can_createdb(opts):
     inst, _items = _resolve_instance(path, series, profile=profile or None)
     if inst is None:
         sys.stderr.write(f"allocator: no instance for series {series!r} in {path}.\n")
-        return 1
+        return _fail("NO_INSTANCE", 1)
     verdict, why = _can_createdb(
         inst, inst.get("db_host", "localhost"), inst.get("db_user", "odoo"),
         inst.get("db_port", ""))
@@ -3556,16 +4789,16 @@ def cmd_can_createdb(opts):
         # never contradict `db-preflight`.
         _emit("CREATEDB", "undeterminable")
         _emit("CREATEDB_WHY", why)
-        return verdict.exit_code
+        return _fail(_conn_blocked_code(verdict), verdict.exit_code)
     if verdict is True:
         _emit("CREATEDB", "true")
         return 0
     if verdict is False:
         _emit("CREATEDB", "false")
-        return 6
+        return _fail("NO_CREATEDB", 6)
     _emit("CREATEDB", "undeterminable")
     _emit("CREATEDB_WHY", why)
-    return 7
+    return _fail("CREATEDB_UNDETERMINABLE", 7)
 
 
 def _emit_parked(lease, attached_from=""):
@@ -3616,6 +4849,7 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None):
         lz for lz in reg.get("leases", [])
         if lz.get("parked_at") is not None
         and lz.get("series") == series
+        and not _reclaim_in_progress(lz)
         and _condemn_reason(lz) is None
     ]
     here = _host()
@@ -3659,7 +4893,7 @@ def _query_parked(reg, series, run_id, force_attach, instances_path=None):
                 continue
             _emit_parked(lease, attached_from=(lease.get("owner") or {}).get("run_id", ""))
             return 0
-    return 1
+    return _fail("NOT_FOUND", 1)
 
 
 def cmd_query(opts):
@@ -3689,20 +4923,30 @@ def cmd_query(opts):
             f"allocator: unknown --state {state!r}. The only value is `parked`; omit --state for "
             "the default live-shared lookup.\n"
         )
-        return 2
+        return _fail("USAGE", 2)
     for lease in reg["leases"]:
         if (lease.get("mode") == "shared"
                 and lease.get("series") == series
+                and not _reclaim_in_progress(lease)
                 and not _is_stale(lease)):
             _emit("ALLOC_TOKEN", lease.get("token", ""))
             _emit("ALLOC_MODE", "shared")
             _emit("ALLOC_DB_NAME", lease.get("db_name", ""))
             _emit("ALLOC_PORTS", lease.get("ports", []))
             return 0
-    return 1
+    return _fail("NOT_FOUND", 1)
 
 
 def cmd_list(opts):
+    """The registry as JSON, optionally filtered and annotated.
+
+    Filters (all combine with AND): `--run-id <id>` (exact owner run; `--session
+    <run>` is its historical alias), `--older-than <s>`, `--tokens a,b` (full
+    tokens or >=8-char prefixes), `--session <pid:fingerprint|mine>` (leases
+    anchored to that session; `mine` also matches the caller's session id).
+    `--with-verdict` adds `verdict` (`_verdict`: state, protected_by, condemn,
+    condemn_auto, anchor_state, anchor_alive) to every lease - the SSOT a
+    consumer reads instead of re-deriving liveness. Read-only: no lock, no write."""
     reg = _read_registry()
     # Audit filters. A run auditing its own leaks used to grep this output for its run-id PREFIX,
     # which is not a thing this tool offers and not a thing prefix matching can do reliably: the
@@ -3710,19 +4954,35 @@ def cmd_list(opts):
     # real one. `--run-id` filters on the recorded owner exactly, and `--older-than` finds what an
     # id-based audit structurally cannot - a lease whose owner string matches nothing the run
     # knows about, which is precisely the shape a descendant that minted its own id produces.
-    want_run = opts.get("run_id") or opts.get("session") or ""
+    session_filter = _session_filter(opts)
+    want_run = opts.get("run_id") or ("" if session_filter else opts.get("session")) or ""
     older_than = opts.get("older_than")
-    if want_run or older_than:
+    try:
         cutoff = (_now() - float(older_than)) if older_than else None
-        kept = []
-        for lease in reg.get("leases", []):
-            owner = lease.get("owner") or {}
-            if want_run and (owner.get("run_id") or owner.get("session_id") or "") != want_run:
+    except ValueError:
+        raise _UsageError("--older-than must be a number of seconds, got {v!r}".format(
+            v=older_than))
+    wanted_tokens = [t.strip() for t in (opts.get("tokens") or "").split(",") if t.strip()]
+    kept = []
+    for lease in reg.get("leases", []):
+        owner = lease.get("owner") or {}
+        if want_run and (owner.get("run_id") or owner.get("session_id") or "") != want_run:
+            continue
+        if cutoff is not None and float(owner.get("started_at") or 0) > cutoff:
+            continue
+        if wanted_tokens:
+            token = lease.get("token") or ""
+            if not any(token == t or (len(t) >= 8 and token.startswith(t))
+                       for t in wanted_tokens):
                 continue
-            if cutoff is not None and float(owner.get("started_at") or 0) > cutoff:
-                continue
-            kept.append(lease)
-        reg["leases"] = kept
+        if session_filter is not None and not session_filter(lease):
+            continue
+        if opts.get("with_verdict"):
+            # Judged on a COPY: `_judge` may re-anchor a resumed session's lease in
+            # memory, and a read-only verb must print the row as it is on disk.
+            lease["verdict"] = _verdict(json.loads(json.dumps(lease)))
+        kept.append(lease)
+    reg["leases"] = kept
     # Redact each token to an 8-char fingerprint by default so a `list` scrape
     # can no longer hand a full token to `release`. --show-tokens reveals them for
     # debugging. This is an ACCIDENT-PREVENTION layer, not a security boundary
@@ -3733,7 +4993,91 @@ def cmd_list(opts):
             tok = lease.get("token")
             if tok:
                 lease["token"] = tok[:8]
+    if _OUT["json"]:
+        _payload("schema_version", reg.get("schema_version", 1))
+        _payload("leases", reg["leases"])
+        return 0
     print(json.dumps(reg, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_anchor(opts):
+    """Print the caller's session anchor, shell-eval-able:
+        ODOO_AI_SESSION_ANCHOR=<pid>:<fingerprint>
+        ODOO_AI_SESSION_ID=<CLAUDE_CODE_SESSION_ID or empty>
+        ODOO_AI_ANCHOR_SOURCE=env|claude-pid|ancestor
+        ODOO_AI_ANCHOR_STATE=alive|dead|unknown
+    Exporting the first line hands the SAME anchor to a process that would not
+    discover it itself (a detached worker, a hook). Exit 5 (NO_ANCHOR) when the
+    caller is not inside an agent session. `--print` is accepted and implied."""
+    anchor = _caller_anchor()
+    if not anchor:
+        return _fail("NO_ANCHOR", 5, "no session anchor: not inside an agent session "
+                                     "(no ODOO_AI_SESSION_ANCHOR, no CLAUDE_PID, no agent "
+                                     "CLI ancestor) - or anchoring is disabled")
+    _emit(session_anchor.ANCHOR_ENV,
+          session_anchor.format_anchor(anchor["pid"], anchor.get("started")))
+    _emit("ODOO_AI_SESSION_ID", anchor.get("session_id", "") or "")
+    _emit("ODOO_AI_ANCHOR_SOURCE", anchor.get("source", ""))
+    _emit("ODOO_AI_ANCHOR_STATE", session_anchor.anchor_state(anchor))
+    return 0
+
+
+def cmd_adopt(opts):
+    """Re-anchor a lease onto the CALLER's session: `adopt <token> --run-id <id>`.
+
+    The hand-over verb for a lease that must outlive the session that acquired
+    it inside the same run (a resumed session under a new id, a worker another
+    process launched). It changes WHO vouches for the lease's liveness - never
+    its owner run, its database, its ports or its mode - so it requires the
+    ownership the release path requires (the run id recorded on the lease),
+    the same host, and a caller that HAS an anchor."""
+    token = opts.get("token")
+    run_id = opts.get("run_id") or ""
+    if not token or not run_id:
+        sys.stderr.write("Usage: allocator.py adopt <token> --run-id <id>\n")
+        return _fail("USAGE", 2)
+    anchor = _caller_anchor()
+    if not anchor:
+        return _fail("NO_ANCHOR", 5, "adopt needs a caller with a session anchor; this "
+                                     "process has none, so there is nothing to anchor to")
+    with _locked():
+        reg = _read_registry()
+        target = next((lz for lz in reg["leases"] if lz.get("token") == token), None)
+        if target is None:
+            sys.stderr.write(f"allocator: no lease with token {token!r} to adopt.\n")
+            return _fail("LEASE_NOT_FOUND", 1)
+        owner = target.get("owner") or {}
+        owner_run = owner.get("run_id") or owner.get("session_id", "")
+        if owner_run != run_id:
+            return _fail("NOT_OWNER", 1, (
+                "REFUSING to adopt the lease for db {db!r}: it is owned by run {o!r} and "
+                "this caller named {c!r}. Only the run that acquired a lease may re-anchor "
+                "it.".format(db=target.get("db_name"), o=owner_run or "<none recorded>",
+                             c=run_id)))
+        if owner.get("host") and owner.get("host") != _host():
+            return _fail("WRONG_HOST", 4, (
+                "REFUSING to adopt the lease for db {db!r}: it was recorded on host {h!r} "
+                "and this is {here!r}.".format(db=target.get("db_name"), h=owner.get("host"),
+                                               here=_host())))
+        if _reclaim_in_progress(target):
+            return _fail("RECLAIM_IN_PROGRESS", 11,
+                         "lease {t} is being reclaimed right now by {who}; it was NOT "
+                         "adopted.".format(t=token, who=_reclaimer_desc(target)))
+        now = _now()
+        owner["session"] = _session_block(anchor, now)
+        target["owner"] = owner
+        if target.get("parked_at") is not None:
+            # Adopting a parked lease: when the adopting session later resumes and
+            # then ends, the lease goes back to the park (see `_mark_return_to_park`).
+            _mark_return_to_park(target, target.get("park_ttl_s"))
+        target["heartbeat_at"] = now
+        _shed_gone_servers(reg, now)
+        _write_registry(reg)
+    _announce_lease("adopted", token, run_id)
+    _emit("ALLOC_TOKEN", token)
+    _emit(session_anchor.ANCHOR_ENV,
+          session_anchor.format_anchor(anchor["pid"], anchor.get("started")))
     return 0
 
 
@@ -3753,7 +5097,7 @@ def cmd_assert_droppable(opts):
         sys.stderr.write(
             "Usage: allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]\n"
         )
-        return 2
+        return _fail("USAGE", 2)
     caller_run = opts.get("run_id") or opts.get("session", "")
     force = opts.get("force")
     with _locked():
@@ -3775,7 +5119,7 @@ def cmd_assert_droppable(opts):
                         "instead of a bare-name drop (or pass --force to reap it).\n"
                     )
                     _emit("ALLOC_OWNER_RUN", owner_run)
-                    return 1
+                    return _fail("DB_HELD_BY_OTHER_RUN", 1)
                 sys.stderr.write(
                     f"allocator: --force reaping a lease owned by a different run "
                     f"{owner_run!r} (caller run {caller_run!r}).\n"
@@ -3791,7 +5135,7 @@ def cmd_assert_droppable(opts):
                     "time so ownership is tracked.\n"
                 )
                 _emit("ALLOC_OWNER_RUN", "")
-                return 1
+                return _fail("DB_HELD_UNOWNED", 1)
             sys.stderr.write(
                 f"allocator: --force reaping an unowned fresh lease on {db!r}.\n"
             )
@@ -3807,12 +5151,24 @@ _FLAG_KEYS = {
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
     "--addons-path-override": "addons_path_override", "--min-age-s": "min_age_s",
     "--park-ttl": "park_ttl", "--state": "state", "--older-than": "older_than",
+    "--scope": "scope", "--anchor": "anchor", "--tokens": "tokens", "--format": "format",
 }
 _BOOL_KEYS = {
     "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
     "--yes": "yes", "--force-forget": "force_forget", "--force-attach": "force_attach",
-    "--allow-unowned": "allow_unowned",
+    "--allow-unowned": "allow_unowned", "--dry-run": "dry_run",
+    "--with-verdict": "with_verdict", "--print": "print",
 }
+# `--format` values. `shell` (the default) is the KEY=VALUE eval protocol;
+# `json` prints exactly ONE JSON object on stdout:
+#   {"ok": bool, "rc": int, "error": {"code", "message"} | null, "fields": {...}}
+OUTPUT_FORMATS = ("shell", "json")
+# Every verb `main()` dispatches - the SSOT of the unknown-subcommand message.
+VERBS = (
+    "acquire", "release", "bind", "park", "resume", "heartbeat", "adopt", "gc",
+    "reap-orphans", "list", "query", "assert-droppable", "can-createdb",
+    "db-preflight", "anchor",
+)
 # Every spelling `main()` recognises as "show usage, do nothing else" - the ONLY
 # two conventional Unix forms. This is the SSOT the regression test derives its
 # spelling list from (`from allocator import _HELP_TOKENS`), so a future third
@@ -3847,7 +5203,50 @@ def _parse(argv):
     return opts, pos, unknown
 
 
+def _dispatch(cmd, opts, pos):
+    token_verbs = ("release", "heartbeat", "bind", "park", "resume", "adopt")
+    if cmd in token_verbs:
+        opts.setdefault("token", pos[0] if pos else None)
+    handlers = {
+        "acquire": cmd_acquire, "release": cmd_release, "heartbeat": cmd_heartbeat,
+        "bind": cmd_bind, "park": cmd_park, "resume": cmd_resume, "adopt": cmd_adopt,
+        "gc": cmd_gc, "reap-orphans": cmd_reap_orphans, "list": cmd_list,
+        "query": cmd_query, "can-createdb": cmd_can_createdb,
+        "db-preflight": cmd_db_preflight, "assert-droppable": cmd_assert_droppable,
+        "anchor": cmd_anchor,
+    }
+    handler = handlers.get(cmd)
+    if handler is None:
+        sys.stderr.write(
+            f"Unknown subcommand: {cmd!r}. Use " + "|".join(VERBS) + ".\n"
+        )
+        return _fail("USAGE", 2)
+    return handler(opts)
+
+
+def _run_command(cmd, rest):
+    opts, pos, unknown = _parse(rest)
+    fmt = (opts.get("format") or "shell").strip().lower()
+    _reset_output(json_mode=(fmt == "json"))
+    if fmt not in OUTPUT_FORMATS:
+        return _fail("USAGE", 2, "unknown --format {f!r}; one of: {a}".format(
+            f=fmt, a=", ".join(OUTPUT_FORMATS)))
+    if unknown:
+        sys.stderr.write(
+            f"allocator: unknown flag(s) {' '.join(unknown)}. "
+            "Known flags: " + " ".join(sorted(set(_FLAG_KEYS) | set(_BOOL_KEYS))) + "\n"
+        )
+        return _fail("USAGE", 2)
+    try:
+        return _dispatch(cmd, opts, pos)
+    except _UsageError as exc:
+        return _fail("USAGE", 2, str(exc))
+    except _CatalogUnavailable as exc:
+        return _fail("NO_INSTANCE_CATALOG", None, str(exc))
+
+
 def main(argv):
+    _reset_output(json_mode=False)
     if not argv or argv[0] in _HELP_TOKENS:
         print(__doc__)
         return 0
@@ -3866,50 +5265,14 @@ def main(argv):
     if any(tok in _HELP_TOKENS for tok in rest):
         print(__doc__)
         return 0
-    opts, pos, unknown = _parse(rest)
-    if unknown:
-        sys.stderr.write(
-            f"allocator: unknown flag(s) {' '.join(unknown)}. "
-            "Known flags: " + " ".join(sorted(set(_FLAG_KEYS) | set(_BOOL_KEYS))) + "\n"
-        )
-        return 2
-    if cmd == "acquire":
-        return cmd_acquire(opts)
-    if cmd == "release":
-        opts.setdefault("token", pos[0] if pos else None)
-        return cmd_release(opts)
-    if cmd == "heartbeat":
-        opts.setdefault("token", pos[0] if pos else None)
-        return cmd_heartbeat(opts)
-    if cmd == "bind":
-        opts.setdefault("token", pos[0] if pos else None)
-        return cmd_bind(opts)
-    if cmd == "park":
-        opts.setdefault("token", pos[0] if pos else None)
-        return cmd_park(opts)
-    if cmd == "resume":
-        opts.setdefault("token", pos[0] if pos else None)
-        return cmd_resume(opts)
-    if cmd == "gc":
-        return cmd_gc(opts)
-    if cmd == "reap-orphans":
-        return cmd_reap_orphans(opts)
-    if cmd == "list":
-        return cmd_list(opts)
-    if cmd == "query":
-        return cmd_query(opts)
-    if cmd == "can-createdb":
-        return cmd_can_createdb(opts)
-    if cmd == "db-preflight":
-        return cmd_db_preflight(opts)
-    if cmd == "assert-droppable":
-        return cmd_assert_droppable(opts)
-    sys.stderr.write(
-        f"Unknown subcommand: {cmd!r}. "
-        "Use acquire|release|bind|park|resume|heartbeat|gc|reap-orphans|list|query|"
-        "assert-droppable|can-createdb|db-preflight.\n"
-    )
-    return 2
+    rc = _run_command(cmd, rest)
+    if _OUT["json"]:
+        error = _OUT["error"]
+        if rc != 0 and error is None:
+            error = {"code": "UNSPECIFIED", "message": ERROR_CODES["UNSPECIFIED"]["summary"]}
+        print(json.dumps({"ok": rc == 0, "rc": rc, "error": error if rc != 0 else None,
+                          "fields": _OUT["fields"]}, sort_keys=True))
+    return rc
 
 
 if __name__ == "__main__":

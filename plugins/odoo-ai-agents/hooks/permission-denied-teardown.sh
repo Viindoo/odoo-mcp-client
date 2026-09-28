@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 # permission-denied-teardown.sh - PermissionDenied ADVISORY. Fires when the harness refuses a
-# tool call; this hook speaks up only when the refused call was an allocator LEASE GIVE-BACK
-# (`allocator.py park` / `allocator.py release`), and tells the dispatch what to do instead.
+# tool call; this hook speaks up only when the refused call was a LEASE GIVE-BACK, and tells the
+# dispatch what to do instead. Two shapes of give-back are recognized, branching on tool_name:
+#   - Bash: `allocator.py park` / `allocator.py release` (the CLI fallback path), matched against
+#     tool_input.command. The path may be bare or double-quoted
+#     (`"${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park <token>`) - both forms match.
+#   - MCP: `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` /
+#     `..._odoo-local__lease_park` (the odoo-local MCP tool path) - the tool_name alone identifies
+#     the give-back; there is no command string to inspect.
+# Both shapes get the SAME advice below: the tool that failed differs, the fix does not.
 #
 # WHY THIS EXISTS
 # A dispatched agent can ACQUIRE an instance but the auto-mode classifier may refuse to let it
@@ -29,10 +36,12 @@
 #   it emits is the opposite of a bypass: stop trying, hand the lease over by name.
 # - It does NOT decide who owns the lease; `block-unowned-lease-mutation.sh` owns that question.
 #
-# CONTRACT: stdin JSON carries tool_name, tool_input.command, denial_reason,
-# has_classifier_verdict, and (in a subagent) agent_id / agent_type. Output is the universal
-# advisory pair `systemMessage` + `additionalContext`. Exit is ALWAYS 0 and stderr is ignored for
-# this event; a hook failure must never be louder than the denial it is annotating.
+# CONTRACT: stdin JSON carries tool_name, tool_input.command (Bash) / tool_input (MCP, e.g.
+# {lease_token, run_id} - inspected only to confirm it parses; the give-back decision for MCP rests on
+# tool_name alone), denial_reason, has_classifier_verdict, and (in a subagent) agent_id /
+# agent_type. Output is the universal advisory pair `systemMessage` + `additionalContext`. Exit is
+# ALWAYS 0 and stderr is ignored for this event; a hook failure must never be louder than the
+# denial it is annotating.
 #
 # RESIDUALS it provably cannot catch:
 # - A give-back issued through an interpreter this matcher never sees (a wrapper script, a
@@ -65,13 +74,26 @@ except Exception:
 _tool="${_parsed%%$'\x1f'*}"
 _cmd="${_parsed#*$'\x1f'}"
 
-[ "${_tool}" = "Bash" ] || exit 0
-[ -n "${_cmd}" ] || exit 0
-
-# Only speak for a refused LEASE GIVE-BACK. `allocator.py` plus a park/release verb must both be
-# present. Read-only verbs (list/query/heartbeat) are not give-backs and are not this hook's
-# business even on the rare occasion they are refused.
-printf '%s' "${_cmd}" | grep -Eq 'allocator\.py[[:space:]]+(park|release)([[:space:]]|$)' || exit 0
+# Branch on tool_name: the Bash CLI fallback path inspects tool_input.command; the MCP
+# odoo-local path is identified by tool_name alone (lease_release / lease_park carry no
+# separate "command" string to match against).
+case "${_tool}" in
+  Bash)
+    [ -n "${_cmd}" ] || exit 0
+    # Only speak for a refused LEASE GIVE-BACK. `allocator.py` plus a park/release verb must
+    # both be present. Read-only verbs (list/query/heartbeat) are not give-backs and are not
+    # this hook's business even on the rare occasion they are refused. The path may be bare
+    # (`allocator.py park`) or double-quoted (`".../allocator.py" park`) - the optional `"?`
+    # right after `allocator.py` covers the closing quote of the quoted form.
+    printf '%s' "${_cmd}" | grep -Eq 'allocator\.py"?[[:space:]]+(park|release)([[:space:]]|$)' || exit 0
+    ;;
+  mcp__plugin_odoo-ai-agents_odoo-local__lease_release|mcp__plugin_odoo-ai-agents_odoo-local__lease_park)
+    # The MCP give-back: tool_name alone is the whole signal - no command text to inspect.
+    ;;
+  *)
+    exit 0
+    ;;
+esac
 
 read -r -d '' _MSG <<'EOF'
 Your allocator LEASE GIVE-BACK was refused by the harness before it ran, so the lease is still

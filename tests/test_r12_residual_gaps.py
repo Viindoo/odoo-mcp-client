@@ -19,10 +19,10 @@ same worktree at fix time.
   (SKILL.md, examples.md, state-root-resolution.md, visual-evidence-lifecycle-contract.md) to
   `<feature>-<YYYYMMDD>-<4 random chars>`.
 - **B** (`62-r12-instance-allocator.md` F3) - `agents/odoo-instance-ops.md`'s "Multi-instance
-  parallel provisioning" acquire call carried no `--run-id`, unlike every other acquire call site
-  in that file, so `hooks/enforce-teardown.sh`'s ownership correlation (strictly keyed on
-  `--run-id` on the subagent's own acquire/bind/heartbeat calls) could never see a leaked lease
-  from that one path. Fixed by threading `--run-id <run_id>` there, matching the sibling sites.
+  parallel provisioning" acquire carried no run id, unlike every other acquire site in that file,
+  so it minted a lease with no owner. Every lease the agent acquires must name its owning run id:
+  release and park are refused to any other run, and a lease with no owner is one nobody can be
+  held to. Guarded below over every `lease_acquire` call site the agent documents.
 - **C** (`61-r12-waves.md` finding 2) - intake's claim that downstream execute-skills read a
   deep-survey `synthesis.md` "carried ... in the `run-<id>.json` node inputs" was false: neither
   `phase-p-run-dag.md`'s schema, `odoo-planner`'s dispatch template, nor `odoo-coding`'s per-module
@@ -131,30 +131,40 @@ def test_demo_recording_worked_examples_do_not_use_bare_date_collision_form():
 
 
 def test_every_allocator_acquire_call_site_threads_run_id():
-    """Structural sweep of every literal `allocator.py acquire` invocation documented in
-    `agents/odoo-instance-ops.md`: each must have a run-id reference (`--run-id`, `run_id`, or
-    `INST_RUN_ID`) within a bounded window around it. `hooks/enforce-teardown.sh`'s ownership
-    correlation is derived STRICTLY from `--run-id` on the subagent's OWN acquire/bind/heartbeat
-    Bash calls (`_run_ids()`, enforce-teardown.sh:145-156); an acquire call site with none mints a
-    lease the SubagentStop hard-block can never see, even when it leaks. Generalizes to any FUTURE
-    acquire call site added to this file without `--run-id` - not just today's fixed line.
+    """Structural sweep of every `lease_acquire` call site documented in
+    `agents/odoo-instance-ops.md`: each must name a run id (`run_id`) within a bounded window, or
+    the agent must state once, as a rule binding every acquire, that the brief's run id is passed on
+    every `lease_acquire`. A lease acquired with no owning run id is refused by the tool
+    (`RUN_ID_REQUIRED`) at best, and at worst an agent invents one - so the ownership rule has to
+    reach every call site, not only the ones written today.
 
-    Measured RED (`git show HEAD`): 1 of 3 documented acquire call sites (the "Multi-instance
-    parallel provisioning" step 1 acquire) had no run-id reference within the window.
+    The retired CLI recipe (`allocator.py acquire`) must not come back into the agent: its CLI
+    fallback lives in the allocation API reference, never as a second copy here.
     """
     path = PLUGIN / "agents" / "odoo-instance-ops.md"
     text = path.read_text(encoding="utf-8")
+    flat = " ".join(text.split())
+    assert "allocator.py acquire" not in text, (
+        "the agent carries the retired `allocator.py acquire` recipe again - the lease tools own "
+        "acquisition and the CLI fallback lives in docs/reference/INSTANCE-ALLOCATION-API.md"
+    )
+    global_rule = re.search(
+        r"Pass the `RUN_ID` your brief gave you on every `lease_acquire`", flat
+    )
+    sites = list(re.finditer(r"`lease_acquire`", text))
+    assert len(sites) >= 5, (
+        f"only {len(sites)} `lease_acquire` site(s) found - the sweep stopped matching the agent"
+    )
     hits = []
-    for m in re.finditer(r"allocator\.py acquire\b", text):
+    for m in sites:
         start = m.start()
         window = text[max(0, start - 200): start + 300]
         if not re.search(r"run[-_]id", window, re.IGNORECASE):
             lineno = text.count("\n", 0, start) + 1
             hits.append(f"{_rel(path)}:{lineno}")
-    assert not hits, (
-        "allocator.py acquire call site(s) with no --run-id / run_id within a 500-char window - "
-        "each mints an unowned lease invisible to enforce-teardown.sh's ownership correlation:\n"
-        + "\n".join(hits)
+    assert global_rule or not hits, (
+        "lease_acquire call site(s) with no run id within a 500-char window and no file-wide rule "
+        "binding every acquire to the brief's run id:\n" + "\n".join(hits)
     )
 
 

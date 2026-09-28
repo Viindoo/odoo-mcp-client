@@ -208,9 +208,7 @@ Sections A-F enforce fidelity to **Odoo's own design system** (the `--primary` /
 runtime tokens). Brand fidelity - "does this match *our* brand?" - is a **separate, optional**
 layer, and it is deliberately **not** baked into this plugin: the plugin serves many brands, so
 it ships a **mechanism, never a brand**. The consumer declares their brand; the skills discover
-and assert against it. This mirrors how the backend lint gate (`/test_lint`) reads lint rules from
-the deployment's own quality module - **single source of truth lives in the consumer environment,
-not vendored here.**
+and assert against it.
 
 **Declaration (consumer side).** A project opts in by placing `<SHARE_DIR>/brand-tokens.json`
 (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
@@ -221,8 +219,9 @@ absent -> brand checks silently skip (pure-Odoo projects are unaffected). The ma
 SSOT; never hardcode brand values into a skill, agent, or rule file.
 
 **Two enforcement halves, one helper.** Both read that map and share
-`scripts/lib/color_delta.py` (stdlib CIEDE2000 - so `rgb()` / shorthand / hex variants compare
-perceptually, not by string):
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py" [--threshold T] <expected> <actual>`
+(CIEDE2000, so hex/`rgb()` variants compare perceptually; prints ΔE; `--threshold`: exit 0 within,
+1 over; exit 2 unparseable = skip):
 - **Static (no browser) - `verify-frontend.sh` Tier 4:** scans changed SCSS for hardcoded hex
   that sits within ΔE `BRAND_NEAR_DELTA` of a declared brand token and WARNs "reference the
   token var, don't inline the brand color" (the A2/A3 rule, brand-aware). WARN-only.

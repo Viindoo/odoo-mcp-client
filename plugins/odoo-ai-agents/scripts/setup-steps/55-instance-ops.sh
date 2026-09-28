@@ -2,8 +2,9 @@
 # 55-instance-ops.sh - Mechanical runner for Odoo module operations and tests.
 #
 # This script is the EXECUTION layer: it receives fully-resolved flags from its
-# caller (the odoo-instance-ops agent, which resolves per-version flags via OSM
-# cli_help) and runs the appropriate odoo-bin command with a persistent log.
+# caller (the odoo-local MCP `instance_build` tool, fed per-version flags the
+# odoo-instance-ops agent resolved via OSM cli_help; or the allocator CLI
+# fallback) and runs the appropriate odoo-bin command with a persistent log.
 #
 # It does NOT resolve version-specific flags; those arrive pre-resolved via
 # --extra. It does NOT read instances.toml; all connection parameters are
@@ -116,6 +117,10 @@
 # CREATE/INIT/UPDATE/TEST connection matches the DROP connection (one declared
 # port honored everywhere). All three run TWO preflights BEFORE any real run and
 # BEFORE any log is opened, so a refusal costs no log file and no odoo-bin:
+#   (They also accept [--http-port N] [--gevent-port N --gevent-port-key K]: the
+#   listening ports, passed to odoo-bin with the era-correct flags - see
+#   _build_http_port_args. A test build binds the main port on every series, so
+#   the caller passes the port it reserved; omitted, Odoo binds its default.)
 #   1. `<python> <odoo-bin> --version` - fail loud (no working venv; run 45-venv.sh).
 #   2. `odoo_db.py preflight` - PROVE Odoo can authenticate to the cluster. Odoo
 #      opens its maintenance-database connection for every `-d <name>` run before
@@ -137,10 +142,11 @@
 #             The DEFAULT bound is deliberately below the harness's per-call
 #             ceiling (see _WAIT_LOG_DEFAULT_TIMEOUT_S) so ONE call always
 #             returns a verdict; for a longer build, re-invoke it.
-#             Deterministic build-completion detector for a build launched in the
-#             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
-#             so the caller (odoo-instance-ops agent) never idle-stalls on a long
-#             -i/-u/--test-enable build that would exceed the foreground tool timeout.
+#             Deterministic build-completion detector for a build running
+#             DETACHED (the MCP `instance_build` job, which reads it through
+#             `job_wait`; or a CLI-fallback caller). Polls <logf> for a TERMINAL
+#             marker so the caller never idle-stalls on a long -i/-u/--test-enable
+#             build that would exceed the foreground tool timeout.
 #             Emits BUILD_RESULT plus BUILD_MARKER=<line>,
 #             BUILD_PROGRESS=<reading> and LOG_PATH=<logf>. Exit 0 (success),
 #             1 (failure), 2 (timeout), 3 (inconclusive). Only exit 2 means
@@ -256,6 +262,10 @@
 # CONFIG env:
 #   ODOO_AI_HOME       machine-global dir  (default $HOME/.odoo-ai)
 #   ODOO_BIN           path to odoo-bin (override; auto-detected otherwise)
+#   ODOO_AI_OPS_LOG_PATH  absolute log path for init/update/test, chosen by a
+#                      caller that runs this script detached and must know the
+#                      log before any LOG_PATH= line is printed (the odoo-local
+#                      MCP server). Unset -> <logs dir>/<db>-<UTC-ts>.log.
 #   ODOO_PG_PASSWORD   the escape hatch for a cluster that cannot be reconfigured.
 #                      Exported to libpq as PGPASSWORD for the launch only, never
 #                      written to a file and never placed on argv. A local
@@ -292,6 +302,10 @@ source "$LIB_DIR/pg_mode.sh"
 # 50-instance-spinup.sh could not reach them.
 # shellcheck source=../lib/state_reclaim.sh
 source "$LIB_DIR/state_reclaim.sh"
+# Main-port flag per series (odoo_http_port_flag) for --http-port below - one
+# rule shared with 50-instance-spinup.sh.
+# shellcheck source=../lib/odoo_port_keys.sh
+source "$LIB_DIR/odoo_port_keys.sh"
 
 # Toolchain env for Odoo's own lint test families (eslint / pylint / flake8 /
 # po). Sourced here but APPLIED only inside each odoo-bin launch subshell below,
@@ -423,6 +437,29 @@ _build_db_conn_args() {
     [[ -n "${arg_db_port:-}" ]] && DB_CONN_ARGS+=("--db_port" "$arg_db_port")
     # Explicit success: the last [[ -n ... ]] is false when the port is empty, and
     # a bare-call function returning that non-zero status would trip `set -e`.
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# _build_http_port_args - populate the global array HTTP_PORT_ARGS with the
+#   era-correct main-port flag (odoo_http_port_flag: --xmlrpc-port before 11.0,
+#   --http-port from 11.0) for the caller-scope arg_http_port, resolved against
+#   arg_version. Empty arg_http_port -> no flag. A test build needs it: Odoo
+#   spawns its HTTP server whenever test mode is on, even with --stop-after-init,
+#   so without the leased port every test run binds the default 8069.
+#   arg_gevent_port + arg_gevent_port_key (the caller-resolved odoo.conf key of
+#   the second port, e.g. gevent_port / longpolling_port - the same pair
+#   50-instance-spinup.sh takes) add `--<key with - for _> <port>`, so a prefork
+#   build (--workers in --extra) does not bind the default second port either.
+# ---------------------------------------------------------------------------
+_build_http_port_args() {
+    HTTP_PORT_ARGS=()
+    if [[ -n "${arg_http_port:-}" ]]; then
+        HTTP_PORT_ARGS+=("$(odoo_http_port_flag "${arg_version:-}")" "$arg_http_port")
+    fi
+    if [[ -n "${arg_gevent_port:-}" ]]; then
+        HTTP_PORT_ARGS+=("--${arg_gevent_port_key//_/-}" "$arg_gevent_port")
+    fi
     return 0
 }
 
@@ -1129,6 +1166,14 @@ _open_log() {
     local ts
     ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
     logf="$logs_dir/${db_slug}-${ts}.log"
+    # ODOO_AI_OPS_LOG_PATH: a caller that starts this script DETACHED (the
+    # odoo-local MCP server's instance_build) names the log up front, so it can
+    # hand the path back before this script has printed anything. Absolute
+    # paths only; anything else is ignored and the default above stands.
+    if [[ "${ODOO_AI_OPS_LOG_PATH:-}" == /* ]]; then
+        logf="$ODOO_AI_OPS_LOG_PATH"
+        mkdir -p "$(dirname "$logf")"
+    fi
     printf '%s=%s SERIES=%s\n' "$_RUN_VERB_STAMP" "$verb" "$version" >"$logf"
     echo "LOG_PATH=$logf"
 }
@@ -1770,6 +1815,10 @@ _parse_common_args() {
     arg_db_host=""
     arg_db_user=""
     arg_db_port=""
+    # Optional main listening port (the lease's reserved port); empty -> no flag.
+    arg_http_port=""
+    arg_gevent_port=""
+    arg_gevent_port_key=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1788,6 +1837,21 @@ _parse_common_args() {
             --db-port)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-port requires a value" >&2; exit 2; }
                 arg_db_port="$2"; shift 2 ;;
+            --http-port)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --http-port requires a value" >&2; exit 2; }
+                [[ "$2" =~ ^[0-9]+$ ]] && (( $2 >= 1 && $2 <= 65535 )) || {
+                    echo "$(basename "$0"): --http-port must be a TCP port number (got '$2')" >&2; exit 2; }
+                arg_http_port="$2"; shift 2 ;;
+            --gevent-port)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --gevent-port requires a value" >&2; exit 2; }
+                [[ "$2" =~ ^[0-9]+$ ]] && (( $2 >= 1 && $2 <= 65535 )) || {
+                    echo "$(basename "$0"): --gevent-port must be a TCP port number (got '$2')" >&2; exit 2; }
+                arg_gevent_port="$2"; shift 2 ;;
+            --gevent-port-key)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --gevent-port-key requires a value" >&2; exit 2; }
+                [[ "$2" =~ ^[a-z_]+_port$ ]] || {
+                    echo "$(basename "$0"): --gevent-port-key must be an odoo.conf port key (got '$2')" >&2; exit 2; }
+                arg_gevent_port_key="$2"; shift 2 ;;
             --addons)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --addons requires a value" >&2; exit 2; }
                 arg_addons="$2"; shift 2 ;;
@@ -1830,6 +1894,11 @@ _parse_common_args() {
     [[ -n "$arg_python" ]]  || { echo "$(basename "$0"): --python is required" >&2; exit 2; }
     [[ -n "$arg_addons" ]]  || { echo "$(basename "$0"): --addons is required" >&2; exit 2; }
     [[ -n "$arg_modules" ]] || { echo "$(basename "$0"): --modules is required" >&2; exit 2; }
+    if [[ -n "$arg_gevent_port" && -z "$arg_gevent_port_key" ]] || \
+       [[ -z "$arg_gevent_port" && -n "$arg_gevent_port_key" ]]; then
+        echo "$(basename "$0"): --gevent-port and --gevent-port-key go together (got '$arg_gevent_port' / '$arg_gevent_port_key')" >&2
+        exit 2
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -1837,7 +1906,7 @@ _parse_common_args() {
 # ---------------------------------------------------------------------------
 cmd_init() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
-    local arg_db_host arg_db_user arg_db_port
+    local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     _parse_common_args "$@"
 
     local odoo_bin
@@ -1863,6 +1932,7 @@ cmd_init() {
 
     local DB_CONN_ARGS
     _build_db_conn_args
+    _build_http_port_args
 
     # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md
     # item 14): --log-handler=<ns>.modules.loading:INFO is a FLOOR, not a
@@ -1958,6 +2028,7 @@ cmd_init() {
             -i "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
@@ -1986,7 +2057,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
-    local arg_db_host arg_db_user arg_db_port
+    local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     _parse_common_args "$@"
 
     local odoo_bin
@@ -2012,6 +2083,7 @@ cmd_update() {
 
     local DB_CONN_ARGS
     _build_db_conn_args
+    _build_http_port_args
 
     # Deterministic completion contract - identical to cmd_init (see its
     # comments above and docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14):
@@ -2065,6 +2137,7 @@ cmd_update() {
             -u "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
@@ -2096,7 +2169,7 @@ cmd_test() {
     # it _parse_common_args' assignment would leak a GLOBAL out of every test
     # run, and _parse_test_result reads it by dynamic scope for the era gate.
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode arg_version
-    local arg_db_host arg_db_user arg_db_port
+    local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
     _parse_common_args "$@"
 
     local odoo_bin
@@ -2145,6 +2218,7 @@ cmd_test() {
 
     local DB_CONN_ARGS
     _build_db_conn_args
+    _build_http_port_args
 
     # Resource-limit wrapper - see the identical comment block in cmd_init
     # above and snippets/odoo-bin-resource-limits.md for the full policy.
@@ -2187,6 +2261,7 @@ cmd_test() {
             "$mode_flag" "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
+            "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
             --test-enable \
             "${test_tags_args[@]}" \

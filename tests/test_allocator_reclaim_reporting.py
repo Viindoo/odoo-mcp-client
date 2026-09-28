@@ -1,19 +1,25 @@
-"""Behavior tests for the RECORD every allocator reclamation must leave behind.
+"""Behavior tests for the RECORD every allocator reclamation must leave behind -
+and for the one command that must no longer reclaim anything implicitly.
 
-`allocator.py`'s `_gc` is destructive: for each lease `_is_stale` condemns it
-SIGTERMs the owner's process group and DROPS the database, then removes the
-registry row - and the registry was the only place those coordinates existed.
-`gc` (the verb a human deliberately types) reported what it took; `acquire` (the
-verb every build, test run and subagent dispatch calls constantly) ran the same
-destruction as a silent side effect. That asymmetry is what these tests close.
+`gc` is destructive: for each lease it condemns it SIGTERMs the owner's process
+group and DROPS the database, then removes the registry row - and the registry
+was the only place those coordinates existed. `acquire` (the verb every build,
+test run and subagent dispatch calls constantly) used to run the same sweep over
+the WHOLE machine-global registry as a silent side effect, destroying other
+runs' live instances. Two contracts are protected here:
 
-The contract, stated as behavior: **after any command that reclaimed N leases, an
-operator can determine FROM THAT COMMAND'S OWN OUTPUT which leases were
-reclaimed and why** - without consulting the registry, which by then no longer
-contains them. "Why" means the ARM of `_is_stale` that condemned the lease (dead
-pid / recycled pid / TTL after unprovable liveness): the coordinates can be
-recovered from an earlier `ALLOC_*` block, but the reason cannot be reconstructed
-afterwards at all.
+  1. NON-DESTRUCTIVE ACQUIRE. An acquire never reclaims another run's lease on
+     its way to serving its own request. The only reclamation it may perform is
+     CAPACITY it cannot otherwise get (a full port pool, an exclusive conflict),
+     only from leases whose owner is PROVABLY gone, and only by stopping their
+     server and freeing their ports (by_verb=acquire-capacity) - never a drop.
+  2. RECLAMATION IS ON THE RECORD. After any command that reclaimed N leases,
+     an operator can determine FROM THAT COMMAND'S OWN OUTPUT which leases were
+     reclaimed and why - without consulting the registry, which by then no
+     longer contains them. "Why" means the ARM that condemned the lease (dead
+     pid / recycled pid / TTL after unprovable liveness / ended session): the
+     coordinates can be recovered from an earlier `ALLOC_*` block, but the
+     reason cannot be reconstructed afterwards at all.
 
 Two channels are asserted, both observable:
   - the command's own STDERR, one line per reclaimed lease. Never stdout:
@@ -34,8 +40,8 @@ live pid and puts it in its OWN session/group; `seed_lease` REFUSES any pid this
 module did not spawn, and refuses this process, its group and every ancestor).
 A THIRD interlock is added here, for the database half: `_seed_many` asserts
 `drop_on_release is False` on every seeded row BEFORE writing the registry, so
-`_gc`'s `_drop_through_odoo` branch is unreachable from this module - no
-database, real or imagined, can be dropped by these tests. Every acquire runs
+the reclaim path's `_drop_through_odoo` branch is unreachable from this module -
+no database, real or imagined, can be dropped by these tests. Every acquire runs
 with `--no-create` for the same reason.
 """
 
@@ -181,20 +187,28 @@ def _acquire(env, mode, *extra, run_id="run-B"):
                 "--run-id", run_id, *extra, timeout=TIMEOUT)
 
 
-# --------------------------------------------------------------------------- #
-# 1 + 2 - the two implicit passes: every acquire path must report what it took
-# --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("mode", ["shared", "ephemeral"])
-def test_an_acquire_that_reclaims_reports_what_it_reclaimed(harness, env_home, mode):
-    """THE INCIDENT, as a test. An ephemeral database disappeared out from under
-    running work; the command that destroyed it printed nothing, and the registry
-    row naming it was gone in the same write. The failure then presents as a test
-    suite that cannot connect, and the debugging goes somewhere else entirely.
+# The shared INSTANCES_TOML declares the pool [8170, 8180). Holding all ten ports
+# in the registry exhausts it whatever else the host is listening on.
+POOL = list(range(8170, 8180))
 
-    Cross-tenant on purpose: run-B's acquire reclaims run-A's lease (`_gc` walks
-    the whole shared registry), so the notice must name the VICTIM's run_id, not
-    the acquiring one.
-    """
+
+def _records(home):
+    log = Path(home) / "logs" / "allocator-reclaimed.jsonl"
+    if not log.is_file():
+        return []
+    return [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+# --------------------------------------------------------------------------- #
+# 1 + 2 - NON-DESTRUCTIVE ACQUIRE: no path of acquire sweeps the registry
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("mode", ["shared", "ephemeral", "exclusive"])
+def test_an_acquire_never_reclaims_another_runs_lease(harness, env_home, mode):
+    """THE INCIDENT, inverted. An ephemeral database disappeared out from under
+    running work because ANOTHER run's acquire swept the shared registry. Here a
+    lease an explicit `gc` WOULD condemn (another run's, foreign host, TTL long
+    expired) sits in the registry while run-B acquires in every mode: it must
+    come out untouched, with no notice and no evidence record naming it."""
     alloc = _import_allocator()
     reasons = _reasons(alloc)
     env, home = env_home
@@ -202,56 +216,88 @@ def test_an_acquire_that_reclaims_reports_what_it_reclaimed(harness, env_home, m
         (DEAD_PID, {"host": FOREIGN_HOST, "token": "1a" * 16,
                     "db_name": "odoo_17_0_t_deadbeef"}),
     ])
+    assert alloc._condemn_reason(lease) == alloc.CONDEMN_TTL_UNPROVABLE, (
+        "test setup: an explicit gc must condemn this lease, or its survival proves nothing"
+    )
 
     proc = _acquire(env, mode, run_id="run-B")
     assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
-    assert lease["token"] not in [lz["token"] for lz in _leases(home)], (
-        "test setup: the seeded lease must actually have been reclaimed, otherwise "
-        "this test proves nothing about reporting a reclamation"
+    assert lease["token"] in [lz["token"] for lz in _leases(home)], (
+        "an acquire must never reclaim another run's lease on its way to serving its own"
     )
+    assert lease["token"] not in proc.stderr and "RECLAIMED" not in proc.stderr, (
+        f"nothing was reclaimed, so nothing may be reported:\n{proc.stderr}"
+    )
+    for reason in reasons.values():
+        assert reason not in proc.stderr
+    assert _records(home) == [], "no reclaim record may exist after a plain acquire"
 
+
+def test_a_capacity_reclaim_reports_what_it_freed_and_frees_only_ports(harness, env_home):
+    """The ONE reclamation an acquire may still perform, on the record. Every port
+    of the pool is reserved by a lease whose owner pid is PROVABLY dead on this
+    host; an acquire that needs a port frees them - and says so on stderr and in
+    the evidence log, naming the victim's run, the arm, `by_verb=acquire-capacity`
+    and `dropped_db=false`. The victim's ROW survives (orphaned, ports freed):
+    capacity is all an acquire may take."""
+    alloc = _import_allocator()
+    reasons = _reasons(alloc)
+    env, home = env_home
+    dead_pid = _dead_same_host_pid(harness)
+    lease, = _seed_many(harness, home, [
+        (dead_pid, {"token": "1b" * 16, "db_name": "odoo_17_0_t_cafe0001", "ports": POOL}),
+    ])
+
+    proc = _acquire(env, "ephemeral", "--ports", "1", run_id="run-B")
+    assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
     line = _notice_for(proc.stderr, lease["token"], "the acquire's stderr")
-    assert "run-A" in line, (
-        f"the notice must name the reclaimed lease's OWN run_id (the run that lost the "
-        f"database), not the reclaiming one: {line!r}"
-    )
-    assert lease["db_name"] in line, f"the notice must name the destroyed database: {line!r}"
-    assert str(DEAD_PID) in line, f"the notice must name the recorded owner pid: {line!r}"
-    assert any(reason in line for reason in reasons.values()), (
-        "the notice must carry the condemn REASON - the coordinates can be recovered "
-        "from an earlier ALLOC_* block, the reason cannot be reconstructed at all. "
-        f"Expected one of {sorted(reasons.values())} in: {line!r}"
-    )
+    assert "run-A" in line and lease["db_name"] in line and str(dead_pid) in line, line
+    assert "by_verb=acquire-capacity" in line and "dropped_db=false" in line, line
+    assert reasons["CONDEMN_PID_DEAD"] in line, line
+
+    rows = {lz["token"]: lz for lz in _leases(home)}
+    assert lease["token"] in rows, "a capacity reclaim must KEEP the victim's row"
+    victim = rows[lease["token"]]
+    assert victim["ports"] == [] and victim["orphaned"]["reason"] == reasons["CONDEMN_PID_DEAD"]
+    assert victim["orphaned"]["ports"] == POOL, "the freed ports stay on the record"
+    rec, = [r for r in _records(home) if r["token"] == lease["token"]]
+    assert rec["by_verb"] == "acquire-capacity" and rec["dropped_db"] is False
+    assert rec["action"] == "orphaned"
 
 
 # --------------------------------------------------------------------------- #
 # 3 - the reason must be the ARM, not a constant
 # --------------------------------------------------------------------------- #
 def test_each_condemn_arm_names_itself_in_the_notice(harness, env_home):
-    """Three leases, three DIFFERENT arms of `_is_stale`, one command. Each
-    notice must carry that lease's OWN arm: a single hardcoded reason string
-    would satisfy a one-lease test while telling the operator nothing about
-    which of the three destroyed their work."""
+    """Three leases, three DIFFERENT arms, one `gc`. Each notice must carry that
+    lease's OWN arm: a single hardcoded reason string would satisfy a one-lease
+    test while telling the operator nothing about which of the three destroyed
+    their work."""
     alloc = _import_allocator()
     reasons = _reasons(alloc)
     env, home = env_home
 
     dead_pid = _dead_same_host_pid(harness)
     recycled_leader, _ = harness.spawn(argv_tail=["bystander-not-an-odoo-server"])
-    if alloc._pid_fingerprint(recycled_leader) is None:
+    real = alloc._pid_fingerprint(recycled_leader)
+    if real is None:
         pytest.skip("no re-measurable pid fingerprint on this host - the recycled arm "
                     "cannot be staged")
+    # A mismatch in the SAME scheme the host measures under: only that PROVES
+    # recycling (a legacy timezone-dependent value never does).
+    other = ("proc:" + real[len("proc:"):].rpartition(":")[0] + ":1"
+             if real.startswith("proc:") else "ps:Thu Jan  1 00:00:00 1970")
 
     dead, recycled, unprovable = _seed_many(harness, home, [
         (dead_pid, {"token": "2a" * 16, "db_name": "odoo_17_0_t_aaaaaaaa"}),
         (recycled_leader, {"token": "2b" * 16, "db_name": "odoo_17_0_t_bbbbbbbb",
-                           "owner": {"pid_started": "0"}}),
+                           "owner": {"pid_started": other}}),
         (DEAD_PID, {"host": FOREIGN_HOST, "token": "2c" * 16,
                     "db_name": "odoo_17_0_t_cccccccc"}),
     ])
 
-    proc = _acquire(env, "shared")
-    assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
+    proc = _run(env, "gc", timeout=TIMEOUT)
+    assert proc.returncode == 0, f"gc failed:\n{proc.stdout}\n{proc.stderr}"
     survivors = [lz["token"] for lz in _leases(home)]
     for lease in (dead, recycled, unprovable):
         assert lease["token"] not in survivors, (
@@ -261,7 +307,7 @@ def test_each_condemn_arm_names_itself_in_the_notice(harness, env_home):
 
     observed = {}
     for label, lease in (("dead", dead), ("recycled", recycled), ("unprovable", unprovable)):
-        line = _notice_for(proc.stderr, lease["token"], "the acquire's stderr")
+        line = _notice_for(proc.stderr, lease["token"], "the gc's stderr")
         hits = [r for r in reasons.values() if r in line]
         assert len(hits) == 1, (
             f"the {label} lease's notice must carry exactly one reason from the declared "
@@ -282,21 +328,21 @@ def test_each_condemn_arm_names_itself_in_the_notice(harness, env_home):
 # --------------------------------------------------------------------------- #
 # 4 + 5 - stdout is a protocol, not a log
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("mode", ["shared", "ephemeral"])
-def test_the_notice_stays_off_the_acquire_protocol_stream(harness, env_home, mode):
+def test_the_notice_stays_off_the_acquire_protocol_stream(harness, env_home):
     """`eval $(allocator.py acquire ...)` is the documented call shape, so every
-    stdout line is EXECUTED by the caller's shell. The reclaim record must
-    therefore be on stderr and NOWHERE on stdout - reporting it correctly and
-    reporting it on the wrong stream are two different fixes."""
+    stdout line is EXECUTED by the caller's shell. When an acquire DOES reclaim
+    (the capacity path), the record must be on stderr and NOWHERE on stdout -
+    reporting it correctly and reporting it on the wrong stream are two
+    different fixes."""
     alloc = _import_allocator()
     reasons = _reasons(alloc)
     env, home = env_home
+    dead_pid = _dead_same_host_pid(harness)
     lease, = _seed_many(harness, home, [
-        (DEAD_PID, {"host": FOREIGN_HOST, "token": "3a" * 16,
-                    "db_name": "odoo_17_0_t_eeeeeeee"}),
+        (dead_pid, {"token": "3a" * 16, "db_name": "odoo_17_0_t_eeeeeeee", "ports": POOL}),
     ])
 
-    proc = _acquire(env, mode)
+    proc = _acquire(env, "ephemeral", "--ports", "1")
     assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
 
     offenders = [ln for ln in proc.stdout.splitlines()
@@ -319,17 +365,17 @@ def test_the_notice_stays_off_the_acquire_protocol_stream(harness, env_home, mod
 
 def test_an_eval_of_the_acquire_output_survives_a_reclaim(harness, env_home):
     """The protocol assertion above, made literally: a real shell evals the real
-    stdout of an acquire that reclaimed a lease. A prose notice on stdout shows up
-    here as a non-zero rc and a `not found` diagnostic."""
+    stdout of an acquire that reclaimed capacity. A prose notice on stdout shows
+    up here as a non-zero rc and a `not found` diagnostic."""
     harness_env, home = env_home
+    dead_pid = _dead_same_host_pid(harness)
     _seed_many(harness, home, [
-        (DEAD_PID, {"host": FOREIGN_HOST, "token": "4a" * 16,
-                    "db_name": "odoo_17_0_t_ffffffff"}),
+        (dead_pid, {"token": "4a" * 16, "db_name": "odoo_17_0_t_ffffffff", "ports": POOL}),
     ])
     alloc_py = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "allocator.py"
     script = (
         f'eval "$({shlex.quote(sys.executable)} {shlex.quote(str(alloc_py))} acquire '
-        '--series 17.0 --mode ephemeral --no-create --run-id run-B 2>/dev/null)"\n'
+        '--series 17.0 --mode ephemeral --no-create --ports 1 --run-id run-B 2>/dev/null)"\n'
         'printf "rc=%s token=%s\\n" "$?" "$ALLOC_TOKEN"\n'
     )
     proc = subprocess.run(["sh", "-c", script], capture_output=True, text=True,
@@ -341,6 +387,9 @@ def test_an_eval_of_the_acquire_output_survives_a_reclaim(harness, env_home):
     assert re.search(r"rc=0 token=\w{32}", proc.stdout), (
         f"eval of the acquire output must set ALLOC_TOKEN and return 0; got "
         f"{proc.stdout!r} / {proc.stderr!r}"
+    )
+    assert "4a" * 16 in [r["token"] for r in _records(home)], (
+        "test setup: the acquire must actually have reclaimed capacity"
     )
 
 
@@ -422,8 +471,8 @@ def test_the_reclaim_record_outlives_the_process(harness, env_home):
                     "db_name": "odoo_17_0_t_33333333"}),
     ])
 
-    proc = _acquire(env, "ephemeral")
-    assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
+    proc = _run(env, "gc", timeout=TIMEOUT)
+    assert proc.returncode == 0, f"gc failed:\n{proc.stdout}\n{proc.stderr}"
 
     logs = Path(home) / "logs"
     carriers = [p for p in sorted(logs.glob("*"))
@@ -469,8 +518,8 @@ def test_the_evidence_log_survives_the_state_root_sweep(harness, env_home):
         (DEAD_PID, {"host": FOREIGN_HOST, "token": "8a" * 16,
                     "db_name": "odoo_17_0_t_44444444"}),
     ])
-    proc = _acquire(env, "ephemeral")
-    assert proc.returncode == 0, f"acquire failed:\n{proc.stdout}\n{proc.stderr}"
+    proc = _run(env, "gc", timeout=TIMEOUT)
+    assert proc.returncode == 0, f"gc failed:\n{proc.stdout}\n{proc.stderr}"
 
     logs = Path(home) / "logs"
     carriers = [p for p in sorted(logs.glob("*")) if p.is_file() and "8a" * 16 in
@@ -507,30 +556,37 @@ def test_the_evidence_log_survives_the_state_root_sweep(harness, env_home):
 # --------------------------------------------------------------------------- #
 def test_an_acquire_that_fails_after_reclaiming_still_reports_it(harness, env_home):
     """The exact confusion the issue documents: a disappearance was blamed on a
-    command that had in fact errored and done nothing. An acquire can reclaim
-    (destroying another run's database) and THEN refuse for its own reasons - so
-    a non-zero exit must not suppress the record."""
+    command that had in fact errored. An acquire can reclaim capacity (stopping a
+    dead owner's server, freeing its ports) and THEN still refuse because that
+    was not enough - so a non-zero exit must not suppress the record, and the
+    refusal must name what is still standing in the way."""
     alloc = _import_allocator()
     reasons = _reasons(alloc)
     env, home = env_home
     leader, _ = harness.spawn(argv_tail=["bystander-not-an-odoo-server"])
     fingerprint = alloc._pid_fingerprint(leader)
     if fingerprint is None:
-        pytest.skip("no re-measurable pid fingerprint on this host - the live exclusive "
-                    "holder cannot be staged")
-    stale, _holder = _seed_many(harness, home, [
-        (DEAD_PID, {"host": FOREIGN_HOST, "token": "9a" * 16,
-                    "db_name": "odoo_17_0_t_55555555"}),
-        (leader, {"token": "9b" * 16, "mode": "exclusive", "db_name": "odoo_17_0",
+        pytest.skip("no re-measurable pid fingerprint on this host - the live holder "
+                    "cannot be staged")
+    dead_pid = _dead_same_host_pid(harness)
+    stale, holder = _seed_many(harness, home, [
+        (dead_pid, {"token": "9a" * 16, "db_name": "odoo_17_0_t_55555555",
+                    "ports": POOL[:1]}),
+        (leader, {"token": "9b" * 16, "db_name": "odoo_17_0_t_66666666", "ports": POOL[1:],
                   "owner": {"pid_started": fingerprint}}),
     ])
 
-    proc = _acquire(env, "exclusive")
-    assert proc.returncode == 3, (
-        "test setup: the live exclusive holder must make this acquire conflict "
-        f"(rc 3); got {proc.returncode}\n{proc.stdout}\n{proc.stderr}"
+    proc = _acquire(env, "ephemeral", "--ports", "2")
+    assert proc.returncode == 4, (
+        "test setup: one freed port cannot serve a two-port request (rc 4); got "
+        f"{proc.returncode}\n{proc.stdout}\n{proc.stderr}"
     )
     line = _notice_for(proc.stderr, stale["token"], "the failed acquire's stderr")
     assert any(reason in line for reason in reasons.values()), (
-        f"a refusal must not suppress the record of what was already destroyed: {line!r}"
+        f"a refusal must not suppress the record of what was already reclaimed: {line!r}"
     )
+    assert "held by lease " + holder["token"][:8] in proc.stderr, (
+        f"the refusal must name the live holder it could not touch:\n{proc.stderr}"
+    )
+    assert holder["token"] in [lz["token"] for lz in _leases(home)]
+    assert harness.alive(leader), "a live, protected holder must never be signalled"

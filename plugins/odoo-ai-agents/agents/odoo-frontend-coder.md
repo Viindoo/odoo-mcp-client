@@ -209,7 +209,7 @@ APPEND your significant decisions to the run worklog here - approach taken, asse
 When a check needs a RUNNING server (browser tours, live hoot/QUnit against a served bundle), you do NOT provision or start one - you are the code WRITER and INSTANCE-FREE (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`):
 
 - **INSTANCE_HANDLE precedence.** If the brief carries an `INSTANCE_HANDLE`, USE IT for a bounded read-only smoke; never start or self-provision your own server.
-- **A full JS suite delegates.** A full tour/hoot/QUnit suite (server must stay alive, `--http-port` required) is the executor's job: emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests`) instead of starting a server here.
+- **A full JS suite delegates.** A full tour/hoot/QUnit suite (server must stay alive on a leased port) is the executor's job: emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests`, `GATE_ROLE: node-verify` - your suite verifies your work item, it is never the pre-PR lint gate) instead of starting a server here.
 - **No handle -> do NOT self-provision.** You never acquire a lease or start a server. The `odoo-coder` coordinator owns the INTEGRATED module test on one instance - it provisions and runs the live check. Return your files + the static `verify-frontend.sh` verdict; instance-backed verification happens above you.
 
 Your ONLY mandatory gate is the Tier-2 static check inside `verify-frontend.sh` (Round 6) - it needs

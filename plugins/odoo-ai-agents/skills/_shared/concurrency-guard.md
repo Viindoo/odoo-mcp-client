@@ -117,19 +117,15 @@ narrower-than-intended result, which is reason enough to keep passing `profile_n
 
 ## Odoo instance allocation (DB / port)
 
-The OSM rule above protects the static index; this protects LIVE instances. Under
-concurrency, never reuse the declared `db_name`/`http_port` for a MUTATION - tests
-(`--test-enable`), `-i`/`-u`, a throwaway server: another agent or session may hold it.
-Acquire an isolated lease: `scripts/lib/allocator.py acquire --mode ephemeral --run-id
-<id>` (a unique DB name + ports owned by that run) or `--mode exclusive` (single-holder
-lease on a declared DB); a read-only attach stays lease-free. The returned port NUMBERS are
-version-agnostic - map them to CLI flags via `cli_help`. Exit **6, 7, 8 or 9** is a
-REFUSAL, never a degrade: handle all four, and say so when you trade isolation away for
-`--mode exclusive` - which `8`/`9` gate too, so it is no way past them. Exit codes: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.6; GC/stale
-rules: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` § 7; protocol:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. Release the lease token before your
-terminal status - that imperative and the release mechanics belong to
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3, not to this file.
+The OSM rule above protects the static index; this protects LIVE instances. Under concurrency,
+never reuse the declared database or port for a MUTATION (tests, `init` / `update`, a throwaway
+server): another agent or session may hold it. Isolation comes from `lease_acquire` mode
+`ephemeral` - a unique database and pooled ports owned by your `run_id`; mode `exclusive` gives up
+isolation (say so in your report), and a read-only attach needs no lease. A refused acquire is
+never a degrade: follow its error code's remedy. Protocol:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate. `lease_release` (or
+`lease_park`) what you acquired before your terminal status; ownership and the exits:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3.
 
 ## Browser exclusivity (orthogonal)
 

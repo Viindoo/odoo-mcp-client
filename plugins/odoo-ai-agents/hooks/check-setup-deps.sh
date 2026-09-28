@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-setup-deps.sh - SessionStart readiness probe for odoo-ai-agents visual stack.
 # READ-ONLY: never writes, never installs, never blocks the session.
-# Prints a one-block hint (≤4 lines) when deps are missing; stays silent when all is well.
+# Prints a one-block hint (<=4 lines) when deps are missing; stays silent when all is well.
 # Always exits 0.
 set -uo pipefail
 

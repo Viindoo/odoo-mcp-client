@@ -130,7 +130,7 @@ contributors, not for agents.
 | `plugins/odoo-ai-agents/skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
 | `plugins/odoo-ai-agents/agents/*.md` | Orchestration agents |
 | `plugins/odoo-ai-agents/commands/*.md` | Workflow slash commands |
-| `plugins/odoo-ai-agents/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
+| `plugins/odoo-ai-agents/.mcp.json` | Bundled MCP servers loaded with the plugin: the eager headless browser server (`chrome-devtools`; `playwright`/`pagecast` are opt-in, wired later by `odoo-setup`) for the visual stack, and the local `odoo-local` server (instance-allocation lease/instance/catalog tools, Claude-only) |
 | `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) - e.g. the SessionStart visual-stack readiness probe |
 | `plugins/odoo-ai-agents/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
 | `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |

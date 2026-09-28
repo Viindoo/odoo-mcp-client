@@ -125,8 +125,8 @@ registration point for that workflow's artifacts.
 
 **`output_dir` resolution at runtime.** The YAML `output_dir:` literal stays a relative
 `.odoo-ai/<name>` string by design (per `state-root-resolution.md` § Codemod guards) - it is
-**never** rewritten. At execution time, `workflow-chaining` resolves the ISOLATE dir once (via
-`scripts/lib/resolve_project_dir.sh isolate`, resolve-capture-substitute) and treats every
+**never** rewritten. At execution time, `workflow-chaining` resolves the ISOLATE dir once (the
+`project_dir` tool with `axis` `isolate`, resolve-capture-substitute) and treats every
 `output_dir`-rooted write as relative to that resolved absolute ISOLATE path. All 13
 `output_dir:` values across `workflows/*.workflow.yaml` are Tier-2 ISOLATE. This is intentional:
 the YAML literals and the `generator/check_workflows.py`

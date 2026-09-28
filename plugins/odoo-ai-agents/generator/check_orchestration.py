@@ -156,7 +156,7 @@ is complete and that skills thread the shared contracts they are required to:
                     `cli_help` blurb for skills that never touch an instance, which is exactly how
                     a bare grep would certify a false declaration.
                     (b) WARN-ONLY, and it says why below - `instance_touching: false` while the
-                    body shows STRONG evidence (an allocator lease call, or an active dispatch of
+                    body shows STRONG evidence (a lease/instance call, or an active dispatch of
                     the instance front door) is printed with that evidence but never gates. It
                     cannot gate yet because `_derive_gate_tier` still maps ANY `true` to `L2`,
                     while the runtime sheets deliberately hold two such skills at `L1` on the
@@ -169,21 +169,21 @@ is complete and that skills thread the shared contracts they are required to:
                     over its Python source: no content rule in this file globs `.py`, and a
                     hardcoded version claim inside `gen_surface.py` reaches an agent only through
                     the artifact it emits. Scanning the artifact catches the same literal wherever
-                    a future helper moves it and needs no per-function registration. Exemptions 2,
-                    3 and 5 only - a generated map is not a place to resolve a version at runtime,
+                    a future helper moves it and needs no per-function registration. Exemptions 2
+                    and 4 only - a generated map is not a place to resolve a version at runtime,
                     so an OSM call shape beside a literal there is still a frozen claim.
  18. version-claim - DIFF-SCOPED, and ADVISORY (never strict-fail) when no merge base resolves.
                     Fires on an Odoo version VALUE that THIS change writes into agent-facing prose.
                     Measured: tree-wide the same trigger leaves 871 residual hits across 159 files
                     against ~11 real defects, which trains an author to ignore it; scoped to added
                     lines it is roughly one per commit. That residual is a BASELINE, not a
-                    backlog - nothing ratchets it, the diff gate only stops it growing. Six
+                    backlog - nothing ratchets it, the diff gate only stops it growing. Five
                     unit-scoped exemptions: an OSM call shape in the same unit, a boundary-SSOT
                     pointer (covering only the citation span, so a restatement standing beside
-                    one still fires), a whole-span scope statement, a `workflows/` routing
-                    phrase, the boundary SSOT files themselves, and a value that illustrates a
-                    shape - a caller-filled `<e.g. 17.0>` slot or an `odoo_version='17.0'`
-                    argument literal. Both 17 and 18 scan WHITESPACE-NORMALIZED
+                    one still fires), a `workflows/` routing phrase, the boundary SSOT files
+                    themselves, and a value that illustrates a shape - a caller-filled
+                    `<e.g. 17.0>` slot or an `odoo_version='17.0'` argument literal. A version
+                    RANGE is never exempt, whatever its span. Both 17 and 18 scan WHITESPACE-NORMALIZED
                     prose units, never raw lines: the claim this catches most often is one a
                     formatter wrapped across two.
 
@@ -1508,10 +1508,16 @@ def check_no_provenance(findings: list[str]) -> None:
 GENERATED_TOOLS_RE = re.compile(
     r"<!-- BEGIN GENERATED TOOLS -->.*?<!-- END GENERATED TOOLS -->", re.S
 )
-# STRONG evidence: an ACT, not a mention. Either the allocator lease API (you cannot heartbeat or
-# release a lease you do not hold), or an active dispatch of the instance front door.
+# STRONG evidence: an ACT, not a mention. Either a lease/instance-driving call - an odoo-local tool
+# (bare or with its `mcp__plugin_odoo-ai-agents_odoo-local__` prefix) or its allocator CLI fallback
+# verb; you cannot acquire, release, park or adopt a lease you do not drive - or an active dispatch
+# of the instance front door. Read-only tools (lease_list, instance_status, job_wait, ...) are not
+# evidence: they observe an instance someone else may be driving.
 INSTANCE_LEASE_CALL_RE = re.compile(
-    r"allocator\.py\s+`?(?:acquire|release|heartbeat|status)\b", re.I
+    r"allocator\.py\s+`?(?:acquire|release|park|adopt)\b"
+    r"|(?<![\w-])(?:mcp__plugin_odoo-ai-agents_odoo-local__)?"
+    r"(?:lease_(?:acquire|release|park|adopt)|instance_(?:build|serve))\b",
+    re.I,
 )
 INSTANCE_FRONT_DOOR_RE = re.compile(r"`?odoo-instance(?:-ops)?`?", re.I)
 # A dispatch verb (or the Skill-tool phrasing) near the front door. `Skill(` catches the
@@ -1546,7 +1552,7 @@ def _instance_evidence(body: str) -> tuple[list[str], list[str]]:
     for m in INSTANCE_LEASE_CALL_RE.finditer(body):
         if NEGATION_RE.search(body[max(0, m.start() - 60):m.start()]):
             continue
-        strong.append(f"allocator lease call {m.group(0).strip()!r}")
+        strong.append(f"lease/instance call {m.group(0).strip()!r}")
     for m in INSTANCE_FRONT_DOOR_RE.finditer(body):
         lo = max(0, m.start() - INSTANCE_DISPATCH_WINDOW)
         if not INSTANCE_DISPATCH_VERB_RE.search(body[lo: m.end() + INSTANCE_DISPATCH_WINDOW]):
@@ -1578,7 +1584,7 @@ def check_instance_truth(findings: list[str], warn_only_findings: list[str]) -> 
         if declared and not strong and not weak:
             findings.append(
                 f"[instance-truth] '{name}' declares instance_touching=true but its SKILL.md shows "
-                f"NO instance evidence outside the generated tools block - no allocator lease call, "
+                f"NO instance evidence outside the generated tools block - no lease/instance call, "
                 f"no dispatch of odoo-instance/odoo-instance-ops, no odoo-bin, no INSTANCE_HANDLE. "
                 f"That declaration derives default_gate_tier=L2, an ALWAYS-human gate no autonomy "
                 f"dial can lower, for work the skill never performs. Set it to false (and re-derive "
@@ -1628,7 +1634,7 @@ VERSION_CLAIM_RE = re.compile(
 
 # The files that ARE allowed to spell a boundary out - the SSOT rows every other file must point
 # at instead of restating. Naming one of them inside the unit is exemption 2; BEING one is
-# exemption 5.
+# exemption 4.
 BOUNDARY_SSOT_FILES = (
     "odoo-era-boundaries.md",
     "odoo-version-pivots.md",
@@ -1642,11 +1648,10 @@ BOUNDARY_SSOT_FILES = (
     "odoo-bin-resource-limits.md",
 )
 
-# Exemption 3: a whole-indexed-span scope statement ("every indexed major v8.0-v19.0") is not a
-# boundary claim - it names the support envelope. Derived from the text, not from a hardcoded
-# floor/ceiling pair: a range covering >= this many majors cannot be a boundary.
-FULL_SPAN_MIN_MAJORS = 10
-_VERSION_RANGE_RE = re.compile(r"v?(\d{1,2})(?:\.\d)?\s*(?:-|to|through)\s*v?(\d{1,2})(?:\.\d)?")
+# NO range exemption. A version RANGE is a claim like any single value, however many majors it
+# spans: a written support envelope ("every series v8-v19") freezes its floor and ceiling, and goes
+# silently false the day another series is indexed. Say "every indexed series", or resolve the
+# envelope at runtime (`list_available_versions`).
 
 # A prose unit starts here: a markdown bullet, an ordered-list item, a heading, a table row, or a
 # fence. Everything else is a continuation of the unit above it, which is what rejoins a wrapped
@@ -1716,14 +1721,6 @@ def _names_a_resolution_call(unit: str, tool_names: tuple[str, ...]) -> bool:
     return any(re.search(rf"\b{re.escape(n)}\s*\(", unit) for n in tool_names)
 
 
-def _is_full_span_scope(unit: str) -> bool:
-    """Exemption 3 - see FULL_SPAN_MIN_MAJORS."""
-    return any(
-        abs(int(hi) - int(lo)) + 1 >= FULL_SPAN_MIN_MAJORS
-        for lo, hi in _VERSION_RANGE_RE.findall(unit)
-    )
-
-
 # The citation SPAN of a boundary-SSOT pointer: its path, its filename, and a trailing `§ anchor`
 # naming the row. The anchor may legitimately carry a version (`§ check_access from v18`) - that
 # value IS the pointer, not a restatement - so exemption 2 must read the unit with this span
@@ -1789,8 +1786,6 @@ def _version_claim_hits(
     hits = _claim_matches(unit)
     if not hits:
         return []
-    if _is_full_span_scope(unit):
-        return []
     if allow_call_exemption and _names_a_resolution_call(unit, tool_names):
         return []
     if _points_at_boundary_ssot(unit):
@@ -1855,7 +1850,7 @@ def check_gen_prose(findings: list[str]) -> None:
     scanning the output catches the same literal, catches it wherever a future helper moves it,
     and needs no per-function registration.
 
-    Exemptions 2, 3 and 5 only. Exemption 1 (an OSM call shape in the same unit) is deliberately
+    Exemptions 2 and 4 only. Exemption 1 (an OSM call shape in the same unit) is deliberately
     NOT granted here: a generated map is not a place to resolve a version at runtime, so a call
     shape beside a version literal there is still a frozen claim.
 
@@ -1973,21 +1968,20 @@ def check_version_claim(findings: list[str], advisory_findings: list[str]) -> No
 
     DIFF-SCOPED IS NOT A CONVENIENCE - it is the measured deployment. Run tree-wide over the
     agent-facing corpus the same trigger leaves 871 residual hits across 159 files (re-measured
-    2026-09-18 with the bare-series alternative live and all six exemptions applied) against ~11
+    2026-09-18 with the bare-series alternative live and the exemptions of that date applied) against ~11
     real defects; a rule at that signal-to-noise trains an author to ignore it. Scoped to the
     lines a change ADDS it is roughly one hit per commit. The tree-wide residual is a BASELINE,
     not a backlog: nothing ratchets it, the diff gate only stops it growing, and no exemption was
     added to make that number look better.
 
-    Six exemptions, each scoped to the unit (never to the file):
+    Five exemptions, each scoped to the unit (never to the file):
       1. the unit carries an OSM tool CALL SHAPE - the value travels with its resolution;
       2. the unit POINTS at a boundary SSOT and the value sits inside that citation span - a
          `§ anchor` may name its row by version. A value standing OUTSIDE the citation is a
          restatement and still fires, even though the pointer is right there beside it;
-      3. the unit states a whole-indexed-span scope, not a boundary (FULL_SPAN_MIN_MAJORS);
-      4. the file lives under `workflows/` - those version tokens are ROUTING trigger phrases;
-      5. the file IS a boundary SSOT - it is the one place a value belongs;
-      6. the value illustrates a SHAPE rather than asserting a boundary - a caller-filled slot
+      3. the file lives under `workflows/` - those version tokens are ROUTING trigger phrases;
+      4. the file IS a boundary SSOT - it is the one place a value belongs;
+      5. the value illustrates a SHAPE rather than asserting a boundary - a caller-filled slot
          (`<e.g. 17.0>`) or a keyword-argument literal (`odoo_version='17.0'`).
 
     False negative it still misses: a version-dependent claim carrying NO version token at all -
@@ -2013,13 +2007,13 @@ def check_version_claim(findings: list[str], advisory_findings: list[str]) -> No
         path = in_scope.get(rel)
         if path is None or not path.is_file():
             continue
-        if path.name in BOUNDARY_SSOT_FILES:            # exemption 5
+        if path.name in BOUNDARY_SSOT_FILES:            # exemption 4
             continue
         try:
             rel_to_plugin = path.relative_to(PLUGIN_ROOT)
         except ValueError:
             rel_to_plugin = None
-        if rel_to_plugin is not None and rel_to_plugin.parts[0] == "workflows":   # exemption 4
+        if rel_to_plugin is not None and rel_to_plugin.parts[0] == "workflows":   # exemption 3
             continue
         for unit, unit_lines in _file_units(path):
             if not (unit_lines & linenos):

@@ -64,11 +64,8 @@ whole module.
 2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`<repo-root>/.pr-worktrees/pr-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
 
 **Resolve the review's state dirs ONCE, against `review_root` (cross-worktree dispatch rule - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).** THIS skill is the dispatcher for the whole pipeline (scoper + every per-module reviewer + ui-reviewer + synthesis), so it resolves once here and threads the captured literals through every leg below - no leg re-resolves from its own inherited cwd, which would diverge from `review_root` for `worktree`/`pr` targets:
-```
-bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
-bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
-```
-Capture both printed absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer, domain synthesis) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
+call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice, axis `share` then axis `isolate`, each with `cwd` = `review_root`.
+Capture both returned absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer, domain synthesis) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
 
 **Orphan sweep (do this every run, BEFORE dispatching the scoper below).** `reviews/<slug>-<date>/`
 is never deleted by anything today, so it leaks one directory per run forever:
@@ -132,7 +129,7 @@ Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one ba
 
 For each module with `needs_ui_review` (`true` or `candidate`), plus each dependent module the `render_check_set` flags:
 - **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
-- **Resolve an instance.** Resolve `instance_base_url` per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (live shared server first, then the declared `[[instance]]` in `$ODOO_AI_HOME/instances.toml`), and confirm a browser MCP is reachable.
+- **Resolve an instance.** Resolve `instance_base_url` per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the live shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` returns first, then the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns), and confirm a browser MCP is reachable.
 - **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0 and briefing `ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/` (the captured literal, not the placeholder) and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). `ARTIFACT_DIR` is only the review-REPORT destination; the SEPARATE `ISOLATE_DIR:` field passed alongside it is what the reviewer composes `<ISOLATE_DIR>/visual/screenshots/<slug>/` from for its own captured screenshots - the two never collapse into one field. These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
 - **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `status: DONE` with a `concerns:` entry for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
 

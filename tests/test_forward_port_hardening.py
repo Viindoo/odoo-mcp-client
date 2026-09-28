@@ -1693,10 +1693,15 @@ class TestP9WorktreeReroot:
             "catalog-tree instance (odoo-instance/SKILL.md: 'Omit for a catalog-tree instance') "
             "and P9 verifies un-adapted code with no error raised"
         )
-        assert "--addons-path-override" in block, (
-            "SKILL.md's P9 paragraph must name --addons-path-override as the mechanism "
-            "WORKTREE_PATH triggers (odoo-instance/SKILL.md § WORKTREE_PATH substitution) - "
-            "reusing the existing mechanism, not inventing a second one"
+        assert "`lease_acquire` `addons_path` naming that worktree" in block, (
+            "SKILL.md's P9 paragraph must name the mechanism WORKTREE_PATH triggers - the lease "
+            "is acquired with lease_acquire's addons_path naming the integration worktree "
+            "(odoo-instance § WORKTREE_PATH substitution) - reusing the existing mechanism, not "
+            "inventing a second one"
+        )
+        assert "--addons-path-override" not in block, (
+            "SKILL.md's P9 paragraph must not name the allocator CLI flag - agents acquire via "
+            "the lease_acquire tool, and the CLI is only the documented fallback"
         )
 
     def test_fp_phase_detail_p9_reroots_before_any_odoo_bin_call(self):
