@@ -9,8 +9,10 @@
 > buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
-> dependency), so all knowledge is grounded through the OSM MCP server. This repo is a thin
-> routing and orchestration layer; computation lives on the server.
+> dependency), so all knowledge is grounded through the OSM MCP server. This plugin is a routing
+> and orchestration layer; Odoo knowledge lives on the server. The one local runtime it ships is
+> the instance allocator and the `odoo-local` MCP server over it (below), which provision and
+> tear down Odoo instances on your machine.
 
 ## What you get
 
@@ -352,9 +354,10 @@ flowchart TD
     SETUP --> CTX["instances.toml"]
 
     INST["odoo-instance skill<br/>(programmatic path)"]
-    INST -->|"launch"| IOPS["odoo-instance-ops agent<br/>create / init / ensure-up<br/>odoo_db.py + 55-instance-ops.sh"]
-    INST -.->|"or run inline<br/>in caller's own context"| CTX
-    IOPS --> CTX
+    INST -->|"launch"| IOPS["odoo-instance-ops agent<br/>create / init / ensure-up"]
+    INST -.->|"or run inline<br/>in caller's own context"| LOCAL
+    IOPS --> LOCAL["odoo-local MCP tools<br/>lease_acquire -> instance_build -> job_wait<br/>-> instance_serve -> lease_release / lease_park"]
+    LOCAL --> CTX
 
     MCPW --> SK["Visual skills ready"]
     CTX --> SK
@@ -795,6 +798,24 @@ idempotently. It does **not** write to `~/.claude.json` for Claude Code (served 
 bundled `.mcp.json`).
 
 Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP setup](docs/setup.md#visual-stack--browser-mcp-setup).
+
+### Local instance tools (`odoo-local`)
+
+The bundled `.mcp.json` also registers `odoo-local`, a stdlib-only stdio MCP server that agents use
+to lease an isolated database and ports, build and serve an instance, wait on long builds, and
+release or park what they hold (`lease_*`, `instance_*`, `job_wait`, `catalog_*`, `db_preflight`,
+`series_detect`, `project_dir`, `server_info`). A lease stays protected for as long as the Claude
+Code session that acquired it is alive - no heartbeat or TTL to babysit. Acquiring never drops a
+database (when ports run out it frees only the ports of provably dead leases); when the session
+ends, its running leases are reclaimed (a parked lease keeps its database until its park budget
+lapses, and the shared render server is reclaimed only once its server is gone). `lease_gc`
+previews by default, and an applying `lease_gc` is never auto-approved. Hooks keep agents honest: a
+subagent cannot finish while a lease it obtained is still live and not handed off, nor release,
+park or adopt a lease it did not obtain. It is Claude Code only (it resolves
+`${CLAUDE_PLUGIN_ROOT}`); Codex and Gemini use the allocator CLI instead. **After updating the
+plugin, restart every Claude Code session on the machine**, so no older allocator keeps working
+on the shared lease registry. Tool index, CLI and error codes:
+[`docs/reference/INSTANCE-ALLOCATION-API.md`](docs/reference/INSTANCE-ALLOCATION-API.md).
 
 ## Renaming - migrating from `odoo-semantic-skills`
 

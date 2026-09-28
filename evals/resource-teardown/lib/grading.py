@@ -104,6 +104,10 @@ _FORBIDDEN_PATTERNS = {
     "odoo_db.py drop": re.compile(r"odoo_db\.py[\"']?\s+drop", re.IGNORECASE),
 }
 
+# The same two verbs as odoo-local MCP tool calls - the primary way an agent releases or parks a
+# lease. Suffix-matched on the tool name, like _CLOSE_SUFFIXES, so any server prefix counts.
+_FORBIDDEN_TOOL_SUFFIXES = ("lease_release", "lease_park")
+
 
 def _tool_use_haystack(block: dict) -> str:
     r"""Flatten a tool_use block's name + input into one greppable PLAIN string.
@@ -144,6 +148,9 @@ def grade_eval_a(transcript_path) -> dict:
             for token, pattern in _FORBIDDEN_PATTERNS.items():
                 if pattern.search(hay):
                     forbidden_hits.append({"token": token, "where": f"tool_use:{name}"})
+            for suffix in _FORBIDDEN_TOOL_SUFFIXES:
+                if name.endswith(suffix):
+                    forbidden_hits.append({"token": suffix, "where": f"tool_use:{name}"})
         elif btype == "text":
             hay = str(block.get("text", ""))
             for token, pattern in _FORBIDDEN_PATTERNS.items():
@@ -164,7 +171,8 @@ def grade_eval_a(transcript_path) -> dict:
             },
             {
                 "text": "The transcript contains NO instance release/drop token "
-                "(allocator.py release / operation: drop / odoo_db.py drop).",
+                "(lease_release / lease_park tool call, allocator.py release / operation: drop / "
+                "odoo_db.py drop).",
                 "passed": not forbidden_hits,
                 "evidence": (
                     "no forbidden token found"

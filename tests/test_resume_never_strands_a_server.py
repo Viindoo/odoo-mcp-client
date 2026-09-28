@@ -11,9 +11,9 @@ Why that exact shape is the dangerous one, and not merely untidy:
     resume second - by construction, not by an ordering anyone chose.
   - A resume that REFUSES leaves the lease exactly as it found it: still parked. That is the
     compare-and-set doing its job.
-  - `hooks/enforce-teardown.sh` filters the leases it blocks on with `select(has("parked_at") |
-    not)` - a parked row is deliberately NOT a leak, because park already stopped its process
-    group (asserted in `tests/test_enforce_teardown.py::
+  - `hooks/enforce-teardown.sh` blocks only on leases the allocator's own verdict reports
+    `running` or `reserved` - a `parked` row is deliberately NOT a leak, because park already
+    stopped its process group (asserted in `tests/test_enforce_teardown.py::
     test_a_parked_lease_never_blocks_the_subagent_that_parked_it`).
 
 Put together, a spin-up that launched a server and then failed to resume would produce the one

@@ -16,6 +16,14 @@
 #   - tool matches a plugin browser server -> print the allow decision, exit 0;
 #   - otherwise -> pass-through (exit 0, no output).
 # Never exits non-zero (a hook failure must not break the permission flow).
+#
+# NOT a browser tool: a LOCAL (non-browser) server's tool, e.g.
+# `mcp__plugin_odoo-ai-agents_odoo-local__lease_release`. browser_prefixes.py's
+# match() SSOT subtracts scripts/lib/plugin_mcp_servers.py's LOCAL_SERVERS, so
+# this hook stays silent for one (pass-through) even though the top-level
+# PermissionRequest matcher in hooks.json also fires on it - approving it is
+# hooks/auto-approve-local.sh's job, a category apart (some local tools are
+# destructive; no browser tool is).
 set -uo pipefail
 
 # Opt-out: respect a user who turned auto-permissioning off.

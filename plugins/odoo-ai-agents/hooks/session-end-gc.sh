@@ -1,50 +1,45 @@
 #!/usr/bin/env bash
 # session-end-gc.sh - SessionEnd crash backstop for the resource-teardown mechanism (L1.3).
 #
-# WHY: a -9 / OOM / abort kills the run without executing SubagentStop or Stop at
-# all, so the teardown gate never gets the chance to fire. An orphaned
-# `odoo-bin` master + its Postgres backend then survive the WHOLE Claude session
-# (unlike browser pages, which die with the session's MCP server process). This
-# hook is the crash-time trigger for the allocator's gc: after L1.2, gc
-# group-stops AND reclaims any orphan lease whose owner pid is DEAD on this host
-# (immediate - no TTL wait needed), or - only when liveness cannot be proven at
-# all (a different host, or no pid was ever recorded on the lease) - whose TTL
-# has expired, freeing the leaked RAM in either case.
+# WHAT IT RECLAIMS - the ENDING session's own leases, and provably-dead owners; nothing else:
+#   1. `gc --scope dead-sessions` - the allocator's AUTOMATIC semantics over the machine-global
+#      registry: a lease whose recorded session anchor has been dead past the allocator's grace
+#      window, a dead or recycled server pid on this host, an expired park. NEVER the TTL arm, so a
+#      lease whose liveness merely cannot be proven (another host, no pid, no anchor) is never
+#      taken here - that is an explicit `gc` for a human.
+#   2. `gc --scope anchor --anchor <this session's anchor>` - the running/reserved leases (never
+#      parked, never shared) that THIS session acquired, once the session's anchor process is
+#      provably gone. The anchor is captured by the HOOK role (`allocator.py anchor`, which finds
+#      the session through CLAUDE_PID or the claude ancestor this hook runs under) and handed to
+#      the worker, which waits up to ANCHOR_WAIT_S for that process to exit - a SessionEnd fires
+#      while `claude` is still shutting down. No `--force`: the allocator re-checks the anchor
+#      itself and refuses a live one (ANCHOR_ALIVE), so a session that did not actually end -
+#      `/clear` (skipped outright: the process carries on), or a wait that ran out - loses
+#      nothing. A lease the session PARKED survives its end by design: park is how a session
+#      keeps a database for a later one.
+#   3. `reap-orphans` in its DEFAULT list-only mode - see "Discovery half" below.
+# Every other session's live lease is untouched: the registry is MACHINE-GLOBAL (every concurrent
+# session on this host writes the same leases.json), so a sweep that is not scoped by session
+# anchor is a sweep over other people's work in progress.
 #
-# Note (liveness is authoritative, not a mere condemn signal - see
-# `scripts/lib/allocator.py::_is_stale`): a session that dies while its
-# `odoo-bin` child SURVIVES as a detached (setsid) orphan - the process the
-# session spawned did not die WITH it - is no longer reclaimed by this hook (or
-# by any later TTL-driven gc) once its pid is verified alive on this host. That
-# is a deliberate tradeoff, not a gap: reaping a lease we cannot prove is
-# abandoned risks killing genuinely in-progress work, which costs the user far
-# more than an un-reaped orphan costs in RAM (see `_is_stale`'s docstring for
-# the full tradeoff writeup). Such a survivor is reclaimed only by an explicit
-# `release`, a human's `allocator.py gc`/`list` triage, or the process dying on
-# its own.
+# WHY IT EXISTS AT ALL: a -9 / OOM / abort kills the run without executing SubagentStop or Stop,
+# so the teardown gate never fires, and an `odoo-bin` master + its Postgres backend survive the
+# session. Step 2 is the normal-exit path for a session's own leases; step 1 is what eventually
+# reclaims a CRASHED session's leases (its anchor dies with it), from the next session to end on
+# this host.
 #
-# AND: a PARKED lease (one an agent suspended with `allocator.py park` - its server
-# process group already stopped, its database, filestore and ports deliberately kept)
-# is NOT an orphan and is NOT reclaimed here on the dead-pid or TTL arms. It carries
-# its own budget (`park_ttl_s`, default 24h, stamped with the boot id it was parked
-# under) and the only arm that can ever take it is `park-budget-expired`, once that
-# budget lapses on the SAME boot. Parking is precisely the answer to the tradeoff two
-# paragraphs up: it frees the RAM this hook exists to recover WITHOUT destroying the
-# database the next session wants to resume, so a crash between park and resume costs
-# nothing but disk, for a bounded time.
+# The worker runs with the session identity SCRUBBED (no CLAUDE_PID, no CLAUDE_CODE_SESSION_ID,
+# ODOO_AI_SESSION_ANCHOR=none): the allocator treats a caller that shares a lease's session id as
+# that session RESUMED and re-anchors the lease onto it, which would make the ending session's own
+# leases look alive to the very sweep meant to reclaim them.
 #
-# ALSO: after gc, the worker runs `reap-orphans` in its DEFAULT list-only mode -
-# see "Discovery half" below. gc and reap-orphans are deliberately DIFFERENT,
-# non-overlapping mechanisms (allocator.py's own header comment plus the
-# "reap-orphans: DB-side sweep INDEPENDENT of the lease registry" banner in
-# scripts/lib/allocator.py): gc only ever reclaims a DB a LEASE still
-# references; reap-orphans finds the class gc structurally cannot reach - an
-# ephemeral-shaped DB with ZERO lease reference at all (a registry quarantine
-# after corruption, a crash in the narrow acquire-write window, ...). Before this
-# hook called it, `reap-orphans` had no caller anywhere in the plugin - the
-# mechanism existed and was unreachable. This hook is now that path for the
-# DISCOVERY half only; see "Discovery half, never the destructive half" below
-# for why the drop half deliberately stays elsewhere.
+# ALSO: gc and reap-orphans are deliberately DIFFERENT, non-overlapping mechanisms (allocator.py's
+# own header comment plus the "reap-orphans: DB-side sweep INDEPENDENT of the lease registry"
+# banner in scripts/lib/allocator.py): gc only ever reclaims a DB a LEASE still references;
+# reap-orphans finds the class gc structurally cannot reach - an ephemeral-shaped DB with ZERO
+# lease reference at all (a registry quarantine after corruption, a crash in the narrow
+# acquire-write window, ...). This hook is its path for the DISCOVERY half only; see "Discovery
+# half, never the destructive half" below for why the drop half deliberately stays elsewhere.
 #
 # WHY THE WORK IS DETACHED (the shape of this file - measured, not assumed):
 #   A SessionEnd hook does NOT get the `timeout` its registration declares. On
@@ -110,14 +105,15 @@
 #   cluster, not just leases this session touched, so an automatic `--yes` here
 #   would let any session's end silently drop a database some OTHER, unrelated
 #   session's tooling created outside the lease registry - a strictly larger
-#   blast radius than this hook's existing `gc` call, which only ever acts on
-#   leases already in the (session-scoped-by-construction) registry. The
+#   blast radius than this hook's `gc` calls, which act only on leases whose owner is
+#   provably gone (step 1) or on THIS session's own leases (step 2). The
 #   candidate list this hook persists (below) is the hand-off point: a human
 #   reviews it and runs `allocator.py reap-orphans --yes` explicitly, elsewhere.
 #
 # This is one link in the teardown chain: prose release (graceful) -> SubagentStop
-# block (an unforwarded live lease) -> SessionEnd gc + reap-orphans-list (session
-# death) -> next-acquire gc / ttl / a human's explicit reap-orphans --yes.
+# block (an unforwarded live lease) -> SessionEnd gc of the ending session + dead sessions +
+# reap-orphans-list -> a human's explicit `gc` / `reap-orphans --yes`. `acquire` reclaims no
+# database at all (only capacity from provably-dead owners), so it is no longer a link.
 
 set -uo pipefail
 
@@ -127,6 +123,14 @@ set -uo pipefail
 # LIST is harmless (no mutation is in flight to interrupt, unlike a drop).
 GC_TIMEOUT_S=300
 REAP_TIMEOUT_S=120
+# How long the worker waits for the ending session's anchor process to exit before it asks the
+# allocator to reclaim that session's leases. SessionEnd fires while `claude` is still shutting
+# down, so an immediate check would find it alive and (correctly) be refused. Past this bound the
+# allocator's own ANCHOR_ALIVE refusal is what keeps a still-running session's work safe.
+# ODOO_AI_SESSION_END_ANCHOR_WAIT_S overrides it (a whole non-negative number of seconds) so a
+# test can prove the "still alive after the wait" branch without sleeping a minute.
+ANCHOR_WAIT_S="${ODOO_AI_SESSION_END_ANCHOR_WAIT_S:-60}"
+[[ "$ANCHOR_WAIT_S" =~ ^[0-9]+$ ]] || ANCHOR_WAIT_S=60
 
 # The durable target for the ALLOCATOR's stderr, appended under the Tier-1
 # `logs/` root (`odoo_ai_state_root`/logs - the same root allocator.py's own
@@ -175,7 +179,7 @@ ALLOC_DIAG_BASENAME="allocator-stderr.log"
 # Worker role - the actual reaping, running detached from the dying session.
 # --------------------------------------------------------------------------- #
 _run_worker() {
-    local lib_dir="$1" alloc="$2"
+    local lib_dir="$1" alloc="$2" anchor="${3:-}" reason="${4:-}"
 
     # Resolve the durable stderr target (see ALLOC_DIAG_BASENAME above). Every
     # rung falls back to /dev/null - today's behavior - rather than failing:
@@ -198,12 +202,31 @@ _run_worker() {
 
     # Silent on this worker's own channels, exit always 0 - but the allocator's
     # stderr is APPENDED to the durable log, not discarded: it carries the
-    # RECLAIMED notice for every lease this sweep destroys plus the three
+    # RECLAIMED notice for every lease a sweep destroys plus the three
     # stderr-only classes above. STDOUT stays /dev/null: `cmd_gc`'s stdout is a
     # PROTOCOL (`ALLOC_RECLAIMED=<token>` lines + a count) whose every fact is a
     # strict subset of the stderr record, so persisting it would duplicate, not
     # add.
-    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc >/dev/null 2>>"$diag" || true
+    #
+    # Step 1 (header): provably-dead owners, automatic semantics, never the TTL arm. It runs
+    # FIRST because it does not depend on the ending session at all, so the anchor wait below
+    # never delays it.
+    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope dead-sessions >/dev/null 2>>"$diag" || true
+
+    # Step 2 (header): the ending session's own running/reserved leases, once its anchor is gone.
+    # `/clear` ends a session inside a process that keeps running - nothing to reclaim for it.
+    if [[ -n "$anchor" && "$reason" != "clear" ]]; then
+        local anchor_pid="${anchor%%:*}" waited=0
+        if [[ "$anchor_pid" =~ ^[0-9]+$ ]]; then
+            while (( waited < ANCHOR_WAIT_S )) && kill -0 "$anchor_pid" 2>/dev/null; do
+                sleep 1
+                waited=$(( waited + 1 ))
+            done
+            # No --force: the allocator re-checks the anchor (pid AND fingerprint) and refuses a
+            # live one with ANCHOR_ALIVE, which is the answer we want if the wait ran out.
+            timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope anchor --anchor "$anchor" >/dev/null 2>>"$diag" || true
+        fi
+    fi
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can
     # review it later - NEVER /dev/null'd, because an unreachable result defeats
@@ -238,27 +261,64 @@ ALLOC="$LIB_DIR/allocator.py"
 [[ -n "$PLUGIN_ROOT" && -f "$ALLOC" ]] || exit 0
 
 if [[ "${1:-}" == "--detached-worker" ]]; then
-    _run_worker "$LIB_DIR" "$ALLOC"
+    _run_worker "$LIB_DIR" "$ALLOC" "${2:-}" "${3:-}"
     exit 0
 fi
 
-# Read + discard stdin so the caller's write never sees EPIPE (SessionEnd sends JSON).
-cat >/dev/null 2>&1 || true
+# Read stdin in full (so the caller's write never sees EPIPE) - SessionEnd sends JSON carrying
+# `session_id` and `reason`.
+HOOK_INPUT="$(cat 2>/dev/null || true)"
 
-# Spawn the worker into its OWN session. python3 (already a hard requirement
-# above) is what makes this portable: setsid(1) is Linux-only, absent on macOS,
-# while start_new_session=True is exactly setsid() on every POSIX host. The
-# worker is deliberately orphaned - it must outlive both this hook and the CLI.
-python3 - "$0" <<'PY' >/dev/null 2>&1 || true
+# Hook role, in ONE python3 spawn: parse the payload, capture the ending session's anchor while
+# this hook still runs under it (`allocator.py anchor`: ODOO_AI_SESSION_ANCHOR, else CLAUDE_PID,
+# else the claude ancestor of this process), and spawn the worker into its OWN session.
+#   - The anchor is discarded when it is provably NOT this session's: the allocator reports a
+#     session id and the payload names a DIFFERENT one. Uncertainty drops step 2, never widens it.
+#   - The worker's environment is scrubbed of the session identity (see the header).
+# python3 (already a hard requirement above) is what makes the detach portable: setsid(1) is
+# Linux-only, absent on macOS, while start_new_session=True is exactly setsid() on every POSIX
+# host. The worker is deliberately orphaned - it must outlive both this hook and the CLI.
+HOOK_INPUT="$HOOK_INPUT" python3 - "$0" "$LIB_DIR" <<'PY' >/dev/null 2>&1 || true
+import json
+import os
 import subprocess
 import sys
 
+script, alloc = sys.argv[1], os.path.join(sys.argv[2], "allocator.py")
+try:
+    payload = json.loads(os.environ.get("HOOK_INPUT") or "{}")
+    if not isinstance(payload, dict):
+        payload = {}
+except ValueError:
+    payload = {}
+reason = str(payload.get("reason") or "")
+session_id = str(payload.get("session_id") or "")
+
+anchor = ""
+try:
+    out = subprocess.run([sys.executable, alloc, "anchor", "--format", "json"],
+                         capture_output=True, text=True, timeout=5)
+    fields = (json.loads(out.stdout or "{}") or {}).get("fields") or {}
+    anchor = str(fields.get("ODOO_AI_SESSION_ANCHOR") or "")
+    anchor_sid = str(fields.get("ODOO_AI_SESSION_ID") or "")
+    if anchor_sid and session_id and anchor_sid != session_id:
+        anchor = ""
+except Exception:
+    anchor = ""
+
+env = dict(os.environ)
+env.pop("HOOK_INPUT", None)
+for name in ("CLAUDE_PID", "CLAUDE_CODE_SESSION_ID"):
+    env.pop(name, None)
+env["ODOO_AI_SESSION_ANCHOR"] = "none"
+
 subprocess.Popen(
-    ["bash", sys.argv[1], "--detached-worker"],
+    ["bash", script, "--detached-worker", anchor, reason],
     start_new_session=True,
     stdin=subprocess.DEVNULL,
     stdout=subprocess.DEVNULL,
     stderr=subprocess.DEVNULL,
+    env=env,
 )
 PY
 

@@ -96,7 +96,10 @@ def test_generated_tools_region_is_not_evidence() -> None:
 @pytest.mark.parametrize(
     "body",
     [
-        "Between advances, call `allocator.py heartbeat <token>` on the cluster's handle.",
+        "Acquire with `mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire` for the capture DB.",
+        "Build it with `instance_build`, then serve it with `instance_serve`.",
+        "When the cluster is done, `lease_park` it so the next dispatch resumes it.",
+        "If the odoo-local tools are unavailable, run `allocator.py release <token> --run-id <id>`.",
         "1. **Provision once at the leaf.** Dispatch `odoo-instance` (`odoo-instance-ops`, ...).",
         "the coder self-provisions by invoking\n`Skill(odoo-instance)` (a unique ephemeral DB).",
         "CONDITIONAL the `odoo-instance` skill (via the Skill tool): run ONLY when the range "
@@ -128,6 +131,25 @@ def test_detector_sees_a_skill_that_drives_an_instance(body: str) -> None:
 def test_detector_does_not_mistake_a_hand_off_for_a_drive(body: str) -> None:
     strong, _weak = checker._instance_evidence(body)
     assert not strong, f"detector read a hand-off as a drive: {body!r} -> {strong}"
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        # read-only tools observe an instance; they do not drive one
+        "Check `lease_list` and `instance_status` before reporting.",
+        "Call `mcp__plugin_odoo-ai-agents_odoo-local__job_wait` until the result is not timeout.",
+        # a verb the allocator still has but prose no longer teaches as a drive
+        "The server refreshes `allocator.py heartbeat` itself.",
+        # a tool name embedded in a longer identifier is not a call of that tool
+        "The field `my_lease_acquire_count` is unrelated.",
+        # an explicit abstention
+        "Never call `lease_release` on a forwarded INSTANCE_HANDLE.",
+    ],
+)
+def test_detector_does_not_mistake_an_observation_for_a_drive(body: str) -> None:
+    strong, _weak = checker._instance_evidence(body)
+    assert not strong, f"detector read a non-driving mention as a drive: {body!r} -> {strong}"
 
 
 def test_half_a_fires_on_a_declaration_with_no_evidence(monkeypatch: pytest.MonkeyPatch) -> None:

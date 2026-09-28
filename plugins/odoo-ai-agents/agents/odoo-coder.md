@@ -129,19 +129,18 @@ therefore CANNOT see module B, even when both are in the same node and the same 
 **A test that asserts on behaviour contributed by ANOTHER module in this node - one that installs
 after the test's own module, or one with no dependency edge to it at all - must be staged into the
 post-install phase, or it will run before that module exists.** Odoo runs tests in TWO phases on
-every series v8-v19: the at-install phase, right after each module installs, and the post-install
+every indexed series: the at-install phase, right after each module installs, and the post-install
 phase, at the end of module loading with every module in the `-i` list present. A test class is in
 the at-install phase by default, so an unstaged class in the first module fires before the second
 is loaded. The post-install phase is the only moment the whole node is visible.
 
-- **Series 12.0 and later:** tag that class `@tagged('post_install', '-at_install')`. Leave every
-  single-module assertion at the default.
-- **Series 8.0 to 11.0:** `@tagged` does not exist yet - the phase decorators do. Decorate that
-  class `@common.post_install(True)` and `@common.at_install(False)`
-  (`odoo.tests.common` / `openerp.tests.common`; conformance suite: `base.TestPhaseInstall00/01/02`).
-  Placing the test in the LAST module to install also works, but ONLY when the node's modules are
+- Stage that class post-install with the mechanism the TARGET series ships - `@tagged` or the
+  phase decorators - read from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 8 and
+  confirmed with `find_test_examples` for the target series. Leave every single-module assertion at
+  the default.
+- Placing the test in the LAST module to install also works, but ONLY when the node's modules are
   totally ordered by `depends` - a node spanning modules with NO dependency edge between them has no
-  "last module", so use the decorators there.
+  "last module", so stage it post-install there.
 
 **Placement: which module's `tests/` directory hosts the file.** The cross-module assertion's file
 lives in the LAST module, in the node's dependency order, among the modules it touches. When those
@@ -197,17 +196,18 @@ verdict decided by suites your node never touched. SSOT:
   brief carries no `ADDONS_PATH` field, or it names no directory covering your node's source root,
   return `NEEDS_CONTEXT(instance handle does not cover the node's worktree)` - never run the suite
   to see what happens.
-- **No handle -> self-provision via `Skill(odoo-instance)`.** Invoke `Skill(odoo-instance)` INLINE in your own context - NEVER by launching the `odoo-instance-ops` agent, exactly as the `SELF_PROVISION: worktree-addons` branch above already requires. The product of this step is a VALUE you must hold in your OWN context (the `INSTANCE_HANDLE` plus the returned block); a dispatched agent cannot hand a value back to you without a relay hop, and that hop is where the handle goes missing. `odoo-instance` applies the instance HARD RULES that are unconditional for every build (`en_US` union, the Viindoo server-wide `--load` union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Your integrated node test is a PER-NODE verification, never the run's ONE designated lint gate - state `GATE_ROLE: node-verify` on this request so the lint-module union (`odoo-instance-ops`'s own Lint modules HARD RULE) never fires here: a lint-class violation in freshly written code is caught ONLY at `run-harness`'s pre-PR tail, never as a blocking `tests-failed` verdict inside your own bounded fix loop. Request an isolated ephemeral instance with the WHOLE node's module set installed + tested, in dependency order (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <m1>,<m2>,...` in dependency order, `TEST_TAGS: /<m1>,/<m2>,...` mirroring that list, `MODE: fresh`, `GATE_ROLE: node-verify`). Grounded: `-i`/`-u` accept a comma-separated module list in every Odoo series v8-v19, so one instance and one run covers the whole node. Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
+- **No handle -> self-provision via `Skill(odoo-instance)`.** Invoke `Skill(odoo-instance)` INLINE in your own context - NEVER by launching the `odoo-instance-ops` agent, exactly as the `SELF_PROVISION: worktree-addons` branch above already requires. The product of this step is a VALUE you must hold in your OWN context (the `INSTANCE_HANDLE` plus the returned block); a dispatched agent cannot hand a value back to you without a relay hop, and that hop is where the handle goes missing. `odoo-instance` applies the instance HARD RULES that are unconditional for every build (`en_US` union, the Viindoo server-wide `--load` union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Your integrated node test is a PER-NODE verification, never the run's ONE designated lint gate - state `GATE_ROLE: node-verify` on this request so the lint-module union (`odoo-instance-ops`'s own Lint modules HARD RULE) never fires here: a lint-class violation in freshly written code is caught ONLY at `run-harness`'s pre-PR tail, never as a blocking `tests-failed` verdict inside your own bounded fix loop. Request an isolated ephemeral instance with the WHOLE node's module set installed + tested, in dependency order (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <m1>,<m2>,...` in dependency order, `TEST_TAGS: /<m1>,/<m2>,...` mirroring that list, `MODE: fresh`, `GATE_ROLE: node-verify`). Grounded: `-i`/`-u` accept a comma-separated module list in every indexed Odoo series, so one instance and one run covers the whole node. Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
 
 **After the integrated test, RELEASE the instance you self-provisioned.** If you self-provisioned
 (no `INSTANCE_HANDLE` was handed to you), once the integrated-test verdict is captured: RELEASE
-the lease you acquired (`allocator.py release <token> --run-id <id>`); you may not report DONE with
+the lease you acquired with `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` (pass the run_id
+you were given); you may not report DONE with
 a self-provisioned instance still leased. Releasing it is what keeps your instance touch truly
 EPHEMERAL - the same property `run-harness` § Gate-tier resolution relies on to cap an
 instance-touching verification at L1 instead of the registry's default L2 (the ephemeral ceiling):
 a lease you leave dangling is a shared-instance risk that ceiling assumes away. Do not drop this
 release without revisiting that section. If `INSTANCE_HANDLE` was handed to you, do NOT release it
-- it belongs to the run-level owner, never to you. Full rule:
+- it belongs to the run-level owner, never to you. If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md. Full rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ## Bounded fix loop on failure

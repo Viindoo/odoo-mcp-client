@@ -110,10 +110,8 @@ concurrency-guard OSM session-pin race). Pick the slug (reuse any feature slug a
 the artifact dir is `<SHARE_DIR>/gap-analysis/<slug>-<date>/`.
 
 **Resolve the run's SHARE dir ONCE here, and capture it (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § The resolve-capture-substitute protocol).** THIS skill is the dispatcher for every worker below, so it resolves once and threads the captured literal through each brief - no leaf re-resolves from its own inherited cwd:
-```
-bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share
-```
-Capture the printed absolute path as `SHARE_DIR` for the rest of this run and substitute that literal into every Read/Write/Edit below - never the `<SHARE_DIR>` placeholder, a `$VAR`, or a bare `.odoo-ai/` path. Pass it as an explicit `SHARE_DIR:` field into every dispatch brief.
+call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `share` and `cwd` = the project root.
+Capture the returned absolute path as `SHARE_DIR` for the rest of this run and substitute that literal into every Read/Write/Edit below - never the `<SHARE_DIR>` placeholder, a `$VAR`, or a bare `.odoo-ai/` path. Pass it as an explicit `SHARE_DIR:` field into every dispatch brief.
 
 **Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each
 cluster a 2-digit `<NN>` and a short `<area>` label.

@@ -119,7 +119,7 @@ SIG=""
 # instances.toml) - source the EXISTING resolver rather than re-deriving the
 # HOME/ODOO_AI_HOME/trailing-slash fallback logic here. Tier-1 (flat, machine-global),
 # not a per-worktree ISOLATE dir - this counter measures a RATE across the owner's
-# whole workload, not one repo (snippets/state-root-resolution.md § The three tiers).
+# whole workload, not one repo (snippets/state-root-resolution.md section The three tiers).
 # WRITE call site: on any resolution failure this degrades to skipping the write
 # entirely - never a guessed/wrong-location path.
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"

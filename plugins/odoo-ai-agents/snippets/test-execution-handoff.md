@@ -35,7 +35,7 @@ Run a check inline ONLY when it is small, immediate, and its output is bounded:
 
 DELEGATE to `odoo-instance` (which dispatches `odoo-instance-ops`) when any of these hold:
 - the full module suite or a cross-module/cluster run,
-- a run needing a live HTTP server (tour / `HttpCase` / `url_open`, requires `--http-port`),
+- a run needing a live HTTP server (tour / `HttpCase` / `url_open`),
 - demo=on integration runs, install/upgrade (`-i`/`-u`) of a cluster,
 - output would be large (full test log, tracebacks, query dumps).
 
@@ -64,7 +64,7 @@ status: NEEDS_NEXT
 next:
   - skill: odoo-instance
     reason: provision the live instance needed to run the suite / tours and adjudicate
-    inputs: {operation: run-tests, series: "<series>", modules: [<test_set>], test_tags: "<`/<m>` per module - bounds the run>"}
+    inputs: {operation: run-tests, GATE_ROLE: node-verify, series: "<series>", modules: [<test_set>], test_tags: "<`/<m>` per module - bounds the run>"}
     confidence: 0.9
 ```
 

@@ -345,7 +345,9 @@ PRIMARY (hard) dup signal (fail if count >1); grep is a secondary locator only. 
 DB-stateful behavior (model field add/remove/type-change, stored-compute, ORM
 create/write/unlink override, migration dir, or TransactionCase/HttpCase test). Skip for
 pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3 metadata -
-no inline diff read. Full condition list: `references/rb-phase-detail.md` P10 § B3.
+no inline diff read. If P8b's database collection lane already provisioned the run's instance,
+reuse that `INSTANCE_HANDLE` instead of provisioning again. Full condition list:
+`references/rb-phase-detail.md` P10 § B3.
 When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
 `odoo_version=<series>`); instance lifecycle protocol:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`; test invocation conventions:

@@ -86,8 +86,8 @@ Work in rounds; fire independent calls in the same message within a round.
 Resolve each input from its own SSOT - never from a stored snapshot, and never by guessing:
 
 - **Odoo series** - per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-- **`instance_base_url`** - per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (live shared
-  server first, then the declared `[[instance]]` in `$ODOO_AI_HOME/instances.toml`).
+- **`instance_base_url`** - per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the live
+  shared server `mcp__plugin_odoo-ai-agents_odoo-local__lease_find` returns first, then the matching row `mcp__plugin_odoo-ai-agents_odoo-local__catalog_read` returns).
 - **Login identifier** - the brief's, else `admin`. The PASSWORD is stored neither in this repo nor
   in project state: use the value the brief supplies, and when the brief supplies none, ask for it
   ONCE. Never guess a password and never reuse a database credential for the web login.
@@ -266,7 +266,7 @@ any file here regardless of suffix:
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
-- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-run the instance resolution per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (the allocator query, then the declared `[[instance]]` entry - never a stored file); if still unreachable after trying the resolved URL, emit `status: NEEDS_NEXT` with:
+- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-run the instance resolution per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` (`lease_find`, then `catalog_read` - never a stored file); if still unreachable after trying the resolved URL, emit `status: NEEDS_NEXT` with:
   ```
   next:
     - skill: odoo-instance

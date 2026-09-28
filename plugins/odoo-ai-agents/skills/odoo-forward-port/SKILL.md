@@ -513,8 +513,8 @@ path, import, and test-base-class the merged code touches (Lane 1 production AND
 only); you triage each returned finding into a bucket (b adapt / c re-implement / d drop) - never
 leave an auto-merged line referencing a dead symbol.
 **ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
-(`python -m pytest --collect-only`, or an `odoo-bin ... --test-enable` collection scoped with
-`--test-tags` to the forwarded closure) before any
+(`python -m pytest --collect-only`; a `setUpClass` that needs a database is confirmed by P9's
+`odoo-instance` run-tests, never by a raw `odoo-bin` run) before any
 red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from
 P9 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record findings in
 `merge-log.md`; P8a brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.
@@ -686,10 +686,11 @@ this orchestrator's context, and running it here folds the executor role into th
 L2 human gate applies) - the same delegation `odoo-modules-upgrade` P5 and `odoo-git-rebase` P10 use:
 provision the cluster ONCE, PASSING `WORKTREE_PATH: <path>/fp-integration` (the SAME P4 JOB-tier
 integration worktree the merge/adapt phases wrote to) in that first dispatch, so `odoo-instance`
-re-roots the addons list onto it via `--addons-path-override`
+acquires the lease with `lease_acquire` `addons_path` naming that worktree
 (`odoo-instance` § WORKTREE_PATH substitution) instead of loading the principal checkout -
 without this, a "GREEN" result here proves nothing, since it would verify un-adapted code. Then per
-batch dispatch init for the N affected modules followed by run-tests of the target suite, relaying the
+batch dispatch init for the N affected modules followed by run-tests of the target suite
+(`GATE_ROLE: node-verify` - a per-batch verify is never the pre-PR lint gate), relaying the
 returned `INSTANCE_HANDLE` so later batches reuse the same instance instead of self-provisioning
 (`odoo-instance-ops` resolves odoo-bin flags per series via `cli_help`, performs Odoo create-on-init,
 and drops the DB through Odoo on release). The executor returns a structured result block (per-test
@@ -788,6 +789,11 @@ review findings, and acceptance verdict together), not a surprise extra step aft
 already requested.
 Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.
+**P11 release [MANDATORY].** Once P11 has returned (or its narrow escape is recorded), no later
+stage needs the P9 instance: this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), so call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with the cached `lease_token` and `run_id`
+before P12. Call `lease_park` instead only when a named later step of this run still needs the
+database. Never release it between batches - every batch and P11 reuse it.
 
 **P12 - PR + review [runs AFTER P11 acceptance clears].** Push `fp/<slug>` (invoke
 `git-toolkit:git-ops`; resolve origin URL via `git remote get-url origin`). Run `odoo-code-review`
@@ -933,8 +939,13 @@ P5 on top of it (git refuses while a window is open) and never abort it in order
 range commit-by-commit. Abort and re-open the WHOLE range only when the window is already gone or
 the working tree is unrecoverable, and record that decision in `merge-log.md`. Record the executor's
 `INSTANCE_HANDLE` (and its instance log path) in the batch worklog so a resumed run reuses the same
-instance or asks `odoo-instance` to release it instead of orphaning the DB - since P9 delegates the run,
-the instance lifecycle is owned by `odoo-instance-ops`, not held as an allocator lease in this skill.
+instance or releases it instead of orphaning the DB. A resume in the SAME session reuses the recorded
+handle as-is. A resume that spans a session boundary reuses it only through
+`lease_find` (state `parked`, this run's `run_id`) -> `lease_adopt` the token that call returns ->
+`instance_serve`; `found=false` means the recorded instance is gone - provision a fresh one via
+`odoo-instance`, and never release or park the recorded token you did not adopt. P9 delegates the RUN, but the lease was
+provisioned for THIS run and handed back UP, so this skill is its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1)
+and releases it per § P11 release.
 
 ## Frontend / i18n / data-XML caveats
 

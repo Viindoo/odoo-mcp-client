@@ -177,7 +177,13 @@ def test_series_derivation_section_is_terminating_and_never_defaults():
     must state that a manifest `version` is never one - the two failure modes a guard exercising
     only a `17.0.1.0.0` manifest would go green while missing."""
     body = _derivation_body()
-    assert "odoo_series.py detect" in body, "the section must name the shipped detector to run"
+    assert "series_detect" in body, (
+        "the section must name the shipped detector agents call - the `series_detect` tool, "
+        "which wraps odoo_series.detect in-process"
+    )
+    assert "odoo_series.py" not in body, (
+        "agents call the series_detect tool; the section must not also teach the script CLI"
+    )
     assert "NEEDS_CONTEXT" in body, "the section must name the unresolved outcome"
     assert "Never substitute a default series" in body, (
         "the section must forbid defaulting to a series when derivation fails"

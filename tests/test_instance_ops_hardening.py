@@ -2,14 +2,15 @@
 
 Three coherent contracts are locked in by these read-only prose assertions:
 
-  ITEM 4 - active-wait on long builds. A long -i/-u/--test-enable build can exceed
-           the foreground Bash tool timeout; the odoo-instance-ops agent MUST launch
-           it in the background and poll LOG_PATH to a TERMINAL marker (never
-           idle-stall). The skill relays a short form of the same contract.
+  ITEM 4 - active-wait on long builds. A long -i/-u/--test-enable build outlasts any
+           single tool call; the odoo-instance-ops agent MUST follow `instance_build`
+           with `job_wait`, re-called while the result is `timeout`, to a TERMINAL
+           result (never idle-stall). The skill relays a short form of the same
+           contract for its inline leaf-mode path.
 
   ITEM 2 - subagent self-provision via Skill(odoo-instance). A dispatched leaf that
            lacks an INSTANCE_HANDLE self-provisions by invoking Skill(odoo-instance)
-           (which carries the HARD RULES), NEVER by a bare allocator.py call - the
+           (which carries the HARD RULES), NEVER by a bare lease-tool call - the
            bypass that would skip those rules. (The depth-cap-motivated "never
            launch odoo-instance-ops directly" coercion was removed in a later wave -
            whichever path the caller's context uses to provision, the HARD RULES
@@ -123,28 +124,53 @@ def test_stale_claim_corpus_covers_the_historical_blind_spots():
 # ---------------------------------------------------------------------------
 
 def test_agent_carries_active_wait_section():
-    """odoo-instance-ops.md must own the active-wait-on-long-builds contract."""
+    """odoo-instance-ops.md must own the active-wait-on-long-builds contract, driven by the
+    odoo-local job tools: `instance_build` returns a job id at once and `job_wait` is what blocks.
+    The retired Bash mechanics (a backgrounded launcher, a heartbeat) must be GONE from the agent,
+    not left beside the new contract - an agent that reads the old sentence first obeys it."""
     text = _norm(AGENT_MD)
     assert "Active-wait on long builds" in text, "agent must have the active-wait section"
-    assert "run_in_background" in text, "agent must instruct a background launch"
+    assert "instance_build" in text and "job_wait" in text, (
+        "agent must name the build tool and the blocking wait tool"
+    )
     assert "never idle-stall" in text.lower(), "agent must forbid idle-stalling"
-    assert "heartbeat" in text, "agent must emit a heartbeat between polls"
+    for retired in ("run_in_background", "wait-log", "allocator.py heartbeat", "emit a heartbeat"):
+        assert retired not in text, (
+            f"agent still carries the retired Bash wait mechanic {retired!r} - the job tools "
+            "replace it, and a leftover copy contradicts them"
+        )
+    assert re.search(r"you never call a heartbeat", text), (
+        "the agent must state that it never calls a heartbeat - the session anchor protects the "
+        "lease and the odoo-local server refreshes it itself (a bare 'no heartbeat' is false: the "
+        "server does refresh seen_at)"
+    )
 
 
 def test_agent_active_wait_names_terminal_markers():
-    """The contract must name success/progress and failure markers, and every
-    marker it names must be one EVERY supported series can actually emit.
-
-    `Registry loaded` is banned here on a source fact, not a style preference:
-    that line was introduced at 15.0, so nine of the twelve supported series
-    can never produce it - naming it as a progress signal tells the agent to
-    wait for something that will never appear. The version-stable progress
-    line is `loading <N> modules...` (INFO, byte-identical v8.0-v19.0)."""
+    """The agent reads the BUILD's verdict (`job_wait` result), never re-derives it from log
+    markers - so it must name every result value and what each one means, and it must not
+    restate the build script's marker lists (their SSOT is `55-instance-ops.sh`, which the job
+    tool consults). `Registry loaded` stays banned on its source fact: the line does not exist
+    before Odoo 15.0, so naming it as a signal is wrong on nine supported series."""
     text = _norm(AGENT_MD)
-    for success in ("Modules loaded.", "loading <N> modules...", "Initiating shutdown"):
-        assert success in text, f"agent must name marker {success!r}"
-    for failure in ("Traceback (most recent call last):", "Failed to load registry"):
-        assert failure in text, f"agent must name failure marker {failure!r}"
+    for result in ("`timeout`", "`success`", "`failure`", "`inconclusive`", "`lost`"):
+        assert result in text, f"agent must name the job_wait result {result}"
+    assert re.search(r"`success` - the ONLY pass", text), (
+        "agent must state that `success` is the only passing result"
+    )
+    assert re.search(r"`inconclusive` - FINAL and NOT a pass", text), (
+        "agent must state `inconclusive` is final and not a pass"
+    )
+    assert re.search(r"`lost` - [^`]{0,200}Never a pass", text), "agent must state `lost` is never a pass"
+    for marker in ("Traceback (most recent call last):", "Failed to load registry"):
+        assert marker not in text, (
+            f"agent restates the build script's marker {marker!r} - the verdict comes from "
+            "job_wait, and a copied marker list drifts from the script that owns it"
+        )
+    ops = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+    assert "Failed to load registry" in ops and "invalid module names, ignored" in ops, (
+        "the marker SSOT must still live in 55-instance-ops.sh, which job_wait consults"
+    )
     assert "Registry loaded" not in text, (
         "agent must NOT name `Registry loaded` as a marker - it does not exist "
         "before Odoo 15.0, so it can never appear on nine supported series"
@@ -152,37 +178,21 @@ def test_agent_active_wait_names_terminal_markers():
 
 
 def test_agent_active_wait_distinguishes_test_verb_failure_markers_from_install_update():
-    """The `test` verb's terminal-marker set is DIFFERENT and NARROWER than
-    init/update's - naming both under one undifferentiated list is the exact
-    prose/mechanism gap `55-instance-ops.sh`'s `_scan_build_markers` closed:
-    for `test`, a per-test `FAIL:`/`ERROR:` marker (and the traceback that
-    always follows it) is MID-RUN evidence, not completion - the suite keeps
-    running past each one and the harness appends its own authoritative
-    `TEST_RESULT=` line only once it finishes. An agent reading only an
-    undifferentiated failure-marker list can end the wait at the first failing
-    test - the exact stall the script now refuses to produce.
-
-    Pre-fix RED: the contract listed `Traceback (most recent call last):` (and
-    a bare ` ERROR ` token) as unconditional failure markers with no per-verb
-    split, so a reader had no way to learn that the `test` verb treats them
-    differently."""
+    """A per-test failure seen in a test build's log is MID-RUN evidence: the suite keeps running
+    past it and only the run's own verdict ends the wait. An agent that stops at the first failing
+    test reads a verdict the run never published. The per-verb marker split itself lives in the
+    build script (`_scan_build_markers`), which job_wait consults."""
     text = _norm(AGENT_MD)
-    assert "NARROWER set" in text, (
-        "agent must state that the `test` verb's failure-marker set is a "
-        "narrower, different set from init/update's - not one shared list"
+    section = _run_tests_section(text)
+    assert re.search(r"MID-RUN evidence, never a reason to stop waiting", section), (
+        "run-tests must state that a per-test failure in the log is MID-RUN, never a stop signal"
     )
-    windows = _windows(text, re.compile(r"MID-RUN"), 400, 600)
-    assert windows, "agent must name the MID-RUN (non-terminal) status of a per-test failure"
-    assert any(
-        "FAIL:" in w and "ERROR:" in w and "TEST_RESULT=" in w for w in windows
-    ), (
-        "the MID-RUN explanation must name the per-test FAIL:/ERROR: markers and point "
-        "at the run's own TEST_RESULT= line as the real terminal signal"
+    assert "test_result" in section, (
+        "run-tests must name the run's own `test_result` as the verdict"
     )
-    assert "log-LEVEL column" in text and "NEVER key" in text, (
-        "agent must forbid keying a marker scan on the ` ERROR ` log-LEVEL column for "
-        "EITHER verb - Odoo logs at ERROR for reasons unrelated to the build, so a "
-        "level-keyed match turns an unrelated line into a false terminal failure"
+    ops = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+    assert "_scan_build_markers" in ops, (
+        "the per-verb marker split must still live in the build script"
     )
 
 
@@ -203,13 +213,16 @@ def test_agent_build_ops_cross_reference_active_wait():
 
 
 def test_skill_relays_active_wait_contract():
-    """odoo-instance SKILL.md must relay a short form of the active-wait contract."""
+    """odoo-instance SKILL.md must relay a short form of the active-wait contract - the job tools,
+    the repeat-while-timeout rule, and that `Modules loaded.` never certifies a test build."""
     text = _norm(SKILL_MD)
     assert "Active-wait on long builds (relay)" in text, "skill must relay the wait contract"
-    assert "background" in text and "LOG_PATH" in text, (
-        "skill relay must mention background launch + LOG_PATH poll"
+    assert "instance_build" in text and "job_wait" in text, (
+        "skill relay must name the build tool and the blocking wait tool"
     )
-    assert "Modules loaded." in text, "skill relay must name a success marker"
+    assert "Modules loaded." in text, "skill relay must say what `Modules loaded.` does NOT certify"
+    for retired in ("run_in_background", "wait-log", "BUILD_RESULT", "heartbeat"):
+        assert retired not in text, f"skill still carries the retired wait mechanic {retired!r}"
 
 
 def test_skill_documents_the_single_build_log_level_default():
@@ -238,7 +251,7 @@ def test_skill_documents_the_single_build_log_level_default():
 def test_agent_self_review_covers_active_wait_and_log_level():
     """The agent self-review checklist must cover the wait + log-level rules."""
     text = _norm(AGENT_MD)
-    assert "actively waited to a TERMINAL marker" in text, (
+    assert "actively waited to a TERMINAL" in text, (
         "self-review must include the active-wait item"
     )
     assert "--log-level=info" in text, (
@@ -306,22 +319,25 @@ def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
 
 def test_qa_tester_no_handle_fallback_routes_via_odoo_instance_skill():
     """odoo-qa-tester's no-handle fallback provisions via Skill(odoo-instance) - carrying the HARD
-    RULES - never a raw allocator.py call."""
+    RULES - never a raw lease_acquire that bypasses them."""
     text = _norm(QA_TESTER_MD)
     assert "Skill(odoo-instance)" in text, "qa-tester must self-provision via Skill(odoo-instance)"
     assert "HARD RULES" in text, "qa-tester's provisioning must be stated as carrying the HARD RULES"
-    assert "raw" in text.lower() and "allocator.py" in text, (
-        "qa-tester must forbid a raw allocator.py call as the self-provisioning fallback"
+    assert re.search(r"raw `[^`]*lease_acquire`.{0,80}?bypass", text), (
+        "qa-tester must forbid a raw lease_acquire (bypassing Skill(odoo-instance)) as the "
+        "self-provisioning fallback"
     )
 
 
 def test_coding_skill_no_handle_fallback_routes_to_inline_skill():
-    """odoo-coding's no-handle fallback = Skill(odoo-instance) inline-mode, never a bare allocator call."""
+    """odoo-coding's no-handle fallback = Skill(odoo-instance) inline-mode, never a bare lease_acquire."""
     text = _norm(CODING_MD)
     assert text.count("Skill(odoo-instance)") >= 2, (
         "both coding self-provision spots must route via Skill(odoo-instance) inline-mode"
     )
-    assert "never a bare" in text, "coding must forbid a bare allocator.py call as the fallback"
+    assert re.search(r"never a bare\s+`[^`]*lease_acquire`", text), (
+        "coding must forbid a bare lease_acquire (bypassing Skill(odoo-instance)) as the fallback"
+    )
 
 
 def test_handle_contract_no_handle_fallback_routes_via_odoo_instance_skill():
@@ -350,31 +366,31 @@ def test_worker_brief_permits_odoo_instance_skill_carveout():
 
 
 def test_evals_retarget_to_single_owner_never_bare_allocator():
-    """Evals assert the new rule: whichever path a caller provisions through (inline or by launching
-    odoo-instance-ops), it must never bypass the HARD RULES via a bare allocator.py call. A direct
-    launch of odoo-instance-ops is no longer, by itself, a failure - only bypassing the HARD RULES
-    (e.g. a bare allocator.py call) is."""
+    """Evals assert the rule: whichever path a caller provisions through (inline or by launching
+    odoo-instance-ops), it must never bypass the HARD RULES by calling the lease tools directly.
+    A direct launch of odoo-instance-ops is not, by itself, a failure - only bypassing the HARD
+    RULES is."""
     data = json.loads(EVALS.read_text(encoding="utf-8"))
     evals = {e["id"]: e for e in data["evals"]}
 
-    # id 6 - orchestrator dispatch still routes through the skill; the failure is bypassing the
-    # HARD RULES or calling allocator.py directly, not "launching the agent directly" per se.
     assert evals[6]["expected_routed_to"] == "odoo-instance"
-    assert "allocator.py" in evals[6]["must_not"] or "hard rules" in evals[6]["must_not"].lower(), (
-        "id 6 must forbid bypassing the HARD RULES / calling allocator.py directly"
+    assert "lease_acquire" in evals[6]["must_not"] or "hard rules" in evals[6]["must_not"].lower(), (
+        "id 6 must forbid bypassing the HARD RULES / calling the lease tools directly"
     )
 
-    # id 11 - leaf self-provision under the HARD RULES; must NOT call allocator.py directly.
-    # (Cold-spawning odoo-instance-ops from a leaf is a separate, tool-capability concern - a hard
-    # leaf structurally lacks the launch mechanism - not something this eval's must_not encodes.)
     assert 11 in evals, "a leaf self-provisioning eval (id 11) must exist"
     e11 = evals[11]
     assert e11["expected_routed_to"] == "odoo-instance"
     assert "hard rules" in e11["expected_behavior"].lower(), (
         "id 11's expected behavior must invoke the instance HARD RULES"
     )
-    assert "allocator.py" in e11["must_not"], (
-        "id 11 must forbid a direct allocator.py call that bypasses the HARD RULES"
+    assert "lease_acquire" in e11["must_not"], (
+        "id 11 must forbid a direct lease_acquire that bypasses the HARD RULES"
+    )
+    raw = EVALS.read_text(encoding="utf-8")
+    assert "allocator.py" not in raw, (
+        "the evals still name the allocator CLI as the bypass - the agent-facing surface is the "
+        "lease tools now"
     )
 
 
@@ -451,21 +467,20 @@ def test_frontend_coder_is_instance_free_no_self_provision():
 
 
 def test_instance_resolution_notes_skill_is_the_agent_entry_point():
-    """instance-resolution.md's raw § Allocate recipe stays the mechanism odoo-instance's
-    inline-mode uses internally; agents are pointed at the skill, not the recipe, up front."""
+    """instance-resolution.md points agents at the skill up front; the lease tools are what the
+    skill calls INTERNALLY."""
     text = _norm(INSTANCE_RESOLUTION_MD)
     assert "Skill(odoo-instance)" in text, (
-        "instance-resolution.md must point agents at Skill(odoo-instance) rather than the raw recipe"
+        "instance-resolution.md must point agents at Skill(odoo-instance) rather than the raw tools"
     )
     assert "INTERNALLY" in text, (
-        "instance-resolution.md must state the recipe is used INTERNALLY by the skill's inline-mode"
+        "instance-resolution.md must state the lease tools are used INTERNALLY by the skill"
     )
-    assert "self-provision via" in text.lower() or "self-provision via" in text, (
+    assert "self-provision via" in text.lower(), (
         "instance-resolution.md must instruct agents to self-provision via the skill"
     )
-    # The recipe itself must still be present (not deleted) - other callers still need it.
-    assert "allocator.py acquire --series" in text, (
-        "the low-level allocate recipe must remain intact for the skill's inline-mode to use"
+    assert "lease_acquire" in text, (
+        "the allocate recipe (lease_acquire) must remain named for the skill's inline-mode to use"
     )
 
 
@@ -482,9 +497,8 @@ def test_instance_resolution_notes_skill_is_the_agent_entry_point():
 # ---------------------------------------------------------------------------
 
 def test_agent_canonical_output_block_carries_db_port_and_run_id():
-    """odoo-instance-ops's canonical output block must add db_port + run_id fields, and the
-    surrounding prose must instruct populating them from the acquire result ($ALLOC_DB_PORT /
-    $ALLOC_RUN_ID) - the dispatch path was previously missing this carrier entirely."""
+    """odoo-instance-ops's canonical output block must carry db_port + run_id, and the prose must
+    say where they come from - the instance_handle the tools returned, never memory."""
     text = _norm(AGENT_MD)
     assert "db_port: <resolved port or empty>" in text, (
         "canonical output block must add a db_port field"
@@ -492,11 +506,11 @@ def test_agent_canonical_output_block_carries_db_port_and_run_id():
     assert "run_id: <owning run id or empty>" in text, (
         "canonical output block must add a run_id field"
     )
-    assert "populate them from Step D's acquire result" in text, (
-        "agent must instruct populating db_port/run_id from the acquire result"
+    assert re.search(r"`db_port`[^.]{0,200}from the `instance_handle` the tools returned", text), (
+        "agent must instruct filling db_port/run_id from the returned instance_handle"
     )
-    assert "`db_port` from `$ALLOC_DB_PORT`" in text and "`run_id` from `$ALLOC_RUN_ID`" in text, (
-        "agent must map db_port from $ALLOC_DB_PORT and run_id from $ALLOC_RUN_ID explicitly"
+    assert "$ALLOC_DB_PORT" not in text and "$ALLOC_RUN_ID" not in text, (
+        "the retired ALLOC_* shell variables must be gone from the agent"
     )
 
 
@@ -581,35 +595,32 @@ def test_skill_carries_persist_and_run_id_dispatch_fields():
 
 
 def test_agent_resolves_port_flag_at_runtime_never_hardcoded():
-    """agents/odoo-instance-ops.md must instruct RUNTIME cli_help resolution of
-    the port flag name - never a hardcoded flag - and must state the tie-break
-    rule for when cli_help lists more than one candidate (P5.2 + refinement 1
-    from 23-review-final.md Part 2)."""
+    """Every flag the agent adds is resolved at runtime via cli_help, and ports are the TOOLS' job:
+    instance_build sets the lease's port and refuses a port flag in extra_args (INVALID_ARGUMENTS),
+    and instance_serve derives the odoo.conf port keys from the lease's series (its port_key /
+    gevent_port_key inputs were removed). A leftover port-flag tie-break or conf-key recipe would
+    send the agent into a refused call."""
     text = _norm(AGENT_MD)
     assert "FAST-PATH PRIOR only" in text, (
         "agent must state the per-version CLI table is a fast-path prior, not the SSOT"
     )
     assert "resolved at runtime via" in text and "cli_help" in text, (
-        "agent must instruct runtime cli_help resolution of the port flag, not a hardcoded one"
-    )
-    assert "Port-flag tie-break" in text, "agent must carry the port-flag tie-break rule"
-    assert "PREFER `--http-port` whenever `cli_help` lists it" in text, (
-        "tie-break must prefer --http-port whenever cli_help lists it (xmlrpc-port only for v8-v10)"
-    )
-    assert "PREFER `--gevent-port` whenever `cli_help` lists it" in text, (
-        "tie-break must prefer --gevent-port whenever cli_help lists it (longpolling-port only "
-        "where gevent-port is absent)"
+        "agent must instruct runtime cli_help resolution of every flag it adds"
     )
     assert "NEVER pass a flag the target series' `cli_help` does not list" in text, (
-        "tie-break must forbid passing a flag the target series' cli_help does not list at all"
+        "agent must forbid passing a flag the target series' cli_help does not list at all"
     )
+    assert "Ports and connection are the tools' job." in text, (
+        "agent must state that ports/connection flags are set by the tools, never in extra_args"
+    )
+    for retired in ("port_key", "gevent_port_key", "Port-flag tie-break", "Port flag vs conf key"):
+        assert retired not in text, f"agent still carries the retired port recipe {retired!r}"
 
 
 def test_agent_create_instance_is_one_persist_keyed_flow():
-    """The old odoo-instance-ops.md contradiction - Step D's 'acquire a pooled
-    port, --ports 1 to listen' (formerly :48/:71) vs create-instance's 'delegate
-    to spinup; do NOT also acquire' (formerly :241-247) - must be reconciled
-    into ONE persist:-keyed flow, not left as two divergent paths."""
+    """create-instance is ONE persist:-keyed flow, and each branch names its tool sequence: the
+    exclusive-running branch serves its OWN lease by token; the shared-running branch serves by
+    series and acquires nothing."""
     text = _norm(AGENT_MD)
 
     def _section(header_start: str, header_end: str) -> str:
@@ -621,8 +632,17 @@ def test_agent_create_instance_is_one_persist_keyed_flow():
     create = _section("### 1. create-instance", "### 2. drop-instance")
     for mode in ("`persist: ephemeral`", "`persist: exclusive-running`", "`persist: shared-running`"):
         assert mode in create, f"create-instance must branch explicitly on {mode}"
-    assert "--exclusive" in create, "the exclusive-running branch must pass --exclusive to spinup"
-    assert "INST_RUN_ID" in create, "the shared-running branch must export INST_RUN_ID for spinup"
+    exclusive = _section("**`persist: exclusive-running`**", "**`persist: shared-running`**")
+    assert "instance_serve(lease_token" in exclusive, (
+        "the exclusive-running branch must serve its own lease by token"
+    )
+    shared = _section("**`persist: shared-running`**", "**Active wait (HARD RULE):**")
+    assert "instance_serve(series, run_id" in shared, (
+        "the shared-running branch must serve by series and stamp the run_id"
+    )
+    assert re.search(r"Do NOT call `lease_acquire`", shared), (
+        "the shared-running branch must not acquire a lease of its own"
+    )
     assert "is ONE flow keyed on one field, not two independent" in text, (
         "the agent must state the reconciliation explicitly, not just perform it silently"
     )
@@ -713,47 +733,37 @@ def test_no_documented_spinup_invocation_passes_run_id():
 
 
 def test_agent_exclusive_running_is_two_legs_with_the_three_handoff_invariants():
-    """Nothing in this plugin installs modules AND leaves the server listening in
-    one call: 55-instance-ops.sh init builds and exits, 50-instance-spinup.sh
-    launches and installs nothing. So the isolated listening instance is TWO
-    LEGS, and the agent that owns operation 1 must say so and issue both.
-
-    It must also carry the three invariants of the handoff, because each fails
-    while the port still answers HTTP 200 - so no probe, log or exit code catches
-    any of them: WHICH allocator mode the acquire requests (and therefore whether
-    `release` destroys the database), that both legs name the SAME database, and
-    that the lease survives between the legs."""
+    """Nothing installs modules AND leaves the server listening in one call: `instance_build`
+    installs and exits, `instance_serve` listens and installs nothing. So the isolated listening
+    instance is TWO LEGS on ONE lease, and the branch must carry the three handoff invariants,
+    because each fails while the port still answers HTTP 200: WHICH mode the acquire requests
+    (and therefore that release drops the database), that both legs use the SAME lease, and that
+    the lease survives between the legs."""
     text = _norm(AGENT_MD)
     s = text.find("**`persist: exclusive-running`**")
     assert s != -1, "the exclusive-running branch must exist"
     e = text.find("**`persist: shared-running`**", s + 1)
     section = text[s: e if e != -1 else len(text)]
 
-    assert "55-instance-ops.sh" in section and "50-instance-spinup.sh" in section, (
-        "the exclusive-running branch must issue BOTH legs - the build verb and the "
-        "listening verb - not the spin-up alone (which installs nothing)"
+    for tool in ("lease_acquire", "instance_build", "job_wait", "instance_serve"):
+        assert tool in section, f"the exclusive-running branch must issue {tool}"
+    assert section.find("instance_build") < section.find("instance_serve("), (
+        "the build leg must come before the listen leg"
     )
-    # Invariant 1: the mode, and the release-time consequence it decides.
-    assert "mode `ephemeral`" in section or "--mode ephemeral" in section, (
-        "the branch must NAME the allocator mode the acquire requests"
-    )
+    assert "mode `ephemeral`" in section, "the branch must NAME the allocator mode the acquire requests"
     assert "drop_on_release" in section and "release" in section, (
-        "the branch must state that this lease's database is DROPPED at release - the "
-        "belief that `exclusive-running` means durable is what destroys a built database"
+        "the branch must state that this lease's database is DROPPED at release"
     )
-    # Invariant 2: one database across both legs.
-    assert "$ALLOC_DB_NAME" in section, (
-        "both legs must be told to name the SAME acquired database"
+    assert re.search(r"One lease, both legs", section) and "lease_token" in section, (
+        "both legs must run on the SAME lease token"
     )
-    # Invariant 3: the lease outlives the handoff.
     assert "between the legs" in section or "between leg 1 and leg 2" in section, (
         "the branch must forbid releasing/parking the lease between the two legs"
     )
-    # The superseded instruction must be GONE, not left standing beside the new one.
-    assert "Do NOT ALSO run `55-instance-ops.sh init`" not in text, (
-        "the old single-leg instruction contradicts the two-leg contract and must be "
-        "deleted, not merely supplemented"
-    )
+    for retired in ("55-instance-ops.sh", "50-instance-spinup.sh", "$ALLOC_DB_NAME"):
+        assert retired not in section, (
+            f"the branch still carries the retired script recipe {retired!r}"
+        )
 
 
 def test_agent_exclusive_running_never_falls_back_to_8069():
@@ -779,85 +789,76 @@ def test_agent_exclusive_running_never_falls_back_to_8069():
 # ---------------------------------------------------------------------------
 
 def test_agent_documents_log_handler_namespace_forcing():
-    """odoo-instance-ops.md must document the --log-handler=<ns>.modules.
-    loading:INFO floor on init/update that keeps 'Modules loaded.' on the log
-    at any caller-chosen level, and the openerp/odoo namespace split by
-    version (v8-v9 vs v10+)."""
-    text = _norm(AGENT_MD)
-    assert "--log-handler=<ns>.modules.loading:INFO" in text, (
-        "agent must document the --log-handler=<ns>.modules.loading:INFO forcing"
+    """The `--log-handler=<ns>.modules.loading:INFO` floor (openerp v8-v9, odoo v10+) that keeps
+    `Modules loaded.` on the log is applied by the build script, keyed on the series the build
+    tool reads FROM THE LEASE. The protected behavior: the floor is still applied, and the series
+    that selects its namespace reaches the script - no agent-side recipe is needed or allowed."""
+    ops = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+    assert '--log-handler="${log_ns}.modules.loading:INFO"' in ops, (
+        "55-instance-ops.sh must still force the modules.loading INFO floor"
     )
-    assert "openerp" in text and "v8-v9" in text, (
-        "agent must name the openerp namespace for series < 10 (v8-v9)"
+    tools = (PLUGIN / "scripts" / "mcp" / "odoo_local" / "tools_instance.py").read_text(encoding="utf-8")
+    assert '["--version", lease["series"]]' in tools, (
+        "instance_build must pass the lease's series as --version, or the namespace floor is inert"
     )
-    assert "odoo` for v10+" in text or "'odoo' for v10+" in text or "odoo` for v10+" in text.replace("'", "`"), (
-        "agent must name the odoo namespace for v10+"
-    )
-    assert "v9->v10" in text or "v9 -> v10" in text, (
-        "agent must name the v9->v10 boundary where the openerp->odoo namespace rename landed"
+    assert "--log-handler=" not in _norm(AGENT_MD), (
+        "the agent must not carry its own --log-handler recipe - the build tool applies it"
     )
 
 
 def test_agent_documents_process_exit_completion_contract():
-    """odoo-instance-ops.md must state that an install/update job's completion
-    signal is PROCESS EXIT (never a log-tail wait), and that exit 0 alone is
-    NOT proof of install (the silent-skip holes)."""
+    """An install/update job's completion is its process exit, never a log-tail wait, and exit 0
+    alone is NOT proof of install (the silent-skip holes). The agent states the rule; the
+    silent-skip markers that implement it live in the build script job_wait consults."""
     text = _norm(AGENT_MD)
     assert "Deterministic completion contract" in text, (
         "agent must carry a named 'Deterministic completion contract' section"
     )
-    assert "never a log-tail wait" in text.lower() or "never a log tail" in text.lower(), (
+    assert "never a log-tail wait" in text.lower(), (
         "agent must explicitly forbid a log-tail wait for completion"
     )
-    assert "exit 0" in text.lower() and (
-        "not proof of install" in text.lower() or "is not proof" in text.lower()
-    ), "agent must state exit 0 alone is NOT proof of install"
+    assert re.search(r"exit 0 ALONE is NOT\s+proof of a successful build", text), (
+        "agent must state exit 0 alone is NOT proof of a successful build"
+    )
+    ops = INSTANCE_OPS_SH.read_text(encoding="utf-8")
     for marker in (
         "invalid module names, ignored",
         "Some modules are not loaded",
         "Unmet dependenc",
         "cannot be installed",
     ):
-        assert marker in text, f"agent must name the silent-skip failure marker {marker!r}"
+        assert marker in ops, f"the build script must still treat {marker!r} as a failure marker"
 
 
 def test_agent_documents_bounded_port_poll_for_listening_readiness():
-    """odoo-instance-ops.md must state the LISTENING-instance readiness signal
-    is a bounded HTTP port poll of /web/database/selector (fallback
-    /web/login), never a log tail - distinct from the job-completion signal."""
+    """A LISTENING instance is ready when `instance_serve` returns its URL - a bounded HTTP poll of
+    /web/database/selector (fallback /web/login) inside the spin-up script, never a log tail."""
     text = _norm(AGENT_MD)
-    assert "/web/database/selector" in text, (
-        "agent must name /web/database/selector as the primary readiness probe"
+    assert re.search(r"READY when `instance_serve` returns its URL", text), (
+        "agent must state that instance_serve returning is the listening-readiness signal"
     )
-    assert "/web/login" in text, "agent must name /web/login as the fallback probe"
-    assert "BOUNDED" in text or "bounded" in text, (
-        "agent must state the port poll is bounded (has a timeout)"
+    spinup = (PLUGIN / "scripts" / "setup-steps" / "50-instance-spinup.sh").read_text(encoding="utf-8")
+    assert "/web/database/selector" in spinup and "/web/login" in spinup, (
+        "the spin-up must still poll the primary + fallback readiness endpoints"
     )
 
 
-def test_delegation_recipes_pass_version_flag():
-    """Every delegation recipe whose script-side behavior is series-gated must
-    pass --version - the gate is INERT if the recipe never threads it through.
-
-    init/update need it to resolve the --log-handler namespace (openerp v8-v9
-    vs odoo v10+); run-tests needs it so _parse_test_result picks the
-    era-correct "the suite ran" marker instead of accepting either wording."""
+def test_the_series_reaches_the_build_script_from_the_lease():
+    """Series-gated build-script behavior (the log-handler namespace, the era-correct "the suite
+    ran" marker) is INERT unless the series reaches the script. The build tool reads it from the
+    lease, so no operation may pass connection facts of its own."""
+    tools = (PLUGIN / "scripts" / "mcp" / "odoo_local" / "tools_instance.py").read_text(encoding="utf-8")
+    assert tools.count('["--version", lease["series"]]') >= 2, (
+        "both instance_build and instance_serve must pass the lease's series as --version"
+    )
     text = _norm(AGENT_MD)
-
-    def _section(header_start: str, header_end: str) -> str:
-        s = text.find(header_start)
-        assert s != -1, f"section {header_start!r} not found"
-        e = text.find(header_end, s + 1)
-        return text[s: e if e != -1 else len(text)]
-
-    init = _section("### 3. init-modules", "### 4. update-modules")
-    update = _section("### 4. update-modules", "### 5. run-tests")
-    run_tests = _section("### 5. run-tests", "### 6. ")
-    for name, sec in (("init-modules", init), ("update-modules", update),
-                      ("run-tests", run_tests)):
-        assert '--version "<series>"' in sec, (
-            f"{name} must pass --version \"<series>\" to 55-instance-ops.sh"
-        )
+    for name in ("### 3. init-modules", "### 4. update-modules", "### 5. run-tests"):
+        s = text.find(name)
+        assert s != -1, f"section {name!r} not found"
+        e = text.find("### ", s + 5)
+        section = text[s: e if e != -1 else len(text)]
+        assert "instance_build" in section, f"{name} must run through instance_build"
+        assert '--version "<series>"' not in section, f"{name} still carries the retired script recipe"
 
 
 def test_no_agent_or_doc_claims_a_quiet_or_empty_build_log():
@@ -952,29 +953,20 @@ def test_handle_contract_declares_server_pid_optional_field():
     assert "optional" in text.lower(), "server_pid must be documented as optional"
 
 
-def test_agent_exclusive_running_spinup_forwards_alloc_token():
-    """The persist: exclusive-running provisioning path's 50-instance-spinup.sh
-    invocation must forward the lease token Step D's acquire returned via
-    --alloc-token, or the script's exclusive-branch pid-bind (allocator.py
-    bind) silently never fires in production (_bind_exclusive no-ops when
-    ARG_ALLOC_TOKEN is unset)."""
+def test_serving_a_lease_binds_the_server_onto_that_lease():
+    """Serving a leased instance must bind the launched server pid onto THAT lease, or a later
+    release cannot stop its process group. `instance_serve(lease_token)` forwards the token to the
+    spin-up as --alloc-token; the agent's job is to serve by token, never by series."""
     text = _norm(AGENT_MD)
-
-    def _section(header_start: str, header_end: str) -> str:
-        s = text.find(header_start)
-        assert s != -1, f"section {header_start!r} not found"
-        e = text.find(header_end, s + 1)
-        return text[s: e if e != -1 else len(text)]
-
-    exclusive = _section(
-        "**`persist: exclusive-running`**", "**`persist: shared-running`**"
+    s = text.find("**`persist: exclusive-running`**")
+    e = text.find("**`persist: shared-running`**", s + 1)
+    exclusive = text[s: e if e != -1 else len(text)]
+    assert "instance_serve(lease_token" in exclusive, (
+        "the exclusive-running listen leg must serve by lease token"
     )
-    assert "--alloc-token" in exclusive, (
-        "the exclusive-running spinup invocation must pass --alloc-token"
-    )
-    assert '--alloc-token "$ALLOC_TOKEN"' in exclusive, (
-        "the exclusive-running spinup invocation must forward the acquired lease "
-        "token ($ALLOC_TOKEN, returned by Step D's allocator.py acquire) as --alloc-token"
+    tools = (PLUGIN / "scripts" / "mcp" / "odoo_local" / "tools_instance.py").read_text(encoding="utf-8")
+    assert '"--alloc-token", token' in tools, (
+        "instance_serve must forward the lease token to the spin-up as --alloc-token"
     )
 
 
@@ -1098,43 +1090,33 @@ def test_spinup_conf_sources_resource_limits_lib_and_references_snippet():
 
 
 # ---------------------------------------------------------------------------
-# LIVE-RUN DEFECT 1 - the agent idle-stalled instead of driving the blocking
-# mechanism that already existed.
+# LIVE-RUN DEFECT 1 - the agent idle-stalled instead of driving the blocking wait.
 #
-# Observed twice in one run: odoo-instance-ops launched a build with
-# `run_in_background: true`, then ENDED ITS TURN on a text-only "waiting for
-# the background test run to complete" reply while odoo-bin had already exited
-# and the log already held its terminal marker. A third case lost the launching
-# shell (reaped before it printed its own STATUS=/TEST_RESULT= line) while the
-# orphaned odoo-bin ran to completion.
+# Observed: odoo-instance-ops started a long build, then ENDED ITS TURN on a
+# text-only "waiting for the build to complete" reply while the build had already
+# finished; in another case the launching process vanished and its verdict line
+# was never written. The builds now run as odoo-local jobs: `instance_build`
+# returns a job id at once and `job_wait` blocks (bounded) and returns the
+# verdict, `timeout` while the build still runs, `lost` when the job vanished.
 #
-# The mechanism was never missing: `55-instance-ops.sh wait-log` genuinely
-# BLOCKS in one foreground Bash call and returns BUILD_RESULT=success|failure|
-# timeout. What was missing was the INSTRUCTION SHAPE around it:
-#   (a) it was named as "prefer the deterministic helper" - advisory, so an
-#       agent could legally not use it;
-#   (b) it was never told apart from the `run_in_background: true` pattern one
-#       line above, so backgrounding the WAIT (which returns instantly with no
-#       BUILD_RESULT) read as compliant;
-#   (c) the harness's own generic Bash guidance ("if waiting for a background
-#       task you will be notified - do not poll") was never overridden, and an
-#       agent following that generic default correctly ends its turn - and
-#       stalls, because no notification resumes a dispatched agent's ended turn;
-#   (d) skills/odoo-instance/SKILL.md's relay dropped the mechanism NAME
-#       entirely, so the two statements of one contract disagreed.
-#
-# The pre-fix guards above assert only that phrases EXIST. These assert the
-# instruction SHAPE, over whitespace-normalized text, so a reworded regression
-# still fails: a concrete invocation (not a bare mention), a mandate rather
-# than a preference, a foreground requirement, an explicit override of the
-# harness default, a ban on the text-only turn end, and agreement between the
-# two files.
+# What must hold is the INSTRUCTION SHAPE around that wait, in BOTH statements of
+# the contract (the agent, and the skill relay the inline leaf-mode path runs
+# from): a concrete call, a mandate rather than a preference, the
+# repeat-while-timeout rule, a ban on the text-only turn end, and no leftover
+# copy of the retired Bash wait. These assert that shape over whitespace-
+# normalized text, so a reworded regression still fails.
 # ---------------------------------------------------------------------------
 
-# A real INVOCATION of the blocking helper - `wait-log` followed by its
-# required --log argument (a bare "the wait-log helper" mention does not
-# satisfy this, which is exactly how the skill relay passed pre-fix).
-_WAIT_CALL_RE = re.compile(r"wait-log\s+(?:\\\s*)?--log", re.IGNORECASE)
+# A real INVOCATION of the blocking wait - a bare "the wait tool" mention does not satisfy this.
+_WAIT_CALL_RE = re.compile(r"job_wait\(job_id\)")
+
+# The repeat rule: job_wait called AGAIN with the same job id while the result is `timeout`.
+_REPEAT_RE = re.compile(r"(again|re-?call)[^.]{0,120}(same `?job_id`?|`?timeout`?)", re.IGNORECASE)
+
+# The tool-call-in-every-response rule.
+_TOOL_CALL_EVERY_RESPONSE_RE = re.compile(
+    r"every response[^.]{0,120}MUST carry a\s+tool call", re.IGNORECASE
+)
 
 # Any wording that turns a required next action into an option. Matched near
 # the call only, so ordinary uses elsewhere in the file are not swept in.
@@ -1151,29 +1133,8 @@ _MANDATE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# A prohibition on backgrounding THIS call. The prohibition must attach to the
-# tool parameter or to the wait itself ("WITHOUT run_in_background", "never
-# backgrounding that call") - a nearby sentence that merely happens to negate
-# some other "background" noun ("not a poll of a background task") must NOT
-# satisfy it, or removing the real ban would go unnoticed.
-_BACKGROUND_BAN_RE = re.compile(
-    r"\b(never|not|without|no|do NOT)\b[^.]{0,60}?"
-    r"(run_in_background|background(?:ing)?\s+(?:this|that|it|the\s+wait|the\s+call))",
-    re.IGNORECASE,
-)
-
-# The harness's own generic default, and an explicit override of it.
-_HARNESS_DEFAULT_RE = re.compile(
-    r"(do not poll|don't poll|never poll|will be notified|you will be notified|notification)",
-    re.IGNORECASE,
-)
-_OVERRIDE_RE = re.compile(
-    r"(overrid|override|does not apply|do not apply|supersede|takes precedence)",
-    re.IGNORECASE,
-)
-
 # The forbidden OUTPUT SHAPE - the thing the agent actually did. "never
-# idle-stall" (pre-fix) is an abstraction an agent can believe it is obeying
+# idle-stall" alone is an abstraction an agent can believe it is obeying
 # while emitting exactly this; the contract must name the shape.
 _TURN_END_SHAPE_RE = re.compile(
     r"(text-only|tool-call-free|no tool call|end(?:ing|s)? (?:your|its|the) turn|"
@@ -1227,36 +1188,28 @@ def _unnegated_hedges(window: str) -> list[str]:
 
 
 def test_active_wait_names_a_concrete_blocking_call_not_a_bare_mention():
-    """Both statements of the contract must name the blocking call as a CALL -
-    `wait-log --log <path>` - so an executing agent has something to run.
-
-    Pre-fix RED: the skill relay mentioned `wait-log` only while describing
-    which marker set it shares with the script, never as an invocation, so an
-    agent reading the relay had no named mechanism for the wait at all."""
+    """Both statements of the contract must name the blocking call as a CALL - `job_wait(job_id)`
+    - so an executing agent has something to run."""
     for rel, path in _ACTIVE_WAIT_FILES:
         text = _norm(path)
         assert _WAIT_CALL_RE.search(text), (
-            f"{rel}: must name the blocking helper as an invocation with its --log "
-            "argument (a bare 'the wait-log helper' mention is not an instruction)"
+            f"{rel}: must name the blocking wait as a call, `job_wait(job_id)`"
         )
 
 
 def test_active_wait_is_mandatory_and_never_hedged_into_an_option():
-    """The blocking call must be stated as required, and no un-negated hedge
-    may govern it.
+    """The blocking call must be stated as required, and no un-negated hedge may govern it.
 
-    Two halves on purpose: the presence half fails if the mandate is deleted,
-    the absence half fails if hedging vocabulary comes back in ANY of its
-    forms. Pre-fix RED on both: the call was introduced with "prefer the
-    deterministic helper" and carried no mandate token in its vicinity."""
+    Two halves on purpose: the presence half fails if the mandate is deleted, the absence half
+    fails if hedging vocabulary comes back in ANY of its forms."""
     for rel, path in _ACTIVE_WAIT_FILES:
         assert _windows(_norm(path), _WAIT_CALL_RE, 400, 400), (
             f"{rel}: no blocking call found to check (see previous test)"
         )
         contract = _active_wait_contract(path)
         assert _MANDATE_RE.search(contract), (
-            f"{rel}: the foreground wait must be stated as MANDATORY/MUST/your VERY "
-            "NEXT call - an advisory mechanism is what let the agent skip it"
+            f"{rel}: the wait must be stated as MANDATORY/MUST/your VERY NEXT call - an advisory "
+            "mechanism is what let the agent skip it"
         )
         hedged = _unnegated_hedges(contract)
         assert not hedged, (
@@ -1265,47 +1218,28 @@ def test_active_wait_is_mandatory_and_never_hedged_into_an_option():
         )
 
 
-def test_active_wait_requires_the_foreground_and_bans_backgrounding_the_wait():
-    """The wait must be told apart from the background LAUNCH one step above
-    it: stated as foreground, and with backgrounding it explicitly forbidden.
-
-    Pre-fix RED: the only `run_in_background` instruction was the positive one
-    for the launch, and nothing said the wait itself must not be backgrounded -
-    so carrying the launch pattern forward into the wait (which returns
-    instantly with no BUILD_RESULT) read as compliant."""
+def test_active_wait_repeats_job_wait_while_the_result_is_timeout():
+    """`job_wait` returns `timeout` while the build still runs, and ONE call never covers a long
+    build. Both files must say to call it AGAIN, with the same job id, for as long as the result
+    is `timeout` - a single wait followed by a turn end is the stall."""
     for rel, path in _ACTIVE_WAIT_FILES:
         text = _norm(path)
-        near = _windows(text, _WAIT_CALL_RE, 500, 700)
-        assert any("foreground" in w.lower() for w in near), (
-            f"{rel}: the wait must be stated as a FOREGROUND call"
-        )
-        assert any(_BACKGROUND_BAN_RE.search(w) for w in near), (
-            f"{rel}: backgrounding the wait itself must be explicitly forbidden "
-            "(a backgrounded wait returns instantly with no BUILD_RESULT)"
+        near = _windows(text, _WAIT_CALL_RE, 200, 700)
+        assert any(_REPEAT_RE.search(w) for w in near), (
+            f"{rel}: must say job_wait is called again with the same job id while the result is "
+            "`timeout`"
         )
 
 
-def test_active_wait_explicitly_overrides_the_harness_do_not_poll_default():
-    """Both files must name the harness's own generic Bash guidance ("you will
-    be notified - do not poll") AND override it for this call.
-
-    This is the collision that produced the observed transcript: given a
-    prominent generic default and a merely advisory plugin rule, the agent
-    picked the generic one and ended its turn. Pre-fix RED: neither file
-    referenced that default at all, so there was nothing to override."""
+def test_the_retired_bash_wait_mechanics_are_deleted_not_annotated():
+    """The retired Bash wait - a backgrounded launcher, a foreground `wait-log`, the harness's
+    "you will be notified" default it had to override - must be DELETED from both statements of
+    the contract, not annotated. The job tools replaced it; a leftover sentence is an instruction
+    an agent still obeys."""
     for rel, path in _ACTIVE_WAIT_FILES:
         text = _norm(path)
-        near = _windows(text, _WAIT_CALL_RE, 900, 1400)
-        assert any(_HARNESS_DEFAULT_RE.search(w) for w in near), (
-            f"{rel}: must name the harness's generic do-not-poll / you-will-be-notified "
-            "default at the point of the wait"
-        )
-        assert any(
-            _HARNESS_DEFAULT_RE.search(w) and _OVERRIDE_RE.search(w) for w in near
-        ), (
-            f"{rel}: must state that the harness default is OVERRIDDEN / does not apply "
-            "for this call - naming it without overriding it leaves the collision intact"
-        )
+        for retired in ("run_in_background", "wait-log", "BUILD_RESULT", "BUILD_PROGRESS"):
+            assert retired not in text, f"{rel}: still carries the retired wait mechanic {retired!r}"
 
 
 def test_a_text_only_turn_end_before_a_terminal_verdict_is_forbidden():
@@ -1329,142 +1263,81 @@ def test_a_text_only_turn_end_before_a_terminal_verdict_is_forbidden():
 
 
 def test_the_two_statements_of_the_wait_contract_agree():
-    """The agent file and the skill relay must state the SAME mechanism.
-
-    The original divergence was exactly this: the agent named `wait-log`, the
-    relay did not, so a reader of the front door learned there was a poll to
-    perform but never what to call. Any future edit that upgrades one file and
-    forgets the other fails here, naming both sides."""
+    """The agent file and the skill relay must state the SAME mechanism: the blocking call, the
+    repeat-while-timeout rule, the tool-call-in-every-response rule, and the mandate. The inline
+    leaf-mode path runs the same work in the caller's context, so a rule one side drops is a rule
+    that path never learns."""
     carried = {}
     for rel, path in _ACTIVE_WAIT_FILES:
         text = _norm(path)
         near = _windows(text, _WAIT_CALL_RE, 900, 1400)
         carried[rel] = {
             "invocation": bool(near),
-            "foreground": any("foreground" in w.lower() for w in near),
+            "repeat": any(_REPEAT_RE.search(w) for w in near),
+            "tool-call": any(_TOOL_CALL_EVERY_RESPONSE_RE.search(w) for w in near),
             "mandate": any(_MANDATE_RE.search(w) for w in near),
-            "override": any(
-                _HARNESS_DEFAULT_RE.search(w) and _OVERRIDE_RE.search(w) for w in near
-            ),
         }
-    for aspect in ("invocation", "foreground", "mandate", "override"):
+    for aspect in ("invocation", "repeat", "tool-call", "mandate"):
         holders = [rel for rel, got in carried.items() if got[aspect]]
         assert len(holders) == len(carried), (
             f"the two statements of the active-wait contract disagree on {aspect!r}: "
             f"carried by {holders}, missing from "
-            f"{[r for r in carried if r not in holders]} - one file stating the "
-            "mechanism while the other omits it is the original divergence"
+            f"{[r for r in carried if r not in holders]}"
         )
 
 
-def test_a_reaped_launcher_is_never_read_as_a_pass():
-    """The third observed case: the backgrounded launching shell was reaped
-    before printing its own STATUS=/TEST_RESULT= line while odoo-bin ran to
-    completion. The agent must never synthesize the missing verdict line.
-
-    Pre-fix RED: no file mentioned the possibility, so the only guidance
-    ("never stop at BUILD_RESULT=success without confirming the script's own
-    STATUS= line") was unsatisfiable and left the outcome to improvisation."""
+def test_a_lost_build_job_is_never_read_as_a_pass():
+    """A build job whose process vanished without an exit record comes back `lost`. The agent must
+    never read it as a pass and never synthesize the missing verdict."""
     text = _norm(AGENT_MD)
-    assert re.search(r"reap(?:ed|s)?\b", text, re.IGNORECASE), (
-        "the agent must handle the launcher shell being reaped before it printed "
-        "STATUS=/TEST_RESULT="
+    window = _windows(text, re.compile(r"`lost` - "), 0, 520)
+    assert window, "the agent must handle a `lost` build job"
+    body = window[0]
+    assert re.search(r"Never a pass", body) and re.search(r"never synthesize", body), (
+        "a lost job must be stated as NEVER a pass and the missing verdict never synthesized"
     )
-    window = _windows(text, re.compile(r"reap(?:ed|s)?\b", re.IGNORECASE), 320, 520)
-    assert any(
-        re.search(r"\b(never|not|must not)\b[^.]{0,120}?(synthes|invent|assume|pass)",
-                  w, re.IGNORECASE)
-        for w in window
-    ), (
-        "a reaped launcher must be stated as NEVER a pass and the missing verdict "
-        "line must never be synthesized"
-    )
-    assert any(
-        ("inconclusive" in w.lower() or "BLOCKED" in w) and "LOG_PATH" in w
-        for w in window
-    ), (
-        "the reaped-launcher branch must name the terminal status to report and "
-        "require LOG_PATH be forwarded"
+    assert "BLOCKED" in body and "log_path" in body, (
+        "the lost-job branch must name the status to report and require log_path be forwarded"
     )
 
 
 def test_build_timeout_is_re_invoked_not_turned_into_a_turn_end():
-    """`BUILD_RESULT=timeout` must drive another foreground wait, with a stated,
-    evidence-based stop condition - not a turn end and not an unbounded loop.
-
-    Pre-fix RED: the contract's only timeout branch was "report BLOCKED", so
-    every build longer than one wait window BLOCKED instead of completing, and
-    nothing told the agent it could wait again."""
+    """A `timeout` result must drive another `job_wait`, with a stated, evidence-based stop
+    condition - not a turn end and not an unbounded loop."""
     text = _norm(AGENT_MD)
-    windows = _windows(text, re.compile(r"BUILD_RESULT=timeout|timeout", re.IGNORECASE), 260, 900)
-    assert any(
-        re.search(r"re-?invoke|re-?run|again|repeat", w, re.IGNORECASE)
-        and "BUILD_PROGRESS" in w
-        for w in windows
-    ), (
-        "a timeout verdict must instruct re-invoking the same foreground wait, with "
-        "the BUILD_PROGRESS reading as the evidence for whether to continue"
+    windows = _windows(text, re.compile(r"`timeout` - still running"), 0, 900)
+    assert windows, "the agent must carry a `timeout` branch"
+    body = windows[0]
+    assert re.search(r"Call `job_wait` again", body) and "progress" in body, (
+        "a timeout must instruct calling job_wait again, with the progress reading as the "
+        "evidence for whether to continue"
     )
-    assert any(
-        re.search(r"BLOCKED", w)
-        and "BUILD_PROGRESS" in w
-        and re.search(r"identical|unchanged|stopped progress|no longer",
-                      w, re.IGNORECASE)
-        for w in windows
-    ), (
-        "the stop condition must be evidence-based (a non-empty BUILD_PROGRESS "
-        "repeated across a whole window), not a bare clock, and must resolve to BLOCKED"
+    assert re.search(r"BLOCKED", body) and re.search(r"byte-identical|unchanged", body), (
+        "the stop condition must be evidence-based (a non-empty progress repeated across a "
+        "whole window) and resolve to BLOCKED"
     )
 
 
 def test_the_stall_rule_names_the_field_that_actually_advances():
-    """The stall rule is only true if the evidence it compares MOVES while the
-    build works.
-
-    `BUILD_MARKER` alone does not qualify as the rule's subject: on a test build
-    the newest deciding line can repeat for a long time, and the field the script
-    guarantees on EVERY poll - and guarantees to count real units of work - is
-    `BUILD_PROGRESS`. Naming the wrong field is not a wording nit: with frozen
-    evidence, two windows of a HEALTHY long suite read as "stopped progressing"
-    and the run is abandoned as BLOCKED.
-
-    Pre-fix RED: the contract's only stall rule was "`BUILD_MARKER` UNCHANGED
-    from the previous one - that, not the clock, is the evidence the build
-    stopped progressing", which is exactly the frozen-evidence rule.
-    """
+    """The stall rule is only true if the evidence it compares MOVES while the build works:
+    job_wait's `progress` reading. A rule keyed on the last log marker holding still reads two
+    windows of a HEALTHY long suite as "stopped" and abandons the run."""
     for rel, path in _ACTIVE_WAIT_FILES:
         text = _norm(path)
-        assert "BUILD_PROGRESS" in text, (
-            f"{rel}: the wait contract must name BUILD_PROGRESS - the field a poll "
-            "emits on every path and the only one that advances while a suite runs"
+        assert "`progress`" in text, (
+            f"{rel}: the wait contract must name job_wait's `progress` reading"
         )
-        # The superseded rule must be DELETED, not left standing beside the new
-        # one: a runtime agent that reads the old sentence first obeys it.
-        #
-        # Scanned SENTENCE by SENTENCE over the WHOLE file, not through a fixed
-        # byte window forward from `BUILD_MARKER`. A bounded-adjacency window
-        # goes green the moment the paragraph is reflowed or the stale sentence
-        # is re-worded a few words longer, which is how a superseded rule
-        # survives a sweep; and the stale claim can sit anywhere in the file,
-        # not only after the token. The predicate is phrasing-independent: ANY
-        # sentence that makes the stall decision (stop / BLOCKED / stopped
-        # progressing) turn on BUILD_MARKER holding still is stale, whatever
-        # words it uses for "holding still", unless that same sentence is about
-        # BUILD_PROGRESS.
         stale_sentence = re.compile(
-            r"BUILD_MARKER(?![_A-Z])"
-            r"(?=[^.!?]*(?:unchanged|identical|same|repeat|not moved|no longer moves|"
-            r"stopped progress|frozen|still))"
+            r"`marker`(?=[^.!?]*(?:unchanged|identical|same|repeat|frozen|still))"
             r"(?=[^.!?]*(?:BLOCKED|stopped progress|stop waiting|give up|abandon))",
             re.IGNORECASE,
         )
         offenders = [
             s.strip() for s in re.split(r"(?<=[.!?]) ", text)
-            if stale_sentence.search(s) and "BUILD_PROGRESS" not in s
+            if stale_sentence.search(s) and "`progress`" not in s
         ]
         assert not offenders, (
-            f"{rel}: a stall rule keyed on BUILD_MARKER holding still is still "
-            "present - it must be replaced, not annotated. Offending sentence(s):\n"
+            f"{rel}: a stall rule keyed on the log marker holding still is present:\n"
             + "\n".join(offenders)
         )
 
@@ -1474,9 +1347,7 @@ def test_the_stall_rule_names_the_field_that_actually_advances():
         "evidence and never on its own grounds for BLOCKED"
     )
     assert re.search(r"(not a guarantee|could not separate|cannot separate)", text), (
-        "the contract must say plainly where the stall rule stays unreliable - a "
-        "single long-running test freezes a healthy run's reading - instead of "
-        "implying a guarantee"
+        "the contract must say plainly where the stall rule stays unreliable"
     )
 
 
@@ -1651,29 +1522,21 @@ def _run_tests_section(text: str) -> str:
 
 
 def test_run_tests_verdict_reports_the_scope_it_was_decided_on():
-    """The run-tests contract must require the two figures actually observed -
-    modules loaded and tests run - each read from THIS run's log via its
-    grounded marker, so a caller can see the fan-out that decided the verdict.
-
-    Pre-fix RED: the run-tests section reported TEST_RESULT= plus four counters
-    and nothing about how many modules were installed or how many tests ran, so
-    63 modules / 1626 tests looked identical to the one module requested."""
+    """The run-tests contract must require the two figures actually observed - modules loaded and
+    tests run - from the build's own summary (`MODULES_LOADED`, `TESTS_RUN`), wired into notes, with
+    `unknown` for a figure the summary does not carry."""
     section = _run_tests_section(_norm(AGENT_MD))
-    assert _MODULES_LOADED_MARKER_RE.search(section), (
-        "the run-tests verdict must require the count of modules ACTUALLY loaded, read "
-        "from the log's own module-loading marker"
+    assert "MODULES_LOADED" in section, (
+        "the run-tests verdict must require the count of modules ACTUALLY loaded"
     )
-    assert _TESTS_RAN_MARKER_RE.search(section), (
-        "the run-tests verdict must require the count of tests ACTUALLY run, read from "
-        "the era-correct ran-marker the script's own parser uses"
+    assert "TESTS_RUN" in section, (
+        "the run-tests verdict must require the count of tests ACTUALLY run"
     )
     assert re.search(r"\bnotes\b", section, re.IGNORECASE), (
-        "both figures must be wired into the existing output contract (the notes field), "
-        "not left as a side remark"
+        "both figures must be wired into the output contract (the notes field)"
     )
     assert re.search(r"unknown", section, re.IGNORECASE), (
-        "a figure the log does not carry must be reported unknown - never estimated, "
-        "never omitted"
+        "a figure the summary does not carry must be reported unknown - never estimated"
     )
 
 
@@ -1872,50 +1735,33 @@ def _exit_code_window(text: str, code: str, before: int = 120, after: int = 700)
     return _windows(text, pattern, before, after)
 
 
-def test_acquire_exit_6_carries_actions_not_just_a_meaning():
-    """Exit 6 (role positively lacks CREATEDB) must name what to DO: get
-    CREATEDB granted, or re-acquire exclusive while STATING that isolation was
-    not provided, or pass --no-create.
-
-    Pre-fix RED: the code did not exist in the prose, and the mode list instead
-    promised a silent auto-degrade the allocator no longer performs."""
+def test_no_createdb_fallback_to_exclusive_states_the_lost_isolation():
+    """`NO_CREATEDB` (the role positively lacks CREATEDB) has a remedy the tool returns; the one
+    judgement the agent must add is that taking the `exclusive` way out gives up isolation and
+    must be STATED - a silent fallback is how an unisolated run passes for an isolated one."""
     text = _norm(AGENT_MD)
-    windows = _exit_code_window(text, "6")
-    assert windows, "the agent must document acquire exit 6"
-    assert any("CREATEDB" in w for w in windows), (
-        "exit 6 must be identified as the role positively lacking CREATEDB"
+    windows = _windows(text, re.compile(r"`NO_CREATEDB`"), 60, 400)
+    assert windows, "the agent must name the NO_CREATEDB refusal"
+    assert any(re.search(r"exclusive", w) and re.search(r"isolation", w, re.IGNORECASE)
+               for w in windows), (
+        "falling back to exclusive after NO_CREATEDB must require STATING that isolation was not "
+        "provided"
     )
-    assert any(
-        sum(
-            bool(re.search(p, w, re.IGNORECASE))
-            for p in (r"grant", r"--mode exclusive|exclusive", r"--no-create")
-        ) >= 2
-        for w in windows
-    ), "exit 6 must name at least two of its three remedies (grant / exclusive / --no-create)"
-    assert any(re.search(r"isolation", w, re.IGNORECASE) for w in windows), (
-        "falling back to exclusive must require STATING that isolation was not provided - "
-        "a silent fallback is how an unisolated run passes for an isolated one"
+    assert re.search(r"Follow the remedy", text), (
+        "the agent must be told to follow the remedy a tool error carries"
     )
 
 
-def test_acquire_exit_7_carries_actions_and_names_its_three_causes():
-    """Exit 7 (capability UNDETERMINABLE) must name its three causes - no
-    declared python, the venv cannot import odoo, the cluster is unreachable -
-    and resolve to a retry or NEEDS_CONTEXT, never a guess."""
+def test_the_refusal_rule_names_every_postgres_refusal_code():
+    """Every Postgres refusal `lease_acquire` can return must be named in the agent's refused-
+    before-launch rule, so none of them falls into a generic error path. Named by CODE: the
+    numeric exit codes are the CLI fallback's vocabulary, not the tools'."""
     text = _norm(AGENT_MD)
-    windows = _exit_code_window(text, "7")
-    assert windows, "the agent must document acquire exit 7"
-    assert any(
-        re.search(r"undetermin", w, re.IGNORECASE) for w in windows
-    ), "exit 7 must be identified as the capability being undeterminable"
-    for cause in (r"python", r"import odoo", r"cluster"):
-        assert any(re.search(cause, w, re.IGNORECASE) for w in windows), (
-            f"exit 7 must name its cause {cause!r} so the agent knows what to resolve"
-        )
-    assert any(
-        re.search(r"NEEDS_CONTEXT", w) and re.search(r"re-?acquire", w, re.IGNORECASE)
-        for w in windows
-    ), "exit 7 must resolve to a bounded retry then NEEDS_CONTEXT, never a guessed mode"
+    rule = _windows(text, _REFUSAL_RULE, 0, 1800)
+    assert rule, "the agent must carry the 'Refused before launch' rule"
+    for code in ("DB_AUTH_DENIED", "DB_UNREACHABLE", "NO_CREATEDB", "CREATEDB_UNDETERMINABLE"):
+        assert code in rule[0], f"the refusal rule must name {code}"
+    assert "db_preflight" in rule[0], "the rule must name the read-only diagnosis tool"
 
 
 def test_no_prose_claims_ephemeral_silently_degrades_to_exclusive():
@@ -1991,7 +1837,7 @@ _EXIT_ENUM = re.compile(
 
 
 # The RULE itself, not the two cross-references that point at it by name.
-_REFUSAL_RULE = re.compile(r"Refused before launch \(exits", re.IGNORECASE)
+_REFUSAL_RULE = re.compile(r"\*\*Refused before launch\.\*\*")
 
 
 def _contract_text(path: Path) -> str:
@@ -2113,24 +1959,31 @@ def _refusal_enumerations(corpus=None) -> list[tuple[Path, str, str]]:
 
 
 def test_the_refusal_set_scan_reaches_every_restating_file():
-    """Discovery floor. This scan is only worth anything if it actually reaches
-    the files that restate the contract - a broken glob, a renamed separator or a
-    changed lead-in word would make it vacuous instead of failing."""
+    """Refusals are handled by the NAMED error code's remedy, which the tool returns with it -
+    never by a copied numeric exit-code catalogue. The numeric set is the CLI fallback's
+    vocabulary and lives only in the allocation reference docs; an agent-facing file (agent,
+    skill, snippet, shared reference) that restates it is a copy that drifts from the tool.
+
+    Discovery floor: the scan must still reach the CLI reference that owns the numeric set, or a
+    broken glob / renamed separator would make the ban below vacuous."""
     found = _refusal_enumerations()
     seen = {_rel(p) for p, _, _ in found}
-    for expected in (
-        "plugins/odoo-ai-agents/agents/odoo-instance-ops.md",
-        "plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md",
-        "plugins/odoo-ai-agents/snippets/instance-resolution.md",
-        "plugins/odoo-ai-agents/snippets/fp-merge-absorption.md",
-        "plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md",
-        "plugins/odoo-ai-agents/skills/odoo-forward-port/references/fp-phase-detail.md",
-    ):
-        assert expected in seen, (
-            f"{expected} restates the acquire refusal set but the enumeration scan "
-            f"no longer reaches it - the scan is broken, not the file. Reached: {sorted(seen)}"
-        )
-    assert len(found) >= 6, f"only {len(found)} refusal enumerations found - scan is broken"
+    assert "plugins/odoo-ai-agents/docs/reference/INSTANCE-ALLOCATION-API.md" in seen, (
+        f"the CLI reference owns the numeric acquire refusal set but the scan no longer reaches "
+        f"it - the scan is broken. Reached: {sorted(seen)}"
+    )
+    offenders = sorted(
+        rel for rel in seen
+        if rel.startswith("plugins/") and "/docs/reference/" not in rel
+    )
+    assert not offenders, (
+        "these agent-facing files restate the numeric allocator exit-code catalogue - name the "
+        f"tool error code and follow its remedy instead: {offenders}"
+    )
+    agent = _norm(AGENT_MD)
+    assert re.search(r"Follow the remedy", agent) and "DB_AUTH_DENIED" in agent, (
+        "the agent must handle refusals by the named code and its remedy"
+    )
 
 
 def test_no_file_states_the_acquire_refusal_set_without_8_and_9():
@@ -2222,40 +2075,33 @@ def test_the_refusal_before_launch_rule_maps_both_status_fields_explicitly():
     )
 
 
-def test_exit_8_and_exit_9_never_share_one_remedy():
-    """Exit 9's remedy differs IN KIND from exit 8's: start the cluster / correct
-    db_host-db_port, not an authentication fix. A passage that names both codes and
-    offers only an auth remedy sends a stopped cluster to `48-db-local-auth.sh`,
-    which does nothing for a cluster that is not running.
-
-    Pre-fix RED: the agent's Through-Odoo paragraph named both exits and then one
-    remedy - `/odoo-ai-agents:odoo-setup`, with the parenthetical attached to 8.
-    A passage that states NO remedy (a pure cross-reference to the SSOT) is not a
-    finding - only one that states an auth remedy without the reachability one."""
+def test_auth_and_reachability_refusals_never_share_one_remedy():
+    """`DB_UNREACHABLE`'s remedy differs IN KIND from `DB_AUTH_DENIED`'s: start the cluster /
+    correct db_host-db_port, not an authentication fix. A passage that names both and offers only
+    an auth remedy sends a stopped cluster to `48-db-local-auth.sh`, which does nothing for it.
+    Scanned over the numeric CLI vocabulary AND the tool code vocabulary."""
     auth = re.compile(r"odoo-setup|ODOO_PG_PASSWORD|48-db-local-auth", re.IGNORECASE)
     reach = re.compile(r"start(?:ing|s)?\s+(?:the\s+)?cluster|db_host|db_port", re.IGNORECASE)
-    code8 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])8\b")
-    code9 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])9\b")
+    code8 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])8\b|DB_AUTH_DENIED")
+    code9 = re.compile(r"(?:\b(?:exit|exits|code|codes)\b[`*\s:\-]{0,4}|[`*])9\b|DB_UNREACHABLE")
     offenders = []
     checked = 0
     for path in _stale_claim_corpus():
         for passage in _contract_paragraphs(path):
             if not (code8.search(passage) and code9.search(passage)):
                 continue
-            # A passage that offers NO remedy is a cross-reference to the SSOT,
-            # not a fifth copy of it - nothing to check.
             if not auth.search(passage):
                 continue
             checked += 1
             if not reach.search(passage):
                 offenders.append(f"{_rel(path)}: ...{passage[:260]}...")
     assert checked >= 2, (
-        f"only {checked} passage(s) offer a remedy for exits 8/9 - the scan is broken, "
-        "not the prose"
+        f"only {checked} passage(s) offer a remedy for the auth/reachability refusals - the scan "
+        "is broken, not the prose"
     )
     assert not offenders, (
-        "exit 8 and exit 9 are given ONE remedy - a stopped cluster is being sent to "
-        "an authentication fix:\n  " + "\n  ".join(offenders)
+        "the auth and reachability refusals are given ONE remedy - a stopped cluster is being "
+        "sent to an authentication fix:\n  " + "\n  ".join(offenders)
     )
     agent = _norm(AGENT_MD)
     assert re.search(r"ODOO_PG_PASSWORD", agent), (
@@ -2265,15 +2111,9 @@ def test_exit_8_and_exit_9_never_share_one_remedy():
 
 
 def test_db_auth_unknown_is_stated_as_never_blocking():
-    """`unknown` is the ONE DB_AUTH state that must never block, and the primitive
-    prints a `BLOCKED - DB_AUTH=<state>` stderr block for EVERY non-ok state -
-    `unknown` included - so a fully successful acquire can print a scary refusal
-    line moments before succeeding. Wherever the states are enumerated for an
-    agent, the never-block rule and the exit-code-over-stderr rule travel with
-    them.
-
-    Pre-fix RED: "unknown" appeared nowhere near DB_AUTH in the agent file, so an
-    agent had no textual basis for treating exit 0 with that stderr as a pass."""
+    """`unknown` is the ONE DB_AUTH state that must never block. Wherever the states are
+    enumerated for an agent, the never-block rule travels with them, and the agent is told the
+    TOOL RESULT is authoritative: a lease_acquire that returned a lease succeeded."""
     corpus = [p for p in _stale_claim_corpus() if "DB_AUTH" in _contract_text(p)]
     reached = {_rel(p) for p in corpus}
     assert _rel(AGENT_MD) in reached and _rel(ALLOCATION_DOC) in reached, (
@@ -2283,22 +2123,30 @@ def test_db_auth_unknown_is_stated_as_never_blocking():
         r"(unknown|undetermin\w*)[^.]{0,200}?\b(?:never|does not|do not|cannot)\b[^.]{0,120}?block"
         r"|\b(?:never|does not|do not|cannot)\b[^.]{0,140}?block[^.]{0,200}?(unknown|undetermin\w*)",
         re.IGNORECASE)
+    # The enumeration is judged where it is made - within reach of a DB_AUTH mention - so an
+    # unrelated `unknown` elsewhere in a file (a session-anchor state, say) is not read as one.
     offenders = []
     for path in corpus:
         text = _contract_text(path)
-        states = [s for s in ("denied", "unreachable", "unknown") if s in text]
-        if len(states) >= 2 and not never_blocks.search(text):
-            offenders.append(f"{_rel(path)} enumerates {states} without the never-block rule")
+        for m in re.finditer(r"DB_AUTH", text):
+            window = text[max(0, m.start() - 400): m.end() + 400]
+            states = [s for s in ("denied", "unreachable", "unknown") if s in window]
+            if len(states) >= 2 and not never_blocks.search(text):
+                offenders.append(f"{_rel(path)} enumerates {states} without the never-block rule")
+                break
     assert not offenders, (
         "a DB_AUTH state enumeration omits the rule that an UNDETERMINABLE state never "
-        "blocks - only a PROVEN 8 or 9 does:\n  " + "\n  ".join(offenders)
+        "blocks:\n  " + "\n  ".join(offenders)
     )
     agent = _norm(AGENT_MD)
     assert re.search(
-        r"DB_AUTH=unknown[^.]{0,400}?(exit code is authoritative|EXIT CODE is authoritative)",
+        r"db_auth: unknown`? reading NEVER blocks[^.]{0,40}only a returned refusal code does",
         agent, re.IGNORECASE), (
-        "the agent must be told the EXIT CODE is authoritative for `unknown`, not the "
-        "`BLOCKED - DB_AUTH=` stderr string every non-ok state prints"
+        "the agent must be told a `db_auth: unknown` reading never blocks - only a returned "
+        "refusal code does"
+    )
+    assert re.search(r"the tool result is authoritative", agent), (
+        "the agent must be told the tool result, not a printed probe line, is authoritative"
     )
 
 
@@ -2323,22 +2171,18 @@ def test_the_agent_never_self_applies_the_pg_hba_setup_step():
     )
 
 
-def test_the_mandatory_wait_log_step_has_an_arm_for_a_build_that_opens_no_log():
-    """A refusal before launch emits no `LOG_PATH=` at all, so the HARD RULE's
-    mandatory `wait-log` call has no argument to take. Without a named arm the
-    agent has no valid next tool call and the rule reads as a stall.
-
-    Pre-fix RED: the rule covered a reaped launcher with no `STATUS=` line but not
-    a build that never opened a log."""
+def test_a_refusal_before_launch_has_an_arm_with_nothing_to_wait_on():
+    """A refused acquire (or a build refused before Odoo ran) launched nothing, so there is no
+    job to wait on. Without a named arm the mandatory wait reads as a stall."""
     text = _norm(AGENT_MD)
-    arm = _windows(text, re.compile(r"No `LOG_PATH=` line at all", re.IGNORECASE), 0, 420)
-    assert arm, "the active-wait HARD RULE must carry an arm for a build that opens no log"
-    body = arm[0]
-    assert re.search(r"terminal|report", body, re.IGNORECASE), (
-        "the arm must resolve to a report, not to a wait"
+    rule = _windows(text, _REFUSAL_RULE, 0, 900)
+    assert rule, "the agent must carry the 'Refused before launch' rule"
+    body = rule[0]
+    assert re.search(r"launched nothing", body), (
+        "the refusal arm must say nothing was launched, so there is nothing to wait on"
     )
-    assert re.search(r"skip|nothing to wait on", body, re.IGNORECASE), (
-        "the arm must say the mandatory wait-log call is skipped in this ONE case"
+    assert re.search(r"`log_path: null`", body), (
+        "the refusal arm must resolve to a report with no log path, not to a wait"
     )
 
 
@@ -2358,35 +2202,26 @@ def test_the_forwarded_refusal_has_a_documented_home_outside_the_one_line_notes(
     )
 
 
-def test_force_forget_is_named_and_its_outcomes_are_flag_gated():
-    """`--force-forget` gates two of the three release outcome keys, and a plain
-    release on a present-or-unverifiable DB emits NONE of them (exit 1, lease
-    kept). The flag PERMANENTLY accepts a leaked database, so the file must say
-    who decides.
-
-    Pre-fix RED: `--force-forget` appeared 0 times in the agent, while the prose
-    told the agent to distinguish three outcomes as if all three were reachable
-    from the plain release the code block above it shows."""
+def test_a_release_that_could_not_drop_is_never_reported_as_a_teardown():
+    """A release that could not drop KEEPS the lease (`DROP_FAILED_KEPT`) and must never be
+    reported as a teardown; accepting the leaked database is never the agent's own decision.
+    `details.forgotten_db` (the database was already gone) is a clean release."""
     text = _norm(AGENT_MD)
-    assert "--force-forget" in text, (
-        "the flag that gates two of the three release outcome keys must be named"
-    )
-    win = _windows(text, re.compile(r"ALLOC_FORGOTTEN_DB"), 400, 900)
-    assert win, "the release outcomes must be documented"
+    win = _windows(text, re.compile(r"`DROP_FAILED_KEPT`"), 200, 500)
+    assert win, "the kept-lease release outcome must be documented"
     body = " ".join(win)
-    assert re.search(r"WITHOUT the flag|without `--force-forget`|plain release", body, re.IGNORECASE), (
-        "the outcomes reachable WITHOUT the flag must be separated from those needing it"
+    assert re.search(r"SURVIVED", body) and re.search(r"KEPT", body), (
+        "the outcome must say the database survived and the lease was kept"
     )
-    assert re.search(r"(NO key|no key at all)[^.]{0,120}(exit 1|KEEPS the lease|lease)", body,
-                     re.IGNORECASE) or re.search(
-        r"(KEEPS the lease|lease is KEPT)[^.]{0,140}(exit 1)", body, re.IGNORECASE), (
-        "the fourth case - present or unverifiable without the flag: no key, lease kept, "
-        "exit 1 - must be covered"
+    assert re.search(r"never report it as a teardown", body), (
+        "a kept lease must never be reported as a teardown"
     )
-    assert re.search(r"PERMANENTLY|permanent", body, re.IGNORECASE) and re.search(
-        r"(caller|human)[^.]{0,120}(asked|owns|decide)", body, re.IGNORECASE), (
-        "escalating to --force-forget permanently accepts a leak, so the file must say "
-        "who decides"
+    assert re.search(r"never\s+accept a leaked database on your own authority", body), (
+        "accepting a leak is never the agent's own decision"
+    )
+    assert "forgotten_db" in text, "the already-gone database case must be named as a clean release"
+    assert "--force-forget" not in text, (
+        "the retired CLI escalation flag must be gone from the agent"
     )
 
 

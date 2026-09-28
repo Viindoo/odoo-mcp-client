@@ -436,11 +436,11 @@ model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 wei
 at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely). The batching loop
 below keeps its shape and this weight budget; only the packed unit changes from module to node.
 
-Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a coder
-that runs `odoo-bin` against a database (tests via `--test-enable`, `-i`/`-u`, or scaffolding into a
-DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by invoking
+Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a
+coordinator that needs a database (a `--test-enable` run or an `-i`/`-u` build) and was handed NO
+`INSTANCE_HANDLE` self-provisions an ISOLATED instance by invoking
 `Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD RULES), never a bare
-`scripts/lib/allocator.py` call that would bypass them - so the brief never passes a shared
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire` call outside that skill, which would bypass them - so the brief never passes a shared
 db/port. `odoo-test-writer` NEVER self-provisions: when confirming RED needs a live run, it relays
 `NEEDS_NEXT: odoo-instance` up to its launcher (`odoo-coder`), which provisions the instance and
 re-launches it. A provided handle always wins
@@ -550,7 +550,7 @@ batch map, the DONE barrier, and (now) the coordination ledger. Full contract:
 
 **Write the ledger (only this skill writes it).** Resolve `LEDGER_ROOT` once per run per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (`LEDGER_ROOT` = `<SHARE_DIR>/coordination/modules`,
-`SHARE_DIR` via `resolve_project_dir.sh share` - shared across every linked worktree and concurrent
+`SHARE_DIR` via `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` axis `share` - shared across every linked worktree and concurrent
 run; do NOT restate the resolution recipe here).
 
 **The claim key stays the module technical name; the claimant is the node.** A node id is
@@ -659,8 +659,9 @@ Follow the Rounds in your system prompt - it owns every procedure; do not re-der
   tail) - the coordinator's OWN integrated-node-test self-provision (below) is the only per-node
   instance acquire left. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`
   (§ Worktree-addons carve-out, § Addons coverage assertion).
-- To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
-  `snippets/venv-resolution.md` - never assume system `python3`.
+- To run `odoo-bin scaffold`, resolve the interpreter per `snippets/venv-resolution.md` - never
+  assume system `python3`. Tests and `-i`/`-u` builds never run as a raw `odoo-bin` call: they go
+  through `Skill(odoo-instance)`.
 
 The `odoo-coder` coordinator (not this skill) launches the `odoo-test-writer` agent per WI FIRST -
 its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S), plus the coverage pre-flight

@@ -137,9 +137,35 @@ def test_a_pure_pointer_stays_exempt(unit):
 
 # --- 4. the other exemptions are untouched -------------------------------------------------------
 
-def test_a_full_span_scope_is_not_a_boundary_claim():
-    """Naming the support envelope is not asserting a boundary."""
-    assert not hits("OSM indexes every major from v8.0 to v19.0.")
+@pytest.mark.parametrize(
+    "unit",
+    [
+        # the shape that sat in agents/odoo-coder.md with the rule green
+        "`-i`/`-u` accept a comma-separated module list in every Odoo series v8-v19.",
+        "OSM indexes every major from v8.0 to v19.0.",
+        "Odoo forces http_spawn() from v8 through v19 whenever test mode is on.",
+        "The flag exists on every series 8.0-19.0.",
+        "Supported from Odoo 8 to Odoo 19.",
+        "the at-install and post-install phases run on every series v8 - v19",
+    ],
+)
+def test_a_version_range_is_a_claim_however_wide(unit):
+    """A written support envelope freezes its floor and ceiling and goes silently false the day
+    another series is indexed. A range exemption keyed on "covers >= N majors" blessed exactly
+    that drift, so every spelling of a range must fire."""
+    assert hits(unit), f"a hardcoded version range went unflagged: {unit!r}"
+
+
+@pytest.mark.parametrize(
+    "unit",
+    [
+        "`-i`/`-u` accept a comma-separated module list in every indexed Odoo series.",
+        "Resolve the supported series with `list_available_versions()` before choosing one.",
+    ],
+)
+def test_the_envelope_named_without_a_value_is_not_a_claim(unit):
+    """The fix the rule asks for must pass: name the envelope, or resolve it at runtime."""
+    assert not hits(unit), f"a value-free envelope statement was flagged: {unit!r}"
 
 
 def test_a_value_travelling_with_its_resolution_call_stays_exempt():

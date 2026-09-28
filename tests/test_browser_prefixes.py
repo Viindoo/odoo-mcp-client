@@ -44,10 +44,13 @@ def test_static_ssot_lists_all_six_families():
     )
 
 
-def test_live_mcp_json_ships_only_the_eager_server():
-    """Guard the premise: five families really did leave .mcp.json."""
+def test_live_mcp_json_ships_only_the_eager_browser_server():
+    """Guard the premise: five browser families really did leave .mcp.json, and the only OTHER
+    key present is a LOCAL (non-browser) server, never a second browser family. LOCAL_SERVERS is
+    the SSOT for what counts as "not a browser family" here (scripts/lib/plugin_mcp_servers.py)."""
     data = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
-    assert set(data.get("mcpServers", {})) == {"chrome-devtools"}
+    servers = set(data.get("mcpServers", {}))
+    assert servers - bp.plugin_mcp_servers.LOCAL_SERVERS == {"chrome-devtools"}
 
 
 def test_prefixes_cover_all_six_families_after_five_leave_mcp_json():
@@ -99,10 +102,17 @@ def test_matches_bare_form_rejects_foreign_server():
 # regex - so `_matches` alone is not sufficient; the matcher itself must also accept the
 # bare form, or the hook never runs for the 5 opt-in families in the first place.
 def _permission_request_matcher():
+    """The BROWSER PermissionRequest entry - i.e. the one that dispatches
+    auto-approve-browser.sh. hooks.json registers a SECOND, separate PermissionRequest
+    entry for auto-approve-local.sh (odoo-local's own tools) - identified by its command,
+    not by position, so this helper stays correct regardless of entry order."""
     hooks_json = json.loads((PLUGIN / "hooks" / "hooks.json").read_text(encoding="utf-8"))
     entries = hooks_json["hooks"]["PermissionRequest"]
-    assert len(entries) == 1
-    return entries[0]["matcher"]
+    for entry in entries:
+        commands = [h.get("command", "") for h in entry.get("hooks", [])]
+        if any("auto-approve-browser.sh" in c for c in commands):
+            return entry["matcher"]
+    raise AssertionError("no PermissionRequest entry dispatches auto-approve-browser.sh")
 
 
 @pytest.mark.parametrize("server", ALL_SIX)
@@ -147,3 +157,40 @@ def test_prefixes_union_includes_live_only_extra(tmp_path):
     assert "mcp__plugin_odoo-ai-agents_pagecast-headed" in prefixes
     # ...plus the live-only extra.
     assert "mcp__plugin_odoo-ai-agents_future-browser" in prefixes
+
+
+# --- LOCAL (non-browser) servers must never leak into the browser permission surface -----
+# odoo-local is bundled in the SAME .mcp.json as chrome-devtools, but it is not a browser
+# family (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS): some of its tools are destructive
+# (lease_release, an applied lease_gc), so a blanket browser-style auto-allow would be a
+# category error. These are the negative-case counterparts to the ALL_SIX tests above.
+
+def test_local_server_gets_no_browser_prefix():
+    """odoo-local must be subtracted from the union even though it lives in .mcp.json - it
+    must never gain either the plugin-namespaced or the bare browser allow-prefix."""
+    prefixes = set(bp.browser_prefixes(PLUGIN))
+    assert "mcp__plugin_odoo-ai-agents_odoo-local" not in prefixes
+    assert "mcp__odoo-local" not in prefixes
+
+
+def test_matches_rejects_local_server_tool():
+    """A tool namespaced to odoo-local must not satisfy the browser-permission SSOT's
+    _matches() - approving it is auto-approve-local.sh's job, a category apart."""
+    assert bp._matches("mcp__plugin_odoo-ai-agents_odoo-local__lease_release", PLUGIN) is False
+    assert bp._matches("mcp__plugin_odoo-ai-agents_odoo-local__lease_gc", PLUGIN) is False
+
+
+def test_all_servers_excludes_local_even_when_only_in_live_mcp_json(tmp_path):
+    """The subtraction must apply to a LIVE .mcp.json entry too, not just the static list -
+    a local server declared only in a test fixture's .mcp.json (never in STATIC_SERVERS)
+    must still be excluded from the union, exactly like a real odoo-local entry is."""
+    (tmp_path / ".claude-plugin").mkdir()
+    (tmp_path / ".claude-plugin" / "plugin.json").write_text(
+        json.dumps({"name": "odoo-ai-agents"}), encoding="utf-8"
+    )
+    (tmp_path / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"odoo-local": {"command": "python3"}}}), encoding="utf-8"
+    )
+    prefixes = set(bp.browser_prefixes(tmp_path))
+    assert "mcp__plugin_odoo-ai-agents_odoo-local" not in prefixes
+    assert "mcp__odoo-local" not in prefixes

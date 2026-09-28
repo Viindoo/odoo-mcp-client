@@ -961,7 +961,7 @@ def test_one_instance_one_run_one_commit_one_sha_per_node():
     Behaviour protected: the node is the unit of readiness (`depends_on`), of cherry-pick and of
     rollback. A node that landed as two commits has no single SHA the integration saga can
     checkpoint or revert, and a per-module instance cannot see a cross-module assertion at all.
-    Grounded: `-i`/`-u` accept a comma-separated module list in every series v8-v19, so ONE
+    Grounded: `-i`/`-u` accept a comma-separated module list in every indexed series, so ONE
     instance and ONE run genuinely cover a multi-module node.
 
     Fails if: the single-instance / dependency-order / single-commit / single-SHA statements are
@@ -977,7 +977,7 @@ def test_one_instance_one_run_one_commit_one_sha_per_node():
     )
     assert re.search(r"(?i)one instance and one run covers the whole node", flat), (
         "odoo-coder must state ONE instance and ONE integrated run cover the whole node - the "
-        "grounded fact (-i/-u take a LIST in every series v8-v19) that makes the node the unit"
+        "grounded fact (-i/-u take a LIST in every indexed series) that makes the node the unit"
     )
     assert re.search(r"(?i)capture the ONE returned SHA", flat), (
         "odoo-coder must commit the node ONCE and capture the ONE returned SHA"
@@ -1003,17 +1003,33 @@ def test_one_instance_one_run_one_commit_one_sha_per_node():
 
 
 def test_cross_module_test_staging_names_both_era_remedies():
-    """A node may span modules, so the cross-module staging rule must be stated in BOTH authors.
+    """A node may span modules, so the cross-module staging rule must be stated in BOTH authors,
+    and both era remedies must be reachable from them through the era-boundary SSOT.
 
-    Behaviour protected (grounded v8-v19): Odoo runs tests in two phases, and a test class is
-    `at_install` by DEFAULT - so an unstaged assertion in the first module of a node fires before
-    the second module is loaded and fails with a KeyError on a symbol that genuinely exists. The
-    12.0+ remedy and the 8.0-11.0 remedy are DIFFERENT APIs; naming only the modern one silently
-    breaks four series.
+    Behaviour protected: Odoo runs tests in two phases, and a test class is `at_install` by
+    DEFAULT - so an unstaged assertion in the first module of a node fires before the second
+    module is loaded and fails with a KeyError on a symbol that genuinely exists. The modern
+    `@tagged` remedy and the older phase-decorator remedy are DIFFERENT APIs; naming only the
+    modern one silently breaks every series before the tagging boundary.
 
-    Fails if: either `agents/odoo-coder.md` or `skills/odoo-test-writing/SKILL.md` loses the rule,
-    the 12.0+ `@tagged('post_install', '-at_install')` form, or the 8.0-11.0 decorator remedy.
+    The boundary is a version fact, so it lives in ONE place - `snippets/odoo-era-boundaries.md`
+    row 8 - and the authors point at it instead of restating a version range
+    (check_orchestration rules 17/18).
+
+    Fails if: either author loses the staging rule, the pointer to row 8, or the last-module
+    caveat, or restates the boundary as a series range; or row 8 stops naming both remedies.
     """
+    era = _flat(_read(PLUGIN / "snippets" / "odoo-era-boundaries.md"))
+    row8 = re.search(r"\| 8 \| Python test install phase \|(.*?)(?=\| \d+b? \||## |$)", era)
+    assert row8, "odoo-era-boundaries.md must carry row 8 - the Python test install phase boundary"
+    row8 = row8.group(1)
+    assert "@tagged('post_install', '-at_install')" in row8, (
+        "row 8 must name the modern remedy verbatim: @tagged('post_install', '-at_install')"
+    )
+    assert "@common.post_install(True)" in row8 and "@common.at_install(False)" in row8, (
+        "row 8 must name the older remedy - the phase decorators @common.post_install(True) / "
+        "@common.at_install(False) - not just say 'use the old API'"
+    )
     for label, path in (("agents/odoo-coder.md", CODER),
                         ("skills/odoo-test-writing/SKILL.md", TEST_WRITING)):
         flat = _flat(_read(path))
@@ -1021,17 +1037,12 @@ def test_cross_module_test_staging_names_both_era_remedies():
             f"{label} must state that a cross-module assertion is STAGED into the post-install "
             "phase - the only moment the whole node is visible"
         )
-        assert re.search(r"(?i)Series 12\.0 and later:.{0,80}@tagged\('post_install', '-at_install'\)", flat), (
-            f"{label} must name the 12.0-and-later remedy verbatim: "
-            "@tagged('post_install', '-at_install')"
+        assert re.search(r"odoo-era-boundaries\.md row 8", flat), (
+            f"{label} must point at odoo-era-boundaries.md row 8 for the per-series staging "
+            "mechanism, since it owns both remedies"
         )
-        assert re.search(r"(?i)Series 8\.0 to 11\.0", flat), (
-            f"{label} must carry a SEPARATE 8.0-11.0 branch - `@tagged` does not exist before 12.0"
-        )
-        assert re.search(r"(?i)@common\.post_install\(True\)", flat) and \
-               re.search(r"(?i)@common\.at_install\(False\)", flat), (
-            f"{label} must name the 8.0-11.0 remedy - the phase decorators "
-            "@common.post_install(True) / @common.at_install(False) - not just say 'use the old API'"
+        assert not re.search(r"(?i)Series \d+\.0 (?:and later|to \d+\.0)", flat), (
+            f"{label} restates the tagging boundary as a series range - point at row 8 instead"
         )
         assert re.search(r"(?i)has no \"?last module\"?", flat), (
             f"{label} must state that last-module placement only works when the node's modules are "

@@ -43,8 +43,8 @@ TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/nu
 # Parse the jsonl into a normalized stream so that tool CALLS are counted from real `tool_use`
 # blocks (not a tool name mentioned in an instruction or tool_result) and grounding LABELS are
 # read only from the ASSISTANT's own text - never from an injected contract snippet that quotes
-# the label (e.g. osm-first-contract.md §5 contains the literal "grounded: osm"). Tolerant:
-# `fromjson?` skips non-JSON lines; on any jq failure NORM is empty → self-gate → no enforcement.
+# the label (e.g. osm-first-contract.md section 5 contains the literal "grounded: osm"). Tolerant:
+# `fromjson?` skips non-JSON lines; on any jq failure NORM is empty -> self-gate -> no enforcement.
 NORM="$(jq -rR 'fromjson? | (.message // .) as $m
   | (($m.role // .type) // "") as $role
   | select($role == "assistant")
@@ -63,7 +63,7 @@ VALIDATOR_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__(validate_depends|validate_d
 PY_WRITES=$(_cnt $'^CALL\t(Write|Edit|MultiEdit)\t.*\\.py$')
 # Read-before-write signal: did the subagent open a coding_guidelines/<version>/ file?
 GUIDELINES_READ=$(_cnt $'^CALL\t(Read|Grep)\t.*coding_guidelines')
-# Grounding-label vocabulary (osm-first-contract.md §4), from assistant text only.
+# Grounding-label vocabulary (osm-first-contract.md section 4), from assistant text only.
 CLAIMS_OSM=$(_cnt $'^TEXT\t.*grounded:[[:space:]]*osm')
 CLAIMS_LOCAL=$(_cnt $'^TEXT\t.*(grounded:[[:space:]]*local-source|OSM unavailable|standalone)')
 
@@ -80,7 +80,7 @@ fi
 
 # --- Invariant 1 (BLOCK): claims OSM grounding but made zero OSM calls ----------------------
 if [[ "$CLAIMS_OSM" -gt 0 && "$OSM_CALLS" -eq 0 ]]; then
-    jq -cn --arg r "Grounding invariant violated: the artifact claims \`grounded: osm\` but this subagent's transcript shows ZERO mcp__odoo-semantic__* calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly as \`grounded: local-source (not OSM-indexed)\` / \`OSM unavailable - ungrounded\` per osm-first-contract.md §4. Do not assert OSM grounding you did not perform." \
+    jq -cn --arg r "Grounding invariant violated: the artifact claims \`grounded: osm\` but this subagent's transcript shows ZERO mcp__odoo-semantic__* calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly as \`grounded: local-source (not OSM-indexed)\` / \`OSM unavailable - ungrounded\` per osm-first-contract.md section 4. Do not assert OSM grounding you did not perform." \
         '{decision:"block", reason:$r}'
     exit 0
 fi

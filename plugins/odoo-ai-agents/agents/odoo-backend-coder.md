@@ -207,21 +207,22 @@ After scaffold, fill in only the keys the task requires and **keep all commented
 
 **Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `[[upg-conventions]]`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `<descriptor>`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream or any other non-Viindoo distribution.
 
-## Dependency pre-flight (before any odoo-bin -i/-u --test-enable)
+## Dependency pre-flight (before your module goes to any -i/-u or --test-enable build)
 
-Immediately before ANY `odoo-bin` run that installs or updates the module and touches a DB, resolve
-EVERY entry in the module-about-to-build's descriptor `depends` list - read whichever descriptor
-filename that module actually has (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0). For each
+You never run that build yourself (the coordinator's `odoo-instance` run does). Before you return a
+module that build will install or update, resolve EVERY entry in its descriptor `depends` list -
+read whichever descriptor file the module actually has (`__manifest__.py` or `__openerp__.py`). For each
 `dep`, it is resolved when EITHER:
 
 - `check_module_exists(name='<dep>', odoo_version='<version>')` reports it exists in OSM; OR
 - the dep's own descriptor - `__manifest__.py` or `__openerp__.py`, whichever it has - is present on
-  the effective `--addons-path` you are about to pass to `odoo-bin` (Read/Grep the addons dirs).
+  the effective addons-path that build will load - your worktree plus the `INSTANCE_HANDLE`
+  `addons_path` when you hold one (Read/Grep the addons dirs).
   Matching only one filename would report a present dep as a MISS and STOP the run.
 
 On a MISS - a `dep` that is neither in OSM nor on the addons-path - emit a RAW, verbatim status and
-STOP; do NOT invoke `odoo-bin` (a missing dep otherwise surfaces as an opaque Odoo
-manifest-resolution `ImportError` / "module not found" mid-run instead of a clean status):
+STOP; do NOT return the module as done (a missing dep otherwise surfaces as an opaque Odoo
+manifest-resolution `ImportError` / "module not found" mid-build instead of a clean status):
 
 ```
 BLOCKED: manifest dependency <dep> unresolved on addons-path

@@ -10,7 +10,7 @@ behind:
     signalled: a server process was knowingly LEAKED while its lease row was
     reclaimed anyway. No JSONL line records that.
   - `ERROR - ... drop of <db> FAILED; DB retained, lease kept for retry` - the
-    database survived. `_gc` deliberately does not report such a lease as
+    database survived. `gc` deliberately does not report such a lease as
     reclaimed, so there is no JSONL line for it AT ALL.
   - `WARNING - could not append the reclaim record ... the stderr line above is
     now the ONLY record of that reclamation` - the JSONL write itself failed.
@@ -22,8 +22,11 @@ Both of the plugin's implicit reclaimers used to send that stream to
     DETACHED worker whose own stdout/stderr are already `/dev/null`, so it is
     both the largest single reclaimer and the one with no terminal to speak to.
   - `scripts/setup-steps/50-instance-spinup.sh::_register_shared` - its
-    `acquire` runs the same destructive `_gc` sweep over the whole shared
-    registry as a side effect of registering a shared lease.
+    `acquire` used to run the destructive sweep over the whole shared registry
+    as a side effect of registering a shared lease. It no longer does (acquire
+    reclaims nothing but CAPACITY it cannot otherwise get, from provably-dead
+    owners), but it is still an allocator call that can stop a process group,
+    so its stderr is still kept.
 
 So the rule this module protects is: a reclaiming allocator call may never be
 the reason its own account disappeared - AND making it speak may never become a
@@ -31,7 +34,7 @@ reason the reclamation itself fails to happen. Both halves are asserted
 behaviorally, by running the REAL callers against the REAL allocator with a
 registry seeded so a lease is reclaimed.
 
-HARNESS SAFETY. `_gc` signals process GROUPS. Every lease seeded here goes
+HARNESS SAFETY. `gc` signals process GROUPS. Every lease seeded here goes
 through `test_allocator_signal_ownership.Harness.seed_lease`, which REFUSES any
 pid this suite did not spawn, and every seeded row uses the proven-dead pid on a
 FOREIGN host (`_stop_owner_group_if_local` returns before it looks at a foreign
@@ -113,8 +116,8 @@ def _fake_plugin_root(tmp_path: Path) -> Path:
     root = tmp_path / "plugin"
     libdir = root / "scripts" / "lib"
     libdir.mkdir(parents=True)
-    for name in ("allocator.py", "state_reclaim.sh", "resolve_instances.sh",
-                 "instances_io.py", "odoo_db.py", "pg_mode.sh"):
+    for name in ("allocator.py", "session_anchor.py", "state_reclaim.sh",
+                 "resolve_instances.sh", "instances_io.py", "odoo_db.py", "pg_mode.sh"):
         src = LIB / name
         if src.is_file():
             shutil.copy2(src, libdir / name)
@@ -134,11 +137,26 @@ def _seed_stale_lease(harness: Harness, home: Path, *, token=STALE_TOKEN, db=STA
     """One lease that `_condemn_reason` must condemn, seeded through the pid
     interlock. Foreign host + proven-dead pid + an elapsed TTL is the
     `ttl-expired-liveness-unprovable` arm - the one arm that needs no live
-    process at all, so nothing can be signalled by staging it."""
+    process at all, so nothing can be signalled by staging it. Only an EXPLICIT
+    `gc` (scope all) takes it; the SessionEnd hook never does."""
     home.mkdir(parents=True, exist_ok=True)
     return harness.seed_lease(
         home, DEAD_PID, host=FOREIGN_HOST, token=token, db_name=db,
         drop_on_release=False, mode="shared",
+    )
+
+
+def _seed_ended_session_lease(harness: Harness, home: Path, *, token=STALE_TOKEN, db=STALE_DB):
+    """One lease the SessionEnd hook's AUTOMATIC sweep (`gc --scope dead-sessions`) must
+    condemn: anchored on THIS host to a session whose anchor pid is provably dead, last touched
+    far past the grace window - the `owner-session-ended` arm. No server pid is recorded, so
+    nothing can be signalled; `drop_on_release` False, so nothing is dropped."""
+    home.mkdir(parents=True, exist_ok=True)
+    past = int(time.time()) - 100000
+    return harness.seed_lease(
+        home, None, token=token, db_name=db, drop_on_release=False,
+        owner={"session": {"pid": DEAD_PID, "started": "proc:seeded:1", "session_id": "ended",
+                           "source": "env", "seen_at": past}},
     )
 
 
@@ -167,9 +185,9 @@ def _wait_for_leases_reclaimed(home: Path, timeout_s: float = 30.0):
     """Poll the registry until every lease is gone, or the timeout elapses.
 
     This is a SEPARATE observation from the log line `_read_log` waits for:
-    `_gc` reports each reclamation (stderr notice + JSONL) per lease, INSIDE its
-    sweep loop, and only after that loop returns does the caller persist the
-    mutated registry (`_write_registry`) - see `_gc`'s own docstring for why that
+    `gc` reports each reclamation (stderr notice + JSONL) per lease as it happens,
+    in its unlocked stop-and-drop phase, and only afterwards persists the settled
+    registry (phase C of `cmd_gc`) - see the GC section header for why that
     order is deliberate (a crash between the two must leave a recoverable,
     REPORTED lease, never a silently persisted one). Both writes happen inside
     the same detached worker, but the log containing the token proves only that
@@ -207,12 +225,22 @@ def test_the_session_end_gc_persists_the_account_of_what_it_destroyed(harness, t
     Before this, the account went to `/dev/null` on the one path that runs at the
     end of EVERY session - so the half of the reporting meant for a human was
     lost on exactly the path that destroys the most.
+
+    The seeded lease is an ENDED SESSION's (`owner-session-ended`), not a foreign
+    host's TTL-expired one: the hook now runs only the allocator's automatic
+    `dead-sessions` scope (plus the ending session's own anchor scope), and the
+    automatic scopes never take the TTL arm - a lease whose liveness is merely
+    UNPROVABLE is an explicit `gc` for a human, not something one session's end
+    may destroy on a machine-global registry.
     """
     root = _fake_plugin_root(tmp_path)
     home = tmp_path / "home"
-    _seed_stale_lease(harness, home)
+    _seed_ended_session_lease(harness, home)
 
     env = dict(os.environ)
+    for name in ("CLAUDE_PID", "CLAUDE_CODE_SESSION_ID"):
+        env.pop(name, None)  # never let the hook find the REAL session running this suite
+    env["ODOO_AI_SESSION_ANCHOR"] = "none"
     env["CLAUDE_PLUGIN_ROOT"] = str(root)
     env["ODOO_AI_HOME"] = str(home)
     env["HOME"] = str(home)  # isolate the ~/.odoo-ai fallback
@@ -233,15 +261,15 @@ def test_the_session_end_gc_persists_the_account_of_what_it_destroyed(harness, t
     assert f"RECLAIMED lease token={STALE_TOKEN}" in text, (
         f"the persisted stream must carry the per-lease RECLAIMED notice; got {text!r}"
     )
-    assert f"db_name={STALE_DB}" in text and "reason=ttl-expired" in text, (
+    assert f"db_name={STALE_DB}" in text and "reason=owner-session-ended" in text, (
         "the notice must still name the database and the condemning arm - the "
         f"reason is the one fact no later reader can re-derive; got {text!r}"
     )
     remaining = _wait_for_leases_reclaimed(home)
     assert remaining == [], (
         "the lease itself must still have been reclaimed - the RECLAIMED notice "
-        "landing in the log proves `_gc` reported it, never that the registry "
-        f"write which follows (see `_gc`'s docstring) has already reached disk; "
+        "landing in the log proves `gc` reported it, never that the registry "
+        f"write which follows (phase C of `cmd_gc`) has already reached disk; "
         f"still present after waiting: {remaining}"
     )
 
@@ -259,14 +287,14 @@ def test_the_session_end_gc_still_runs_when_its_log_cannot_be_written(tmp_path):
     silently stops reclaiming. An unwritable log directory must degrade to
     today's behavior (no record) and never to a missed sweep.
 
-    The worker is DETACHED and, per the hook's own header ("ALSO: after gc, the
-    worker runs `reap-orphans` ..."), invokes the allocator TWICE - `gc` first,
-    then `reap-orphans` in its default list-only mode. The stub therefore
+    The worker is DETACHED and invokes the allocator more than once - `gc`
+    (scoped, see the hook's header) first, then `reap-orphans` in its default
+    list-only mode (the hook role also asks it for the session `anchor`). The stub therefore
     APPENDS one line per invocation instead of overwriting a single marker: an
     overwriting stub makes what the test observes depend on whether the read
     lands before or after the second write completes, which is exactly the
     unobservable race that let a CI run see `reap-orphans` where a workstation
-    run saw `gc` for the SAME passing hook. Asserting `gc` is AMONG the recorded
+    run saw `gc` for the SAME passing hook. Asserting a `gc` is AMONG the recorded
     invocations - never that it was the last (or only) one - is what the
     "still runs" contract actually requires.
     """
@@ -285,6 +313,9 @@ def test_the_session_end_gc_still_runs_when_its_log_cannot_be_written(tmp_path):
     os.chmod(home / "logs", 0o500)  # exists, but nothing can be created in it
     try:
         env = dict(os.environ)
+        for name in ("CLAUDE_PID", "CLAUDE_CODE_SESSION_ID"):
+            env.pop(name, None)
+        env["ODOO_AI_SESSION_ANCHOR"] = "none"
         env["CLAUDE_PLUGIN_ROOT"] = str(root)
         env["ODOO_AI_HOME"] = str(home)
         env["HOME"] = str(home)
@@ -292,14 +323,14 @@ def test_the_session_end_gc_still_runs_when_its_log_cannot_be_written(tmp_path):
                               text=True, timeout=30, env=env)
         assert proc.returncode == 0, f"stderr={proc.stderr!r}"
 
-        # Wait for BOTH invocations to have recorded themselves - not merely for
-        # the marker to exist, which the first write alone would already satisfy
-        # and would race the second exactly like the overwrite it replaces.
+        # Wait for the LAST invocation (reap-orphans) to have recorded itself - not
+        # merely for the marker to exist, which the first write alone would already
+        # satisfy and would race the later ones exactly like the overwrite it replaces.
         deadline = time.monotonic() + 30.0
         invocations = []
-        while time.monotonic() < deadline and len(invocations) < 2:
+        while time.monotonic() < deadline and "reap-orphans" not in invocations:
             if marker.is_file():
-                invocations = [ln for ln in
+                invocations = [ln.split()[0] for ln in
                                 marker.read_text(encoding="utf-8").splitlines() if ln.strip()]
             time.sleep(0.05)
 
@@ -417,15 +448,17 @@ def _kill_spinup_server(home: Path):
 
 
 @requires_bash
-def test_the_shared_lease_registration_persists_the_account_of_what_it_destroyed(
+def test_the_shared_lease_registration_never_reclaims_another_runs_lease(
         harness, tmp_path):
-    """END TO END on the other caller. `_register_shared` runs a real `acquire`,
-    which runs the same destructive `_gc` sweep over the WHOLE shared registry -
-    so a spin-up routinely reclaims some other run's lease. That account went to
-    `/dev/null` too.
+    """END TO END on the other caller, against the NON-DESTRUCTIVE acquire
+    contract. `_register_shared` runs a real `acquire` on every spin-up; that
+    acquire used to sweep the WHOLE machine-global registry and routinely
+    destroyed some other run's lease. A condemnable lease belonging to another
+    run must now come out of a spin-up UNTOUCHED - still in the registry, with
+    no RECLAIMED notice and no `by_verb=acquire` evidence record anywhere.
 
-    Also asserts the two properties that must NOT change: the notice stays OFF
-    this script's own stdout/stderr (its stdout is a KEY=VALUE protocol, and a
+    Also asserts the properties that must NOT change: nothing leaks onto this
+    script's own stdout/stderr (its stdout is a KEY=VALUE protocol, and a
     warning printed one line before `ok Odoo ... is up` reads as a spin-up
     failure to the agent parsing it), and the registration still happens.
     """
@@ -442,36 +475,25 @@ def test_the_shared_lease_registration_persists_the_account_of_what_it_destroyed
         leases = _leases(home)
         shared = [lz for lz in leases if lz.get("db_name") == SPINUP_DB]
         assert len(shared) == 1, (
-            f"the shared lease must still be registered - persisting the stderr may "
-            f"never cost the registration itself.\nLeases: {leases}"
+            f"the shared lease must still be registered.\nLeases: {leases}"
         )
-        assert not [lz for lz in leases if lz.get("token") == STALE_TOKEN], (
-            "test setup: the acquire's gc must actually have reclaimed the seeded "
-            f"stale lease, or this test proves nothing.\nLeases: {leases}"
+        assert [lz for lz in leases if lz.get("token") == STALE_TOKEN], (
+            "a spin-up's acquire must never reclaim ANOTHER run's lease - even one an "
+            f"explicit `gc` would condemn.\nLeases: {leases}"
         )
-
         log = _diag_log(home)
-        assert log.is_file(), (
-            f"the reclaiming acquire's stderr must be PERSISTED under {log}"
+        text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
+        assert "RECLAIMED lease" not in text, (
+            f"nothing was reclaimed, so nothing may be reported as reclaimed; got {text!r}"
         )
-        text = log.read_text(encoding="utf-8", errors="replace")
-        assert f"RECLAIMED lease token={STALE_TOKEN}" in text, (
-            f"a spin-up that destroys another run's lease must leave an account of "
-            f"it; got {text!r}"
+        jsonl = home / "logs" / "allocator-reclaimed.jsonl"
+        records = [json.loads(ln) for ln in jsonl.read_text(encoding="utf-8").splitlines()
+                   if ln.strip()] if jsonl.is_file() else []
+        assert not [r for r in records if r.get("by_verb") == "acquire"], (
+            f"the implicit acquire sweep must be gone for good; evidence log: {records}"
         )
-        assert "by_verb=acquire" in text, (
-            "and the account must name the verb that took it - the implicit acquire "
-            f"pass is the one an operator does not expect; got {text!r}"
-        )
-        assert STALE_TOKEN not in proc.stdout, (
-            "acquire's stdout is a shell PROTOCOL for `eval $(allocator.py acquire "
-            "...)`; this script's stdout is a KEY=VALUE protocol too. The notice "
-            "must never be interleaved into either"
-        )
-        assert STALE_TOKEN not in proc.stderr, (
-            "nor into this script's own stderr: a best-effort registration's "
-            "diagnostics printed one line before `ok Odoo ... is up` read as a "
-            "spin-up failure to the agent parsing this output"
+        assert STALE_TOKEN not in proc.stdout and STALE_TOKEN not in proc.stderr, (
+            "the spin-up's own output must not mention another run's lease at all"
         )
     finally:
         _kill_spinup_server(home)
@@ -505,8 +527,9 @@ def test_the_shared_lease_is_still_registered_when_the_log_cannot_be_written(tmp
 # --------------------------------------------------------------------------- #
 # 3 - the shape guard: no reclaiming call may discard its stderr again
 # --------------------------------------------------------------------------- #
-# Verbs that provably CANNOT destroy anything: they neither run `_gc` (only
-# `acquire` and `gc` do) nor stop a group nor drop a database, so discarding
+# Verbs that provably CANNOT destroy anything: they neither reclaim (`gc` does,
+# and `acquire`'s capacity path can stop a dead owner's group) nor stop a group
+# nor drop a database, so discarding
 # their stderr loses no account of a destruction. Everything else - including an
 # invocation whose verb is built at runtime (`"${args[@]}"`) - is treated as
 # destructive, i.e. this guard fails CLOSED on anything it cannot read.

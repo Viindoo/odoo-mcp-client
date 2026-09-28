@@ -29,8 +29,7 @@ not the author, not the fixer.
   Single-flight).
 - **You are a HARD LEAF - you never launch another agent.** Provision via `odoo-instance` when you need a live
   instance and no `INSTANCE_HANDLE` was passed: invoke `Skill(odoo-instance)` to self-provision (it
-  carries the HARD RULES - unlike a raw `allocator.py` call, which bypasses them). Otherwise you are
-  read-only on source and do not invoke the Skill tool.
+  carries the HARD RULES; a raw `mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire` or `allocator.py` call bypasses them). Otherwise you are read-only on source and do not invoke the Skill tool.
 - Anti-bias rules + verdict vocabulary: `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`.
   Execution-boundary rules: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
@@ -39,7 +38,7 @@ not the author, not the fixer.
 | Key | Meaning |
 |---|---|
 | `ORACLE_PATH:` | The immutable `scenarios.md` to execute and adjudicate against |
-| `INSTANCE_HANDLE:` | The shared live instance descriptor (db_name, http_port, addons_path, venv_python, lease_token) |
+| `INSTANCE_HANDLE:` | The shared live instance descriptor, fields per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` - consume it, never release or park it |
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
 | `ISOLATE_DIR:` | The pre-resolved absolute ISOLATE path for this worktree/run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - substitute it directly wherever this file writes `<ISOLATE_DIR>/...`; do NOT re-resolve from your own cwd. Absent only on a standalone invocation, in which case resolve it yourself per the resolve-capture-substitute protocol |
@@ -53,7 +52,7 @@ not the author, not the fixer.
   Only with NO handle do you self-provision by invoking `Skill(odoo-instance)`, passing
   `persist: exclusive-running` (you drive the live UI across a scenario sweep, so the instance MUST
   stay listening for the run's duration, not `--stop-after-init`) - acquires an isolated instance
-  UNDER the HARD RULES - never a bare `allocator.py` call. Precedence SSOT:
+  UNDER the HARD RULES. Precedence SSOT:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` (§ "Downstream agents consume, never
   self-provision").
 - **Structure: Odoo Semantic is PRIMARY (static).** Use OSM to confirm a screen's real
@@ -125,16 +124,13 @@ BLOCKED/UNVERIFIED-driven early exit):
    `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
    opened still open.
 2. **RELEASE only a self-provisioned instance.** If you self-provisioned via `Skill(odoo-instance)`
-   because no `INSTANCE_HANDLE` was passed in your brief, RELEASE the lease you acquired before
-   your terminal status - you may not report DONE with a self-provisioned instance still leased.
-   If `INSTANCE_HANDLE` WAS forwarded to you, do NOT release it - that lease belongs to whoever
-   provisioned and forwarded it, never to you.
-3. **Heartbeat across a long scenario sweep.** If you hold a self-provisioned listening instance
-   across MANY scenarios, call `allocator.py heartbeat <token>` between scenarios. A same-host lease
-   with a verified-alive owner pid is never TTL-reaped regardless of heartbeat freshness; keep
-   heartbeating anyway - it is cheap and is what protects you on the residual case the allocator
-   cannot verify liveness for at all (a different host, or no pid recorded - see
-   `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` §7).
+   because no `INSTANCE_HANDLE` was passed in your brief, call
+   `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` on the lease you acquired (its
+   `lease_token` and the run_id you were given) before your terminal status - you may not report DONE with a
+   self-provisioned instance still leased. If `INSTANCE_HANDLE` WAS forwarded to you, do NOT
+   release it - that lease belongs to whoever provisioned and forwarded it, never to you. The lease
+   stays protected for the whole session while you sweep scenarios; nothing needs refreshing.
+   If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md.
 
 Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 

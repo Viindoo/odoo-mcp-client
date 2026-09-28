@@ -352,13 +352,13 @@ def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
     instance over 'the run-integration branch's aggregate diff' - but `run-integration` is a
     SEPARATE git worktree from the principal checkout. Without an explicit `WORKTREE_PATH`, this
     either silently lints the wrong (catalog/principal) tree - a false-green regardless of what
-    run-integration actually contains - or trips the allocator's `_addons_path_worktree_mismatch`
-    guard and hard-blocks every run, depending on the dispatching agent's cwd. Neither outcome is
+    run-integration actually contains - or trips `lease_acquire`'s `ADDONS_PATH_WORKTREE_MISMATCH`
+    refusal and hard-blocks every run, depending on the dispatching agent's cwd. Neither outcome is
     acceptable, and cwd-dependence is itself the defect class this test guards against.
 
     Fails if stage 3 ("Pre-PR lint-class gate") does not explicitly state WORKTREE_PATH (rooted on
-    run-integration), the SELF_PROVISION: worktree-addons carve-out, and the addons-path-override
-    mechanism that satisfies the allocator's mismatch guard - mirroring the SAME shape this file's
+    run-integration), the SELF_PROVISION: worktree-addons carve-out, and the `addons_path` that
+    satisfies lease_acquire's worktree refusal - mirroring the SAME shape this file's
     own Example 3 and § Node Invocation Brief Template already use.
     """
     text = _read(RUN_INTEGRATION)
@@ -377,14 +377,13 @@ def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
         "the pre-PR lint-class gate must carry SELF_PROVISION: worktree-addons for a dispatched "
         "bounded subagent, the SAME field § Node Invocation Brief Template / Example 3 use."
     )
-    assert "addons-path-override" in norm, (
-        "the fix must explain that WORKTREE_PATH is what makes the acquire call carry "
-        "--addons-path-override."
+    assert "`lease_acquire`" in norm and "`addons_path`" in norm, (
+        "the fix must explain that WORKTREE_PATH is what makes the lease_acquire call carry an "
+        "addons_path naming the run-integration tree."
     )
-    assert "_addons_path_worktree_mismatch" in norm, (
-        "the fix must name the allocator guard (scripts/lib/allocator.py) that a missing "
-        "--addons-path-override either fails to engage (false-green) or refuses against (hard "
-        "block)."
+    assert "addons_path_worktree_mismatch" in norm, (
+        "the fix must name lease_acquire's worktree refusal (ADDONS_PATH_WORKTREE_MISMATCH) that a "
+        "missing addons_path either fails to engage (false-green) or trips (hard block)."
     )
     assert "instance-handle-contract.md" in section, (
         "the fix must point at snippets/instance-handle-contract.md's Worktree-addons carve-out "

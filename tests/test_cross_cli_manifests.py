@@ -11,8 +11,10 @@ Rules tested (one intent per test, named after the business rule):
   4. codex_plugin_json_mcpservers_points_to_relative_path
   5. codex_mcp_json_is_flat_with_three_servers
   6. all_derived_manifests_server_command_args_match_ssot
+  7. local_servers_are_claude_only_and_absent_from_derived_manifests
 """
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -34,17 +36,39 @@ CODEX_MCP_JSON = PLUGIN_ROOT / ".codex-plugin" / "mcp.json"
 EXPECTED_SERVERS = {"chrome-devtools"}
 
 
+def _local_servers() -> frozenset:
+    """scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS - the SSOT for which bundled
+    .mcp.json servers are Claude-only and must never reach the derived Codex/Gemini
+    manifests (their command/args reference ${CLAUDE_PLUGIN_ROOT}, which only Claude
+    Code resolves)."""
+    spec = importlib.util.spec_from_file_location(
+        "plugin_mcp_servers", PLUGIN_ROOT / "scripts" / "lib" / "plugin_mcp_servers.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.LOCAL_SERVERS
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
 def ssot_servers() -> dict:
-    """Load the SSOT browser MCP server definitions (stripped of 'type' field)."""
+    """Load the SSOT MCP server definitions (stripped of 'type' field), EXCLUDING
+    any LOCAL (Claude-only) server. A local server is deliberately absent from the
+    derived Codex/Gemini manifests (see gen_mcp_manifests.py and rule 7 below), so
+    including it here would make rule 6 fail on an exclusion that is correct by
+    design, not a real SSOT/manifest drift."""
     assert SSOT_MCP.is_file(), f"SSOT missing: {SSOT_MCP}"
     data = json.loads(SSOT_MCP.read_text(encoding="utf-8"))
     raw = data.get("mcpServers", data)
-    return {name: {k: v for k, v in entry.items() if k != "type"} for name, entry in raw.items()}
+    local = _local_servers()
+    return {
+        name: {k: v for k, v in entry.items() if k != "type"}
+        for name, entry in raw.items()
+        if name not in local
+    }
 
 
 @pytest.fixture(scope="module")
@@ -215,3 +239,35 @@ def test_all_derived_manifests_server_command_args_match_ssot(
         "Derived manifest server entries diverge from SSOT (.mcp.json):\n"
         + "\n".join(f"  - {m}" for m in mismatches)
     )
+
+
+# ---------------------------------------------------------------------------
+# Rule 7: LOCAL (Claude-only) servers never reach the derived manifests
+# ---------------------------------------------------------------------------
+
+def test_local_servers_are_claude_only_and_absent_from_derived_manifests(gemini_data, codex_mcp_data):
+    """A LOCAL server (e.g. odoo-local) is bundled in the SSOT .mcp.json but its command/args
+    reference ${CLAUDE_PLUGIN_ROOT}, which only Claude Code resolves - forwarding it to the
+    Codex/Gemini manifests would ship an entry neither runtime could ever launch. Assert the
+    premise (it really is in .mcp.json) AND the exclusion (it is absent from both derived
+    manifests) so this test cannot pass by accident if the premise ever stops holding."""
+    local = _local_servers()
+
+    raw = json.loads(SSOT_MCP.read_text(encoding="utf-8")).get("mcpServers", {})
+    present_in_ssot = local & set(raw)
+    assert present_in_ssot, (
+        f"premise failed: none of the local servers {sorted(local)} are in .mcp.json "
+        f"(got {sorted(raw)}) - this test would otherwise pass vacuously"
+    )
+
+    gemini_servers = set(gemini_data.get("mcpServers", {}).keys())
+    codex_servers = set(codex_mcp_data.keys())
+    for server in present_in_ssot:
+        assert server not in gemini_servers, (
+            f"local server {server!r} leaked into gemini-extension.json (Gemini cannot resolve "
+            "${CLAUDE_PLUGIN_ROOT})"
+        )
+        assert server not in codex_servers, (
+            f"local server {server!r} leaked into .codex-plugin/mcp.json (Codex cannot resolve "
+            "${CLAUDE_PLUGIN_ROOT})"
+        )

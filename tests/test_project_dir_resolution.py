@@ -817,3 +817,35 @@ def test_no_root_flag_is_byte_identical_regression_fence(tmp_path):
         assert sh.returncode == 0, sh.stderr
         assert py.returncode == 0, py.stderr
         assert sh.stdout.strip() == py.stdout.strip()
+
+
+@requires_bash
+def test_no_marker_refusal_names_the_root_it_walked_from_not_the_cwd(tmp_path):
+    """A caller that resolves ON BEHALF OF another tree (`--root <dir>`, or
+    `root=` in Python - the MCP server does this for an agent's working tree)
+    must be told WHICH tree had no marker. The refusal therefore names the
+    directory the walk-up started from (`<dir>`), never the process cwd, which
+    is an unrelated directory the caller did not ask about. The shell twin
+    already does this (it `cd`s into --root first); both must agree."""
+    home = tmp_path / "home"
+    bare = tmp_path / "no-marker-anywhere"
+    bare.mkdir()
+    elsewhere = tmp_path / "unrelated-cwd"
+    elsewhere.mkdir()
+    env = _env(home)
+    # GIT_CEILING_DIRECTORIES keeps git from discovering a repo above tmp_path.
+    env["GIT_CEILING_DIRECTORIES"] = str(tmp_path)
+
+    for mode in ("share", "isolate"):
+        py = subprocess.run(
+            [sys.executable, str(PY), "--root", str(bare), mode],
+            cwd=elsewhere, capture_output=True, text=True, env=env,
+        )
+        sh = subprocess.run(
+            ["bash", str(SH), "--root", str(bare), mode],
+            cwd=elsewhere, capture_output=True, text=True, env=env,
+        )
+        for label, proc in (("paths.py", py), ("resolve_project_dir.sh", sh)):
+            assert proc.returncode != 0, (label, mode, proc.stdout)
+            assert f"walking up from {bare}." in proc.stderr, (label, mode, proc.stderr)
+            assert str(elsewhere) not in proc.stderr, (label, mode, proc.stderr)

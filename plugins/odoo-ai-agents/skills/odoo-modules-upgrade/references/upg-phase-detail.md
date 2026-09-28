@@ -626,8 +626,8 @@ ISOLATE_DIR: <the SAME literal resolved at P0 intake - substitute it, never re-r
 WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
                                          # creation above); forwarded verbatim as odoo-instance's
                                          # own WORKTREE_PATH field (`odoo-instance` §
-                                         # WORKTREE_PATH substitution), so ALLOCATOR acquires with
-                                         # --addons-path-override covering it - this is what P5.7
+                                         # WORKTREE_PATH substitution), so lease_acquire's
+                                         # addons_path covers it - this is what P5.7
                                          # depends on ("its addons path MUST cover WORKTREE_PATH")
 ```
 
@@ -671,6 +671,11 @@ does to a module being seen for the first time, and each needs a build shape Ste
 
 Run them in that order, each on its own instance, and record both verdicts in `install-test.md`
 alongside the level result. A level that passed Step 3 is NOT a level that passed the flip gates.
+Each flip-gate instance was provisioned for THIS run and handed back UP, so you are its run-level
+owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once its verdict is recorded, call
+`mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with its `lease_token` and `run_id`. The
+Step 1 instance is different - every level and P5.8 reuse it, so keep it until P5.8 has returned,
+then release it the same way (the P5.8 release step).
 
 After each level: write level result to `install-test.md` and update `checkpoint.json`
 (set `installed` for each module in the level that passed). On FAILURE in a level:

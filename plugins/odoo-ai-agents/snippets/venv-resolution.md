@@ -26,21 +26,21 @@ run, test, or migration.
 
 ## Resolution order (stop at the first step that yields a VERIFIED, usable interpreter)
 
-1. The **`python` field of the matching `[[instance]]`** in the resolved `instances.toml`.
-   Resolve the file per `snippets/instance-resolution.md` (machine-global
-   `$ODOO_AI_HOME/instances.toml`), then read the interpreter:
+`instance_build` reads the interpreter from the lease, so a build or test through the odoo-local
+tools needs no resolution at all. Resolve an interpreter only for a run outside those tools (a
+migration script, a probe, a standalone unit-test run).
 
-   ```
-   python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series> [profile]
-   # emits INST_PYTHON / INST_PROFILE / INST_KEY among the other INST_* fields
-   ```
+1. **The `venv_python` of the lease you hold or the `INSTANCE_HANDLE` you were given** - the venv
+   `lease_acquire` reports for the series. Use it directly; it was verified at acquire time.
 
-   Verify the returned `INST_PYTHON` with the `--version` probe above before use.
+2. **The `python` field of the matching catalog row** - `catalog_read` with the series (and
+   profile) per `snippets/instance-resolution.md`. Verify it with the `--version` probe above
+   before use.
 
-2. **`$ODOO_PYTHON`** - an interpreter path set in the environment. Verify it with the `--version`
+3. **`$ODOO_PYTHON`** - an interpreter path set in the environment. Verify it with the `--version`
    probe above before use; an unverified env var is a candidate, not yet a usable interpreter.
 
-3. **STOP - build or ask, never guess.** If steps 1-2 produced no candidate, or the candidate FAILS
+4. **STOP - build or ask, never guess.** If steps 1-3 produced no candidate, or the candidate FAILS
    the `--version` probe, do NOT fall through to system `python3` for the run. Either:
    - build (or record) a venv for the series with `45-venv.sh` (see below), then re-resolve; or
    - surface a single clarifying request naming the missing/broken interpreter rather than guessing
@@ -49,15 +49,6 @@ run, test, or migration.
    System `python3` is never a valid stopping point in this resolution order - its only legitimate
    use anywhere in this document is as the tool that RUNS a `--version` probe, never as a stand-in
    interpreter for the actual run.
-
-> If you acquired the instance through the allocator (concurrent mutation - see
-> `snippets/instance-resolution.md` § Allocate), the same interpreter is already returned to you
-> as `ALLOC_PYTHON` (already verified at acquire time), alongside `ALLOC_DB_PORT` / `db_port` (the
-> instance's Postgres port, empty when the catalog/lease omits it) and `ALLOC_RUN_ID` (the run that
-> owns the lease); use `ALLOC_PYTHON` directly instead of a second `instances_io.py read` lookup.
-
-This is exactly the chain `scripts/setup-steps/50-instance-spinup.sh` uses to launch an
-instance, so spinning up via that step already picks the right, verified interpreter for you.
 
 ## If no suitable venv exists yet
 
@@ -69,16 +60,9 @@ Build (or record an existing) venv for the series with the optional setup step:
 
 When multiple profiles share the same series, pass `--profile` to select the right instance
 and venv. The venv is created under `venvs/<series>-<profile>` and its path is recorded as
-the `python` field on the matching `[[instance]]` in `instances.toml`. The script verifies
-all the profile's repos are present and that `odoo-bin --version` runs (not a bare
+the `python` field on the matching catalog row; `catalog_read` returns it afterwards. The script
+verifies all the profile's repos are present and that `odoo-bin --version` runs (not a bare
 `import odoo`) before recording the `python` field.
-
-Read the resulting path with:
-
-```
-python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series> [profile]
-# emits INST_PYTHON / INST_PROFILE / INST_KEY among the INST_* fields
-```
 
 The recommended Python per Odoo series lives in
 `scripts/lib/odoo-python-matrix.json`.
@@ -86,5 +70,5 @@ The recommended Python per Odoo series lives in
 ## Note: the backend lint gate uses the instance interpreter
 
 The backend code-quality gate (module set: `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) runs INSIDE an
-Odoo instance (`odoo-bin --test-enable --test-tags /<lint module>,...`). Use the same interpreter
-resolved above for the instance run - you do not need a separate toolchain for linting.
+Odoo instance (`instance_build` op `test` with `test_tags` `/<lint module>,...`), so the lease supplies
+the interpreter - you do not need a separate toolchain for linting.

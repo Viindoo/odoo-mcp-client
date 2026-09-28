@@ -3,12 +3,18 @@
 gen_mcp_manifests.py - SSOT generator for Codex CLI and Gemini CLI MCP manifests.
 
 Reads:
-  - plugins/odoo-ai-agents/.mcp.json          (browser MCP server SSOT)
+  - plugins/odoo-ai-agents/.mcp.json          (browser + local MCP server SSOT)
   - plugins/odoo-ai-agents/.claude-plugin/plugin.json  (name/version/description)
 
 Emits:
   - plugins/odoo-ai-agents/gemini-extension.json
   - plugins/odoo-ai-agents/.codex-plugin/mcp.json
+
+LOCAL servers (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS, e.g. ``odoo-local``)
+are Claude-only and are EXCLUDED from both derived manifests: their command/args
+reference ``${CLAUDE_PLUGIN_ROOT}``, which only Claude Code resolves - forwarding
+them verbatim to Codex/Gemini would ship a manifest entry neither runtime can ever
+launch. Codex/Gemini fall back to the Bash CLI for that surface.
 
 Usage:
   python3 generator/gen_mcp_manifests.py          # write mode (idempotent)
@@ -27,6 +33,13 @@ CLAUDE_PLUGIN = PLUGIN_ROOT / ".claude-plugin" / "plugin.json"
 
 GEMINI_OUT = PLUGIN_ROOT / "gemini-extension.json"
 CODEX_MCP_OUT = PLUGIN_ROOT / ".codex-plugin" / "mcp.json"
+
+# Sibling-lib import (scripts/lib/plugin_mcp_servers.py is the SSOT for which
+# bundled MCP servers are LOCAL/Claude-only - see module docstring above).
+_LIB_DIR = str(PLUGIN_ROOT / "scripts" / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+import plugin_mcp_servers  # noqa: E402  (sibling lib; resolves via the path insert above)
 
 
 def _load_json(path: Path) -> dict:
@@ -93,6 +106,12 @@ def generate() -> dict[str, str]:
     """Return a mapping of output_path -> serialized content (write mode helper)."""
     ssot = _load_json(SSOT_MCP)
     ssot_servers = ssot.get("mcpServers", ssot)  # handle both wrapped and flat SSOT
+    # Exclude LOCAL (Claude-only) servers - see module docstring.
+    ssot_servers = {
+        name: entry
+        for name, entry in ssot_servers.items()
+        if name not in plugin_mcp_servers.LOCAL_SERVERS
+    }
     plugin_meta = _load_json(CLAUDE_PLUGIN)
 
     return {

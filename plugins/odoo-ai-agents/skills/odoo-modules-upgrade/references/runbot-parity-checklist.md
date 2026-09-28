@@ -32,24 +32,19 @@ stray bugbear or a different `--max-line-length` value.
 
 ## Gate 2 - Odoo lint test module
 
-Reproduce the backend code-quality CI by running the lint-class modules. Resolve WHICH modules the
-gate is made of for this series - and confirm each one really installed - per
-`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, then append one `/<module>` tag per resolved
-module to `--test-tags` on a `-u <module> --test-enable` instance run. Requires a running
-instance + DB.
+Reproduce the backend code-quality CI by running the lint-class modules
+(`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`). This gate IS the run's one pre-PR
+lint-class gate, so it runs exactly once and never as a raw `odoo-bin` run:
 
-```bash
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+- When the run has a `run-harness` pre-PR tail, that tail's lint-class gate is Gate 2 - record its
+  verdict here and dispatch nothing.
+- Otherwise (a standalone upgrade), invoke the `odoo-instance` skill (via the Skill tool) with
+  `OPERATION: run-tests`, `GATE_ROLE: pre-pr-lint-gate`, `MODULES` and `TEST_TAGS` (`/<m>` per
+  module) for the cluster, `MODE: reuse` on the upgraded database, and `WORKTREE_PATH` set to the
+  upgrade worktree. That role makes `odoo-instance-ops` resolve, install and tag the lint modules
+  itself and confirm each one loaded - never list them yourself.
 
-# One /<tag> per lint module the snippet above resolved as present on this profile,
-# each also present in the -u install list for this build.
-odoo-bin -d <DB> -u <module> --test-enable \
-    --test-tags '/<module>,/<lint module>[,/<lint module>...]' --stop-after-init \
-    --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-```
-
-See `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` for the authoritative gate reference.
-Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
+Treat `tests-inconclusive` as a non-pass, like `tests-failed`.
 
 ---
 
@@ -169,17 +164,16 @@ stale and needs correcting at its source - never a reason to request demo on thi
 > `GATE_ROLE` - `node-verify` unless this run IS the run's one designated pre-PR lint gate - because
 > `odoo-instance` refuses a test-run dispatch that leaves it unresolved rather than picking one.
 
-```bash
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+Invoke the `odoo-instance` skill (via the Skill tool) - never a raw `odoo-bin` run - with:
 
-# No demo flag either way: on the series where demo defaults ON the test build simply
-# inherits it, and on the series where it defaults OFF the test environment does not
-# accept demo data at all. Never add the enable-flag to a --test-enable build.
-odoo-bin -i <module> --test-enable --stop-after-init <db-options> \
-         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
-
-Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
+OPERATION: run-tests
+GATE_ROLE: node-verify
+MODULES: <the flipped module>
+TEST_TAGS: full        # deliberately untagged, see above
+MODE: fresh            # a FRESH database, never the Step 3 one
+# No DEMO field: the automation-test row decides it, and a demo enable on a test build is refused.
+```
 
 **Gate 7b - demo-load check, on any series where the suite above ran demo-less.** An
 installable-flip is the first time the module's own `demo/` data is ever loaded, so a suite that
@@ -189,16 +183,14 @@ it in a SECOND, SEPARATE build that loads demo and runs NO tests. Never merge th
 a DB the suite asserts on make a correct record-counting test fail, and the tempting repair is to
 weaken the test rather than to remove the demo rows that never belonged there.
 
-```bash
-# Install only - NO --test-enable anywhere on this line.
-# The enable-flag exists ONLY on the series where demo defaults off - which is exactly the series
-# where this gate fires, so the two conditions coincide. Resolve the spelling from the pivots demo
-# rows for the target series, never by copying this line onto an earlier one.
-odoo-bin -i <module> --with-demo --stop-after-init <db-options> \
-         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+```
+OPERATION: init        # install only - NO --test-enable on this build
+MODULES: <the flipped module>
+DEMO: on               # odoo-instance-ops resolves the series' demo spelling itself
 ```
 
-Dispatch it through `odoo-instance` as `OPERATION: init`, `DEMO: on`, no `TEST_TAGS` and no
+Dispatch it through the `odoo-instance` skill (via the Skill tool) - never a raw `odoo-bin` run -
+as `OPERATION: init`, `DEMO: on`, no `TEST_TAGS` and no
 `GATE_ROLE` - that field is required only for a build whose purpose is running tests, which this one
 is not, so supplying it here would misdescribe the build. Without `--test-enable` no suite runs at
 all, tags or none, so the untagged-run hazard the scope contract warns about cannot arise here. The
@@ -215,9 +207,9 @@ does, FAIL here and report it - do not let the build's own verdict answer a ques
 structurally unable to answer.
 
 **Verdict, once the build runs.** Dispatched through `odoo-instance`, a demo load that raises is
-already caught for you: the loader logs it with a traceback, and the runner's install-failure
-matcher (`${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`, `_INSTALL_FAIL_RE`) turns
-any traceback into `STATUS=error`. Take that as the verdict. The caveat matters only if you ever run
+already caught for you: the loader logs it with a traceback, and the build runner behind
+`mcp__plugin_odoo-ai-agents_odoo-local__instance_build` turns any install traceback into an error
+status in the `job_wait` result. Take that as the verdict. The caveat matters only if you ever run
 `odoo-bin` by hand outside that runner: Odoo catches every exception from a module's demo load,
 downgrades it to a WARNING, finishes installing the module WITHOUT its demo data, and still exits 0
 (`odoo/modules/loading.py`, `load_demo`) - so a hand-run gate that reads the exit code alone reports

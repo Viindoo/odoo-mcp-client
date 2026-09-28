@@ -23,8 +23,8 @@
 #     lets the tool call fall through to normal permission-rule evaluation, so the user still
 #     sees any prompt/deny they would otherwise see.
 #   - Self-gates: (1) requires an active run (no ISOLATE run-*.json with status NEEDS_NEXT;
-#     resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md) → silent pass
-#     otherwise. (2) requires a resolvable role=leaf match → silent pass otherwise (no
+#     resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md) -> silent pass
+#     otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
 #     agent-role SSOT, no jq, unresolved agent_type = stay silent, never guess).
 #   - (1) is best-effort MAIN-agent-only (skip when we can tell we are in a subagent - V-52:
 #     ANY populated agent_id/agent_type means "in a subagent", no `!= general-purpose`
@@ -114,7 +114,7 @@ for rf in "$RUN_DIR"/run-*.json; do
   if [[ "$st" == "NEEDS_NEXT" ]]; then active_run="$rf"; break; fi
 done
 shopt -u nullglob
-[[ -n "$active_run" ]] || _pass    # no active run → not in drive-to-done mode → silent
+[[ -n "$active_run" ]] || _pass    # no active run -> not in drive-to-done mode -> silent
 
 jq -cn --arg ctx "You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
   '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'

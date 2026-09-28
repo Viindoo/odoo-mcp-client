@@ -6,6 +6,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-09-28
+
+### Added
+
+- `odoo-ai-agents` - **agents drive Odoo instances through typed tools instead of reading plugin
+  source to learn a CLI.** A new bundled MCP server, `odoo-local` (stdlib-only, stdio), exposes
+  `lease_acquire` / `lease_release` / `lease_park` / `lease_adopt` / `lease_list` / `lease_find` /
+  `lease_gc`, `db_preflight`, `instance_build` + `job_wait` (long builds run detached and are waited
+  on in bounded slices), `instance_serve` (derives the port conf keys from the series),
+  `instance_status`, `server_info`, and the catalog, series and project-dir lookups. Every failure
+  is a named error code with a remedy, not a traceback. `instance_build` `extra_args` cannot
+  retarget the database, ports, addons path or config; `lease_find` / `lease_list` disclose a full
+  token only to the run (and session) that owns it; a tool that can block runs on its own thread,
+  so it never starves short calls. Protocol: `notifications/cancelled` (and stdin EOF) stops an
+  in-flight `job_wait` early and suppresses the reply, while a release or drop still runs to
+  completion; a null request id and any `tools/list` cursor are rejected; every tool carries
+  `openWorldHint` / `destructiveHint` / `idempotentHint` annotations; on a too-old Python the
+  server still negotiates the protocol and answers every call with `PYTHON_TOO_OLD`. It is Claude
+  Code only; Codex and Gemini keep the allocator CLI as their fallback. Tool index and error codes:
+  `docs/reference/INSTANCE-ALLOCATION-API.md`.
+- `odoo-ai-agents` - `hooks/auto-approve-local.sh` auto-approves the `odoo-local` tools, except an
+  applying `lease_gc` (`dry_run: false`), which always reaches the human prompt. The browser
+  auto-approve hook never treats `odoo-local` as a browser server. The ownership, teardown and
+  permission-denied hooks cover the MCP tools as well as the CLI.
+- `odoo-ai-agents` - allocator verbs `adopt` (take over a lease of your own run from a new session)
+  and `anchor`; `gc --scope all|dead-sessions|anchor` and `gc --dry-run`; `--format json` with named
+  error codes on every verb.
+- `odoo-ai-agents` - `50-instance-spinup.sh` prints `SERVE_STATE` / `SERVE_HTTP_PORT` /
+  `SERVE_URL` / `SERVER_PID` / `SERVE_RESUMED` and `SHARED_LEASE_TOKEN` / `SHARED_LEASE_ERROR`;
+  `55-instance-ops.sh` takes `--http-port` / `--gevent-port` / `--gevent-port-key`; the per-series
+  port flag and conf key live in one place, `scripts/lib/odoo_port_keys.sh`.
+- `odoo-ai-agents` - an eighth era boundary, the Python test install phase (phase decorators vs
+  `@tagged`), in `snippets/odoo-era-boundaries.md`; the `odoo-code-review` scoper template carries
+  `review_root`, `pr_meta` and `pr_changed_files` for a PR target.
+
+### Changed
+
+- `odoo-ai-agents` - **allocating an instance no longer cleans anything up.** `acquire` used to
+  sweep the machine-wide lease registry, so one agent asking for an instance could stop and drop a
+  database another agent or session was still using. It now reclaims nothing implicitly. A lease is
+  anchored to the Claude Code session that acquired it and stays protected while that session is
+  alive - no heartbeat or TTL to keep up. Only when ports run out does `acquire` free capacity, and
+  then only the ports of provably dead leases; it never drops a database. Session end reclaims only
+  the ending session's running leases (parked ones survive) plus leases whose owner is provably
+  dead. The default lease TTL goes from 2h to 24h and the TTL arm never runs automatically - only an
+  explicit `gc --scope all`. Release, gc and the capacity path stop and drop OUTSIDE the registry
+  lock, so one slow drop no longer stalls every other session. A parked lease resumed from another
+  session returns to park when that session ends, instead of being dropped.
+- `odoo-ai-agents` - **after updating the plugin, restart every Claude Code session on the
+  machine.** Each session keeps the allocator it started with, and an older one still sweeps the
+  shared registry. New rows keep the shape an older allocator reads safely; the residual gaps are
+  listed in `docs/reference/INSTANCE-ALLOCATION-RECLAIM.md` § 7.4.
+- `odoo-ai-agents` - **the teardown and ownership gates judge only what the agent itself
+  obtained.** The SubagentStop teardown gate read the whole session transcript and matched the
+  shared run id, so a subagent was ordered to release its parent's and siblings' instances. It now
+  reads the agent's own transcript and counts only leases it acquired or adopted; serving or
+  resuming a handed-over lease is consumption, not ownership. The same correlation now gates
+  mutations: a subagent may release, park or adopt only a lease it obtained or one a child handed
+  back up to it, and a subagent's applying `gc` (no `--dry-run`) and `park --force` are refused.
+- `odoo-ai-agents` - behavior callers must know: `allocator.py acquire` requires `--series` (exit 2
+  `SERIES_REQUIRED`; it used to pick the first catalog row); `park` and `adopt` require `--run-id`
+  and refuse a lease another run owns, as `release` already did; a `shared` render server is never a
+  teardown exit for anyone (`lease_park` refuses it); and `check_orchestration.py` rule 18
+  `[version-claim]` now flags every Odoo version range, a whole-span one included.
+- `odoo-ai-agents` - agent and skill prose drives instances through the `odoo-local` tools, with the
+  allocator CLI as the fallback.
+
+### Fixed
+
+- `odoo-ai-agents` - **instances built or served on the wrong target.** Serving a lease of a
+  multi-profile series used the first catalog row's venv instead of the lease's; builds in test mode
+  bound the default 8069 port instead of the lease's port; port probing counted TIME_WAIT ports as
+  busy and reported a false pool exhaustion; a refused `shared` lease registration in
+  `50-instance-spinup.sh` was swallowed, leaving an unleased server nobody could find - it is now
+  reported.
+- `odoo-ai-agents` - `odoo-forward-port`, `odoo-i18n` and `odoo-modules-upgrade` now release the
+  instances they provision; every `run-tests` caller states its `GATE_ROLE`; raw `odoo-bin` test
+  runs are routed through `odoo-instance`.
+
 ## [7.0.2] - 2026-09-17
 
 ### Changed

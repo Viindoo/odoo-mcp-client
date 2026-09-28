@@ -84,6 +84,19 @@ def test_non_plugin_tool_passes_through():
     assert r.stdout.strip() == "", f"non-plugin tool must produce no decision; stdout={r.stdout!r}"
 
 
+def test_local_server_tool_is_not_approved_as_a_browser_tool():
+    """Negative case: odoo-local's tools carry the SAME `mcp__plugin_odoo-ai-agents_` prefix a
+    browser tool does, and hooks.json's PermissionRequest matcher for THIS hook fires on both -
+    but odoo-local is a LOCAL (non-browser) server (browser_prefixes.py's SSOT,
+    scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS, excludes it), so this hook must stay silent
+    for it, even for its most innocuous-looking tool. Approving it is auto-approve-local.sh's
+    job, a category apart - some odoo-local tools are destructive."""
+    local_tool = f"mcp__plugin_{NAME}_odoo-local__lease_acquire"
+    r = _run({"tool_name": local_tool, "hook_event_name": "PermissionRequest"})
+    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
+    assert r.stdout.strip() == "", f"local server tool must produce no decision; stdout={r.stdout!r}"
+
+
 def test_bare_form_optin_tool_is_allowed():
     """V-19: a bare (non-plugin-namespaced) opt-in tool must also be allowed.
 

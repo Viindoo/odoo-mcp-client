@@ -107,7 +107,8 @@ BROWSER_OPEN_RE = re.compile(r"new_page|browser_navigate|record_page|record_and_
 BROWSER_STEP_RE = re.compile(r"close_page|browser_close|stop_recording")
 
 INSTANCE_ACQUIRE_RE = re.compile(
-    r"Skill\(odoo-instance\)|allocator\.py acquire|persist:\s*ephemeral|persist:\s*exclusive-running"
+    r"Skill\(odoo-instance\)|lease_acquire|allocator\.py acquire|persist:\s*ephemeral"
+    r"|persist:\s*exclusive-running"
 )
 
 _RELEASE_STEM_RE = re.compile(r"releas\w*", re.I)
@@ -145,13 +146,6 @@ def _has_pointer(text: str) -> bool:
 # exclusions" list). Each entry is checked to still exist on disk (a stale entry
 # for a renamed/removed file would silently rot the allowlist).
 ALLOWLIST: dict[str, str] = {
-    "skills/odoo-forward-port/references/fp-phase-detail.md": (
-        "compliant acquire+release pair (acquires at :547, releases at :576/:603 "
-        "with --stop-after-init builds) - it never leaks. It bypasses Skill(odoo-instance) "
-        "and calls allocator.py directly, so it carries no pointer to the teardown "
-        "contract; that routing bypass is a pre-existing inconsistency flagged "
-        "separately (see solution doc Axis-H / ETHOS#6), out of scope for this contract."
-    ),
     "skills/odoo-doc-illustration/references/capture-mechanics.md": (
         "shared HOW-to-capture mechanics reference for odoo-user-doc-writer / "
         "odoo-marketing-writer - not itself a dispatched agent body. The executable "
@@ -160,12 +154,11 @@ ALLOWLIST: dict[str, str] = {
     ),
     "skills/odoo-i18n/references/i18n-recipe.md": (
         "reference doc for the non-destructive i18n recipe (read by odoo-i18n/SKILL.md and "
-        "odoo-forward-port's P4 step) - not itself a dispatched agent/skill body. The "
-        "'allocator.py acquire --addons-path-override' mention (CS-C11a) CITES the "
-        "WORKTREE_PATH substitution mechanism odoo-instance/SKILL.md implements; it does not "
-        "instruct this recipe's reader to acquire an instance directly. Acquisition/release "
-        "ownership stays with odoo-i18n/SKILL.md (Standalone-first fallback -> the odoo-instance "
-        "skill) and its callers."
+        "odoo-forward-port's P4 step) - not itself a dispatched agent/skill body. Its "
+        "`lease_acquire` mentions CITE the WORKTREE_PATH re-root odoo-instance performs and the "
+        "reserve-only lease guard; they do not instruct this recipe's reader to acquire an "
+        "instance directly. Acquisition/release ownership stays with odoo-i18n/SKILL.md "
+        "(Standalone-first fallback -> the odoo-instance skill) and its callers."
     ),
     "skills/odoo-git-rebase/references/rb-phase-detail.md": (
         "never self-provisions - consumes the orchestrator-forwarded INSTANCE_HANDLE "
@@ -200,6 +193,7 @@ def test_instance_step_predicate_can_fail():
     assert _instance_step_present("release the lease_token before your terminal status")
     assert _instance_step_present("allocator.py release $ALLOC_TOKEN --run-id $RUN_ID")
     assert _instance_step_present("emit next: {operation: drop}")
+    assert _instance_step_present("call `lease_release` with the handle's token and run_id")
     # negative: bare "release" with no lease/token/run-id anywhere nearby
     assert not _instance_step_present(
         "you must release the pressure before continuing the workflow procedure text padding " * 3
@@ -295,9 +289,12 @@ def test_spawner_completion_contract_has_r2_rollup_pointer():
 # --------------------------------------------------------------------------- #
 UNIQUE_TO_SNIPPET_FINGERPRINTS = [
     # T1 ownership-matrix rows (verbatim substrings unlikely to be paraphrased by accident).
-    "the owning skill, via release-lease",
+    "the skill that drives the path",
     "NO single consumer, ever",
     "Teardown belongs to whoever ACQUIRED the resource",
+    # The ONE orchestrator-vs-leaf release rule. Stated once; a second copy is how the
+    # "never release directly" contradiction in the forward-port references arose.
+    "Release directly only what you own.",
     # The normative PER-FAMILY browser-exclusivity sentences (E-3b: same-family
     # hard exclusivity + the cross-family parallelism permission that
     # distinguishes per-family from the old global single-flight rule).
@@ -510,3 +507,87 @@ def test_release_stops_process_group_claim_requires_stop_group_in_code():
             "longer defines _stop_group - the prose has outrun the code (L1.2 reverted?); "
             "either restore _stop_group or walk back T3's claim"
         )
+
+
+# --------------------------------------------------------------------------- #
+# Check 7 - the lease-tool contract: one ownership rule, no contradicting copy
+# --------------------------------------------------------------------------- #
+def _three_exits_section() -> str:
+    text = _read(SNIPPET)
+    start = text.index("### The three exits")
+    end = text.find("\n## ", start)
+    return text[start:] if end == -1 else text[start:end]
+
+
+def test_three_exits_name_the_lease_tools_that_perform_them():
+    """An exit the agent cannot map to a call is an exit it will not take. release and park
+    must each name the odoo-local tool that performs it."""
+    section = _three_exits_section()
+    assert "`lease_release`" in section, "the release exit must name the lease_release tool"
+    assert "`lease_park`" in section, "the park exit must name the lease_park tool"
+
+
+_KEEPALIVE_RE = re.compile(r"\bheartbeat\b|\bTTL\b|keep-?alive", re.I)
+
+
+def test_keepalive_predicate_can_fail():
+    assert _KEEPALIVE_RE.search("call allocator.py heartbeat <token> between phases")
+    assert _KEEPALIVE_RE.search("once the allocator's TTL (default 3600s) lapses")
+    assert not _KEEPALIVE_RE.search("a lease stays protected while its session is alive")
+
+
+def test_contract_teaches_no_lease_keepalive():
+    """A lease is protected for as long as the session that acquired it lives. An instruction
+    to heartbeat or to race a TTL makes an agent spend turns babysitting a lease nothing will
+    reclaim - and, worse, implies the lease is unsafe without it."""
+    offenders = [line for line in _read(SNIPPET).splitlines() if _KEEPALIVE_RE.search(line)]
+    assert not offenders, f"the teardown contract still teaches lease keep-alive: {offenders}"
+
+
+def test_forwarded_handle_is_never_the_consumers_to_release():
+    """The consumer side of the ownership rule, stated where the rule lives: holding a handle's
+    token and run_id makes a release call POSSIBLE, never permitted."""
+    text = " ".join(_read(SNIPPET).split())
+    assert "is never yours to release or park" in text, (
+        "T1 must state that a lease received DOWN as a forwarded INSTANCE_HANDLE is never "
+        "the consumer's to release or park"
+    )
+    assert "handed back UP to you as the run-level owner" in text, (
+        "T1 must state the owner side: a lease provisioned for your run and handed back to you "
+        "is yours to release directly"
+    )
+
+
+_RELEASE_TOKEN = r"`?(?:allocator\.py`?\s+release|lease_release)`?"
+_DIRECT_RELEASE_BAN_RE = re.compile(
+    r"\b(?:never|not|n't)\b[^.]{0,60}?(?:\bbare\s+" + _RELEASE_TOKEN + r"|" + _RELEASE_TOKEN
+    + r"[^.]{0,20}?\bdirectly\b)",
+    re.I,
+)
+
+
+def _direct_release_bans(text: str) -> list[str]:
+    """Whitespace-normalized first: a ban wrapped across a line break is still a ban."""
+    return [m.group(0) for m in _DIRECT_RELEASE_BAN_RE.finditer(" ".join(text.split()))]
+
+
+def test_direct_release_ban_predicate_can_fail():
+    assert _direct_release_bans("Do NOT `pkill` an `odoo-bin` process or call\n`allocator.py release` directly.")
+    assert _direct_release_bans("through Odoo - never a raw `dropdb` or a bare `allocator.py release`.")
+    assert _direct_release_bans("never call lease_release directly on the batch lease")
+    assert not _direct_release_bans("call `lease_release` with the batch's cached lease_token/run_id")
+    assert not _direct_release_bans("Do NOT `pkill` an `odoo-bin` process. Call `lease_release` yourself.")
+
+
+def test_no_agent_facing_file_forbids_releasing_an_owned_lease_directly():
+    """The contract says: release directly what you own. A file that bans a direct release
+    outright contradicts it and sends an orchestrator that OWNS the lease down a dispatch path
+    instead - the contradiction the forward-port references carried."""
+    offenders = []
+    for f in _md_files("agents", "skills", "snippets"):
+        for ban in _direct_release_bans(_read(f)):
+            offenders.append(f"{_rel(f)}: {ban!r}")
+    assert not offenders, (
+        "these files forbid a direct release, contradicting resource-teardown-contract.md T1 "
+        "('Release directly only what you own'):\n" + "\n".join(offenders)
+    )

@@ -17,12 +17,12 @@ OSM session-pin race).
 
 ## P0 - Recon & triage (read-only, NO stop)
 
-```bash
-# 0 - resolve the ISOLATE state dir once for this run
-DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh" isolate)"
+Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate` and
+`cwd` = the target repo root, and substitute the returned absolute path for `<ISOLATE_DIR>` below.
 
+```bash
 # 1 - resume: read prior state, skip done commits
-cat "$DIR/forward-port/<slug>/checkpoint.json" 2>/dev/null   # {<sha>: status}
+cat "<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json" 2>/dev/null   # {<sha>: status}
 
 # 2 - enumerate the commits to forward (read-only; no worktree, no branch yet)
 # Same-repo (both refs on origin): compute merge-base locally
@@ -429,7 +429,7 @@ append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 8a
 
 **ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
 
-At P7 no instance DB has been acquired yet (allocator runs at P9), so the gate is a
+At P7 no instance DB has been acquired yet (the lease is taken at P9), so the gate is a
 `pytest --collect-only` run over the merged test files - it needs no DB and catches ImportError /
 missing-fixture breaks for ordinary test modules. Dispatch it to `Explore` (read-only), the delegate
 `[[fp-symbol-survival-check]]` § Who runs this check assigns to this class. Brief it with: the
@@ -666,26 +666,23 @@ topology). Mark `status=adapted`.
 
 ## P9 - Verify by behavior (PER-BATCH, in integration)
 
-Resolve odoo-bin flags for the TARGET series via `cli_help` before dispatching - the allocator
-returns version-agnostic ports; flags and bootstrap behavior differ per series (e.g. v19
-namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli_help`).
+Resolve odoo-bin flags for the TARGET series via `cli_help` before dispatching - the lease
+reports version-agnostic port numbers; flags and bootstrap behavior differ per series (a
+namespace-package change alters bootstrap; always pass `odoo_version=<target>` to `cli_help`).
 
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
-**DELEGATE - never a raw `allocator.py`/`odoo-bin` recipe.** SKILL.md P9's rule is binding here
+**DELEGATE - never a bare lease tool or `odoo-bin` recipe.** SKILL.md P9's rule is binding here
 too: this orchestrator dispatches the `odoo-instance` skill (via the Skill tool) for every step
-below. Only `odoo-instance-ops` and the instance-touching HARD LEAVES enumerated in
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py`
-or `odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
-allocator/odoo-bin call from this orchestration layer would both bypass the instance HARD RULES
-and skip the `WORKTREE_PATH` re-root below. Everything from here to the P10 gate is CONTENT for
-that dispatch brief and the adjudication this orchestrator performs on the RETURNED `instance-ops`
-block, never a shell recipe run inline.
+below. A bare `lease_acquire` / `instance_build` / `odoo-bin` call from this orchestration layer
+would both bypass the instance HARD RULES and skip the `WORKTREE_PATH` re-root below. Everything
+from here to the P10 gate is CONTENT for that dispatch brief and the adjudication this
+orchestrator performs on the RETURNED `instance-ops` block, never a shell recipe run inline.
 
 **Env-bootstrap (informational, before the first dispatch).** Resolve the CATALOG
-(principal-checkout) baseline from the declared `[[instance]]` entry covering this repo -
-`INST_ADDONS_PATH` and `INST_PYTHON` per
+(principal-checkout) baseline from the declared catalog row covering this repo - its
+`addons_path` and `python` from `catalog_locate` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2. That is a baseline only:
 venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
 own job, never hand-built or hand-verified
@@ -698,10 +695,10 @@ repo is `BLOCKED` (NEEDS_CONTEXT), not a test red.
 The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
 this phase actually verifies against. This batch adapted `<path>/fp-integration` (the P4 JOB-tier
 integration worktree), so re-root the baseline onto it via the SAME mechanism every other consumer
-uses - `odoo-instance`'s `WORKTREE_PATH` field substitution plus the allocator's
-`--addons-path-override`: dispatch `odoo-instance`
+uses - `odoo-instance`'s `WORKTREE_PATH` field substitution, which acquires the lease with
+`cwd` and `addons_path` naming that tree: dispatch `odoo-instance`
 with `WORKTREE_PATH: <path>/fp-integration`, which drops every catalog entry under the
-principal checkout and prepends the equivalent under `<path>/fp-integration` before `acquire`. Do NOT
+principal checkout and prepends the equivalent under `<path>/fp-integration` before acquiring. Do NOT
 hand-build the override yourself and do NOT verify against the catalog `ADDONS_PATH` built above
 directly - that is exactly the un-adapted-code false-green this re-root exists to prevent. Before trusting any
 result below, assert the resolved addons list contains `<path>/fp-integration/<module>/<tgt-descriptor>`
@@ -725,7 +722,7 @@ dispatch below.
 
 **Dispatch `odoo-instance` (via the Skill tool) - ONE ephemeral instance per BATCH, not per
 commit.** First commit in the batch (fresh DB; install + test in one pass - Odoo create-on-init
-builds the DB, the allocator only reserves the name/ports):
+builds the DB, the lease only reserves the name/ports):
 
 ```
 operation: run-tests
@@ -739,6 +736,7 @@ modules: <union of the touched modules' full transitive depends closure, comma-s
 test_tags: <`/<m>` for every module in that closure, comma-joined - the closure's own suites run,
             the Odoo core it dragged in does not. See the narrowing rule below>
 mode: fresh
+GATE_ROLE: node-verify    # a per-batch verify, never the run's pre-PR lint gate
 skip_auto_install: true   # ISOLATES auto_install modules that would otherwise be pulled in
                           # silently and mask (or fabricate) a break
 CONFIRM: "confirm each module in this closure emits a Loading line before reading any test count -
@@ -759,7 +757,8 @@ change can break tests in a downstream depender, and a module-only tag would hid
 tag set used in `merge-log.md`.
 
 For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `odoo-instance` with
-the SAME `INSTANCE_HANDLE` forwarded and `mode: reuse` (`-u` semantics) on the changed modules only
+the SAME `INSTANCE_HANDLE` forwarded, `mode: reuse` (`-u` semantics) and `GATE_ROLE: node-verify`
+on the changed modules only
 - skip re-running the full closure. Behavior rule: once a module is installed in this DB,
 re-running its tests MUST use `reuse`; `fresh`/`-i` on an already-installed module is a no-op
 (confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
@@ -773,12 +772,12 @@ module that is `installable: False` at the target is EXPECTED to be absent from
 break. A module that IS installable and absent from `modules_installed` is a real failure -
 investigate via `log_path` before reading any test count.
 
-**Recover a batch stuck mid-run.** Do NOT `pkill` an `odoo-bin` process or call
-`allocator.py release` directly. Dispatch `odoo-instance` with `operation: drop`, passing the
-batch's cached `lease_token`/`run_id` - it stops the bound process group FIRST, then drops the DB
-through Odoo; a bare `pkill`
-risks matching the wrong process or a sibling batch's server. Re-dispatch the Step above for a
-clean retry.
+**Recover a batch stuck mid-run.** Do NOT `pkill` an `odoo-bin` process. The batch's lease was
+provisioned for THIS run, so you are its run-level owner
+(`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): call `lease_release` with the
+batch's cached `lease_token`/`run_id` - it stops the bound process group FIRST, then drops the DB.
+A bare `pkill` risks matching the wrong process or a sibling batch's server. Re-dispatch the Step
+above for a clean retry.
 
 - **RED-then-GREEN (whole module):** target suite must be green.
 - **Confirm-by-toggle (FP-delta tests only):** disable each newly-forwarded adapt -> that test
@@ -799,8 +798,8 @@ clean retry.
   Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
   `merge-log.md` and do NOT block the forward-port on it. Only an install that is green on clean
   origin/target and red after absorption is an FP-delta to fix.
-- **CREATEDB role:** an `ephemeral` acquire refuses (exit 6, 7, 8 or 9) instead of borrowing the
-  declared DB, so batches are never silently serialised onto one database; on any of them follow
+- **CREATEDB role:** an `ephemeral` acquire refuses instead of borrowing the declared DB, so
+  batches are never silently serialised onto one database; on any refusal follow
   `[[fp-merge-absorption]]` § Ephemeral isolation.
 
 Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
@@ -924,6 +923,10 @@ git worktree list          # confirm no dangling fp/<slug>-* child worktrees
 #   op: branch delete fp/<slug>
 #   confirmed: yes - forward-port is merged
 ```
+
+Confirm no instance of this run is still leased: call `mcp__plugin_odoo-ai-agents_odoo-local__lease_list`
+with scope `run` and this run's `run_id`, and `lease_release` any lease the P11 release step left
+behind - you are its run-level owner (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
 
 Leave `<ISOLATE_DIR>/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and
 the checkpoint lets tomorrow's run skip done commits).

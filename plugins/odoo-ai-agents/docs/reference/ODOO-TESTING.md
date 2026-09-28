@@ -49,16 +49,15 @@ for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.)
 
 > **Under concurrency, `<DB>` must be an ISOLATED database, never the shared declared one** - a
-> parallel agent or another Claude Code session may be testing against it. Acquire a throwaway:
-> `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 1 --run-id <id>` (reserves a
-> unique DB name under that run's ownership; the `-i <module>` run below performs Odoo
-> create-on-init to build the DB; the port is reserved because a `--test-enable` build binds one on
-> every series v8-v19 regardless of `--no-http` and `--stop-after-init` - forward it to `odoo-bin`
-> with the series' own port flag or the run collides on 8069), use `$ALLOC_DB_NAME` /
-> `$ALLOC_PYTHON` (and `$ALLOC_DB_PORT` when non-empty), then
-> `allocator.py release $ALLOC_TOKEN --run-id <id>` (drops through Odoo via `scripts/lib/odoo_db.py`).
-> See `snippets/instance-resolution.md` § Allocate and
-> `docs/reference/INSTANCE-ALLOCATION-API.md` § 6 (the `acquire`/`release` rows).
+> parallel agent or another Claude Code session may be testing against it. Take a throwaway with
+> `lease_acquire` (`series`, mode `ephemeral`, `ports: 1`, the run id you were given): it reserves a unique
+> database name under that run's ownership, and the first `-i <module>` run performs Odoo
+> create-on-init. The port is reserved because a `--test-enable` build binds one on every indexed
+> series regardless of `--no-http` and `--stop-after-init`; `instance_build` binds that leased port
+> itself (a port flag in `extra_args` is refused), so the run never collides on 8069. Run the suite with
+> `instance_build` (op `test`) and poll `job_wait` until its result is not `timeout`, then
+> `lease_release` (drops the database through Odoo). If the `odoo-local` tools are unavailable, use
+> the allocator CLI documented in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md` § 6.
 
 - `--test-enable` - enable running tests at `-i`/`-u`.
 - `--stop-after-init` - exit after load+test (CI-friendly).

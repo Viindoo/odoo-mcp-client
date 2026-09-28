@@ -21,8 +21,8 @@ that assumes exactly one active thing per scope (see § The rule, case `run-<id>
 | Tier | Root | Scope | Resolver |
 |---|---|---|---|
 | **Tier-1 - flat** | `$ODOO_AI_HOME/` | machine-global; every project on this host shares it | none needed - use `$ODOO_AI_HOME` directly |
-| **Tier-2 - SHARE** | `$ODOO_AI_HOME/projects/<repo-key>/` | one repo; every linked worktree SEES the same dir | `scripts/lib/resolve_project_dir.sh share` |
-| **Tier-2 - ISOLATE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<wt-key>/` | one worktree; concurrent worktrees do NOT see each other's copy | `scripts/lib/resolve_project_dir.sh isolate` |
+| **Tier-2 - SHARE** | `$ODOO_AI_HOME/projects/<repo-key>/` | one repo; every linked worktree SEES the same dir | `project_dir` axis `share` |
+| **Tier-2 - ISOLATE** | `$ODOO_AI_HOME/projects/<repo-key>/worktrees/<wt-key>/` | one worktree; concurrent worktrees do NOT see each other's copy | `project_dir` axis `isolate` |
 
 Keys (both sha256, first 12 hex chars, computed by the resolver - never hand-derived):
 
@@ -52,7 +52,7 @@ stays flat under `$ODOO_AI_HOME` regardless of what project or worktree the agen
 
 | Subpath | Why |
 |---|---|
-| `instances.toml` | the instance catalog; resolved via `scripts/lib/resolve_instances.sh` |
+| `instances.toml` | the instance catalog; read only via `catalog_read` / `catalog_locate` |
 | `runtime/` (`leases.json`, `registry.lock`) | the lease registry - namespacing it lets two worktrees allocate the same port/DB |
 | `logs/` | host-level operational logs |
 | `conf/` | generated per-instance `odoo.conf` for a listening server; keyed `<db>-<port>`, host-level for the same reason `runtime/` is |
@@ -227,19 +227,16 @@ A scenario is not downgraded to UNVERIFIED for this reason alone when the observ
 
 ## The resolve-capture-substitute protocol (MANDATORY - read this before touching any Tier-2 path)
 
-The resolver above is shell + Python, but most consumers are **prose** - an agent using
-`Read`/`Write`/`Edit`, not `Bash`. Those tools take a **literal absolute path string** and run no
-shell, so `$ODOO_AI_PROJECT_DIR` never expands or persists inside one (step 3 names the exact ban).
-Every skill/agent touching a Tier-2 subpath follows this THREE-STEP protocol:
+Agents resolve with the `project_dir` tool; hooks and scripts, which cannot call a tool, run
+`scripts/lib/resolve_project_dir.sh share|isolate` (the same resolver). `Read`/`Write`/`Edit`
+take a **literal absolute path string** and run no shell, so `$ODOO_AI_PROJECT_DIR` never expands
+or persists inside one (step 3 names the exact ban). Every skill/agent touching a Tier-2 subpath
+follows this THREE-STEP protocol:
 
-1. **Resolve ONCE, via Bash, and CAPTURE the printed absolute path(s).** Run one or both, as
-   needed:
-   ```
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share
-   bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate
-   ```
-   Each prints exactly one absolute path on stdout (and creates the dir if it did not exist yet).
-   Hold that output as a plain string for the rest of this turn/step.
+1. **Resolve ONCE and CAPTURE the returned absolute path(s).** Call `project_dir` with the axis
+   the artifact's row names (`share` / `isolate`) and `cwd` = your working tree. It returns one
+   absolute path (creating the dir if absent) or `PROJECT_DIR_UNRESOLVED` (the refusal case).
+   Hold that path as a plain string for the rest of this turn/step.
 2. **Substitute that captured ABSOLUTE STRING, literally, into every subsequent
    Read/Write/Edit/Bash path for this artifact.** No variable, no re-resolution, no shell involved.
 3. **NEVER put `$ODOO_AI_PROJECT_DIR/...`, `$ODOO_AI_WORKTREE_DIR/...`, or a bare
@@ -249,11 +246,11 @@ Every skill/agent touching a Tier-2 subpath follows this THREE-STEP protocol:
 
 ### Worked example
 
-`bash resolve_project_dir.sh share` prints `/home/user/.odoo-ai/projects/ab12cd34ef56`; substitute
-that literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/glossary.yml`) -
+`project_dir` (axis `share`) returns `/home/user/.odoo-ai/projects/ab12cd34ef56`; substitute that
+literal into every later call (`Read /home/user/.odoo-ai/projects/ab12cd34ef56/glossary.yml`) -
 never `Read $ODOO_AI_PROJECT_DIR/glossary.yml` (does not expand) or `Read .odoo-ai/glossary.yml`
 (cwd-relative, wrong root). If you need BOTH the SHARE and ISOLATE dirs in the same step, resolve
-both up front in one Bash call and capture both printed lines.
+both up front and capture both paths.
 
 ### Placeholder notation used in skill/agent prose
 
@@ -272,8 +269,8 @@ orphaned from every sibling leaf in the run.
 
 **The rule:** when your dispatch brief names an external logical root distinct from your own
 inherited cwd (`review_root`, `doc_root`, an integration worktree path, or any field the brief
-calls "the target"), the DISPATCHER resolves `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE with cwd set to
-THAT root (`resolve_project_dir.sh --root <target-root> share|isolate`), and passes the CAPTURED
+calls "the target"), the DISPATCHER resolves `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE with `project_dir`'s `cwd` set to
+THAT root, and passes the CAPTURED
 ABSOLUTE strings to EVERY leaf it dispatches (`SHARE_DIR: <abs-path>` / `ISOLATE_DIR: <abs-path>`).
 A leaf receiving these fields MUST substitute them directly and MUST NOT re-run the resolver from
 its own cwd - re-resolving independently is exactly what causes the divergence this rule exists to

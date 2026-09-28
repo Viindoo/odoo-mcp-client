@@ -1,6 +1,6 @@
-<!-- SSOT snippet. The seven canonical Odoo era boundaries (frontend framework, test framework,
+<!-- SSOT snippet. The eight canonical Odoo era boundaries (frontend framework, test framework,
      SavepointCase absorb/adapt boundary, `test_base_classes` authority + corroboration rule, core
-     package directory, module manifest filename, core stylesheet language) PLUS the ordered
+     package directory, module manifest filename, core stylesheet language, Python test phase) PLUS the ordered
      procedure for deriving a series from a checkout, which the core-package-directory and
      manifest-filename boundaries govern. Every
      file that states one of these boundaries MUST cross-ref here, NOT restate a divergent value -
@@ -12,7 +12,7 @@
 
 # Odoo Era Boundaries - SSOT
 
-Seven version boundaries every version-aware Odoo skill/agent must apply. Determine the target
+Eight version boundaries every version-aware Odoo skill/agent must apply. Determine the target
 version FIRST (`set_active_version` / the resolved target series), THEN look up the row below -
 never infer an era from a version range restated elsewhere. Rows 5 and 6 run the other direction:
 they are what makes the target series READABLE off a checkout when nothing has declared it - see
@@ -28,6 +28,7 @@ they are what makes the target series READABLE off a checkout when nothing has d
 | 5 | Core package directory | **`openerp/` = v8.0-v9.0.** **`odoo/` = v10.0+.** The flip lands at **10.0** and is total: in v10+ the `odoo` package replaces `openerp` everywhere, so `from openerp import ...` inside a v10+ addon raises `ImportError`. When locating core FROM a checkout, probe BOTH names - assuming one dir finds nothing at all on the other era, and the miss is silent. | `describe_module('base', <series>)` swept across all 12 indexed series: `Path: openerp/addons/base` at 8.0 and 9.0; `Path: odoo/addons/base` at 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0. `suggest_pattern(..., '10.0')` -> `api-depends-dotted-path-v10`, gotcha verbatim: "In v10 the `odoo` package replaces `openerp` everywhere ... using `from openerp import` in v10 addons raises ImportError". Corroborated by indexed `to_odoo_module` `git.branch._module_manifest_location_valid`, docstring verbatim: `/path/to/odoo/odoo/addons (Odoo source code branch for Odoo 10 or later)` and `/path/to/odoo/openerp/addons (Odoo source code branch for Odoo 9 or earlier)`. |
 | 6 | Module manifest (descriptor) filename | **`__openerp__.py` = v8.0-v9.0.** **`__manifest__.py` = v10.0+, and required there.** The flip lands at **10.0**. With BOTH files present in one addon, Odoo loads `__manifest__.py` and silently ignores `__openerp__.py`. Any module-discovery glob MUST cover BOTH names: globbing `__manifest__.py` alone returns nothing on v8.0/v9.0 and hands the next step an empty path instead of an error. | OSM pattern `manifest-transition-v10`, span `v10.0-*`, cited at `addons/sale/__manifest__.py:1`, snippet line 1 verbatim `# v10+ uses __manifest__.py (replaces __openerp__.py)`; gotcha 1 verbatim: "In v9, the descriptor file is `__openerp__.py`; in v10+ it MUST be `__manifest__.py`"; the both-present precedence is that same pattern's gotcha. Core-test corroboration at 16.0/17.0/18.0/19.0: `test_class_inspect('TestModuleManifest', <series>)` -> `odoo/addons/base/tests/test_module.py`, whose `test_default_manifest` body opens `opj(self.module_root, '__manifest__.py')`. |
 | 7 | Core stylesheet language | **Plain CSS only at v8.0.** **LESS at v9.0-v11.0** (introduced at 9.0 beside the CSS files; by 10.0 the whole of core `web` is LESS). **SCSS from v12.0 onward**, with a residual `css/reset.min.css` still shipping at v11.0 and v12.0. Stated for core `web` ONLY: an addon may ship any of the three on any series, so resolve the real language per module with `resolve_stylesheet(<module>, <series>)` - and `find_style_override(<selector or variable>, <series>)` for one token - BEFORE writing a theme override. Never infer a module's stylesheet language from the series alone, and never write a LESS override for a target the tool reports as `lang=scss`. | `resolve_stylesheet('web', '8.0')` -> 5 files, every one `lang=css`, zero `.less`. `('web', '9.0')` -> 13 files: 5 `css` + 8 `less`. `('web', '10.0')` -> 34 files, every one `lang=less`. `('web', '11.0')` -> 48 files: 47 `less` + `css/reset.min.css`. `('web', '12.0')` -> 64 files: 63 `scss` + `css/reset.min.css`, zero `.less`. `find_style_override('$o-brand-odoo', '13.0')` -> `web/static/src/scss/webclient_extra.scss`. |
+| 8 | Python test install phase | **v8.0-v11.0: phase decorators** `@common.post_install(True)` / `@common.at_install(False)`; no `@tagged`. **v12.0+: `@tagged('post_install', '-at_install')`.** | `find_test_examples('@tagged post_install', <series>)`: v12.0 -> `account` `TestSettings`, `project` `TestUi`; v11.0 -> no `@tagged` hit, `base` `TestPhaseInstall02` uses `@common.at_install`; v8.0 -> `TestPhaseInstall00/02`. |
 
 ## How to apply
 
@@ -46,26 +47,9 @@ they are what makes the target series READABLE off a checkout when nothing has d
 
 When no declared instance covers the repo (rung 2 of
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`), derive the series with the
-detector, not a hand-rolled probe:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/odoo_series.py detect \
-  "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-```
-
-It prints shell-eval `KEY=VALUE` lines:
-
-| Key | Meaning |
-|---|---|
-| `SERIES_STATUS` | `OK` or `NEEDS_CONTEXT` |
-| `SERIES` | the resolved series, e.g. `17.0`; empty unless `SERIES_STATUS=OK` |
-| `SERIES_STEP` | `1`-`5`: which ordered step produced the answer |
-| `SERIES_ERA` | step 4 only - a RANGE, never one series, e.g. `8.0-9.0` / `10.0+` |
-| `SERIES_EVIDENCE` | steps 1-3 - the citation: an absolute path or a branch name |
-| `SERIES_HINT` | steps 3 + 5 - WEAK, never a series: step 3's unconfirmed candidate, step 5's filenames |
-
-Exit codes: `0` = resolved (step 1 or 2 only); `3` = `NEEDS_CONTEXT`; `2` = usage error; `1` = root
-is not a directory.
+`series_detect` tool on the repository root (`git rev-parse --show-toplevel`, else the working
+directory), not a hand-rolled probe. Only `status` `OK` resolves a series (cite its `evidence`);
+on `NEEDS_CONTEXT` the series is empty, and neither `hint` nor `era` may be promoted to one.
 
 The ordered steps, strongest first. It STOPS at the first that yields anything, and a later step
 NEVER overrides an earlier one; only steps 1-2 resolve a series:
@@ -86,11 +70,11 @@ NEVER overrides an earlier one; only steps 1-2 resolve a series:
    ten of twelve indexed series, `1.4` at 17.0). Never take "the first two dotted components" of an
    unvalidated `version`. EVERY manifest in range is read (row 6 filenames, no cap) and all must
    agree; disagreement is inconclusive, and agreement alone proves nothing. A candidate arrives
-   as `SERIES_HINT` with `NEEDS_CONTEXT` and exit 3, because a code-level upgrade leaves `version`
+   as `hint` with `NEEDS_CONTEXT`, because a code-level upgrade leaves `version`
    unbumped: a prefix can name an earlier series than the checkout. Confirm it, or ask.
-4. **Era only** - reports `SERIES_ERA` with `NEEDS_CONTEXT`, never a series.
+4. **Era only** - reports `era` with `NEEDS_CONTEXT`, never a series.
 5. **Last-resort hints** (`setup.py`, `debian/changelog`) - existence only, surfaced as
-   `SERIES_HINT`, never parsed for a value.
+   `hint`, never parsed for a value.
 
 `NEEDS_CONTEXT` means UNRESOLVED: carry it to the caller's own words, then to ONE batched ask.
 Never substitute a default series.

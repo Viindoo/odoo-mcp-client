@@ -29,6 +29,7 @@ Business rules protected, NOT the implementation:
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -91,6 +92,83 @@ def test_a_refused_give_back_is_advised(command):
     command. This is the moment the leak starts, and the only moment the agent is still holding
     every fact it needs to hand the lease over."""
     _advised(_run(command))
+
+
+# --------------------------------------------------------------------------- #
+# The quoted-path form: "${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park <token>
+# --------------------------------------------------------------------------- #
+# The harness reports tool_input.command AFTER shell variable expansion, so
+# ${CLAUDE_PLUGIN_ROOT} arrives as a concrete absolute path, double-quoted (the plugin quotes
+# every ${CLAUDE_PLUGIN_ROOT} reference so a path containing a space still runs). Before the
+# fix, the closing quote right after "allocator.py" defeated the
+# 'allocator\.py[[:space:]]+(park|release)' regex, which required WHITESPACE immediately after
+# ".py" - a quote character is not whitespace, so this exact real-world shape was silently
+# missed.
+QUOTED_ALLOC = '"/home/user/.claude/plugins/cache/marketplace/odoo-ai-agents/7.0.2/scripts/lib/allocator.py"'
+
+
+@pytest.mark.parametrize("command", [
+    f"{QUOTED_ALLOC} park {TOKEN}",
+    f"{QUOTED_ALLOC} release {TOKEN} --run-id r1",
+])
+def test_a_refused_quoted_path_give_back_is_advised(command):
+    """The exact real-world shape the harness reports: allocator.py invoked as a quoted,
+    already-expanded absolute path, not the bare 'python3 allocator.py' form."""
+    _advised(_run(command))
+
+
+def test_a_refused_quoted_path_non_give_back_stays_silent():
+    """The quoted-path fix must not overshoot into matching a quoted-path READ-ONLY verb."""
+    _silent(_run(f"{QUOTED_ALLOC} list --show-tokens"))
+
+
+# --------------------------------------------------------------------------- #
+# The MCP odoo-local tool_name form: no command string, tool_name alone is the signal.
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("tool_name", [
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_release",
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_park",
+])
+def test_a_refused_mcp_lease_give_back_is_advised(tool_name):
+    """The odoo-local MCP path: tool_input carries no "command" string (it carries structured
+    args like {token, run_id}), so the hook must recognize the give-back from tool_name alone."""
+    payload = json.dumps({
+        "hook_event_name": "PermissionDenied",
+        "tool_name": tool_name,
+        "tool_input": {"token": TOKEN, "run_id": "r1"},
+        "denial_reason": "Blocked by classifier",
+        "has_classifier_verdict": True,
+    })
+    proc = subprocess.run(
+        ["bash", str(HOOK)], input=payload, capture_output=True, text=True, timeout=30
+    )
+    assert proc.returncode == 0
+    _advised(proc.stdout)
+
+
+@pytest.mark.parametrize("tool_name", [
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire",
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_list",
+    "mcp__plugin_odoo-ai-agents_odoo-local__lease_gc",
+    "mcp__plugin_odoo-ai-agents_chrome-devtools__navigate_page",
+    "mcp__odoo-semantic__model_inspect",
+])
+def test_non_give_back_mcp_tools_stay_silent(tool_name):
+    """A read-only or non-give-back odoo-local tool, a browser tool, and a foreign MCP server's
+    tool must all stay silent - only lease_release/lease_park on odoo-local are give-backs."""
+    payload = json.dumps({
+        "hook_event_name": "PermissionDenied",
+        "tool_name": tool_name,
+        "tool_input": {},
+        "denial_reason": "Blocked by classifier",
+        "has_classifier_verdict": True,
+    })
+    proc = subprocess.run(
+        ["bash", str(HOOK)], input=payload, capture_output=True, text=True, timeout=30
+    )
+    assert proc.returncode == 0
+    _silent(proc.stdout)
 
 
 @pytest.mark.parametrize("command", [
@@ -187,6 +265,27 @@ def test_the_hook_is_registered_and_executable():
     )
     assert any(entry.get("matcher") == "Bash" for entry in entries), (
         "the PermissionDenied registration must be matcher-scoped to Bash"
+    )
+
+
+def test_the_hook_is_also_registered_for_the_mcp_lease_give_back():
+    """A SECOND PermissionDenied entry, matcher-scoped to the odoo-local lease_release/lease_park
+    tool names, must dispatch this SAME script - the MCP give-back gets identical advice to the
+    Bash CLI one, and it never replaces the original Bash-matcher entry (tested above)."""
+    manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+    entries = manifest.get("hooks", {}).get("PermissionDenied")
+    mcp_entries = [
+        entry for entry in entries
+        if entry.get("matcher") not in (None, "Bash")
+    ]
+    assert mcp_entries, "expected a second PermissionDenied entry beyond the Bash one"
+    matcher = mcp_entries[0]["matcher"]
+    assert re.match(matcher, "mcp__plugin_odoo-ai-agents_odoo-local__lease_release")
+    assert re.match(matcher, "mcp__plugin_odoo-ai-agents_odoo-local__lease_park")
+    assert re.match(matcher, "mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire") is None
+    commands = [c.get("command", "") for e in mcp_entries for c in e.get("hooks", [])]
+    assert any(HOOK.name in c for c in commands), (
+        f"the odoo-local PermissionDenied entry must also dispatch {HOOK.name}"
     )
 
 

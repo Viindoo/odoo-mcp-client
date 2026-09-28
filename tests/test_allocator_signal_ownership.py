@@ -560,6 +560,19 @@ def test_an_unmeasurable_corroborating_signal_is_not_corroboration(
     )
 
 
+def _mismatching_fingerprint(alloc, pid):
+    """A fingerprint in the SAME scheme the host measures `pid` under, but naming
+    a different process - the only shape that can PROVE recycling (a legacy
+    timezone-dependent value never does, see the legacy test below)."""
+    real = alloc._pid_fingerprint(pid)
+    if real is None:
+        pytest.skip("no re-measurable pid fingerprint on this host")
+    if real.startswith("proc:"):
+        boot = real[len("proc:"):].rpartition(":")[0]
+        return f"proc:{boot}:1"
+    return "ps:Thu Jan  1 00:00:00 1970"
+
+
 def test_a_fingerprint_mismatch_beats_every_corroborating_signal(
         harness, alloc_home, tmp_path, capfd):
     """Ladder order, pinned: a POSITIVE fingerprint mismatch proves the recorded
@@ -572,7 +585,7 @@ def test_a_fingerprint_mismatch_beats_every_corroborating_signal(
         listen_port=port,
         argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", f"/conf/{db}-8069.conf", "-d", db])
     harness.seed_lease(alloc_home, leader, db_name=db, ports=[port],
-                       owner={"pid_started": "Thu Jan  1 00:00:00 1970"})
+                       owner={"pid_started": _mismatching_fingerprint(alloc, leader)})
 
     assert alloc.cmd_gc({}) == 0
     time.sleep(1.0)
@@ -580,6 +593,34 @@ def test_a_fingerprint_mismatch_beats_every_corroborating_signal(
         "a proven-recycled pid must never be signalled, corroboration or not"
     )
     assert "recycled" in capfd.readouterr().err
+
+
+def test_a_legacy_timezone_fingerprint_that_matches_neither_zone_is_never_a_mismatch(
+        harness, alloc_home, tmp_path, capfd):
+    """A LEGACY `pid_started` is a bare `ps -o lstart=` string recorded in some
+    caller's timezone that was never written down. One that matches neither the
+    local zone nor UTC proves NOTHING - reading it as "recycled" is how a live
+    server was condemned and killed by a caller whose TZ differed. It is
+    "unknown": the corroboration ladder decides, so a runaway that IS the leased
+    server (its command line names this lease's database) is still stopped, and
+    the verdict is never reported as a recycling."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_legacytz"
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", f"/conf/{db}-8069.conf", "-d", db])
+    harness.seed_lease(alloc_home, leader, db_name=db,
+                       owner={"pid_started": "Thu Jan  1 00:00:00 1970"})
+    assert alloc._fp_verdict("Thu Jan  1 00:00:00 1970", leader) == "unknown"
+    assert alloc._condemn_reason(_leases(alloc_home)[0]) != alloc.CONDEMN_PID_RECYCLED
+
+    assert alloc.cmd_gc({}) == 0
+    assert _wait_dead(harness, leader, child) == [], (
+        "an unknown legacy fingerprint must fall through to corroboration, which "
+        "proves this runaway is the leased server"
+    )
+    err = capfd.readouterr().err
+    assert "ownership PROVEN by cmdline" in err
+    assert "reason=owner-pid-recycled" not in err
 
 
 # --------------------------------------------------------------------------- #
@@ -711,16 +752,20 @@ def test_heartbeat_backfills_the_fingerprint_only_when_ownership_is_corroborated
     assert alloc.cmd_heartbeat({"token": "cc" * 16}) == 0
     # `.get`, not `[...]`: when corroboration fails the key is simply absent, and a
     # KeyError would report the symptom while hiding the cause. Assert the cause.
-    recorded = _leases(alloc_home)[0]["owner"].get("pid_started")
+    owner = _leases(alloc_home)[0]["owner"]
+    recorded = owner.get("pid_fp")
     assert recorded is not None, (
         "no fingerprint was backfilled at all, which means ownership was not "
         "corroborated for a process that IS an odoo-bin invocation for this lease's "
         "database - the corroboration rungs could not read this environment (see the "
         "refusal on stderr for which rung went unevaluated)"
     )
-    assert recorded == alloc._pid_fingerprint(leader), (
+    assert recorded == alloc._pid_fingerprint(leader) and owner.get("pid_fp_pid") == leader, (
         "a corroborated row must gain the fingerprint it never recorded, so later "
         "checks stop having to judge it by the pid number alone"
+    )
+    assert owner.get("pid_started") == alloc._pid_legacy_fingerprint(leader), (
+        "pid_started must carry the LEGACY shape an older allocator compares with =="
     )
     assert "recorded the missing owner.pid_started" in capfd.readouterr().err
 
@@ -849,12 +894,16 @@ def test_a_parked_lease_survives_gc_until_its_own_budget_lapses(harness, alloc_h
     dropped = []
     alloc._drop_through_odoo = lambda lz, path=None: dropped.append(lz.get("db_name")) or True
 
-    reg = {"leases": [dict(lease)]}
-    records = alloc._gc(reg, "gc")
+    assert alloc.cmd_gc({}) == 0
 
-    assert records == [], "a parked lease within its budget must produce NO reclaim record"
     assert dropped == [], "a parked lease's database must never be dropped while it is parked"
-    assert len(reg["leases"]) == 1, "the parked row must survive gc"
+    assert [lz["token"] for lz in _leases(alloc_home)] == [lease["token"]], (
+        "the parked row must survive gc"
+    )
+    log = alloc_home / "logs" / alloc.RECLAIM_LOG_BASENAME
+    assert not log.exists() or lease["token"] not in log.read_text(encoding="utf-8"), (
+        "a parked lease within its budget must produce NO reclaim record"
+    )
 
 
 def test_an_expired_park_is_condemned_as_park_expired_and_drops_the_db(harness, alloc_home):
@@ -867,14 +916,16 @@ def test_an_expired_park_is_condemned_as_park_expired_and_drops_the_db(harness, 
     dropped = []
     alloc._drop_through_odoo = lambda lz, path=None: dropped.append(lz.get("db_name")) or True
 
-    reg = {"leases": [dict(lease)]}
-    records = alloc._gc(reg, "gc")
+    assert alloc.cmd_gc({}) == 0
 
+    log = alloc_home / "logs" / alloc.RECLAIM_LOG_BASENAME
+    records = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()
+               if ln.strip()]
     assert [r["reason"] for r in records] == [alloc.CONDEMN_PARK_EXPIRED], (
         f"an elapsed park budget must be reported as its own arm, got {records}"
     )
     assert dropped == [db], "an expired park must actually drop the database it was holding"
-    assert reg["leases"] == [], "the expired parked row must be reclaimed"
+    assert _leases(alloc_home) == [], "the expired parked row must be reclaimed"
 
 
 def test_a_park_budget_that_only_elapsed_across_a_reboot_is_not_condemned(
@@ -922,7 +973,7 @@ def test_park_stops_the_owner_group_before_it_clears_the_pid(
     harness.seed_lease(alloc_home, leader, db_name=db, ports=[])
     token = _leases(alloc_home)[0]["token"]
 
-    assert alloc.cmd_park({"token": token}) == 0
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 0
 
     survivors = _wait_dead(harness, leader, child)
     assert survivors == [], (
@@ -939,21 +990,21 @@ def test_park_stops_the_owner_group_before_it_clears_the_pid(
 
 def test_park_refuses_a_shared_lease_and_a_lease_with_no_server(harness, alloc_home):
     """The two refusals, each with its OWN exit code, because the remedies differ:
-    a shared render target must be released when the server is finished with (3),
+    a shared render target needs no teardown and is left for its readers (3),
     and a lease with no bound pid has no server to stop and nothing to resume
     into (4) - which is also what makes a SECOND park on an already-parked lease
     a refusal instead of a silently re-stamped budget."""
     alloc = _import_allocator()
     harness.seed_lease(alloc_home, None, db_name="odoo_17_0", mode="shared")
     token = _leases(alloc_home)[0]["token"]
-    assert alloc.cmd_park({"token": token}) == 3, "a shared lease is never parkable"
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 3, "a shared lease is never parkable"
 
     harness.seed_lease(alloc_home, None, db_name="odoo_17_t_nopid")
     token = _leases(alloc_home)[0]["token"]
-    assert alloc.cmd_park({"token": token}) == 4, "a lease with no owner pid is not RUNNING"
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 4, "a lease with no owner pid is not RUNNING"
 
     lease = _parked_lease(alloc, alloc_home, harness)
-    assert alloc.cmd_park({"token": lease["token"]}) == 4, (
+    assert alloc.cmd_park({"token": lease["token"], "run_id": "run-A"}) == 4, (
         "an already-parked lease must be refused, not given a fresh budget"
     )
 
@@ -983,7 +1034,7 @@ def test_park_reports_the_release_time_fate_it_deliberately_did_not_change(
                        mode="ephemeral", drop_on_release=True)
     token = _leases(alloc_home)[0]["token"]
 
-    assert alloc.cmd_park({"token": token}) == 0
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 0
     captured = capfd.readouterr()
     assert "ALLOC_DROP_ON_RELEASE=true" in captured.out, (
         "park must EMIT the drop_on_release it left untouched: a caller that cannot read "
@@ -1022,7 +1073,7 @@ def test_park_of_a_lease_whose_database_survives_raises_no_false_alarm(
                        mode="exclusive", drop_on_release=False)
     token = _leases(alloc_home)[0]["token"]
 
-    assert alloc.cmd_park({"token": token}) == 0
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 0
     captured = capfd.readouterr()
     assert "ALLOC_DROP_ON_RELEASE=false" in captured.out, (
         f"a durable lease's park must report the surviving fate too\n{captured.out}"
@@ -1032,6 +1083,86 @@ def test_park_of_a_lease_whose_database_survives_raises_no_false_alarm(
         f"that fires on every park is a warning nobody reads\n{captured.err}"
     )
     _wait_dead(harness, leader, child)
+
+
+# --------------------------------------------------------------------------- #
+# park ownership - park STOPS a server, so it answers the question release does
+# --------------------------------------------------------------------------- #
+def _running_owned_lease(harness, alloc_home, tmp_path, db, **fields):
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    harness.seed_lease(alloc_home, leader, db_name=db, ports=[], **fields)
+    return _leases(alloc_home)[0]["token"], leader, child
+
+
+@pytest.mark.parametrize("caller", [
+    {"run_id": "run-B"},  # a different run
+    {},                   # no --run-id at all: ownership cannot be established
+], ids=["other-run", "no-run-id"])
+def test_a_park_by_anyone_but_the_owning_run_leaves_its_server_running(
+        harness, alloc_home, tmp_path, capfd, caller):
+    """Park stops the owner's whole process GROUP, so it is as destructive to a
+    peer's live session as release is (the server is gone; only the disk stays).
+    A lease that records an owner run is therefore parked ONLY by that run - the
+    rule release enforces - and the refusal must be decided by the allocator
+    itself, under its lock, BEFORE any signal: a check made by a caller before
+    it invokes park is a race window, and the Bash fallback path has no such
+    caller at all."""
+    alloc = _import_allocator()
+    token, leader, child = _running_owned_lease(harness, alloc_home, tmp_path,
+                                                "odoo_17_t_parkpeer")
+
+    rc = alloc.cmd_park({"token": token, **caller})
+
+    assert rc == alloc.ERROR_CODES["NOT_OWNER"]["rc"] == 1, (
+        "a park by a run that did not acquire the lease must be refused as NOT_OWNER"
+    )
+    assert harness.alive(leader) and harness.alive(child), (
+        "a refused park must never signal the owner's process group - the peer's "
+        "server must still be running"
+    )
+    row = _leases(alloc_home)[0]
+    assert row["owner"]["pid"] == leader and "parked_at" not in row, (
+        "a refused park must leave the lease exactly as it was (still RUNNING, no park keys)"
+    )
+    err = capfd.readouterr().err
+    assert "run-A" in err, f"the refusal must name the owning run\n{err}"
+
+
+def test_the_owning_run_parks_its_own_lease(harness, alloc_home, tmp_path):
+    """The other half, so the refusal above cannot pass by refusing everyone."""
+    alloc = _import_allocator()
+    token, leader, child = _running_owned_lease(harness, alloc_home, tmp_path,
+                                                "odoo_17_t_parkown")
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 0
+    assert _wait_dead(harness, leader, child) == []
+    assert _leases(alloc_home)[0]["parked_at"] is not None
+
+
+def test_an_unowned_lease_parks_on_token_possession(harness, alloc_home, tmp_path):
+    """Release's exception, imported unchanged: a lease that records NO owner
+    run (pre-run_id rows, never-threaded acquires) has no owner to protect, and
+    refusing it would leave it no exit but --force."""
+    alloc = _import_allocator()
+    token, leader, child = _running_owned_lease(harness, alloc_home, tmp_path,
+                                                "odoo_17_t_parkunowned",
+                                                owner={"run_id": ""})
+    assert alloc.cmd_park({"token": token}) == 0
+    assert _wait_dead(harness, leader, child) == []
+
+
+def test_force_parks_another_runs_lease_and_says_so(harness, alloc_home, tmp_path, capfd):
+    """Release's other exception: --force is the human's loud override."""
+    alloc = _import_allocator()
+    token, leader, child = _running_owned_lease(harness, alloc_home, tmp_path,
+                                                "odoo_17_t_parkforce")
+    assert alloc.cmd_park({"token": token, "run_id": "run-B", "force": True}) == 0
+    assert _wait_dead(harness, leader, child) == []
+    err = capfd.readouterr().err
+    assert "force" in err.lower() and "run-A" in err, (
+        f"a forced park of another run's lease must say so, naming that run\n{err}"
+    )
 
 
 def test_a_resumed_lease_is_judged_by_the_pid_arms_again(

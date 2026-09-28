@@ -342,7 +342,7 @@ choice at the call site:
 | GIT operations - the conflict-marker scan, the `<merge-base>..<src-SHA>` file enumeration, a repo-wide grep for an `xml_id` | the `git-toolkit:git-ops` skill, via the Skill tool |
 | OSM symbol grounding (sections 1-2.5) over the file list git-ops returned | `Explore` (read-only agent) |
 | Static lanes - `py_compile`, `pyflakes`, the ORM create/write dict-key scan | `Explore` (read-only agent) |
-| The test-collection ACCEPTANCE GATE (`pytest --collect-only`, or the odoo-bin equivalent) | `Explore` (read-only agent) |
+| The test-collection ACCEPTANCE GATE (`pytest --collect-only`) | `Explore`; DB-backed `setUpClass`: `odoo-instance` |
 
 git-ops classifies every request into a git/GitHub bucket and has NONE for a Python lint or a test
 run: sending one there is a misroute, not a stricter dispatch.

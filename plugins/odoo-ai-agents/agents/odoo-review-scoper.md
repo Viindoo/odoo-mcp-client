@@ -48,11 +48,8 @@ the `SHARE_DIR:`/`ISOLATE_DIR:` dispatch-prompt fields above (§Cross-worktree d
 present, use those literals directly for every Read/Write/Bash in this file; do NOT re-resolve.
 Only when they are ABSENT from your dispatch brief (a standalone invocation, not via the
 code-review skill) resolve them yourself, with cwd set to `review_root` since it may differ from
-your own cwd:
-```
-bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
-bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
-```
+your own cwd: call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice, axis `share` then axis `isolate`, each with
+`cwd` = `review_root`.
 
 ---
 

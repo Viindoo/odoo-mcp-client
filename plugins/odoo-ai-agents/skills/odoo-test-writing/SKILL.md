@@ -140,19 +140,18 @@ later in the node's dependency order exists. A default test in module A therefor
 module B, even when both install in the same `-i` run. **A test that asserts on behaviour
 contributed by ANOTHER module in this node - one that installs after the test's own module, or one
 with no dependency edge to it at all - must be staged into the post-install phase, or it will run
-before that module exists.** Odoo runs tests in TWO phases on every series v8-v19: the at-install
+before that module exists.** Odoo runs tests in TWO phases on every indexed series: the at-install
 phase, right after each module installs, and the post-install phase, at the end of module loading
 with every module in the `-i` list present. A test class is in the at-install phase by default, so
 an unstaged class in the first module fires before the second is loaded. The post-install phase is
 the only moment the whole node is visible.
-- **Series 12.0 and later:** tag that class `@tagged('post_install', '-at_install')`. Leave every
-  single-module assertion at the default.
-- **Series 8.0 to 11.0:** `@tagged` does not exist yet - the phase decorators do. Decorate that
-  class `@common.post_install(True)` and `@common.at_install(False)`
-  (`odoo.tests.common` / `openerp.tests.common`; conformance suite: `base.TestPhaseInstall00/01/02`).
-  Placing the test in the LAST module to install also works, but ONLY when the node's modules are
+- Stage that class post-install with the mechanism the TARGET series ships - `@tagged` or the
+  phase decorators - read from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 8 and
+  confirmed with `find_test_examples` for the target series. Leave every single-module assertion at
+  the default.
+- Placing the test in the LAST module to install also works, but ONLY when the node's modules are
   totally ordered by `depends` - a node spanning modules with NO dependency edge between them has no
-  "last module", so use the decorators there.
+  "last module", so stage it post-install there.
 
 **Placement: which module's `tests/` directory hosts the file.** The cross-module assertion's file
 lives in the LAST module, in the node's dependency order, among the modules it touches. When those
@@ -202,7 +201,7 @@ to assert something about the demo data itself.
 
 **Scope the run, do not un-install the environment.** The cure for auto-installed-module noise is `--test-tags` (`/<module>`, or `/<m>` per module for a cluster): it FILTERS which suites run while leaving the registry exactly as Odoo would build it in production. Pass it on every `--test-enable` run you request - untagged, the run tests every module the closure pulled in, `base` upward. `--skip-auto-install` (where the series offers it - confirm via `cli_help`) changes what is INSTALLED, so it can hide a real integration break and is never a substitute for tags: request it only when the caller explicitly asked for a deliberately reduced install set, and say so. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`.
 
-**Tour/HttpCase execution boundary:** `HttpCase` + `start_tour` tests require a live HTTP server (`--http-port`). Do NOT run tour suites inline - the executor's job and log volume are both large. Three distinct roles: Author (this skill, Rounds 0-4) writes the tour file + `HttpCase` wrapper; Execute (`odoo-instance` -> `odoo-instance-ops`) provisions the server and runs the suite; Adjudicate (caller or `odoo-qa-tester`) compares actual vs oracle. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. When emitting NEEDS_NEXT (below), add `http_port: true` to `inputs` if the module has tour/HttpCase tests.
+**Tour/HttpCase execution boundary:** `HttpCase` + `start_tour` tests require a live HTTP server. Do NOT run tour suites inline - the executor's job and log volume are both large. Three distinct roles: Author (this skill, Rounds 0-4) writes the tour file + `HttpCase` wrapper; Execute (`odoo-instance` -> `odoo-instance-ops`) provisions the server and runs the suite; Adjudicate (caller or `odoo-qa-tester`) compares actual vs oracle. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Adapt mode (forward-port test translation)
 
@@ -263,8 +262,8 @@ When no live Odoo instance is reachable to run the suite under `--test-enable` (
 ```
 next:
   - skill: odoo-instance
-    reason: provision the live instance needed to run the suite and confirm RED; pass mode (fresh|reuse) and log_mode through when known; add http_port: true if the module has tour/HttpCase tests requiring --http-port
-    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"], test_tags: "<`/<m>` per module in modules - scopes the run to them; omitted, the executor derives the same thing>", mode: "<fresh|reuse - fresh installs with -i, reuse re-runs with -u; omit to let the executor decide>", log_mode: "<info|debug|sql verbosity - optional>", http_port: "<true if tour/HttpCase present, else omit>"}
+    reason: provision the live instance needed to run the suite and confirm RED; pass mode (fresh|reuse) and log_mode through when known; GATE_ROLE node-verify - confirming a RED test is never the pre-PR lint gate
+    inputs: {operation: run-tests, GATE_ROLE: node-verify, series: "<series from context>", modules: ["<module under test>"], test_tags: "<`/<m>` per module in modules - scopes the run to them; omitted, the executor derives the same thing>", mode: "<fresh|reuse - fresh installs with -i, reuse re-runs with -u; omit to let the executor decide>", log_mode: "<info|debug|sql verbosity - optional>"}
     confidence: 0.9
 ```
 so the run-harness provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless. This is the canonical NEEDS_NEXT pattern referenced by `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.

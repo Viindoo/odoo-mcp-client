@@ -53,6 +53,11 @@ artifacts from that one database: the `.pot` template AND each `<lang>.po`. Do n
 second, differently-shaped instance for the `.pot` - see KT5 for why that quietly breaks the L2
 reconcile.
 
+The build itself goes through the `odoo-instance` skill (the `odoo-i18n` P2 dispatch): the
+per-series install lines below are the flag shape that build takes, never a raw `odoo-bin` call to
+run yourself. Only the export/import lines run as `odoo-bin` directly, against the database of the
+`INSTANCE_HANDLE` that build returned.
+
 The two exports differ only in the flag that selects the output, never in the build behind them:
 
 - **Template (`.pot`)** - the term INVENTORY with empty `msgstr`s. The export reads the source
@@ -248,8 +253,8 @@ the exports and the translation work that loop:
   load + re-export + diff-review (non-destructive, no polib), hand-translate the residual, then run
   the per-language validation gates (diff-review adjudication + placeholder-integrity; `-u` reload
   with `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
-  reload follows the reserve-only allocator guard (see gate-3 above): reuse the L1 install lease
-  or use `--mode exclusive` on a declared DB - never a fresh ephemeral lease for reload-only.
+  reload follows the reserve-only lease guard (see gate-3 above): reuse the L1 install lease
+  or use mode `exclusive` on a declared DB - never a fresh ephemeral lease for reload-only.
 
 Artifacts are per-language EXCEPT the shared `.pot`: `<module>.pot` (shared) vs
 `<lang>.po` / `glossary-tm-<lang>.json` / `translation-report-<lang>.json` / `consistency-audit-<lang>.md`.
@@ -341,12 +346,12 @@ Translate each genuine residual `msgstr` by hand, applying the term policy
    **`en_US` must ALSO be active (KT3).** Confirm BOTH `en_US` (the base/source language) and each
    `<lang>` are loaded before the reload - not the target language alone.
 
-   **Reserve-only allocator guard.** Reuse the SAME instance and lease the L1 `-i` install used -
-   the `-u` reload requires the DB to ALREADY EXIST with the module installed. Under the
-   reserve-only allocator, `--mode ephemeral` only reserves a unique DB name and ports; the DB is
-   created by the L1 `-i` run via Odoo create-on-init, not by the allocator. Do NOT acquire a
-   fresh ephemeral lease for the reload - its DB is uncreated and `-u` will fail. Keep the L1
-   lease, or use `--mode exclusive` on a declared DB that already has the module installed.
+   **Reserve-only lease guard.** Reuse the SAME instance and lease the L1 `-i` install used -
+   the `-u` reload requires the DB to ALREADY EXIST with the module installed. A `lease_acquire`
+   in mode `ephemeral` only reserves a unique DB name and ports; the DB is created by the L1 `-i`
+   run via Odoo create-on-init, not by the lease. Do NOT acquire a fresh ephemeral lease for the
+   reload - its DB is uncreated and `-u` will fail. Keep the L1 lease, or use mode `exclusive` on a
+   declared DB that already has the module installed.
 
 4. **Export against the adapted code (PR-head / merged tree).** When odoo-i18n is dispatched from a
    forward-port or upgrade run, the Odoo instance must run the POST-ADAPT code - the worktree the adapt
@@ -354,7 +359,7 @@ Translate each genuine residual `msgstr` by hand, applying the term policy
    yields a `.pot` with the old term inventory, missing new/renamed strings introduced in the port.
    **Mechanism (this is not advice - without it L2 silently under-merges):** pass `WORKTREE_PATH` to
    `odoo-instance`, which re-roots the instance's addons list onto that worktree
-   (its own WORKTREE_PATH substitution -> `allocator.py acquire --addons-path-override`). An
+   (its own WORKTREE_PATH substitution -> `lease_acquire` with `addons_path` naming that tree). An
    instance whose addons path points at the
    principal checkout makes a worktree-only `msgid` surface as NEITHER a removed nor a changed entry,
    so the L2 adjudication loop has nothing to rule on and the loss is committed unseen. Before the L1

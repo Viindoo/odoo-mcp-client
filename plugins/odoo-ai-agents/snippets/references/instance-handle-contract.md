@@ -7,25 +7,22 @@
 
 ## Why collision is not solved merely by going through `odoo-instance`
 
-The shared/spinup path collides on the same declared/`8069` numbers even when every caller
-carries a handle - the shared render target intentionally shares one db+port across many readers.
-An ISOLATED lease (a unique db + an allocator-issued pooled port + an owned lease, keyed on
-`run_id`) is what prevents a collision outright. The `persist:` values that select between them,
-and the parked state a suspended isolated lease sits in, are spelled out only in
-`docs/reference/INSTANCE-ALLOCATION-MODES.md` §5 - restating them here is how a reference copy ends up
-naming three states for a vocabulary that has four.
+The shared path collides on the same declared/`8069` numbers even when every caller carries a
+handle - the shared render target intentionally shares one db+port across many readers. An
+ISOLATED lease (`lease_acquire` mode `ephemeral`: a unique db + pooled ports + an owned lease,
+keyed on `run_id`) is what prevents a collision outright. The modes themselves are described by the
+`lease_acquire` tool; restating them here is how a reference copy drifts from the vocabulary.
 
 ## The structural backstop's exact scope (belt-and-braces detail)
 
-`scripts/lib/allocator.py`'s `_addons_path_worktree_mismatch` guard (`cmd_acquire`) REFUSES (exit
-5) an acquire in `shared`/`ephemeral`/`exclusive` mode whenever the caller's cwd is a linked git
-worktree of the SAME repository as a catalog `addons_path` entry at a DIFFERENT checkout path AND
-no `--addons-path-override` was passed - the exact "silently defaults to the principal checkout"
-shape the worktree-addons carve-out exists to prevent. `readonly` mode is exempt (it never builds,
-so there is nothing to mis-verify). The guard never inspects an override's CONTENT, so once ANY
-override is present it trusts it unconditionally - no structural guard can verify a caller's true
-intent from a value it was simply handed, which is why the dispatcher-side policy step remains the
-sole protection for a wrong-but-present override.
+`lease_acquire` refuses (`ADDONS_PATH_WORKTREE_MISMATCH`) an acquire in `shared`/`ephemeral`/
+`exclusive` mode whenever the caller's `cwd` is a linked git worktree of the SAME repository as a
+catalog `addons_path` entry at a DIFFERENT checkout path AND no `addons_path` was passed - the exact
+"silently defaults to the principal checkout" shape the worktree-addons carve-out exists to
+prevent. `readonly` mode is exempt (it never builds, so there is nothing to mis-verify). The refusal
+never inspects a passed `addons_path`'s CONTENT, so once ANY value is present it trusts it - no
+structural guard can verify a caller's true intent from a value it was simply handed, which is why
+the addons coverage assertion remains the sole protection for a wrong-but-present value.
 
 ## Addons coverage assertion - why "to see what happens" is banned
 

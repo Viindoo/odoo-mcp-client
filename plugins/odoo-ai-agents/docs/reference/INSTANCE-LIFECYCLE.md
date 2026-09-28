@@ -11,7 +11,10 @@
 > (when building/refreshing an instance), the upgrade command chain, and the `setup` scripts.
 >
 > **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
-> high-level interface for build/drop/init/update/test operations on a local instance. Persistent
+> high-level interface for build/drop/init/update/test operations on a local instance; they drive
+> it through the `odoo-local` MCP tools (`lease_acquire`, `instance_build` + `job_wait`,
+> `instance_serve`, `lease_release`), with the allocator CLI as fallback
+> (`INSTANCE-ALLOCATION-API.md` §6). Persistent
 > operation logs live under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`. This
 > reference doc covers the underlying semantics those operations rely on - including, since the
 > lifecycle does not end at "server answers", the teardown half owned by

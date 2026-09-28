@@ -9,7 +9,7 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
 1. **Resolve the target version explicitly** - confirm it is indexed (`list_available_versions`)
    and pin it (`set_active_version`). When multiple profiles exist for the same series,
    also resolve the `profile` field from the matching `[[instance]]` in `instances.toml`
-   (via `instances_io.py read <toml> <series> [profile]`, emitting `INST_PROFILE`/`INST_KEY`).
+   (`catalog_read`, or `catalog_locate` for the instance covering a repository path).
 2. **Query the CLI for that version - never assume.** `cli_help(command, flag, odoo_version='<version>')` for every
    non-trivial subcommand/flag (entry script, DB management, module management, port flags).
    Do not hardcode one version's CLI for another.
@@ -64,8 +64,8 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
 13. **`persist` + `run_id` on any build that must stay running.** A build that must remain a live,
     listening process (never `--stop-after-init`) declares a listening `persist:` value - an
     isolated, owner-stamped instance on an allocator-issued pooled port (never the declared/`8069`
-    port), or the shared render target, now ALSO owner-stamped via `run_id` so a foreign session
-    cannot bare-drop it - never a bare port/db reuse with no owner. The values themselves, and the
+    port), or the multi-reader shared render target, owner-stamped via `run_id` so a foreign run
+    cannot release it - never a bare port/db reuse with no owner. The values themselves, and the
     parked state a suspended instance sits in, are spelled out in ONE place and are NOT restated
     here: `INSTANCE-ALLOCATION-MODES.md` §5 (+ `INSTANCE-ALLOCATION-GUARDS.md` §6.3 for the
     ownership guard). Owned by
@@ -116,15 +116,15 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     - **Listening instance** (any listening `persist:` value - `INSTANCE-ALLOCATION-MODES.md` §5 - with
       no `--stop-after-init`, so the process serves after load instead of exiting): READY is a
       BOUNDED-timeout HTTP poll of the port - primary `GET /web/database/selector` (auth=none, no
-      DB required, reliable v8-v19), fallback `/web/login` for a series/build where the selector
+      DB required, reliable on every indexed series), fallback `/web/login` for a series/build where the selector
       route is unavailable. On timeout -> BLOCKED with the last probe error; it never waits forever
       and never falls back to a log tail. A RESUMED instance takes this same path and nothing
       extra: the spin-up's launch line carries no `-i` and no `-u`, so re-launching against the
       database a park preserved re-installs nothing and READY means what it always meant.
     Owned by `scripts/setup-steps/55-instance-ops.sh` (install/update job) and
-    `scripts/setup-steps/50-instance-spinup.sh` (listening readiness); the runtime contract for an
-    executing agent is `agents/odoo-instance-ops.md`'s "Active-wait on long builds" section, relayed
-    at dispatch level by `skills/odoo-instance/SKILL.md`.
+    `scripts/setup-steps/50-instance-spinup.sh` (listening readiness). An executing agent reaches
+    them through `instance_build` (returns a `job_id` at once; call `job_wait` until its result is
+    not `timeout`) and `instance_serve` (returns once the readiness poll answers or fails).
 15. **Memory/time resource limits apply on every launch - a version-general cap, not a version-branch.**
     Every install/update/test build (`--stop-after-init`, driven by `55-instance-ops.sh`) wraps the
     odoo-bin invocation in a shell `ulimit -Sv` PLUS a `--limit-memory-hard` flag, both derived from

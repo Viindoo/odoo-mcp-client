@@ -19,22 +19,34 @@
 #     RELEASE can always still NAME a catcher, so `BLOCKED` is no longer a door the
 #     lease escapes through unowned. A lease the caller PARKED is not a
 #     live lease at all for this purpose: park already stopped its process group, so it
-#     leaks no RAM, and it carries `parked_at` - the ledger fact the ledger scan below
-#     filters on. Its three exits (release / park / forwarded INSTANCE_HANDLE) are the
-#     ones the block message names.
+#     leaks no RAM, and the allocator's verdict reports it as `state: parked`. Its three
+#     exits (release / park / forwarded INSTANCE_HANDLE) are the ones the block message
+#     names.
+#   - WHOSE lease: only the lease TOKENS this subagent itself obtained, read from its OWN
+#     transcript (see "Token correlation" below) - never a run id. A run id is shared by
+#     the parent and every sibling of one run BY DESIGN, so correlating on it ordered a
+#     child to release its parent's and its siblings' live instances.
+#   - WHETHER it is live: the allocator's own verdict (`allocator.py list --tokens ...
+#     --with-verdict`), never a liveness rule re-derived here.
 #   - BROWSER pages die WITH the session's MCP server process - a bounded, self-
 #     healing leak. Their count is only inferable from the transcript (open/close
 #     calls), which is fuzzy. So browser findings are ADVISORY ONLY (systemMessage,
 #     NEVER decision:block) on both SubagentStop and Stop - prevention + a nudge.
 #
 # CONTRACT (Claude Code Stop / SubagentStop): stdin JSON has transcript_path,
-# stop_hook_active, hook_event_name.
+# stop_hook_active, hook_event_name; SubagentStop also carries agent_transcript_path.
+#   - WHICH transcript: on SubagentStop `agent_transcript_path` (the subagent's OWN
+#     transcript). The payload's `transcript_path` is the WHOLE session's (the parent
+#     plus every sibling), so reading it attributed the parent's acquires and browser
+#     pages to whichever subagent stopped next. It is read only on Stop, where the
+#     session transcript IS the stopping agent's. Same rule, same reason as
+#     enforce-background-wait.sh.
 #   - Self-gates (clone of enforce-grounding.sh): missing jq / missing transcript
 #     / stop_hook_active=true / a non-teardown-shaped subagent -> silent exit 0.
 #   - Block form (instances, SubagentStop only): {"decision":"block","reason":...}.
 #   - Advisory form (browsers): {"continue":true,"systemMessage":...}.
-#   - Degrades to exit 0 on ANY uncertainty (no jq/python3/ledger, parse error,
-#     ambiguous run_id). This is the ONLY hard-block gate in the system: a false
+#   - Degrades to exit 0 on ANY uncertainty (no jq/python3/allocator, parse error,
+#     no verdict, no correlated token). This is the ONLY hard-block gate in the system: a false
 #     block halts real work, so every branch prefers a FALSE-NEGATIVE over a
 #     false-positive - never block on ambiguity.
 
@@ -51,7 +63,14 @@ STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/
 
 EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+# The subagent's OWN transcript on SubagentStop; the session transcript only on Stop (see
+# CONTRACT). A SubagentStop without agent_transcript_path is uncertainty -> pass, never a
+# fallback onto the session transcript (that fallback IS the defect).
+if [[ "$EVENT" == "SubagentStop" ]]; then
+  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)"
+else
+  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+fi
 [[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || _pass
 
 # --- Normalize the subagent's own transcript (ASSISTANT-authored only) -----------------------
@@ -148,44 +167,46 @@ STATUS_KEY="$(printf '%s' "$STATUS" | tr 'a-z' 'A-Z' | sed -E 's/^[^A-Z_]*//; s/
 FWD_HANDLE=0
 printf '%s' "$CONT_BLOCK" | grep -q 'INSTANCE_HANDLE' 2>/dev/null && FWD_HANDLE=1
 
-# --- run_id correlation (ONLY from the subagent's OWN owning-action allocator commands) -------
-# The SubagentStop stdin carries no allocator run_id, so we derive it STRICTLY from the run-id
-# this subagent itself threaded into one of its OWN owning-action allocator Bash calls - the
-# provisioner/owner verbs `acquire` / `bind` / `heartbeat` (the ones that carry --run-id). This
-# is proof the subagent PROVISIONED or OWNS the lease. We deliberately do NOT scan free assistant
-# text (a bare `run_id: <X>`): a compliant CONSUMER of a forwarded INSTANCE_HANDLE quotes that
-# run_id in its own report (per agents/odoo-qa-tester.md's "this was forwarded to me, I am NOT
-# releasing it") - scanning text would HARD-BLOCK that consumer on the one blocking gate in the
-# system. `release` is also excluded: a release attempt is not an ownership claim, and if it
-# succeeded the ledger check below already reflects reality. An empty run_id is never a key.
-_run_ids() {
-  # $'^CALL\t' (ANSI-C quoting) anchors on a REAL tab so only genuine tool_use CALL lines match -
-  # never a command quoted inside assistant prose (a TEXT line, or a wrapped text continuation).
-  printf '%s\n' "$NORM" \
-    | grep -E $'^CALL\t' \
-    | grep -E 'allocator\.py' \
-    | grep -E '(^|[[:space:]])(acquire|bind|heartbeat)([[:space:]]|$)' \
-    | grep -oE -- '--run-id[[:space:]=]+[A-Za-z0-9._-]+' \
-    | sed -E 's/^--run-id[[:space:]=]+//' \
-    | grep -vE '^$' | sort -u 2>/dev/null || true
-}
-RUN_IDS="$(_run_ids)"
+# --- Token correlation (ONLY leases THIS subagent itself obtained) ----------------------------
+# "Which leases did THIS dispatch obtain?" is answered by hooks/lease-correlation.sh, the ONE
+# implementation this gate shares with block-unowned-lease-mutation.sh (read its header for exactly
+# which calls count, and why serving or resuming a forwarded token and a time window never do). A
+# shared copy is what keeps the two gates from disagreeing: this gate orders a release that the
+# mutation gate must then allow. Helper unreadable -> no correlated token -> fail open.
+_LEASE_LIB="${BASH_SOURCE[0]%/*}/lease-correlation.sh"
+OWN_TOKENS=""
+if [[ -r "$_LEASE_LIB" ]]; then
+  # shellcheck source=/dev/null
+  . "$_LEASE_LIB"
+  declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
+fi
 
 # Self-gate (clone of enforce-grounding.sh's "non-Odoo subagent" gate): no browser activity AND
-# no run-id signal -> not a teardown-shaped subagent -> stay out of the way.
-if [[ "$BROWSER_ANY" -eq 0 && -z "$RUN_IDS" ]]; then
+# no lease this subagent obtained -> not a teardown-shaped subagent -> stay out of the way. A pure
+# CONSUMER of a forwarded INSTANCE_HANDLE lands here: it obtained nothing, whatever it quotes.
+if [[ "$BROWSER_ANY" -eq 0 && -z "$OWN_TOKENS" ]]; then
   _pass
 fi
 
-# --- Instance check: BLOCKING, SubagentStop only, stop-report + named handoff excepted --------
-# Fires on a subagent turn that neither reported a stopped run nor forwarded its handle by name.
-# Ground truth is the LEDGER (via the allocator's own `list` read command), never the transcript.
-# Emits the ONE hard block in the system; everything above is advisory.
+# --- Instance check: BLOCKING, SubagentStop only, named handoff excepted ----------------------
+# Ground truth is the allocator's own VERDICT (`list --with-verdict`), never the transcript and
+# never a liveness rule copied into this file: the verdict is the SSOT for "would anything
+# reclaim this lease", and a second copy here is what drifted before (a hard-coded TTL fallback
+# that silently disagreed with the allocator the day its default changed). Emits the ONE hard
+# block in the system; everything above is advisory.
+_alloc_list_json() {
+  # One `allocator.py list` call, JSON envelope in, the lease array out ("" on any failure).
+  local out
+  out="$(timeout 5 python3 "$ALLOC" list --with-verdict --show-tokens --format json "$@" \
+         2>/dev/null || true)"
+  printf '%s' "$out" | jq -c 'select(.ok == true) | (.fields.leases // [])' 2>/dev/null || true
+}
+
 _instance_block_reason() {
-  # Requires: SubagentStop event, python3 + allocator.py, a correlated run_id, no forwarded
-  # handle. Prints the block reason on success; prints nothing (rc!=0) to fall through to advisory.
+  # Requires: SubagentStop event, python3 + allocator.py, a correlated token, no
+  # forwarded handle. Prints the block reason on success; prints nothing (rc!=0) to fall through.
   [[ "$EVENT" == "SubagentStop" ]] || return 1
-  # The gate is STATUS-BLIND. It asks ONE question - "is a live lease this dispatch acquired
+  # The gate is STATUS-BLIND. It asks ONE question - "is a live lease this dispatch obtained
   # still in the ledger, with nobody named to take it?" - and `status` is not part of the answer.
   #
   # It did NOT always work this way. `NEEDS_NEXT` was once an unconditional pass, and so were
@@ -210,91 +231,53 @@ _instance_block_reason() {
   # T4's exception is read from the SAME fence-scoped extraction as the status (never from free
   # prose - a handle promised in prose forwards nothing a consumer can act on).
   [[ "$FWD_HANDLE" == "1" ]] && return 1   # INSTANCE_HANDLE forwarded in next.inputs -> handoff -> pass
-  [[ -n "$RUN_IDS" ]] || return 1
+  [[ -n "$OWN_TOKENS" ]] || return 1
   command -v python3 >/dev/null 2>&1 || return 1
-  local alloc="${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/allocator.py"
-  [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$alloc" ]] || return 1
+  ALLOC="${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/allocator.py"
+  [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$ALLOC" ]] || return 1
 
-  local ledger
-  ledger="$(timeout 5 python3 "$alloc" list --show-tokens 2>/dev/null || true)"
-  [[ -n "$ledger" ]] || return 1
+  # Candidate rows: exactly the leases named by the tokens this subagent obtained.
+  local cand="[]" part
+  part="$(_alloc_list_json --tokens "$(printf '%s\n' "$OWN_TOKENS" | paste -sd, -)")"
+  [[ -n "$part" ]] && cand="$part"
 
-  local rids_json now
-  rids_json="$(printf '%s\n' "$RUN_IDS" | jq -R . | jq -cs . 2>/dev/null || true)"
-  [[ -n "$rids_json" && "$rids_json" != "null" ]] || return 1
-  now="$(date +%s 2>/dev/null || echo 0)"
-
-  # EVERY LIVE, non-shared, NON-PARKED lease owned by one of our run_ids. A PARKED lease
-  # (`parked_at` present) is skipped, and skipping it is the point rather than a hole: park already
-  # DID the RAM half of teardown - it stops the owner's whole process group BEFORE clearing the pid
-  # - and what survives is disk (the database, the filestore, the port reservation) under the
-  # allocator's own park budget. Without this the gate would read a parked lease as "no pid, fresh
-  # ttl" and hard-block the very subagent that parked it, telling it to release the instance it
-  # deliberately preserved - i.e. it would refuse the exit it is meant to permit. The exemption
-  # cannot outlive the park because `allocator.py resume` DELETES `parked_at` as part of the same
-  # locked compare-and-set that writes the new owner pid: a resumed lease is a pid-carrying lease
-  # again and is gated here again. LIVE-ness mirrors
-  # allocator's `_is_stale`: a recorded pid on THIS host is
-  # AUTHORITATIVE - alive protects the lease regardless of ttl, dead condemns
-  # it regardless of ttl. Only when liveness cannot be checked here at all (a
-  # different host, or no pid recorded) does ttl/heartbeat freshness decide -
-  # the ONE case ttl still governs, same scope as the real `_is_stale`. This
-  # hook intentionally skips the allocator's pid-recycling fingerprint proof
-  # (`owner.pid_started`): recycling within ONE subagent's own short dispatch
-  # window (this hook only asks "is the lease this transcript just acquired
-  # still the same live process moments later") is not a practical risk the
-  # way it is for allocator.py's cross-session `gc`, so a bare `kill -0` here
-  # is an accepted simplification, not a drift from the real rule. We report
-  # ALL live leases (a run can hold more than one), each with its own release
-  # command, so the blocked agent can clear every leak deterministically in
-  # one pass.
-  # NOTE on the TSV shape below: every field is forced NON-EMPTY (pid/host fall
-  # back to the literal "null" via bare `tostring`, never a raw ""). `read`
-  # with a whitespace IFS (tab included) silently SQUASHES a truly-empty field
-  # in the middle of a row into its neighbour - the pid-less lease is the
-  # common case (most leases never carry --pid), so an empty pid field here
-  # would misalign every column after it. Never reintroduce a `// ""` fallback
-  # on a middle TSV field for this reason.
-  # The `// 7200` fallback below is a SECOND COPY of `DEFAULT_TTL_S` in
-  # scripts/lib/allocator.py (the SSOT) - it only ever fires for a lease
-  # record missing `ttl_s` entirely (defensive; every real acquire writes it).
-  # If that constant changes, this literal must change with it or the two
-  # staleness checks silently disagree on the one lease shape neither writer
-  # normally produces.
+  # LIVE, per the allocator's verdict: running or reserved (never parked / orphaned /
+  # reclaiming), not a shared render server (cross-session by design, never one consumer's to
+  # drop - which is also why the lease a LAUNCHING series-mode instance_serve registers never
+  # reaches this list: that path only ever registers a `shared` lease; the correlation still counts
+  # it for block-unowned-lease-mutation.sh arm A4, so its launcher may stop it on an explicit user
+  # request), and not something the AUTOMATIC reclaim would take anyway (`condemn_auto` set: a dead
+  # or recycled server pid, an ended session past its grace) - such a lease leaks nothing a
+  # dispatch could still fix. A PARKED lease is skipped on purpose, not as a hole: park already did
+  # the RAM half of teardown, and blocking it would refuse the very exit this gate permits. A row
+  # with no verdict at all (an allocator too old to give one) is uncertainty -> not blocked.
   local rows
-  rows="$(printf '%s' "$ledger" | jq -r \
-    --argjson rids "$rids_json" --argjson now "$now" '
-      .leases[]?
+  rows="$(printf '%s' "$cand" | jq -r '
+      unique_by(.token) | .[]
       | select((.mode // "") != "shared")
-      | select(has("parked_at") | not)
-      | ((.owner.run_id // .owner.session_id // "")) as $o
-      | select($o != "" and ($rids | index($o)))
-      | [(.token // ""), $o, (.owner.pid | tostring), (.owner.host | tostring),
-         ((($now - (.heartbeat_at // .owner.started_at // 0)) <= (.ttl_s // 7200)) | tostring)]
-      | @tsv' 2>/dev/null || true)"
+      | select(.verdict != null)
+      | select((.verdict.state // "") == "running" or (.verdict.state // "") == "reserved")
+      | select(.verdict.condemn_auto == null)
+      | [(.token // ""), ((.owner.run_id // .owner.session_id // "") | tostring),
+         (.verdict.state // ""), (.verdict.protected_by // "none")]
+      | map(if . == "" then "-" else . end) | @tsv' 2>/dev/null || true)"
   [[ -n "$rows" ]] || return 1
 
-  local this_host lines n token rid pid host ttl_fresh live
-  this_host="$(hostname 2>/dev/null || echo _nohost_)"
+  # NOTE on the TSV shape: every field is forced NON-EMPTY ("-" stands for empty). `read` with a
+  # whitespace IFS (tab included) silently SQUASHES an empty middle field into its neighbour.
+  local lines n token rid state prot rid_arg mcp_rid
   lines=""
   n=0
-  while IFS=$'\t' read -r token rid pid host ttl_fresh; do
-    [[ -n "$token" ]] || continue
-    live=0
-    if [[ -n "$pid" && "$pid" != "null" && "$host" == "$this_host" ]]; then
-      # _is_stale pid arm: alive on this host -> protected regardless of ttl;
-      # dead -> condemned regardless of ttl (prefer false-negative: skip it).
-      kill -0 "$pid" 2>/dev/null && live=1
-    elif [[ "$ttl_fresh" == "true" ]]; then
-      # liveness unprovable here (different host, or no pid recorded) -> ttl governs.
-      live=1
-    fi
-    [[ "$live" == "1" ]] || continue
+  while IFS=$'\t' read -r token rid state prot; do
+    [[ -n "$token" && "$token" != "-" ]] || continue
     n=$(( n + 1 ))
-    lines="$lines"$'\n'"  lease token $token (owner run $rid) -> release: python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token --run-id $rid   |   park instead: python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" park $token"
+    if [[ "$rid" == "-" ]]; then rid_arg=""; mcp_rid=""; else rid_arg=" --run-id $rid"; mcp_rid=", run_id: \"$rid\""; fi
+    lines="$lines"$'\n'"  lease token $token (owner run ${rid/#-/<none>}, $state, protected by $prot)"
+    lines="$lines"$'\n'"    release: mcp__plugin_odoo-ai-agents_odoo-local__lease_release {lease_token: \"$token\"$mcp_rid}   |   park instead: mcp__plugin_odoo-ai-agents_odoo-local__lease_park {lease_token: \"$token\"$mcp_rid}"
+    lines="$lines"$'\n'"    CLI fallback (only when the odoo-local tools are unavailable): python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" release $token$rid_arg   |   python3 \"\${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py\" park $token$rid_arg"
   done <<< "$rows"
 
-  [[ "$n" -gt 0 ]] || return 1   # nothing live to block on (dead-pid rows and expired-unprovable rows skipped)
+  [[ "$n" -gt 0 ]] || return 1
 
   # Name what this turn actually did, so the fix is unambiguous for every shape: a declared status
   # needs the release or the handoff; a turn with no status needs the release AND the missing block.
@@ -306,12 +289,12 @@ _instance_block_reason() {
   fi
 
   # THREE exits satisfy this gate, and all three are named here on purpose. The set is the one
-  # declared in snippets/resource-teardown-contract.md T1 § "The three exits" (SSOT); this is a
-  # SECOND COPY of it, exactly like the `// 7200` DEFAULT_TTL_S copy above, kept in lockstep by
-  # tests/test_enforce_teardown.py rather than rendered from the markdown at hook time. Naming only
-  # `release` would tell an agent that preserving a just-built database is impossible, which is how
-  # instances got destroyed and rebuilt every dispatch.
-  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) owned by this run are still held in the allocator ledger. Each is a detached Odoo server process that outlives this session and leaks RAM until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park the lease (`allocator.py park`, NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it prints the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values. If exits 1 and 2 are UNAVAILABLE to you - the allocator errored, a process refuses to die, or the HARNESS DENIED the give-back command before it ran - do NOT fall back to a bare stopped-run report. Exit 3 is always available: it is text in your own continuation fence, needs no tool, no permission and no live process, and when teardown is what failed the named catcher is your DISPATCHING CALLER. Forward INSTANCE_HANDLE (lease_token + run_id) in next.inputs to it, state in your report that teardown was denied and quote the exact refusal, and keep your BLOCKED or NEEDS_CONTEXT status - the status is not what this gate reads.' \
+  # declared in snippets/resource-teardown-contract.md T1 section "The three exits" (SSOT); this is a
+  # SECOND COPY of it, kept in lockstep by tests/test_enforce_teardown.py rather than rendered from
+  # the markdown at hook time. Naming only `release` would tell an agent that preserving a
+  # just-built database is impossible, which is how instances got destroyed and rebuilt every
+  # dispatch.
+  printf 'Resource-teardown gate: this subagent %s, but %d LIVE, non-shared instance lease(s) that THIS subagent obtained itself (acquired or adopted by your own calls - read from your own tool calls and their results, never from a run id and never from a lease_token you were handed and merely served or resumed, so a lease of your parent or a sibling is never listed here and is not yours to release) are still held in the allocator ledger. Each is a detached Odoo server process or database that outlives this dispatch until reclaimed. Clear EACH before your terminal status, by ONE of the three exits:%s\n1) release - stops the whole server process group, then drops the DB. 2) park the lease (`lease_park`, or `allocator.py park`; NOT the turn-parking discipline of the same name) - stops the same process group (so the RAM is freed) but KEEPS the database, filestore and ports, so a later dispatch resumes it instead of rebuilding; use it when the DB is still wanted - park DEFERS the eventual drop, it never cancels it, and it reports the drop_on_release flag it left untouched so you can see whether the final release will still destroy that DB. 3) handoff - forward INSTANCE_HANDLE in your continuation `next.inputs` to a NAMED catcher, which leaves the instance running for it. Then report a `continuation` block whose `status` is one of the contract values. If exits 1 and 2 are UNAVAILABLE to you - the allocator errored, a process refuses to die, or the HARNESS DENIED the give-back call before it ran - do NOT fall back to a bare stopped-run report. Exit 3 is always available: it is text in your own continuation fence, needs no tool, no permission and no live process, and when teardown is what failed the named catcher is your DISPATCHING CALLER. Forward INSTANCE_HANDLE (lease_token + run_id) in next.inputs to it, state in your report that teardown was denied and quote the exact refusal, and keep your BLOCKED or NEEDS_CONTEXT status - the status is not what this gate reads.' \
     "$claim" "$n" "$lines"
   return 0
 }

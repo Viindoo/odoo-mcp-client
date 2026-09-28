@@ -38,6 +38,15 @@ from typing import Callable, Iterable
 
 import pytest
 
+# Session-anchor determinism. `allocator.py` anchors every lease it writes to the
+# caller's agent session (CLAUDE_PID, or a `claude`/`codex`/`gemini` ancestor), and an
+# alive anchor PROTECTS a lease from every reclaim arm. Run inside a Claude Code session,
+# every subprocess this suite spawns would inherit that live anchor; run in CI, none
+# would - so a test asserting a reclaim would pass in one place and fail in the other.
+# Anchoring is therefore OFF by default for the whole suite (the documented "none"
+# value), and a test that exercises anchoring sets ODOO_AI_SESSION_ANCHOR itself.
+os.environ.setdefault("ODOO_AI_SESSION_ANCHOR", "none")
+
 # Keyed by the frozen drop-set, so two callers asking for the SAME exclusions
 # share the SAME farm within a session, and two callers with DIFFERENT
 # exclusions never collide on one directory. Module-level (not fixture-local)

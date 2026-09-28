@@ -43,9 +43,8 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
 2. Resolve the run's state root once, via the resolve-capture-substitute protocol in
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`: `output_dir:` from the YAML is a
    relative `.odoo-ai/<name>` literal that this skill resolves against the Tier-2 **ISOLATE**
-   dir (`scripts/lib/resolve_project_dir.sh isolate`) at RUNTIME - the YAML literal itself and
-   the generator's `output_dir` must-start-with-`.odoo-ai/` assertion are intentionally
-   UNCHANGED; only the runtime resolution moved off a bare project-relative path. Resolve
+   dir (call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate`, `cwd` = the run's target root) at
+   RUNTIME - never write to the bare project-relative `.odoo-ai/<name>` path. Resolve
    series + profile per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 3. **Orphan sweep (do this every invocation, before the resume check below).** Run `find <resolved
    ISOLATE output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any

@@ -27,12 +27,12 @@ never by switching the principal.
 
 **FIRST: check for an in-progress or partially-completed run before dispatching intake.**
 
-```bash
-# 0. Resolve the ISOLATE state dir once for this run.
-DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh" isolate)"
+Resolve the ISOLATE state dir once for this run: call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` with axis `isolate` and
+`cwd` = the repo root, and substitute the returned absolute path for `<ISOLATE_DIR>` below.
 
+```bash
 # 1. Check for an existing checkpoint from a prior session.
-CHECKPOINT="$DIR/git-rebase/<slug>/checkpoint.json"
+CHECKPOINT="<ISOLATE_DIR>/git-rebase/<slug>/checkpoint.json"
 if [ -f "$CHECKPOINT" ]; then
   echo "Prior run detected - read checkpoint.json and resume from last completed phase."
 fi
@@ -690,33 +690,50 @@ to a static lint lane; the orchestrator records the PASS/FAIL verdict only.
 pyflakes <every-feature-touched-.py-from-the-Explore-list>   # any F821 = blocker
 ```
 
-### Collection acceptance gate (delegated to `Explore`)
+### Collection acceptance gate (two lanes, both delegated)
 
-After all symbol-survival + import-resolvability blockers are resolved, dispatch `Explore`
-(read-only) - the delegate `[[fp-symbol-survival-check]]` § Who runs this check assigns to this
-class - to run the test-collection gate and return a compact PASS/FAIL plus one line per collection
-error; the orchestrator records the verdict only and never reads the diff or log inline:
+The gate proves every feature-touched test file imports and collects on the new base before P9
+adapts it. It runs in two lanes; the orchestrator records each verdict and never reads a diff or
+log inline.
+
+**Lane 1 - static collection (always; no DB, no server).** After all symbol-survival +
+import-resolvability blockers are resolved, dispatch `Explore` (read-only) - the delegate
+`[[fp-symbol-survival-check]]` § Who runs this check assigns to this lane - with the
+`rb-integration` worktree path, the feature-touched test files, and this command. It returns ONLY
+`PASS`, or `FAIL` plus one line per collection error (`<file>::<node> | <error class> | <message>`):
 
 ```bash
-# Odoo test collection (replace with pytest --collect-only for non-Odoo test runners)
-# Must show zero collection errors - a setUpClass crash means tests never ran.
-python -m pytest --collect-only <feature-touched test files>
-# OR via odoo-bin for TransactionCase/HttpCase tests. Pick the flag by DB freshness:
-#   -i <modules> on a FRESH <db> (modules not yet installed - the usual collection-gate case);
-#   -u <modules> on a REUSED/already-installed <db> (-i on an installed module is a no-op).
-#   --test-tags MUST mirror <modules> (`/<m>` each, comma-joined): untagged, this gate collects and
-#   runs every installed module's suite from `base` up, not the ones being rebased.
-#   SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md
-#   Confirm flags via cli_help; see ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
-#   Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d <db> --test-enable --stop-after-init -i <modules> --test-tags <'/<m>' per module> \
-  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | grep -E "ERROR|error"
+python -m pytest --collect-only <feature-touched test files>   # zero collection errors
 ```
 
-**ACCEPTANCE GATE (HARD):** collection must complete with `0 failed, 0 error(s)`.
-`0 failed, N error(s)` is **NOT a pass** - a `setUpClass` crash or import error means
-the tests never ran and the collection gate has not been satisfied. Resolve all errors
+**Lane 2 - Odoo collection (only when a feature-touched test subclasses an Odoo database-backed
+test class - `TransactionCase`, `HttpCase`, or another the series ships, per Odoo Semantic
+`test_base_classes`).** Their `setUpClass` needs a database, so Lane 1 cannot prove they collect. Never run `odoo-bin` for this yourself and
+never have `Explore` run it: invoke the `odoo-instance` skill (via the Skill tool) with:
+
+```
+OPERATION: run-tests
+GATE_ROLE: node-verify
+SERIES: <series>
+RUN_ID: <this run's id>
+WORKTREE_PATH: <WT_ROOT>/rb-integration
+SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
+ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
+MODULES: <the modules owning those test files, dependency order>
+TEST_TAGS: </<m> per module in MODULES, comma-joined - never untagged>
+MODE: fresh
+```
+
+`odoo-instance` leases its own port for the run (every test build binds one) and returns the
+`instance-ops` block. Lane 2 PASSES only on `status: tests-passed` or `tests-passed-with-warnings`
+with `failed` and `errors` both 0 and every module in `modules_installed`; `tests-failed`,
+`tests-inconclusive` (no proof a suite ran) or any `errors > 0` is a FAIL - a `setUpClass` crash
+surfaces as errors, never as a pass. Warnings are findings for P9, not a collection failure. Capture the returned
+`INSTANCE_HANDLE` as this run's ONE instance: forward it to the P9 briefs and reuse it at P10 B3
+(`mode: reuse`) instead of provisioning a second one.
+
+**ACCEPTANCE GATE (HARD):** both lanes that apply must PASS. `0 failed, N error(s)` is **NOT a
+pass** - a `setUpClass` crash or import error means the tests never ran. Resolve every error
 before proceeding to P9. This gate is the same as forward-port P7 collection gate.
 
 ---
@@ -737,12 +754,17 @@ TARGET BEHAVIOR / ORACLE SCENARIOS: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha
       source test as the behavioral oracle
 ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
+INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
 RULE: Forward the source test as the behavioral oracle. Adapt API to target idiom
       (base class, imports, helper signatures). Confirm RED before writing the fix.
       Do NOT write a brand-new test if the source commit shipped one - adapt it.
 ```
+
+Pass the same `INSTANCE_HANDLE` to every `odoo-coding` invocation of this phase and of P9b, and
+reuse it at P10 B3 (`mode: reuse`); a consumer runs on it and never releases or parks it
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`).
 
 ---
 
@@ -776,6 +798,7 @@ Loop + escalate:
    SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
    ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
    ADAPT TIER: <same tier as the P8 adapt for these files>
+   INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none'>
    FIX BRIEF: <the CRITICAL/HIGH findings + reviewer's corrected version>
    RULE: fix to the finding's root cause only; do not expand scope; keep tests GREEN.
    ```
@@ -826,7 +849,9 @@ restate them here. Its Step 4 return block's
 
 ### B3 - conditional instance verify
 
-Provision ONE instance via the `odoo-instance` skill ONLY when the rebased range touches ANY of:
+If P8b Lane 2 already provisioned the run's instance, reuse its `INSTANCE_HANDLE` here (`mode: reuse`)
+and provision nothing. Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the
+rebased range touches ANY of:
 - A model field add, remove, rename, or type-change
 - A stored compute or constraint
 - An ORM `create` / `write` / `unlink` override
@@ -840,9 +865,15 @@ The `odoo-instance` skill owns provisioning (port allocation + leasing). The orc
 canonical output block ONCE as the run's `INSTANCE_HANDLE` and forwards that handle as an
 `INSTANCE_HANDLE:` field in EVERY downstream verify / coder / test brief - downstream agents consume
 the provided handle, never invent a DB or a port, and never re-derive `addons_path` from the catalog.
-The DISPATCHER owns addons provenance: whenever a brief names a `WORKTREE_PATH`, acquire with
-`--addons-path-override` so the instance loads THAT worktree, or authorize
-`SELF_PROVISION: worktree-addons`. One instance per run; release it via its `lease_token` at the end.
+The DISPATCHER owns addons provenance: whenever a brief names a `WORKTREE_PATH`, have the lease acquired
+with `addons_path` naming THAT worktree so the instance loads it, or authorize
+`SELF_PROVISION: worktree-addons`. One instance per run, and you are its run-level owner
+(`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once every brief that carried the
+handle has returned and the P10 verdict is final - BEFORE the P11 human gate, never while a leaf still
+holds it - call `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` on its `lease_token` and this
+run's run_id. Call `lease_park` instead when the database is still wanted for a likely P11 re-entry
+into P9/P10; a re-entry after a release provisions again.
+If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md.
 Contract, including the carve-out and the coverage assertion:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
