@@ -190,7 +190,7 @@ Write `_scope.md` to that path, including the per-module UI-scope fields from St
 
 ## Step 6 - Return compact scope block
 
-Return a compact final message to the orchestrator in this exact structure (SSOT for the orchestrator's parser):
+Your report is this compact scope block, in this exact structure (SSOT for the orchestrator's parser), delivered per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`:
 
 ```
 ## Scope: <slug>

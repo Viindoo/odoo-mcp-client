@@ -159,7 +159,8 @@ PARALLEL across independent instance-paths up to
    Convergence reuse+fill (step D) per `doc-plan.yaml`. THIS SKILL decides WHEN to advance and WHEN
    to release; each step only executes and returns its block. Never acquire a second lease for the
    path. The lease stays protected for the whole session across advances; nothing needs refreshing
-   between them.
+   between them. Paths running in parallel that meet on ONE database (a convergence fill) follow
+   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
 Order per module: **install -> pre-fetch copy (marketing) -> pre-fetch walkthrough (scenarios) ->
 capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**

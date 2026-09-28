@@ -436,3 +436,183 @@ def test_absent_db_run_mode_is_never_emitted_as_a_vocabulary_value(tmp_path):
     assert out["INST_DB_RUN_MODE"] not in ("tcp-only", "native", "docker"), (
         "an undeclared client surface must stay undeclared at read time"
     )
+
+
+# ---------------------------------------------------------------------------
+# server_wide_modules: the catalog declares the DEPLOYMENT's own server-wide
+# modules; the series' core default is read from the checkout; a build or a
+# server loads core + declared, and never a guessed core.
+# ---------------------------------------------------------------------------
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import odoo_tree_fixtures as trees  # noqa: E402
+
+
+def _catalog(tmp_path, body):
+    path = tmp_path / "instances.toml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_read_reports_the_declared_server_wide_modules_and_empty_when_none(tmp_path):
+    path = _catalog(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        addons_path = ["/a"]
+        server_wide_modules = ["to_base", "viin_brand"]
+
+        [[instance]]
+        series = "16.0"
+        addons_path = ["/b"]
+    """))
+    declared = subprocess.run([sys.executable, str(INSTANCES_IO), "read", str(path), "17.0"],
+                              capture_output=True, text=True, check=True).stdout
+    none = subprocess.run([sys.executable, str(INSTANCES_IO), "read", str(path), "16.0"],
+                          capture_output=True, text=True, check=True).stdout
+    assert "INST_SERVER_WIDE_MODULES=to_base,viin_brand" in declared.splitlines()
+    assert "INST_SERVER_WIDE_MODULES=''" in none.splitlines()
+
+
+def test_the_text_scan_reads_single_and_multi_line_arrays_like_tomllib(tmp_path):
+    """Python < 3.11 has no tomllib: the text scan must read the same values, including an array
+    written over several lines (the form a hand edit or a writer may use)."""
+    path = _catalog(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        addons_path = [
+            "/a",  # core
+            "/b",
+        ]
+        server_wide_modules = [
+            "to_base",
+            # a comment line inside the array
+            "viin_brand",
+        ]
+        http_port = 8069
+
+        [[instance]]
+        series = "18.0"
+        server_wide_modules = ["viin_brand"]
+        addons_path = ["/c"]
+    """))
+    scanned = io._load_textscan(str(path))["instance"]
+    parsed = io._load_tomllib(str(path))["instance"]
+    for got in (scanned, parsed):
+        assert io.server_wide_modules_of(got[0]) == ["to_base", "viin_brand"]
+        assert io.addons_path_list(got[0]) == ["/a", "/b"]
+        assert got[0]["http_port"] == 8069, "a key after a multi-line array still belongs to the row"
+        assert io.server_wide_modules_of(got[1]) == ["viin_brand"]
+
+
+@pytest.mark.parametrize("series", trees.SERIES)
+def test_core_default_comes_first_then_the_declared_modules_deduplicated(tmp_path, series):
+    root = trees.write_checkout(tmp_path / "odoo", series)
+    effective, core = io.effective_server_wide_modules(["web", "to_base"], str(root))
+    assert core == trees.CORE_LOAD[series]
+    assert effective == trees.CORE_LOAD[series] + ["to_base"], "core first, declared after, no repeat"
+
+
+@pytest.mark.parametrize("series", trees.SERIES)
+def test_the_real_checkout_declares_the_core_default_the_fixture_models(series):
+    root = trees.real_checkout(series)
+    if root is None:
+        pytest.skip("no Odoo %s checkout under %s" % (series, trees.CHECKOUTS))
+    assert io.core_server_wide_default(str(root)) == trees.CORE_LOAD[series]
+
+
+def test_the_checkout_is_found_from_the_addons_path_when_no_odoo_root_is_declared(tmp_path):
+    root = trees.write_checkout(tmp_path / "odoo", "17.0")
+    effective, _core = io.effective_server_wide_modules(
+        ["to_base"], "", [str(tmp_path / "custom"), str(root / "addons")])
+    assert effective == ["base", "web", "to_base"]
+
+
+def test_the_declared_checkout_is_the_one_read_never_another_found_on_the_addons_path(tmp_path):
+    """The instance's checkout is the one its odoo_root declares. When that checkout does not
+    state its --load default, another checkout reachable through the addons_path is a different
+    Odoo: its default is not this instance's, so the answer is 'unknown', never the other's."""
+    declared = trees.write_checkout(tmp_path / "declared", "17.0")
+    (declared / "odoo" / "tools" / "config.py").write_text("# no --load option here\n", encoding="utf-8")
+    other = trees.write_checkout(tmp_path / "other", "19.0")
+    assert io.core_server_wide_default(str(declared), [str(other / "addons")]) is None
+    with pytest.raises(io.ServerWideCoreUnknown):
+        io.effective_server_wide_modules(["to_base"], str(declared), [str(other / "addons")])
+
+
+def test_nothing_declared_passes_no_load_whatever_the_core_default(tmp_path):
+    root = trees.write_checkout(tmp_path / "odoo", "19.0")
+    assert io.effective_server_wide_modules([], str(root))[0] == []
+    assert io.effective_server_wide_modules([], str(tmp_path / "nowhere")) == ([], None)
+
+
+def test_declared_modules_with_an_unreadable_core_default_are_refused_never_guessed(tmp_path):
+    """--load REPLACES Odoo's default: a set of only the declared modules would silently drop the
+    core ones (base/web), so an unreadable core default is an error, not a guess."""
+    with pytest.raises(io.ServerWideCoreUnknown):
+        io.effective_server_wide_modules(["to_base"], str(tmp_path / "nowhere"), [str(tmp_path)])
+    res = subprocess.run([sys.executable, str(INSTANCES_IO), "server-wide", "--declared", "to_base",
+                          "--odoo-root", str(tmp_path / "nowhere")], capture_output=True, text=True)
+    assert res.returncode == 4 and res.stdout == ""
+    assert "SERVER_WIDE_CORE_UNKNOWN" in res.stderr
+
+
+def test_server_wide_cli_prints_the_effective_set_and_the_core(tmp_path):
+    root = trees.write_checkout(tmp_path / "odoo", "11.0")
+    res = subprocess.run([sys.executable, str(INSTANCES_IO), "server-wide", "--declared",
+                          "to_base, viin_brand", "--odoo-root", str(root)],
+                         capture_output=True, text=True, check=True)
+    assert res.stdout.splitlines() == ["SERVER_WIDE_MODULES=web,to_base,viin_brand",
+                                       "SERVER_WIDE_CORE=web"]
+
+
+# ---------------------------------------------------------------------------
+# read-row: the ONE row a writer records onto (select_row)
+# ---------------------------------------------------------------------------
+
+_MIXED = textwrap.dedent("""\
+    [[instance]]
+    series = "17.0"
+    profile = "p1"
+    addons_path = ["/p1"]
+
+    [[instance]]
+    series = "17.0"
+    addons_path = ["/plain"]
+
+    [[instance]]
+    series = "16.0"
+    profile = "only"
+    addons_path = ["/only"]
+""")
+
+
+def _read_row(path, series, profile):
+    return subprocess.run([sys.executable, str(INSTANCES_IO), "read-row", str(path), series, profile],
+                          capture_output=True, text=True, timeout=30)
+
+
+def test_read_row_without_a_profile_is_the_unprofiled_row_even_when_a_profiled_one_comes_first(tmp_path):
+    cat = tmp_path / "instances.toml"
+    cat.write_text(_MIXED, encoding="utf-8")
+    res = _read_row(cat, "17.0", "")
+    assert res.returncode == 0, res.stderr
+    assert "INST_ADDONS_PATH=/plain" in res.stdout and "INST_PROFILE=''" in res.stdout
+    assert "INST_ADDONS_PATH=/p1" in _read_row(cat, "17.0", "p1").stdout
+
+
+@pytest.mark.parametrize("series, profile, needle", [
+    ("16.0", "", "--profile"),          # only profiled rows: never guess one
+    ("17.0", "nope", "declare it first"),
+    ("15.0", "", "declare it first"),
+])
+def test_read_row_refuses_rather_than_pick_a_row_nobody_named(tmp_path, series, profile, needle):
+    cat = tmp_path / "instances.toml"
+    cat.write_text(_MIXED, encoding="utf-8")
+    res = _read_row(cat, series, profile)
+    assert res.returncode == 1 and res.stdout == ""
+    assert needle in res.stderr, res.stderr
+
+
+def test_read_row_names_a_missing_catalog(tmp_path):
+    res = _read_row(tmp_path / "absent.toml", "17.0", "")
+    assert res.returncode == 1 and res.stdout == "" and "no instance catalog" in res.stderr

@@ -59,10 +59,15 @@ def test_return_path_ssot_is_not_duplicated_into_chp():
         "context-handoff-protocol.md must cite the R3 SSOT for the return path"
     )
     low = " ".join(body.split()).lower()
-    assert "your completion report is the final text of your turn" not in low, (
-        "context-handoff-protocol.md restates R3's own declaring sentence instead of pointing "
-        "at it - the restatement drifts the moment R3 changes"
-    )
+    for restated in (
+        "your launcher receives your completion report once",
+        "is in your toolset** -> deliver the report",
+        "your report is the final text of your turn",
+    ):
+        assert restated not in low, (
+            "context-handoff-protocol.md restates R3's return path instead of pointing at it - "
+            f"the restatement ({restated!r}) drifts the moment R3 changes"
+        )
 
 
 # ---------------------------------------------------------------------------

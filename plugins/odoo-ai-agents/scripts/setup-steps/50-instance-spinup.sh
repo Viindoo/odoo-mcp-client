@@ -73,10 +73,19 @@
 #              (A lease row whose addons_path is not a directory list at all
 #              states no tree, so the catalog row stands and the reported
 #              SERVED_ADDONS_SOURCE says `catalog` - see _addons_path_verdict.)
-#              --load <modules> forwards a server-wide module set into the
-#              generated conf's `server_wide_modules` key (Odoo's --load dest,
-#              comma-separated on every indexed series); omitted -> the key is
-#              not written at all and Odoo's own default applies.
+#              SERVER-WIDE MODULES are resolved, never left to the caller:
+#              Odoo's own core default, read from the instance's checkout
+#              (instances_io.py server-wide -> odoo_source_facts), followed by
+#              the DECLARED `server_wide_modules` - the --alloc-token lease's
+#              copy when the lease records one (what its build leg loaded),
+#              else the catalog row's. The set goes into the generated conf's
+#              `server_wide_modules` key (Odoo's --load dest). Nothing declared
+#              -> the key is not written and Odoo's own default applies.
+#              Declared modules whose core default cannot be read -> BLOCKED
+#              with SERVE_REFUSED=SERVER_WIDE_CORE_UNKNOWN on stdout (the key
+#              REPLACES Odoo's default, so a set without the core would drop
+#              it). --load <modules> is a human override that states the
+#              COMPLETE set instead; the odoo-local tools never pass it.
 #              apply prints the resolution as machine-readable stdout facts -
 #              SERVED_ADDONS_PATH / SERVED_ADDONS_SOURCE /
 #              SERVED_SERVER_WIDE_MODULES - so a caller can verify the served
@@ -144,10 +153,10 @@ source "$SCRIPT_DIR/../lib/pg_mode.sh"
 # every spin-up, just before it writes this instance's conf.
 # shellcheck source=../lib/state_reclaim.sh
 source "$SCRIPT_DIR/../lib/state_reclaim.sh"
-# Main-port option name per series (odoo_http_port_key) - one rule shared with
-# 55-instance-ops.sh.
-# shellcheck source=../lib/odoo_port_keys.sh
-source "$SCRIPT_DIR/../lib/odoo_port_keys.sh"
+# The launcher's checkout facts (odoo_cli_facts: main-port conf key, --dev shape)
+# - read from its config.py, the reader shared with 55-instance-ops.sh.
+# shellcheck source=../lib/odoo_cli_facts.sh
+source "$SCRIPT_DIR/../lib/odoo_cli_facts.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 ODOO_DB_PY="$SCRIPT_DIR/../lib/odoo_db.py"
@@ -420,8 +429,10 @@ sys.exit(1)
 _lease_launch_facts() {
     # $1 = allocator path, $2 = token. Prints `<field>=<value>` for each LAUNCH fact the lease row
     # records non-empty - python, odoo_root, db_host, db_user, db_port: the facts the build leg
-    # (55-instance-ops.sh) was handed from the same row. One registry read for all of them.
-    # Non-zero when the registry cannot be read or carries no such token.
+    # (55-instance-ops.sh) was handed from the same row - and `server_wide_modules=<a,b>` whenever
+    # the row carries that key, even empty (an empty list is the lease's real value; a row an older
+    # allocator wrote has no key, and the catalog row's value stands). One registry read for all of
+    # them. Non-zero when the registry cannot be read or carries no such token.
     local alloc="${1:-}" token="${2:-}" registry=""
     [[ -n "$alloc" && -f "$alloc" && -n "$token" ]] || return 1
     registry="$(python3 "$alloc" list --show-tokens 2>/dev/null)" || return 1
@@ -438,6 +449,10 @@ for lease in registry.get("leases") or []:
             value = str(lease.get(field) or "")
             if value and "\n" not in value:
                 print("%s=%s" % (field, value))
+        if isinstance(lease.get("server_wide_modules"), list):
+            mods = [str(m).strip() for m in lease["server_wide_modules"] if str(m).strip()]
+            if all("\n" not in m and "," not in m for m in mods):
+                print("server_wide_modules=%s" % ",".join(mods))
         sys.exit(0)
 sys.exit(1)
 ' "$token"
@@ -613,19 +628,11 @@ cmd_check() {
 # apply
 # ---------------------------------------------------------------------------
 _find_odoo_bin() {
-    # Locate odoo-bin: explicit env wins, else search the addons_path entries
-    # one level up for an odoo-bin (the 'core' repo root).
-    if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then
-        echo "$ODOO_BIN"; return 0
-    fi
-    local p
-    _addons_path_to_array _paths "${INST_ADDONS_PATH:-}"
-    for p in "${_paths[@]}"; do
-        [[ -n "$p" ]] || continue
-        if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
-        if [[ -x "$(dirname "$p")/odoo-bin" ]]; then echo "$(dirname "$p")/odoo-bin"; return 0; fi
-    done
-    return 1
+    # The shared locator (resolve_instances.sh): $ODOO_BIN, else odoo-bin - or
+    # openerp-server on the oldest series - at the addons_path / odoo_root.
+    # The addons_path being served decides; the declared odoo_root only fills in.
+    _odoo_find_launcher "${INST_ADDONS_PATH:-}" \
+        || { [[ -n "${INST_ODOO_ROOT:-}" ]] && _odoo_find_launcher "" "${INST_ODOO_ROOT}"; }
 }
 
 _poll_until_up() {
@@ -784,6 +791,7 @@ cmd_apply() {
             case "$_lf_key" in
                 python) INST_PYTHON="$_lf_val" ;;
                 odoo_root) INST_ODOO_ROOT="$_lf_val" ;;
+                server_wide_modules) INST_SERVER_WIDE_MODULES="$_lf_val" ;;
                 db_host) INST_DB_HOST="$_lf_val" ;;
                 db_user) INST_DB_USER="$_lf_val" ;;
                 db_port) INST_DB_PORT="$_lf_val" ;;
@@ -1121,10 +1129,36 @@ cmd_apply() {
     fi
     INST_ADDONS_PATH="$(_addons_csv "$_served_addons")"
 
-    # Server-wide modules (Odoo's --load / `server_wide_modules`). Normalized
-    # once here; the conf line below is the only writer.
+    # Server-wide modules (Odoo's --load / `server_wide_modules`). Resolved
+    # once here (header: SERVER-WIDE MODULES); the conf line below is the only
+    # writer.
     local _served_load=""
-    if [[ -n "${ARG_LOAD:-}" ]]; then
+    if [[ -z "${ARG_LOAD:-}" && "${INST_RUN_MODE:-source}" == "docker" ]]; then
+        # A compose-launched server reads no conf this script writes (see the
+        # docker refusal below), so a declared set cannot be applied here.
+        if [[ -n "${INST_SERVER_WIDE_MODULES:-}" ]]; then
+            echo "  Warning: run_mode=docker - the declared server_wide_modules" >&2
+            echo "  (${INST_SERVER_WIDE_MODULES}) are NOT applied by this step; declare them" >&2
+            echo "  in the compose file's Odoo command (--load)." >&2
+        fi
+    elif [[ -z "${ARG_LOAD:-}" ]]; then
+        local _sw_out="" _sw_rc=0
+        _sw_out="$(python3 "$INSTANCES_IO" server-wide \
+            --declared "${INST_SERVER_WIDE_MODULES:-}" \
+            --odoo-root "${INST_ODOO_ROOT:-}" \
+            --addons-path "${INST_ADDONS_PATH:-}")" || _sw_rc=$?
+        if [[ "$_sw_rc" -ne 0 ]]; then
+            echo "SERVE_REFUSED=SERVER_WIDE_CORE_UNKNOWN"
+            echo "" >&2
+            echo "x BLOCKED: server_wide_modules (${INST_SERVER_WIDE_MODULES:-}) are declared, but" >&2
+            echo "  Odoo's core --load default could not be read from the checkout" >&2
+            echo "  (odoo_root '${INST_ODOO_ROOT:-}', addons_path '${INST_ADDONS_PATH:-}')." >&2
+            echo "  The set REPLACES Odoo's default, so it is never guessed. Declare the" >&2
+            echo "  instance's odoo_root (/odoo-ai-agents:odoo-setup), then retry." >&2
+            return 1
+        fi
+        _served_load="$(printf '%s\n' "$_sw_out" | sed -n 's/^SERVER_WIDE_MODULES=//p' | tr -d "'")"
+    elif [[ -n "${ARG_LOAD:-}" ]]; then
         _served_load="$(_module_list_csv "$ARG_LOAD")"
         if [[ -z "$_served_load" ]]; then
             echo "" >&2
@@ -1141,7 +1175,8 @@ cmd_apply() {
     # script generates is only handed to odoo-bin on the source path, so a
     # compose-launched server serves whatever its own compose file mounts and
     # loads. Claiming a served tree it does not serve would re-create the same
-    # silent wrong-tree green, so refuse before `docker compose up`.
+    # silent wrong-tree green, so refuse before `docker compose up` (an explicit
+    # --load only; the resolved set is never computed for docker, see above).
     if [[ "${INST_RUN_MODE:-source}" == "docker" ]] \
             && { [[ "$INST_ADDONS_PATH" != "$_catalog_addons" ]] || [[ -n "$_served_load" ]]; }; then
         echo "" >&2
@@ -1212,7 +1247,7 @@ cmd_apply() {
         source)
             local bin
             bin="$(_find_odoo_bin)" || {
-                echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
+                echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
                 return 1
             }
             # Resolve the Python interpreter: the instance's own `python` field
@@ -1250,16 +1285,23 @@ cmd_apply() {
 
             local _ver_major
             _ver_major="${INST_SERIES%%.*}"
+            # The launcher's checkout states its own option facts (config.py):
+            # read them, never derive them from the series number. A checkout
+            # that states none cannot be launched with a correct conf - refuse.
+            if ! odoo_cli_facts "$(dirname "$bin")" || [[ -z "$ODOO_CLI_HTTP_PORT_KEY" ]]; then
+                echo "x ODOO_SOURCE_FACT_UNKNOWN: the Odoo checkout at '$(dirname "$bin")' (the launcher's" \
+                     "directory) declares no readable main port option in its tools/config.py, so" \
+                     "the conf cannot be written. Nothing was launched. Point ODOO_BIN / the" \
+                     "addons_path at a complete Odoo checkout." >&2
+                return 1
+            fi
             local _port_key
             if [[ -n "$ARG_PORT_KEY" ]]; then
-                # Agent-resolved conf key from OSM cli_help (P5.6) - the
-                # persist: exclusive-running caller ALWAYS passes this, so the
-                # local arithmetic below never runs for that path.
+                # Caller-resolved conf key (--port-key) wins when given.
                 _port_key="$ARG_PORT_KEY"
             else
-                # No --port-key override: the series' era rule
-                # (scripts/lib/odoo_port_keys.sh, shared with 55-instance-ops.sh).
-                _port_key="$(odoo_http_port_key "$INST_SERIES")"
+                # The dest of the checkout's main port option (odoo_cli_facts).
+                _port_key="$ODOO_CLI_HTTP_PORT_KEY"
             fi
 
             # ---- PREFLIGHT: PostgreSQL, per declared surface -----------------
@@ -1390,9 +1432,10 @@ cmd_apply() {
                 # the SERVED_ADDONS_PATH fact printed above.
                 echo "addons_path = ${INST_ADDONS_PATH:-}"
                 # server_wide_modules is Odoo's --load dest (comma-separated on
-                # every indexed series). Written ONLY when the caller passed
-                # --load; omitted otherwise so Odoo's own per-series default
-                # applies rather than a default invented here.
+                # every indexed series). Written ONLY when a set was resolved
+                # (core default + declared, or an explicit --load); omitted
+                # otherwise so Odoo's own per-series default applies rather
+                # than a default invented here.
                 if [[ -n "$_served_load" ]]; then
                     echo "server_wide_modules = $_served_load"
                 fi
@@ -1445,11 +1488,11 @@ cmd_apply() {
                 # immediately before setsid below). Nothing is written, so there is
                 # nothing to clean up.
             } >"$conf"
-            # --dev=all was introduced as a string-valued flag in v10; v9 has a
-            # boolean --dev only (no =all), and v8 has no --dev at all.
-            # Gate: only append --dev=all for major >= 10.
+            # --dev=all only where the checkout's --dev option takes a value
+            # (odoo_cli_facts, read above): a boolean --dev or no --dev at all
+            # would reject it.
             local _dev_flag=""
-            if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major >= 10 )); then
+            if [[ "$ODOO_CLI_DEV_TAKES_VALUE" == "1" ]]; then
                 _dev_flag="--dev=all"
             fi
 
@@ -1500,6 +1543,13 @@ cmd_apply() {
             # developer cluster needs none of this - passwordless authentication
             # covers it.
             [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
+            # "$conf" is the ONLY config file the server reads: before 19.0 Odoo
+            # loads its default rc file (~/.odoorc) at import time and `-c` only
+            # overrides the keys "$conf" states, so the operator's data_dir /
+            # without_demo / db_* would otherwise leak into the served instance
+            # (odoo_cli_facts.sh odoo_isolated_rc_env; the same isolation the
+            # builds of 55-instance-ops.sh run under, so both use one filestore).
+            odoo_isolated_rc_env "$conf"
             # shellcheck disable=SC2086
             setsid "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!

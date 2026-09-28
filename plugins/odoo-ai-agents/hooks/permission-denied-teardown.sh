@@ -114,6 +114,9 @@ and `run_id`, naming your DISPATCHING CALLER as the catcher (when teardown is wh
 caller is the catcher - it dispatched you, it outlives you, and it can release what you cannot).
 Keep whatever terminal status is honest, and state that teardown was denied and why. That is the
 T4 named handoff, it clears the gate, and it is what keeps the database from outliving the run.
+When you deliver your report through SubagentHandback, that continuation block goes INSIDE its
+message: the report is delivered the moment the tool runs, so a handback whose message does not
+forward the handle is refused while the lease is live.
 EOF
 
 python3 -c '

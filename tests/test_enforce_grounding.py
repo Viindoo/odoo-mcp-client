@@ -51,7 +51,12 @@ def _run(tmp_path, transcript_lines, stop_hook_active=False):
     """Invoke the hook with a crafted transcript + stdin; return (rc, parsed_stdout_or_None)."""
     tpath = tmp_path / "transcript.jsonl"
     tpath.write_text("\n".join(transcript_lines) + "\n", encoding="utf-8")
-    stdin = json.dumps({"transcript_path": str(tpath), "stop_hook_active": stop_hook_active})
+    # The real SubagentStop payload: the subagent's OWN transcript is agent_transcript_path, and
+    # transcript_path is the whole session's (an empty decoy here).
+    session = tmp_path / "session-transcript.jsonl"
+    session.write_text("", encoding="utf-8")
+    stdin = json.dumps({"hook_event_name": "SubagentStop", "transcript_path": str(session),
+                        "agent_transcript_path": str(tpath), "stop_hook_active": stop_hook_active})
     proc = subprocess.run(
         ["bash", str(HOOK)], input=stdin, capture_output=True, text=True, timeout=20
     )

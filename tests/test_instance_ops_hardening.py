@@ -306,11 +306,12 @@ def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
         "cite `odoo-instance-ops` by NAME, not by path: rule 20 [definition-pointer] bans pointing "
         "a runtime reader at an agents/<name>.md, because an agent is LAUNCHED, never READ"
     )
-    assert "en_US - always loaded on every build" in text, (
-        "inline-mode must point at the agent's en_US HARD-RULE section (SSOT)"
+    assert "Demo, languages and server-wide modules (HARD RULE)" in text, (
+        "inline-mode must point at the agent's build-facts HARD-RULE section (SSOT): demo by "
+        "purpose, languages as build arguments, job_wait warnings acted on"
     )
-    assert "Server-wide modules" in text and "Lint modules" in text, (
-        "inline-mode must point at the server-wide-module + lint-module HARD-RULE sections"
+    assert "Lint modules - installed ONLY for the designated pre-PR lint gate" in text, (
+        "inline-mode must point at the lint-module HARD-RULE section"
     )
     assert "do NOT restate them here" in text, (
         "inline-mode must explicitly avoid duplicating the HARD RULES"
@@ -610,8 +611,9 @@ def test_agent_resolves_port_flag_at_runtime_never_hardcoded():
     assert "NEVER pass a flag the target series' `cli_help` does not list" in text, (
         "agent must forbid passing a flag the target series' cli_help does not list at all"
     )
-    assert "Ports and connection are the tools' job." in text, (
-        "agent must state that ports/connection flags are set by the tools, never in extra_args"
+    assert "Ports, connection and build facts are the tools' job." in text, (
+        "agent must state that ports/connection flags and the build facts (server-wide modules, "
+        "languages, demo) are set by the tools, never in extra_args"
     )
     for retired in ("port_key", "gevent_port_key", "Port-flag tie-break", "Port flag vs conf key"):
         assert retired not in text, f"agent still carries the retired port recipe {retired!r}"

@@ -35,8 +35,8 @@ into leaves because it is worker-side behavior.
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
 | 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is what an Odoo lease is acquired under, what the teardown gate correlates a live lease to, and what a leak audit matches on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
-**No reply-address field exists.** Do not add one under any name. The agent you dispatch returns its
-report as its final message, and you are woken with it once you end that turn - rule:
+**No reply-address field exists.** Do not add one under any name. The agent you dispatch hands its
+report back once, and you are woken with it once you end that turn - rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per

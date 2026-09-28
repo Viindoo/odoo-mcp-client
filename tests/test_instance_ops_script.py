@@ -31,6 +31,7 @@ from shutil import which
 
 import pytest
 
+import odoo_tree_fixtures as trees
 from conftest import real_python3
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -55,8 +56,11 @@ def _write_stub(path: Path, body: str) -> None:
     path.chmod(0o755)
 
 
-def _make_fake_odoo_bin(tmp_path: Path, *, exit_code: int = 0, extra_output: str = "") -> Path:
-    """A fake odoo-bin that records its argv and exits with exit_code."""
+def _make_fake_odoo_bin(tmp_path: Path, *, exit_code: int = 0, extra_output: str = "",
+                        series: str = "17.0") -> Path:
+    """A fake odoo-bin that records its argv and exits with exit_code. Its directory is a fixture
+    checkout of `series` (tests/odoo_tree_fixtures.py), as a real odoo-bin's is: the script reads
+    the checkout's option facts (logger namespace, port flag, demo flag) from there."""
     log = tmp_path / "odoo-bin-calls.log"
     fake = tmp_path / "odoo-bin"
     body = textwrap.dedent(f"""\
@@ -65,6 +69,7 @@ def _make_fake_odoo_bin(tmp_path: Path, *, exit_code: int = 0, extra_output: str
         exit {exit_code}
     """)
     _write_stub(fake, body)
+    trees.write_checkout(tmp_path, series, with_addons=False)
     return fake
 
 
@@ -1055,15 +1060,15 @@ def test_init_forwards_extra_flags(tmp_path):
         "--python", str(fake_py),
         "--addons", str(addons_dir),
         "--modules", "sale",
-        "--extra", "--without-demo=all --skip-auto-install",
+        "--extra", "--max-cron-threads=0 --skip-auto-install",
         env=env,
     )
 
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
     call_log = tmp_path / "odoo-bin-calls.log"
     call_content = call_log.read_text(encoding="utf-8")
-    assert "--without-demo=all" in call_content, (
-        f"Expected --without-demo=all forwarded: {call_content}"
+    assert "--max-cron-threads=0" in call_content, (
+        f"Expected --max-cron-threads=0 forwarded: {call_content}"
     )
     assert "--skip-auto-install" in call_content, (
         f"Expected --skip-auto-install forwarded: {call_content}"
@@ -1353,10 +1358,13 @@ def test_init_exit0_with_silent_skip_marker_is_status_error(tmp_path, failure_li
     ("17.0", "odoo"),
 ])
 def test_init_forces_log_handler_namespace_by_version(tmp_path, series, expected_ns):
-    """init must add --log-handler=<ns>.modules.loading:INFO, ns resolved from
-    --version: 'openerp' for v8-v9, 'odoo' for v10+ (the openerp->odoo rename
-    landed at the v9->v10 boundary)."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    """init must add --log-handler=<ns>.modules.loading:INFO, ns = the core
+    package of the checkout odoo-bin runs from: 'openerp' where the checkout's
+    core package is openerp/ (v8-v9), 'odoo' after the rename (v10+). Read from
+    the checkout, so --version cannot pick it: the run below passes a --version
+    that contradicts the checkout."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."',
+                                   series=series)
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -1367,7 +1375,7 @@ def test_init_forces_log_handler_namespace_by_version(tmp_path, series, expected
     res = _run(
         "init", "--db", f"nsdb{series.replace('.', '')}", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
-        "--version", series,
+        "--version", "17.0" if expected_ns == "openerp" else "8.0",
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -1410,11 +1418,12 @@ def test_init_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_pa
     ("17.0", "odoo"),
 ])
 def test_update_forces_log_handler_namespace_by_version(tmp_path, series, expected_ns):
-    """update must add --log-handler=<ns>.modules.loading:INFO, ns resolved from
-    --version: 'openerp' for v8-v9, 'odoo' for v10+ (the openerp->odoo rename
-    landed at the v9->v10 boundary) - same namespace-resolution contract as
-    init (mirrors test_init_forces_log_handler_namespace_by_version)."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    """update must add --log-handler=<ns>.modules.loading:INFO, ns = the core
+    package of the checkout odoo-bin runs from ('openerp' v8-v9, 'odoo' v10+) -
+    same contract as init (mirrors test_init_forces_log_handler_namespace_by_version),
+    with no --version at all."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."',
+                                   series=series)
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -1425,7 +1434,6 @@ def test_update_forces_log_handler_namespace_by_version(tmp_path, series, expect
     res = _run(
         "update", "--db", f"nsupddb{series.replace('.', '')}", "--python", str(fake_py),
         "--addons", str(addons_dir), "--modules", "sale",
-        "--version", series,
         env=env,
     )
     assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
@@ -2325,6 +2333,7 @@ def test_completion_marker_floor_survives_a_quieter_caller_level(tmp_path):
     STATUS=error, not merely on a missing argv token."""
     calls = tmp_path / "odoo-bin-calls.log"
     fake_bin = tmp_path / "odoo-bin"
+    trees.write_checkout(tmp_path, "17.0", with_addons=False)
     _write_stub(fake_bin, textwrap.dedent(f"""\
         echo "odoo-bin $*" >> "{calls}"
         # Odoo logs "Modules loaded." at INFO on <ns>.modules.loading; a quieter
@@ -2385,12 +2394,15 @@ def test_completion_marker_floor_survives_a_quieter_caller_level(tmp_path):
 @requires_bash
 @pytest.mark.parametrize("series", ["08.0", "09.0"])
 def test_zero_padded_legacy_series_still_resolves_the_openerp_namespace(tmp_path, series):
-    """A zero-padded v8/v9 must force `--log-handler=openerp.modules.loading:INFO`.
+    """A zero-padded v8/v9 --version must still force
+    `--log-handler=openerp.modules.loading:INFO` on a v8/v9 checkout.
 
     On the `odoo` namespace the completion-marker floor never applies to the real
     v8/v9 logger, so a green build can lose "Modules loaded." and report
-    STATUS=error."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    STATUS=error. The namespace is the checkout's core package, so no spelling
+    of --version can move it."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."',
+                                   series=series.lstrip("0"))
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -2937,6 +2949,7 @@ def _make_fake_odoo_bin_lines(tmp_path: Path, *, exit_code: int, lines) -> Path:
     body = "cat <<'ODOO_LOG_FIXTURE'\n" + "\n".join(lines) + "\nODOO_LOG_FIXTURE\n"
     body += f"exit {exit_code}\n"
     _write_stub(fake, body)
+    trees.write_checkout(tmp_path, "17.0", with_addons=False)
     return fake
 
 
@@ -3371,3 +3384,194 @@ def test_every_js_success_marker_mention_carries_its_per_scope_limit():
         "a committed file names a JS success marker without stating that it "
         "speaks for its own logger scope only:\n  " + "\n  ".join(offenders)
     )
+
+
+# ---------------------------------------------------------------------------
+# Build facts: --load / --languages / --demo are spelled by this script from
+# --version and echoed as BUILD_* facts, on init, update and test alike.
+# ---------------------------------------------------------------------------
+
+def _facts_run(tmp_path, verb, *extra, checkout="17.0", real=None):
+    """Run `verb` against a fake odoo-bin whose directory is a fixture checkout of `checkout`; with
+    `real` (a real checkout root), that checkout's own release.py and tools/config.py replace the
+    fixture's."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."', series=checkout)
+    if real is not None:
+        pkg = trees.core_package(checkout)
+        for rel in ("release.py", "tools/config.py"):
+            (tmp_path / pkg / rel).write_bytes((real / pkg / rel).read_bytes())
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir(exist_ok=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    res = _run(verb, "--db", "factsdb", "--python", str(fake_py), "--addons", str(addons_dir),
+               "--modules", "sale", *extra, env=env)
+    calls = tmp_path / "odoo-bin-calls.log"
+    argv = [line.split()[1:] for line in calls.read_text(encoding="utf-8").splitlines()
+            if "-d factsdb" in line] if calls.exists() else []
+    return res, (argv[-1] if argv else None)
+
+
+DEMO_FLAG = {  # (series, demo) -> the flag odoo-bin must receive (None: the series' default)
+    ("8.0", "off"): "--without-demo=True", ("8.0", "on"): None,
+    ("10.0", "off"): "--without-demo=True", ("10.0", "on"): None,
+    ("11.0", "off"): "--without-demo=True", ("11.0", "on"): None,
+    ("16.0", "off"): "--without-demo=True", ("16.0", "on"): None,
+    ("17.0", "off"): "--without-demo=True", ("17.0", "on"): None,
+    ("18.0", "off"): "--without-demo=True", ("18.0", "on"): None,
+    ("19.0", "off"): "--without-demo=True", ("19.0", "on"): "--with-demo",
+    ("20.0", "off"): "--without-demo=True", ("20.0", "on"): "--with-demo",
+}
+# Where the checkout declares only --without-demo (demo by default), `on` has no command-line
+# spelling (that option takes a string, and every string is truthy): the run's config file states
+# it instead, so no config value anywhere else can flip it.
+DEMO_CONF = {key: (["without_demo = False"] if key[1] == "on" and int(key[0].split(".")[0]) <= 18
+                   else []) for key in DEMO_FLAG}
+
+
+def _run_conf_lines(argv):
+    """The lines of the config file odoo-bin was handed with -c (None when it got none)."""
+    if not argv or "-c" not in argv:
+        return None
+    return Path(argv[argv.index("-c") + 1]).read_text(encoding="utf-8").splitlines()
+
+
+@requires_bash
+@pytest.mark.parametrize("series,demo", sorted(DEMO_FLAG))
+def test_demo_is_spelled_with_the_series_own_flag(tmp_path, series, demo):
+    """The flag is the one the checkout's config.py declares - never keyed on --version: the run
+    passes no --version at all."""
+    res, argv = _facts_run(tmp_path, "init", "--demo", demo, checkout=series)
+    assert res.returncode == 0, res.stderr
+    demo_flags = [a for a in argv if a.startswith("--") and "demo" in a]
+    expected = DEMO_FLAG[(series, demo)]
+    assert demo_flags == ([expected] if expected else []), argv
+    assert _run_conf_lines(argv) == ["[options]"] + DEMO_CONF[(series, demo)], argv
+    assert "BUILD_DEMO=%s" % demo in res.stdout.splitlines()
+
+
+@requires_bash
+@pytest.mark.parametrize("checkout,version", [("19.0", "17.0"), ("17.0", "19.0")])
+def test_a_version_contradicting_the_checkout_never_picks_the_demo_flag(tmp_path, checkout, version):
+    res, argv = _facts_run(tmp_path, "init", "--version", version, "--demo", "on", checkout=checkout)
+    assert res.returncode == 0, res.stderr
+    expected = DEMO_FLAG[(checkout, "on")]
+    assert [a for a in argv if a.startswith("--") and "demo" in a] == ([expected] if expected else []), argv
+
+
+# Real config.py text of each series, dropped into a fixture launcher dir (the real checkouts are
+# read-only): the flag each spells, stated independently of the reader. Up to 18.0 demo loads by
+# default (`off` needs --without-demo=True); from 19.0 it does not (`on` needs --with-demo).
+REAL_DEMO_FLAG = {"off": lambda major: "--without-demo=True",
+                  "on": lambda major: "--with-demo" if major >= 19 else None}
+
+
+@requires_bash
+@pytest.mark.parametrize("series", trees.SERIES)
+@pytest.mark.parametrize("demo", ["off", "on"])
+def test_demo_flag_on_the_real_config_of_every_series(tmp_path, series, demo):
+    real = trees.real_checkout(series)
+    if real is None:
+        pytest.skip("no Odoo %s checkout under %s" % (series, trees.CHECKOUTS))
+    res, argv = _facts_run(tmp_path, "init", "--demo", demo, checkout=series, real=real)
+    assert res.returncode == 0, res.stderr
+    major = int(series.split(".")[0])
+    expected = REAL_DEMO_FLAG[demo](major)
+    assert [a for a in argv if a.startswith("--") and "demo" in a] == ([expected] if expected else []), (series, argv)
+    conf = ["without_demo = False"] if demo == "on" and major <= 18 else []
+    assert _run_conf_lines(argv) == ["[options]"] + conf, (series, argv)
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update", "test"])
+def test_every_build_reads_only_the_config_file_the_script_wrote(tmp_path, verb):
+    """-c names a file under the state root holding nothing but [options] (and what the run
+    itself states): the operator's ~/.odoorc never reaches a build."""
+    res, argv = _facts_run(tmp_path, verb, "--version", "17.0")
+    assert argv is not None, res.stderr
+    conf = Path(argv[argv.index("-c") + 1])
+    assert conf.name == "factsdb-build.conf", "keyed by the database, overwritten in place"
+    assert conf.read_text(encoding="utf-8").splitlines() == ["[options]"]
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update", "test"])
+@pytest.mark.parametrize("loaded", [True, False])
+def test_each_build_says_whether_its_modules_finished_loading(tmp_path, verb, loaded):
+    """BUILD_MODULES_LOADED: Odoo activates --load-language before its "Modules loaded." line, so
+    that line - not a test suite's verdict - is what proves the languages were loaded."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output=(
+        'echo "Modules loaded."' if loaded else 'echo "loading 3 modules..."'), series="17.0")
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    (tmp_path / "addons").mkdir(exist_ok=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    res = _run(verb, "--db", "factsdb", "--python", str(fake_py), "--addons",
+               str(tmp_path / "addons"), "--modules", "sale", env=env)
+    assert "BUILD_MODULES_LOADED=%d" % (1 if loaded else 0) in res.stdout.splitlines(), res.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update", "test"])
+def test_load_and_languages_reach_odoo_bin_and_are_echoed(tmp_path, verb):
+    res, argv = _facts_run(tmp_path, verb, "--version", "17.0", "--load", "base,web,to_base",
+                           "--languages", "en_US,vi_VN")
+    assert argv is not None, res.stderr
+    assert "--load=base,web,to_base" in argv and "--load-language=en_US,vi_VN" in argv
+    lines = res.stdout.splitlines()
+    assert "BUILD_SERVER_WIDE_MODULES=base,web,to_base" in lines
+    assert "BUILD_LANGUAGES=en_US,vi_VN" in lines
+    assert "BUILD_DEMO=" in lines, "no --demo given: the series' default, echoed as empty"
+
+
+@requires_bash
+def test_no_build_fact_given_adds_no_flag(tmp_path):
+    res, argv = _facts_run(tmp_path, "init", "--version", "17.0")
+    assert res.returncode == 0, res.stderr
+    assert not [a for a in argv if a.startswith(("--load", "--with", "--without"))], argv
+
+
+@requires_bash
+@pytest.mark.parametrize("drop,flags", [("demo", ("--demo", "off")),
+                                        ("port", ("--http-port", "18069")),
+                                        ("config", ())])
+def test_a_checkout_that_cannot_state_a_needed_fact_is_refused_before_odoo_runs(tmp_path, drop, flags):
+    """No series number stands in for a fact the checkout does not state: the build is refused
+    before any log is opened or odoo-bin launched."""
+    _make_fake_odoo_bin(tmp_path, series="17.0")
+    config = tmp_path / "odoo" / "tools" / "config.py"
+    if drop == "config":
+        config.unlink()
+    else:
+        needle = "demo" if drop == "demo" else "-port"
+        config.write_text("\n".join(ln for ln in config.read_text().splitlines() if needle not in ln),
+                          encoding="utf-8")
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=tmp_path / "odoo-bin")
+    (tmp_path / "addons").mkdir(exist_ok=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(tmp_path / "odoo-bin")
+    res = _run("init", "--db", "factsdb", "--python", str(fake_py), "--addons", str(tmp_path / "addons"),
+               "--modules", "sale", "--version", "17.0", *flags, env=env)
+    assert res.returncode == 2 and "ODOO_SOURCE_FACT_UNKNOWN" in res.stderr, (res.stdout, res.stderr)
+    assert not (tmp_path / "odoo-bin-calls.log").exists(), "nothing may run"
+    assert "LOG_PATH=" not in res.stdout, "no log is opened for a refused build"
+
+
+@requires_bash
+@pytest.mark.parametrize("checkout,flag", [("10.0", "--xmlrpc-port"), ("11.0", "--http-port"),
+                                           ("8.0", "--xmlrpc-port"), ("19.0", "--http-port")])
+def test_the_port_flag_is_the_option_the_checkout_declares(tmp_path, checkout, flag):
+    res, argv = _facts_run(tmp_path, "init", "--version", "17.0", "--http-port", "18069",
+                           checkout=checkout)
+    assert res.returncode == 0, res.stderr
+    assert [a for a in argv if a.endswith("-port")] == [flag], argv
+
+
+@requires_bash
+@pytest.mark.parametrize("bad", [("--demo", "maybe"), ("--load", "base, web"), ("--load", ""),
+                                 ("--languages", "en US")])
+def test_malformed_build_facts_are_usage_errors(tmp_path, bad):
+    res, argv = _facts_run(tmp_path, "init", "--version", "17.0", *bad)
+    assert res.returncode == 2, (bad, res.stdout, res.stderr)
+    assert argv is None

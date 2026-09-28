@@ -408,21 +408,53 @@ def test_hooks_json_registers_the_gate_and_its_matcher_reaches_bash():
 
 def test_the_hooks_json_description_does_not_undercount_the_denies():
     """A stale restatement is how a rule gets reverted: the description used to assert "exactly ONE
-    PreToolUse hard deny", which this gate makes false. Whoever changes the count must change the
-    sentence in the same commit."""
+    PreToolUse hard deny", then "exactly TWO" - each made false by the next gate (this one, then
+    block-handback-with-live-lease.sh). Whoever changes the count must change the sentence in the
+    same commit."""
     desc = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))["description"]
     denies = sum(
         1 for g in _pretooluse_groups() for h in g.get("hooks", [])
         if "block-" in h.get("command", "")
     )
-    assert denies == 2, f"the deny set changed ({denies}) - update the description below too"
-    assert "exactly TWO PreToolUse hard denies" in desc, (
+    assert denies == 3, f"the deny set changed ({denies}) - update the description below too"
+    assert "exactly THREE PreToolUse hard denies" in desc, (
         "the description must state the ACTUAL number of PreToolUse hard denies; a stale count is "
         f"the restatement that outlives its definition: {desc[:400]!r}"
     )
     assert "block-unowned-lease-mutation.sh" in desc, (
         "the description must name this gate, or a reader auditing the hook set will miss it"
     )
+
+
+def test_the_hooks_json_description_attributes_command_segmenting_to_the_right_denies():
+    """Review finding 3: next to "exactly THREE PreToolUse hard denies" the description said "Both
+    PreToolUse denies segment the command" - a count word left over from when there were two. Only
+    the denies that SOURCE hooks/command-segments.sh segment anything (the SubagentHandback gate
+    parses a report, not a command). Read that set from the scripts, not from this test."""
+    desc = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))["description"]
+    hooks_dir = HOOKS_JSON.parent
+    denies = sorted({
+        Path(h["command"].split()[-1].strip('"')).name
+        for g in _pretooluse_groups() for h in g.get("hooks", [])
+        if "block-" in h.get("command", "")
+    })
+    segmenters = [d for d in denies
+                  if "command-segments.sh" in (hooks_dir / d).read_text(encoding="utf-8")]
+    assert segmenters and len(segmenters) < len(denies), (
+        f"test premise changed: segmenters={segmenters} denies={denies}"
+    )
+    sentences = [s for s in re.split(r"(?<=[.])\s+", desc) if "command-segments.sh" in s]
+    assert len(sentences) == 1, f"expected one sentence naming command-segments.sh: {sentences}"
+    sentence = sentences[0]
+    assert not re.search(r"\b(both|all|every|each)\b[^.]*\bdenies\b", sentence, re.I), (
+        f"a blanket count word over the denies is false while only {segmenters} segment: "
+        f"{sentence!r}"
+    )
+    for d in denies:
+        if d in segmenters:
+            assert d in sentence, f"{d} segments commands but the sentence does not name it"
+        else:
+            assert d not in sentence, f"{d} does not segment commands yet the sentence claims it"
 
 
 # --------------------------------------------------------------------------- #
@@ -574,6 +606,126 @@ def test_a_synchronous_child_report_is_a_hand_up_too(tmp_path):
              _result(tid, [{"type": "text", "text": f"INSTANCE_HANDLE lease_token: {C_TOK}"}])]
     _passed(_run_a4(tmp_path, lines, tool=MCP + "lease_park",
                     tool_input={"lease_token": C_TOK, "run_id": "run-R"}))
+
+
+# A child that delivers its report through the SubagentHandback tool reaches its caller ONLY as a
+# PEER message - the Agent result and the task-notification then just point at it ("This agent's
+# report was delivered to you as a message from ..."). The record shapes below are the ones the
+# harness writes (observed in real transcripts): a `user` record carrying `origin` when the caller
+# is idle (async child), and an `attachment` record of type `queued_command` carrying
+# `attachment.origin` while the caller is blocked on a synchronous Agent call.
+_KID = "a7c1d2e3f4a5b6c7d"
+_POINTER = (f"This agent's report was delivered to you as a message from \"{_KID}\" "
+            "(its SubagentHandback call). Read it there; it is not repeated here.")
+
+
+def _handback_body(tok):
+    return ("[Subagent hand-back] The text below is the final report of a subagent this session "
+            "delegated to. The report follows:\n  Provisioned the instance.\n  ```continuation\n"
+            "  status: NEEDS_NEXT\n  next:\n    inputs:\n"
+            f"      INSTANCE_HANDLE: {{lease_token: {tok}, run_id: run-R}}\n  ```")
+
+
+def _peer_user_record(sender, body, handback=True):
+    origin = {"kind": "peer", "from": sender, "senderTaskId": sender, "body": body}
+    if handback:
+        origin["handback"] = True
+    return json.dumps({"type": "user", "isMeta": True, "origin": origin,
+                       "message": {"role": "user", "content": (
+                           f"Another Claude session sent a message:\n<agent-message from=\"{sender}\">\n"
+                           f"{body}\n</agent-message>")}})
+
+
+def _peer_queued_attachment(sender, body):
+    return json.dumps({"type": "attachment", "attachment": {
+        "type": "queued_command", "commandMode": "prompt", "isMeta": True,
+        "prompt": f"<agent-message from=\"{sender}\">\n{body}\n</agent-message>",
+        "origin": {"kind": "peer", "from": sender, "senderTaskId": sender, "body": body,
+                   "handback": True}}})
+
+
+def _async_launch(agent_id=_KID):
+    tid, use = _use("Agent", {"description": "provision", "prompt": "provision an instance"})
+    launched = _result(tid, [{"type": "text", "text": (
+        f"Async agent launched successfully.\nagentId: {agent_id} (internal ID)")}],
+        tool_use_result={"isAsync": True, "status": "async_launched", "agentId": agent_id,
+                         "prompt": "provision an instance"})
+    note = json.dumps({"type": "user", "origin": {"kind": "task-notification"},
+                       "message": {"role": "user", "content": (
+                           f"<task-notification>\n<task-id>{agent_id}</task-id>\n"
+                           f"<tool-use-id>{tid}</tool-use-id>\n<status>completed</status>\n"
+                           f"<result>{_POINTER}\n</result>\n</task-notification>")}})
+    return use, launched, note
+
+
+@pytest.mark.parametrize("tool", ["lease_release", "lease_park"])
+def test_a_caller_may_release_a_lease_its_async_child_handed_back_through_subagenthandback(
+        tmp_path, tool):
+    """The child provisioned C and handed it UP through SubagentHandback; the report reached the
+    caller as a peer message from the child's agentId. The caller now owns C's teardown - refusing
+    it (as "forwarded to you") strands a lease nobody may give back."""
+    use, launched, note = _async_launch()
+    lines = [_brief("run the pipeline"), use, launched, note,
+             _peer_user_record(_KID, _handback_body(C_TOK))]
+    _passed(_run_a4(tmp_path, lines, tool=MCP + tool,
+                    tool_input={"lease_token": C_TOK, "run_id": "run-R"}))
+
+
+def test_a_caller_may_release_a_lease_its_synchronous_child_handed_back_through_subagenthandback(
+        tmp_path):
+    """Synchronous child: the Agent result is only a pointer, and the report arrives as a
+    queued_command attachment while the caller is blocked on the call."""
+    tid, use = _use("Agent", {"description": "provision", "prompt": "provision an instance"})
+    done = _result(tid, [{"type": "text", "text": _POINTER}],
+                   tool_use_result={"status": "completed", "agentId": _KID,
+                                    "agentType": "general-purpose", "handback": "send"})
+    lines = [_brief("run the pipeline"), use, _peer_queued_attachment(_KID, _handback_body(C_TOK)),
+             done]
+    _passed(_run_a4(tmp_path, lines, tool=MCP + "lease_release",
+                    tool_input={"lease_token": C_TOK, "run_id": "run-R"}))
+
+
+def test_a_later_message_from_the_child_is_a_hand_up_too(tmp_path):
+    """A child's message after its handback arrives as a peer message WITHOUT the handback flag;
+    it still comes from a child this caller launched, so a token in it was handed UP."""
+    use, launched, note = _async_launch()
+    lines = [_brief("run the pipeline"), use, launched, note,
+             _peer_user_record(_KID, "Report delivered.", handback=True),
+             _peer_user_record(_KID, _handback_body(C_TOK), handback=False)]
+    _passed(_run_a4(tmp_path, lines, tool=MCP + "lease_release",
+                    tool_input={"lease_token": C_TOK, "run_id": "run-R"}))
+
+
+def test_a_peer_message_from_an_agent_this_caller_never_launched_is_not_a_hand_up(tmp_path):
+    """Only an agentId one of THIS agent's own Agent/Task calls launched is its child. A peer
+    message from anyone else - here its own caller, messaging it mid-flight - forwards the token
+    DOWN, and the refusal must say so."""
+    use, launched, note = _async_launch()
+    lines = [_brief("run the pipeline"), use, launched, note,
+             _peer_user_record("a0000000000stranger", _handback_body(P_TOK), handback=False)]
+    reason = _denied(_run_a4(tmp_path, lines, tool=MCP + "lease_release",
+                             tool_input={"lease_token": P_TOK, "run_id": "run-R"}))
+    assert "forwarded to you" in reason, (
+        "a peer message from a non-child is text this agent was GIVEN - word it as forwarded"
+    )
+
+
+def test_a_hand_up_is_never_worded_as_a_forwarded_brief(tmp_path):
+    """The child's handback carries the token it handed UP. Even when the caller's own brief ALSO
+    names that token, the hand-up wins; and a hand-up record alone is never brief text."""
+    use, launched, note = _async_launch()
+    lines = [_brief("run the pipeline"), use, launched, note,
+             _peer_user_record(_KID, _handback_body(C_TOK))]
+    tpath = tmp_path / "caller.jsonl"
+    tpath.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    script = (f'. "{PLUGIN_ROOT}/hooks/lease-correlation.sh"; '
+              f'printf "UP<<%s>>\\n" "$(_lease_handed_up_text "{tpath}")"; '
+              f'printf "BRIEF<<%s>>\\n" "$(_lease_brief_text "{tpath}")"')
+    out = subprocess.run([_BASH, "-c", script], capture_output=True, text=True, timeout=30).stdout
+    up = out.split("UP<<", 1)[1].split(">>", 1)[0]
+    brief = out.split("BRIEF<<", 1)[1].split(">>", 1)[0]
+    assert C_TOK in up, "the child's handback is text handed UP"
+    assert C_TOK not in brief, "a child's handback must never be read as the caller's brief"
 
 
 def test_forwarding_a_token_further_down_is_not_a_hand_up(tmp_path):

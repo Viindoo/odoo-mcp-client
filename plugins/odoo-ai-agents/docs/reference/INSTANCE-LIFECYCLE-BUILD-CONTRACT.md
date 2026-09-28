@@ -37,22 +37,18 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
 8. **Version bump ≠ `-u`** - migrations go through the upgrade path.
 9. **Read-only verification** - confirm `-d` target and addons-path; never run Odoo just to
    "test a guess" - query OSM/source instead.
-10. **`en_US` always active on any first `-i` (create / init / fresh test-DB).** Odoo's base/source
-    language must be loaded in every DB this contract builds, regardless of whether translation is
-    in scope for the run - union `en_US` into any `--load-language` / `i18n loadlang` call and never
-    issue one that omits it. Owned by the `odoo-instance` skill / `odoo-instance-ops` agent (SSOT:
-    `skills/odoo-instance/SKILL.md`); `odoo-i18n` enforces the same invariant independently for the
-    raw `odoo-bin` calls it issues outside this dispatch (recipe KT3:
-    `skills/odoo-i18n/references/i18n-recipe.md`).
-11. **The Viindoo server-wide set unioned into `--load` when the active profile carries it.** WHICH
-    modules that set contains is series-dependent and comes from one table
-    (`snippets/odoo-version-pivots.md` § CLI - server-wide modules); whether the profile carries
-    them is a DATA-DRIVEN probe, never hardcoded. The whole resulting `--load` is read from that
-    row - a set carried over from another series is wrong even when its modules still resolve, and a
-    partially-present set is `NEEDS_CONTEXT`, never a partial `--load`. Owned by
-    `odoo-instance-ops` (SSOT: `agents/odoo-instance-ops.md` § Server-wide modules (`--load`) on a
-    Viindoo profile (HARD RULE)); the `odoo-instance` skill threads the resolved `PROFILE` through
-    its dispatch brief.
+10. **Build facts are applied by the tools, never composed.** `instance_build` loads the series'
+    server-wide modules (core default read from the lease's checkout + the catalog row's
+    `server_wide_modules`), every requested language with `en_US` always added, and the series'
+    demo flag from its `demo` argument; `instance_serve` applies the same server-wide set. A caller
+    passes `languages`, passes `demo` on an `init` build only (a test build runs the series default),
+    and never puts those flags in `extra_args`. The rules: SSOT
+    `snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
+11. **A build's warnings are acted on before its instance is trusted.** `job_wait` reports problems
+    a build logged without failing. A module Odoo says must be loaded server-wide means the catalog
+    row is incomplete: fix the row (`/odoo-ai-agents:odoo-setup refresh`, or the operator adds the
+    module), then release the lease and acquire a new one - the set is fixed at acquire. Owned by
+    `odoo-instance-ops` (§ Demo, languages and server-wide modules (HARD RULE)).
 12. **Lint modules installed, not just tagged, on any test-run build.** A `--test-enable` build must
     UNION the present lint module(s) into the `-i`/`-u` install list from the same probe that
     appends their tag to `--test-tags`, and must confirm from the log that each tagged module really
@@ -151,12 +147,11 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` (SSOT). Owned by
     `scripts/setup-steps/55-instance-ops.sh` (build path) and `scripts/setup-steps/50-instance-spinup.sh`
     (listener conf); the resolution logic itself lives only in `scripts/lib/resource_limits.sh`.
-16. **Demo data decided by the build's PURPOSE, not by habit.** The `DEMO:` field states what the
-    build NEEDS; which flag (or none) expresses that need moves across the span, so the two are
-    resolved together and never one alone. The purpose-to-demo mapping, and the one prohibition -
-    an automation-test build never carries demo on a series where demo defaults OFF, and such a
-    request is REFUSED rather than honoured - live in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
-    § Demo data by build PURPOSE. The enable-flag takes no value; a `=<value>` form fails at option
-    parsing before the database is touched. Owned by `odoo-instance-ops` (SSOT:
-    `agents/odoo-instance-ops.md` § Demo data on a build (HARD RULE)); the `odoo-instance` skill
-    threads `DEMO:` through its dispatch brief.
+16. **Demo data decided by the build's PURPOSE, not by habit.** The `DEMO:` field states what an
+    `init` build NEEDS and reaches `instance_build` as `demo`; the tool spells the series' flag. An
+    `update` or `test` build takes no `demo` (any value is refused): a test build runs the series
+    default read from the checkout, and on a series whose default loads none it refuses a database
+    that holds demo data (`TEST_DB_HAS_DEMO`). The purpose-to-demo
+    mapping lives in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE.
+    Owned by `odoo-instance-ops` (§ Demo, languages and server-wide modules (HARD RULE)); the
+    `odoo-instance` skill threads `DEMO:` through its dispatch brief.

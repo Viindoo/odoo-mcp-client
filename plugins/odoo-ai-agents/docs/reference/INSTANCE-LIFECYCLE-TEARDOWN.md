@@ -48,8 +48,15 @@ database (`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
 
 1. **The agent's own exit** - the graceful path: release, park or forward by name
    (`INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`'s checklist + `resource-teardown-contract.md` T1/T3).
-2. **`SubagentStop` hard block** (`hooks/enforce-teardown.sh`) - the one hard-blocking gate. It
-   checks only the LIVE, non-shared lease TOKENS this subagent itself obtained, read from its own
+2. **Report-time hard gates** - one check at two moments, shared through `hooks/teardown-check.sh`.
+   A report handed back through `SubagentHandback` reaches the caller the moment the call runs,
+   before the subagent stops, so the check runs there first: the PreToolUse deny
+   `hooks/block-handback-with-live-lease.sh` refuses the handback, and a refused one delivers
+   nothing - the agent takes an exit and calls it again. The `SubagentStop` block
+   (`hooks/enforce-teardown.sh`) is the backstop for a lease obtained after the handback and for a
+   report delivered as final text. Both read the report the caller actually receives - the
+   handback message, else the final message (`hooks/final-report.sh`). They
+   check only the LIVE, non-shared lease TOKENS this subagent itself obtained, read from its own
    transcript: the results of its own `lease_acquire` and `lease_adopt` calls, a series-mode
    `instance_serve` that reported `state: launched` (an `attached` serve joined another run's server
    and is not obtaining; the shared lease a launch registers is exempt as multi-reader), and
@@ -57,9 +64,11 @@ database (`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
    ownership gate: `hooks/lease-correlation.sh`). Serving or resuming a FORWARDED token is
    consumption, not obtaining - that lease stays its provider's. It never correlates by `run_id` or
    a time window; `run_id` is shared by the parent and every sibling. Whether such a lease is still live comes from the allocator's own verdict
-   (`list --with-verdict`); a released or parked lease passes. At any turn end it blocks until the
-   lease is released, parked, or handed off by a named `INSTANCE_HANDLE` forward - status-blind,
-   including `BLOCKED` / `NEEDS_CONTEXT`. Browser findings are ADVISORY only on both `SubagentStop`
+   (`list --with-verdict`); a released or parked lease passes. They refuse until each such lease is
+   released, parked, or handed off by a named `INSTANCE_HANDLE` forward that carries THAT lease's
+   token in the report's `continuation` fence (per lease: one forwarded handle never clears a second
+   live lease) - status-blind, including `BLOCKED` / `NEEDS_CONTEXT`. After a delivered handback
+   the report is final, so the `SubagentStop` block then offers release or park only. Browser findings are ADVISORY only on both `SubagentStop`
    and `Stop` - see `resource-teardown-contract.md` "Why browsers and instances are enforced
    differently".
 3. **`SessionEnd` backstop** (`hooks/session-end-gc.sh`) - scoped to the ENDING session plus
@@ -83,5 +92,5 @@ A crashed session (`-9`, OOM) runs neither layer 2 nor layer 3 for itself: its l
 protected for the grace window after their last touch (so `claude --resume` can re-anchor them) and
 are then reclaimed by the next session to end on this host.
 
-Wiring for the hooks (`SubagentStop` / `Stop` / `SessionEnd` registration) lives in
+Wiring for the hooks (`PreToolUse` / `SubagentStop` / `Stop` / `SessionEnd` registration) lives in
 `hooks/hooks.json`; this section is a map, not a copy of their internals.

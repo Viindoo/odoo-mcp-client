@@ -6,6 +6,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.2.0] - 2026-09-28
+
+### Added
+
+- `odoo-ai-agents` - **the build tools apply languages, demo data and server-wide modules
+  themselves.** Agents used to splice `--load-language`, the demo flag and `--load` into
+  `extra_args` by hand, the tool checked none of it, and every `INSTANCE_HANDLE` reported `demo` /
+  `languages_loaded` as `null`. `instance_build` now takes `languages` (the tool always adds `en_US`
+  and passes `--load-language` on every build) and `demo` (`on` / `off`); it passes `--load` = the
+  series' core default read from the lease's Odoo checkout + the catalog row's
+  `server_wide_modules` (no `--load` when the row declares none), and `instance_serve` serves the
+  same set (`served_server_wide_modules`).
+  `job_wait` reports `languages_loaded` / `languages_failed` and `warnings` - a module Odoo says
+  must be loaded server-wide (with the catalog fix to make) or demo data that failed to install. The
+  handle's `demo` and `languages_loaded` are read from the database itself (`facts_source`:
+  `database`, else the build records of every lease on it), so a forwarded database reports what it
+  really holds. New error codes: `SERVER_WIDE_CORE_UNKNOWN`, `ODOO_SOURCE_FACT_UNKNOWN`,
+  `TEST_DB_HAS_DEMO`, `DATABASE_BUSY`.
+- `odoo-ai-agents` - **`instance_i18n_export` exports translation files with Odoo's own exporter.**
+  Per module the `.pot` first, then one `.po` per language, all from one database, with the export
+  command line the lease's checkout declares (the server flag or the `i18n export` subcommand). It
+  refuses a database where an exported module lacks its demo data (`I18N_EXPORT_NEEDS_DEMO`) or a
+  language is not loaded (`I18N_LANGUAGE_NOT_LOADED`), and a module found in two addons directories
+  (`MODULE_SHADOWED`). Files keep the name the module already uses and are written exactly as Odoo
+  produced them, replaced only by a finished export; `job_wait` lists them in `exports`.
+- `odoo-ai-agents` - **each catalog row declares its server-wide modules, confirmed by the
+  operator.** `instances.toml` rows gain `server_wide_modules` - the deployment's `--load`
+  additions; Odoo's core default is read from the checkout and never listed.
+  `/odoo-ai-agents:odoo-setup` (AI-6, step `46-server-wide`) proposes the list from the addons' own
+  code, Odoo Semantic and an optional probe build's log, then records only what the operator
+  confirms, including modules detection cannot see.
+  `/odoo-ai-agents:odoo-setup refresh [--version X.Y] [--profile P]` re-derives a declared row's venv
+  facts and server-wide set without re-declaring it; catalog writes on an existing row go through one
+  upserting writer (`config_merge.py toml-upsert-instance-keys`, string arrays included).
+- `odoo-ai-agents` - **a subagent can no longer hand back its report while it holds a live lease.**
+  `SubagentHandback` delivers the report to the caller the moment it runs, before SubagentStop, so
+  the teardown gate there came after the caller already held a report whose lease was never given
+  back. A third PreToolUse hard deny, `hooks/block-handback-with-live-lease.sh`, refuses the
+  handback (a refused one delivers nothing) until each lease the subagent obtained is released,
+  parked, or forwarded in the message's own `continuation` fence; it shares its check with the
+  SubagentStop gate (`hooks/teardown-check.sh`).
+- `odoo-ai-agents` - `scripts/lib/odoo_source_facts.py` reads a series' facts from an Odoo
+  checkout's source text (never importing it): option spellings, the demo default, the core
+  `--load` default, the port option keys, the core package, the export command line, the supported
+  Python range, and the addons that declare themselves server-wide. Allocator verb `record-build`;
+  `odoo_db.py` verbs `db-facts` and `i18n-state`.
+
+### Changed
+
+- `odoo-ai-agents` - behavior callers must know:
+  - `instance_build` `demo` is required for op `init` and refused for `update` and `test`. A test
+    build always runs the series default read from the checkout; where that default loads no demo,
+    a test build on a database that holds demo data is refused (`TEST_DB_HAS_DEMO`) - build it on a
+    fresh lease. `test_mode reuse` (`-u`) is the way to re-run the tests of installed modules on
+    every series: on recent series `-i` skips an installed module and runs none of its tests.
+  - `instance_build` `extra_args` also refuses `--load`, `--load-language`, `-l` / `--language`,
+    `--with-demo` and `--without-demo` (and any accepted prefix or combined short flag of them).
+  - `instance_serve` no longer takes `load_modules`; it always serves core default + the lease's
+    declared set.
+  - `catalog_read` rows and lease rows carry `server_wide_modules`; a lease keeps the set it was
+    acquired with, so after a catalog change release the lease and acquire a new one. Lease rows
+    also carry `built` (sticky demo, union of proven languages); older readers ignore both keys.
+  - One build or export runs on a database at a time, across every lease on it: another is refused
+    with `DATABASE_BUSY` naming the running job - `job_wait` it, then call again.
+  - An Odoo the tools launch never reads the operator's `~/.odoorc`: it gets a generated config file
+    through `-c` and `$ODOO_RC`, so a `without_demo`, `data_dir` or `db_*` there no longer changes a
+    build. The database password comes only from `ODOO_PG_PASSWORD` or `~/.pgpass`.
+  - `lease_park` parks a lease that was built and never served (nothing to stop); `NOT_RUNNING` now
+    means the lease is already parked or orphaned.
+  - `scripts/lib/odoo_port_keys.sh` is removed: port option keys, the demo flag spelling and the log
+    namespace are read from the launcher's own checkout (`scripts/lib/odoo_cli_facts.sh`).
+- `odoo-ai-agents` - **the Python a venv needs is read from the Odoo checkout.** `45-venv.sh`
+  (`suggest`, `create-venv`, `record-env`) and step 40 read `MIN_PY_VERSION` / `MAX_PY_VERSION`,
+  else `python_requires`, else Debian metadata, else a Python 2 launcher shebang;
+  `odoo-python-matrix.json` answers only when no checkout is readable. `create-venv` warns when an
+  explicit `--python` lies outside the range and, with pip, looks for an in-range interpreter rather
+  than building with an out-of-range one. A series whose checkout declares Python 2 gets a Python
+  2.7 venv built with `virtualenv` (neither uv nor `-m venv` can target Python 2; exit 3 when no
+  Python 2.7 or suitable virtualenv is found).
+- `odoo-ai-agents` - **the teardown gate is per lease.** A forwarded `INSTANCE_HANDLE` clears only
+  the lease whose token it carries in the report's `continuation` fence; one handle no longer clears
+  a second live lease.
+- `odoo-ai-agents`, `git-toolkit` - **a report travels in `SubagentHandback` when the agent has it.**
+  The return-path rule (`snippets/spawner-completion-contract.md` R3, and `git-toolkit`'s
+  `snippets/completion-reporting.md`) now reads: with `SubagentHandback` in the toolset, call it once,
+  LAST and after teardown, with the full report - `continuation` fence and every forwarded
+  `INSTANCE_HANDLE` included - since only that message reaches the caller and a second call is
+  refused; otherwise the report is the final text of the turn. Every hook that reads a subagent's
+  report (teardown, continuation nudge, terminal-status telemetry, grounding) reads the handback
+  message, else the final message, from the subagent's own transcript (`hooks/final-report.sh`).
+  (`git-toolkit` 0.6.5 -> 0.6.6.)
+- `odoo-ai-agents` - **translation keeps Odoo's export as Odoo wrote it.** Every export - `.pot`
+  first, then each `.po` - comes from one build with demo data and every target language loaded,
+  through `instance_i18n_export`. After an export only `msgstr` content may change: no rewrap,
+  reorder, header or comment edit, and a missing `#. module:` comment is fixed at the source and
+  re-exported, never added by hand. An empty `msgstr` is translated, and stays empty when the
+  correct translation equals its `msgid`; the `msgid` is never written back into it (the old
+  "restore the committed entry" step did exactly that).
+- `odoo-ai-agents` - `odoo-acceptance` runs its Phase 2a automation tests on a fresh lease with the
+  series default, never on its demo-carrying acceptance cluster; `odoo-forward-port` and
+  `odoo-modules-upgrade` release their test instance once the last gate passes and let
+  `odoo-acceptance` and `odoo-i18n` build their own instances.
+
+### Fixed
+
+- `odoo-ai-agents` - **a server-wide module left out of a build went unnoticed.** The `--load` set
+  depended on an agent following a four-step lookup; a skipped step still built "successfully" with
+  one warning line in the log. The set is now applied by the tools, and `job_wait` turns that log
+  line into a warning naming the catalog row and the `refresh` call that fixes it.
+- `odoo-ai-agents` - the caller of a subagent that handed back its report through
+  `SubagentHandback` was refused (A4) when it released the lease the child handed up: that report
+  arrives as a peer message, which `hooks/lease-correlation.sh` read as part of the brief. A peer
+  message from a child the caller launched now counts as a hand-up.
+- `odoo-ai-agents` - the continuation nudge, terminal-status telemetry and grounding gate read the
+  whole session's transcript, crediting a parent's or sibling's text and OSM calls to whichever
+  subagent stopped; they now read the subagent's own.
+- `odoo-ai-agents` - the Python fallback table disagreed with the source on several series and had
+  no entry for the newest; it is corrected and consulted only when no checkout is readable.
+- `odoo-ai-agents` - setup did not recognise the oldest series' checkout (`openerp-server`,
+  `__openerp__.py`, `openerp/release.py`); discovery, the prerequisite check and every launcher
+  lookup (`_odoo_find_launcher`) now find it.
+- `odoo-ai-agents` - prose claimed the newest series dropped `--load-language` (its source still
+  declares it), and that `-i` on an installed module is a no-op.
+
 ## [7.1.0] - 2026-09-28
 
 ### Added

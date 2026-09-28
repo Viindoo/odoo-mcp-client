@@ -13,7 +13,8 @@
 # Additive sibling of enforce-grounding.sh / parse-continuation.sh in the SubagentStop
 # array - it does NOT modify or depend on either hook.
 #
-# CONTRACT (Claude Code SubagentStop): stdin JSON has transcript_path + stop_hook_active.
+# CONTRACT (Claude Code SubagentStop): stdin JSON has agent_transcript_path (the subagent's own
+# transcript - the one read here), transcript_path (the whole session's) + stop_hook_active.
 #   - HARD CONTRACT: never blocks, and never emits stdout JSON at all (no
 #     {continue:...}, no {decision:...}) - this hook is a pure side-effecting observer.
 #   - Loop-safe via stop_hook_active, for consistency with its siblings.
@@ -24,10 +25,11 @@
 #     sanctioned ONLY for read-only globs, never for a hook that writes state).
 #
 # Two signatures, either one triggers ONE appended line:
-#   S1 (strand)   - the transcript's FINAL assistant turn carries no `status:` from
-#                   DONE|NEEDS_NEXT|BLOCKED|NEEDS_CONTEXT inside a fenced
-#                   ```continuation block (same fence-parsing approach as
-#                   parse-continuation.sh, scoped to only the LAST assistant turn).
+#   S1 (strand)   - the REPORT the caller received (a delivered SubagentHandback message,
+#                   else the FINAL assistant turn's text) carries no `status:` from
+#                   DONE|NEEDS_NEXT|BLOCKED|NEEDS_CONTEXT inside a closed fenced
+#                   ```continuation block (hooks/final-report.sh, shared with
+#                   parse-continuation.sh).
 #   S2 (unexecuted tool_use) - a `tool_use` id in that same final assistant turn that
 #                   never appears as a `tool_use_id` in any tool_result anywhere in the
 #                   transcript.
@@ -42,59 +44,29 @@ INPUT="$(cat 2>/dev/null || true)"
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 [[ "$STOP_ACTIVE" == "true" ]] && _pass
 
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
-[[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || _pass
+# Shared helper: hooks/final-report.sh (which transcript, the report, the final turn).
+_FR_LIB="${BASH_SOURCE[0]%/*}/final-report.sh"
+[[ -r "$_FR_LIB" ]] || _pass
+# shellcheck source=/dev/null
+. "$_FR_LIB"
 
-# --- Isolate the FINAL assistant turn (ASSISTANT-authored only, same posture as
-# enforce-grounding.sh / enforce-teardown.sh) and, separately, every tool_result id
-# anywhere in the transcript. Both signatures below read ONLY this one final turn plus
-# the transcript-wide tool_result id set - never an earlier assistant turn, so a
-# subagent that emitted a correct terminal status several turns ago but then kept
-# going (or fired one more tool call) after it is still caught.
-RESULT="$(jq -nR '
-  [inputs | fromjson?] as $all
-  | ($all
-      | map(
-          (.message // .) as $m
-          | (($m.role // .type) // "") as $role
-          | (($m.content // []) ) as $content
-          | {role: $role, content: $content}
-        )
-      | map(select(.role == "assistant" and (.content | type) == "array" and (.content | length) > 0))
-    ) as $ass
-  | ( [ $all[]
-        | (.message // .) as $m
-        | ($m.content // [])
-        | (if type == "array" then .[] else empty end)
-        | select(.type == "tool_result")
-        | (.tool_use_id // "")
-        | select(length > 0)
-      ] ) as $resids
-  | if ($ass | length) == 0 then
-      {have_final: false, final_text: "", unresolved: []}
-    else
-      ($ass[-1].content) as $fc
-      | ([$fc[] | select(.type == "text") | (.text // "")] | join("\n")) as $ftext
-      | ([$fc[] | select(.type == "tool_use") | (.id // "")] | map(select(length > 0))) as $fids
-      | {have_final: true, final_text: $ftext, unresolved: ($fids - $resids)}
-    end
-' "$TRANSCRIPT" 2>/dev/null || true)"
-[[ -n "$RESULT" ]] || _pass
+# The subagent's OWN transcript (agent_transcript_path on SubagentStop - never the session-wide
+# transcript_path, which carries the parent's and every sibling's turns).
+TRANSCRIPT="$(_hook_transcript "$INPUT")"
+[[ -n "$TRANSCRIPT" ]] || _pass
 
-HAVE_FINAL="$(printf '%s' "$RESULT" | jq -r '.have_final // false' 2>/dev/null || echo false)"
-[[ "$HAVE_FINAL" == "true" ]] || _pass   # nothing parseable to judge - degrade silently, never assume a strand
+# The FINAL TURN is every assistant record after the last non-meta user record - not the last
+# assistant RECORD: the harness writes each content block of a turn as its own record, so the last
+# one can be a thinking-only record with no text at all. S2 reads that turn's tool_use ids; nothing
+# parseable (no assistant turn at all) -> degrade silently, never assume a strand.
+UNRESOLVED_COUNT="$(_final_turn_unresolved_count "$TRANSCRIPT")"
+[[ "$UNRESOLVED_COUNT" =~ ^[0-9]+$ ]] || _pass
 
-FINAL_TEXT="$(printf '%s' "$RESULT" | jq -r '.final_text // ""' 2>/dev/null || true)"
-UNRESOLVED_COUNT="$(printf '%s' "$RESULT" | jq -r '.unresolved | length' 2>/dev/null || echo 0)"
-
-# S1 - the LAST fenced ```continuation block in the final assistant turn (same
-# fence-parsing awk as parse-continuation.sh) must carry a terminal status. Absent
+# S1 - the LAST closed ```continuation block of the REPORT the caller received (a delivered
+# SubagentHandback message, else the final turn's text) must carry a terminal status. Absent
 # block, or a status outside the four terminal values, both count as S1.
-STATUS="$(printf '%s\n' "$FINAL_TEXT" | awk '
-  /```[ \t]*continuation/ { incont=1; next }
-  incont && /```/        { incont=0; next }
-  incont && /status:/    { line=$0; sub(/.*status:[ \t]*/,"",line); sub(/[ \t].*/,"",line); last=line }
-  END { print last }' 2>/dev/null || true)"
+FINAL_TEXT="$(_final_report_text "$TRANSCRIPT" "$(_hook_last_message "$INPUT")")"
+STATUS="$(_continuation_status "$(_continuation_block "$FINAL_TEXT")")"
 
 S1=0
 case "$STATUS" in

@@ -32,6 +32,7 @@ from pathlib import Path
 
 import pytest
 
+import odoo_tree_fixtures as trees
 from conftest import farm_path, run_and_reap
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -543,6 +544,7 @@ def _step55_env(tmp_path, *, preflight_rc, record_argv=None, record_env=None,
     odoo_bin = tmp_path / "core" / "odoo-bin"
     odoo_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     odoo_bin.chmod(0o755)
+    trees.write_checkout(odoo_bin.parent, "17.0", with_addons=False)
 
     argv_log = record_argv or (tmp_path / "odoo_bin_argv.log")
     env_log = record_env or (tmp_path / "odoo_bin_env.log")
@@ -716,6 +718,7 @@ def _step50_env(tmp_path, *, preflight_rc, pg_isready_rc=0):
     odoo_bin = core / "odoo-bin"
     odoo_bin.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     odoo_bin.chmod(0o755)
+    trees.write_checkout(core, "17.0", with_addons=False)
     # Stub `curl`, or this test asks the DEVELOPER'S MACHINE whether an instance is up. The step
     # probes http://localhost:8069 before doing anything else and short-circuits with "already up"
     # when something answers - so any Odoo listening on the default port turns these cases red with

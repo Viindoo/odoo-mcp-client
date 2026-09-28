@@ -29,3 +29,19 @@ the addons coverage assertion remains the sole protection for a wrong-but-presen
 A suite that loads a different copy of the module than the one being verified is structurally
 biased toward green: the test runs, may even pass, and proves nothing about the code under review.
 The assertion exists to catch exactly that silent substitution before the run starts, not after.
+
+## Why `demo` / `languages_loaded` are read from the database
+
+A handle is often forwarded onto a database another lease built, so the builds one lease recorded
+say nothing reliable about what the database holds. The tools read demo and the active languages
+from the database itself and fall back to the build records of every lease on it only when it
+cannot be read; `facts_source` names which answered. The same read backs the tools' own refusals
+(a test build on a demo database where the series loads none, an i18n export without demo or a
+language), so an agent plans from the handle and the tool enforces from the database.
+
+## Why one build or export per database
+
+Two Odoo processes installing, updating or exporting on one database at once race on the module
+registry and on the files they write. The tools refuse the second job and name the running one,
+so parallel workers that share a handle queue behind it instead of freeing the database by
+tearing down a lease they do not own.

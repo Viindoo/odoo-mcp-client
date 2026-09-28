@@ -41,9 +41,10 @@
 - `-u <module>` = update: re-run schema sync, reload **non-noupdate** data, run scripts in
   `migrations/`, recompute stored fields. `-u all` updates every installed module (slow).
 - Neither is needed for pure-Python logic changes - a **server restart** picks those up.
-- `-i` on an already-installed module is a no-op; to truly reset, uninstall or drop the DB. To
+- `-i` never resets an already-installed module; to truly reset, uninstall or drop the DB. To
   RE-RUN tests on a DB that already has the module installed, use
-  `-u <module> --test-enable --test-tags /<module>` (see `ODOO-TESTING.md` § Core test invocation).
+  `-u <module> --test-enable --test-tags /<module>` on every series - `-i` there runs none of its
+  tests on recent series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database; invocation: `ODOO-TESTING.md` § Core test invocation).
 - **`-i`/`-u` names modules; it does NOT bound the test run.** Odoo installs the whole dependency
   closure plus every `auto_install` match, and `--test-enable` runs the suite of everything the
   registry loaded. Pair the module list with `--test-tags` derived from it, or the run tests `base`
@@ -59,8 +60,8 @@
 3. **`-u` without `-d <DB>`** does nothing useful - always target a database.
 4. **Demo data** loads only at `-i`, and whether a build gets it is decided by PURPOSE, not habit -
    `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE owns that
-   decision and the per-series flag spelling. Whichever way the first install went, `-u` does not
-   reverse it.
+   decision, and `instance_build` spells the series' flag from its `demo` argument. Whichever way
+   the first install went, `-u` does not reverse it.
 5. **API-compat gate:** a module using a removed decorator/API (e.g. `@api.multi`) only runs on
    older versions - confirm the removal version via `api_version_diff` / `find_deprecated_usage`
    for the target before assuming it installs.

@@ -69,8 +69,10 @@ Rules:
   this file declares in its own right and which diverges from ETHOS #10's own value set (see the
   `DONE_WITH_CONCERNS` note above). Your output, in order, is
   (a) a SHORT prose summary of what you did, (b) `produced` - the real artifact paths as your
-  evidence, (c) this fenced `continuation` block. Your final message IS that report, always - never
-  send it to anyone (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3).
+  evidence, (c) this fenced `continuation` block. Your report IS that output, delivered once - as
+  the `message` of `SubagentHandback` when that tool is in your toolset, else as your final
+  message; never send it to anyone (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
+  R3).
 - `produced` is your evidence (ODOO-AI-ETHOS #10) - list the real paths you wrote.
 - **"Waiting" is never a bare statement, and a technically-shaped `blocked_reason` is not
   automatically a real one.** `status` has no `waiting` value by design - a genuine pause IS

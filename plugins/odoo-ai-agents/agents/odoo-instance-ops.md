@@ -118,8 +118,8 @@ Continuation Contract takes `status: NEEDS_CONTEXT` with the code plus its remed
 above both blocks; never re-word it or truncate it into `notes:`. `db_preflight` diagnoses a
 Postgres refusal without writing anything. The two Postgres remedies are NOT interchangeable:
 `DB_AUTH_DENIED` -> `/odoo-ai-agents:odoo-setup`, which drives `48-db-local-auth.sh apply` behind its
-own confirm gate, or `export ODOO_PG_PASSWORD=...` before the session for a managed or remote
-cluster step 48 refuses to touch; `DB_UNREACHABLE` -> start the cluster or correct
+own confirm gate, or `export ODOO_PG_PASSWORD=...` before the session (or a `~/.pgpass` line;
+`~/.odoorc` is never read) for a managed or remote cluster step 48 refuses to touch; `DB_UNREACHABLE` -> start the cluster or correct
 `db_host`/`db_port`, and setup fixes NOTHING there. NEVER run `48-db-local-auth.sh` yourself: it
 rewrites a live cluster's `pg_hba.conf` with no gate of its own, so it is routed through the human
 via `/odoo-ai-agents:odoo-setup`. A `db_auth: unknown` reading NEVER blocks: only a returned
@@ -175,144 +175,59 @@ ALWAYS reconfirm live via `cli_help` - this table is a FAST-PATH PRIOR only and 
 | Flag purpose | v8-v10 | v11-v18 | v19+ |
 |---|---|---|---|
 | Disable HTTP | `--no-xmlrpc` | `--no-http` | `--no-http` |
-| Demo data off (this row is HOW to disable demo, never WHETHER to - see § Demo data by build PURPOSE for that, and note an automation-test build does NOT disable a default-on demo) | `--without-demo=all` (the value is REQUIRED here - bare `--without-demo` is a parse error) | `--without-demo=all` (same required-value form; demo ON is default v8-v18 so this flag is how you disable it) | bare `--without-demo` - per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - demo flag the value turns OPTIONAL and BOOL-typed at this boundary, so the `=all` module-list form no longer parses (it fails the bool check and only reaches "demo off" via a logged fallback); demo is OFF by default here anyway, so the flag is usually unnecessary |
-| Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | demo defaults OFF in this column - bare `--with-demo` enables it, and the flag takes NO value, so a `=<value>` form is a parse error that kills the run before the DB is touched. Which build purposes may enable it at all: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
-| Server-wide modules (`--load` / `server_wide_modules`) | core default per series, and the Viindoo set to union into it, are ONE table: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules. Read the whole resulting `--load` from that row - never append to a remembered shorter one | same | same, plus: `cli_help` can return NO `Default:` line at all in this column (silent, not merely stale) - take the core default from that table and flag `grounded: local-source` |
 | Lint modules for test-run builds (`-i`/`-u` + `--test-tags`) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) |
-
-**Language activation** uses `--load-language=<csv>` on every series - never `-l`/`--language`,
-which only selects the export file and activates nothing. Confirm it with
-`cli_help(command='server', flag='--load-language', odoo_version='<series>')`; if that series does
-not declare it, return `NEEDS_CONTEXT` (the odoo-local tools expose no other activation path).
 
 **Flag aliases are DROPPED, not merely deprecated, at a series boundary** (`--no-xmlrpc` among them; confirm one with `cli_help(command='server', flag='<flag>', odoo_version='<series>')`). A flag the target series' `cli_help` does not list is a fatal parse error, so reconfirm every flag via `cli_help` before building any command.
 
-**Ports and connection are the tools' job.** Never put a port, database, connection, addons-path,
-config, data-dir, `-i`/`-u`, `--stop-after-init` or test switch in `extra_args` (`INVALID_ARGUMENTS`):
-`instance_build` sets them from the lease, and `instance_serve` derives the odoo.conf port keys from
-the lease's series. `cli_help` grounds only the flags you add.
+**Ports, connection and build facts are the tools' job.** Never put a port, database, connection,
+addons-path, config, data-dir, `-i`/`-u`, `--stop-after-init`, test switch, server-wide module,
+language or demo flag in `extra_args` (`INVALID_ARGUMENTS`): `instance_build` sets them from the
+lease and its own `demo` / `languages` arguments, and `instance_serve` derives the odoo.conf port
+keys and the server-wide set from the lease. `cli_help` grounds only the flags you add.
 
-**Server-wide modules on a Viindoo profile** (row above): the Viindoo set is version-dependent and is NOT the same set on every series - resolve it from the pivots row, then confirm the profile carries it, per "Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)" below. **Lint modules row**: which module(s) to union comes from `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, never from a version range you recall, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
+**Lint modules row**: which module(s) to union comes from `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, never from a version range you recall, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
 
-**CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale or silent (known gaps: v18 `--with-demo` was erroneously indexed - see OSM bug tracker; v19 `cli_help(command='server', flag='--load', odoo_version='19.0')` returns NO `Default:` line at all - live-verified). For demo and server-wide-module flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|server_wide_modules' odoo/tools/config.py`) - this is exactly how the silent-`cli_help` `--load` fallback below resolves. Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
-
-**v19 `--load` fallback (cli_help silent, HARD RULE):** when `cli_help` for `--load` on the target series returns no `Default:` line (currently only observed on v19), do NOT treat this as "no default modules load" - take the core default for that series from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules (sourced from `odoo/tools/config.py`'s `server_wide_modules` default) and flag `grounded: local-source` in the output block notes, exactly like the `--with-demo` stale-cli_help fallback above. Then union the Viindoo set for that same series per the HARD RULE below. Read the core default from the pivots row rather than carrying one forward from an earlier series: the newest core default in that table gained a module Odoo does NOT re-add for you, so a set carried forward loses it silently.
+**CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale or silent. When it is, cross-check the flag against the lease's own `odoo/tools/config.py` (bounded grep) and flag `grounded: local-source` in the output block notes. Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
 
 Source-fallback trigger: when `cli_help` for the db subcommand reports no usable flags (empty or 'no flags indexed'), read `odoo/cli/db.py` from the source checkout directly.
 
 ---
 
-## en_US - always loaded on every build (HARD RULE)
+## Demo, languages and server-wide modules (HARD RULE)
 
-`en_US` is Odoo's base/source language. For **create-instance**, **init-modules**, **run-tests**
-(`mode: fresh` only - it builds a new DB via `-i`), and **load-language**, ALWAYS activate `en_US`,
-whether or not the brief's `LANGUAGES` field mentions it. Compute
-`activation_set = {"en_US"} union {brief LANGUAGES, or empty when 'none'}` and pass
-`--load-language=<activation_set csv>` in that build's `extra_args`, confirmed per "Language
-activation" above.
+`instance_build` applies the server-wide modules, the languages (adding `en_US` to every build) and
+the series' demo flag itself; `instance_serve` applies the same server-wide set. The rules are stated
+ONCE, for every build operation below, in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
+§ Build facts the odoo-local tools apply. What they leave you to do:
 
-Even when `LANGUAGES` is `none`, still load `en_US` alone. Apply this defensively even though the
-dispatching `odoo-instance` skill also unions it - never start a build that omits `en_US`.
-Verify via `res.lang` that every code (including `en_US`) is active before reporting `status: ok`.
-
-## Server-wide modules (`--load`) on a Viindoo profile (HARD RULE)
-
-Before composing the `extra_args` for **create-instance**, **init-modules**,
-**update-modules**, and **run-tests**, detect DATA-DRIVEN (never hardcoded) whether the active
-stack is Viindoo. Pin the series (`set_active_version(odoo_version='<series>')`, Step B above),
-then resolve and PIN the profile BEFORE any probe - never call `check_module_exists` profile-less:
-
-1. **Resolve.** Take the brief's `PROFILE:` field (the dispatching `odoo-instance` skill already
-   resolved it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2). If `PROFILE:` is absent from the
-   brief, resolve the target series' VANILLA profile instead: call `list_available_profiles()`,
-   filter to profiles reporting `<series>`, and use `profile_inspect(method='summary',
-   name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root
-   ancestor chain (no parent profile layering repos on top) - that root profile is the vanilla
-   baseline; a Viindoo/customer profile for the same series is a child layer added on top of it.
-   If exactly one root candidate resolves this way, pin it. If the brief has no `PROFILE:` AND no
-   root profile resolves unambiguously (zero, or more than one, root candidate), STOP and return
-   `status: NEEDS_CONTEXT` with `blocked_reason: which profile to build against is unresolved for
-   <series>` - do NOT proceed to probe with no profile pinned (see "Unsafe degradation" below).
-2. **Pin.** Call `set_active_profile(profile_name='<resolved profile>')` once, AND pass
-   `profile_name='<resolved profile>'` explicitly on every `check_module_exists` call below - the
-   session-level pin is last-write-wins under concurrency (the same caveat that applies to the
-   version pin in Step B), so the explicit argument is the safety net that never relies on the
-   ambient pin alone.
-3. **Resolve the set for THIS series.** Read the row for the target series in
-   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules. That row
-   gives BOTH the core default and the Viindoo set to union - they are different sets on different
-   series, so a set remembered from another series is wrong even when every module in it resolves.
-4. **Probe.** For EACH module in that series' Viindoo set, call
-   `check_module_exists(name='<module>', odoo_version='<series>', profile_name='<resolved profile>')`.
-
-Then decide from the probe results as a WHOLE - the set is atomic, never partially applied:
-
-- **Every module Indexed = Yes** -> this is a Viindoo stack. Build `--load` as the whole resulting
-  value from the pivots row (core default PLUS the Viindoo set). Take the core default from that
-  row, not from a value carried over from another series.
-- **Every module Indexed = No** -> this profile does not carry THIS series' server-wide set. Do NOT
-  add `--load` at all; leave the series default untouched. Report it that way too - as the set that
-  was not found, naming it - never as a verdict that the profile "is not Viindoo": a Viindoo-named
-  profile can legitimately carry none of them, and a stack verdict you report upward is one a
-  later reader will act on.
-- **Some Yes, some No** -> STOP. Return `status: NEEDS_CONTEXT` with `blocked_reason: the Viindoo
-  server-wide set for <series> is only partially present in <profile>`, naming which modules
-  resolved and which did not. Never build a partial `--load`: a server-wide set missing one member
-  boots a registry that differs from every other build on that series, and nothing errors.
-
-Verify the final `--load` value against the current series' `cli_help` output like every other flag,
-then pass it in the build's `extra_args` AND, for any instance you serve, the same module list as
-`instance_serve`'s `load_modules` - a server launched without it boots without the boot-time patch.
-
-**Unsafe degradation (do not do this).** Live-verified: a profile-less `check_module_exists` can
-default to a Viindoo-inclusive cross-profile view and report Indexed = Yes on a build that should be
-vanilla-CE. NEVER omit `profile_name=` to "simplify" the call - resolve per step 1 and pin per step 2
-first, every time, for both this probe and the lint-module probe below.
-
-These modules must load server-wide (before the registry builds) via `--load` /
-`server_wide_modules`; installing one as an ordinary `-i` module is NOT equivalent - it misses the
-boot-time patch point.
-
-## Demo data on a build (HARD RULE)
-
-The `DEMO:` brief field says what this build NEEDS; the series decides which flag expresses it.
-Resolve both, never one alone:
-
-1. Take `DEMO:` from the brief. When it is absent on ANY build operation - **create-instance**,
-   **init-modules**, **update-modules** or **run-tests** alike - DERIVE it from the build's PURPOSE
-   via `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE, and
-   state the derivation in the output block notes rather than leaving it implicit. A `--test-enable`
-   build always matches the automation-test row whatever its `GATE_ROLE`; `GATE_ROLE` decides the
-   lint union, never the demo shape, so never read it as a purpose signal.
-   **Refuse only where the ANSWER MATTERS, never merely because no row named your build.** The table
-   ends with a catch-all for builds whose OUTPUT does not depend on demo records - a debug
-   reproduction, an ensure-up, a language activation, a bare create, a smoke run with no code change
-   - and those resolve to `off` with no flag. Refuse when the dispatch looks like one whose output
-   WOULD depend on demo (it produces a catalog, a document, a screenshot, a recording, or an
-   acceptance verdict) and you still cannot tell which row it is, on a series where demo defaults
-   OFF: STOP and return `status: NEEDS_CONTEXT`, `blocked_reason: build purpose unresolved, so demo
-   cannot be decided for <series>`. Both guesses are silently wrong for those: guessing off ships a
-   demo-less docs or translation build whose output is truncated with no error, and guessing on
-   hands demo to a build that must not have it. Where the series defaults demo ON this branch cannot
-   arise - every purpose resolves to the same "no flag" - so it costs nothing on those series.
-2. Turn it into a flag. **`DEMO: off` NEVER produces a flag, on any series** - it says the build
-   does not require demo, and no purpose in this plugin ever actively strips a demo the series loads
-   by default. Only `DEMO: on` can produce one, and only where the series does not already load demo;
-   take its spelling from the "Demo data on" row of the era table above, whose NAME, ARITY and
-   default all move across the span - never carry one spelling from one series to another. The
-   "Demo data off" row of that table is REFERENCE ONLY: it documents the disable flag's arity for a
-   caller who has some other reason to pass it, and no dispatch here emits it.
-
-Two refusals, both absolute:
-
-- **A `--test-enable` build never carries demo data on a series where demo is OFF by default.** On
-  such a series the automation-test environment does not accept demo records, so `DEMO: on` arriving
-  on that dispatch is a caller error and not a preference: return `status: NEEDS_CONTEXT`,
-  `blocked_reason: demo requested on an automation-test build for <series>`. Silently honouring it
-  would hand the suite records the gate it reproduces will not have.
-- **Never spell the enable-flag with a value.** It takes none; a `=<value>` form fails at option
-  parsing, before the database is ever touched, and the run produces no build at all.
+1. **Pass `demo` on every `init` build.** Take `DEMO:` from the brief. When it is absent, derive
+   it from the build's purpose (same file, § Demo data by build PURPOSE) and state the derivation in
+   `notes`. Refuse only where the answer matters: when the dispatch's output WOULD depend on demo (a
+   catalog, a document, a screenshot, a recording, an acceptance verdict) and you still cannot tell
+   which row it is, STOP with `status: NEEDS_CONTEXT`, `blocked_reason: build purpose unresolved, so
+   demo cannot be decided for <series>`.
+2. **Never pass `demo` on a test build.** Every `--test-enable` build runs with the series default,
+   whatever its `GATE_ROLE` (`GATE_ROLE` decides the lint union, never the demo shape): omit `demo`
+   on op `test`, and report the value the final `job_wait` returns as `demo`. A `DEMO:` field on a
+   run-tests dispatch is never applied - say in `notes` that the series default ran instead. Where
+   the series' default loads no demo, a forwarded `INSTANCE_HANDLE` whose `demo` is `true` is never a
+   `reuse` target: plan `fresh` on your own ephemeral lease and say so in `notes`. `instance_build`
+   enforces this from the database itself: it refuses a test build on any database holding demo
+   there, a forwarded one included (`TEST_DB_HAS_DEMO`): on that refusal, run `fresh` on your own
+   ephemeral lease and say so in `notes`.
+3. **Pass the brief's `LANGUAGES` as `languages`** (omit it for `none`); never add `en_US`
+   yourself. Report `languages_loaded` / `languages_failed` from the final `job_wait`. A language in
+   `languages_failed` is a `concerns:` entry (`locale <x>: load failed - log: <log_path>`), never
+   reported as loaded; the other languages of the build still count.
+4. **Act on every `job_wait` warning before you report the instance good.** A module Odoo says must
+   be loaded server-wide means the catalog row lacks it and the instance is not the deployment's:
+   report `status: error` (a build) or `tests-inconclusive` (a test run) with the warning in
+   `notes`, clear a lease you obtained, and return `NEEDS_CONTEXT` whose `blocked_reason` carries
+   the warning's remedy (the row is fixed through `/odoo-ai-agents:odoo-setup refresh` or by the
+   operator, and only a lease acquired AFTER that loads the module). A demo-data failure warning on
+   a build that asked for `demo` `on` means demo records are missing: report `status: error` with
+   the warning in `notes`, never `created`.
 
 ## Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)
 
@@ -340,40 +255,47 @@ inferred from module count, worktree path, or any other proxy:**
   NEEDS_CONTEXT`, `blocked_reason: GATE_ROLE unresolved for a test-run build - the lint-module union
   cannot be decided`. NEVER default either way: defaulting to install/tag silently reinstates the
   per-node lint gate this rule exists to remove; defaulting to skip risks a false-green
-  pre-PR lint gate that forgot to declare its own role. This is the SAME resolve-or-refuse discipline
-  the server-wide-module/profile HARD RULE above already applies to `PROFILE:` - never probe (or skip
-  probing) on an unresolved input.
+  pre-PR lint gate that forgot to declare its own role. The same resolve-or-refuse discipline applies
+  to `PROFILE:` below - never probe (or skip probing) on an unresolved input.
 
 **When `GATE_ROLE: pre-pr-lint-gate`, probe and union as follows.** Resolve and PIN the profile
-exactly as steps 1-2 of the server-wide-module HARD RULE above - brief `PROFILE:` first, else the resolved
-root/vanilla profile, else `NEEDS_CONTEXT` - never probe profile-less. Reuse the pin already
-established earlier in the same build (that HARD RULE runs first for create/init/update/
-run-tests); if this dispatch reaches the lint probe without having resolved a profile yet, run
-steps 1-2 here before probing. **The probe plays a DIFFERENT part here than it does in the
-server-wide-module rule above - do not carry that rule's shape across.** There, every module that
-comes back Indexed = Yes is unioned. Here, the SERIES picks the module name and the probe only
-confirms the pinned profile carries it, because this gate has one name below a boundary and another
-above it: two names from the same distribution unioned into one build is a defect, never
-belt-and-braces, no matter what the index answers for both. Then resolve WHICH modules this gate is made of, and probe them,
+BEFORE any probe - never call `check_module_exists` profile-less:
+
+1. **Resolve.** Take the brief's `PROFILE:` field (the dispatching `odoo-instance` skill already
+   resolved it per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2). If `PROFILE:` is absent from the
+   brief, resolve the target series' VANILLA profile instead: call `list_available_profiles()`,
+   filter to profiles reporting `<series>`, and use `profile_inspect(method='summary',
+   name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root
+   ancestor chain (no parent profile layering repos on top). If exactly one root candidate resolves
+   this way, pin it. Zero or several -> STOP and return `status: NEEDS_CONTEXT` with
+   `blocked_reason: which profile to build against is unresolved for <series>`.
+2. **Pin.** Call `set_active_profile(profile_name='<resolved profile>')` once, AND pass
+   `profile_name='<resolved profile>'` explicitly on every `check_module_exists` call - the
+   session-level pin is last-write-wins under concurrency (the same caveat as the version pin in
+   Step B). Live-verified: a profile-less `check_module_exists` can answer from a cross-profile view
+   and report a module present on a build that does not carry it.
+
+The SERIES picks the lint module name and the probe only confirms the pinned profile carries it,
+because this gate has one name below a boundary and another above it: two names from the same
+distribution unioned into one build is a defect, never belt-and-braces, no matter what the index
+answers for both. Then resolve WHICH modules this gate is made of, and probe them,
 exactly as `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` specifies - that snippet owns the
 candidate set, the one-name-per-series selection, and the stale-index rule that makes a bare probe
 insufficient. Pass `profile_name=` explicitly on every call, never relying on the ambient
 `set_active_profile` pin alone (same last-write-wins concurrency caveat as Step B). For every module
 that snippet resolves as present:
 
-1. UNION it into the build's `modules` list for this build, exactly as `en_US` is unioned into
-   the language activation set above.
+1. UNION it into the build's `modules` list for this build.
 2. Append its tag to `test_tags` (one `/<module>` per resolved module).
 
 The install set and the tag set MUST derive from the SAME probe - never tag a module you did not
 install (its tests will not load, and a green run would be a false pass). This is the two-sided
 scope rule (`${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`) applied to one more module: the
 lint modules widen BOTH sides together, they never license an untagged run. It composes with, and
-does not replace, the `en_US` HARD RULE above and the `--test-tags` selection guidance in
+does not replace, the `--test-tags` selection guidance in
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. Never decide which series carries which lint
 module from memory, and never treat a bare probe as proof it is really there - both are settled by
-`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, with the profile pinned exactly as the
-server-wide-module probe above.
+`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, with the profile pinned as above.
 
 ## Build defaults the tool applies
 
@@ -397,7 +319,7 @@ the field `false` or absent, never add it.
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool - what the build REQUIRES; absent means DERIVE it from the build purpose per the Demo HARD RULE above, never silently false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's run id - passed on every lease call below; NEVER omitted).
+**Inputs:** series, modules (list), demo (`on`/`off` - what the build REQUIRES; absent means DERIVE it from the build purpose per "Demo, languages and server-wide modules" above, never silently `off`), languages (csv; `en_US` is added by the tool), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's run id - passed on every lease call below; NEVER omitted).
 
 **Resume before you build (listening `persist:` values only - run this FIRST).** An earlier
 dispatch may have PARKED an instance for this series: its database, filestore and ports are still
@@ -412,7 +334,7 @@ paths to pick between:
 
 - **`persist: ephemeral`** (a throwaway build, no listening server):
   `lease_acquire` (`series`, mode `ephemeral`, ports 0) -> `instance_build` (op `init`, the caller's FULL
-  module set in one `modules` list, `extra_args` = the resolved language, `--load` and demo flags)
+  module set in one `modules` list, `demo`, `languages`)
   -> `job_wait` until `result` is not `timeout`. `success` -> `status: created`; anything else ->
   `status: error` with `log_path` forwarded. The lease stays yours: forward its `INSTANCE_HANDLE` to
   the caller as the named catcher, or release it when the brief says the build was the whole job.
@@ -425,11 +347,10 @@ paths to pick between:
   1. `lease_acquire` - `series`, mode `ephemeral` (the allocator mode this `persist` value maps onto), ports 1
      (2 only under prefork - Step D's port rule decides it; a browser-driven phase is never the
      reason).
-  2. **Leg 1 - build.** `instance_build` (op `init`, the FULL module set in one `modules` list) ->
+  2. **Leg 1 - build.** `instance_build` (op `init`, the FULL module set in one `modules` list, `demo`, `languages`) ->
      `job_wait` to a terminal `result`. Anything but `success` ends this branch - never serve a
      failed build.
-  3. **Leg 2 - listen.** `instance_serve(lease_token, load_modules)` with the same server-wide set
-     the build used, and no `profile` (the lease's own is used). It serves the lease's own database
+  3. **Leg 2 - listen.** `instance_serve(lease_token)`, no `profile` (the lease's own is used). It serves the lease's own database
      on the lease's own port and its `url` is the instance's base URL; a lease that reserved
      no port is refused (`LEASE_HAS_NO_PORT`) - BLOCK rather than fall back to the declared/`8069`
      port or to a serve by `series`. Check that `served_addons_path` covers the modules you built.
@@ -449,7 +370,7 @@ paths to pick between:
 
 - **`persist: shared-running`** (attach to, or start, the SHARED render target for this series -
   owner-stamped so it cannot be dropped by a stranger). Do NOT call `lease_acquire`: call
-  `instance_serve(series, run_id, load_modules)`. `state: launched` = this call started the server
+  `instance_serve(series, run_id)`. `state: launched` = this call started the server
   and registered the shared lease under your `run_id`. `state: attached` = it was already running
   and `lease_token` is null unless the lease is your run's in this session. Either way the shared
   server is multi-reader and needs no teardown: never release or park it when you finish (a release
@@ -458,7 +379,6 @@ paths to pick between:
   server is up but NOT leased - tell the user.
 
 **Active wait (HARD RULE):** every build above is driven to a terminal `result` per "Active-wait on long builds" above.
-**Language activation (HARD RULE):** `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) goes in the init build's `extra_args`; `en_US` is never omitted.
 
 ### 2. drop-instance
 
@@ -503,16 +423,15 @@ unblock your own call.
 
 Install one or more modules into an existing Odoo database.
 
-**Inputs:** series, db name or `INSTANCE_HANDLE`, modules (list), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional).
+**Inputs:** series, db name or `INSTANCE_HANDLE`, modules (list), demo (`on`/`off`, derived as in create-instance when absent), languages (csv; `en_US` is added by the tool), addons_path override (optional).
 
 **Mechanism.** With an `INSTANCE_HANDLE`, build on its `lease_token`. With only a db name,
 `lease_acquire` (`series`, mode `exclusive`, `db_name`, `no_create` true, ports 0) first. Then
-`instance_build` (op `init`, `modules`, `extra_args` = language, `--load` and demo flags) ->
+`instance_build` (op `init`, `modules`, `demo`, `languages`) ->
 `job_wait` to a terminal `result`. `success` is the only confirmed install; on anything else
 preserve `log_path` and surface it. Release a lease you acquired here when done (`no_create` drops
 nothing); never release the handle's.
 **Active wait (HARD RULE):** drive the build to a terminal `result` per "Active-wait on long builds" above.
-**Language activation (HARD RULE):** `--load-language=<activation_set>` in `extra_args`, exactly as create-instance above; `en_US` is never omitted.
 
 ### 4. update-modules
 
@@ -528,7 +447,7 @@ a terminal `result`. **Active wait (HARD RULE):** per "Active-wait on long build
 
 Run the Odoo test suite for one or more modules - either against a fresh ephemeral database (init+test in one pass) or by re-running on an existing database that already has the modules installed.
 
-**Inputs:** series, modules, test tags (supplied by the caller, `full`, or absent - absent means DERIVE, see "Test scope" below; it never means "run untagged"), `mode` (`fresh` | `reuse`, decided by the auto rule below when absent), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
+**Inputs:** series, modules (no demo: a test build runs the series default - rule 2 of "Demo, languages and server-wide modules" above), languages (csv, optional; `en_US` is added by the tool), test tags (supplied by the caller, `full`, or absent - absent means DERIVE, see "Test scope" below; it never means "run untagged"), `mode` (`fresh` | `reuse`, decided by the auto rule below when absent), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
 
 **Test scope (HARD RULE - every `--test-enable` build).** A build's install set (`modules`) and its
 selection set (`test_tags`) are TWO SIDES OF ONE module set and must agree. Resolve the tags
@@ -553,7 +472,7 @@ Full contract, including the SCOPING-vs-SUPPRESSION test and the exemption list:
 CALLER's blast-radius decision (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md`) - you
 never widen `--modules` yourself, and you never narrow the tags BELOW it.
 
-**Pick the mode (auto rule) - one test, on the DATABASE.** Whenever the target database (yours or a forwarded handle's) already has the scope modules installed, use `reuse` - `-i` on an installed module is a no-op that does NOT re-exercise the install path. Use `fresh` ONLY when this dispatch performs the FIRST install onto a brand-new database. `fresh` -> `-i`, `reuse` -> `-u`, passed as `instance_build`'s `test_mode`.
+**Pick the mode (auto rule) - one test, on the DATABASE.** Whenever the target database (yours or a forwarded handle's) already has the scope modules installed, use `reuse` (`-u`), which re-runs their tests on every series; `-i` on an installed module runs none of them on recent series (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database). Use `fresh` (`-i`) ONLY when this dispatch performs the FIRST install onto a brand-new database. Pass it as `instance_build`'s `test_mode`. A forwarded handle holding demo data is never a `reuse` target where the series' default loads none - rule 2 of "Demo, languages and server-wide modules" above.
 
 **Mechanism.** A test build binds an HTTP port on every series (Step D), so it always runs on a
 lease YOU acquire with ports 1, and `instance_build` binds that lease's port:
@@ -566,11 +485,10 @@ lease YOU acquire with ports 1, and `instance_build` binds that lease's port:
   on the handle's. The handle's lease stays the caller's: never release or park it. A database
   of a lease YOU hold that has a port is built on directly.
 
-Then `instance_build` (op `test`, `modules`, `test_mode`, `test_tags` resolved above - omitted
-ONLY for a `TEST_TAGS: full` run or a series with no tag filter, `log_mode` only when asked,
-`extra_args` = the `--load` set, plus `--load-language=<activation_set>` for `fresh` only, each
-flag grounded by `cli_help` and never a port flag) -> `job_wait` to a terminal `result`. Never add a
-skip-auto-install flag the caller did not ask for.
+Then `instance_build` (op `test`, `modules`, `languages`, `test_mode`, no `demo`, `test_tags` resolved
+above - omitted ONLY for a `TEST_TAGS: full` run or a series with no tag filter, `log_mode` only
+when asked, `extra_args` only for a flag grounded by `cli_help` and never a port flag) ->
+`job_wait` to a terminal `result`. Never add a skip-auto-install flag the caller did not ask for.
 **Active wait (HARD RULE):** per "Active-wait on long builds" above - the ONLY completion signal is the run's own verdict; a per-test failure seen in the log is MID-RUN evidence, never a reason to stop waiting.
 
 The final `job_wait` carries `test_result` and `summary` (`TEST_FAILED`, `TEST_ERROR`,
@@ -643,8 +561,8 @@ lease whose session ended.
   but a `parked_lease` exists -> `status: parked` with its db and ports (and token when yours) - never `down`, which tells
   the caller its data is gone. Neither -> `status: down`.
 - **Spin-up requested:** a `parked_lease` -> operation 9, resume-instance. Already `up` -> report it.
-  Otherwise run Step B (pin version, ground the server-wide set) and `instance_serve(series, run_id,
-  load_modules)`; it blocks until HTTP answers - do NOT call `lease_acquire` for an ensure-up.
+  Otherwise `instance_serve(series, run_id)`; it blocks until HTTP answers - do NOT call
+  `lease_acquire` for an ensure-up.
   The shared-server rule of operation 1's `shared-running` applies.
 
 ### 7. load-language
@@ -655,33 +573,23 @@ Activate one or more locales in an existing Odoo database so the UI renders in t
 **Inputs:** series, db name or `INSTANCE_HANDLE`, languages (csv locale codes, e.g. `vi_VN,fr_FR`).
 
 **Mechanism.** Run Steps A-D (an existing database: the handle's lease, else `lease_acquire`
-(`series`, mode `exclusive`, `db_name`, `no_create` true, ports 0)). Union `en_US` into the locale set first (HARD
-RULE) - even if the caller's `languages` omits it. Then `instance_build` (op `init`, `modules`
-`["base"]`, `extra_args` = `--load-language=<csv>`) -> `job_wait` to a terminal `result`. Installing
-`base` again loads the locales without installing new modules. `--load-language` ACTIVATES the
-locale in the DB (`res.lang`); `-l`/`--language` ONLY selects which .po file to export. Never
-substitute one for the other.
+(`series`, mode `exclusive`, `db_name`, `no_create` true, ports 0)). Then `instance_build` (op
+`init`, `modules` `["base"]`, `languages` = the caller's codes, `demo` per the "anything whose
+output does not depend on demo" purpose row) -> `job_wait` to a terminal `result`. Installing `base`
+again loads the languages without installing new modules.
 
-**Verify activation:** After loading, confirm each locale is active via
-`mcp__odoo__search_records` on model `res.lang` with domain
-`[('code', '=', '<lang>'), ('active', '=', True)]`. If the live Odoo MCP is unavailable, grep
-the log for `Loaded <lang>` as a weaker signal and flag
-`grounded: log-signal (not live-verified)` in the output notes.
-
-**Per-locale degradation:** If a locale fails to activate, emit a `concerns:` entry
-(`locale <x>: load failed - log: <log_path>`) and continue loading remaining
-locales. Never abort the entire run for one failing locale.
-
-**Output block:** include `languages_loaded: [<locales confirmed active>]`; include
-`languages_failed: [<locales that did not activate>]` when non-empty.
+**Report what the build proved.** `languages_loaded` and `languages_failed` come from the final
+`job_wait`. A failed locale is a `concerns:` entry (`locale <x>: load failed - log: <log_path>`);
+the others still count, so never abort the run for one failing locale. Put both lists in the output
+block (`languages_failed` when non-empty).
 
 ### 8. park-instance
 
-SUSPEND a running instance: stop its server, keep its database, filestore and ports for a later
-resume. This is the third teardown exit (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+SUSPEND an instance - running, or built and never served: stop its server if it has one, keep its
+database, filestore and ports for a later resume. This is the third teardown exit (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
 T1 § The three exits) and the state named `persist: exclusive-parked` in
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5. It frees the SAME RAM a release
-frees and destroys nothing.
+would free and destroys nothing.
 
 **Inputs:** the token of a lease THIS dispatch obtained, optional park budget in seconds. A token
 that only arrived in your brief is refused by the ownership gate as forwarded: its owner parks it
@@ -701,8 +609,8 @@ Bring a PARKED instance back to running on its own database, filestore and ports
 
 **Inputs:** series, `run_id`. The coordinates come from `lease_find`, never from the caller.
 
-**Mechanism.** Run Steps A-B (the serve needs this series' server-wide set). Do NOT call
-`lease_acquire` - a second acquire would mint a second database.
+**Mechanism.** Run Step A. Do NOT call `lease_acquire` - a second acquire would mint a second
+database.
 
 1. `lease_find(series, state parked, run_id)`. `found=false` -> `status: down`; a caller that
    wanted an instance is routed to operation 1, create-instance. A found lease with `yours: false`
@@ -715,7 +623,7 @@ Bring a PARKED instance back to running on its own database, filestore and ports
    the token is only one you FOUND - you could not park or release the server you start, and
    another session's parked lease is refused outright (`LEASE_NOT_ADOPTED`). A refused adopt:
    report it and do not serve.
-3. `instance_serve(lease_token, load_modules)`, no `profile` - it resumes the parked lease
+3. `instance_serve(lease_token)`, no `profile` - it resumes the parked lease
    (`resumed=true`) and returns its `url`. On success report `status: up`. The running server is now
    yours to tear down like any lease you obtained: park, release or hand it off before your
    terminal status.
@@ -728,10 +636,9 @@ never re-run the same serve hoping for a different answer.
 
 When provisioning for documentation capture (`CONTEXT: doc` in the brief), pass all three in the
 SAME `instance_build` init to produce a clean instance - target module and its direct `depends[]`
-only, no auto_install noise: the demo-on flag (only where the series does not load demo by
-default - the "Demo data on" row above), `--load-language=<csv_locales>`, and the skip-auto-install
-flag where `cli_help` lists it. Resolve every flag name via
-`cli_help(command='server', odoo_version='<series>')` first.
+only, no auto_install noise: `demo` `on`, `languages` = the capture locales, and the
+skip-auto-install flag in `extra_args` where `cli_help(command='server', odoo_version='<series>')`
+lists it.
 
 Use the skip-auto-install flag unconditionally for `CONTEXT: doc` - the instance must render ONLY
 the target module, never menus/views pulled in by another module's `auto_install`.
@@ -774,7 +681,8 @@ released via operation 2. `PORT_POOL_EXHAUSTED` is answered by releasing or park
 hold, never someone else's.
 
 **Instance isolation is mandatory:** each ephemeral DB is fully independent. NEVER share a
-mutable DB across concurrent capture workers.
+mutable DB across concurrent capture workers. Workers handed ONE database follow
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
 ---
 
@@ -798,8 +706,9 @@ gevent_port: <port or null>
 db_port: <resolved port or empty>
 run_id: <owning run id or empty>
 modules_installed: [mod_a, mod_b]   # the modules THIS dispatch named; the auto_install fan-out actually loaded may be far wider - run-tests reports both figures in notes (see Scope transparency)
-languages_loaded: [<active locales - ALWAYS includes en_US for create-instance / init-modules / run-tests(fresh) / load-language>]
-demo: true | false
+languages_loaded: [<instance_handle.languages_loaded, verbatim>]   # the DATABASE's active languages
+demo: true | false | null   # instance_handle.demo, verbatim - whether the DATABASE holds demo data
+facts_source: database | leases   # instance_handle.facts_source, verbatim
 venv_python: <path>
 addons_path: <comma-separated path>
 log_path: <log_path returned by instance_build / instance_serve, verbatim>
@@ -822,7 +731,8 @@ notes: <one-line summary of any non-obvious decision or error; run-tests: ALWAYS
 ````
 
 Fill the connection fields (`db_name`, ports, `db_port`, `addons_path`, `venv_python`,
-`lease_token`, `run_id`, `log_path`, `server_pid`) from the `instance_handle` the tools returned -
+`lease_token`, `run_id`, `log_path`, `server_pid`, `demo`, `languages_loaded`, `facts_source`) from the
+`instance_handle` the tools returned - after a build, the one the final `job_wait` returned -
 never from memory. These are the multi-turn ownership + port carrier the orchestrator reads back
 into `INSTANCE_HANDLE` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) so a later
 turn releases the right instance on the right Postgres port under the right owner - forward them on
@@ -840,7 +750,7 @@ EVERY operation, not only create-instance.
 - [ ] venv built with `45-venv.sh create-venv` BEFORE acquiring when `FRESH_VENV: true` or the catalog row had no `python`; a `venv_missing: true` lease released and re-acquired after the build; `VENV_MISSING` answered by its remedy; never under a forwarded INSTANCE_HANDLE; never a system `python3`
 - [ ] DB created/dropped THROUGH Odoo (instance_build init / lease_release), never raw createdb/dropdb
 - [ ] log_path taken verbatim from the tool result and forwarded; any inspection of it was a BOUNDED grep, never a whole-file read
-- [ ] connection fields (db_port, run_id, lease_token...) filled from the returned instance_handle on every operation
+- [ ] connection fields (db_port, run_id, lease_token...) filled from the latest returned instance_handle (after a build, the final job_wait's - a build's start returns none) on every operation
 - [ ] every build was followed by job_wait as the VERY NEXT call and actively waited to a TERMINAL result - job_wait re-called while result was timeout, BLOCKED only on a NON-EMPTY progress repeated across a whole window, every response before a terminal result carrying a tool call; only `success` treated as a pass, `inconclusive` and `lost` never
 - [ ] builds ran at the tool's default `--log-level=info` unless the caller overrode it (extra_args / log_mode)
 - [ ] run-tests: test_result read on EVERY dispatch and honored over the counters; tests-passed claimed ONLY on `passed`, never inferred from all-zero counters; every `inconclusive` reported as tests-inconclusive (findings_path surfaced)
@@ -859,13 +769,13 @@ EVERY operation, not only create-instance.
 - [ ] a refused tool call answered by its remedy, never a blind retry; a refusal before launch mapped to `error` in the instance-ops block and NEEDS_CONTEXT in the Continuation Contract
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
-- [ ] build ops (create-instance / init-modules / run-tests fresh / load-language): `en_US` unioned into the activation set and loaded via --load-language EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
-- [ ] profile resolved and PINNED before any server-wide/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
-- [ ] server-wide modules: the series' Viindoo set read from `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § CLI - server-wide modules (NOT carried over from another series), every member probed with the pinned `profile_name=`, and the whole resulting `--load` taken from that same row; all-Yes -> union (build extra_args AND instance_serve load_modules), all-No -> no `--load` at all, mixed -> `NEEDS_CONTEXT` naming which resolved; `grounded: local-source` flagged when `cli_help` gives no `Default:` line
-- [ ] demo: `DEMO:` taken from the brief, else derived from the build purpose (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE) with the derivation stated in notes; flag spelled from the era table for THIS series, enable-flag never given a value; `DEMO: on` on a `--test-enable` build where demo defaults OFF -> `NEEDS_CONTEXT`, never honoured
+- [ ] build facts left to the tools: no `--load`, language or demo flag in `extra_args`; `demo` passed on every init build (from the brief, else derived from the purpose row with the derivation in notes) and never on a test build; `languages` passed as the brief gave them, `en_US` never added by hand; `languages_loaded` / `languages_failed` / `demo` reported from job_wait
+- [ ] no test build on a database holding demo data where the series' default loads none: a brief `DEMO:` on a test dispatch never applied (noted); a forwarded handle with `demo: true` never a `reuse` target there
+- [ ] every job_wait warning acted on: a server-wide-module warning -> instance not trusted, lease cleared, `NEEDS_CONTEXT` carrying the catalog remedy; a demo-failure warning -> `status: error`
+- [ ] profile resolved and PINNED before any lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
 - [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> lint modules resolved and probed per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` with the same pinned `profile_name=`, each resolved module unioned into BOTH `modules` AND `test_tags` from the same probe (never tagged without being installed), and each tagged module confirmed from the log to have actually installed and loaded its tests; `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
-- [ ] load-language: `--load-language` via an `init` of `base`; res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
-- [ ] doc-context (CONTEXT=doc): demo-on + --load-language + skip-auto-install in one init build; each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
+- [ ] load-language: an `init` of `base` with `languages`; loaded/failed locales reported from job_wait; per-locale degradation emitted rather than hard abort
+- [ ] doc-context (CONTEXT=doc): `demo` on + `languages` + skip-auto-install (from cli_help) in one init build; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] `MODE_HINT: path-incremental` brief -> `NEEDS_CONTEXT(MODE_HINT)`, nothing acquired
 - [ ] multi-instance parallel: each lease_acquire passes run_id; output block includes INSTANCE_HANDLE and forwards run_id; caller manages concurrency, forwarding, and release; no mutable DB shared across concurrent workers
 ```
@@ -888,7 +798,7 @@ checked against your own Inputs table below; the caller-side schema is
 
 (run before any work)
 Confirm the dispatch brief carries this family's required fields (`INSTANCE_HANDLE` - the handle to create/drive/report on; target series/version;
-the module list to init/update; demo-data + languages flags; `addons_path`; `RUN_ID`; for every `run-tests`
+the module list to init/update; `DEMO` (init builds only - a test build takes none) + `LANGUAGES`; `addons_path`; `RUN_ID`; for every `run-tests`
 (or test-enable `init-modules`/`update-modules`) dispatch, `GATE_ROLE` (`pre-pr-lint-gate` |
 `node-verify` - decides the lint-module union, see "Lint modules - installed ONLY for the
 designated pre-PR lint gate" HARD RULE above; absent is a load-bearing gap with NO safe default,

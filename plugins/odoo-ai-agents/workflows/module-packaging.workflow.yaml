@@ -101,8 +101,8 @@ phases:
     #     depends_in_scope, extends_in_scope) + convergence[] for branching clusters.
     #   - Inter-instance parallelism W = min(#independent instance-paths, browser-family pool,
     #     ephemeral instance cap) with within_path: sequential; a batch schedule[].
-    #   - Per-step provision flags (skip-auto-install / with-demo / load-language=<csv>), exact
-    #     spelling resolved via OSM cli_help at runtime.
+    #   - Per-step build inputs (instance_build: demo on, languages = the resolved locales,
+    #     skip-auto-install in extra_args spelled via OSM cli_help).
     # Optional brief overrides consumed if present: REDOC (cross-run re-doc), MAX_CLUSTER_MODULES
     # (split threshold, default ~6), purity (strict-branch | fresh-per-module).
     # OSM-verify the disk edges opportunistically (trust-but-verify) with the CONCRETE version.

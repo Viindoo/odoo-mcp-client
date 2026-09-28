@@ -8,10 +8,28 @@
 ## Why R3 states the whole return path inline rather than citing it
 
 Every earlier revision of this rule assumed a reply address the runtime never provides, and each
-repair re-specified the address instead of removing it. R3 now states the one action (emit the
-report as your final message) in full, in the SSOT itself, because a rule that is only cited drifts
-the moment a consumer restates it - which is exactly how the address-shaped versions survived
-repeated corrections.
+repair re-specified the address instead of removing it. R3 now states the one action in full, in
+the SSOT itself (hand the report over once, after teardown - as the `SubagentHandback` message when
+that tool exists, else as the final text of the turn), because a rule that is only cited drifts the
+moment a consumer restates it - which is exactly how the address-shaped versions survived repeated
+corrections.
+
+## Why SubagentHandback is called last, and once
+
+The harness hands the report over the moment `SubagentHandback` runs - before the subagent's turn
+ends, so before any SubagentStop gate can inspect it. A report delivered while a lease is still
+live leaves the caller acting on a handle that is about to disappear, and a second handback is
+refused, so there is no way to correct the report afterwards. The PreToolUse gate
+(hooks/block-handback-with-live-lease.sh) therefore refuses the call while an obtained lease is
+live and unforwarded; a refused call delivers nothing, which is why the rule says to take a
+teardown exit and call again rather than to send a follow-up.
+
+## Why R3 (a) rests on the ABSENCE of an envelope
+
+R3's "nothing inbound to answer" is stated as the absence of an envelope - a launch hands over a
+brief, so there is no `from` at all - not as "`from` is a type label". That older reason was false
+on the mechanism, and a rule resting on a checkable falsehood is overturned by the first reader who
+checks.
 
 ## Why an inferred send target is worse than no send at all
 

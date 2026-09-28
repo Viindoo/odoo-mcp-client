@@ -31,6 +31,7 @@ from pathlib import Path
 
 import pytest
 
+import odoo_tree_fixtures as trees
 from conftest import farm_path, real_python3, run_and_reap
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -54,6 +55,14 @@ requires_bash = pytest.mark.skipif(
 def _write_stub(path: Path, body: str) -> None:
     path.write_text("#!/usr/bin/env bash\n" + body, encoding="utf-8")
     path.chmod(0o755)
+
+
+def _launcher(path: Path, body: str, series: str = "17.0") -> None:
+    """A stub Odoo launcher whose directory is a fixture checkout of `series`
+    (tests/odoo_tree_fixtures.py), as a real launcher's is: the steps read the
+    checkout's option facts (main-port key, --dev shape) from its config.py."""
+    _write_stub(path, body)
+    trees.write_checkout(path.parent, series, with_addons=False)
 
 
 # Every binary that can give this plugin a PostgreSQL client surface, plus the
@@ -132,7 +141,7 @@ def _make_core_dir(tmp_path: Path, series: str = "17.0") -> Path:
     (core / "addons").mkdir(parents=True, exist_ok=True)
     # odoo-bin stub: prints a version string when called with --version
     odoo_bin = core / "odoo-bin"
-    _write_stub(odoo_bin, 'echo "Odoo Server 17.0"\n')
+    _launcher(odoo_bin, 'echo "Odoo Server 17.0"\n')
     (core / "requirements.txt").write_text("# fake requirements\n", encoding="utf-8")
     return core
 
@@ -798,7 +807,7 @@ def test_step50_validates_odoo_bin_runs_before_launch(tmp_path):
     fake_addons.mkdir(parents=True, exist_ok=True)
     fake_bin = tmp_path / "fake-core" / "odoo-bin"
     odoo_launch_log = tmp_path / "odoo-launch.log"
-    _write_stub(
+    _launcher(
         fake_bin,
         f'echo "odoo-bin launched $*" >> "{odoo_launch_log}"\nsleep 999\n',
     )
@@ -873,7 +882,7 @@ def test_step50_gate_uses_odoo_bin_version_not_import(tmp_path):
     fake_addons.mkdir(parents=True, exist_ok=True)
     fake_bin = tmp_path / "fake-core" / "odoo-bin"
     # fake_bin is also a bash stub (needed for ODOO_BIN path).
-    _write_stub(fake_bin, f'echo "odoo-bin-direct $*" >> "{odoo_launch_log}"\nexit 0\n')
+    _launcher(fake_bin, f'echo "odoo-bin-direct $*" >> "{odoo_launch_log}"\nexit 0\n')
 
     _write_stub(
         fake_py,
@@ -1006,9 +1015,9 @@ def test_step50_finds_odoo_bin_across_a_real_two_entry_addons_path(tmp_path):
     )
     out = res.stdout + res.stderr
 
-    # Must NOT report "Could not locate odoo-bin" - that would mean the scan
-    # failed to split the 2-entry INST_ADDONS_PATH correctly.
-    assert "Could not locate odoo-bin" not in out, (
+    # Must NOT report "Could not locate the Odoo server launcher" - that would
+    # mean the scan failed to split the 2-entry INST_ADDONS_PATH correctly.
+    assert "Could not locate" not in out, (
         f"_find_odoo_bin failed to resolve odoo-bin across a real 2-entry "
         f"addons_path (producer/consumer separator mismatch).\nOutput:\n{out}"
     )
@@ -1056,7 +1065,7 @@ def _make_step50_spinup_env(tmp_path: Path, *, curl_mode: str):
         exec sleep 15
     """))
     odoo_bin = tmp_path / "odoo-bin"
-    _write_stub(odoo_bin, "exit 0\n")  # only needs to be executable for _find_odoo_bin
+    _launcher(odoo_bin, "exit 0\n")  # only needs to be executable for _find_odoo_bin
 
     bind = tmp_path / "bin50"
     bind.mkdir(exist_ok=True)
@@ -1486,7 +1495,7 @@ def _make_step50_forking_env(tmp_path: Path, *, trap_term: bool):
     """) + launch_body)
 
     odoo_bin = tmp_path / "odoo-bin"
-    _write_stub(odoo_bin, "exit 0\n")  # only needs to exist for _find_odoo_bin
+    _launcher(odoo_bin, "exit 0\n")  # only needs to exist for _find_odoo_bin
     bind = tmp_path / "bin50"
     bind.mkdir(exist_ok=True)
     _write_stub(bind / "curl", 'echo "000"\n')       # never ready -> poll times out
@@ -1739,9 +1748,10 @@ def test_step50_apply_writes_log_under_odoo_ai_home(tmp_path):
 # WI-4 (b): port config key - xmlrpc_port for v8/9/10, http_port for v11+
 # ---------------------------------------------------------------------------
 
-def _make_step50_toml_for_series(tmp_path: Path, series: str) -> tuple:
+def _make_step50_toml_for_series(tmp_path: Path, series: str, checkout: str | None = None) -> tuple:
     """Return (toml_path, fake_py_path, env) for a source-mode step-50 scenario
-    where preflights pass and odoo-bin is a stub that logs launch args.
+    where preflights pass and odoo-bin is a stub that logs launch args. The
+    launcher's directory is a fixture checkout of `checkout` (default `series`).
     The scenario does NOT reach the poll step (curl always 000) - we only care
     about the generated conf, not whether the server comes up.
     """
@@ -1751,7 +1761,7 @@ def _make_step50_toml_for_series(tmp_path: Path, series: str) -> tuple:
     fake_addons = fake_core / "addons"
     fake_addons.mkdir(parents=True, exist_ok=True)
     fake_bin = fake_core / "odoo-bin"
-    _write_stub(fake_bin, f'echo "Odoo Server {series}"\n')
+    _launcher(fake_bin, f'echo "Odoo Server {series}"\n', series=checkout or series)
 
     toml = tmp_path / f"instances-{series.replace('.', '_')}.toml"
     toml.write_text(
@@ -1804,40 +1814,15 @@ def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
         series_tmp = tmp_path / series.replace(".", "_")
         series_tmp.mkdir()
         _, _, env = _make_step50_toml_for_series(series_tmp, series)
-        # Replace the curl stub with an up_after_launch variant:
-        # first probe -> 000 (triggers launch), second probe -> 200 (poll succeeds).
-        bind = series_tmp / f"bin-{series.replace('.', '_')}"
-        cnt = series_tmp / "curl.count"
-        _write_stub(bind / "curl", textwrap.dedent(f"""\
-            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
-            echo $((n + 1)) > "{cnt}"
-            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
-        """))
+        results[series] = _step50_apply_conf(series_tmp, series, env)
+    # The key is the checkout's option dest, never the series label: a 10.0 checkout declared
+    # under 17.0 still gets xmlrpc_port.
+    mixed_tmp = tmp_path / "mixed"
+    mixed_tmp.mkdir()
+    _, _, env = _make_step50_toml_for_series(mixed_tmp, "17.0", checkout="10.0")
+    results["10.0-as-17.0"] = _step50_apply_conf(mixed_tmp, "17.0", env)
 
-        res = subprocess.run(
-            ["bash", str(STEP50), "apply", "--version", series],
-            capture_output=True, text=True, env=env, timeout=30,
-        )
-        out = res.stdout + res.stderr
-        assert res.returncode == 0, (
-            f"Expected success for series={series}.\nout:\n{out}"
-        )
-        # Extract the conf path from output.
-        conf_lines = [
-            line for line in out.splitlines()
-            if "Generated conf:" in line
-        ]
-        assert conf_lines, (
-            f"No 'Generated conf' line for series={series}.\nout:\n{out}"
-        )
-        conf_path = conf_lines[0].split("Generated conf:")[-1].strip()
-        assert Path(conf_path).exists(), (
-            f"Conf file {conf_path} does not exist for series={series} "
-            f"(should NOT be cleaned up when apply succeeds)"
-        )
-        results[series] = Path(conf_path).read_text(encoding="utf-8")
-
-    for series in ("8.0", "9.0", "10.0"):
+    for series in ("8.0", "9.0", "10.0", "10.0-as-17.0"):
         conf = results[series]
         assert "xmlrpc_port" in conf, (
             f"series {series}: expected 'xmlrpc_port' in conf, got:\n{conf}"
@@ -1855,6 +1840,43 @@ def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
     )
 
 
+def _step50_apply_conf(series_tmp: Path, series: str, env: dict) -> str:
+    """Run `apply --version <series>` in a _make_step50_toml_for_series world with an
+    up-after-launch curl; return the generated conf's text."""
+    # Replace the curl stub with an up_after_launch variant:
+    # first probe -> 000 (triggers launch), second probe -> 200 (poll succeeds).
+    bind = series_tmp / f"bin-{series.replace('.', '_')}"
+    cnt = series_tmp / "curl.count"
+    _write_stub(bind / "curl", textwrap.dedent(f"""\
+        n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+        echo $((n + 1)) > "{cnt}"
+        if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+    """))
+
+    res = subprocess.run(
+        ["bash", str(STEP50), "apply", "--version", series],
+        capture_output=True, text=True, env=env, timeout=30,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, (
+        f"Expected success for series={series}.\nout:\n{out}"
+    )
+    # Extract the conf path from output.
+    conf_lines = [
+        line for line in out.splitlines()
+        if "Generated conf:" in line
+    ]
+    assert conf_lines, (
+        f"No 'Generated conf' line for series={series}.\nout:\n{out}"
+    )
+    conf_path = conf_lines[0].split("Generated conf:")[-1].strip()
+    assert Path(conf_path).exists(), (
+        f"Conf file {conf_path} does not exist for series={series} "
+        f"(should NOT be cleaned up when apply succeeds)"
+    )
+    return Path(conf_path).read_text(encoding="utf-8")
+
+
 # ---------------------------------------------------------------------------
 # Fix 5: --dev=all version gate (v8/v9 must NOT get --dev=all; v10+ must)
 # ---------------------------------------------------------------------------
@@ -1862,21 +1884,23 @@ def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
 @requires_bash
 def test_step50_dev_flag_gated_by_version(tmp_path):
     """series 8.0 and 9.0 must NOT include '--dev=all' in the launch command;
-    series 17.0 MUST include '--dev=all'.
+    series 17.0 MUST include '--dev=all' - and a 9.0 checkout declared under
+    17.0 must not either: the gate is the checkout's own --dev option.
 
-    --dev=all is a string-valued flag introduced in v10; v9 has only a boolean
-    --dev and v8 has no --dev at all. Passing --dev=all to either would raise an
-    optparse error and prevent Odoo from starting.
+    --dev=all needs a value-taking --dev (v10+); v9 has only a boolean --dev and
+    v8 has no --dev at all. Passing --dev=all to either would raise an optparse
+    error and prevent Odoo from starting.
 
     Strategy: identical to test_step50_conf_uses_xmlrpc_port_for_legacy_series -
     use an up_after_launch curl stub so the script generates the launch command and
     succeeds. Capture the 'Launching:' line from stdout and check --dev=all presence.
     """
     results = {}
-    for series in ("8.0", "9.0", "17.0"):
-        series_tmp = tmp_path / series.replace(".", "_")
+    for series, checkout in (("8.0", None), ("9.0", None), ("17.0", None), ("17.0", "9.0")):
+        label = series if checkout is None else "%s-as-%s" % (checkout, series)
+        series_tmp = tmp_path / label.replace(".", "_")
         series_tmp.mkdir()
-        _, _, env = _make_step50_toml_for_series(series_tmp, series)
+        _, _, env = _make_step50_toml_for_series(series_tmp, series, checkout=checkout)
         # up_after_launch: first probe 000 (trigger launch), second+ 200 (success).
         bind = series_tmp / f"bin-{series.replace('.', '_')}"
         cnt = series_tmp / "curl.count"
@@ -1899,10 +1923,10 @@ def test_step50_dev_flag_gated_by_version(tmp_path):
         assert launch_lines, (
             f"No 'Launching:' line for series={series}.\nout:\n{out}"
         )
-        results[series] = launch_lines[0]
+        results[label] = launch_lines[0]
 
-    # v8 and v9: --dev=all must NOT appear.
-    for series in ("8.0", "9.0"):
+    # v8 and v9 checkouts: --dev=all must NOT appear.
+    for series in ("8.0", "9.0", "9.0-as-17.0"):
         assert "--dev=all" not in results[series], (
             f"series {series}: '--dev=all' must NOT appear in launch command "
             f"(--dev=all requires v10+); got: {results[series]!r}"
@@ -2087,7 +2111,7 @@ def test_step50_shared_lease_passes_profile_to_allocator(tmp_path):
     fake_addons = tmp_path / "fake-core" / "addons"
     fake_addons.mkdir(parents=True, exist_ok=True)
     fake_bin = tmp_path / "fake-core" / "odoo-bin"
-    _write_stub(fake_bin, 'echo "Odoo Server 17.0"\n')
+    _launcher(fake_bin, 'echo "Odoo Server 17.0"\n')
 
     real_py3 = real_python3()
     py_bin_dir = tmp_path / "fake-py-bin"
@@ -2345,7 +2369,7 @@ def test_step50_preflight_cannot_hang_when_the_declared_python_hangs(tmp_path):
         while :; do sleep 1; done
     """))
     odoo_bin = tmp_path / "odoo-bin"
-    _write_stub(odoo_bin, "exit 0\n")
+    _launcher(odoo_bin, "exit 0\n")
     bind = tmp_path / "bin50"
     bind.mkdir()
     _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
@@ -2434,7 +2458,7 @@ def _docker_pg_scenario(tmp_path: Path, *, docker_body: str, curl_body: str):
         exec sleep 15
     """))
     odoo_bin = tmp_path / "odoo-bin"
-    _write_stub(odoo_bin, "exit 0\n")
+    _launcher(odoo_bin, "exit 0\n")
 
     bind = tmp_path / "bin50-docker"
     bind.mkdir(exist_ok=True)
@@ -2527,7 +2551,7 @@ def test_step50_a_probe_that_times_out_is_never_a_reachability_verdict(tmp_path,
             exec sleep 15
         """))
         odoo_bin = tmp_path / "odoo-bin"
-        _write_stub(odoo_bin, "exit 0\n")
+        _launcher(odoo_bin, "exit 0\n")
         bind = tmp_path / "bin50-native"
         bind.mkdir(exist_ok=True)
         _write_stub(bind / "curl", 'echo "000"\n')
@@ -2583,7 +2607,7 @@ def test_step50_a_tcp_only_declaration_never_consults_a_local_client(tmp_path):
         while :; do sleep 1; done
     """))
     odoo_bin = tmp_path / "odoo-bin"
-    _write_stub(odoo_bin, "exit 0\n")
+    _launcher(odoo_bin, "exit 0\n")
     bind = tmp_path / "bin50-tcponly"
     bind.mkdir()
     _write_stub(bind / "curl", 'echo "000"\n')  # never ready -> the poll times out
@@ -2688,13 +2712,22 @@ def test_step45_upsert_never_leaves_a_half_written_catalog(tmp_path):
     """
     core = _make_core_dir(tmp_path)
     toml = _make_instances_toml(tmp_path, addons_path=str(core / "addons"))
+    # The step delegates to the ONE catalog writer every setup step shares; the
+    # atomicity rule is checked where the write actually happens.
     src = STEP45.read_text(encoding="utf-8")
-    upsert = src[src.index("_upsert_instance_keys() {"):src.index("# _detect_pg_facts")]
-    assert "os.replace" in upsert, (
+    wrapper = src[src.index("_upsert_instance_keys() {"):src.index("# _detect_pg_facts")]
+    assert "toml-upsert-instance-keys" in wrapper, (
+        "step 45 must record through config_merge.py's shared catalog writer"
+    )
+    lib = (ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "config_merge.py").read_text(
+        encoding="utf-8")
+    writer = lib[lib.index("def cmd_toml_upsert_instance_keys"):]
+    writer = writer[:writer.index("\ndef ", 1)]
+    assert "os.replace" in writer, (
         "the upsert must publish the new catalog with an atomic os.replace, not an "
         "in-place truncate of the host's SSOT"
     )
-    assert 'open(path, "w"' not in upsert, (
+    assert 'open(path, "w"' not in writer, (
         "the upsert must not open the catalog itself for writing (that truncates it)"
     )
     # And the mechanism must actually work end to end.
@@ -2760,7 +2793,7 @@ def _step55_env(tmp_path: Path) -> dict:
 def _run55_test_verb(tmp_path: Path, *, odoo_output: str, exit_code: int = 0):
     """Run the `test` verb against a fake odoo-bin that emits `odoo_output`."""
     fake_bin = tmp_path / "odoo-bin"
-    _write_stub(fake_bin, f'cat <<"EOF"\n{odoo_output}\nEOF\nexit {exit_code}\n')
+    _launcher(fake_bin, f'cat <<"EOF"\n{odoo_output}\nEOF\nexit {exit_code}\n')
     fake_py = tmp_path / "fake-py-bin" / "python"
     fake_py.parent.mkdir(exist_ok=True)
     real = real_python3()

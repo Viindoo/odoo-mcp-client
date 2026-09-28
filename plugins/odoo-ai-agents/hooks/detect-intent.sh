@@ -253,12 +253,12 @@ fi
 # --- i18n doctrine hint ---
 # The orchestrator routes translation work without knowing how translation works, and the two facts
 # it gets wrong are BOTH silent: it hands the leaf a demo-less instance (truncated catalog) and it
-# asks for "zero untranslated entries" (which orders the leaf to overwrite deliberate
-# do-not-localise decisions). Neither shows up as an error. Gated on the Odoo anchor like every
+# asks for "zero untranslated entries" (which orders the leaf to write the msgid into entries Odoo
+# exports empty because their translation equals the source). Neither shows up as an error. Gated on the Odoo anchor like every
 # other Odoo-specific hint; fires regardless of vague/specific, because a SPECIFIC translation
 # request is exactly where the wrong instruction gets issued.
 if [ "${_odoo_anchor}" = "true" ] && [ "${_is_i18n}" = "true" ]; then
-  _i18n_hint="[i18n] Odoo translation work routes to the odoo-i18n skill, which owns the method - do not direct it. Three facts so you do not instruct against its contract: (1) the export instance MUST be built WITH DEMO DATA and with en_US + every target language active, and the .pot and every .po of a run come from that ONE build - a demo-less or reused test instance silently truncates the catalog; (2) an EMPTY msgstr is not necessarily untranslated - Odoo stores a translation equal to its source as empty, so many blanks are deliberate do-not-localise decisions and 'get untranslated to zero' is a wrong goal; (3) never ask for tests asserting translated content, labels, help text or catalog completeness - that wording changes daily and the catalog is gated by odoo-i18n's own validation. SSOT: plugin snippets/i18n-mandate-contract.md (orchestrator obligations), snippets/po-entry-semantics.md, skills/odoo-i18n/references/i18n-recipe.md."
+  _i18n_hint="[i18n] Odoo translation work routes to the odoo-i18n skill, which owns the method - do not direct it. Three facts so you do not instruct against its contract: (1) the export instance MUST be built WITH DEMO DATA and with en_US + every target language active, and the .pot and every .po of a run come from that ONE build - a demo-less or reused test instance silently truncates the catalog; (2) an EMPTY msgstr is not necessarily untranslated - Odoo exports a translation equal to its source as empty: odoo-i18n translates every empty msgstr, leaves it empty when the correct translation equals the msgid (e.g. 'ID') and writes it otherwise ('Identification' is translated), so never set 'zero empty msgstr' or 'get untranslated to zero' as the goal; (3) never ask for tests asserting translated content, labels, help text or catalog completeness - that wording changes daily and the catalog is gated by odoo-i18n's own validation. SSOT: plugin snippets/i18n-mandate-contract.md (orchestrator obligations), snippets/po-entry-semantics.md, skills/odoo-i18n/references/i18n-recipe.md."
   _osm_context="${_osm_context:+${_osm_context}\n}${_i18n_hint}"
 fi
 

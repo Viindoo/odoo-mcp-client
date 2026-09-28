@@ -33,10 +33,11 @@ subagent.
   and the chosen model.
 - A return carries: a 5-line summary + the absolute findings-file path. Nothing else.
 
-Every dispatched agent ends the same way: it emits its completion report as its FINAL MESSAGE and
-stops - `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`. There is no upward channel and no
-mode that adds one, so a leaf's result is structurally delivered to the launcher that is waiting on
-it and can never be misdelivered past `git-pipeline-lead` to the top-level context.
+Every dispatched agent ends the same way: it hands its completion report back once, as the last act
+of its dispatch - `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`. There is no addressed
+upward channel and no mode that adds one, so a leaf's result is structurally delivered to the
+launcher that is waiting on it and can never be misdelivered past `git-pipeline-lead` to the
+top-level context.
 
 ## N2 - Depth guard (anti-runaway)
 

@@ -149,17 +149,20 @@ def test_r2_forbids_done_while_a_child_is_running():
 # ---------------------------------------------------------------------------
 
 
-def test_r3_makes_the_final_message_the_only_return_path():
-    """R3 must state, in the SSOT itself, that the completion report IS the final message, that
-    it is never sent to anyone, and that a brief carrying a reply address is malformed. Weaken or
-    delete any of those and an agent is back to hunting for an address that cannot exist."""
+def test_r3_makes_the_handback_or_final_text_the_only_return_path():
+    """R3 must state, in the SSOT itself, that the completion report is handed back ONCE - as the
+    `SubagentHandback` message when that tool is in the toolset, else as the final text of the
+    turn - that it is never sent to anyone, and that a brief carrying a reply address is malformed.
+    Weaken or delete any of those and an agent is back to hunting for an address that cannot
+    exist, or ends on text that (with the handback tool present) reaches nobody."""
     text = _norm(CONTRACT_MD)
     low = text.lower()
     assert "r3" in low, "must have an R3 section"
     for marker in (
-        "your completion report is the final text of your turn",
+        "your launcher receives your completion report once, as the last act of your dispatch",
+        "`subagenthandback` is in your toolset",
+        "your report is the final text of your turn",
         "never send your report",
-        "final message",
         "is malformed",
         "at any depth",
         "the one decidable action",
@@ -387,8 +390,13 @@ def test_worker_brief_states_a_leaf_holds_no_send_target():
         )
     norm = _norm(WORKER_BRIEF_MD)
     low = norm.lower()
-    assert "your completion report is the final text of your turn" in low, (
-        "worker-brief.md must state the report IS the final text of the turn"
+    assert "your launcher receives your completion report once" in low, (
+        "worker-brief.md must state the report is handed back once (R3), not the retired "
+        "toolset-blind 'final text' rule"
+    )
+    assert "subagenthandback" in low, (
+        "worker-brief.md must tell a leaf to hand the report back through SubagentHandback when "
+        "that tool is in its toolset - text outside it reaches nobody"
     )
     assert "you hold no legal send target" in low, (
         "worker-brief.md must state POSITIVELY that a leaf holds no legal send target - a bare "

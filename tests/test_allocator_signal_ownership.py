@@ -988,25 +988,65 @@ def test_park_stops_the_owner_group_before_it_clears_the_pid(
     )
 
 
-def test_park_refuses_a_shared_lease_and_a_lease_with_no_server(harness, alloc_home):
+def test_park_refuses_a_shared_lease_and_an_already_parked_one(harness, alloc_home):
     """The two refusals, each with its OWN exit code, because the remedies differ:
     a shared render target needs no teardown and is left for its readers (3),
-    and a lease with no bound pid has no server to stop and nothing to resume
-    into (4) - which is also what makes a SECOND park on an already-parked lease
-    a refusal instead of a silently re-stamped budget."""
+    and an already-parked lease has nothing left to suspend (4) - a SECOND park
+    is a refusal instead of a silently re-stamped budget."""
     alloc = _import_allocator()
     harness.seed_lease(alloc_home, None, db_name="odoo_17_0", mode="shared")
     token = _leases(alloc_home)[0]["token"]
     assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 3, "a shared lease is never parkable"
 
-    harness.seed_lease(alloc_home, None, db_name="odoo_17_t_nopid")
-    token = _leases(alloc_home)[0]["token"]
-    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 4, "a lease with no owner pid is not RUNNING"
-
     lease = _parked_lease(alloc, alloc_home, harness)
+    parked_at = _leases(alloc_home)[0]["parked_at"]
     assert alloc.cmd_park({"token": lease["token"], "run_id": "run-A"}) == 4, (
         "an already-parked lease must be refused, not given a fresh budget"
     )
+    assert _leases(alloc_home)[0]["parked_at"] == parked_at
+
+
+def test_park_keeps_a_built_never_served_lease_as_it_stands(harness, alloc_home, capfd):
+    """A database built with --stop-after-init and never served is a RESERVED lease: no server
+    pid. It is exactly what a caller keeps past its session - the handback and teardown gates
+    offer park for it - so park must accept it: nothing to stop, the database, ports, drop fate
+    and build facts kept, the park budget stamped."""
+    alloc = _import_allocator()
+    built = {"demo": True, "languages": ["en_US", "vi_VN"]}
+    harness.seed_lease(alloc_home, None, db_name="odoo_17_t_built", mode="ephemeral",
+                       drop_on_release=True, ports=[8069, 8072], built=built)
+    token = _leases(alloc_home)[0]["token"]
+    capfd.readouterr()
+    assert alloc.cmd_park({"token": token, "run_id": "run-A", "park_ttl": "600"}) == 0
+    out, err = capfd.readouterr()
+    row = _leases(alloc_home)[0]
+    assert row["parked_at"] is not None and row["park_ttl_s"] == 600
+    assert row["owner"]["pid"] is None
+    assert (row["db_name"], row["ports"], row["drop_on_release"], row["built"]) == (
+        "odoo_17_t_built", [8069, 8072], True, built)
+    assert alloc._lease_state(row) == alloc.STATE_PARKED
+    assert "nothing was stopped" in err, err
+    assert "ALLOC_DROP_ON_RELEASE=true" in out, "the release-time fate is still reported"
+    assert alloc._condemn_reason(row) is None, "a fresh park is protected by its budget"
+
+
+def test_a_parked_never_served_lease_resumes_onto_its_first_server(
+        harness, alloc_home, tmp_path, monkeypatch):
+    """Serving a lease that was parked before it was ever served resumes it like any park: the
+    park keys go, the proven server pid is recorded."""
+    alloc = _import_allocator()
+    db = "odoo_17_t_first_serve"
+    harness.seed_lease(alloc_home, None, db_name=db, mode="ephemeral")
+    token = _leases(alloc_home)[0]["token"]
+    assert alloc.cmd_park({"token": token, "run_id": "run-A"}) == 0
+    conf = f"{tmp_path}/conf/{db}-8069.conf"
+    leader, _child = harness.spawn(
+        argv_tail=[str(_fake_odoo_bin(tmp_path)), "-c", conf, "-d", db])
+    monkeypatch.setattr(alloc, "_db_present", lambda lz, path=None: True)
+    assert alloc.cmd_resume({"token": token, "pid": leader}) == 0
+    row = _leases(alloc_home)[0]
+    assert not {"parked_at", "park_ttl_s", "parked_boot_id"} & set(row)
+    assert row["owner"]["pid"] == leader and alloc._lease_state(row) == alloc.STATE_RUNNING
 
 
 def test_park_reports_the_release_time_fate_it_deliberately_did_not_change(

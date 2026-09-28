@@ -64,6 +64,7 @@ LIB = PLUGIN / "scripts" / "lib"
 
 # The interlocked harness - reused, never re-implemented (see this module's
 # docstring), along with the two sentinels its pid interlock permits.
+import odoo_tree_fixtures as trees  # noqa: E402
 from test_allocator_signal_ownership import (  # noqa: E402
     DEAD_PID,
     FOREIGN_HOST,
@@ -375,6 +376,7 @@ def _spinup_sandbox(tmp_path: Path):
     fake_addons.mkdir(parents=True, exist_ok=True)
     fake_bin = tmp_path / "fake-core" / "odoo-bin"
     _stub(fake_bin, 'echo "Odoo Server 17.0"\n')
+    trees.write_checkout(fake_bin.parent, "17.0", with_addons=False)
 
     launch_log = tmp_path / "odoo-launch.log"
     py_bin_dir = tmp_path / "fake-py-bin"

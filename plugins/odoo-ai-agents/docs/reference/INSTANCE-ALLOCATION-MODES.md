@@ -41,8 +41,8 @@ above. Four values:
   not change that fate - it REPORTS it (`drop_on_release` in the result). The only listening value
   whose database survives release is `shared-running`, and that is the DECLARED shared database. This
   lease NEVER falls back to the declared/`8069` port.
-- `persist: exclusive-parked` -> the SAME lease as `exclusive-running` after `lease_park`: its server
-  is stopped (no RAM held) while the database, filestore and pooled ports stay reserved under a park
+- `persist: exclusive-parked` -> the SAME lease as `exclusive-running` (or one built and never
+  served) after `lease_park`: its server, if any, is stopped (no RAM held) while the database, filestore and pooled ports stay reserved under a park
   budget. A parked lease survives the end of the session that parked it. This is a STATE a lease is
   put into and taken out of (park / resume), never a value a caller requests at create time.
   `lease_find` (state `parked`, your `run_id`) finds it - the full token only when your run owns it -
@@ -67,7 +67,7 @@ them.
 - **`exclusive-running` under the tools.** The listening leg is `50-instance-spinup.sh --exclusive
   --alloc-token <token>`; `--exclusive` names which instance to LAUNCH and never makes the LEASE
   exclusive. `allocator.py acquire --mode exclusive-running` exits 2 (`USAGE`).
-- **Park / resume.** `lease_park` is `allocator.py park`: stops the proven process group, stamps
+- **Park / resume.** `lease_park` is `allocator.py park`: stops the proven process group if one runs, stamps
   `parked_at` / `park_ttl_s` / `parked_boot_id`, and the lease is judged by its park budget instead of
   the session and pid rungs (`INSTANCE-ALLOCATION-RECLAIM.md` §7.1). Resume is `allocator.py resume
   <token> --pid <new server pid>`, one locked compare-and-set; `lease_find` with state `parked` is

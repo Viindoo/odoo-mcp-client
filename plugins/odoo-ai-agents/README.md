@@ -351,13 +351,14 @@ programmatically before the visual workflow resumes.
 flowchart TD
     SETUP["/odoo-setup (one-time, interactive)"]
     SETUP --> MCPW["1 eager chrome-devtools (bundled)<br/>+ 5 opt-in families on demand<br/>(chrome-devtools-headed, playwright[-headed], pagecast[-headed])"]
-    SETUP --> CTX["instances.toml"]
+    SETUP --> CTX["instances.toml<br/>(rows + confirmed server_wide_modules)"]
 
     INST["odoo-instance skill<br/>(programmatic path)"]
     INST -->|"launch"| IOPS["odoo-instance-ops agent<br/>create / init / ensure-up"]
     INST -.->|"or run inline<br/>in caller's own context"| LOCAL
-    IOPS --> LOCAL["odoo-local MCP tools<br/>lease_acquire -> instance_build -> job_wait<br/>-> instance_serve -> lease_release / lease_park"]
+    IOPS --> LOCAL["odoo-local MCP tools<br/>lease_acquire -> instance_build -> job_wait<br/>-> instance_serve -> lease_release / lease_park<br/>(--load, languages, demo applied by the tool)"]
     LOCAL --> CTX
+    LOCAL -. "series facts" .-> SRC["Odoo checkout<br/>(read as text, never imported)"]
 
     MCPW --> SK["Visual skills ready"]
     CTX --> SK
@@ -425,10 +426,10 @@ flowchart TD
         PB --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
-    PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch)"]
-    P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>reuses the P9 instance)"]
+    PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch;<br/>released once the last P10 gate passes)"]
+    P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>odoo-i18n builds its OWN demo-loaded<br/>export instance, never the P9 one)"]
     P95 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
-    P10 --> P11["P11 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>runs BEFORE the P12 PR opens or its review runs"]
+    P10 --> P11["P11 - End-to-end acceptance<br/>(odoo-acceptance, on its own demo-carrying<br/>instance) - MANDATORY cluster-wide,<br/>narrow-escape only; runs BEFORE the P12 PR<br/>opens or its review runs"]
     P11 --> P12["P12 - PR + code-review<br/>(mandatory for new engines);<br/>pushes + opens the PR only after P11 acceptance<br/>and this phase's own diff-based review clear"]
     P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
 ```
@@ -444,10 +445,10 @@ flowchart TD
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
 | P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit (the git merge stays one-commit-per-target-commit; the 8a test-adapt worker is launched once per module and resumed by the id that launch returned for every later commit touching it - 8b code-adapt closes the same way) | - |
-| P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
-| P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
+| P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch; every batch reuses it, and the pipeline releases it once the last P10 gate passes | Per-batch | - |
+| P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; dispatches `odoo-i18n` once, which builds its OWN demo-loaded export instance on the batch worktree - never the P9 test instance, whose database lacks demo terms (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
-| P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the sibling run-harness Pre-PR tail - the Terminal stage order constant, `skills/run-harness/references/run-integration.md` § Pre-PR tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
+| P11 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch, with no instance handle - it provisions its own demo-carrying cluster; MANDATORY, cluster-wide, narrow-escape only; runs BEFORE P12 opens the PR or runs its review (same order as the sibling run-harness Pre-PR tail - the Terminal stage order constant, `skills/run-harness/references/run-integration.md` § Pre-PR tail) | - | L2 (human) - verdict carried into the P12 human-merge decision |
 | P12 PR + code-review | Push + open PR only after P11 acceptance and this phase's own diff-based review clear; mandatory code-review for new engines; bot-comment cross-check runs post-PR (the one sub-step that genuinely needs an open PR) | - | - |
 
 ### Git-rebase pipeline (`/odoo-git-rebase`)
@@ -559,10 +560,10 @@ flowchart TD
         FX --> RV
     end
 
-    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, one dependency<br/>level at a time)"]
+    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, one dependency<br/>level at a time; released once all green)"]
     P5 -->|"red level -> debugger -> back to P4"| P4
-    P5 -->|"all levels green"| P57["P5.7 - i18n reconcile<br/>(MANDATORY, narrow escape only)"]
-    P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only"]
+    P5 -->|"all levels green"| P57["P5.7 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>own demo-loaded export instance)"]
+    P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only;<br/>own demo-carrying instance"]
     P58 --> P6["P6 - Gate (STOP, human sign-off)"]
     P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
     P7 --> DONE(["Done - <ISOLATE_DIR>/modules-upgrade/"])
@@ -582,9 +583,9 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 | P3 Plan Mode gate | EnterPlanMode / ExitPlanMode; per-DELETE confirmation before any file deletion | - | STOP - human approve |
 | P4 Adapt | Per module in dep order; child worktrees; odoo-coding; P1d blockers[] prepended as preemptive fix list; manifest bump profile-gated | Serial per module | - |
 | P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
-| P5 Install + test gate | Ephemeral instance; one dependency level at a time (no separate framework-validation phase); demo shape follows the automation-test row of `snippets/odoo-version-pivots.md`; red level loops back to P4 via debugger | Per level | - |
+| P5 Install + test gate | Ephemeral instance; one dependency level at a time (no separate framework-validation phase); a test build runs the series' own demo default, applied by `instance_build`; red level loops back to P4 via debugger; released once every level is green - P5.7 and P5.8 never reuse it | Per level | - |
 | P5.7 i18n reconcile | MANDATORY for every surviving module, narrow escape only (not gated on content diff - the `.pot`/`.po` tooling changes across a major series regardless); load existing .po into a fresh instance + re-export + git-ops diff-review (never blind-regenerate) | - | - |
-| P5.8 Acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole cluster; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the P6 sign-off | - | L2 (human) - combined with P6 sign-off |
+| P5.8 Acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole cluster, with no instance handle - it provisions its own demo-carrying cluster; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the P6 sign-off | - | L2 (human) - combined with P6 sign-off |
 | P6 Gate | Human sign-off after all levels green | - | STOP - human confirm |
 | P7 PR + FINAL dep-order review | Open PR; Runbot parity gates + convention-compliance pass; mandatory final dep-order code-review; no cluster-squash (per-module consolidation to 1 clean commit per module allowed) | - | - |
 
@@ -632,7 +633,7 @@ flowchart TD
 | P2 Walkthrough | `odoo-doc-walkthrough` -> happy-path walkthroughs | Part of P1-P4 fanout | optional |
 | P3 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, written directly to static/description/, then committed via git-toolkit:git-ops | Part of P1-P4 fanout (independent) | - |
 | P4 Copy | `odoo-content-draft` -> Apps Store copy + description | Part of P1-P4 fanout | - |
-| P5 provision-capture (FUSED) | `odoo-instance` + `odoo-doc-illustration` + `git-ops` per instance-path; incremental install leaf-first -> doc -> commit per module | Parallel ACROSS paths (<=W); sequential WITHIN | YES (per-path serial) |
+| P5 provision-capture (FUSED) | `odoo-instance` + `odoo-doc-illustration` + `git-ops` per instance-path; incremental install leaf-first (each an `instance_build` op `init` with `demo` on and the resolved locales as `languages`) -> doc -> commit per module | Parallel ACROSS paths (<=W); sequential WITHIN | YES (per-path serial) |
 | P6 Manifest audit | Inline: audit __manifest__.py summary/website/category vs catalog; flag drift | - | - |
 | P7 Aggregate | Write <ISOLATE_DIR>/packaging/ index, asset manifest, diff summary | - | - |
 
@@ -803,15 +804,21 @@ Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP 
 
 The bundled `.mcp.json` also registers `odoo-local`, a stdlib-only stdio MCP server that agents use
 to lease an isolated database and ports, build and serve an instance, wait on long builds, and
-release or park what they hold (`lease_*`, `instance_*`, `job_wait`, `catalog_*`, `db_preflight`,
-`series_detect`, `project_dir`, `server_info`). A lease stays protected for as long as the Claude
+release or park what they hold, and export translation files (`lease_*`, `instance_*` including
+`instance_i18n_export`, `job_wait`, `catalog_*`, `db_preflight`, `series_detect`, `project_dir`,
+`server_info`). The tools apply every build fact themselves - server-wide modules (`--load`: the
+series' core default + the catalog row's `server_wide_modules`), languages (`en_US` always) and
+demo data - reading each series-dependent fact from your own Odoo checkout, so an agent never
+composes those flags. One build or export runs on a database at a time. Every Odoo the tools launch
+reads a config file they generate, never your `~/.odoorc`; the database password comes only from
+`ODOO_PG_PASSWORD` or `~/.pgpass`. A lease stays protected for as long as the Claude
 Code session that acquired it is alive - no heartbeat or TTL to babysit. Acquiring never drops a
 database (when ports run out it frees only the ports of provably dead leases); when the session
 ends, its running leases are reclaimed (a parked lease keeps its database until its park budget
 lapses, and the shared render server is reclaimed only once its server is gone). `lease_gc`
 previews by default, and an applying `lease_gc` is never auto-approved. Hooks keep agents honest: a
-subagent cannot finish while a lease it obtained is still live and not handed off, nor release,
-park or adopt a lease it did not obtain. It is Claude Code only (it resolves
+subagent can neither hand back its report nor finish while a lease it obtained is still live and not
+handed off, nor release, park or adopt a lease it did not obtain. It is Claude Code only (it resolves
 `${CLAUDE_PLUGIN_ROOT}`); Codex and Gemini use the allocator CLI instead. **After updating the
 plugin, restart every Claude Code session on the machine**, so no older allocator keeps working
 on the shared lease registry. Tool index, CLI and error codes:
@@ -898,7 +905,7 @@ regardless of whether it has a dedicated guide.
 | `odoo-test-writing` | Engineer | The SSOT test-authoring capability - writes executable `test_*.py` (TransactionCase/Form/HttpCase, tours), JS Hoot/QUnit, and lightweight performance/load tests that protect business behavior, not current code; also a direct user-triggerable front door. Every component that needs a test authored launches the `odoo-test-writer` AGENT, which invokes THIS skill inline for context isolation (the RED-first failing test before the code in the `odoo-coding` loop, durable acceptance tours, and coverage backfill when review flags an unprotected behavior) |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
-| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (no built-in default - resolved from the request, machine-global `$ODOO_AI_HOME/i18n.json`, on-disk `.po` filenames, or the live instance, else `NEEDS_CONTEXT`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
+| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export the `.pot` template, then each `.po`, from ONE demo-loaded build through the `instance_i18n_export` tool (Odoo's own export format, never rewritten), non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (no built-in default - resolved from the request, machine-global `$ODOO_AI_HOME/i18n.json`, on-disk `.po` filenames, or the live instance, else `NEEDS_CONTEXT`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
@@ -957,8 +964,8 @@ regardless of whether it has a dedicated guide.
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
 | `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist. `odoo-forward-port`'s P1 bulk sweep dispatches exactly ONE instance per touched MODULE (never per commit) - the instance reads that module's FULL ordered commit list in one context, extracting each commit's business intent and behavioral contract while catching a same-file double-touch or a later commit reverting an earlier one within the module, before any git merge or adapt work begins; at most one instance per module for the whole run. A single-SHA brief stays valid for a single-commit clarification or a disputed-outcome re-anchor. Also dispatched by `odoo-git-rebase` (P2, per commit in rebase MODE, batched by module above roughly 30 commits) |
 | `odoo-installable-prober` | Sonnet | Read-only forward-port P2 leaf - reads the orchestrator-written target clean-tip manifest + source manifest-history dump (it runs no git itself) to decide installable:False category-3 outcome for modules where static classify is ambiguous; returns a 2-valued verdict (`installable_false: yes \| no`) with evidence; dispatched by `odoo-forward-port` at P2 for ambiguous cat-3 decisions |
-| `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by re-exporting from a fresh instance with the existing .po loaded, then the skill's git-ops diff-review adjudicates losses (forwards translation MEMORY, never regenerates blind; no polib), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
-| `odoo-instance-ops` | Sonnet | Instance lifecycle specialist launched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; creates and drops databases through Odoo ONLY (`odoo_db.py` / `odoo-bin db drop`) - `odoo_db.py` never calls raw `createdb`/`dropdb`/`psql`, and there is no client-side create at all; a raw client `dropdb` is reachable solely as the allocator's logged last-resort fallback when the through-Odoo drop is unavailable, over the surface the declared `db_run_mode` names; a leased DB is dropped by releasing its lease (ownership-checked, race-free), never by bare name; returns structured metadata (db name, log path, ports, `db_port`, lease token, owning run id) so callers keep clean context |
+| `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by re-exporting from a fresh instance with the existing .po loaded, then the skill's git-ops diff-review adjudicates losses (forwards translation MEMORY, never regenerates blind; no polib), translates every empty `msgstr` - leaving it empty where the translation equals the source - while changing nothing in Odoo's export but `msgstr` content, and self-validates with an Odoo `-u` reload through `instance_build`; never destroys existing human translation |
+| `odoo-instance-ops` | Sonnet | Instance lifecycle specialist launched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+) through the `odoo-local` tools, which apply server-wide modules, languages and demo themselves; learns any other version-specific flag at runtime via OSM `cli_help`; creates and drops databases through Odoo ONLY (`odoo_db.py` / `odoo-bin db drop`) - `odoo_db.py` never calls raw `createdb`/`dropdb`/`psql`, and there is no client-side create at all; a raw client `dropdb` is reachable solely as the allocator's logged last-resort fallback when the through-Odoo drop is unavailable, over the surface the declared `db_run_mode` names; a leased DB is dropped by releasing its lease (ownership-checked, race-free), never by bare name; returns structured metadata (db name, log path, ports, `db_port`, lease token, owning run id) so callers keep clean context |
 | `odoo-user-doc-writer` | Sonnet | Browser-exclusive leaf dispatched by `odoo-doc-illustration` - captures end-user guide screenshots + assembles `doc/index.rst` (and per-locale variants); audience = end user, task-guidance tone; never spawns |
 | `odoo-marketing-writer` | Sonnet | Browser-exclusive leaf dispatched by `odoo-doc-illustration` - captures hero/feature-grid screenshots + assembles `static/description/index.html` (and per-locale variants) from supplied marketing copy + feature catalog; wires manifest store-keys; never spawns |
 | `odoo-icon-designer` | Sonnet | Dispatched by `odoo-icon-design`; reads module manifest and picks fitting symbols, generates icon.png 256x256 + icon.svg into static/description/; standalone-first, no browser. |

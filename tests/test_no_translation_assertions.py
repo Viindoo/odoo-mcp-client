@@ -173,6 +173,21 @@ def test_hook_hands_the_orchestrator_the_i18n_doctrine():
     assert re.search(r"EMPTY msgstr is not necessarily untranslated", ctx), (
         "the identity-rule fact must be in the hint - it is what stops 'get untranslated to zero'"
     )
+    # The rule is "translate every empty msgstr; an identity stays empty" (po-entry-semantics.md
+    # § An empty `msgstr`). Framing blanks as deliberate do-not-localise decisions licenses leaving
+    # real untranslated entries empty, so the hint must state the translate-first half too.
+    assert re.search(r"translates every empty msgstr", ctx), (
+        "the hint must say every empty msgstr is translated, not that blanks are deliberate"
+    )
+    assert re.search(r"leaves it empty when the correct translation equals the msgid", ctx), (
+        "the hint must keep the identity half: an entry whose translation equals its source stays empty"
+    )
+    assert not re.search(r"do-not-locali[sz]e decision", ctx, re.I), (
+        "the hint must not present blanks as deliberate do-not-localise decisions"
+    )
+    assert re.search(r"never set 'zero empty msgstr'", ctx), (
+        "the hint must forbid a zero-empty goal"
+    )
     assert re.search(r"never ask for tests", ctx), "the no-translation-tests fact must be in the hint"
 
 

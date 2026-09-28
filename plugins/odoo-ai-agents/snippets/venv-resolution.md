@@ -64,8 +64,9 @@ the `python` field on the matching catalog row; `catalog_read` returns it afterw
 verifies all the profile's repos are present and that `odoo-bin --version` runs (not a bare
 `import odoo`) before recording the `python` field.
 
-The recommended Python per Odoo series lives in
-`scripts/lib/odoo-python-matrix.json`.
+The supported Python range of a series is read from the instance's own Odoo checkout
+(`45-venv.sh suggest <series> [--profile <name>]` prints it and the recommended version);
+`scripts/lib/odoo-python-matrix.json` is only the fallback when no checkout is readable.
 
 ## Note: the backend lint gate uses the instance interpreter
 

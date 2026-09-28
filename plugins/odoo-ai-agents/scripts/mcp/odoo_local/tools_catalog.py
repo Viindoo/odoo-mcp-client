@@ -30,12 +30,19 @@ _CWD_PROP = {
 # as declared, and an optional key the catalog does not declare is ABSENT (never defaulted).
 ROW_SCHEMA = {
     "type": "object",
-    "required": ["series", "profile", "instance_key", "addons_path"],
+    "required": ["series", "profile", "instance_key", "addons_path", "server_wide_modules"],
     "properties": {
         "series": {"type": "string"},
         "profile": {"type": "string"},
         "instance_key": {"type": "string"},
         "addons_path": {"type": "array", "items": {"type": "string"}},
+        "server_wide_modules": {"type": "array", "items": {"type": "string"},
+                                "description": "Server-wide modules (Odoo --load) this deployment "
+                                               "declares beyond the series' core default, which is "
+                                               "read from the checkout and not listed here; empty = "
+                                               "none declared. instance_build and instance_serve "
+                                               "load core + these; change them only through "
+                                               "/odoo-ai-agents:odoo-setup."},
         # Passed through as declared (untyped here: a hand-edited catalog may spell them loosely).
         "http_port": {"description": "Declared HTTP port."},
         "db_name": {"description": "Declared database name."},
@@ -68,6 +75,7 @@ def _row(io, item):
     row["profile"] = io.profile_of(item)
     row["instance_key"] = io.instance_key_of(item)
     row["addons_path"] = io.addons_path_list(item)
+    row["server_wide_modules"] = io.server_wide_modules_of(item)
     return row
 
 
@@ -261,7 +269,8 @@ def register(registry, ctx):
     registry.add(
         "catalog_read",
         "Read this machine's Odoo instance catalog (instances.toml) and return EVERY declared "
-        "instance row: series, profile, instance_key, addons_path (list), plus the declared python, "
+        "instance row: series, profile, instance_key, addons_path (list), server_wide_modules (list; "
+        "the deployment's own --load modules, empty = none), plus the declared python, "
         "odoo_root, db_* and port fields. Call it to learn which series/profiles exist locally before "
         "leasing or building. Filters are exact matches; with no filter all rows come back - it never "
         "picks one for you. catalog_path names the file actually read; catalog_exists=false with no "

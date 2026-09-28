@@ -295,15 +295,17 @@ def test_r1_makes_the_stalled_shape_recognizable_to_the_caller():
 # ---------------------------------------------------------------------------
 
 
-def test_r3_states_the_inbound_sender_is_a_label_not_an_address():
-    """An inbound message shows a bare agent TYPE where a reply address would be, and messaging-tool
-    documentation invites copying it into a reply. R3 must overrule that explicitly."""
+def test_r3_states_there_is_no_inbound_sender_to_reply_to():
+    """Messaging-tool documentation invites replying to a message's sender. A launched worker has
+    no such sender: a launch hands it a BRIEF, not an envelope, so there is no `from` at all. R3 must
+    say so and overrule that documentation explicitly. (The earlier reason - "`from` is a type
+    label" - was false on the mechanism; test_barrier_release_and_return_argument.py forbids it.)"""
     low = _norm(R0R1R3_SSOT).lower()
     assert "`from`" in low, "R3 must name the inbound field by its literal key"
     idx = low.find("`from`")
     window = low[max(0, idx - 200):idx + 320]
-    assert "type label" in window or "label, not an address" in window, (
-        "R3 must say what the from value actually is: a TYPE label, not an address"
+    assert "nothing inbound to answer" in window and "brief, not an envelope" in window, (
+        "R3 must say why there is no `from` to reply to: a launch delivers a brief, not an envelope"
     )
     assert "does not resolve" in window or "fails" in window, (
         "R3 must state the outcome of replying to it - the send does not resolve"

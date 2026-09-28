@@ -7,8 +7,54 @@
 # fallback) and runs the appropriate odoo-bin command with a persistent log.
 #
 # It does NOT resolve version-specific flags; those arrive pre-resolved via
-# --extra. It does NOT read instances.toml; all connection parameters are
-# passed explicitly.
+# --extra - except what it reads from the launcher's own checkout (the main
+# port flag, the logger namespace, the demo flag: _read_checkout_facts) and the
+# three BUILD FACTS (--load / --languages / --demo, see "Build facts" below). It
+# does NOT read instances.toml; all connection parameters are passed explicitly.
+#
+# Build facts (init/update/test; each optional, each echoed on stdout before the
+# run so a refused or failed build still reports what it was given):
+#   --load <a,b>        the COMPLETE server-wide module set -> `--load=<a,b>`,
+#                       verbatim. It REPLACES Odoo's own default, so the caller
+#                       passes core default + declared modules (the odoo-local
+#                       tool reads both: instances_io.py server-wide). Echo:
+#                       BUILD_SERVER_WIDE_MODULES=<a,b> (empty = no --load, Odoo's
+#                       own default applies).
+#   --languages <a,b>   -> `--load-language=<a,b>`, verbatim (the flag exists on
+#                       every series; the caller includes en_US). Echo:
+#                       BUILD_LANGUAGES=<a,b>.
+#   --demo on|off       spelled from the checkout's own config.py (_demo_args,
+#                       read by _read_checkout_facts from the launcher's checkout,
+#                       never from --version), BOTH states stated explicitly
+#                       wherever the checkout can state them: where it declares
+#                       --with-demo, `on` -> --with-demo and `off` ->
+#                       --without-demo=True (when --without-demo is declared
+#                       too); where it declares only --without-demo, `off` ->
+#                       --without-demo=True (the one spelling every series
+#                       accepts) and `on` - which that option cannot spell (it
+#                       takes a string, and any string is truthy) - is written
+#                       into the run's config file as `without_demo = False`
+#                       (_demo_conf_lines; the config reader turns it into a
+#                       boolean). A checkout declaring neither is refused before
+#                       anything runs. Echo: BUILD_DEMO=on|off (empty when not
+#                       given: Odoo's default).
+#
+# Config isolation (init/update/test and the i18n export): every odoo-bin this
+# script launches gets `-c <generated conf>` (_write_run_conf: `[options]` plus
+# only what the run itself states) AND $ODOO_RC / $OPENERP_SERVER naming it
+# (odoo_isolated_rc_env - before 19.0 Odoo loads its default rc file at import
+# time, and -c alone overrides only the keys the conf states), so the operator's
+# ~/.odoorc / ~/.openerp_serverrc / own $ODOO_RC is never read - a
+# `without_demo`, `data_dir`, `db_*` or `addons_path` there can no longer change
+# what a build does behind the caller's back. The build conf is keyed by the DATABASE
+# ($ODOO_AI_HOME/conf/<db>-build.conf, overwritten in place, swept with the other
+# conf files); it holds no password (libpq reads PGPASSWORD from the launch
+# environment).
+#
+# After the run each build verb also prints BUILD_MODULES_LOADED=1|0: 1 when the
+# log carries Odoo's "Modules loaded." line - the registry build (and with it the
+# --load-language activation, which runs before it on every series) finished,
+# whatever a test suite that runs after it reports.
 #
 # Subcommands:
 #   describe  - one-line purpose (step-script contract)
@@ -16,6 +62,8 @@
 #   apply     - alias for init (for step-runner compat; same args as init)
 #   init    --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
+#             [--load <a,b>] [--languages <a,b>] [--demo on|off]   (all three verbs;
+#             see "Build facts" above)
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
 #                  --unaccent --stop-after-init --log-level=info
 #                  --log-handler=<ns>.modules.loading:INFO <extra>
@@ -24,10 +72,10 @@
 #             Deterministic completion contract (never a log-tail wait - see
 #             docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14): the process ALWAYS
 #             runs with --stop-after-init, so completion is PROCESS EXIT, bounded
-#             by nothing more than the caller's own foreground timeout. --version
-#             resolves <ns> = 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+;
-#             also the default when --version is omitted) - the namespace Odoo's
-#             module-loading logger lives under changed at the v9->v10 rename. The
+#             by nothing more than the caller's own foreground timeout. <ns> is
+#             the checkout's core package ('openerp' where the core package is
+#             openerp/, else 'odoo': _resolve_log_ns) - the root of the namespace
+#             Odoo's module-loading logger lives under. The
 #             --log-handler flag is a FLOOR, not a workaround: it keeps the
 #             "Modules loaded." completion line on the log at ANY level a
 #             caller may pass in <extra>, including a quieter one.
@@ -60,8 +108,10 @@
 #             resolves the tags, and TEST_TAGS_USED= reports what it passed so a
 #             forgotten filter is visible in the summary rather than silent.
 #             Scope contract: snippets/test-scope-contract.md. --mode fresh (default) -> -i (new DB / modules not yet
-#             installed; init+test in one pass); --mode reuse -> -u (DB already has the
-#             modules; re-running tests, where -i would be a no-op). --log-mode maps to
+#             installed; init+test in one pass - correct on every series); --mode reuse
+#             -> -u (DB already has the modules - correct on every series: from 19.0
+#             `-i` on an already-installed module installs nothing and runs none of
+#             its tests, and a -u re-run is what re-executes them). --log-mode maps to
 #             the odoo log flag (debug -> --log-level=debug, sql -> --log-handler=
 #             odoo.sql_db:DEBUG); omitted keeps the shared $_DEFAULT_LOG_LEVEL default.
 #             `warn` is REFUSED (exit 2): it suppresses the pass summary, so every
@@ -101,6 +151,16 @@
 #             has to grep for and retype. EMPTY means the log carried no such
 #             marker (unmeasured), never 0. The whole summary block is ALSO
 #             appended to the log, so `wait-log` can surface the verdict.
+#   i18n-export --db <db> --python <venv_py> --addons <path> --modules <a,b>
+#             [--languages <code,...>] --target <module>=<dir> (one per module)
+#             [--i18n-dir <module>=<dir>] [--db-host H] [--db-user U] [--db-port P]
+#             [--version <X.Y>]
+#             Per module: the `.pot` template FIRST, then one `.po` per language
+#             (named as the module already names it, else by the language's ISO
+#             code as Odoo names it - see cmd_i18n_export), all from this one
+#             database, with the command line the launcher's checkout declares
+#             (server --i18n-export or the `i18n export` subcommand). Odoo's
+#             exported bytes are never edited; see cmd_i18n_export.
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U] [--db-port P]
 #             [--odoo-root R] [--run-id ID] [--force]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
@@ -302,10 +362,10 @@ source "$LIB_DIR/pg_mode.sh"
 # 50-instance-spinup.sh could not reach them.
 # shellcheck source=../lib/state_reclaim.sh
 source "$LIB_DIR/state_reclaim.sh"
-# Main-port flag per series (odoo_http_port_flag) for --http-port below - one
-# rule shared with 50-instance-spinup.sh.
-# shellcheck source=../lib/odoo_port_keys.sh
-source "$LIB_DIR/odoo_port_keys.sh"
+# The launcher's checkout facts (odoo_cli_facts: port option, demo option, core
+# package) - read from its config.py, the reader shared with 50-instance-spinup.sh.
+# shellcheck source=../lib/odoo_cli_facts.sh
+source "$LIB_DIR/odoo_cli_facts.sh"
 
 # Toolchain env for Odoo's own lint test families (eslint / pylint / flake8 /
 # po). Sourced here but APPLIED only inside each odoo-bin launch subshell below,
@@ -331,22 +391,12 @@ cmd_check() {
 }
 
 # ---------------------------------------------------------------------------
-# _find_odoo_bin - locate odoo-bin via ODOO_BIN env or addons-path scan
+# _find_odoo_bin - locate the Odoo server launcher (odoo-bin / openerp-server)
 # ---------------------------------------------------------------------------
 _find_odoo_bin() {
-    local addons_path="$1"
-    if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then
-        echo "$ODOO_BIN"
-        return 0
-    fi
-    local p
-    _addons_path_to_array _paths "${addons_path}"
-    for p in "${_paths[@]}"; do
-        [[ -n "$p" ]] || continue
-        if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
-        if [[ -x "$(dirname "$p")/odoo-bin" ]]; then echo "$(dirname "$p")/odoo-bin"; return 0; fi
-    done
-    return 1
+    # The shared locator (resolve_instances.sh): $ODOO_BIN, else odoo-bin - or
+    # openerp-server on the oldest series - at the addons_path / odoo_root.
+    _odoo_find_launcher "$1"
 }
 
 # ---------------------------------------------------------------------------
@@ -442,9 +492,9 @@ _build_db_conn_args() {
 
 # ---------------------------------------------------------------------------
 # _build_http_port_args - populate the global array HTTP_PORT_ARGS with the
-#   era-correct main-port flag (odoo_http_port_flag: --xmlrpc-port before 11.0,
-#   --http-port from 11.0) for the caller-scope arg_http_port, resolved against
-#   arg_version. Empty arg_http_port -> no flag. A test build needs it: Odoo
+#   main-port flag the checkout declares (ODOO_CLI_HTTP_PORT_KEY, read by
+#   _read_checkout_facts: --http-port where config.py has it, else
+#   --xmlrpc-port) for the caller-scope arg_http_port. Empty arg_http_port -> no flag. A test build needs it: Odoo
 #   spawns its HTTP server whenever test mode is on, even with --stop-after-init,
 #   so without the leased port every test run binds the default 8069.
 #   arg_gevent_port + arg_gevent_port_key (the caller-resolved odoo.conf key of
@@ -455,7 +505,7 @@ _build_db_conn_args() {
 _build_http_port_args() {
     HTTP_PORT_ARGS=()
     if [[ -n "${arg_http_port:-}" ]]; then
-        HTTP_PORT_ARGS+=("$(odoo_http_port_flag "${arg_version:-}")" "$arg_http_port")
+        HTTP_PORT_ARGS+=("$(odoo_cli_flag "$ODOO_CLI_HTTP_PORT_KEY")" "$arg_http_port")
     fi
     if [[ -n "${arg_gevent_port:-}" ]]; then
         HTTP_PORT_ARGS+=("--${arg_gevent_port_key//_/-}" "$arg_gevent_port")
@@ -466,8 +516,9 @@ _build_http_port_args() {
 # ---------------------------------------------------------------------------
 # _series_major - the integer major of a series string ("17.0" -> 17), or
 #   EMPTY when --version was omitted or is unparsable. The ONE series gate in
-#   this script: _resolve_log_ns and _test_ran_re both read it, so a series
-#   boundary is never re-derived a second way.
+#   this script, read by _test_ran_re (a log-wording era, which no option in the
+#   checkout states). Every fact the checkout DOES state - demo, port flag,
+#   logger namespace - is read from it instead (_read_checkout_facts).
 # ---------------------------------------------------------------------------
 _series_major() {
     local major="${1%%.*}"
@@ -481,20 +532,38 @@ _series_major() {
 }
 
 # ---------------------------------------------------------------------------
-# _resolve_log_ns - series -> the logger namespace Odoo's module-loading
-#   logger lives under: 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+ -
-#   the openerp->odoo rename landed at the v9->v10 boundary). Empty/unparsable
-#   series (e.g. --version omitted) defaults to 'odoo', the modern majority -
-#   a caller that cares about v8-v9 must pass --version explicitly.
+# _resolve_log_ns - the logger namespace Odoo's module-loading logger lives
+#   under: the checkout's core package (ODOO_CLI_CORE_PACKAGE, read by
+#   _read_checkout_facts) - 'openerp' where the core package is openerp/, else
+#   'odoo'. Needs no --version.
 # ---------------------------------------------------------------------------
 _resolve_log_ns() {
-    local major
-    major="$(_series_major "${1:-}")"
-    if [[ -n "$major" ]] && (( major < 10 )); then
-        echo "openerp"
-    else
-        echo "odoo"
+    echo "$ODOO_CLI_CORE_PACKAGE"
+}
+
+# ---------------------------------------------------------------------------
+# _read_checkout_facts <odoo_root> - read the launcher's checkout facts
+#   (odoo_cli_facts: ODOO_CLI_*) BEFORE _open_log, and refuse (exit 2, no log,
+#   nothing launched) when a fact this build needs is not stated there: the core
+#   package always (logger namespace), the main port option when --http-port is
+#   given, the demo option when --demo is given. Never a guess from --version.
+# ---------------------------------------------------------------------------
+_read_checkout_facts() {
+    local root="$1" why=""
+    if ! odoo_cli_facts "$root"; then
+        why="its tools/config.py is unreadable"
+    elif [[ -z "$ODOO_CLI_CORE_PACKAGE" ]]; then
+        why="it holds no core package (odoo/ or openerp/ with a release.py)"
+    elif [[ -n "${arg_http_port:-}" && -z "$ODOO_CLI_HTTP_PORT_KEY" ]]; then
+        why="its config.py declares no main port option (--http-port / --xmlrpc-port)"
+    elif [[ -n "${arg_demo:-}" && -z "$ODOO_CLI_DEMO_OPT_IN" ]]; then
+        why="its config.py declares neither --with-demo nor --without-demo, so --demo cannot be spelled"
     fi
+    if [[ -n "$why" ]]; then
+        echo "x ODOO_SOURCE_FACT_UNKNOWN: the Odoo checkout at '$root' (the launcher's directory) cannot state a fact this build needs: $why. Nothing was run. Point ODOO_BIN / the addons_path at a complete Odoo checkout." >&2
+        exit 2
+    fi
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -703,8 +772,8 @@ _JS_MARKER_RE="${_JS_FAIL_RE}|${_JS_HOOT_SUITE_END_RE}|${_JS_QUNIT_AGG_RE}|${_JS
 #     false-positives on ordinary model/module names that merely CONTAIN
 #     "test" and on unrelated `... skipped` business messages.
 #       1. v14+ modern Odoo test-runner logger name: `(openerp|odoo).<pkg
-#          path>.tests?[.:]<...>: skip[ped] <name>` (<ns> = openerp v8-v9 /
-#          odoo v10+, matching _resolve_log_ns).
+#          path>.tests?[.:]<...>: skip[ped] <name>` (<ns> = openerp or odoo,
+#          the core package _resolve_log_ns reads).
 #       2. Older Python-stdlib unittest verbose runner line (bypasses the Odoo
 #          logger, so no <ns> prefix): `test_name (<module path containing a
 #          .tests. or .test. segment>) ... skipped`.
@@ -1794,10 +1863,10 @@ cmd_wait_log() {
 #   optional --test-tags/--mode/--log-mode/--version flags.
 # Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra, arg_test_tags,
 #       arg_mode (default 'fresh'), arg_log_mode (default ''), arg_version
-#       (default ''; on init/update it resolves the --log-handler namespace via
-#       _resolve_log_ns - empty defaults to the v10+ 'odoo' namespace; on test
-#       it picks the era-correct ran-marker via _test_ran_re - empty accepts
-#       either era's wording).
+#       (default ''; on test it picks the era-correct ran-marker via
+#       _test_ran_re - empty accepts either era's wording; it stamps the log.
+#       The logger namespace, port flag and demo flag come from the checkout,
+#       not from it: _read_checkout_facts).
 #   --mode/--log-mode/--version are optional (NOT added to the required-args
 #   check).
 # ---------------------------------------------------------------------------
@@ -1819,6 +1888,10 @@ _parse_common_args() {
     arg_http_port=""
     arg_gevent_port=""
     arg_gevent_port_key=""
+    # Build facts (see the header's "Build facts"): empty -> no flag.
+    arg_load=""
+    arg_languages=""
+    arg_demo=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1861,6 +1934,23 @@ _parse_common_args() {
             --extra)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --extra requires a value" >&2; exit 2; }
                 arg_extra="$2"; shift 2 ;;
+            --load)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --load requires a value" >&2; exit 2; }
+                [[ "$2" =~ ^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$ ]] || {
+                    echo "$(basename "$0"): --load must be a comma-separated module list (got '$2')" >&2; exit 2; }
+                arg_load="$2"; shift 2 ;;
+            --languages)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --languages requires a value" >&2; exit 2; }
+                [[ "$2" =~ ^[A-Za-z0-9_@]+(,[A-Za-z0-9_@]+)*$ ]] || {
+                    echo "$(basename "$0"): --languages must be a comma-separated language-code list (got '$2')" >&2; exit 2; }
+                arg_languages="$2"; shift 2 ;;
+            --demo)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --demo requires a value" >&2; exit 2; }
+                case "$2" in
+                    on|off) arg_demo="$2" ;;
+                    *) echo "$(basename "$0"): --demo must be 'on' or 'off' (got '$2')" >&2; exit 2 ;;
+                esac
+                shift 2 ;;
             --version)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --version requires a value" >&2; exit 2; }
                 arg_version="$2"; shift 2 ;;
@@ -1902,18 +1992,132 @@ _parse_common_args() {
 }
 
 # ---------------------------------------------------------------------------
+# _demo_args <demo> - the odoo-bin flag(s) for `--demo on|off`, one per line
+#   (nothing when the checkout's default already matches), from what the
+#   checkout's config.py declares (ODOO_CLI_DEMO_OPT_IN, read by
+#   _read_checkout_facts, which refuses a checkout declaring neither option):
+#   `--with-demo` declared -> no demo loads by default, so `on` -> --with-demo;
+#   only `--without-demo` -> demo loads by default, so `off` ->
+#   --without-demo=True, the one spelling valid wherever the option exists (a
+#   value-taking option on the older series, a BOOL taking a value after). The
+#   odoo-local tool reads the same fact for its own policy
+#   (odoo_source_facts.demo_opt_in).
+# ---------------------------------------------------------------------------
+_demo_args() {
+    local demo="${1:-}"
+    [[ -n "$demo" ]] || return 0
+    if [[ "$ODOO_CLI_DEMO_OPT_IN" == "1" ]]; then
+        if [[ "$demo" == "on" ]]; then
+            echo "--with-demo"
+        elif [[ "$ODOO_CLI_WITHOUT_DEMO" == "1" ]]; then
+            echo "--without-demo=True"
+        fi
+    else
+        [[ "$demo" == "off" ]] && echo "--without-demo=True"
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# _demo_conf_lines <demo> - the run-conf line(s) for `--demo on|off`, one per
+#   line: where the checkout declares only --without-demo (demo by default) the
+#   command line cannot say `on` (that option takes a string and every string
+#   is truthy), so `on` is stated in the run's conf as `without_demo = False`,
+#   which Odoo's config reader turns into the boolean. Nothing otherwise.
+# ---------------------------------------------------------------------------
+_demo_conf_lines() {
+    local demo="${1:-}"
+    if [[ "$demo" == "on" && "$ODOO_CLI_DEMO_OPT_IN" != "1" ]]; then
+        echo "without_demo = False"
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# _write_run_conf <path> [line...] - the config file handed to odoo-bin as
+#   `-c <path>`: `[options]` plus exactly the given `key = value` lines. With it
+#   Odoo reads no other config file (~/.odoorc, ~/.openerp_serverrc, $ODOO_RC /
+#   $OPENERP_SERVER - an explicit -c wins over all of them on every series), so
+#   nothing the operator keeps there reaches a tool-launched run. No password
+#   is ever written (libpq reads PGPASSWORD from the launch environment).
+# ---------------------------------------------------------------------------
+_write_run_conf() {
+    local path="$1"
+    shift
+    mkdir -p "$(dirname "$path")"
+    {
+        echo "[options]"
+        local line
+        for line in "$@"; do
+            [[ -n "$line" ]] && echo "$line"
+        done
+        true
+    } >"$path"
+}
+
+# ---------------------------------------------------------------------------
+# _build_run_conf - write the build verbs' run conf (RUN_CONF, keyed by the
+#   database: $ODOO_AI_HOME/conf/<db>-build.conf) from the caller-scope arg_db /
+#   arg_demo. One build runs on a database at a time, so the file is overwritten
+#   in place and the conf set stays bounded by the databases.
+# ---------------------------------------------------------------------------
+_build_run_conf() {
+    RUN_CONF="$(odoo_ai_state_root)/conf/${arg_db}-build.conf"
+    local -a _lines=()
+    local _line
+    while IFS= read -r _line; do
+        [[ -n "$_line" ]] && _lines+=("$_line")
+    done < <(_demo_conf_lines "${arg_demo:-}")
+    _write_run_conf "$RUN_CONF" ${_lines[@]+"${_lines[@]}"}
+}
+
+# ---------------------------------------------------------------------------
+# _emit_modules_loaded <logf> - BUILD_MODULES_LOADED=1 when the run's log
+#   carries Odoo's module-loading completion line (_INSTALL_SUCCESS_MARKER),
+#   else 0 (see the header).
+# ---------------------------------------------------------------------------
+_emit_modules_loaded() {
+    if grep -aqF "$_INSTALL_SUCCESS_MARKER" "$1" 2>/dev/null; then
+        echo "BUILD_MODULES_LOADED=1"
+    else
+        echo "BUILD_MODULES_LOADED=0"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# _build_fact_args - populate the global array BUILD_FACT_ARGS with the odoo-bin
+#   flags for the caller-scope arg_load / arg_languages / arg_demo (see the
+#   header's "Build facts"), and echo the three BUILD_* facts to stdout.
+# ---------------------------------------------------------------------------
+_build_fact_args() {
+    BUILD_FACT_ARGS=()
+    [[ -n "${arg_load:-}" ]] && BUILD_FACT_ARGS+=("--load=${arg_load}")
+    [[ -n "${arg_languages:-}" ]] && BUILD_FACT_ARGS+=("--load-language=${arg_languages}")
+    local _flag
+    while IFS= read -r _flag; do
+        [[ -n "$_flag" ]] && BUILD_FACT_ARGS+=("$_flag")
+    done < <(_demo_args "${arg_demo:-}")
+    echo "BUILD_SERVER_WIDE_MODULES=${arg_load:-}"
+    echo "BUILD_LANGUAGES=${arg_languages:-}"
+    echo "BUILD_DEMO=${arg_demo:-}"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # cmd_init - install modules (-i)
 # ---------------------------------------------------------------------------
 cmd_init() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
+    local arg_load arg_languages arg_demo
     _parse_common_args "$@"
 
     local odoo_bin
     odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
-        echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
+        echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
+    _read_checkout_facts "$(dirname "$odoo_bin")"
     _preflight_venv "$arg_python" "$odoo_bin"
     # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
     # DERIVED from the odoo-bin just located - that directory IS the checkout root,
@@ -1933,6 +2137,10 @@ cmd_init() {
     local DB_CONN_ARGS
     _build_db_conn_args
     _build_http_port_args
+    local BUILD_FACT_ARGS
+    _build_fact_args
+    local RUN_CONF
+    _build_run_conf
 
     # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md
     # item 14): --log-handler=<ns>.modules.loading:INFO is a FLOOR, not a
@@ -1941,12 +2149,12 @@ cmd_init() {
     # contract never depends on the caller's verbosity choice. It also caps that
     # ONE logger at INFO when --extra asks for debug; a caller wanting
     # module-loading DEBUG passes --log-handler=<ns>.modules.loading:DEBUG in
-    # --extra. <ns> is version-resolved via _resolve_log_ns (openerp v8-v9,
-    # odoo v10+). Both flags are placed BEFORE ${arg_extra} so a caller-supplied
+    # --extra. <ns> is the checkout's core package (_resolve_log_ns: openerp or
+    # odoo). Both flags are placed BEFORE ${arg_extra} so a caller-supplied
     # --log-level/--log-handler in --extra still overrides them (Odoo's arg
     # parser takes the last occurrence) - mirrors the `test` verb.
     local log_ns
-    log_ns="$(_resolve_log_ns "${arg_version:-}")"
+    log_ns="$(_resolve_log_ns)"
 
     # Resource-limit wrapper (Problem 1 hardening - snippets/odoo-bin-resource-
     # limits.md, SSOT values in resource_limits.sh): `ulimit -Sv` is the
@@ -1985,6 +2193,8 @@ cmd_init() {
         # is what makes a cluster that cannot be reconfigured reachable, and argv
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
+        # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
+        odoo_isolated_rc_env "$RUN_CONF"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
@@ -2024,12 +2234,14 @@ cmd_init() {
         # Stable `server` option across v8-v19 - only its help text changed (at
         # v10), never the flag - so unlike --dev=all this needs NO series gate.
         "$arg_python" "$odoo_bin" \
+            -c "$RUN_CONF" \
             -d "$arg_db" \
             -i "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
+            "${BUILD_FACT_ARGS[@]}" \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
@@ -2037,6 +2249,7 @@ cmd_init() {
             ${arg_extra}
     ) >>"$logf" 2>&1 || rc=$?
 
+    _emit_modules_loaded "$logf"
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
     else
@@ -2058,13 +2271,15 @@ cmd_init() {
 cmd_update() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
+    local arg_load arg_languages arg_demo
     _parse_common_args "$@"
 
     local odoo_bin
     odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
-        echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
+        echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
+    _read_checkout_facts "$(dirname "$odoo_bin")"
     _preflight_venv "$arg_python" "$odoo_bin"
     # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
     # DERIVED from the odoo-bin just located - that directory IS the checkout root,
@@ -2084,6 +2299,10 @@ cmd_update() {
     local DB_CONN_ARGS
     _build_db_conn_args
     _build_http_port_args
+    local BUILD_FACT_ARGS
+    _build_fact_args
+    local RUN_CONF
+    _build_run_conf
 
     # Deterministic completion contract - identical to cmd_init (see its
     # comments above and docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md item 14):
@@ -2091,7 +2310,7 @@ cmd_update() {
     # loaded." on the log at any caller-chosen level; both flags precede
     # ${arg_extra} so a caller override still wins.
     local log_ns
-    log_ns="$(_resolve_log_ns "${arg_version:-}")"
+    log_ns="$(_resolve_log_ns)"
 
     # Resource-limit wrapper - see the identical comment block in cmd_init
     # above and snippets/odoo-bin-resource-limits.md for the full policy.
@@ -2115,6 +2334,8 @@ cmd_update() {
         # is what makes a cluster that cannot be reconfigured reachable, and argv
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
+        # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
+        odoo_isolated_rc_env "$RUN_CONF"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
@@ -2133,12 +2354,14 @@ cmd_update() {
         # not-yet-existing database, which is the only moment unaccent can
         # still be installed.
         "$arg_python" "$odoo_bin" \
+            -c "$RUN_CONF" \
             -d "$arg_db" \
             -u "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
+            "${BUILD_FACT_ARGS[@]}" \
             --stop-after-init \
             --log-level="$_DEFAULT_LOG_LEVEL" \
             --log-handler="${log_ns}.modules.loading:INFO" \
@@ -2146,6 +2369,7 @@ cmd_update() {
             ${arg_extra}
     ) >>"$logf" 2>&1 || rc=$?
 
+    _emit_modules_loaded "$logf"
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
     else
@@ -2170,13 +2394,15 @@ cmd_test() {
     # run, and _parse_test_result reads it by dynamic scope for the era gate.
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
+    local arg_load arg_languages arg_demo
     _parse_common_args "$@"
 
     local odoo_bin
     odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
-        echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
+        echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
+    _read_checkout_facts "$(dirname "$odoo_bin")"
     _preflight_venv "$arg_python" "$odoo_bin"
     # BEFORE _open_log: a refusal must open no log and launch nothing. odoo_root is
     # DERIVED from the odoo-bin just located - that directory IS the checkout root,
@@ -2199,8 +2425,9 @@ cmd_test() {
     addons_csv="$(_addons_csv_from "$arg_addons")"
 
     # mode: fresh (default) -> -i (new DB / modules not yet installed; init+test in
-    # one pass); reuse -> -u (DB already has the modules; re-running tests, where -i
-    # would be a no-op). Confirm -i/-u semantics via OSM cli_help.
+    # one pass - correct on every series); reuse -> -u (DB already has the modules;
+    # correct on every series, and the only form that re-runs an installed module's
+    # tests from 19.0, where -i on an installed module installs and tests nothing).
     local mode_flag="-i"
     [[ "${arg_mode:-fresh}" == "reuse" ]] && mode_flag="-u"
 
@@ -2219,6 +2446,10 @@ cmd_test() {
     local DB_CONN_ARGS
     _build_db_conn_args
     _build_http_port_args
+    local BUILD_FACT_ARGS
+    _build_fact_args
+    local RUN_CONF
+    _build_run_conf
 
     # Resource-limit wrapper - see the identical comment block in cmd_init
     # above and snippets/odoo-bin-resource-limits.md for the full policy.
@@ -2239,6 +2470,8 @@ cmd_test() {
         # is what makes a cluster that cannot be reconfigured reachable, and argv
         # (world-readable in `ps`) never carries it.
         [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
+        # The run conf is the ONLY config file this Odoo reads (odoo_cli_facts.sh).
+        odoo_isolated_rc_env "$RUN_CONF"
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
         # Toolchain env for Odoo's own lint families, scoped to THIS launch the
         # same way PGPASSWORD above is (SSOT: scripts/lib/lint_toolchain.sh).
@@ -2257,12 +2490,14 @@ cmd_test() {
         # not-yet-existing database, which is the only moment unaccent can
         # still be installed.
         "$arg_python" "$odoo_bin" \
+            -c "$RUN_CONF" \
             -d "$arg_db" \
             "$mode_flag" "$arg_modules" \
             --addons-path "$addons_csv" \
             "${DB_CONN_ARGS[@]}" \
             "${HTTP_PORT_ARGS[@]}" \
             --unaccent \
+            "${BUILD_FACT_ARGS[@]}" \
             --test-enable \
             "${test_tags_args[@]}" \
             --stop-after-init \
@@ -2280,6 +2515,7 @@ cmd_test() {
     _test_summary="$(_parse_test_result "$rc")"
     printf '%s\n' "$_test_summary"
     printf '%s\n' "$_test_summary" >>"$logf"
+    _emit_modules_loaded "$logf"
 
     if [[ "$rc" -eq 0 ]]; then
         echo "STATUS=ok"
@@ -2289,6 +2525,329 @@ cmd_test() {
         # both TEST_RESULT and STATUS lines are always printed before exiting.
         exit "$rc"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# cmd_i18n_export - export translation files from ONE database: per module the
+#   `.pot` template FIRST, then one `.po` per language, every file written by
+#   Odoo's own exporter and never touched afterwards (no rewrap, no reorder, no
+#   header edit): Odoo writes each file under a temporary `.po` name in the
+#   destination directory, and a finished, non-empty file is RENAMED into place
+#   (`<module>.pot`, and the `.po` name below) - a rename moves bytes, it edits
+#   none.
+#
+#   The `.po` name follows the module (its own i18n/ directory, --i18n-dir,
+#   default the --target): Odoo loads a language's terms from `<base>.po` then
+#   `<code>.po` (base = the code before `_`; tools/translate.py, every series), so
+#   the LATER full-code file wins. Hence, per language:
+#     - the module already has `<code>.po` (e.g. vi_VN.po) and no `<iso>.po` ->
+#       write `<code>.po`: writing `<iso>.po` beside it would be overridden by it,
+#       and every edit made there would be lost;
+#     - it has `<iso>.po` only, or neither -> write `<iso>.po` (res_lang.iso_code:
+#       the name Odoo's own `i18n export` writes, and the one its core addons
+#       ship on every series);
+#     - it has both (and they differ) -> refused before any file is written
+#       (x I18N_PO_FILE_AMBIGUOUS): which one the translations belong in is the
+#       operator's decision.
+#   The temporary name ends in `.po` because the oldest series' exporter picks
+#   the format from the extension and knows no `.pot`; a template is Odoo's `po`
+#   format with every msgstr empty on every series.
+#
+#   The command line is READ from the launcher's checkout (odoo_i18n_facts):
+#     server form     odoo-bin -c <conf> -d <db> --addons-path <p> <db conn>
+#                       --log-level=info --modules=<m> [--language=<code>]
+#                       --i18n-export=<tmp> --stop-after-init
+#                     (the server exports and exits before it would listen)
+#     subcommand form odoo-bin i18n export --config=<conf> --database=<db>
+#                       --output=<tmp> [--languages=<code>] <m>
+#                     (that parser takes its connection and addons path from a
+#                     config file only)
+#   <conf> is written beside the log with addons_path / db_host / db_port /
+#   db_user (_write_run_conf - never a password: libpq reads PGPASSWORD, exported
+#   for the launch exactly as the build verbs do) and removed on exit; with it
+#   the operator's own config file is never read by either form.
+#   No --language / --languages = the template (every series' default).
+#
+#   Before anything is exported, `odoo_db.py i18n-state` asks THAT database
+#   which requested modules are installed and hold their own demo data, which
+#   requested languages are active, and their ISO codes: a module not installed
+#   (x I18N_MODULE_NOT_INSTALLED), one installed without its demo data
+#   (x I18N_EXPORT_NEEDS_DEMO - its demo records' terms would be missing) or a
+#   language not active (x I18N_LANGUAGE_NOT_ACTIVE) refuses the whole run
+#   before any file is written - an export of any of them is an incomplete or
+#   empty catalog with exit 0. So does a module holding two names for one
+#   language (x I18N_PO_FILE_AMBIGUOUS, above).
+#
+#   Args: --db --python --addons --modules <a,b> [--languages <code,...>]
+#         --target <module>=<absolute dir> (one per module: where its files go)
+#         [--i18n-dir <module>=<absolute dir>] (the module's own i18n/ directory,
+#         whose files decide each .po name; default: its --target)
+#         [--db-host H] [--db-user U] [--db-port P] [--version <X.Y>]
+#   Output: LOG_PATH=, then one EXPORTED=<module>|<language code, empty for the
+#   template>|<file> line per file in export order, EXPORT_COUNT=<n>,
+#   STATUS=ok|error. Exit 0 only when every file was written.
+# ---------------------------------------------------------------------------
+_I18N_STATE_TIMEOUT_S="${ODOO_AI_I18N_STATE_TIMEOUT:-120}"
+# What an interrupted export must not leave behind: the file Odoo is writing (a hidden name in the
+# destination directory, never the final one) and the subcommand's config file. Removed on every
+# exit, a stop by signal included (lease_release stops a running export's process group).
+_I18N_TMP=""
+_I18N_CONF=""
+
+_i18n_cleanup() {
+    [[ -n "$_I18N_TMP" ]] && rm -f "$_I18N_TMP"
+    [[ -n "$_I18N_CONF" ]] && rm -f "$_I18N_CONF"
+    return 0
+}
+
+_i18n_target_for() {
+    local module="$1" entry
+    for entry in "${arg_targets[@]}"; do
+        if [[ "${entry%%=*}" == "$module" ]]; then
+            printf '%s\n' "${entry#*=}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# The module's own i18n/ directory (--i18n-dir), whose files decide each .po
+# name; its --target when not given.
+_i18n_dir_for() {
+    local module="$1" entry
+    for entry in ${arg_i18n_dirs[@]+"${arg_i18n_dirs[@]}"}; do
+        if [[ "${entry%%=*}" == "$module" ]]; then
+            printf '%s\n' "${entry#*=}"
+            return 0
+        fi
+    done
+    _i18n_target_for "$module"
+}
+
+# _i18n_po_name <i18n dir> <code> <iso> - the .po file name for one language
+#   (see "The `.po` name" above); prints nothing and returns 1 when the module
+#   holds both names.
+_i18n_po_name() {
+    local dir="$1" code="$2" iso="$3"
+    if [[ "$iso" == "$code" ]]; then
+        printf '%s.po\n' "$iso"
+        return 0
+    fi
+    local has_code=0 has_iso=0
+    [[ -e "$dir/${code}.po" ]] && has_code=1
+    [[ -e "$dir/${iso}.po" ]] && has_iso=1
+    if [[ "$has_code" -eq 1 && "$has_iso" -eq 1 ]]; then
+        return 1
+    fi
+    if [[ "$has_code" -eq 1 ]]; then
+        printf '%s.po\n' "$code"
+    else
+        printf '%s.po\n' "$iso"
+    fi
+}
+
+_i18n_export_one() {
+    local module="$1" code="$2" final="$3"
+    local tmp
+    tmp="$(dirname "$final")/.odoo-ai-export-$$-$(basename "$final").po"
+    _I18N_TMP="$tmp"
+    local -a argv
+    if [[ "$ODOO_I18N_FORM" == "server" ]]; then
+        argv=("$arg_python" "$odoo_bin" -c "$i18n_conf" -d "$arg_db" --addons-path "$addons_csv"
+              "${DB_CONN_ARGS[@]}" --log-level=info "${ODOO_I18N_MODULES_FLAG}=${module}")
+        [[ -n "$code" ]] && argv+=("${ODOO_I18N_LANGUAGE_FLAG}=${code}")
+        argv+=("${ODOO_I18N_EXPORT_FLAG}=${tmp}" --stop-after-init)
+    else
+        argv=("$arg_python" "$odoo_bin" "$ODOO_I18N_COMMAND" "$ODOO_I18N_SUBCOMMAND"
+              "${ODOO_I18N_CONFIG_FLAG}=${i18n_conf}" "${ODOO_I18N_DATABASE_FLAG}=${arg_db}"
+              "${ODOO_I18N_OUTPUT_FLAG}=${tmp}")
+        [[ -n "$code" ]] && argv+=("${ODOO_I18N_LANGUAGES_FLAG}=${code}")
+        argv+=("$module")
+    fi
+    echo "odoo-ai: exporting ${module} (${code:-template}) -> ${final}" >>"$logf"
+    local rc=0
+    (
+        [[ -n "${ODOO_PG_PASSWORD:-}" ]] && export PGPASSWORD="$ODOO_PG_PASSWORD"
+        odoo_isolated_rc_env "$i18n_conf"
+        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        exec "${argv[@]}"
+    ) >>"$logf" 2>&1 || rc=$?
+    if [[ "$rc" -ne 0 || ! -s "$tmp" ]]; then
+        rm -f "$tmp"
+        echo "STATUS=error"
+        if [[ "$rc" -ne 0 ]]; then
+            echo "x i18n export of ${module} (${code:-template}) failed (exit $rc); see $logf" >&2
+        else
+            echo "x i18n export of ${module} (${code:-template}) exited 0 but wrote no file; see $logf" >&2
+        fi
+        exit 1
+    fi
+    mv -f "$tmp" "$final"
+    _I18N_TMP=""
+    echo "EXPORTED=${module}|${code}|${final}"
+    export_count=$((export_count + 1))
+}
+
+cmd_i18n_export() {
+    local arg_db="" arg_python="" arg_addons="" arg_modules="" arg_languages="" arg_version=""
+    local arg_db_host="" arg_db_user="" arg_db_port=""
+    local -a arg_targets=() arg_i18n_dirs=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --db|--python|--addons|--modules|--languages|--version|--db-host|--db-user|--db-port|--target|--i18n-dir)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): $1 requires a value" >&2; exit 2; }
+                case "$1" in
+                    --db) arg_db="$2" ;;
+                    --python) arg_python="$2" ;;
+                    --addons) arg_addons="$2" ;;
+                    --modules) arg_modules="$2" ;;
+                    --languages) arg_languages="$2" ;;
+                    --version) arg_version="$2" ;;
+                    --db-host) arg_db_host="$2" ;;
+                    --db-user) arg_db_user="$2" ;;
+                    --db-port) arg_db_port="$2" ;;
+                    --target) arg_targets+=("$2") ;;
+                    --i18n-dir) arg_i18n_dirs+=("$2") ;;
+                esac
+                shift 2 ;;
+            *) echo "$(basename "$0"): unknown argument: $1" >&2; exit 2 ;;
+        esac
+    done
+    [[ -n "$arg_db" && -n "$arg_python" && -n "$arg_addons" && -n "$arg_modules" ]] || {
+        echo "$(basename "$0"): i18n-export needs --db, --python, --addons and --modules" >&2; exit 2; }
+    [[ "$arg_modules" =~ ^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$ ]] || {
+        echo "$(basename "$0"): --modules must be a comma-separated module list (got '$arg_modules')" >&2; exit 2; }
+    [[ -z "$arg_languages" || "$arg_languages" =~ ^[A-Za-z0-9_@]+(,[A-Za-z0-9_@]+)*$ ]] || {
+        echo "$(basename "$0"): --languages must be a comma-separated language-code list (got '$arg_languages')" >&2; exit 2; }
+    local -a modules=() languages=()
+    IFS=, read -r -a modules <<<"$arg_modules"
+    [[ -n "$arg_languages" ]] && IFS=, read -r -a languages <<<"$arg_languages"
+    local module dest
+    for module in "${modules[@]}"; do
+        dest="$(_i18n_target_for "$module")" || {
+            echo "$(basename "$0"): no --target <module>=<dir> for module '$module'" >&2; exit 2; }
+        [[ "$dest" == /* ]] || {
+            echo "$(basename "$0"): --target for '$module' must be an absolute directory (got '$dest')" >&2; exit 2; }
+    done
+
+    local odoo_bin
+    odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
+        echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
+        exit 1
+    }
+    local odoo_root
+    odoo_root="$(dirname "$odoo_bin")"
+    _read_checkout_facts "$odoo_root"
+    if ! odoo_i18n_facts "$odoo_root" 2>/dev/null; then
+        echo "x ODOO_SOURCE_FACT_UNKNOWN: the Odoo checkout at '$odoo_root' (the launcher's directory) declares no i18n export command line: neither --i18n-export (with --modules and --language) in its tools/config.py nor an export subparser in its cli/i18n.py. Nothing was run." >&2
+        exit 2
+    fi
+    _preflight_venv "$arg_python" "$odoo_bin"
+    _preflight_db_auth "$arg_python" "${arg_db_host:-}" "${arg_db_user:-}" "${arg_db_port:-}" "$odoo_root"
+
+    local logf
+    _open_log "$arg_db" i18n-export "${arg_version:-}"
+
+    # What the database holds, asked of the database itself (never the lease).
+    local -a state_args=("$ODOO_DB_PY" i18n-state "$arg_db" --modules "$arg_modules" --odoo-root "$odoo_root")
+    [[ -n "$arg_languages" ]] && state_args+=(--languages "$arg_languages")
+    [[ -n "$arg_db_host" ]] && state_args+=(--db-host "$arg_db_host")
+    [[ -n "$arg_db_user" ]] && state_args+=(--db-user "$arg_db_user")
+    [[ -n "$arg_db_port" ]] && state_args+=(--db-port "$arg_db_port")
+    local state_out="" state_rc=0
+    state_out="$(pg_bounded_run "$_I18N_STATE_TIMEOUT_S" "$arg_python" "${state_args[@]}" 2>>"$logf")" || state_rc=$?
+    printf '%s\n' "$state_out" >>"$logf"
+    if [[ "$state_rc" -ne 0 ]]; then
+        echo "STATUS=error"
+        echo "x i18n export: could not read the database's languages and modules (odoo_db.py i18n-state exit $state_rc); nothing was exported. See $logf" >&2
+        exit 1
+    fi
+    local -a missing=() no_demo=()
+    local mod_line
+    for module in "${modules[@]}"; do
+        mod_line="$(grep -E "^MODULE=${module} " <<<"$state_out" | head -n 1 || true)"
+        if [[ "$mod_line" != "MODULE=${module} STATE=installed "* ]]; then
+            missing+=("$module")
+        elif [[ "$mod_line" != *" DEMO=1" ]]; then
+            no_demo+=("$module")
+        fi
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "STATUS=error"
+        echo "x I18N_MODULE_NOT_INSTALLED: ${missing[*]} not installed in database '$arg_db'; nothing was exported (an export of a module that is not installed is an empty catalog). Install it with a build on this database first." >&2
+        exit 1
+    fi
+    if [[ ${#no_demo[@]} -gt 0 ]]; then
+        echo "STATUS=error"
+        echo "x I18N_EXPORT_NEEDS_DEMO: ${no_demo[*]} installed WITHOUT its demo data in database '$arg_db' (ir_module_module.demo); nothing was exported (the terms of its demo records would be missing). Demo cannot be added afterwards: build the export database with op init demo on, on a new lease." >&2
+        exit 1
+    fi
+    local -a isos=()
+    local code line iso
+    for code in "${languages[@]}"; do
+        line="$(grep -F "LANG=${code} " <<<"$state_out" | head -n 1 || true)"
+        if [[ -z "$line" || "$line" != *" ACTIVE=1" ]]; then
+            missing+=("$code")
+            continue
+        fi
+        iso="${line#* ISO=}"
+        iso="${iso%% *}"
+        isos+=("$iso")
+    done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        echo "STATUS=error"
+        echo "x I18N_LANGUAGE_NOT_ACTIVE: ${missing[*]} not active in database '$arg_db'; nothing was exported (an export in a language that is not loaded has every msgstr empty). Load it with a build on this database first." >&2
+        exit 1
+    fi
+
+    # Every .po name, decided before any file is written (see "The `.po` name").
+    local -a po_names=() ambiguous=()
+    local i name idir
+    for module in "${modules[@]}"; do
+        idir="$(_i18n_dir_for "$module")"
+        for i in "${!languages[@]}"; do
+            if name="$(_i18n_po_name "$idir" "${languages[$i]}" "${isos[$i]}")"; then
+                po_names+=("$name")
+            else
+                ambiguous+=("${idir}/${isos[$i]}.po + ${languages[$i]}.po")
+                po_names+=("")
+            fi
+        done
+    done
+    if [[ ${#ambiguous[@]} -gt 0 ]]; then
+        echo "STATUS=error"
+        echo "x I18N_PO_FILE_AMBIGUOUS: the module holds two files for one language: ${ambiguous[*]}. Odoo loads the short (ISO) one first and the full-code one LAST, so the full-code file's translations win; nothing was exported. Ask the operator which file to keep, remove the other (merging what it holds into the kept one), then export again." >&2
+        exit 1
+    fi
+
+    local addons_csv
+    addons_csv="$(_addons_csv_from "$arg_addons")"
+    local DB_CONN_ARGS
+    _build_db_conn_args
+    local _lim_kib
+    _lim_kib="$(resource_limit_hard_kib)"
+    trap _i18n_cleanup EXIT
+    trap '_i18n_cleanup; exit 143' TERM
+    trap '_i18n_cleanup; exit 130' INT
+    local i18n_conf="${logf%.log}.i18n.conf"
+    _I18N_CONF="$i18n_conf"
+    _write_run_conf "$i18n_conf" "addons_path = ${addons_csv}" \
+        "${arg_db_host:+db_host = ${arg_db_host}}" \
+        "${arg_db_user:+db_user = ${arg_db_user}}" \
+        "${arg_db_port:+db_port = ${arg_db_port}}"
+
+    local export_count=0 n=0
+    for module in "${modules[@]}"; do
+        dest="$(_i18n_target_for "$module")"
+        mkdir -p "$dest"
+        _i18n_export_one "$module" "" "$dest/${module}.pot"
+        for i in "${!languages[@]}"; do
+            _i18n_export_one "$module" "${languages[$i]}" "$dest/${po_names[$n]}"
+            n=$((n + 1))
+        done
+    done
+    echo "EXPORT_COUNT=$export_count"
+    echo "STATUS=ok"
 }
 
 # ---------------------------------------------------------------------------
@@ -2406,8 +2965,9 @@ case "$SUBCMD" in
     test)     cmd_test "$@" ;;
     drop)     cmd_drop "$@" ;;
     wait-log) cmd_wait_log "$@" ;;
+    i18n-export) cmd_i18n_export "$@" ;;
     *)
-        echo "Usage: $(basename "$0") {describe|check|init|update|test|drop|wait-log|apply} [args...]" >&2
+        echo "Usage: $(basename "$0") {describe|check|init|update|test|drop|wait-log|i18n-export|apply} [args...]" >&2
         exit 2
         ;;
 esac

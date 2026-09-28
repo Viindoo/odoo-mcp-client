@@ -20,7 +20,7 @@ flowchart TD
         skills["odoo-ai-agents<br/>51 skills / 26 agents / 8 commands"]
         fp["odoo-forward-port<br/>forward-port pipeline"]
         mcp["odoo-semantic-mcp<br/>MCP connection"]
-        local["odoo-local MCP server<br/>(Claude Code only)<br/>leases + local Odoo instances"]
+        local["odoo-local MCP server<br/>(Claude Code only)<br/>leases, build / test / serve,<br/>translation export"]
         intake --> wfrunner --> skills
         intake --> skills
         skills --> fp
@@ -30,6 +30,7 @@ flowchart TD
     end
 
     server["OSM MCP Server (AGPL-3.0)<br/>31 tools / 9 resources · Odoo v8+"]
+    checkout["Your Odoo checkout + instances.toml<br/>(series facts read from source,<br/>deployment facts you confirm)"]
     out["Answer in chat or $ODOO_AI_HOME"]
 
     You --> intake
@@ -37,9 +38,10 @@ flowchart TD
     skills --> server
     mcp --> server
     server --> out
+    local -. reads .-> checkout
 ```
 
-_All Odoo source knowledge lives on the OSM server; this repo is the routing and orchestration layer, plus a small local runtime (the instance allocator and the Claude Code-only `odoo-local` MCP server) that provisions Odoo instances on your machine._
+_All Odoo source knowledge lives on the OSM server; this repo is the routing and orchestration layer, plus a small local runtime (the instance allocator and the Claude Code-only `odoo-local` MCP server) that provisions Odoo instances on your machine - reading each series' facts from your own Odoo checkout, never from a table the plugin keeps._
 
 ## What is in this repo
 
@@ -48,7 +50,7 @@ detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
-| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **51 skills + 26 agents + 8 commands** across 9 personas, plus **13 declarative workflows** and the drive-to-done orchestration harness. Includes instance lifecycle ops (create/drop/init/update/run-tests for any Odoo series v8+). Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
+| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **51 skills + 26 agents + 8 commands** across 9 personas, plus **13 declarative workflows** and the drive-to-done orchestration harness. Includes instance lifecycle ops (create/drop/init/update/run-tests/translation export for any Odoo series v8+). Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**31 tools / 9 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
 | **[`git-toolkit`](plugins/git-toolkit/)** | A domain-agnostic, **Apache-2.0** git + GitHub toolkit for AI agents: one front-door skill (`git-ops`) + 4 agents that run git/github work safely in a delegated context - never losing code, scaling to thousands of files. Depends on the `github` plugin (auto-installed). No Odoo dependency. | [README](plugins/git-toolkit/README.md) |
 

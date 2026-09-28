@@ -17,7 +17,8 @@
 # subagent would break the "honest work passes clean" contract. The primary enforcement for
 # guidelines is the agent-prompt read-before-write gate, not read-count.
 #
-# CONTRACT (Claude Code SubagentStop): stdin JSON has transcript_path + stop_hook_active.
+# CONTRACT (Claude Code SubagentStop): stdin JSON has agent_transcript_path (the subagent's own
+# transcript - the one read here), transcript_path (the whole session's) + stop_hook_active.
 #   - Loop-safe: when stop_hook_active=true we already forced one continue - never re-block.
 #   - Block form: {"decision":"block","reason":"..."} on stdout (forces the subagent to fix).
 #   - Self-gating: acts ONLY on Odoo-shaped subagents (OSM usage / .py writes / grounding
@@ -36,25 +37,26 @@ INPUT="$(cat 2>/dev/null || true)"
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 [[ "$STOP_ACTIVE" == "true" ]] && _pass   # already continuing from a prior block - no loop
 
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
-[[ -n "$TRANSCRIPT" && -f "$TRANSCRIPT" ]] || _pass
+# Shared helper: hooks/final-report.sh (which transcript, and the agent's own signals).
+_FR_LIB="${BASH_SOURCE[0]%/*}/final-report.sh"
+[[ -r "$_FR_LIB" ]] || _pass
+# shellcheck source=/dev/null
+. "$_FR_LIB"
+
+# The subagent's OWN transcript (agent_transcript_path on SubagentStop - never the session-wide
+# transcript_path, which would credit the parent's or a sibling's OSM calls to this subagent).
+TRANSCRIPT="$(_hook_transcript "$INPUT")"
+[[ -n "$TRANSCRIPT" ]] || _pass
 
 # --- Signals from the subagent's own transcript (ASSISTANT-authored only) -------------------
-# Parse the jsonl into a normalized stream so that tool CALLS are counted from real `tool_use`
-# blocks (not a tool name mentioned in an instruction or tool_result) and grounding LABELS are
-# read only from the ASSISTANT's own text - never from an injected contract snippet that quotes
-# the label (e.g. osm-first-contract.md section 5 contains the literal "grounded: osm"). Tolerant:
-# `fromjson?` skips non-JSON lines; on any jq failure NORM is empty -> self-gate -> no enforcement.
-NORM="$(jq -rR 'fromjson? | (.message // .) as $m
-  | (($m.role // .type) // "") as $role
-  | select($role == "assistant")
-  | ($m.content // [])
-  | (if type == "array" then .[] else empty end)
-  | if (.type == "tool_use") then
-        "CALL\t" + ((.name // "")|tostring) + "\t" + ((.input.file_path // .input.path // "")|tostring)
-    elif (.type == "text") then
-        "TEXT\t" + ((.text // "")|tostring)
-    else empty end' "$TRANSCRIPT" 2>/dev/null || true)"
+# final-report.sh _assistant_signals: tool CALLS are counted from real `tool_use` blocks (not a
+# tool name mentioned in an instruction or tool_result) and grounding LABELS are read only from
+# the ASSISTANT's own words - its text blocks AND the report it handed back through
+# SubagentHandback and its final message (the payload's last_assistant_message,
+# which the transcript file may not hold yet), every line of each - never from an injected contract snippet
+# that quotes the label (e.g. osm-first-contract.md section 5 contains the literal "grounded: osm").
+# Tolerant: on any jq failure NORM is empty -> self-gate -> no enforcement.
+NORM="$(_assistant_signals "$TRANSCRIPT" "$(_hook_last_message "$INPUT")")"
 
 _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' || true; }
 OSM_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__')

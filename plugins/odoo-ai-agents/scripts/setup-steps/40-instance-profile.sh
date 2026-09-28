@@ -32,24 +32,29 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
-MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
+FACTS="$SCRIPT_DIR/../lib/odoo_source_facts.py"
 # Postgres client-surface detector + db_run_mode vocabulary SSOT.
 # shellcheck source=../lib/pg_mode.sh
 source "$SCRIPT_DIR/../lib/pg_mode.sh"
 
-# Look up the recommended Python version for an Odoo series (e.g. "17.0").
-# Prints the recommended version or nothing. Data-driven from MATRIX_JSON.
+# _suggested_python <spec_file> <index> <series>
+#   The python-line hint for a new row: the supported range is an Odoo SOURCE
+#   fact read from the checkout this spec item names (its odoo_root, else the core
+#   repo on its addons_path); the fallback table answers only when no checkout is
+#   readable. Prints "<recommended> (supported <min>-<max>, from <source>)" or nothing.
 _suggested_python() {
-    [[ -f "$MATRIX_JSON" ]] || return 0
-    python3 - "$MATRIX_JSON" "$1" <<'PY' 2>/dev/null || true
-import json, sys
-try:
-    m = json.load(open(sys.argv[1]))
-    e = m.get("odoo_python_matrix", {}).get(sys.argv[2])
-    if e and e.get("recommended"):
-        print(e["recommended"])
-except Exception:
-    pass
+    python3 - "$FACTS" "$1" "$2" "$3" <<'PY' 2>/dev/null || true
+import importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("odoo_source_facts", sys.argv[1])
+facts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(facts)
+item = json.load(open(sys.argv[2]))[int(sys.argv[3])]
+root = facts.locate_odoo_root(item.get("odoo_root"), item.get("addons_path") or [])
+info = facts.python_recommendation(sys.argv[4], root)
+if info:
+    label = {"debian": "debian/control", "shebang": "launcher shebang"}.get(info["source"], info["source"])
+    src = "the fallback table" if info["source"] == "matrix" else "the checkout's " + label
+    print("%s (supported %s-%s, from %s)" % (info["recommended"], info["min"], info["max"] or "open", src))
 PY
 }
 DISCOVER="$SCRIPT_DIR/../lib/discover_odoo.sh"
@@ -163,10 +168,11 @@ _toml_escape() {
 #   $8 = profile (optional; empty string = no profile)
 #   $9 = db_port (optional; EMPTY = write no db_port line at all - libpq/PGPORT
 #        resolves it. NEVER fabricate 5432.)
+#   $10 = spec file, $11 = item index (for the source-derived python hint)
 # ---------------------------------------------------------------------------
 _write_instance_from_spec() {
     local ver="$1" paths="$2" port="$3" db_name="$4" db_host="$5" db_user="$6" py="$7"
-    local profile="${8:-}" db_port="${9:-}"
+    local profile="${8:-}" db_port="${9:-}" spec_file="${10:-}" spec_idx="${11:-}"
     local suggested_py pyline profileline instance_key_val match_field match_value out
     local db_portline="" pg_lines="" _pg_kv
 
@@ -192,7 +198,8 @@ _write_instance_from_spec() {
         echo "  '45-venv.sh record-env --series $ver' once resolved." >&2
     fi
 
-    suggested_py="$(_suggested_python "$ver")"
+    suggested_py=""
+    [[ -n "$spec_file" ]] && suggested_py="$(_suggested_python "$spec_file" "$spec_idx" "$ver")"
     if [[ -n "$py" ]]; then
         pyline=$(printf 'python = "%s"' "$(_toml_escape "$py")")
     elif [[ -n "$suggested_py" ]]; then
@@ -441,7 +448,7 @@ PY
 
         if _write_instance_from_spec "$ver" "$addons_raw" "$http_port_raw" \
                 "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw" "$profile_raw" \
-                "$db_port_raw"; then
+                "$db_port_raw" "$spec_file" "$i"; then
             : # already present - port_idx unchanged
         else
             port_idx=$((port_idx + 1))

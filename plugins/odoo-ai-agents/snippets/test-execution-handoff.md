@@ -36,7 +36,7 @@ Run a check inline ONLY when it is small, immediate, and its output is bounded:
 DELEGATE to `odoo-instance` (which dispatches `odoo-instance-ops`) when any of these hold:
 - the full module suite or a cross-module/cluster run,
 - a run needing a live HTTP server (tour / `HttpCase` / `url_open`),
-- demo=on integration runs, install/upgrade (`-i`/`-u`) of a cluster,
+- demo-carrying instances, install/upgrade (`-i`/`-u`) of a cluster,
 - output would be large (full test log, tracebacks, query dumps).
 
 The writer/orchestrator MUST NOT allocate a DB + port and run a full suite inside its own context -
@@ -74,10 +74,10 @@ Fall back to `BLOCKED` only when provisioning itself is impossible.
 ## Invocation mode, log mode, and warnings-are-findings
 
 When dispatching `odoo-instance` run-tests, the caller picks:
-- `mode`: `fresh` (new DB - init + run the suite in one pass) or `reuse` (the DB already has the
-  module - re-init data + re-run). Re-runs need `reuse`; on an already-installed module a `fresh`
-  invocation is a no-op, so the suite silently does not re-run.
-- `log_mode` (optional): `info` | `debug` | `sql`.
+- `mode`: `fresh` (new DB, `-i`) or `reuse` (module installed, `-u`). Re-runs need `reuse`;
+  `fresh` on an installed module runs none of its tests on recent series
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database).
+- `log_mode` (optional): `info`|`debug`|`sql`.
 
 A run's `warnings > 0` MUST be surfaced as findings alongside failures and errors - never swallowed.
 WARNINGs are defects to fix, not noise. Flag-level detail for both params (the `-i`/`-u` mapping and

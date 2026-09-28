@@ -7,7 +7,9 @@ owns only the TRANSLATION into tool vocabulary. Two translation tables live here
 
   LEASE_FIELDS   tool field name <- allocator envelope key (ALLOC_*) <- lease-row key. Every lease
                  this server returns - from acquire, from a registry row, from a query - is built
-                 by `lease_from_envelope` / `lease_from_row` over this one table.
+                 by `lease_from_envelope` / `lease_from_row` over this one table. A field with no
+                 envelope key (None) exists only on a registry row; an envelope reports its
+                 normalized empty value.
   HANDLE_FIELDS  the INSTANCE_HANDLE shape (snippets/instance-handle-contract.md field names),
                  filled from a lease by `instance_handle`.
 
@@ -87,6 +89,10 @@ LEASE_FIELDS = (
     ("db_user", "ALLOC_DB_USER", lambda r: (r.get("_pg") or {}).get("user") or r.get("db_user")),
     ("db_port", "ALLOC_DB_PORT", lambda r: r.get("db_port")),
     ("run_id", "ALLOC_RUN_ID", _owner_run),
+    ("server_wide_modules", "ALLOC_SERVER_WIDE_MODULES", lambda r: r.get("server_wide_modules")),
+    # What builds put into the database (allocator.py record-build). Never in an acquire envelope:
+    # a fresh lease has built nothing yet.
+    ("built", None, lambda r: r.get("built")),
 )
 
 
@@ -125,7 +131,150 @@ def _text(value):
     return "" if value is None else str(value)
 
 
-_NORMALIZE = {"ports": _ports, "addons_path": _addons_list}
+def _module_list(value):
+    """A module list from a row (a list) or a shell-mode envelope (space- or comma-joined)."""
+    if not value:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if str(v).strip()]
+    return [m for m in str(value).replace(",", " ").split() if m]
+
+
+def _built(value):
+    """{demo: true|false|null, languages: [...]} from a row's `built` (absent = nothing recorded:
+    demo unknown, no language proved)."""
+    value = value if isinstance(value, dict) else {}
+    demo = value.get("demo")
+    return {"demo": demo if isinstance(demo, bool) else None,
+            "languages": _module_list(value.get("languages"))}
+
+
+_NORMALIZE = {"ports": _ports, "addons_path": _addons_list, "server_wide_modules": _module_list,
+              "built": _built}
+
+
+def _pg_coordinates(row):
+    """(host, port) of the Postgres cluster a registry row's database lives on; "" = unstated."""
+    pg = row.get("_pg") or {}
+    return (str(pg.get("host") or row.get("db_host") or ""),
+            str(row.get("db_port") or pg.get("port") or ""))
+
+
+def same_database(a, b):
+    """True when two registry rows name the same database: the same db_name on the same cluster.
+    A coordinate one row leaves unstated (a row an older allocator wrote, libpq's default) never
+    tells two databases apart; two stated, different ones always do."""
+    if not a.get("db_name") or a.get("db_name") != b.get("db_name"):
+        return False
+    for mine, theirs in zip(_pg_coordinates(a), _pg_coordinates(b)):
+        if mine and theirs and mine != theirs:
+            return False
+    return True
+
+
+def database_built(row, rows=None):
+    """What builds put into the DATABASE `row` names, from the `built` of EVERY registry row on that
+    database (`rows`: the registry, read when omitted) - not only this lease's own. Build facts
+    belong to the database: an agent handed an INSTANCE_HANDLE takes its own lease on the same
+    database, and that fresh lease recorded no build, yet the demo data the provider loaded is
+    there. demo: true when any row says true (demo data never leaves a database), false when a
+    row says false and none says true, null when none recorded it; languages: the union, this
+    row's first. Rows that predate the key contribute nothing."""
+    if rows is None:
+        rows = list_rows([])
+    demo, languages = None, []
+    for other in [row] + [r for r in rows if r.get("token") != row.get("token") and same_database(row, r)]:
+        built = _built(other.get("built"))
+        if built["demo"] is True:
+            demo = True
+        elif built["demo"] is False and demo is None:
+            demo = False
+        languages += [lang for lang in built["languages"] if lang not in languages]
+    return {"demo": demo, "languages": languages}
+
+
+DB_FACTS_TIMEOUT_S = 60
+FACTS_FROM_DATABASE = "database"
+FACTS_FROM_LEASES = "leases"
+_UNREAD = object()
+
+
+def read_database(row, cwd=None, modules=None):
+    """{demo, languages} read from the database `row` names ITSELF - `odoo_db.py db-facts` under
+    the lease's venv python (ir_module_module.demo of the installed modules, the active res_lang
+    codes; a database that does not exist holds nothing) - or None when it cannot be read (no
+    venv on the row, e.g. a shared lease; the venv cannot import Odoo; the cluster refused or did
+    not answer; the bound elapsed). One connection. With `modules`, also "modules":
+    {name: {"state", "demo"}} for each of them the database knows (its OWN demo flag - the
+    database-wide `demo` says nothing about one module); a module it does not know is absent."""
+    python, db = row.get("python"), row.get("db_name")
+    if not python or not db:
+        return None
+    argv = [python, str(cli.LIB_DIR / "odoo_db.py"), "db-facts", db]
+    if modules:
+        argv += ["--modules", ",".join(modules)]
+    host, port = _pg_coordinates(row)
+    user = (row.get("_pg") or {}).get("user") or row.get("db_user") or ""
+    for flag, value in (("--db-host", host), ("--db-user", user), ("--db-port", port)):
+        if value:
+            argv += [flag, str(value)]
+    facts = cli.try_load_lib("odoo_source_facts")
+    root = facts.locate_odoo_root(row.get("odoo_root") or "", _addons_list(row.get("addons_path"))) \
+        if facts is not None else None
+    if root:
+        argv += ["--odoo-root", root]
+    try:
+        rc, out, _err = cli.run(argv, cwd or os.getcwd(), DB_FACTS_TIMEOUT_S)
+    except (cli.SubprocessTimeout, OSError):
+        return None
+    lines = (out or "").splitlines()
+    kv = dict(line.split("=", 1) for line in lines if "=" in line and not line.startswith("MODULE="))
+    if rc != 0:
+        return None
+    if kv.get("DB_EXISTS") == "0":
+        return dict({"demo": False, "languages": []}, **({"modules": {}} if modules else {}))
+    if kv.get("DB_EXISTS") != "1" or kv.get("DEMO") not in ("0", "1") or "LANGUAGES" not in kv:
+        return None
+    out_facts = {"demo": kv["DEMO"] == "1", "languages": _module_list(kv["LANGUAGES"])}
+    if modules:
+        out_facts["modules"] = _module_facts(lines)
+    return out_facts
+
+
+def _module_facts(lines):
+    """{name: {"state", "demo"}} from db-facts' `MODULE=<name> STATE=<state> DEMO=1|0` lines."""
+    found = {}
+    for line in lines:
+        if not line.startswith("MODULE="):
+            continue
+        fields = dict(part.split("=", 1) for part in line.split() if "=" in part)
+        if fields.get("MODULE"):
+            found[fields["MODULE"]] = {"state": fields.get("STATE") or "",
+                                       "demo": fields.get("DEMO") == "1"}
+    return found
+
+
+def database_facts(row, rows=None, cwd=None, db=_UNREAD, modules=None):
+    """What the database `row` names holds: {demo, languages, source} (+ "modules" when asked with
+    `modules` and the database itself answered - see read_database). The DATABASE is the source
+    of truth (read_database; `db` = a read the caller already made, so one tool call reads it
+    once); only when it cannot be read do the lease records answer (database_built: every lease on
+    that database; they record nothing per module). `source` says which: "database" | "leases"."""
+    if db is _UNREAD:
+        db = read_database(row, cwd, modules=modules)
+    if db is not None:
+        return dict(db, source=FACTS_FROM_DATABASE)
+    return dict(database_built(row, rows), source=FACTS_FROM_LEASES)
+
+
+def database_handle(row, lease=None, rows=None, facts=None, cwd=None, **kwargs):
+    """instance_handle for the lease `row` describes, with demo / languages_loaded the DATABASE's
+    facts (database_facts, or `facts` already read) and facts_source naming who answered."""
+    facts = facts if facts is not None else database_facts(row, rows, cwd)
+    lease = dict(lease if lease is not None else lease_from_row(row),
+                 built={"demo": facts["demo"], "languages": facts["languages"]},
+                 facts_source=facts["source"])
+    return instance_handle(lease, **kwargs)
 
 
 def _normalized(name, value):
@@ -181,7 +330,8 @@ def _served_pid(row):
 def lease_from_envelope(fields):
     """A lease dict from an allocator envelope's `fields` (acquire / query output). The envelope
     carries no server facts, so it is reported unserved."""
-    return _unserved({name: _normalized(name, fields.get(key)) for name, key, _row in LEASE_FIELDS})
+    return _unserved({name: _normalized(name, fields.get(key) if key else None)
+                      for name, key, _row in LEASE_FIELDS})
 
 
 def recorded_session_state(row):
@@ -222,13 +372,19 @@ def lease_from_row(row):
 # INSTANCE_HANDLE (field names: snippets/instance-handle-contract.md)
 # --------------------------------------------------------------------------- #
 HANDLE_FIELDS = ("db_name", "http_port", "gevent_port", "db_port", "addons_path", "venv_python",
-                 "demo", "languages_loaded", "log_path", "lease_token", "run_id", "server_pid")
+                 "demo", "languages_loaded", "facts_source", "log_path", "lease_token", "run_id",
+                 "server_pid")
 
 
 def instance_handle(lease, log_path=None, server_pid=None, http_port=None):
-    """The INSTANCE_HANDLE a lease can fill. Fields the lease cannot know (demo, languages_loaded)
-    are null; http_port/gevent_port are the lease's reserved ports unless a bound port is given."""
+    """The INSTANCE_HANDLE a lease can fill. demo / languages_loaded come from lease.built; the
+    tools hand it the DATABASE's facts (database_handle: read from the database itself, else from
+    the builds every lease on it recorded - facts_source says which), so a handle on a forwarded
+    database states what that database holds. demo null = nothing known; languages_loaded null =
+    no language known active. http_port/gevent_port are the lease's reserved ports unless a bound
+    port is given."""
     ports = lease.get("ports") or []
+    built = lease.get("built") or {}
     return {
         "db_name": lease.get("db_name") or "",
         "http_port": http_port if http_port is not None else (ports[0] if ports else None),
@@ -236,8 +392,9 @@ def instance_handle(lease, log_path=None, server_pid=None, http_port=None):
         "db_port": lease.get("db_port") or "",
         "addons_path": join_addons(lease.get("addons_path")),
         "venv_python": lease.get("venv_python") or "",
-        "demo": None,
-        "languages_loaded": None,
+        "demo": built.get("demo"),
+        "languages_loaded": list(built["languages"]) if built.get("languages") else None,
+        "facts_source": lease.get("facts_source") or FACTS_FROM_LEASES,
         "log_path": log_path,
         "lease_token": lease.get("token"),
         "run_id": lease.get("run_id") or "",
@@ -256,8 +413,8 @@ _NULLABLE_INT = {"type": ["integer", "null"]}
 LEASE_SCHEMA = {
     "type": "object",
     "required": ["token", "mode", "db_name", "ports", "series", "profile", "addons_path",
-                 "venv_python", "db_host", "db_user", "db_port", "run_id", "session_alive",
-                 "served", "http_port", "url"],
+                 "venv_python", "db_host", "db_user", "db_port", "run_id", "server_wide_modules",
+                 "built", "session_alive", "served", "http_port", "url"],
     "properties": {
         "token": dict(_NULLABLE_STR, description="Full lease token, or null when this caller may not "
                                                  "hold it (see token_prefix)."),
@@ -276,6 +433,24 @@ LEASE_SCHEMA = {
         "db_port": {"type": "string", "description": "Postgres port; empty = libpq default."},
         "run_id": dict(_NULLABLE_STR, description="Owner run id; null when not disclosed to this "
                                                   "caller (another session's lease)."),
+        "server_wide_modules": {"type": "array", "items": {"type": "string"},
+                                "description": "Server-wide modules the catalog row declared when the "
+                                               "lease was acquired (empty = none). instance_build and "
+                                               "instance_serve load them together with the series' "
+                                               "core default; you never pass --load."},
+        "built": {"type": "object", "required": ["demo", "languages"],
+                  "description": "What builds on THIS lease put into its database. Another lease "
+                                 "on the same database may have built more: the "
+                                 "INSTANCE_HANDLE's demo / languages_loaded state the database's "
+                                 "facts, from every lease on it.",
+                  "properties": {
+                      "demo": {"type": ["boolean", "null"],
+                               "description": "true = a build ran with demo on (demo data stays "
+                                              "once loaded); false = every recorded build ran "
+                                              "with demo off; null = no build recorded it."},
+                      "languages": {"type": "array", "items": {"type": "string"},
+                                    "description": "Languages a finished build proved loaded "
+                                                   "(job_wait languages_loaded), accumulated."}}},
         "session_alive": {"type": ["boolean", "null"],
                           "description": "Whether the Claude Code session the lease records is still "
                                          "running - measured for every anchored lease, parked and "
@@ -303,8 +478,19 @@ HANDLE_SCHEMA = {
         "db_port": {"type": "string"},
         "addons_path": {"type": "string"},
         "venv_python": {"type": "string"},
-        "demo": {"type": ["boolean", "null"]},
-        "languages_loaded": {"type": ["array", "null"], "items": {"type": "string"}},
+        "demo": {"type": ["boolean", "null"],
+                 "description": "Whether the DATABASE holds demo data (a fact of the database, a "
+                                "forwarded one included): read from it (any installed module with "
+                                "demo loaded), else as the builds of every lease on it recorded "
+                                "(see facts_source); null = not known."},
+        "languages_loaded": {"type": ["array", "null"], "items": {"type": "string"},
+                             "description": "Languages active in the DATABASE: read from it, else "
+                                            "those a finished build on it proved loaded (see "
+                                            "facts_source); null = none known yet."},
+        "facts_source": {"type": "string", "enum": [FACTS_FROM_DATABASE, FACTS_FROM_LEASES],
+                         "description": "Who answered demo / languages_loaded: database = read "
+                                        "from the database itself; leases = it could not be "
+                                        "read, so the build records of every lease on it."},
         "log_path": _NULLABLE_STR,
         "lease_token": _NULLABLE_STR,
         "run_id": {"type": "string"},
@@ -465,8 +651,10 @@ def _acquire(args, ctx):
     env = cli.run_allocator("acquire", argv, cwd, ACQUIRE_TIMEOUT_S)
     lease = lease_from_envelope(env["fields"])
     lease["session_alive"] = None
+    row, rows = None, []
     if lease["token"]:
-        row = read_row(lease["token"], cwd)
+        rows = list_rows([], cwd)
+        row = next((r for r in rows if r.get("token") == lease["token"]), None)
         if row is not None:
             fresh = lease_from_row(row)
             for key in ("session_alive", "served", "http_port", "url"):
@@ -481,7 +669,8 @@ def _acquire(args, ctx):
             "this lease and lease_acquire again." % (
                 lease["series"] or args["series"],
                 (" profile %s" % lease["profile"]) if lease["profile"] else ""))
-    return {"lease": lease, "instance_handle": instance_handle(lease),
+    handle = database_handle(row, lease, rows, cwd=cwd) if row is not None else instance_handle(lease)
+    return {"lease": lease, "instance_handle": handle,
             "attached": bool(env["fields"].get("ALLOC_ATTACHED")),
             "venv_missing": venv_missing, "warnings": warnings}
 
@@ -930,11 +1119,13 @@ def register(registry, ctx):
     )
     registry.add(
         "lease_park",
-        "Suspend a RUNNING lease you acquired: stops its server (frees RAM) but keeps its database, "
-        "filestore and ports, so a later run can resume it with instance_serve instead of rebuilding. "
-        "Use it instead of lease_release when the built database is worth keeping; lease_find(state "
-        "parked, run_id yours) finds it again. Only the owning run may park (NOT_OWNER otherwise); a "
-        "lease with no running server is refused (NOT_RUNNING) and a shared lease cannot be parked. "
+        "Suspend a lease you acquired: stops its server when one runs (frees RAM) and keeps its "
+        "database, filestore, ports and build facts, so a later run can resume it with instance_serve "
+        "instead of rebuilding - a lease that was built but never served parks too (nothing to "
+        "stop). Use it instead of lease_release when the built database is worth keeping; "
+        "lease_find(state parked, run_id yours) finds it again. Only the owning run may park "
+        "(NOT_OWNER otherwise); a lease already parked is refused (NOT_RUNNING) and a shared lease "
+        "cannot be parked. "
         "drop_on_release=true in the result means the final lease_release still drops the database: "
         "parking defers the drop, it never makes the database permanent.",
         _obj({"lease_token": LEASE_TOKEN_PROP, "run_id": RUN_ID_PROP,

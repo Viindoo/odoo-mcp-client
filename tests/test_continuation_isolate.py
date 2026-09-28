@@ -101,7 +101,15 @@ def _run_hook(hook: Path, cwd: Path, env: dict, transcript_lines=None, stop_hook
     if transcript_lines is not None:
         tpath = cwd / "transcript.jsonl"
         tpath.write_text("\n".join(transcript_lines) + "\n", encoding="utf-8")
-        payload["transcript_path"] = str(tpath)
+        if hook == PARSE_HOOK:
+            # The real SubagentStop payload: the subagent's OWN transcript is
+            # agent_transcript_path; transcript_path is the whole session's (empty here).
+            session = cwd / "session-transcript.jsonl"
+            session.write_text("", encoding="utf-8")
+            payload.update({"hook_event_name": "SubagentStop", "transcript_path": str(session),
+                            "agent_transcript_path": str(tpath)})
+        else:
+            payload["transcript_path"] = str(tpath)
     proc = subprocess.run(
         ["bash", str(hook)], input=json.dumps(payload), capture_output=True, text=True,
         timeout=30, env=env,

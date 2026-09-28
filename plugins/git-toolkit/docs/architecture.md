@@ -59,8 +59,8 @@ flowchart LR
 Only `git-pipeline-lead` holds the spawn tool; the three leaves declare a `tools:` allowlist that
 excludes it, hard-capping nesting at two levels (lead -> leaf). Cold-spawn (stateless brief in,
 findings file out) is the DEFAULT and always-correct baseline - robust at any caller depth, no roster
-needed. Every agent ends its turn by emitting its completion report as its final message per
-`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md` - there is no upward message channel, so
+needed. Every agent hands its completion report back once, as the last act of its dispatch, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md` - there is no addressed upward channel, so
 the leaves' allowlists grant no messaging tool at all and cannot fan out.
 
 ## Safety gate (destructive ops)

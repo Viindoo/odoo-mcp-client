@@ -9,8 +9,9 @@
 
 A second file used to re-enumerate the 3-part shape (prose summary / produced / continuation block)
 alongside a now-retired transport rule - a driftable copy of the same content. This file is the sole
-declaring SSOT for the shape, and the shape is unconditional: the report is always the final text of
-the turn, so there is no transport to describe on top of it.
+declaring SSOT for the shape, and the shape is unconditional. How the report travels is not part of
+the shape: it has exactly one home, spawner-completion-contract.md R3, so the shape and the
+transport can change independently without either copy drifting.
 
 ## Why the `SUGGESTED_NEXT:` back-compat superseding matters
 

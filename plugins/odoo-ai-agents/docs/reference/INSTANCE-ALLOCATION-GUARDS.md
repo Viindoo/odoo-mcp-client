@@ -13,12 +13,23 @@ a shared environment config: the allocator reserves a UNIQUE database name (`<pr
 (`INSTANCE-ALLOCATION-API.md` §6), and the DB itself is created THROUGH Odoo by that build's own
 `-i` run (`INSTANCE-ALLOCATION-API.md` §6.1) - never by a config file.
 
-Two distinct paths exist in the current implementation, and BOTH satisfy the isolation contract by
-construction:
+Every `odoo-bin` the scripts launch reads ONE config file the script generated, and no other:
+`-c <conf>`, and `$ODOO_RC` (`$OPENERP_SERVER` on the `openerp` core package) naming the same file
+(`scripts/lib/odoo_cli_facts.sh` `odoo_isolated_rc_env`) - where Odoo loads its default rc file at
+import time, `-c` overrides only the keys the conf states, so without the variable the operator's
+`~/.odoorc` (`without_demo`, `data_dir`, `db_*`, `addons_path`) would still reach the
+run. `odoo_db.py` names an empty file the same way. No generated conf holds a password: libpq reads
+`PGPASSWORD`, exported from `$ODOO_PG_PASSWORD` for that launch only, or `~/.pgpass`. Two paths
+write that conf, and BOTH satisfy the isolation contract by construction:
 
 - **`55-instance-ops.sh`-backed operations** (create/init/update/run-tests - what
-  `instance_build` runs) pass ALL parameters as explicit CLI flags and read NO shared config
-  file at all: no `-c`/`--config` flag, no reliance on `$ODOO_RC`.
+  `instance_build` runs - and the translation export `instance_i18n_export` runs). A build passes
+  every connection parameter as an explicit CLI flag; its conf carries only what the run itself
+  states (e.g. the demo setting a checkout cannot spell as a flag), at
+  `$ODOO_AI_HOME/conf/<db_name>-build.conf` - keyed by the database, since one job runs on a
+  database at a time. An export's conf sits beside that job's log and also carries the addons path
+  and Postgres coordinates, because the `i18n export` subcommand reads them from its config file
+  only; it is removed when the job ends.
 - **`50-instance-spinup.sh`-backed operations** (the "stay-running" apply path that
   `instance_serve` runs, and `ensure-up`) DO
   materialise an `odoo.conf` for the launched server. That file MUST live at a DETERMINISTIC path
@@ -42,10 +53,11 @@ construction:
 
 **Contract:** an agent MUST NOT introduce a build step that writes to a shared or default config
 path (`$ODOO_RC`, a project-committed `odoo.conf`, or any config file reused across concurrently
-LIVE instances). Every build either (a) passes flags with no config file at all, or (b) writes the
-resource-keyed conf at its deterministic, per-live-instance path - there is no third path, and (b)
-is NEVER a per-invocation temp file. This is a harness-level guarantee, not an Odoo-CLI fact, so it
-applies identically across all versions (v8-v19).
+LIVE instances), and MUST NOT let a launched Odoo read the operator's own config file. Every launch
+reads only a conf the plugin generated at a path keyed by the resource (the database for a build,
+the database and port for a listening instance) or by the job (an export) - never a per-invocation
+temp file, never a shared or default one. This is a harness-level guarantee, not an Odoo-CLI
+fact, so it applies identically on every series.
 
 Consumers point back here rather than restating the contract: `agents/odoo-instance-ops.md`
 ("Through-Odoo DB lifecycle") and `skills/odoo-instance/SKILL.md`.
@@ -83,7 +95,9 @@ main context is never denied:
 - **A4** - a release, park or adopt (Bash or MCP) of a token the caller does not hold: the token must
   appear in the caller's OWN transcript as OBTAINED (a `lease_acquire` or `lease_adopt` result, a
   series-mode `instance_serve` result reporting `state: launched`, or the Bash receipt line
-  `allocator: acquired|adopted lease <token>`) or HANDED UP in the report of a child it dispatched.
+  `allocator: acquired|adopted lease <token>`) or HANDED UP in the report of a child it dispatched
+  (the child's `Agent` result, its task notification, or its peer message - the form a
+  `SubagentHandback` report arrives in; a peer message from anyone else is not a hand-up).
   NOT obtainment: an `attached` series-mode serve (it joined a server another run started), a serve
   or resume of a token passed in, and a `lease_find` / `lease_list` result. An adopt may also use a
   token its own `lease_find` returned, which is the only resume path from a new session:

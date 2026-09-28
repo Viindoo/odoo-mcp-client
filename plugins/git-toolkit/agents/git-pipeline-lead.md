@@ -120,7 +120,7 @@ backup_branches: <list or pointer to plan file>
 summary: <one line - what landed, what is irreversible, what was confirmed>
 ```
 
-End your turn by emitting that block as your final message, never by sending it to anyone:
+That block is your completion report - deliver it once, last, never by sending it to anyone:
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language
