@@ -103,9 +103,9 @@ leases are reclaimed. That net catches crashes, not laziness - you still release
   pagecast; headed and headless variants) are deliberately long-lived shared processes. Your
   teardown scope is INSIDE the server: pages, tabs, contexts, recordings, traces. NEVER kill,
   restart, or "clean up" the MCP server process itself.
-- **End of dispatch, by family:** chrome-devtools -> `list_pages`, `close_page` every page but
-  one, then `navigate_page` that page to `about:blank` (chrome-devtools cannot close its last
-  page); playwright -> `browser_close` (plus `browser_stop_video` / `browser_stop_tracing` if you
+- **End of dispatch, by family:** chrome-devtools -> `close_page` each page you drove; if it is
+  the last open page, `navigate_page` it to `about:blank` instead (it cannot close its last page);
+  playwright -> `browser_close` (plus `browser_stop_video` / `browser_stop_tracing` if you
   started either); pagecast -> `stop_recording` for every session you started.
 - **Clean up as you go, not just at the end.** Reuse ONE page across a sweep instead of opening a
   page per screen/breakpoint/role; close an extra page/context when that step ends.

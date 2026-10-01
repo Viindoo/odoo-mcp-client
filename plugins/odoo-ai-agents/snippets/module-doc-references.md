@@ -41,6 +41,8 @@ After you write or edit any of these files, run, passing the doc files you wrote
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [files...]
 ```
 
+`<resolved series>` is the `X.Y` series form - the same value as `<odoo_version>` above.
+
 - Exit 0: clean.
 - Exit 1: each finding prints `file:line: RULE: ref`. Fix every one and re-run until exit 0.
 - Exit 2: environment or usage error. Return `NEEDS_CONTEXT` with the remedy it printed.

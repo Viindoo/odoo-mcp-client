@@ -1,9 +1,7 @@
 <!-- SSOT snippet. The single source of truth for the namespaced ~/.odoo-ai/ state root:
      the two-axis Tier model, the exact subpath classification tables, and the
      MANDATORY resolve-capture-substitute prose protocol every skill/agent follows before it
-     touches ANY project-scoped .odoo-ai/ path. Referenced (not copy-pasted) by
-     project-facts-resolution.md (Round 0) and every skill/agent/workflow that reads or writes a
-     Tier-2 subpath. Edit here only; consumers point at
+     touches ANY project-scoped .odoo-ai/ path. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md. -->
 
 # State-Root Resolution (`~/.odoo-ai/` two-axis convention)
@@ -65,9 +63,8 @@ series+profile) to avoid cross-project contamination. Treat them as Tier-1 until
 
 ## Tier-2 SHARE list (`<repo-key>/`, converges across a repo's worktrees)
 
-This table enumerates every `.odoo-ai/`-rooted SHARE subpath used in this repo's prose today. A
-codemod agent needs zero judgment on any of these - every row already carries its rationale. Note:
-because most consumers reference these paths through the `<SHARE_DIR>`/`<ISOLATE_DIR>` placeholder
+This table enumerates every `.odoo-ai/`-rooted SHARE subpath used in this repo's prose today.
+Because most consumers reference these paths through the `<SHARE_DIR>`/`<ISOLATE_DIR>` placeholder
 (never a literal `.odoo-ai/...` string), no single grep can mechanically re-verify this table's
 completeness - a NEW subpath is a maintainer responsibility to add here (§ The rule below), not a
 lint finding.
@@ -212,9 +209,12 @@ trace (`browser_stop_tracing`) or a pagecast `.webm` (`stop_recording`) has no d
 path it returns into `<ISOLATE_DIR>` immediately. Console/network listings return inline - Write
 what you keep under `<ISOLATE_DIR>` so the report cites a real path.
 
-**Refused path.** On "Access denied", "outside allowed roots", or a hook deny of the capture path,
-never retry with a relative path or another directory: stop `BLOCKED(browser MCP flags outdated)`
-with the remedy "run /odoo-ai-agents:odoo-setup browser, then restart the session".
+**Refused path.** Never retry with a relative path.
+- A HOOK deny: re-issue the call ONCE with an absolute path under the directory it names, or
+  omit `filePath` when it says so; denied again -> stop `BLOCKED` quoting the deny.
+- A SERVER refusal ("Access denied", "outside allowed roots") of an absolute path under your
+  `<ISOLATE_DIR>`/`<SHARE_DIR>`: stop `BLOCKED(browser MCP flags outdated)`, remedy "run
+  /odoo-ai-agents:odoo-setup browser, then restart the session".
 
 **Resolver REFUSAL (state root unresolvable), fail-closed:**
 - **chrome-devtools**: omit `filePath` entirely - attaches to the response, nothing written - and

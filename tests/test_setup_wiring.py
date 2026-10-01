@@ -97,9 +97,13 @@ def test_optin_family_package_is_pinned_to_an_exact_version(server):
     """`npx -y pkg@1` reuses whatever 1.x the machine's npm cache holds; only an exact version
     makes the file-write rules the same on every machine."""
     args = _npx_args(server)
-    m = EXACT.match(args[0])
+    first = args[1] if args[0] == "-p" else args[0]
+    m = EXACT.match(first)
     assert m, f"{server} must launch an exactly pinned package first (got {args})"
-    assert m.group(1) == EXPECTED_PKG[server], f"{server} launches the wrong package: {args[0]}"
+    assert m.group(1) == EXPECTED_PKG[server], f"{server} launches the wrong package: {first}"
+    for i, a in enumerate(args[:-1]):
+        if a == "-p":
+            assert EXACT.match(args[i + 1]), f"{server}: an unpinned package {args[i + 1]!r}"
 
 
 @requires_bash

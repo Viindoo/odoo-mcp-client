@@ -6,7 +6,10 @@
 #   - Node.js >= 20            (npx/npm runtime for all three servers)
 #   - The 3 pinned npm packages, cached on disk (chrome-devtools-mcp,
 #     @playwright/mcp, @mcpware/pagecast - see below)
-#   - Playwright + Chromium    (browser driver + a real browser binary)
+#   - Playwright + Chromium    (browser driver + a real browser binary; pagecast)
+#   - Google Chrome (stable)   (chrome-devtools and playwright launch the INSTALLED
+#                               Chrome, never Playwright's Chromium - see
+#                               browser_mcp_servers.py chrome_locations)
 #   - Chromium system libs     (libnss3 / libgbm / fonts / ... on Linux)
 #   - ffmpeg                   (video/GIF capture for pagecast recordings)
 #
@@ -23,21 +26,26 @@
 # `scripts/lib/browser_mcp_servers.py` (read through `browser-mcp-servers.sh`;
 # the same pins steps 10/12 register and the launcher runs) - never duplicated
 # here. The Playwright used for `install chromium` / `install-deps` is the exact
-# `playwright-core` the pinned @playwright/mcp depends on, from the same SSOT
-# (PLAYWRIGHT_PIN overrides it).
+# `playwright` pagecast is launched with (it runs that package's bundled
+# Chromium), from the same SSOT (PLAYWRIGHT_PIN overrides it there, for the
+# launch and this install alike).
 #
 # Subcommands:
 #   describe   One-line description.
 #   check      Exit 0 if node>=20 AND all 3 MCP packages are cached on disk
-#              AND chromium installed AND (on apt-based Linux) chromium
-#              system libs present AND ffmpeg present; exit 1 if anything is
-#              missing.
+#              AND chromium installed AND Google Chrome installed AND (on
+#              apt-based Linux) chromium system libs present AND ffmpeg
+#              present; exit 1 if anything is missing (a missing Chrome is
+#              also reported, with the command that installs it).
 #   apply      Pre-install the 3 pinned MCP packages on disk (npm cache warm,
 #              never executed), install the pinned Playwright Chromium
 #              browser, and on apt-based Linux also install its system
 #              libraries - automatically only when passwordless sudo is
-#              available, otherwise print the exact command to run. For
-#              ffmpeg ONLY print OS-specific guidance.
+#              available, otherwise print the exact command to run. Google
+#              Chrome follows the same rule: installed only on apt-based Linux
+#              with passwordless sudo, otherwise the command is printed (it
+#              needs administrator rights). For ffmpeg ONLY print OS-specific
+#              guidance.
 #
 # HARD RULES:
 #   - Never run sudo silently. System libs run via `playwright install-deps`
@@ -61,9 +69,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/state_reclaim.sh
 . "$SCRIPT_DIR/../lib/state_reclaim.sh"
 
-# Pinned Playwright version: derived from the SSOT, env-overridable so users and
-# CI can pick a different release without editing this script.
-PW_PIN="${PLAYWRIGHT_PIN:-$BROWSER_MCP_PLAYWRIGHT_CORE_VERSION}"
+# Pinned Playwright version: the one pagecast runs, from the SSOT (which applies
+# the PLAYWRIGHT_PIN override), so the Chromium installed here is the one it loads.
+PW_PIN="$BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION"
 
 # The 3 backend packages this plugin's browser MCP families resolve to,
 # pinned by the shared SSOT (scripts/lib/browser-mcp-servers.sh) - never
@@ -79,7 +87,7 @@ MCP_SERVER_PACKAGE_PINS=(
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Pre-install on disk (no run): the 3 pinned browser MCP packages (npm cache warm) + pinned Playwright Chromium + system libs on apt Linux; verify ffmpeg"
+    echo "Pre-install on disk (no run): the 3 pinned browser MCP packages (npm cache warm) + pinned Playwright Chromium + system libs on apt Linux; verify Google Chrome + ffmpeg"
 }
 
 # ---------------------------------------------------------------------------
@@ -191,11 +199,51 @@ _ffmpeg_ok() {
     command -v ffmpeg >/dev/null 2>&1
 }
 
+# Google Chrome stable, where chrome-devtools-mcp and @playwright/mcp look for it (fixed install
+# locations, never PATH): the SSOT's chrome-path.
+_chrome_ok() {
+    _browser_mcp_py chrome-path >/dev/null 2>&1
+}
+
+_chrome_guidance() {
+    echo "  ! Google Chrome is not installed - the chrome-devtools and playwright browser servers" >&2
+    echo "    launch the installed Chrome (not Playwright's Chromium) and fail to start without it." >&2
+    echo "    Install it once (needs administrator rights; NO sudo is ever run for you):" >&2
+    case "$(uname -s 2>/dev/null || echo unknown)" in
+        Linux) echo "      sudo npx -y playwright@${PW_PIN} install chrome" >&2 ;;
+        *)     echo "      npx -y playwright@${PW_PIN} install chrome   (from an administrator shell)" >&2 ;;
+    esac
+    echo "    or install Google Chrome from https://www.google.com/chrome/" >&2
+}
+
+# Same semantics as the system libraries: install only where passwordless sudo is available on
+# apt-based Linux (Playwright's Chrome installer is an apt script there); everywhere else print the
+# command. A failed attempt with sudo is a real error.
+_ensure_chrome() {
+    if _chrome_ok; then
+        echo "  ok Google Chrome present - skip"
+        return 0
+    fi
+    if _is_apt_linux && _can_sudo_nopasswd; then
+        echo "  Installing Google Chrome (passwordless sudo detected)..."
+        if sudo -n env "PATH=$PATH" npx -y "playwright@${PW_PIN}" install chrome; then
+            echo "  ok Google Chrome installed"
+            return 0
+        fi
+        echo "  x Failed to install Google Chrome." >&2
+        echo "    Retry manually: sudo npx -y playwright@${PW_PIN} install chrome" >&2
+        return 1
+    fi
+    _chrome_guidance
+    return 0
+}
+
 cmd_check() {
     local ok=0
     _node_ok             || ok=1
     _mcp_packages_cached || ok=1
     _chromium_ok         || ok=1
+    _chrome_ok           || { ok=1; _chrome_guidance; }
     _system_deps_ok      || ok=1
     _ffmpeg_ok           || ok=1
     return "$ok"
@@ -342,6 +390,7 @@ cmd_apply() {
     _install_mcp_packages || return 1
     _install_chromium_binary
     _ensure_system_deps || return 1
+    _ensure_chrome || return 1
 
     if _ffmpeg_ok; then
         echo "  ok ffmpeg present ($(command -v ffmpeg))"

@@ -12,7 +12,8 @@
       "expectations": [
         "After the last page the agent drove (new_page / navigate_page / browser_navigate / record_page - a reused page counts), the transcript contains a family-correct browser CLOSE (suffix-matched: a tool name ending in close_page, browser_close, or stop_recording, or navigate_page to about:blank) before the agent's terminal status/completion block.",
         "The transcript contains NO instance release/drop token anywhere in the agent's own tool calls or text: no `allocator.py release`, no `operation: drop`, no `odoo_db.py drop`.",
-        "The Step 5 path-incremental completion block is present (INSTANCE_HANDLE was supplied) and echoes the same instance_handle value forwarded in the brief, unchanged - proving the agent treated it as a handle to hand back, not a lease to tear down itself."
+        "The Step 5 path-incremental completion block is present (INSTANCE_HANDLE was supplied) and echoes the same instance_handle value forwarded in the brief, unchanged - proving the agent treated it as a handle to hand back, not a lease to tear down itself.",
+        "Every chrome-devtools page driven by pageId ends closed or on about:blank - a driven page left on a URL and never closed fails, whatever the last call was."
       ]
     }
   ]

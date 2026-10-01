@@ -14,7 +14,8 @@
 # from scripts/lib/paths.py): a user-scope entry carries resolved values only, never a plugin
 # cache path. A family registered with any other command, args or env (an older pin, no
 # state-root flag, a moved $ODOO_AI_HOME) is DRIFT: `check` reports it and `apply` removes and
-# re-adds that entry (never merges - a merged args list keeps the stale flag). Restart Claude Code
+# re-adds that entry (never merges - a merged args list keeps the stale flag); when the add fails,
+# the removed entry is restored and the step fails. Restart Claude Code
 # afterwards: MCP does not hot-reload. Tool PERMISSIONS need no change here - browser_prefixes.py
 # allow-lists all six families from a static SSOT.
 #
@@ -29,7 +30,7 @@
 #              registered at user scope exactly as specified); exit 1 if any is missing or
 #              drifted.
 #   apply      Register the missing families and re-register the drifted ones. Idempotent,
-#              never sudo.
+#              never sudo. Exit 1 when any family could not be wired.
 #
 # CONFIG / OVERRIDES (for tests / non-default installs):
 #   CLAUDE_BIN          Claude CLI binary            ${CLAUDE_BIN:-claude}
@@ -57,8 +58,9 @@ _claude_matches() {
     printf '%s' "$spec" | python3 "$LIB" mcp-server-matches json "$(_claude_user_config)" "$1" >/dev/null 2>&1
 }
 
-# 0 when <server> has ANY user-scope entry (so apply must remove it before re-adding).
-_claude_registered() {
+# The user-scope entry of <server> as compact JSON on stdout (exit 0), or nothing (exit 1) when it
+# has none. Captured BEFORE apply removes a drifted entry, so a failed add can put it back.
+_claude_user_entry() {
     python3 - "$(_claude_user_config)" "$1" <<'PY' 2>/dev/null
 import json, sys
 try:
@@ -66,7 +68,11 @@ try:
         data = json.load(fh)
 except Exception:
     sys.exit(1)
-sys.exit(0 if sys.argv[2] in ((data.get("mcpServers") or {}) if isinstance(data, dict) else {}) else 1)
+servers = (data.get("mcpServers") or {}) if isinstance(data, dict) else {}
+entry = servers.get(sys.argv[2]) if isinstance(servers, dict) else None
+if entry is None:
+    sys.exit(1)
+sys.stdout.write(json.dumps(entry, separators=(",", ":")))
 PY
 }
 
@@ -100,7 +106,7 @@ cmd_apply() {
         return 0
     fi
     echo "Wiring opt-in browser MCP families into Claude (user scope)..."
-    local s spec line
+    local s spec line previous failed=0
     local -a add_args
     for s in "${BROWSER_MCP_OPTIN_SERVERS[@]}"; do
         if _claude_matches "$s"; then
@@ -122,15 +128,37 @@ print(spec["command"])
 for arg in spec["args"]:
     print(arg)
 ')
-        if _claude_registered "$s"; then
-            "$CLAUDE_BIN" mcp remove --scope user "$s" >/dev/null
+        # Claude refuses to add a name that exists, so a drifted entry is removed first; its JSON is
+        # kept so a failed add restores it instead of leaving the family unregistered.
+        previous=""
+        if previous="$(_claude_user_entry "$s")"; then
+            if ! "$CLAUDE_BIN" mcp remove --scope user "$s" >/dev/null; then
+                echo "  x claude: could not remove drifted $s (user scope) - left as it was" >&2
+                failed=1
+                continue
+            fi
             echo "  claude: removed drifted $s (user scope)"
         fi
         # The server name goes BEFORE -e: --env takes several KEY=VALUE pairs and would read a
         # name that follows it as one more.
-        "$CLAUDE_BIN" mcp add --scope user "$s" "${add_args[@]}"
-        echo "  claude: added $s (user scope) -> ${add_args[*]}"
+        if "$CLAUDE_BIN" mcp add --scope user "$s" "${add_args[@]}"; then
+            echo "  claude: added $s (user scope) -> ${add_args[*]}"
+            continue
+        fi
+        failed=1
+        echo "  x claude: could not add $s (user scope)" >&2
+        if [[ -n "$previous" ]]; then
+            if "$CLAUDE_BIN" mcp add-json --scope user "$s" "$previous" >/dev/null; then
+                echo "  claude: restored the previous $s registration (still drifted)" >&2
+            else
+                echo "  x claude: could not restore the previous $s registration: $previous" >&2
+            fi
+        fi
     done
+    if [[ "$failed" -ne 0 ]]; then
+        echo "x some opt-in browser MCP families were not wired (see above); re-run this step." >&2
+        return 1
+    fi
     echo "ok opt-in browser MCP families wired. Restart Claude Code - MCP does not hot-reload."
 }
 

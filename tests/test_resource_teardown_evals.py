@@ -458,6 +458,67 @@ def test_eval_b_reads_the_servers_own_list_pages_text(tmp_path):
     assert out["final_list_pages_open"] == [1, 2]
 
 
+def _keyed_nav(page_id, url, prefix="mcp__chrome-devtools__"):
+    """A navigate_page as chrome-devtools-mcp 1.10 issues it: page-scoped tools carry pageId."""
+    return _line(content=[_tu(prefix + "navigate_page", pageId=page_id, url=url)])
+
+
+def test_eval_a_closing_another_page_does_not_cover_a_keyed_page_left_on_the_app(tmp_path):
+    """FAIL shape: page 1 still shows the app; the close at the end closed page 2. The last-call
+    rule alone would read 'closed after the last drive' and pass it."""
+    lines = [
+        _keyed_nav(1, "http://127.0.0.1:8069/odoo"),
+        _keyed_nav(2, "http://127.0.0.1:8069/odoo/sales"),
+        _line(content=[_tu("mcp__chrome-devtools__close_page", pageId=2)]),
+        _line(content=[_text("status: DONE")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["live_pages"] == [("1", "http://127.0.0.1:8069/odoo")]
+    assert out["close_call"] is not None, "premise: a close did follow the last drive"
+
+
+def test_eval_a_every_keyed_page_closed_or_blanked_passes(tmp_path):
+    lines = [
+        _keyed_nav(1, "http://127.0.0.1:8069/odoo", "mcp__plugin_odoo-ai-agents_chrome-devtools__"),
+        _keyed_nav(2, "http://127.0.0.1:8069/odoo/sales"),
+        _line(content=[_tu("mcp__chrome-devtools__close_page", pageId=2)]),
+        _keyed_nav(1, "about:blank"),
+        _line(content=[_text("status: DONE")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is True, out
+    assert out["live_pages"] == []
+
+
+def test_eval_b_a_keyed_extra_page_closed_last_passes(tmp_path):
+    """PASS shape the last-navigation rule got wrong: the kept page 0 was blanked first, then
+    page 1 was driven and CLOSED. The last navigation named page 1, which is gone - nothing is
+    left on a URL."""
+    lines = _matrix_capture_lines(extra_page_created=False)
+    lines.append(_keyed_nav(0, "about:blank"))
+    lines.append(_keyed_nav(1, "http://127.0.0.1:8069/odoo/sales"))
+    lines.append(_line(content=[_tu("mcp__chrome-devtools__close_page", pageId=1)]))
+    lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
+    lines.append(_line(role="user", content=[_tool_result("lp1", "## Pages\n0: about:blank")]))
+    out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
+    assert out["pass"] is True, out
+    assert out["live_pages"] == []
+
+
+def test_eval_b_a_keyed_page_left_on_a_url_fails_even_after_a_blank_navigation(tmp_path):
+    lines = _matrix_capture_lines(extra_page_created=False)
+    lines.append(_keyed_nav(1, "http://127.0.0.1:8069/odoo/sales"))
+    lines.append(_keyed_nav(0, "about:blank"))
+    lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
+    lines.append(_line(role="user", content=[_list_pages_result("lp1", open_pages=[0])]))
+    out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["live_pages"] == [("1", "http://127.0.0.1:8069/odoo/sales")]
+    failed_texts = [e["text"] for e in out["expectations"] if not e["passed"]]
+    assert any("driven by pageId" in t for t in failed_texts)
+
+
 def test_eval_b_list_pages_never_called_fails_the_matrix_shaped_close_check(tmp_path):
     """FAIL shape: Round 4's close step never fired at all (no list_pages call whatsoever) -
     there is no ground truth to confirm nothing leaked, so this cannot be graded PASS."""

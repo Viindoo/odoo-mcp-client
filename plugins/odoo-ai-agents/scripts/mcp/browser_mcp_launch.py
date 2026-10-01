@@ -8,10 +8,13 @@ $ODOO_AI_HOME is set, so this launcher resolves it (scripts/lib/paths.py), creat
 directories the server writes into, prunes stale byproducts, and replaces itself with
 `npx -y <pin> <flags> <state-root flags>` (scripts/lib/browser_mcp_servers.py is the SSOT).
 
-stdout is the MCP channel: nothing here ever writes to it. When the state-root part cannot be
-resolved (any error, or a Python older than MIN_PYTHON), the server still starts with the pinned
-package and its base flags, and the reason goes to stderr. Syntax stays parseable by very old
-Python 3 (no f-strings, no annotations): this file runs before any version check.
+stdout is the MCP channel: nothing here ever writes to it. Only a state root that cannot be
+computed (or a Python older than the SSOT's LAUNCH_MIN_PYTHON) starts the server with the pinned
+package and its base flags alone, the reason on stderr. Creating a directory or pruning can fail
+(another launch racing this one, a read-only subtree) without costing the flags: the capture gate
+treats the bundled server as flagged, so dropping them would refuse every capture of the session.
+Syntax stays parseable by very old Python 3 (no f-strings, no annotations): this file runs before
+any version check.
 """
 
 import os
@@ -19,7 +22,6 @@ import shutil
 import subprocess
 import sys
 
-MIN_PYTHON = (3, 8)
 _PLAYWRIGHT_MAX_SIZE_ENV = "PLAYWRIGHT_MCP_OUTPUT_MAX_SIZE"
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,10 +40,25 @@ def _ssot():
     return browser_mcp_servers
 
 
+def _prepare(ssot, root, overrides):
+    """Create the directories the server writes into (chrome-devtools silently drops a
+    --workspace that does not exist) and prune stale byproducts. Each step is best effort on its
+    own: a failure here never costs the state-root flags."""
+    for d in [ssot.capture_area(root), ssot.pagecast_output_dir(root)] + list(overrides):
+        try:
+            os.makedirs(d, exist_ok=True)
+        except Exception as exc:
+            _warn("cannot create %s (%s)" % (d, exc))
+    try:
+        ssot.prune_browser_byproducts(root)
+    except Exception:
+        pass
+
+
 def plan_launch(server, version_info):
     """Return (argv, env, reason) for this process's environment. argv starts with "npx";
     reason is None when the state-root flags were applied, else the one-line cause of starting
-    with the base flags only."""
+    with the base flags only (no computable state root, or a Python below the floor)."""
     ssot = _ssot()
     environ = os.environ
     args = ["npx", "-y"] + ssot.npx_args(server, environ)
@@ -49,24 +66,20 @@ def plan_launch(server, version_info):
     # The eviction this enables deletes recursively under the output dir, which is the state
     # root's projects tree here.
     env.pop(_PLAYWRIGHT_MAX_SIZE_ENV, None)
+    floor = ssot.LAUNCH_MIN_PYTHON
+    if tuple(version_info[:2]) < floor:
+        return args, env, ("python3 is %d.%d, the state-root flags need %d.%d or newer"
+                           % (version_info[0], version_info[1], floor[0], floor[1]))
     try:
-        if tuple(version_info[:2]) < MIN_PYTHON:
-            raise RuntimeError("python3 is %d.%d, the state-root flags need %d.%d or newer"
-                               % (version_info[0], version_info[1], MIN_PYTHON[0], MIN_PYTHON[1]))
         root = ssot.state_root()
-        for d in (ssot.playwright_output_dir(root), ssot.pagecast_output_dir(root)):
-            if not os.path.isdir(d):
-                os.makedirs(d)
-        try:
-            ssot.prune_browser_byproducts(root)
-        except Exception:
-            pass
         overrides = ssot.override_dirs(root, environ)
-        args = args + ssot.root_flags(server, root, overrides)
-        env.update(ssot.server_env(server, root))
-        return args, env, None
+        flags = ssot.root_flags(server, root, overrides)
+        server_env = ssot.server_env(server, root)
     except Exception as exc:
         return args, env, "%s: %s" % (type(exc).__name__, exc)
+    _prepare(ssot, root, overrides)
+    env.update(server_env)
+    return args + flags, env, None
 
 
 def _exec(argv, env):

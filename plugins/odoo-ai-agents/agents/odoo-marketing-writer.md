@@ -110,7 +110,7 @@ the SSOT), THEN union with existing on-disk `static/description/index*.html`
 locales. **English
 is the mandatory canonical:** final set = `{en_US}` union the resolved set; `index.html` is always
 English (no suffix); every other locale -> `index_<locale>.html`. Detect the on-disk screenshot naming
-convention (capture-mechanics.md section 8).
+convention (capture-mechanics.md section 13).
 
 ### Step 2 - Plan placement, then capture hero + feature screenshots
 
@@ -119,13 +119,12 @@ convention (capture-mechanics.md section 8).
    its slug, target file (`index.html` or a locale variant), slot, framing and the value it must
    show (capture-mechanics.md section 7, Marketing). The slot is the app-store-template.md section
    the marker sits in: a marker under `<!-- HERO -->` fills the hero slot, a marker in a feature
-   section fills the feature slot; derive its width from that slot's markup.
+   section fills the feature slot; measure its width per capture-mechanics.md section 7.
 2. **Capture to staging.** Shoot each shot per capture-mechanics.md, honouring `CAPTURE MODE` and
-   the per-locale loop, to `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.<ext>` (default
-   family `chrome-devtools`, `take_screenshot filePath`) - NEVER a bare `doc-staging/`. Final
-   filenames follow app-store-template.md § Image Specifications: hero `main_screenshot.gif`
-   (per-locale `main_screenshot.<locale>.gif`), feature shots `NN-slug.jpg` (per-locale
-   `NN-slug.<locale>.jpg`); English canonical carries no suffix. `<ISOLATE_DIR>`: when your
+   the per-locale loop, to `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/` under the staging
+   name of capture-mechanics.md section 3 (default family `chrome-devtools`,
+   `take_screenshot filePath`) - NEVER a bare `doc-staging/`. Each file takes its final name
+   (section 13) in the Step 4.5 `mv`. `<ISOLATE_DIR>`: when your
    dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields - the `odoo-doc-illustration` skill
    resolves them once against `doc_root` and passes them to every writer,
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - use those

@@ -284,6 +284,70 @@ def test_a_navigation_without_url_is_not_a_blank(tmp_path):
     assert out is not None and "about:blank" in out["systemMessage"], out
 
 
+def _page(op, page_id=None, url=None):
+    """A chrome-devtools page call as chrome-devtools-mcp 1.10 issues it: page-scoped tools carry
+    the pageId they act on (page-id routing is on by default); new_page never carries one."""
+    inp = {}
+    if page_id is not None:
+        inp["pageId"] = page_id
+    if url is not None:
+        inp["url"] = url
+    return _line(content=[{"type": "tool_use", "name": f"mcp__plugin_odoo-ai-agents_chrome-devtools__{op}",
+                           "input": inp}])
+
+
+def test_every_page_left_on_a_url_is_named_even_when_the_last_navigation_was_blank(tmp_path):
+    """With pageIds, the LAST navigation no longer decides: page 2 still shows the app although
+    page 1 ended on about:blank, and page 2 was never closed."""
+    lines = [
+        _page("navigate_page", 1, "http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/sales"),
+        _page("navigate_page", 1, "about:blank"),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and out.get("continue") is True and "decision" not in out, out
+    msg = out["systemMessage"]
+    assert "page(s) 2 (http://127.0.0.1:8069/odoo/sales)" in msg, msg
+    assert "1 (" not in msg, "page 1 ended on about:blank and must not be named"
+
+
+def test_a_page_closed_after_driving_is_not_named(tmp_path):
+    """Closing page 2 after it drove the app is its teardown, even though the last navigation
+    on record (page 2's) was not about:blank."""
+    lines = [
+        _page("navigate_page", 1, "about:blank"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/sales"),
+        _page("close_page", 2),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, out
+
+
+def test_a_keyed_reload_is_not_a_blank(tmp_path):
+    lines = [
+        _page("navigate_page", 3, "about:blank"),
+        _page("navigate_page", 3),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "page(s) 3 (back/forward/reload)" in out["systemMessage"], out
+
+
+def test_every_keyed_page_on_about_blank_or_closed_passes_clean(tmp_path):
+    lines = [
+        _page("new_page", url="http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/inventory"),
+        _page("close_page", 2),
+        _page("navigate_page", 1, "http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 1, "about:blank"),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, out
+
+
 def test_two_new_pages_one_close_is_advisory_never_block(tmp_path):
     """2 new_page vs 1 close_page -> ADVISORY nudge naming the counts, never a block."""
     lines = [

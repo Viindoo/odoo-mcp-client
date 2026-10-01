@@ -25,7 +25,11 @@ generated regions under a skill directory).
 
 - **`lib/grading.py`** - the two DETERMINISTIC graders (`grade_eval_a`, `grade_eval_b`; no LLM
   judgment - every PASS assertion is mechanical: tool-name suffix match, a navigation URL,
-  substring/regex absence, the final open-page count). Imported directly by
+  substring/regex absence, the final open-page count). Both graders also judge each
+  chrome-devtools page PER `pageId` when the calls carry one (page-id routing, the
+  chrome-devtools-mcp default since 1.10): a page driven by `pageId` and left on a URL without a
+  later `close_page` fails, whatever the last call was - the same rule
+  `hooks/enforce-teardown.sh` nudges on. Imported directly by
   `tests/test_resource_teardown_evals.py`, which runs in CI today with no live model or browser
   required - it grades hand-authored fixture transcripts to prove the grading logic itself is
   correct (and can fail for the right reason).

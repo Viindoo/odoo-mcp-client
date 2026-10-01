@@ -99,7 +99,7 @@ the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
 resolved set; `doc/index.rst` is always English (no suffix); every other locale ->
 `doc/index_<locale>.rst`. Detect the on-disk screenshot naming convention (capture-mechanics.md
-section 8).
+section 13).
 
 ### Step 2 - Ground UI labels + read the flow
 
@@ -115,13 +115,14 @@ Never invent a label absent from the OSM surface or disk.
 1. **Shot list first.** Before any capture, list every shot with its slug, target doc
    (`doc/index.rst` or a locale variant), slot (the `.. image::` it fills and that slot's width),
    framing and the context elements the reader needs - capture-mechanics.md section 7 (User guide).
-   Apply `DOC SCOPE` + `CAPTURE MODE`: in `scenarios`, one still per walkthrough step
-   (`<scenario-slug>-step<NN>.png`, per-locale suffix for non-English); in `screens`, the main
-   feature screens.
+   Apply `DOC SCOPE` + `CAPTURE MODE`: in `scenarios`, one still per walkthrough step; in
+   `screens`, the main feature screens. Measure each slot's width per capture-mechanics.md
+   section 7.
 2. **Capture to staging.** Shoot each shot per capture-mechanics.md (per-locale loop included) to
-   `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<scenario_id>-step<NN>.png` (default family
-   `chrome-devtools`, `take_screenshot filePath`) - NEVER a bare `doc-staging/`. Emit the
-   capture-coverage report; degrade per capture-mechanics.md section 12.
+   `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/` under the staging name of capture-mechanics.md
+   section 3 (default family `chrome-devtools`, `take_screenshot filePath`) -
+   NEVER a bare `doc-staging/`. Each file takes its final name (section 13) in the Step 4.6
+   `mv`. Emit the capture-coverage report; degrade per capture-mechanics.md section 12.
 
 ### Step 4 - Assemble doc/index.rst
 

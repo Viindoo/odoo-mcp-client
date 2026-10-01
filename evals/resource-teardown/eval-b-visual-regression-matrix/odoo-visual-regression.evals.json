@@ -12,7 +12,8 @@
       "expectations": [
         "The final list_pages tool result (ground truth, independent of the skill's own claim) shows at most one open page, and it is about:blank when the result names URLs.",
         "The matrix-shaped Round-4 close step actually fired: list_pages was called at least once near the end of the run, unconditionally - not skipped because the agent 'believes' it only ever reused one page.",
-        "The last chrome-devtools navigation (new_page / navigate_page) went to about:blank - nothing was driven after the kept page was blanked."
+        "The last chrome-devtools navigation (new_page / navigate_page) went to about:blank - nothing was driven after the kept page was blanked.",
+        "Every chrome-devtools page driven by pageId ends closed or on about:blank - a driven page left on a URL and never closed fails, whatever the last call was."
       ]
     }
   ]

@@ -111,8 +111,8 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
       </div>
     </div>
   </div>
-  <!-- Hero screenshot. Slot: col-md-10 offset-md-1 of the full container (the widest image slot);
-       frame per capture-mechanics.md § Frame for the placement slot -->
+  <!-- Hero screenshot - the widest image slot: measure its rendered width and frame the shot per
+       capture-mechanics.md § Frame for the placement slot -->
   <div class="row mt-4">
     <div class="col-md-10 offset-md-1 text-center"
          style="border-radius:20px;padding:3px;background-color:{{PRIMARY_HEX}};">
@@ -220,7 +220,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
             </h3>
           </div>
           <div class="col-md-12 col-xl-8 mt-3 mt-xl-0 d-flex justify-content-center">
-            <!-- Feature slot: col-xl-8 (col-md-12 below xl) inside 32px padding; frame per
+            <!-- Feature slot: measure its rendered width and frame the shot per
                  capture-mechanics.md § Frame for the placement slot -->
             <!-- NN = 2-digit sequence, slug = kebab-case task name; English canonical = NO suffix (NN-slug.jpg), per-locale = NN-slug.<locale>.jpg (e.g. 01-submit-request.vi_VN.jpg) -->
             <img alt="{{FEATURE_TASK_TITLE}}" class="img-fluid" loading="lazy"
@@ -367,7 +367,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 
 ## 4. Image Specifications
 
-Every screenshot size is derived from the slot it fills
+Every screenshot size follows from the measured width of the slot it fills
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` § Frame for the
 placement slot); the module icon is the only fixed size.
 

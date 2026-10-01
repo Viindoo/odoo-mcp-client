@@ -304,8 +304,7 @@ from `feature-catalog.jsonl`; otherwise the writer derives the structure from OS
 
 **CAPTURE MODE (how screenshots are taken).** `screens` (default) = navigate to each screen and
 snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait,
-target, value}`) and, for EACH step, perform the action then shoot it
-(`<scenario-slug>-step<NN>.<locale>.png`), with an optional state-assert via the live Odoo MCP
+target, value}`) and, for EACH step, perform the action then shoot it, with an optional state-assert via the live Odoo MCP
 between steps. Requires a live, seeded instance and a `WALKTHROUGH:` path. Both writers honour it via
 `references/capture-mechanics.md`.
 

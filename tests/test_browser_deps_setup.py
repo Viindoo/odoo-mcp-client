@@ -27,6 +27,7 @@ and deterministic on any host (it does NOT touch the network or the real
 machine's package state). Stdlib + bash only, so it runs wherever pytest +
 bash do.
 """
+import json
 import os
 import re
 import shutil
@@ -63,8 +64,8 @@ def _ssot_value(cmd: str) -> str:
     return res.stdout.strip()
 
 
-# Default PLAYWRIGHT_PIN: the exact playwright-core the pinned @playwright/mcp depends on.
-PIN = _ssot_value("playwright-core-version")
+# The playwright whose Chromium pagecast launches - and this step installs.
+PIN = _ssot_value("browser-playwright-version")
 
 requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None, reason="bash not available"
@@ -100,13 +101,56 @@ def script_text():
 # contract: the pin is real and not accidentally dropped
 # ---------------------------------------------------------------------------
 def test_playwright_version_is_pinned(script_text):
-    assert "PLAYWRIGHT_PIN" in script_text, "pin must be an env-overridable var"
-    assert 'PW_PIN="${PLAYWRIGHT_PIN:-$BROWSER_MCP_PLAYWRIGHT_CORE_VERSION}"' in script_text, (
-        "the default must be the playwright-core version derived in the launch SSOT, not a "
-        "second hand-kept literal"
-    )
     assert 'playwright@${PW_PIN}' in script_text, "installs must use the pinned var"
-    assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", PIN), PIN
+    assert re.fullmatch(r"\d+\.\d+\.\d+", PIN), f"not an exact release: {PIN!r}"
+
+
+def _pagecast_launch(env):
+    res = subprocess.run([sys.executable, str(LIB.parent / "browser_mcp_servers.py"), "spec",
+                          "pagecast"], capture_output=True, text=True, env=env, check=True)
+    return json.loads(res.stdout)["args"]
+
+
+def _chromium_probe_pin(tmp_path, env):
+    """Run the step's `check` against stub node/npm/npx and return the playwright version the
+    Chromium probe asks npx for."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    log = tmp_path / "npx.log"
+    stubs = {"node": "#!/bin/sh\necho 22\n", "npm": "#!/bin/sh\nexit 0\n",
+             "npx": f'#!/bin/sh\necho "$@" >> "{log}"\necho "chromium is already installed"\n'}
+    for name, body in stubs.items():
+        (bin_dir / name).write_text(body, encoding="utf-8")
+        (bin_dir / name).chmod(0o755)
+    run_env = dict(env, PATH=f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                   ODOO_AI_HOME=str(tmp_path / "state"))
+    subprocess.run(["bash", str(SCRIPT), "check"], env=run_env, capture_output=True, text=True,
+                   timeout=120)
+    calls = [line.split() for line in log.read_text().splitlines() if "install" in line]
+    pins = {a.split("@", 1)[1] for c in calls for a in c if a.startswith("playwright@")}
+    assert len(pins) == 1, calls
+    return pins.pop()
+
+
+@requires_bash
+@pytest.mark.parametrize("override", [None, "1.60.0"])
+def test_the_chromium_installed_is_the_one_pagecast_launches(tmp_path, override):
+    """pagecast runs the Chromium bundled with the `playwright` it resolves. Left to its range
+    (^1.52.0) that is whatever release is newest on the day, so the launch pins playwright beside
+    pagecast and this step installs the Chromium of that same version - with or without the
+    PLAYWRIGHT_PIN override."""
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("BROWSER_MCP_") and k != "PLAYWRIGHT_PIN"}
+    if override:
+        env["PLAYWRIGHT_PIN"] = override
+    args = _pagecast_launch(env)
+    launched = [a.split("@", 1)[1] for a in args if a.startswith("playwright@")]
+    assert len(launched) == 1, args
+    i = args.index("playwright@" + launched[0])
+    assert args[i - 1] == "-p" and "pagecast" in args[i + 1:], args
+    assert _chromium_probe_pin(tmp_path, env) == launched[0]
+    if override:
+        assert launched[0] == override
 
 
 def test_no_unpinned_playwright_install(script_text):
@@ -537,3 +581,108 @@ def test_apply_never_calls_claude_mcp_add_for_preinstall(tmp_path):
     res = _run_apply(bind)
     out = res.stdout + res.stderr
     assert "mcp add" not in out, out
+
+
+# ---------------------------------------------------------------------------
+# Google Chrome: chrome-devtools-mcp (puppeteer channel "chrome") and @playwright/mcp (channel
+# "chrome") launch the INSTALLED Google Chrome from fixed locations and fail to start without it;
+# Playwright's Chromium (installed above, for pagecast) does not satisfy them.
+# ---------------------------------------------------------------------------
+def _ssot_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("bms_for_chrome",
+                                                  LIB.parent / "browser_mcp_servers.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+@pytest.mark.parametrize("platform,environ,expected", [
+    ("linux", {}, "/opt/google/chrome/chrome"),
+    ("darwin", {}, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
+    ("win32", {"LOCALAPPDATA": "C:\\Users\\u\\AppData\\Local"},
+     "C:\\Users\\u\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe"),
+    ("win32", {"PROGRAMFILES": "E:\\Apps"}, "E:\\Apps\\Google\\Chrome\\Application\\chrome.exe"),
+    ("win32", {}, "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"),
+])
+def test_chrome_is_found_where_the_browser_servers_look_for_it(platform, environ, expected):
+    mod = _ssot_module()
+    assert expected in mod.chrome_locations(environ, platform)
+    assert mod.find_chrome(environ, platform, exists=lambda p: p == expected) == expected
+    assert mod.find_chrome(environ, platform, exists=lambda p: False) is None
+
+
+def test_a_chrome_on_path_elsewhere_does_not_count():
+    """Neither server consults PATH: a google-chrome binary in /usr/local/bin starts nothing."""
+    mod = _ssot_module()
+    assert mod.find_chrome({}, "linux", exists=lambda p: p == "/usr/local/bin/google-chrome") is None
+
+
+def _chrome_env(tmp_path: Path, present: bool) -> dict:
+    """PYTHONPATH carrying a sitecustomize that makes every Chrome location exist (or not) for
+    the step's python3 calls, whatever this host has installed."""
+    site = tmp_path / "site-chrome"
+    site.mkdir(exist_ok=True)
+    (site / "sitecustomize.py").write_text(
+        "import os.path\n"
+        "_real = os.path.isfile\n"
+        "def _isfile(p):\n"
+        "    s = str(p)\n"
+        "    if s.endswith(('/opt/google/chrome/chrome', 'MacOS/Google Chrome', 'chrome.exe')):\n"
+        f"        return {present!r}\n"
+        "    return _real(p)\n"
+        "os.path.isfile = _isfile\n", encoding="utf-8")
+    return {"PYTHONPATH": str(site)}
+
+
+def _run_step(bind: Path, verb: str, extra: dict):
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env.update(extra)
+    return subprocess.run(["bash", str(SCRIPT), verb], capture_output=True, text=True, env=env,
+                          timeout=120)
+
+
+@requires_bash
+def test_check_reports_a_missing_chrome_with_the_install_command(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    res = _run_step(bind, "check", _chrome_env(tmp_path, present=False))
+    assert res.returncode == 1, res.stdout + res.stderr
+    assert "Google Chrome is not installed" in res.stderr
+    assert f"npx -y playwright@{PIN} install chrome" in res.stderr
+
+
+@requires_bash
+def test_check_passes_and_stays_quiet_when_chrome_is_installed(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert "Google Chrome" not in res.stderr
+
+
+@requires_bash
+def test_apply_installs_chrome_only_with_passwordless_sudo_on_apt_linux(tmp_path):
+    sudo_log = tmp_path / "sudo.log"
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=True, sudo_log=sudo_log, libs_present=True)
+    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert f"playwright@{PIN} install chrome" in sudo_log.read_text(encoding="utf-8")
+
+
+@requires_bash
+def test_apply_without_passwordless_sudo_prints_the_chrome_command_and_runs_no_sudo(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert f"sudo npx -y playwright@{PIN} install chrome" in res.stderr
+    assert "Google Chrome installed" not in res.stdout
+
+
+@requires_bash
+def test_apply_on_macos_never_installs_chrome_itself(tmp_path):
+    sudo_log, apt_log = tmp_path / "sudo.log", tmp_path / "apt.log"
+    bind = _macos_stub_bin(tmp_path, sudo_log=sudo_log, apt_log=apt_log)
+    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=False))
+    assert res.returncode == 0, res.stdout + res.stderr
+    assert f"npx -y playwright@{PIN} install chrome" in res.stderr
+    assert not sudo_log.exists(), sudo_log.read_text()

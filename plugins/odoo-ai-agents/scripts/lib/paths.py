@@ -181,13 +181,16 @@ def state_root() -> str:
     return os.path.abspath(_home())
 
 
-def share_dir(root: str | None = None) -> str:
+def share_dir(root: str | None = None, create: bool = True) -> str:
     """Return the absolute SHARE dir, creating it first. Honors an explicit
     $ODOO_AI_PROJECT_DIR override verbatim (still created, never re-hashed).
 
     `root` (optional): resolve as if the cwd were this directory. None = cwd,
     byte-identical to the pre-`root` behavior. Mirrors the shell's
-    `resolve_project_dir.sh --root <abs-path> share`."""
+    `resolve_project_dir.sh --root <abs-path> share`.
+
+    `create=False` computes the same path without creating anything (a caller
+    that only NAMES the directory, such as a hook's refusal message)."""
     override = os.environ.get("ODOO_AI_PROJECT_DIR")
     if override:
         # Strip ALL trailing "/" (a doubled/tripled trailing slash denotes the
@@ -198,7 +201,8 @@ def share_dir(root: str | None = None) -> str:
         # `_project_dir_rstrip_slashes` + `[ -n ] || override="/"` mirrors this
         # exactly - `${var%/}` alone strips only ONE and would diverge here.
         d = override.rstrip("/") or "/"
-        os.makedirs(d, exist_ok=True)
+        if create:
+            os.makedirs(d, exist_ok=True)
         return d
     if root is not None and not os.path.isdir(root):
         raise ProjectDirError(f"resolve_project_dir: --root {root} is not a directory.")
@@ -206,30 +210,34 @@ def share_dir(root: str | None = None) -> str:
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_PROJECT_DIR", root))
     d = os.path.join(_home(), "projects", key)
-    os.makedirs(d, exist_ok=True)
+    if create:
+        os.makedirs(d, exist_ok=True)
     return d
 
 
-def isolate_dir(root: str | None = None) -> str:
+def isolate_dir(root: str | None = None, create: bool = True) -> str:
     """Return the absolute ISOLATE dir, creating it first. Honors an explicit
     $ODOO_AI_WORKTREE_DIR override verbatim. When unset, resolves the SHARE dir
     first (so an $ODOO_AI_PROJECT_DIR override is respected for the SHARE half
     of the path too) and nests <SHARE>/worktrees/<wt-key>/ under it.
 
-    `root` (optional): as in share_dir - forwarded to BOTH halves."""
+    `root` (optional): as in share_dir - forwarded to BOTH halves.
+    `create` (optional): as in share_dir - forwarded to BOTH halves."""
     override = os.environ.get("ODOO_AI_WORKTREE_DIR")
     if override:
         # Same full-rstrip + all-slashes fallback as share_dir above (parity
         # invariant with resolve_project_dir.sh's `_project_dir_rstrip_slashes`).
         d = override.rstrip("/") or "/"
-        os.makedirs(d, exist_ok=True)
+        if create:
+            os.makedirs(d, exist_ok=True)
         return d
-    share = share_dir(root)
+    share = share_dir(root, create)
     key = _wt_key(root)
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR", root))
     d = os.path.join(share, "worktrees", key)
-    os.makedirs(d, exist_ok=True)
+    if create:
+        os.makedirs(d, exist_ok=True)
     return d
 
 

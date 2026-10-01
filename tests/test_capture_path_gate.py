@@ -24,6 +24,7 @@ PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 HOOK = PLUGIN / "hooks" / "block-capture-outside-state-root.sh"
 HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
 CAPTURE_PY = PLUGIN / "scripts" / "lib" / "capture_paths.py"
+PATHS_PY = PLUGIN / "scripts" / "lib" / "paths.py"
 
 BUNDLED = "mcp__plugin_odoo-ai-agents_chrome-devtools__"
 FAMILIES = ["chrome-devtools", "chrome-devtools-headed", "playwright", "playwright-headed",
@@ -81,13 +82,107 @@ def _advised(out):
 # --------------------------------------------------------------------------- #
 # deny: the bundled chrome-devtools always runs with the flag
 # --------------------------------------------------------------------------- #
-def test_a_relative_screenshot_path_is_denied_with_the_remedy(world):
-    out = _run(world, BUNDLED + "take_screenshot", {"pageId": 1, "filePath": "shot.png"})
+def _project(world):
+    """A non-git project directory (its .odoo-ai-root marker keys the ISOLATE dir)."""
+    proj = world["tmp"] / "proj"
+    proj.mkdir(exist_ok=True)
+    (proj / ".odoo-ai-root").write_text("", encoding="utf-8")
+    return proj
+
+
+def _isolate_of(world, proj, **env_over):
+    """The ISOLATE dir the plugin's own resolver gives `proj` (paths.py CLI)."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ODOO_AI_PROJECT_DIR", "ODOO_AI_WORKTREE_DIR")}
+    env.update(ODOO_AI_HOME=str(world["state"]), **env_over)
+    out = subprocess.run(["python3", str(PATHS_PY), "--root", str(proj), "isolate"], env=env,
+                         capture_output=True, text=True, check=True)
+    return out.stdout.strip()
+
+
+def _reason(out):
+    return out["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+def test_a_relative_screenshot_path_is_denied_with_a_concrete_destination(world):
+    """The refusal names WHERE to write: a fresh adhoc run dir under the session's own ISOLATE
+    dir (slug <intent>-<YYYYMMDD>-<4hex>), computed without creating anything."""
+    proj = _project(world)
+    before = sorted(world["tmp"].rglob("*"))
+    out = _run(world, BUNDLED + "take_screenshot", {"pageId": 1, "filePath": "shot.png"},
+               cwd=str(proj))
+    assert sorted(world["tmp"].rglob("*")) == before, "naming the destination must create nothing"
     assert _denied(out), out
-    reason = out["hookSpecificOutput"]["permissionDecisionReason"]
+    reason = _reason(out)
     assert "filePath='shot.png' is a relative path" in reason
-    assert str(world["state"]) in reason and "never retry with a relative path" in reason
-    assert "mv" in reason
+    assert "Never retry with a relative path" in reason and "mv" in reason
+    assert "ISOLATE_DIR from its brief" in reason
+    assert "<" not in reason and ">" not in reason, f"unresolved placeholder: {reason}"
+    assert reason.isascii(), reason
+    m = re.search(r"Write it under (\S+?)/? \(", reason)
+    assert m, reason
+    target = Path(m.group(1))
+    assert re.fullmatch(r"[a-z0-9-]+-\d{8}-[0-9a-f]{4}", target.name), target.name
+    assert target.parent == Path(_isolate_of(world, proj)) / "visual" / "adhoc"
+
+
+def test_the_suggested_destination_passes_the_gate(world):
+    proj = _project(world)
+    reason = _reason(_run(world, BUNDLED + "take_screenshot", {"filePath": "a.png"},
+                          cwd=str(proj)))
+    target = re.search(r"Write it under (\S+?)/? \(", reason).group(1)
+    assert _run(world, BUNDLED + "take_screenshot", {"filePath": target + "/a.png"},
+                cwd=str(proj)) is None
+
+
+def test_the_destination_follows_a_worktree_dir_override(world):
+    proj = _project(world)
+    override = world["tmp"] / "custom-isolate"
+    reason = _reason(_run(world, BUNDLED + "take_screenshot", {"filePath": "a.png"},
+                          cwd=str(proj), ODOO_AI_WORKTREE_DIR=str(override)))
+    assert f"Write it under {override / 'visual' / 'adhoc'}/" in reason, reason
+    assert not override.exists(), "naming the destination must not create it"
+
+
+@pytest.mark.parametrize("tool,key,remedy", [
+    (BUNDLED + "take_screenshot", "filePath", "omit filePath to get the image inline"),
+    ("mcp__playwright__browser_take_screenshot", "filename",
+     "BLOCKED(state root unresolvable - cannot place evidence)"),
+    ("mcp__pagecast__convert_to_gif", "webmPath",
+     "BLOCKED(state root unresolvable - cannot place evidence)"),
+])
+def test_without_a_resolvable_run_dir_the_remedy_is_the_familys_way_out(world, tool, key, remedy):
+    """No git repo and no project marker above the session's directory: there is no ISOLATE dir
+    to name, so the refusal says what to do instead - never a path with a placeholder in it."""
+    _register(world, "playwright", ["-y", "@playwright/mcp@0.0.83",
+                                    f"--output-dir={world['state'] / 'projects'}"])
+    _register(world, "pagecast", ["-y", "@mcpware/pagecast@0.2.1"],
+              env={"RECORDING_OUTPUT_DIR": str(world["state"] / "scratch" / "pagecast")})
+    bare = world["tmp"] / "no-project"
+    bare.mkdir()
+    out = _run(world, tool, {key: "x.png"}, cwd=str(bare))
+    assert _denied(out), out
+    reason = _reason(out)
+    assert remedy in reason and "Write it under" not in reason, reason
+    assert "<" not in reason and reason.isascii(), reason
+
+
+@pytest.mark.parametrize("tool,key", [
+    (BUNDLED + "take_screenshot", "filePath"),
+    ("mcp__playwright__browser_take_screenshot", "filename"),
+    ("mcp__pagecast__convert_to_gif", "webmPath"),
+])
+def test_a_capture_may_never_overwrite_the_lease_registry(world, tool, key):
+    """The state root also holds runtime/leases.json, the catalog and the logs: only its
+    projects/ tree is a capture destination, for every family."""
+    _register(world, "playwright", ["-y", "@playwright/mcp@0.0.83",
+                                    f"--output-dir={world['state'] / 'projects'}"])
+    _register(world, "pagecast", ["-y", "@mcpware/pagecast@0.2.1"],
+              env={"RECORDING_OUTPUT_DIR": str(world["state"] / "scratch" / "pagecast")})
+    for target in (world["state"] / "runtime" / "leases.json", world["state"] / "visual" / "x.png"):
+        out = _run(world, tool, {key: str(target)})
+        assert _denied(out), (target, out)
+        assert "is outside " + str(world["state"] / "projects") in _reason(out)
 
 
 def test_a_relative_path_is_denied_even_when_the_hook_runs_inside_the_state_root(world):
@@ -105,7 +200,7 @@ def test_a_relative_path_is_denied_even_when_the_hook_runs_inside_the_state_root
 def test_an_absolute_path_outside_the_state_root_is_denied(world):
     out = _run(world, BUNDLED + "take_screenshot", {"filePath": str(world["tmp"] / "repo" / "a.png")})
     assert _denied(out), out
-    assert "is outside " + str(world["state"]) in out["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "is outside " + str(world["state"] / "projects") in _reason(out)
 
 
 def test_a_traversal_out_of_the_state_root_is_denied(world):
@@ -142,6 +237,52 @@ def test_an_override_worktree_dir_outside_the_root_is_allowed(world):
     assert out is None, out
 
 
+def _register_playwright(world):
+    _register(world, "playwright", ["-y", "@playwright/mcp@0.0.83",
+                                    f"--output-dir={world['state'] / 'projects'}"])
+
+
+def test_playwright_may_not_write_an_override_dir_outside_the_capture_area(world):
+    """playwright takes ONE --output-dir (the capture area): an override outside it passes no
+    server check, so the gate must not let it through either - while chrome-devtools, launched
+    with a --workspace per override, may write there."""
+    _register_playwright(world)
+    override = world["tmp"] / "custom-isolate"
+    target = str(override / "visual" / "a.png")
+    out = _run(world, "mcp__playwright__browser_take_screenshot", {"filename": target},
+               ODOO_AI_WORKTREE_DIR=str(override))
+    assert _denied(out), out
+    assert _run(world, BUNDLED + "take_screenshot", {"filePath": target},
+                ODOO_AI_WORKTREE_DIR=str(override)) is None
+
+
+def test_playwright_is_sent_to_chrome_devtools_when_the_run_dir_is_unwritable_for_it(world):
+    """The run dir sits under an override playwright cannot write: naming it would send the
+    agent to a second refusal, so the remedy names another way out."""
+    _register_playwright(world)
+    proj = _project(world)
+    override = world["tmp"] / "custom-isolate"
+    out = _run(world, "mcp__playwright__browser_take_screenshot", {"filename": "a.png"},
+               cwd=str(proj), ODOO_AI_WORKTREE_DIR=str(override))
+    assert _denied(out), out
+    reason = _reason(out)
+    assert "Write it under" not in reason, reason
+    assert "make this capture with chrome-devtools" in reason
+    assert "BLOCKED(state root unresolvable - cannot place evidence)" in reason
+    assert reason.isascii() and "<" not in reason, reason
+
+
+def test_playwright_gets_a_concrete_dir_when_its_run_dir_is_in_the_capture_area(world):
+    _register_playwright(world)
+    proj = _project(world)
+    reason = _reason(_run(world, "mcp__playwright__browser_take_screenshot",
+                          {"filename": "a.png"}, cwd=str(proj)))
+    target = re.search(r"Write it under (\S+?)/? \(", reason).group(1)
+    assert target.startswith(str(world["state"] / "projects")), reason
+    assert _run(world, "mcp__playwright__browser_take_screenshot",
+                {"filename": target + "/a.png"}, cwd=str(proj)) is None
+
+
 def test_a_call_with_no_destination_is_allowed(world):
     assert _run(world, BUNDLED + "take_screenshot", {"pageId": 1}) is None
     assert _run(world, BUNDLED + "navigate_page", {"url": "about:blank"}) is None
@@ -162,6 +303,14 @@ def test_another_plugins_browser_namespace_is_never_touched(world):
     out = _run(world, "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot",
                {"filePath": "x.png"})
     assert out is None
+
+
+def test_a_bare_chrome_devtools_server_is_the_users_own_and_never_touched(world):
+    """This plugin bundles chrome-devtools in its own namespace and its setup never registers a
+    bare one: a bare mcp__chrome-devtools__ is the user's server - no deny, and no permanent
+    'run setup' advisory setup could never clear."""
+    for inp in ({"filePath": "x.png"}, {"filePath": str(world["tmp"] / "repo" / "a.png")}):
+        assert _run(world, "mcp__chrome-devtools__take_screenshot", inp) is None
 
 
 @pytest.mark.parametrize("tool", ["mcp__plugin_odoo-ai-agents_odoo-local__lease_list", "Bash", "Write"])
@@ -219,13 +368,68 @@ def test_a_registration_for_another_state_root_is_drift(world):
     assert _advised(out), out
 
 
+def _flagged(world):
+    return {"command": "npx", "args": ["-y", "chrome-devtools-mcp@1.10.1",
+                                       f"--workspace={world['state'] / 'projects'}"]}
+
+
+UNFLAGGED = {"command": "npx", "args": ["-y", "chrome-devtools-mcp@1.10.1", "--isolated"]}
+
+
+def _scopes(world, *, local=None, user=None, project=None, proj_dir=None):
+    data = {}
+    if user is not None:
+        data["mcpServers"] = {"chrome-devtools-headed": user}
+    if local is not None:
+        data["projects"] = {str(proj_dir): {"mcpServers": {"chrome-devtools-headed": local}}}
+    (world["cfg"] / ".claude.json").write_text(json.dumps(data), encoding="utf-8")
+    if project is not None:
+        (proj_dir / ".mcp.json").write_text(
+            json.dumps({"mcpServers": {"chrome-devtools-headed": project}}), encoding="utf-8")
+
+
 def test_a_local_scope_registration_for_this_project_counts(world):
-    path = world["cfg"] / ".claude.json"
-    path.write_text(json.dumps({"projects": {"/repo": {"mcpServers": {"chrome-devtools-headed": {
-        "command": "npx",
-        "args": ["-y", "chrome-devtools-mcp@1.10.1", f"--workspace={world['state']}"]}}}}}))
-    out = _run(world, "mcp__chrome-devtools-headed__take_screenshot", {"filePath": "a.png"})
+    proj = _project(world)
+    _scopes(world, local=_flagged(world), proj_dir=proj)
+    out = _run(world, "mcp__chrome-devtools-headed__take_screenshot", {"filePath": "a.png"},
+               cwd=str(proj))
     assert _denied(out), out
+
+
+@pytest.mark.parametrize("scopes,decision", [
+    # local beats project and user
+    ({"local": "unflagged", "user": "flagged"}, "advise"),
+    ({"local": "flagged", "user": "unflagged"}, "deny"),
+    ({"local": "unflagged", "project": "flagged"}, "advise"),
+    # project beats user
+    ({"project": "flagged", "user": "unflagged"}, "deny"),
+    ({"project": "unflagged", "user": "flagged"}, "advise"),
+    # user alone
+    ({"user": "flagged"}, "deny"),
+], ids=lambda v: "-".join(f"{k}={x}" for k, x in v.items()) if isinstance(v, dict) else v)
+def test_the_answering_registration_follows_claudes_scope_precedence(world, scopes, decision):
+    """Claude answers a name from local scope, else the project's .mcp.json, else user scope: the
+    gate judges THAT registration, not whichever scope happens to carry the flag."""
+    proj = _project(world)
+    pick = {"flagged": _flagged(world), "unflagged": UNFLAGGED}
+    _scopes(world, proj_dir=proj, **{k: pick[v] for k, v in scopes.items()})
+    out = _run(world, "mcp__chrome-devtools-headed__take_screenshot", {"filePath": "a.png"},
+               cwd=str(proj))
+    assert (_denied(out) if decision == "deny" else _advised(out)), out
+
+
+def test_the_bundled_server_below_the_launcher_python_floor_is_not_flagged(world, monkeypatch):
+    """Below the floor the launcher starts the base launch without flags; the gate must then
+    advise, not refuse every capture the server could no longer write."""
+    cap = _load_capture()
+    ssot, _ = cap._lib()
+    monkeypatch.setattr(ssot, "LAUNCH_MIN_PYTHON", (99, 0))
+    env = dict(os.environ, ODOO_AI_HOME=str(world["state"]), CLAUDE_CONFIG_DIR=str(world["cfg"]))
+    decision, _msg = cap.check(BUNDLED + "take_screenshot", {"filePath": "a.png"}, "/repo", env)
+    assert decision == "advise"
+    monkeypatch.setattr(ssot, "LAUNCH_MIN_PYTHON", (3, 0))
+    decision, _msg = cap.check(BUNDLED + "take_screenshot", {"filePath": "a.png"}, "/repo", env)
+    assert decision == "deny"
 
 
 # --------------------------------------------------------------------------- #

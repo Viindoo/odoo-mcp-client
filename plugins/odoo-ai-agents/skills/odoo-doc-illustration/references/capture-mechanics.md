@@ -33,8 +33,8 @@ an isolated process with its own Chromium profile - no shared-DOM risk).
     `click` / `fill` / `fill_form` / `hover`, `evaluate_script`. Use for ALL standard capture steps,
     plus any Lighthouse / console-log illustration.
   - **playwright (OPT-IN)** - `mcp__plugin_odoo-ai-agents_playwright__*` (`browser_navigate`,
-    `browser_take_screenshot`, `browser_resize`, `browser_evaluate`, `browser_fill_form`, ...). No
-    longer eager; use only when the brief explicitly selects it AND it has been wired.
+    `browser_take_screenshot`, `browser_resize`, `browser_evaluate`, `browser_fill_form`, ...). Use
+    only when the brief explicitly selects it AND it has been wired.
   - **pagecast (OPT-IN)** - use ONLY when the brief asks for a banner GIF / short video
     (`record_and_gif`); also requires the wiring step.
   The staging constraint (section 3) applies to every family. The generic verbs below
@@ -52,8 +52,13 @@ your own. Pick one variant for the whole run.
 Stage every capture, on every family, at the absolute path
 
 ```
-<ISOLATE_DIR>/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.<ext>
+<ISOLATE_DIR>/visual/<run_id>/<module>_staging/<shot>[.<locale>].<ext>
 ```
+
+`<shot>` is the shot's slug from your shot list: `<scenario_id>-step<NN>` for a `scenarios` step,
+else the `[Image: <slug>]` marker slug or the screen's kebab-case name. English carries no locale
+suffix. This is the staging name only: the final name is decided at placement (section 13), and you
+rename the file to it in the same `mv`.
 
 per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes (the
 per-family parameter and the refused-path stop live there). `<run_id>` is the brief's `RUN_ID` (the
@@ -136,13 +141,20 @@ and move on; emit `NEEDS_CONTEXT` only if every screen fails. Reference:
 
 Decide where each image goes BEFORE you capture it - the slot decides the frame.
 
-1. **Placement first.** For each shot, name the target doc and the markup of the slot the image
-   fills: the `<img>` and its enclosing grid column in `index.html`, or the `.. image::` directive
-   in the RST.
-2. **Slot width from that markup.** Derive the slot's rendered CSS width from the markup itself:
-   for the store HTML, the container width x `col-N/12` of the enclosing column at the breakpoint
-   it renders at, minus gutters, padding and any `offset-*`; for RST, the directive's `:width:`,
-   else the width the doc's existing images render at. Never take a width from a fixed table.
+1. **Placement first.** For each shot, name the target doc and the slot the image fills: the
+   `<img>` and its enclosing grid column in `index.html`, or the `.. image::` directive in the RST.
+2. **Measure the slot width** in CSS pixels; never take it from a fixed table or compute it from
+   class names (the store's container width is not in the module).
+   - Choose ONE reading viewport width per module, state it in your capture-coverage report
+     (section 11), and measure every slot of that module at it.
+   - Render the doc in the browser at that width: `index.html` inside a local wrapper page that
+     loads Bootstrap 5 CSS from a CDN (the store renders the fragment with it); RST as docutils
+     HTML output, where a directive with no `:width:` fills the full content column. Save the page
+     under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` and open it as a `file://` URL.
+   - Read the slot element's width with the script-eval tool (chrome-devtools `evaluate_script`,
+     playwright `browser_evaluate`): `el.getBoundingClientRect().width`.
+   - When the doc cannot be rendered (no docutils, Bootstrap unreachable), apply the full-width
+     rule: the slot is the reading viewport width.
 3. **Legibility.** The captured CSS width must be at most 1.25 x the slot width, or the store scales
    UI text below readability. Narrow the viewport toward the slot width, but never so far that the
    web client switches to its mobile layout - when it does, widen back. For a slot narrower than
@@ -153,17 +165,43 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    ratio at runtime.
 5. **Required context.**
    - **User guide** (an enterprise end user who must recognize where they are and what to click):
-     the app name / top menu, the breadcrumb and control panel, the active notebook tab when the
-     subject lives in one, and the button or field group being described. Capture the smallest
-     element that contains the subject AND that context - never `.o_content` alone (it drops the
-     breadcrumb).
+     the subject (the button, field group or list being described), the breadcrumb and control
+     panel (its first crumb names the app), and the active notebook tab when the subject lives in
+     one. Capture the action area below the top menu bar that holds them - never `.o_content` alone
+     (it drops the breadcrumb). Include the top menu bar only when the whole client still fits the
+     1.25 x cap.
+   - **When the required context exceeds 1.25 x the slot:** place the image in a full-width slot
+     instead, or split it into an orientation shot (full width, the whole screen) plus a detail shot
+     (element-scoped, the narrow slot).
    - **Marketing** (a prospect judging value): the visible outcome - a result, a dashboard, a
      completed document, never an empty form - plus the app name, legible at the slot width. A
      full-width slot (hero/banner) may capture the whole viewport at a deliberately chosen width.
 6. **Final format at capture time.** chrome-devtools `take_screenshot` `format` `jpeg` + `quality`,
-   or `png`; playwright `type`. A GIF's frame width = slot width x device pixel ratio.
-7. **Verify.** Read the produced image's pixel width from its file header (stdlib only, run with
-   `python3`), divide by the device pixel ratio, and re-capture when the legibility ratio fails.
+   or `png`; playwright `type`. A GIF's width = the slot width: pagecast records at device pixel
+   ratio 1, so record at a viewport within the step-3 cap and pass the slot width as
+   `record_and_gif` `gifWidth` / `convert_to_gif` `width`.
+7. **Verify.** Read the image's pixel width from its file header with the plugin interpreter:
+
+   ```
+   python3 - <image file> <<'EOF'
+   import struct, sys
+   b = open(sys.argv[1], "rb").read()
+   if b[:4] == b"\x89PNG":
+       w = struct.unpack(">I", b[16:20])[0]
+   elif b[:3] == b"GIF":
+       w = struct.unpack("<H", b[6:8])[0]
+   else:  # JPEG: walk the segments to the first SOF marker
+       i = 2
+       while b[i + 1] < 0xC0 or b[i + 1] > 0xCF or b[i + 1] in (0xC4, 0xC8, 0xCC):
+           i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
+       w = struct.unpack(">H", b[i + 7:i + 9])[0]
+   print(w)
+   EOF
+   ```
+
+   Divide by the device pixel ratio (1 for a GIF) to get the captured CSS width. When it fails the step-3 cap,
+   re-capture at most once; then keep the better shot and mark it `downgraded` (with the measured
+   ratio) in the capture-coverage report.
 8. **No annotation.** Neither family's default path has a highlight/annotate overlay. Do NOT use
    `browser_highlight` unless the brief explicitly requests it (`ANNOTATION: highlight`) AND the
    playwright family has been wired (chrome-devtools has no highlight equivalent - requesting one
@@ -181,13 +219,6 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
 3. On-theme check (section 6).
 4. Capture straight to the section-3 staging path in the final format, then verify its width
    (section 7).
-
-**Screenshot filenames** follow the DETECTED on-disk convention when one exists (tiebreaker: disk
-`ls` of the directory the target doc resolves (section 13) wins, then the caller's default).
-General rule: the English canonical carries NO locale suffix; every non-English locale appends
-`.<locale>` (see section 9). Marketing filename specs live in
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` Image
-Specifications.
 
 ## 9. CAPTURE MODE - screens vs scenarios
 
@@ -208,8 +239,7 @@ Specifications.
      default) to the section-3 staging path.
   4. Optional state-assert: confirm the step produced the expected record/state via the live Odoo MCP
      (`mcp__odoo__read_record` / `search_records` / `execute_method`) before driving the next step.
-  Per-step filename: `<scenario-slug>-step<NN>.<locale>.png`; English canonical =
-  `<scenario-slug>-step<NN>.png` (no suffix). This is the gap vs `odoo-demo-recording` (one continuous
+  Each step's still is staged under its section-3 name. This is the gap vs `odoo-demo-recording` (one continuous
   video) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per step.
 
 ## 10. Per-locale capture loop
@@ -226,8 +256,9 @@ captured FIRST and in full.
 ## 11. No silent cap + capture-coverage report
 
 Never trim silently (See-Something-Say-Something). Emit one capture-coverage line per
-`(scenario, locale, step)` marking it `captured / downgraded-to-screen / skipped` + the reason and
-the bound that triggered it, so the caller sees exactly what was produced.
+`(scenario, locale, step)` marking it `captured / downgraded / downgraded-to-screen / skipped` + the
+reason and the bound that triggered it, so the caller sees exactly what was produced. Open the report
+with the reading viewport width you measured slots at (section 7).
 
 ## 12. Degraded paths
 
@@ -244,15 +275,23 @@ the bound that triggered it, so the caller sees exactly what was produced.
 
 ## 13. Place finals where the target doc resolves them
 
-Find the destination directory for each final, in this order - the first that answers wins:
+Find the destination directory for each final, in this order - the first candidate that satisfies
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images wins; skip one that does not
+(an existing `doc/` image directory fails it for RST):
 1. The directory the target doc's existing image references resolve to.
 2. Sibling locale docs of the same doc, then the manifest `images` entries.
 3. The directory the store serves for that doc type: `static/description/` for `index.html`; for
    RST, the module `static/` subtree, following the convention already on disk.
 
-`mv` (never `cp`) each final from staging into that directory (`mkdir -p` it first). Reference it
-per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's reference
-gate (§ Reference gate) until it exits 0. A capture the doc does not embed stays in staging.
+Name each final by the convention already on disk in that directory, else by
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` § Image
+Specifications (store page) or the shot slug (user guide). The English canonical carries no locale
+suffix; every other locale appends `.<locale>` before the extension.
+
+`mv` (never `cp`) each final from staging into that directory under its final name, renaming it in
+the same `mv` (`mkdir -p` the directory first). Reference it per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's reference gate
+(§ Reference gate) until it exits 0. A capture the doc does not embed stays in staging.
 
 ## 14. Hard constraints (capture)
 

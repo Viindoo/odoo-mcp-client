@@ -38,7 +38,10 @@
 #     A chrome-devtools page counts as DRIVEN whether this agent opened it (new_page)
 #     or reused one (navigate_page); the server refuses to close its last page, so
 #     the rule nudged here is "close every page but one, then navigate that one to
-#     about:blank" - read from the URL of the last new_page / navigate_page call.
+#     about:blank". Where the calls carry a pageId (page-id routing, on by default since
+#     chrome-devtools-mcp 1.10) it is judged PER PAGE: every page whose last navigation was not
+#     about:blank and that was not closed afterwards is named. A call without a pageId falls back
+#     to the URL of the last new_page / navigate_page call.
 #
 # CONTRACT (Claude Code Stop / SubagentStop): stdin JSON has transcript_path,
 # stop_hook_active, hook_event_name; SubagentStop also carries agent_transcript_path.
@@ -111,15 +114,33 @@ _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' 
 # anchors on the name field ending in __<name>.
 
 # chrome-devtools: OPEN = new_page, CLOSE = close_page, DRIVE = new_page or navigate_page (a reused
-# page is driven too). The last page cannot be closed, so it must end on about:blank: the URL of
-# the LAST new_page / navigate_page call is the third CALL field (final-report.sh). A navigate_page
-# with no url (back / forward / reload) left the page on a real URL, so it is not about:blank.
-# select_page / list_pages never count.
+# page is driven too). The last page cannot be closed, so it must end on about:blank. A
+# navigate_page with no url (back / forward / reload) left the page on a real URL, so it is not
+# about:blank. select_page / list_pages never count. The page calls in order, with pageId and url,
+# come from final-report.sh _chrome_page_calls ("<op>\t<pageId>\t<url>").
 NEW_PAGE=$(_cnt $'^CALL\t[^\t]*__new_page\t')
 CLOSE_PAGE=$(_cnt $'^CALL\t[^\t]*__close_page\t')
 CD_NAVIGATE=$(_cnt $'^CALL\t[^\t]*__navigate_page\t')
 CD_DRIVE=$(( NEW_PAGE + CD_NAVIGATE ))
-CD_LAST_URL="$(printf '%s\n' "$NORM" | grep -E $'^CALL\t[^\t]*__(new_page|navigate_page)\t' 2>/dev/null | tail -n 1 | cut -f3 || true)"
+CD_PAGE_CALLS="$(_chrome_page_calls "$TRANSCRIPT")"
+# The LAST new_page / navigate_page call: "<pageId>\t<url>". When it carries no pageId, its url is
+# the one fallback signal for the page it left behind.
+CD_LAST_DRIVE="$(printf '%s\n' "$CD_PAGE_CALLS" | awk -F'\t' '$1 == "new_page" || $1 == "navigate_page" { last = $2 "\t" $3 } END { printf "%s", last }' 2>/dev/null || true)"
+CD_LAST_ID="${CD_LAST_DRIVE%%$'\t'*}"
+CD_LAST_URL="${CD_LAST_DRIVE#*$'\t'}"
+# Per page (calls that carry a pageId): each page whose last navigation is not about:blank and
+# that no later close_page closed, as "<pageId> (<url>)", comma-separated, in first-driven order.
+CD_LIVE_PAGES="$(printf '%s\n' "$CD_PAGE_CALLS" | awk -F'\t' '
+  $2 == "" { next }
+  $1 == "close_page" { delete last[$2]; next }
+  { if (!($2 in seen)) { seen[$2] = 1; ids[++n] = $2 } last[$2] = $3 }
+  END {
+    for (i = 1; i <= n; i++) {
+      id = ids[i]
+      if (!(id in last) || last[id] == "about:blank") continue
+      printf "%s%s (%s)", (shown++ ? ", " : ""), id, (last[id] == "" ? "back/forward/reload" : last[id])
+    }
+  }' 2>/dev/null || true)"
 
 # playwright: a page is IMPLICIT and close is close-ALL (one browser_close satisfies any number
 # of opens). DRIVE = any browser_* call EXCEPT the lifecycle verbs (close + video/tracing pairs +
@@ -153,7 +174,9 @@ BROWSER_MSG=""
 _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; else BROWSER_MSG="$1"; fi; }
 [[ "$NEW_PAGE" -gt "$CLOSE_PAGE" ]] && \
   _add_note "$NEW_PAGE new_page vs $CLOSE_PAGE close_page - close every chrome-devtools page but one before your terminal status (list_pages, then close_page each extra page)"
-[[ "$CD_DRIVE" -gt 0 && "$CD_LAST_URL" != "about:blank" ]] && \
+[[ -n "$CD_LIVE_PAGES" ]] && \
+  _add_note "chrome-devtools: page(s) $CD_LIVE_PAGES left on a non-blank URL and not closed - close_page every page but one and navigate_page the one you keep to about:blank before your terminal status"
+[[ "$CD_DRIVE" -gt 0 && -z "$CD_LAST_ID" && "$CD_LAST_URL" != "about:blank" ]] && \
   _add_note "chrome-devtools: your last navigation left a page on ${CD_LAST_URL:-a non-blank page} - navigate_page the page you keep to about:blank before your terminal status"
 [[ "$PW_DRIVE" -gt 0 && "$PW_CLOSE" -eq 0 && "$PW_TABS" -eq 0 ]] && \
   _add_note "playwright: $PW_DRIVE driving call(s) with 0 browser_close - one browser_close closes everything you drove; call it before your terminal status"

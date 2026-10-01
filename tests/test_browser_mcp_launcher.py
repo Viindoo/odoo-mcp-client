@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -86,7 +87,10 @@ def test_each_family_starts_its_exact_pin_and_base_flags(tmp_path, family):
     assert proc.returncode == 0, proc.stderr
     argv = call["argv"]
     assert argv[0] == "-y"
-    assert EXACT_PIN.search(argv[1]), f"{family}: not an exact version: {argv[1]!r}"
+    packages = [argv[i + 1] for i, a in enumerate(argv) if a == "-p"] or [argv[1]]
+    assert packages[0] == ssot.pin(family, {}), argv
+    for pkg in packages:
+        assert EXACT_PIN.search(pkg), f"{family}: not an exact version: {pkg!r}"
     headed = family.endswith("-headed")
     assert ("--headless" in argv) is (not headed), argv
     assert ("--isolated" in argv) is (not family.startswith("pagecast")), argv
@@ -94,10 +98,13 @@ def test_each_family_starts_its_exact_pin_and_base_flags(tmp_path, family):
 
 @posix_only
 @pytest.mark.parametrize("family", ["chrome-devtools", "chrome-devtools-headed"])
-def test_chrome_devtools_gets_the_state_root_as_workspace(tmp_path, family):
+def test_chrome_devtools_workspace_is_the_capture_area_not_the_whole_state_root(tmp_path, family):
+    """The state root also holds the lease registry and the catalog: the server may write only
+    under <root>/projects, where every SHARE and ISOLATE dir lives."""
     proc, call = _launch(tmp_path, family)
     assert proc.returncode == 0, proc.stderr
-    assert f"--workspace={tmp_path / 'state'}" in call["argv"], call["argv"]
+    workspaces = [a for a in call["argv"] if a.startswith("--workspace=")]
+    assert workspaces == [f"--workspace={tmp_path / 'state' / 'projects'}"], call["argv"]
 
 
 @posix_only
@@ -153,39 +160,95 @@ def test_an_override_dir_outside_the_root_becomes_another_workspace(tmp_path):
     proc, call = _launch(tmp_path, "chrome-devtools", ODOO_AI_WORKTREE_DIR=str(outside) + "/")
     assert proc.returncode == 0, proc.stderr
     workspaces = [a for a in call["argv"] if a.startswith("--workspace=")]
-    assert workspaces == [f"--workspace={tmp_path / 'state'}", f"--workspace={outside}"]
+    assert workspaces == [f"--workspace={tmp_path / 'state' / 'projects'}",
+                          f"--workspace={outside}"]
+    assert outside.is_dir(), "a --workspace that does not exist is dropped by the server"
 
 
 @posix_only
-def test_an_override_dir_inside_the_root_adds_nothing(tmp_path):
+def test_an_override_dir_inside_the_capture_area_adds_nothing(tmp_path):
     inside = tmp_path / "state" / "projects" / "abc"
     proc, call = _launch(tmp_path, "chrome-devtools", ODOO_AI_PROJECT_DIR=str(inside))
     assert proc.returncode == 0, proc.stderr
     assert [a for a in call["argv"] if a.startswith("--workspace=")] == [
-        f"--workspace={tmp_path / 'state'}"]
+        f"--workspace={tmp_path / 'state' / 'projects'}"]
 
 
 @posix_only
 def test_a_pin_override_from_the_environment_wins(tmp_path):
     proc, call = _launch(tmp_path, "pagecast", BROWSER_MCP_PAGECAST_PIN="@mcpware/pagecast@9.9.9")
     assert proc.returncode == 0, proc.stderr
-    assert call["argv"][1] == "@mcpware/pagecast@9.9.9"
+    assert call["argv"][1:3] == ["-p", "@mcpware/pagecast@9.9.9"], call["argv"]
 
 
 # --------------------------------------------------------------------------- #
 # degradation: the server still starts, and the reason is said
 # --------------------------------------------------------------------------- #
 @posix_only
-def test_an_unusable_state_root_still_starts_the_server_and_says_why(tmp_path):
+def test_a_directory_that_cannot_be_created_keeps_the_flags_and_says_why(tmp_path):
+    """The capture gate treats the bundled server as flagged, so a failed mkdir must not drop the
+    flags: that would make every capture of the session impossible."""
     blocker = tmp_path / "file"
     blocker.write_text("x", encoding="utf-8")
-    proc, call = _launch(tmp_path, "chrome-devtools", ODOO_AI_HOME=str(blocker / "state"))
+    state = blocker / "state"
+    proc, call = _launch(tmp_path, "chrome-devtools", ODOO_AI_HOME=str(state))
     assert proc.returncode == 0, proc.stderr
-    assert call is not None, "the server must start even when the state root cannot be used"
-    assert call["argv"][:2] == ["-y", ssot.pin("chrome-devtools", {})]
-    assert not any(a.startswith("--workspace") for a in call["argv"])
-    assert "without state-root flags" in proc.stderr
+    assert call is not None, "the server must start even when its directories cannot be made"
+    assert f"--workspace={state / 'projects'}" in call["argv"], call["argv"]
+    assert "cannot create" in proc.stderr and "without state-root flags" not in proc.stderr
     assert proc.stdout == ""
+
+
+def test_a_state_root_that_cannot_be_computed_starts_the_base_launch_and_says_why(monkeypatch):
+    """The one failure that may drop the flags: no state root at all (the capture gate cannot
+    compute it either, so it fails open)."""
+    mod = launcher._ssot()
+
+    def no_root():
+        raise RuntimeError("no home directory")
+
+    monkeypatch.setattr(mod, "state_root", no_root)
+    argv, _env, reason = launcher.plan_launch("chrome-devtools", sys.version_info)
+    assert argv == ["npx", "-y"] + mod.npx_args("chrome-devtools")
+    assert reason and "no home directory" in reason
+
+
+@posix_only
+@pytest.mark.parametrize("family", ["chrome-devtools", "playwright", "pagecast"])
+def test_concurrent_launches_on_a_fresh_root_all_keep_their_flags(tmp_path, family, monkeypatch):
+    """Several sessions start their servers at once on a root that does not exist yet: each one
+    racing the others to create the tree must still get the state-root flags."""
+    state = tmp_path / "fresh-state"
+    monkeypatch.setenv("ODOO_AI_HOME", str(state))
+    for var in ("ODOO_AI_PROJECT_DIR", "ODOO_AI_WORKTREE_DIR"):
+        monkeypatch.delenv(var, raising=False)
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        results = list(pool.map(lambda _i: launcher.plan_launch(family, sys.version_info),
+                                range(48)))
+    reasons = [reason for _argv, _env, reason in results]
+    assert reasons == [None] * len(results), reasons
+    root = str(state)
+    want_argv = ["npx", "-y"] + ssot.npx_args(family) + ssot.root_flags(family, root, [])
+    want_env = ssot.server_env(family, root)
+    for argv, env, _reason in results:
+        assert argv == want_argv, argv
+        assert all(env.get(k) == v for k, v in want_env.items()), env
+
+
+def test_concurrent_launch_race_on_makedirs_keeps_the_flags(monkeypatch, tmp_path):
+    """The race itself, made deterministic: the directory appears between any check and the
+    create (another launch won). The launch must keep its flags."""
+    monkeypatch.setenv("ODOO_AI_HOME", str(tmp_path / "state"))
+    real_makedirs = os.makedirs
+
+    def racing_makedirs(path, *args, **kwargs):
+        real_makedirs(path, exist_ok=True)   # the other launch created it first
+        return real_makedirs(path, *args, **kwargs)
+
+    monkeypatch.setattr(launcher.os, "makedirs", racing_makedirs)
+    argv, _env, reason = launcher.plan_launch("chrome-devtools", sys.version_info)
+    assert reason is None
+    assert f"--workspace={tmp_path / 'state' / 'projects'}" in argv
 
 
 def test_a_python_below_the_floor_falls_back_to_the_base_launch(monkeypatch, tmp_path):
@@ -239,8 +302,21 @@ def test_ssot_pins_are_exact_versions(family):
     assert EXACT_PIN.search(ssot.pin(family, {})), ssot.pin(family, {})
 
 
-def test_the_playwright_core_version_is_exact():
-    assert EXACT_VERSION.match(ssot.PLAYWRIGHT_CORE_VERSION), ssot.PLAYWRIGHT_CORE_VERSION
+def test_the_browser_playwright_version_is_exact():
+    assert EXACT_VERSION.match(ssot.BROWSER_PLAYWRIGHT_VERSION), ssot.BROWSER_PLAYWRIGHT_VERSION
+
+
+@posix_only
+@pytest.mark.parametrize("family", ["pagecast", "pagecast-headed"])
+def test_pagecast_runs_with_the_pinned_playwright_beside_it(tmp_path, family):
+    """pagecast's own range (^1.52.0) would resolve whatever playwright is newest on the day, and
+    with it a Chromium revision setup never installed."""
+    proc, call = _launch(tmp_path, family)
+    assert proc.returncode == 0, proc.stderr
+    argv = call["argv"]
+    want = ["-y", "-p", ssot.pin(family, {}), "-p",
+            "playwright@" + ssot.BROWSER_PLAYWRIGHT_VERSION, "pagecast"]
+    assert argv[:len(want)] == want, argv
 
 
 def test_generated_codex_manifest_pins_are_exact():

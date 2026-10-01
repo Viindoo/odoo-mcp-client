@@ -105,6 +105,59 @@ def _is_blank_navigation(name: str, inp) -> bool:
             and str(inp.get("url", "")).strip() == _BLANK)
 
 
+def _page_id(inp):
+    """The pageId a chrome-devtools call carries (page-id routing, on by default since
+    chrome-devtools-mcp 1.10), or None."""
+    if isinstance(inp, dict) and inp.get("pageId") is not None:
+        return str(inp["pageId"])
+    return None
+
+
+def _chrome_page_state(transcript_path) -> tuple[list[tuple[str, str]], tuple[str | None, str | None]]:
+    """(live keyed pages, last drive) from the agent's chrome-devtools page calls - the same rule
+    hooks/enforce-teardown.sh applies (final-report.sh _chrome_page_calls):
+      - live keyed pages: every pageId whose last new_page/navigate_page did not go to
+        about:blank and that no later close_page closed, as [(pageId, url)] in first-driven
+        order (url "" = a back/forward/reload);
+      - last drive: (pageId or None, url or None) of the last new_page/navigate_page call. Its url
+        is the fallback signal only when it carries no pageId.
+    """
+    last: dict[str, str] = {}
+    order: list[str] = []
+    last_drive: tuple[str | None, str | None] = (None, None)
+    for block in _assistant_blocks(transcript_path):
+        if block.get("type") != "tool_use":
+            continue
+        name = str(block.get("name", ""))
+        inp = block.get("input", {}) or {}
+        pid = _page_id(inp)
+        if name.endswith("close_page"):
+            if pid is not None:
+                last.pop(pid, None)
+            continue
+        if not name.endswith(("new_page", "navigate_page")):
+            continue
+        url = inp.get("url") if isinstance(inp, dict) else None
+        url = str(url).strip() if url is not None else ""
+        last_drive = (pid, url)
+        if pid is not None:
+            if pid not in order:
+                order.append(pid)
+            last[pid] = url
+    live = [(pid, last[pid]) for pid in order if pid in last and last[pid] != _BLANK]
+    return live, last_drive
+
+
+def _live_pages_expectation(live) -> dict:
+    return {
+        "text": "Every chrome-devtools page driven by pageId ends closed or on about:blank (a "
+        "driven page left on a URL and never closed is a leak, whatever the last call was).",
+        "passed": not live,
+        "evidence": ("no page left on a URL" if not live else
+                     "; ".join(f"page {pid} on {url or 'back/forward/reload'}" for pid, url in live)),
+    }
+
+
 # The INSTANCE release/drop verbs T3 forbids a lease-FORWARDING consumer from ever invoking.
 # Case-insensitive regexes (not bare substrings) - matched wherever the agent tried to violate
 # the ban (a Bash command, a structured tool input, or prose in its own completion text). A
@@ -152,6 +205,8 @@ def grade_eval_a(transcript_path) -> dict:
           navigating is driven too.
       (b) forbidden_hits is empty -> the agent did NOT under-apply the ban and touch the
           forwarded instance lease.
+    Plus, where the calls carry a pageId: no page this agent drove is left on a URL unclosed
+    (live_pages) - a close of ANOTHER page does not cover it.
     """
     close_call = None
     forbidden_hits: list[dict] = []
@@ -178,11 +233,13 @@ def grade_eval_a(transcript_path) -> dict:
                 if pattern.search(hay):
                     forbidden_hits.append({"token": token, "where": "text"})
 
-    passed = close_call is not None and not forbidden_hits
+    live_pages, _last_drive = _chrome_page_state(transcript_path)
+    passed = close_call is not None and not forbidden_hits and not live_pages
     return {
         "pass": passed,
         "close_call": close_call,
         "forbidden_hits": forbidden_hits,
+        "live_pages": live_pages,
         "expectations": [
             {
                 "text": "The transcript contains a family-correct browser CLOSE call after the "
@@ -202,6 +259,7 @@ def grade_eval_a(transcript_path) -> dict:
                     else "; ".join(f"{h['token']!r} in {h['where']}" for h in forbidden_hits)
                 ),
             },
+            _live_pages_expectation(live_pages),
         ],
     }
 
@@ -242,6 +300,7 @@ def grade_eval_b(transcript_path) -> dict:
       - the LAST chrome-devtools navigation (new_page / navigate_page) went to about:blank, i.e.
         nothing was driven after the page was blanked;
       - list_pages was called at all.
+      - every page driven by pageId was closed or ended on about:blank (`live_pages`).
     Each new_page this run issued mints the next page id (id 0 is the page the run found);
     `leftover_created_pages` lists those still open, as evidence.
     """
@@ -286,8 +345,11 @@ def grade_eval_b(transcript_path) -> dict:
     ran_at_all = last_list_pages_ids is not None
     one_page_left = ran_at_all and len(last_list_pages_ids) <= 1 and (
         last_list_pages_urls is None or all(u == _BLANK for u in last_list_pages_urls))
-    blanked_last = navigations == 0 or last_navigation_url == _BLANK
-    passed = one_page_left and blanked_last
+    live_pages, (last_drive_pid, _url) = _chrome_page_state(transcript_path)
+    # A last navigation that names its page is judged per page (live_pages); only an unkeyed one
+    # stands for "the page this run kept".
+    blanked_last = navigations == 0 or last_drive_pid is not None or last_navigation_url == _BLANK
+    passed = one_page_left and blanked_last and not live_pages
 
     return {
         "pass": passed,
@@ -297,6 +359,7 @@ def grade_eval_b(transcript_path) -> dict:
         "leftover_created_pages": leftover,
         "list_pages_call_count": list_pages_call_count,
         "last_navigation_url": last_navigation_url,
+        "live_pages": live_pages,
         "expectations": [
             {
                 "text": "The final list_pages result shows at most one open page (every other "
@@ -315,10 +378,11 @@ def grade_eval_b(transcript_path) -> dict:
             },
             {
                 "text": "The last chrome-devtools navigation went to about:blank - nothing was "
-                "driven after the kept page was blanked.",
+                "driven after the kept page was blanked (judged per page when it names one).",
                 "passed": blanked_last,
                 "evidence": f"{navigations} navigation(s); last url={last_navigation_url!r}",
             },
+            _live_pages_expectation(live_pages),
         ],
     }
 

@@ -13,16 +13,23 @@ This module owns, per family:
     An exact version, never a major range: `npx -y pkg@1` reuses whatever 1.x a machine's npm
     cache holds, so file-write rules would differ between machines;
   - the base flags (headless/headed, --isolated);
-  - the state-root flags that make an absolute capture path under the state root writable:
-      chrome-devtools  --workspace=<root> (+ one per $ODOO_AI_PROJECT_DIR / $ODOO_AI_WORKTREE_DIR
-                       override outside the root). Without it the server writes only inside the
-                       client's roots (the session cwd) and the OS temp dir.
+  - the exact `playwright` pagecast runs (BROWSER_PLAYWRIGHT_VERSION, `PLAYWRIGHT_PIN` overrides
+    it): pagecast launches the Chromium bundled with whatever `playwright` its range resolves
+    to, so it is pinned at launch (`npx -p <pagecast> -p playwright@<v> pagecast`) and setup
+    installs the Chromium of that same version;
+  - the CAPTURE AREA: <root>/projects (the ancestor of every SHARE and ISOLATE dir), plus the
+    $ODOO_AI_PROJECT_DIR / $ODOO_AI_WORKTREE_DIR overrides outside it. Never the whole state root:
+    it also holds the lease registry, the catalog and the logs, which no capture may overwrite;
+  - the state-root flags that make an absolute capture path in that area writable:
+      chrome-devtools  --workspace=<root>/projects (+ one per override). Without it the server
+                       writes only inside the client's roots (the session cwd) and the OS temp dir.
       playwright       --output-dir=<root>/projects (allowed roots = output dir + cwd; an
                        explicit filename resolves against the cwd) and --idle-timeout, which
-                       closes a browser nobody drives. --output-max-size is never set: it
-                       evicts files recursively under the output dir.
+                       closes a browser nobody drives. It takes ONE output dir, so an override
+                       outside the root is not writable by playwright. --output-max-size is never
+                       set: it evicts files recursively under the output dir.
       pagecast         RECORDING_OUTPUT_DIR=<root>/scratch/pagecast (default is ./recordings).
-  - the roots each family can write, which the capture-path gate (`capture_paths.py`) checks;
+  - the roots each family may write, which the capture-path gate (`capture_paths.py`) checks;
   - the pruning of the files the servers write on their own and of the captures no skill owns
     (`prune_browser_byproducts`).
 
@@ -35,10 +42,15 @@ CLI (for shell callers; nothing but data on stdout):
     servers {all|optin|eager}        family names, one per line
     npx-args <server>                pin + base flags, one per line (no state-root flags)
     pin <server>                     the package pin
-    playwright-core-version          the playwright-core the pinned @playwright/mcp depends on
+    browser-playwright-version       the playwright whose Chromium pagecast launches (and setup
+                                     installs)
+    chrome-path                      the installed Google Chrome both chrome-devtools and
+                                     playwright launch; exit 1 (nothing printed) when absent
     spec <server>                    JSON {"command","args","env"} with resolved state-root flags
     claude-config                    the file Claude Code keeps user-scope MCP servers in
-    drift                            "<runtime> <server>" per registration that differs from spec
+    drift                            "<runtime> <server>" per registration that differs from spec,
+                                     "<runtime> ?" when that runtime's config exists but could not
+                                     be read (drift unknown)
     prune                            delete stale byproducts under the state root (silent)
 """
 
@@ -66,9 +78,18 @@ _PIN_ENV = {
     "playwright": "BROWSER_MCP_PLAYWRIGHT_PIN",
     "pagecast": "BROWSER_MCP_PAGECAST_PIN",
 }
-# The exact `playwright-core` dependency of the pinned @playwright/mcp (`npm view
-# @playwright/mcp@<pin> dependencies`). Bump it together with that pin.
-PLAYWRIGHT_CORE_VERSION = "1.64.0-alpha-1790635538000"
+# The `playwright` pagecast runs. The pinned pagecast declares `playwright ^1.52.0` and launches
+# that package's bundled Chromium, whose revision changes with every playwright release; left to
+# its range, npx resolves whatever release is newest on the day, and the Chromium setup installed
+# no longer matches. This exact version (inside that range: `npm view @mcpware/pagecast@<pin>
+# dependencies`) is passed to npx beside pagecast, and setup installs ITS Chromium. Bump it
+# together with the pagecast pin.
+BROWSER_PLAYWRIGHT_VERSION = "1.63.0"
+
+# The oldest python3 the launcher applies the state-root flags under (paths.py's floor). Below
+# it the launcher starts the base launch, and the capture gate treats the bundled server as
+# unflagged - both read this one value.
+LAUNCH_MIN_PYTHON = (3, 8)
 
 # Milliseconds without a completed tool call before playwright closes its browser (the next
 # call relaunches it). Shorter than the server's own one-hour headless default and also applied
@@ -116,8 +137,18 @@ def base_flags(server):
     return headless
 
 
+def browser_playwright_version(environ=None):
+    environ = os.environ if environ is None else environ
+    return environ.get("PLAYWRIGHT_PIN") or BROWSER_PLAYWRIGHT_VERSION
+
+
 def npx_args(server, environ=None):
-    """The args after `npx -y`: the pinned package, then the base flags."""
+    """The args after `npx -y`: the pinned package (pagecast: with the pinned playwright beside it,
+    then its bin), then the base flags."""
+    if backend(server) == "pagecast":
+        return (["-p", pin(server, environ),
+                 "-p", "playwright@" + browser_playwright_version(environ), "pagecast"]
+                + base_flags(server))
     return [pin(server, environ)] + base_flags(server)
 
 
@@ -140,7 +171,7 @@ def is_inside(path, root):
 
 
 def override_dirs(root, environ=None):
-    """$ODOO_AI_PROJECT_DIR / $ODOO_AI_WORKTREE_DIR when set and outside the state root."""
+    """$ODOO_AI_PROJECT_DIR / $ODOO_AI_WORKTREE_DIR when set and outside the capture area."""
     environ = os.environ if environ is None else environ
     out = []
     for var in ("ODOO_AI_PROJECT_DIR", "ODOO_AI_WORKTREE_DIR"):
@@ -148,14 +179,20 @@ def override_dirs(root, environ=None):
         if not value:
             continue
         d = _clean(value)
-        if is_inside(d, root) or any(_key(d) == _key(o) for o in out):
+        if is_inside(d, capture_area(root)) or any(_key(d) == _key(o) for o in out):
             continue
         out.append(d)
     return out
 
 
-def playwright_output_dir(root):
+def capture_area(root):
+    """<root>/projects: where every SHARE and ISOLATE dir lives, and the one part of the state
+    root a browser capture may write."""
     return os.path.join(root, "projects")
+
+
+def playwright_output_dir(root):
+    return capture_area(root)
 
 
 def pagecast_output_dir(root):
@@ -165,7 +202,7 @@ def pagecast_output_dir(root):
 def root_flags(server, root, overrides=()):
     b = backend(server)
     if b == "chrome-devtools":
-        return ["--workspace=" + root] + ["--workspace=" + d for d in overrides]
+        return ["--workspace=" + d for d in [capture_area(root)] + list(overrides)]
     if b == "playwright":
         return ["--output-dir=" + playwright_output_dir(root),
                 "--idle-timeout=" + str(PLAYWRIGHT_IDLE_TIMEOUT_MS)]
@@ -179,13 +216,58 @@ def server_env(server, root):
 
 
 def allowed_roots(server, root, environ=None):
-    """The directories a family is launched to write under - what the capture gate allows."""
-    b = backend(server)
-    if b == "chrome-devtools":
-        return [root] + override_dirs(root, environ)
-    if b == "playwright":
-        return [playwright_output_dir(root)]
-    return [root]
+    """The directories a capture by this family may be written under - what the capture gate
+    allows: the capture area, plus the override dirs outside it for the families that can write
+    there (chrome-devtools gets a --workspace per override, pagecast writes wherever it is told).
+    playwright takes ONE --output-dir, so an override outside the capture area is refused by the
+    server and is not allowed here either. The rest of the state root (the lease registry, the
+    catalog, the logs) is never a capture destination."""
+    if backend(server) == "playwright":
+        return [capture_area(root)]
+    return [capture_area(root)] + override_dirs(root, environ)
+
+
+# Google Chrome (stable). chrome-devtools-mcp launches puppeteer's channel "chrome" (its default
+# `--channel stable`) and @playwright/mcp launches playwright's channel "chrome" (its default when
+# no --browser is given); neither uses Playwright's own Chromium, and both look ONLY at the fixed
+# install locations below - never PATH - and fail to start when none exists. Windows: each
+# package probes <prefix>\Google\Chrome\Application\chrome.exe under a list of prefixes; this
+# is the union of the two lists.
+_CHROME_POSIX = {"darwin": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                 "linux": "/opt/google/chrome/chrome"}
+_CHROME_WIN_PREFIX_VARS = ("LOCALAPPDATA", "PROGRAMFILES", "ProgramW6432", "PROGRAMFILES(X86)",
+                           "ProgramFiles(x86)")
+
+
+def chrome_locations(environ=None, platform=None):
+    """Every path where the two browser servers look for Google Chrome stable on `platform`."""
+    environ = os.environ if environ is None else environ
+    platform = sys.platform if platform is None else platform
+    if platform.startswith("win") or platform == "cygwin":
+        import ntpath
+        prefixes = [environ.get(v) for v in _CHROME_WIN_PREFIX_VARS]
+        drive = environ.get("HOMEDRIVE")
+        if drive:
+            prefixes += [drive + "\\Program Files", drive + "\\Program Files (x86)"]
+        prefixes += ["C:\\Program Files", "C:\\Program Files (x86)", "D:\\Program Files",
+                     "D:\\Program Files (x86)"]
+        out = []
+        for prefix in prefixes:
+            if prefix:
+                path = ntpath.join(prefix, "Google", "Chrome", "Application", "chrome.exe")
+                if path.lower() not in [o.lower() for o in out]:
+                    out.append(path)
+        return out
+    return [_CHROME_POSIX["darwin" if platform == "darwin" else "linux"]]
+
+
+def find_chrome(environ=None, platform=None, exists=None):
+    """The first existing Google Chrome location, or None."""
+    exists = os.path.isfile if exists is None else exists
+    for path in chrome_locations(environ, platform):
+        if exists(path):
+            return path
+    return None
 
 
 def state_root():
@@ -222,7 +304,7 @@ def configured_with_root(server, entry, root):
     env = entry.get("env") or {}
     b = backend(server)
     if b == "chrome-devtools":
-        flag, want = "--workspace", root
+        flag, want = "--workspace", capture_area(root)
     elif b == "playwright":
         flag, want = "--output-dir", playwright_output_dir(root)
     else:
@@ -258,50 +340,106 @@ def claude_config_path(environ=None):
     return os.path.join(os.path.expanduser("~"), ".claude.json")
 
 
-def _load_json_file(path):
+UNKNOWN = "?"
+
+
+def _json_checker(path, key):
+    """A check(name, desired_spec) -> True (registered as desired), False (drift) or None (not
+    registered), reading the `key` object of a JSON config. A missing file registers nothing;
+    a file that exists but cannot be read returns None instead of a check (drift unknown)."""
+    if not os.path.exists(path):
+        return lambda name, desired: None
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+        return None
+    if not isinstance(data, dict):
+        return None
+    servers = data.get(key) or {}
+    if not isinstance(servers, dict):
+        return None
+
+    def check(name, desired):
+        entry = servers.get(name)
+        return None if entry is None else spec_matches(entry, desired)
+    return check
 
 
-def _load_toml_file(path):
+def _toml_checker(path):
+    """As _json_checker, for Codex's [mcp_servers.<name>] tables. tomllib (3.11+) parses the file;
+    an older interpreter compares each table's text with what the setup step writes for the
+    desired spec (config_merge.py's renderer - the same fallback `mcp-server-matches` uses)."""
+    if not os.path.exists(path):
+        return lambda name, desired: None
     try:
-        import tomllib  # 3.11+; older interpreters cannot read Codex's config here
+        import tomllib
     except ImportError:
-        return {}
+        tomllib = None
+    if tomllib is not None:
+        try:
+            with open(path, "rb") as fh:
+                servers = tomllib.load(fh).get("mcp_servers") or {}
+        except (OSError, ValueError):
+            return None
+        if not isinstance(servers, dict):
+            return None
+
+        def check(name, desired):
+            entry = servers.get(name)
+            return None if entry is None else spec_matches(entry, desired)
+        return check
     try:
-        with open(path, "rb") as fh:
-            return tomllib.load(fh)
-    except (OSError, ValueError):
-        return {}
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import config_merge
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except Exception:
+        return None
+
+    def check_text(name, desired):
+        spans = config_merge._toml_server_spans(lines, name)
+        if not spans:
+            return None
+        if len(spans) != 1:
+            return False
+        start, end = spans[0]
+        have = [ln.strip() for ln in lines[start:end]
+                if ln.strip() and not ln.strip().startswith("#")]
+        want = [ln.strip() for ln in config_merge._toml_render_server(name, desired).splitlines()]
+        return have == want
+    return check_text
 
 
 def drifted_registrations(root, environ=None):
     """[(runtime, server)] for each browser family REGISTERED in the user's Claude (user scope),
     Codex or Gemini config with another command, args or env than the setup steps would write
-    now. A family that is not registered at all is not drift."""
+    now, and (runtime, UNKNOWN) for a config that exists but could not be read - drift there is
+    unknown, never reported as none. A family that is not registered at all is not drift."""
     environ = os.environ if environ is None else environ
     home = os.path.expanduser("~")
     sources = [
-        ("claude", (_load_json_file(claude_config_path(environ)).get("mcpServers") or {}),
-         OPTIN_SERVERS),
-        ("codex", (_load_toml_file(environ.get("CODEX_CONFIG")
-                                   or os.path.join(home, ".codex", "config.toml"))
-                   .get("mcp_servers") or {}), ALL_SERVERS),
-        ("gemini", (_load_json_file(environ.get("GEMINI_SETTINGS")
-                                    or os.path.join(home, ".gemini", "settings.json"))
-                    .get("mcpServers") or {}), ALL_SERVERS),
+        ("claude", _json_checker(claude_config_path(environ), "mcpServers"), OPTIN_SERVERS),
+        ("codex", _toml_checker(environ.get("CODEX_CONFIG")
+                                or os.path.join(home, ".codex", "config.toml")), ALL_SERVERS),
+        ("gemini", _json_checker(environ.get("GEMINI_SETTINGS")
+                                 or os.path.join(home, ".gemini", "settings.json"), "mcpServers"),
+         ALL_SERVERS),
     ]
     out = []
-    for runtime, servers, names in sources:
-        if not isinstance(servers, dict):
+    for runtime, check, names in sources:
+        if check is None:
+            out.append((runtime, UNKNOWN))
             continue
         for name in names:
-            entry = servers.get(name)
-            if entry is not None and not spec_matches(entry, desired_spec(name, root, environ)):
+            try:
+                verdict = check(name, desired_spec(name, root, environ))
+            except Exception:
+                out.append((runtime, UNKNOWN))
+                break
+            if verdict is False:
                 out.append((runtime, name))
     return out
 
@@ -359,7 +497,7 @@ def _adhoc_dirs(root, environ):
     """Every <ISOLATE_DIR>/visual/adhoc under the state root (ISOLATE dirs are
     projects/<repo-key>/worktrees/<wt-key>), plus the $ODOO_AI_WORKTREE_DIR override's."""
     out = []
-    projects = playwright_output_dir(root)
+    projects = capture_area(root)
     try:
         repos = [r for r in os.listdir(projects) if _REPO_KEY.match(r)]
     except OSError:
@@ -417,7 +555,7 @@ def prune_browser_byproducts(root, now=None, max_age_s=BYPRODUCT_MAX_AGE_S,
 # --------------------------------------------------------------------------- #
 def main(argv):
     usage = ("Usage: browser_mcp_servers.py {servers all|optin|eager | npx-args <server> | "
-             "pin <server> | playwright-core-version | spec <server> | claude-config | drift | "
+             "pin <server> | browser-playwright-version | chrome-path | spec <server> | claude-config | drift | "
              "prune}")
     if not argv:
         sys.stderr.write(usage + "\n")
@@ -434,8 +572,14 @@ def main(argv):
         if cmd == "pin" and len(rest) == 1:
             sys.stdout.write(pin(rest[0]) + "\n")
             return 0
-        if cmd == "playwright-core-version" and not rest:
-            sys.stdout.write(PLAYWRIGHT_CORE_VERSION + "\n")
+        if cmd == "chrome-path" and not rest:
+            found = find_chrome()
+            if found is None:
+                return 1
+            sys.stdout.write(found + "\n")
+            return 0
+        if cmd == "browser-playwright-version" and not rest:
+            sys.stdout.write(browser_playwright_version() + "\n")
             return 0
         if cmd == "spec" and len(rest) == 1:
             sys.stdout.write(json.dumps(desired_spec(rest[0], state_root()), sort_keys=True) + "\n")

@@ -9,7 +9,7 @@
 # caller's own require_python3 preflight reports it before any of them is used.
 #
 #   BROWSER_MCP_{CHROME,PLAYWRIGHT,PAGECAST}_PIN   exact package pins (env-overridable)
-#   BROWSER_MCP_PLAYWRIGHT_CORE_VERSION            playwright-core the pinned @playwright/mcp uses
+#   BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION         the playwright whose Chromium pagecast launches
 #   BROWSER_MCP_EAGER_SERVER                       the family bundled in .mcp.json
 #   BROWSER_MCP_ALL_SERVERS / BROWSER_MCP_OPTIN_SERVERS   family arrays
 #   browser_mcp_npx_args <server>   pin + base flags, one per line (no state-root flags)
@@ -22,6 +22,7 @@ _browser_mcp_py() {
     BROWSER_MCP_CHROME_PIN="${BROWSER_MCP_CHROME_PIN:-}" \
     BROWSER_MCP_PLAYWRIGHT_PIN="${BROWSER_MCP_PLAYWRIGHT_PIN:-}" \
     BROWSER_MCP_PAGECAST_PIN="${BROWSER_MCP_PAGECAST_PIN:-}" \
+    PLAYWRIGHT_PIN="${PLAYWRIGHT_PIN:-}" \
         python3 "$_BROWSER_MCP_PY" "$@"
 }
 
@@ -43,7 +44,7 @@ browser_mcp_spec() { _browser_mcp_py spec "$1"; }
 BROWSER_MCP_CHROME_PIN="$(_browser_mcp_py pin chrome-devtools 2>/dev/null || true)"
 BROWSER_MCP_PLAYWRIGHT_PIN="$(_browser_mcp_py pin playwright 2>/dev/null || true)"
 BROWSER_MCP_PAGECAST_PIN="$(_browser_mcp_py pin pagecast 2>/dev/null || true)"
-BROWSER_MCP_PLAYWRIGHT_CORE_VERSION="$(_browser_mcp_py playwright-core-version 2>/dev/null || true)"
+BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION="$(_browser_mcp_py browser-playwright-version 2>/dev/null || true)"
 BROWSER_MCP_EAGER_SERVER="$(_browser_mcp_py servers eager 2>/dev/null || true)"
 _browser_mcp_lines_into BROWSER_MCP_ALL_SERVERS servers all
 _browser_mcp_lines_into BROWSER_MCP_OPTIN_SERVERS servers optin

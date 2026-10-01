@@ -152,6 +152,24 @@ _assistant_signals() {
   ' "$transcript" 2>/dev/null || true
 }
 
+# The agent's chrome-devtools page calls, ASSISTANT-authored only, in transcript order, one line
+# each (any namespace - keyed on the tool-name suffix):
+#   <op>\t<pageId>\t<url>   op = new_page | navigate_page | close_page; <pageId> is empty when the
+#                           call carries none (new_page never does - the server assigns the id);
+#                           <url> is empty for a navigation without one (back / forward / reload)
+_chrome_page_calls() {
+  local transcript="$1"
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 0
+  jq -rRs "$_FR_JQ_RECORDS"'
+  | $R[] | select(.role == "assistant") | .content
+  | (if type == "array" then .[] else empty end) | select(type == "object" and .type == "tool_use")
+  | (((.name // "") | tostring) | capture("__(?<op>new_page|navigate_page|close_page)$")) as $m
+  | $m.op + "\t" + ((.input.pageId // "") | tostring | gsub("[\t\n]"; " "))
+    + "\t" + ((.input.url // "") | tostring | gsub("[\t\n]"; " "))
+  ' "$transcript" 2>/dev/null || true
+}
+
 # The body of the LAST CLOSED ```continuation fenced block in a report text ("" when none). Only a
 # closed block counts: an INSTANCE_HANDLE promised in prose outside it, or in a block that never
 # closed, forwards nothing a consumer can act on.
