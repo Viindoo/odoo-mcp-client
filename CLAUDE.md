@@ -121,8 +121,9 @@ translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_
   `SubagentHandback` while a lease the subagent obtained is still live and not forwarded
   (`block-handback-with-live-lease.sh`: a handback delivers the report before SubagentStop, so the
   SubagentStop teardown gate alone came too late; both share `hooks/teardown-check.sh`), and a
-  browser capture whose destination is relative or outside the state root
-  (`block-capture-outside-state-root.sh`, decided by `scripts/lib/capture_paths.py`). Its
+  browser capture whose destination is relative or outside the capture area - `<state root>/projects`
+  plus the override dirs, never the rest of the state root (`block-capture-outside-state-root.sh`,
+  decided by `scripts/lib/capture_paths.py`). Its
   `description` states that count and tests pin it - a new deny updates both. Every hook that reads
   a subagent's report reads it through `hooks/final-report.sh` (the `SubagentHandback` message, else
   the final message).

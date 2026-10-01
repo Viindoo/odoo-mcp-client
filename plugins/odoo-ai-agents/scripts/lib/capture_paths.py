@@ -156,13 +156,15 @@ def destination_hint(family, cwd, root, environ):
     if isolate and not any(ssot.is_inside(isolate, r)
                            for r in ssot.allowed_roots(family, root, environ)):
         return ("This session's run dir (%s) is outside what %s can write (%s): make this capture "
-                "with chrome-devtools, or stop with BLOCKED(state root unresolvable - cannot place "
-                "evidence)." % (isolate, family, ssot.capture_area(root)))
+                "with chrome-devtools, or stop with BLOCKED(run dir outside the %s capture area)."
+                % (isolate, family, ssot.capture_area(root), family))
     if isolate:
         slug = "capture-%s-%02x%02x" % ((time.strftime("%Y%m%d"),) + tuple(bytearray(os.urandom(2))))
         target = os.path.join(isolate, "visual", "adhoc", slug) + os.sep
-        return ("Write it under %s (%s), then mv the file where it must go. Never retry with a "
-                "relative path." % (target, brief))
+        return ("Write it under %s (%s), keep it there and cite that path. Move only a final "
+                "image a module doc embeds, to where that doc resolves it - never to the refused "
+                "path or elsewhere in the working tree. Never retry with a relative path."
+                % (target, brief))
     if ssot.backend(family) == "chrome-devtools":
         return ("No run dir resolves for this session's directory (%s): omit filePath to get the "
                 "image inline. Never retry with a relative path." % brief)
@@ -180,7 +182,11 @@ def native_path(path):
 
 
 def violations(family, tool_input, root, environ):
-    """[(key, value, why)] for every write destination outside the family's allowed roots."""
+    """[(key, value, why)] for every write destination outside the family's allowed roots.
+    `webmPath` is the INPUT of pagecast's convert tools, but the GIF/MP4 is written beside it, so
+    it is judged as a destination too - with pagecast's own recording dir (where stop_recording
+    leaves the .webm) allowed as well. A relative one is refused like any other: it resolves
+    against the server's working directory, and so would the converted file."""
     ssot, _prefixes = _lib()
     allowed = ssot.allowed_roots(family, root, environ)
     out = []
@@ -188,12 +194,15 @@ def violations(family, tool_input, root, environ):
         value = tool_input.get(key)
         if not isinstance(value, str) or not value.strip():
             continue
+        roots = allowed
+        if key == "webmPath" and ssot.backend(family) == "pagecast":
+            roots = allowed + [ssot.pagecast_output_dir(root)]
         path = native_path(value.strip())
         if not os.path.isabs(path):
             out.append((key, value, "a relative path (it resolves against the session's working "
                                     "directory, usually the repository)"))
-        elif not any(ssot.is_inside(path, r) for r in allowed):
-            out.append((key, value, "outside " + " and ".join(allowed)))
+        elif not any(ssot.is_inside(path, r) for r in roots):
+            out.append((key, value, "outside " + " and ".join(roots)))
     return out
 
 

@@ -153,6 +153,7 @@ PARALLEL across independent instance-paths up to
       no consumer sets a writer's model - model authority stays with this orchestrator.
    4. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
       completion block (files exist at the reported paths), then run the doc reference gate on M
+      with no file arguments, so it checks every doc file and the module descriptor
       (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
       resolved series) - a finding sends M back to its writer, exit 2 stops the run `NEEDS_CONTEXT`.
       Only on exit 0 COMMIT M's docs via git-toolkit `git-ops` (per-module commit, one-way git; the

@@ -23,11 +23,14 @@ This module owns, per family:
   - the state-root flags that make an absolute capture path in that area writable:
       chrome-devtools  --workspace=<root>/projects (+ one per override). Without it the server
                        writes only inside the client's roots (the session cwd) and the OS temp dir.
-      playwright       --output-dir=<root>/projects (allowed roots = output dir + cwd; an
-                       explicit filename resolves against the cwd) and --idle-timeout, which
-                       closes a browser nobody drives. It takes ONE output dir, so an override
-                       outside the root is not writable by playwright. --output-max-size is never
-                       set: it evicts files recursively under the output dir.
+      playwright       --output-dir=<root>/projects and --idle-timeout, which closes a browser
+                       nobody drives. Only an AUTO-named file goes to the output dir; an explicit
+                       `filename` - relative ones included - resolves against the client's first
+                       root, the session cwd (@playwright/mcp 0.0.83: resolveClientFilename ->
+                       workspaceFile, vs outputFile for auto names), and a write is allowed under
+                       the output dir or that root. It takes ONE output dir, so an override
+                       outside the capture area is not writable by playwright. --output-max-size
+                       is never set: it evicts files recursively under the output dir.
       pagecast         RECORDING_OUTPUT_DIR=<root>/scratch/pagecast (default is ./recordings).
   - the roots each family may write, which the capture-path gate (`capture_paths.py`) checks;
   - the pruning of the files the servers write on their own and of the captures no skill owns
@@ -46,6 +49,11 @@ CLI (for shell callers; nothing but data on stdout):
                                      installs)
     chrome-path                      the installed Google Chrome both chrome-devtools and
                                      playwright launch; exit 1 (nothing printed) when absent
+    chromium-record write <loc>...   record the Install locations setup verified for the pinned
+                                     playwright (atomic JSON under <root>/runtime)
+    chromium-record check            exit 0 when that record matches the pinned playwright and
+                                     every location still carries INSTALLATION_COMPLETE; else
+                                     exit 1 with the reason (missing / outdated / incomplete)
     spec <server>                    JSON {"command","args","env"} with resolved state-root flags
     claude-config                    the file Claude Code keeps user-scope MCP servers in
     drift                            "<runtime> <server>" per registration that differs from spec,
@@ -267,6 +275,49 @@ def find_chrome(environ=None, platform=None, exists=None):
     for path in chrome_locations(environ, platform):
         if exists(path):
             return path
+    return None
+
+
+# What setup step 20 verified for pagecast's Chromium: the pinned playwright version and every
+# `Install location:` its dry-run listed, each complete at the time. The SessionStart hint reads
+# it instead of running npx (too slow there), so it stays revision-exact: another revision's
+# chromium-* directory never satisfies it.
+CHROMIUM_RECORD = "browser-deps.json"
+_INSTALL_MARKER = "INSTALLATION_COMPLETE"
+
+
+def chromium_record_path(root):
+    return os.path.join(root, "runtime", CHROMIUM_RECORD)
+
+
+def write_chromium_record(root, version, locations):
+    """Atomically record the verified install locations for `version`."""
+    path = chromium_record_path(root)
+    directory = os.path.dirname(path)
+    if not os.path.isdir(directory):
+        os.makedirs(directory, exist_ok=True)
+    tmp = "%s.%d.tmp" % (path, os.getpid())
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump({"playwright": version, "locations": list(locations)}, fh, indent=1)
+    os.replace(tmp, path)
+
+
+def chromium_record_status(root, version):
+    """None when the record names `version` and every location is still complete; else the
+    reason: "missing", "outdated" (another playwright version) or "incomplete"."""
+    try:
+        with open(chromium_record_path(root), encoding="utf-8") as fh:
+            record = json.load(fh)
+    except (OSError, ValueError):
+        return "missing"
+    if not isinstance(record, dict) or not isinstance(record.get("locations"), list):
+        return "missing"
+    if record.get("playwright") != version:
+        return "outdated"
+    locations = [loc for loc in record["locations"] if isinstance(loc, str) and loc]
+    if not locations or not all(os.path.isfile(os.path.join(loc, _INSTALL_MARKER))
+                                for loc in locations):
+        return "incomplete"
     return None
 
 
@@ -555,7 +606,8 @@ def prune_browser_byproducts(root, now=None, max_age_s=BYPRODUCT_MAX_AGE_S,
 # --------------------------------------------------------------------------- #
 def main(argv):
     usage = ("Usage: browser_mcp_servers.py {servers all|optin|eager | npx-args <server> | "
-             "pin <server> | browser-playwright-version | chrome-path | spec <server> | claude-config | drift | "
+             "pin <server> | browser-playwright-version | chrome-path | "
+             "chromium-record {write <loc>...|check} | spec <server> | claude-config | drift | "
              "prune}")
     if not argv:
         sys.stderr.write(usage + "\n")
@@ -572,6 +624,15 @@ def main(argv):
         if cmd == "pin" and len(rest) == 1:
             sys.stdout.write(pin(rest[0]) + "\n")
             return 0
+        if cmd == "chromium-record" and rest[:1] == ["write"] and len(rest) > 1:
+            write_chromium_record(state_root(), browser_playwright_version(), rest[1:])
+            return 0
+        if cmd == "chromium-record" and rest == ["check"]:
+            reason = chromium_record_status(state_root(), browser_playwright_version())
+            if reason is None:
+                return 0
+            sys.stdout.write(reason + "\n")
+            return 1
         if cmd == "chrome-path" and not rest:
             found = find_chrome()
             if found is None:
@@ -597,6 +658,9 @@ def main(argv):
     except ValueError as exc:
         sys.stderr.write("browser_mcp_servers.py: %s\n" % exc)
         return 2
+    except OSError as exc:
+        sys.stderr.write("browser_mcp_servers.py: %s\n" % exc)
+        return 1
     sys.stderr.write(usage + "\n")
     return 2
 

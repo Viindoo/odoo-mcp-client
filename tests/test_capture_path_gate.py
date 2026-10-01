@@ -115,7 +115,7 @@ def test_a_relative_screenshot_path_is_denied_with_a_concrete_destination(world)
     assert _denied(out), out
     reason = _reason(out)
     assert "filePath='shot.png' is a relative path" in reason
-    assert "Never retry with a relative path" in reason and "mv" in reason
+    assert "Never retry with a relative path" in reason
     assert "ISOLATE_DIR from its brief" in reason
     assert "<" not in reason and ">" not in reason, f"unresolved placeholder: {reason}"
     assert reason.isascii(), reason
@@ -124,6 +124,35 @@ def test_a_relative_screenshot_path_is_denied_with_a_concrete_destination(world)
     target = Path(m.group(1))
     assert re.fullmatch(r"[a-z0-9-]+-\d{8}-[0-9a-f]{4}", target.name), target.name
     assert target.parent == Path(_isolate_of(world, proj)) / "visual" / "adhoc"
+
+
+def test_the_remedy_keeps_the_capture_in_the_run_dir_and_never_sends_it_back(world):
+    """Told to 'mv the file where it must go', a live agent moved the capture back into the
+    working tree - the very place the hook refused. The remedy keeps it in the run dir, cites
+    it there, and moves only a final image a module doc embeds."""
+    proj = _project(world)
+    reason = _reason(_run(world, BUNDLED + "take_screenshot", {"filePath": "a.png"},
+                          cwd=str(proj)))
+    assert "keep it there and cite that path" in reason, reason
+    assert "never to the refused path or elsewhere in the working tree" in reason, reason
+    assert "where it must go" not in reason, reason
+
+
+def test_a_webm_path_where_pagecast_left_the_recording_is_accepted(world):
+    """convert_to_gif/convert_to_mp4 READ the .webm and write the result beside it: the
+    recording dir pagecast itself writes (scratch/pagecast) and run dirs are fine; a relative
+    path or one in the working tree is not (the GIF would land there)."""
+    _register(world, "pagecast", ["-y", "@mcpware/pagecast@0.2.1"],
+              env={"RECORDING_OUTPUT_DIR": str(world["state"] / "scratch" / "pagecast")})
+    tool = "mcp__pagecast__convert_to_gif"
+    scratch = world["state"] / "scratch" / "pagecast" / "recording-1.webm"
+    assert _run(world, tool, {"webmPath": str(scratch)}) is None
+    assert _run(world, tool, {"webmPath": str(world["isolate"] / "v" / "r.webm")}) is None
+    assert _denied(_run(world, tool, {"webmPath": "recordings/recording-1.webm"}))
+    assert _denied(_run(world, tool, {"webmPath": str(world["tmp"] / "repo" / "r.webm")}))
+    shot = _run(world, BUNDLED + "take_screenshot",
+                {"filePath": str(world["state"] / "scratch" / "pagecast" / "a.png")})
+    assert _denied(shot), "only pagecast's webmPath may point into its recording dir"
 
 
 def test_the_suggested_destination_passes_the_gate(world):
@@ -268,7 +297,8 @@ def test_playwright_is_sent_to_chrome_devtools_when_the_run_dir_is_unwritable_fo
     reason = _reason(out)
     assert "Write it under" not in reason, reason
     assert "make this capture with chrome-devtools" in reason
-    assert "BLOCKED(state root unresolvable - cannot place evidence)" in reason
+    assert "BLOCKED(run dir outside the playwright capture area)" in reason
+    assert "state root unresolvable" not in reason, "the state root DID resolve here"
     assert reason.isascii() and "<" not in reason, reason
 
 

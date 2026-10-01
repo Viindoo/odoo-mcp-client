@@ -126,6 +126,9 @@ set -uo pipefail
 # LIST is harmless (no mutation is in flight to interrupt, unlike a drop).
 GC_TIMEOUT_S=300
 REAP_TIMEOUT_S=120
+# The browser byproduct prune only lists and unlinks old files; a slow or hung filesystem must not
+# hold the worker past its other steps.
+PRUNE_TIMEOUT_S=60
 # How long the worker waits for the ending session's anchor process to exit before it asks the
 # allocator to reclaim that session's leases. SessionEnd fires while `claude` is still shutting
 # down, so an immediate check would find it alive and (correctly) be refused. Past this bound the
@@ -239,7 +242,7 @@ _run_worker() {
     # auto-named files in projects/, pagecast's scratch recordings). Same rule the browser
     # launcher applies at every start: scripts/lib/browser_mcp_servers.py prune.
     if [[ -f "$lib_dir/browser_mcp_servers.py" ]]; then
-        python3 "$lib_dir/browser_mcp_servers.py" prune >/dev/null 2>&1 || true
+        run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/browser_mcp_servers.py" prune >/dev/null 2>&1 || true
     fi
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can

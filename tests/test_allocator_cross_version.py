@@ -64,6 +64,28 @@ def _git_show(ref_path):
     return proc.stdout if proc.returncode == 0 else None
 
 
+def _release_unavailable(reason):
+    """A pinned release that cannot be read: skipped on a developer's shallow or partial clone,
+    but a FAILURE in CI ($CI set), where the workflow fetches the full history - a skip there would
+    silently drop the cross-version guard."""
+    if os.environ.get("CI"):
+        pytest.fail(reason + " - CI must check out the full history (fetch-depth: 0)")
+    pytest.skip(reason)
+
+
+def _load_release(ref, names, dest):
+    """Copy `names` from the pinned commit `ref` into `dest` (git required)."""
+    if shutil.which("git") is None:
+        _release_unavailable("git is not available")
+    for name in names:
+        text = _git_show("{ref}:{lib}/{name}".format(ref=ref, lib=LIB_REL, name=name))
+        if text is None:
+            _release_unavailable("release {ref} is not in this clone (shallow checkout?)".format(
+                ref=ref[:12]))
+        (dest / name).write_text(text, encoding="utf-8")
+    return dest
+
+
 # The last release before session-anchored leases (VERSION 7.0.2). A session started on it keeps
 # running this allocator against the shared registry.
 PRE_ANCHOR_RELEASE = "243ea1d7ee95ce30390170ca5d77a80671874d58"
@@ -72,16 +94,7 @@ PRE_ANCHOR_RELEASE = "243ea1d7ee95ce30390170ca5d77a80671874d58"
 @pytest.fixture(scope="module")
 def pre_anchor_lib(tmp_path_factory):
     """A directory holding the pre-anchor release's allocator.py and its siblings."""
-    if shutil.which("git") is None:
-        pytest.skip("git is not available")
-    dest = tmp_path_factory.mktemp("pre_anchor_lib")
-    for name in OLD_FILES:
-        text = _git_show("{ref}:{lib}/{name}".format(ref=PRE_ANCHOR_RELEASE, lib=LIB_REL,
-                                                     name=name))
-        if text is None:
-            pytest.skip("release {ref} is not in this clone (shallow checkout?)".format(
-                ref=PRE_ANCHOR_RELEASE[:12]))
-        (dest / name).write_text(text, encoding="utf-8")
+    dest = _load_release(PRE_ANCHOR_RELEASE, OLD_FILES, tmp_path_factory.mktemp("pre_anchor_lib"))
     assert "session_anchor" not in (dest / "allocator.py").read_text(encoding="utf-8"), (
         "PRE_ANCHOR_RELEASE must name an allocator without session-anchored leases")
     return dest
@@ -390,7 +403,11 @@ def released_lib(tmp_path_factory):
         pytest.skip("git is not available")
     dest = tmp_path_factory.mktemp("released_lib")
     for name in RELEASED_FILES:
-        text = _git_show("master:{lib}/{name}".format(lib=LIB_REL, name=name))
+        text = None
+        for ref in ("master", "origin/master"):
+            text = _git_show("{ref}:{lib}/{name}".format(ref=ref, lib=LIB_REL, name=name))
+            if text is not None:
+                break
         if text is None:
             pytest.skip("master:{lib}/{name} is not available".format(lib=LIB_REL, name=name))
         (dest / name).write_text(text, encoding="utf-8")
@@ -409,16 +426,8 @@ PRE_BUILD_FACTS_RELEASE = "e71d6cda31aef085fc79a7526df11de5172b3c5e"
 @pytest.fixture(scope="module")
 def pre_build_facts_lib(tmp_path_factory):
     """The 7.1.0 allocator and siblings, from the pinned release commit."""
-    if shutil.which("git") is None:
-        pytest.skip("git is not available")
-    dest = tmp_path_factory.mktemp("pre_build_facts_lib")
-    for name in RELEASED_FILES:
-        text = _git_show("{ref}:{lib}/{name}".format(ref=PRE_BUILD_FACTS_RELEASE, lib=LIB_REL,
-                                                     name=name))
-        if text is None:
-            pytest.skip("release {ref} is not in this clone (shallow checkout?)".format(
-                ref=PRE_BUILD_FACTS_RELEASE[:12]))
-        (dest / name).write_text(text, encoding="utf-8")
+    dest = _load_release(PRE_BUILD_FACTS_RELEASE, RELEASED_FILES,
+                         tmp_path_factory.mktemp("pre_build_facts_lib"))
     assert "server_wide_modules" not in (dest / "allocator.py").read_text(encoding="utf-8"), (
         "PRE_BUILD_FACTS_RELEASE must name an allocator that records no build facts")
     return dest
@@ -609,3 +618,42 @@ def test_a_lease_parked_before_it_was_ever_served_is_safe_under_the_released_all
     _assert_clean("query parked", p)
     assert _kv(p.stdout).get("ALLOC_TOKEN") == token
     assert world.drops() == []
+
+
+# --------------------------------------------------------------------------- #
+# the pinned releases are a hard requirement in CI
+# --------------------------------------------------------------------------- #
+_MISSING = "0" * 40
+
+
+@pytest.mark.parametrize("ci,outcome", [("true", pytest.fail.Exception),
+                                        (None, pytest.skip.Exception)])
+def test_a_missing_pinned_release_fails_in_ci_and_skips_elsewhere(tmp_path, monkeypatch, ci,
+                                                                   outcome):
+    """A depth-1 CI checkout silently skipped every pinned-commit guard (2 passed, 13 skipped):
+    in CI a missing release is a failure that names the fix."""
+    if ci is None:
+        monkeypatch.delenv("CI", raising=False)
+    else:
+        monkeypatch.setenv("CI", ci)
+    try:
+        _load_release(_MISSING, ("allocator.py",), tmp_path)
+    except BaseException as exc:  # pytest's skip/fail outcomes are BaseException subclasses
+        raised = exc
+    else:
+        raised = None
+    assert type(raised) is outcome, f"expected {outcome.__name__}, got {raised!r}"
+    if ci:
+        assert "fetch-depth: 0" in str(raised)
+
+
+def test_the_ci_jobs_running_pytest_check_out_the_full_history():
+    """The pinned releases exist only in a full clone; every CI job that runs pytest must fetch
+    the history or the guards above fail (by design) in CI."""
+    import re
+    text = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+    jobs = re.split(r"\n  (?=[A-Za-z0-9_-]+:\n)", text.split("\njobs:\n", 1)[1])
+    running = [j for j in jobs if re.search(r"run:.*\bpytest\b", j)]
+    assert running, "premise: some job runs pytest"
+    for job in running:
+        assert re.search(r"fetch-depth:\s*0\b", job), job.splitlines()[0]

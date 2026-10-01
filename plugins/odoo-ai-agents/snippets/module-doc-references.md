@@ -35,7 +35,9 @@ Each manifest `images` entry is relative to the module root and names an existin
 
 ## Reference gate
 
-After you write or edit any of these files, run, passing the doc files you wrote:
+After you write or edit any of these files, run the gate, passing every doc file you wrote plus the
+module descriptor (`__manifest__.py` / `__openerp__.py`) when you edited its `images`. With no file
+arguments it checks every doc file and the descriptor.
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [files...]

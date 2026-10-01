@@ -36,6 +36,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import farm_path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = (
@@ -242,12 +243,13 @@ def test_describe_is_nonblank():
 
 
 @requires_bash
-def test_check_does_not_crash():
+def test_check_does_not_crash(tmp_path):
     # check legitimately returns 0 (all present) or 1 (something missing); it
     # must never crash with a usage/other error code.
     res = subprocess.run(
         ["bash", str(SCRIPT), "check"],
         capture_output=True, text=True,
+        env=dict(os.environ, ODOO_AI_HOME=str(tmp_path / "state")),
     )
     assert res.returncode in (0, 1), res.stderr
 
@@ -288,6 +290,28 @@ _LDCONFIG_PRESENT = "\n".join(
 )
 
 
+def _pw_dry_run(tmp_path: Path, *, complete: bool = True) -> str:
+    """What `playwright install chromium --dry-run` prints: an `Install location:` per browser it
+    would install (revision-exact dirs). `complete` writes Playwright's INSTALLATION_COMPLETE
+    marker into each, as a finished download does."""
+    cache = tmp_path / "pw-cache"
+    lines = []
+    for name in ("chromium-9999", "chromium_headless_shell-9999", "ffmpeg-9999"):
+        d = cache / name
+        d.mkdir(parents=True, exist_ok=True)
+        if complete:
+            (d / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+        lines += [f"Browser {name}", f"  Install location:    {d}", "  Download url: https://x", ""]
+    return "\n".join(lines)
+
+
+def _dry_run_case(tmp_path: Path, *, complete: bool = True) -> str:
+    """A bash `case` arm answering the dry-run with _pw_dry_run's listing."""
+    listing = tmp_path / "dry-run.txt"
+    listing.write_text(_pw_dry_run(tmp_path, complete=complete), encoding="utf-8")
+    return f'  *--dry-run*) cat "{listing}" ; exit 0 ;;\n'
+
+
 def _write_npm_stub(bind: Path, *, cached=(), fail=(), log: Path | None = None):
     """Stub `npm` for the MCP-package pre-install probe/apply calls this step
     makes, mirroring real npm's `--offline` semantics we rely on: the check
@@ -322,7 +346,7 @@ def _write_npm_stub(bind: Path, *, cached=(), fail=(), log: Path | None = None):
 def _apt_stub_bin(
     tmp_path: Path, *, sudo_nopasswd: bool, sudo_log: Path | None = None,
     libs_present: bool = False, install_deps_fails: bool = False,
-    mcp_cached: bool = True, npm_log: Path | None = None,
+    mcp_cached: bool = True, npm_log: Path | None = None, chromium_complete: bool = True,
 ):
     """Build a stub bin dir that makes the script believe it is on apt-based
     Linux with chromium already downloaded. `libs_present` toggles whether the
@@ -348,12 +372,14 @@ def _apt_stub_bin(
         _write_stub(bind / "ldconfig", f"cat <<'EOF'\n{_LDCONFIG_PRESENT}\nEOF\n")
     else:
         _write_stub(bind / "ldconfig", "exit 0\n")
-    # npx: chromium already installed (dry-run), install-deps no-op. No network.
+    # npx: the dry-run lists revision-exact install dirs (complete unless told otherwise); every
+    # other call is logged and succeeds. No network.
     _write_stub(
         bind / "npx",
+        f'echo "$*" >> "{tmp_path / "npx.log"}"\n'
         'args="$*"\n'
         'case "$args" in\n'
-        '  *--dry-run*) echo "chromium is already installed" ; exit 0 ;;\n'
+        + _dry_run_case(tmp_path, complete=chromium_complete) +
         '  *install-deps*) exit 0 ;;\n'
         '  *) exit 0 ;;\n'
         'esac\n',
@@ -388,6 +414,8 @@ def _run_apply(bind: Path):
     env = dict(os.environ)
     # Stubs first; keep the rest of PATH for grep/printf/sed/etc.
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    # The step records what it verified under the state root: never the real one.
+    env["ODOO_AI_HOME"] = str(bind.parent / "state")
     return subprocess.run(
         ["bash", str(SCRIPT), "apply"],
         capture_output=True, text=True, env=env,
@@ -427,7 +455,7 @@ def _macos_stub_bin(tmp_path: Path, *, sudo_log: Path, apt_log: Path):
     _write_stub(bind / "node", 'case "$1" in -v) echo v22.0.0 ;; -e) printf 22 ;; esac\n')
     _write_stub(
         bind / "npx",
-        'case "$*" in *--dry-run*) echo "chromium is already installed" ;; esac\nexit 0\n',
+        'case "$*" in\n' + _dry_run_case(tmp_path) + 'esac\nexit 0\n',
     )
     # All 3 pinned MCP packages report cached - macOS path is not exercising
     # the pre-install branch here, this test is about apt/sudo isolation.
@@ -496,6 +524,7 @@ def test_check_fails_when_an_mcp_package_is_not_cached(tmp_path):
     )
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_HOME"] = str(tmp_path / "state")
     res = subprocess.run(
         ["bash", str(SCRIPT), "check"], capture_output=True, text=True, env=env,
     )
@@ -638,6 +667,7 @@ def _chrome_env(tmp_path: Path, present: bool) -> dict:
 def _run_step(bind: Path, verb: str, extra: dict):
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_HOME"] = str(bind.parent / "state")
     env.update(extra)
     return subprocess.run(["bash", str(SCRIPT), verb], capture_output=True, text=True, env=env,
                           timeout=120)
@@ -686,3 +716,141 @@ def test_apply_on_macos_never_installs_chrome_itself(tmp_path):
     assert res.returncode == 0, res.stdout + res.stderr
     assert f"npx -y playwright@{PIN} install chrome" in res.stderr
     assert not sudo_log.exists(), sudo_log.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Playwright Chromium: installed means the pinned revision, finished
+# ---------------------------------------------------------------------------
+@requires_bash
+def test_check_accepts_the_pinned_chromium_when_every_listed_location_is_complete(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert res.returncode == 0, res.stdout + res.stderr
+
+
+@requires_bash
+def test_check_refuses_a_listed_location_without_its_completion_marker(tmp_path):
+    """A half-finished download leaves the directory but not INSTALLATION_COMPLETE."""
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
+                         chromium_complete=False)
+    res = _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert res.returncode == 1, res.stdout + res.stderr
+
+
+@requires_bash
+def test_another_chromium_revision_in_the_cache_does_not_count(tmp_path):
+    """pagecast launches its own playwright's revision; a chromium-1000 from another release in
+    the standard cache cannot start it."""
+    home = tmp_path / "home"
+    other = home / ".cache" / "ms-playwright" / "chromium-1000"
+    other.mkdir(parents=True)
+    (other / "INSTALLATION_COMPLETE").write_text("", encoding="utf-8")
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
+                         chromium_complete=False)
+    extra = dict(_chrome_env(tmp_path, present=True), HOME=str(home),
+                 PLAYWRIGHT_BROWSERS_PATH=str(home / ".cache" / "ms-playwright"))
+    res = _run_step(bind, "check", extra)
+    assert res.returncode == 1, res.stdout + res.stderr
+
+
+@requires_bash
+def test_apply_installs_the_pinned_chromium_when_its_revision_is_missing(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
+                         chromium_complete=False)
+    res = _run_step(bind, "apply", _chrome_env(tmp_path, present=True))
+    assert res.returncode == 0, res.stdout + res.stderr
+    calls = (tmp_path / "npx.log").read_text(encoding="utf-8").splitlines()
+    assert f"-y playwright@{PIN} install chromium" in calls, calls
+
+
+# ---------------------------------------------------------------------------
+# The record the SessionStart hint reads (no npx there): written by check/apply,
+# revision-exact, re-checked against the markers
+# ---------------------------------------------------------------------------
+HOOK = SCRIPT.parent.parent.parent / "hooks" / "check-setup-deps.sh"
+
+
+def _record(tmp_path):
+    path = tmp_path / "state" / "runtime" / "browser-deps.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _hint(tmp_path, home=None):
+    """Run the SessionStart probe against the step's state root; return its stderr."""
+    env = dict(os.environ, ODOO_AI_HOME=str(tmp_path / "state"),
+               HOME=str(home or tmp_path / "home"))
+    env.pop("PLAYWRIGHT_PIN", None)
+    res = subprocess.run(["bash", str(HOOK)], input="{}", env=env, capture_output=True,
+                         text=True, timeout=60)
+    assert res.returncode == 0
+    return res.stderr
+
+
+@requires_bash
+@pytest.mark.parametrize("verb", ["check", "apply"])
+def test_a_verified_chromium_is_recorded_for_the_pinned_playwright(tmp_path, verb):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    _run_step(bind, verb, _chrome_env(tmp_path, present=True))
+    record = _record(tmp_path)
+    assert record is not None, "a verified Chromium must be recorded"
+    assert record["playwright"] == PIN
+    listed = [line.split("Install location:", 1)[1].strip()
+              for line in _pw_dry_run(tmp_path).splitlines() if "Install location:" in line]
+    assert record["locations"] == listed
+
+
+@requires_bash
+def test_an_unverified_chromium_is_never_recorded(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True,
+                         chromium_complete=False)
+    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert _record(tmp_path) is None
+
+
+@requires_bash
+def test_the_hint_is_silent_when_the_record_matches_and_every_location_is_complete(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    assert "playwright-browsers" not in _hint(tmp_path)
+
+
+@requires_bash
+def test_the_hint_asks_for_setup_when_there_is_no_record(tmp_path):
+    """Another revision's chromium-* in the cache no longer satisfies the hint."""
+    home = tmp_path / "home"
+    (home / ".cache" / "ms-playwright" / "chromium-1000").mkdir(parents=True)
+    err = _hint(tmp_path, home=home)
+    assert "playwright-browsers (missing - run /odoo-ai-agents:odoo-setup browser)" in err, err
+
+
+@requires_bash
+def test_the_hint_asks_for_setup_when_the_pinned_playwright_moved(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    path = tmp_path / "state" / "runtime" / "browser-deps.json"
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["playwright"] = "0.0.1"
+    path.write_text(json.dumps(record), encoding="utf-8")
+    assert "playwright-browsers (outdated - run /odoo-ai-agents:odoo-setup browser)" in _hint(tmp_path)
+
+
+@requires_bash
+def test_the_hint_asks_for_setup_when_a_recorded_location_lost_its_marker(tmp_path):
+    bind = _apt_stub_bin(tmp_path, sudo_nopasswd=False, libs_present=True)
+    _run_step(bind, "check", _chrome_env(tmp_path, present=True))
+    first = Path(_record(tmp_path)["locations"][0])
+    (first / "INSTALLATION_COMPLETE").unlink()
+    assert "playwright-browsers (incomplete - run /odoo-ai-agents:odoo-setup browser)" in _hint(tmp_path)
+
+
+@requires_bash
+def test_the_hint_stays_silent_about_chromium_when_it_cannot_check(tmp_path, path_farm):
+    """No python3 on PATH: the probe says nothing about Chromium rather than guessing."""
+    path = farm_path(path_farm(drop=("python3",)))
+    assert shutil.which("python3", path=path) is None, "premise: python3 is unreachable"
+    env = dict(os.environ, PATH=path, ODOO_AI_HOME=str(tmp_path / "state"),
+               HOME=str(tmp_path / "home"))
+    res = subprocess.run(["bash", str(HOOK)], input="{}", env=env,
+                         capture_output=True, text=True, timeout=60)
+    assert res.returncode == 0
+    assert "playwright-browsers" not in res.stderr

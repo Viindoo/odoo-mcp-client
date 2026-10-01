@@ -180,10 +180,11 @@ store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing
 
 ### Step 4.5 - Place finals, then run the doc reference gate
 
-`mv` every final the landing embeds from staging into the directory capture-mechanics.md section 13
-resolves, then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
-§ Reference gate (`--series` = the Step 0 version) on every `index*.html` you wrote. Fix each
-finding and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
+`mv` every final the module ships - each image the landing embeds and each manifest `images` entry
+Step 4 wired - from staging into the directory capture-mechanics.md section 13 resolves, then run
+the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate
+(`--series` = the Step 0 version) on every `index*.html` you wrote plus the module descriptor. Fix
+each finding and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 
 ### Step 4.6 - Tear down your browser pages (before terminal status)
 

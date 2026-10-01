@@ -60,8 +60,9 @@ else the `[Image: <slug>]` marker slug or the screen's kebab-case name. English 
 suffix. This is the staging name only: the final name is decided at placement (section 13), and you
 rename the file to it in the same `mv`.
 
-per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes (the
-per-family parameter and the refused-path stop live there). `<run_id>` is the brief's `RUN_ID` (the
+Pass that path with the per-family parameter and handle a refusal as
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes states.
+`<run_id>` is the brief's `RUN_ID` (the
 worklog run-or-slug - reuse it, never mint a new id); `<module>` is the module being documented.
 **NEVER stage into a bare `doc-staging/<...>` with no `<run_id>/<module>` prefix.** `mkdir -p` the
 dir first. On chrome-devtools pass the path as `take_screenshot filePath` (never `path` - the schema
@@ -288,10 +289,12 @@ Name each final by the convention already on disk in that directory, else by
 Specifications (store page) or the shot slug (user guide). The English canonical carries no locale
 suffix; every other locale appends `.<locale>` before the extension.
 
-`mv` (never `cp`) each final from staging into that directory under its final name, renaming it in
-the same `mv` (`mkdir -p` the directory first). Reference it per
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's reference gate
-(§ Reference gate) until it exits 0. A capture the doc does not embed stays in staging.
+A final is every image the module ships: each image a doc embeds and each manifest `images` entry
+(a manifest image lands in `static/description/`). `mv` (never `cp`) each final from staging into
+its directory under its final name, renaming it in the same `mv` (`mkdir -p` the directory first).
+Reference it per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's
+reference gate (§ Reference gate) until it exits 0. Every other capture stays where it was written,
+cited by that path.
 
 ## 14. Hard constraints (capture)
 

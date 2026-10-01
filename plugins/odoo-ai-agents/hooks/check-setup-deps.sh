@@ -17,24 +17,19 @@ else
   missing+=("node>=20 (not in PATH)")
 fi
 
-# (b) Playwright browser binaries installed
-# A real install contains at least one browser dir (chromium-NNNN, firefox-NNNN,
-# webkit-NNNN) under the cache; the actual binary sits one level deeper
-# (e.g. chromium-1148/chrome-linux/chrome), so a -name "chrome" find misses it.
-# Probe for the chromium-* directory itself - same logic as 20-browser-deps.sh.
-_pw_ok=false
-for _pw_cache in \
-    "${PLAYWRIGHT_BROWSERS_PATH:-}" \
-    "${HOME}/.cache/ms-playwright" \
-    "${HOME}/Library/Caches/ms-playwright" \
-    "${HOME}/AppData/Local/ms-playwright"; do
-  [ -n "${_pw_cache}" ] && [ -d "${_pw_cache}" ] || continue
-  if compgen -G "${_pw_cache}/chromium-*" >/dev/null 2>&1; then
-    _pw_ok=true
-    break
-  fi
-done
-${_pw_ok} || missing+=("playwright-browsers (run: npx playwright install chromium)")
+# (b) the Playwright Chromium pagecast launches, revision-exact. Setup step 20 records the
+# `Install location:` paths it verified for the pinned playwright; this re-checks that record (no
+# npx - too slow here): missing, written for another pinned version, or a location that lost its
+# INSTALLATION_COMPLETE marker all mean setup must run again. Another revision's chromium-*
+# directory never counts. Silent when the check itself cannot run (no python3, an error).
+_plugin_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts/lib" 2>/dev/null && pwd)"
+if command -v python3 >/dev/null 2>&1 && [ -f "${_plugin_lib}/browser_mcp_servers.py" ]; then
+  _pw_reason="$(python3 "${_plugin_lib}/browser_mcp_servers.py" chromium-record check 2>/dev/null)"
+  case "${_pw_reason}" in
+    missing|outdated|incomplete)
+      missing+=("playwright-browsers (${_pw_reason} - run /odoo-ai-agents:odoo-setup browser)") ;;
+  esac
+fi
 
 # (c) ffmpeg in PATH
 command -v ffmpeg >/dev/null 2>&1 || missing+=("ffmpeg (not in PATH)")
@@ -62,7 +57,6 @@ ${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemi
 # no state-root flag, a moved state root). Read-only: scripts/lib/browser_mcp_servers.py drift
 # prints "<runtime> <server>" per drifted registration and "<runtime> ?" for a config it could
 # not read (drift unknown there, never "none").
-_plugin_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts/lib" 2>/dev/null && pwd)"
 _drifted=()
 _unread=()
 if command -v python3 >/dev/null 2>&1 && [ -f "${_plugin_lib}/browser_mcp_servers.py" ]; then

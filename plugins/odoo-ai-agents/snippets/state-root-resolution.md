@@ -29,9 +29,7 @@ repo-key = sha256(realpath(git rev-parse --git-common-dir))[:12]   # same for ev
 wt-key   = sha256(realpath(git rev-parse --show-toplevel))[:12]    # distinct per worktree
 ```
 
-`--git-common-dir` always resolves to the ONE shared `.git` dir regardless of the linked
-worktree, so the SHARE key converges; `--show-toplevel` diverges per worktree, so the
-ISOLATE key diverges too. Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
+Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
 `$ODOO_AI_WORKTREE_DIR` (ISOLATE) win when set. Outside any git repo, the resolver walks UP from
 the cwd to the nearest project marker: an explicit `.odoo-ai-root` sentinel has GLOBAL priority
 (scanned up to `/` first); only when none exists does it fall back to the NEAREST
@@ -194,7 +192,7 @@ path inside the target repo or any working tree, never no destination. Pick the 
    evidence, demo-video output, doc staging) -> `<ISOLATE_DIR>/...` per `## Tier-2 ISOLATE list`
    above. The default when in doubt; a capture no skill owns goes to `<ISOLATE_DIR>/visual/adhoc/<slug>/`.
 3. **A committed module deliverable** (`<module>/static/description/...`, `<module>/doc/...`) is
-   NEVER a capture destination. An image a doc uses is `mv`d from ISOLATE into the location the
+   NEVER a capture destination. An image the module ships is `mv`d from ISOLATE into the location the
    target doc resolves (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md`
    § Place finals where the target doc resolves them), then committed via `git-toolkit:git-ops`.
 
@@ -210,8 +208,9 @@ path it returns into `<ISOLATE_DIR>` immediately. Console/network listings retur
 what you keep under `<ISOLATE_DIR>` so the report cites a real path.
 
 **Refused path.** Never retry with a relative path.
-- A HOOK deny: re-issue the call ONCE with an absolute path under the directory it names, or
-  omit `filePath` when it says so; denied again -> stop `BLOCKED` quoting the deny.
+- A HOOK deny: re-issue the call ONCE with an absolute path under the directory it names (or
+  omit `filePath`, or stop, as it says); denied again -> stop `BLOCKED` quoting the deny. Keep the
+  file where it was written and cite that path; only bucket 3 moves a file.
 - A SERVER refusal ("Access denied", "outside allowed roots") of an absolute path under your
   `<ISOLATE_DIR>`/`<SHARE_DIR>`: stop `BLOCKED(browser MCP flags outdated)`, remedy "run
   /odoo-ai-agents:odoo-setup browser, then restart the session".

@@ -176,3 +176,29 @@ def test_the_session_end_reclaim_runs_without_timeout(no_timeout, tmp_path):
     assert p.returncode == 0, p.stderr
     assert calls.exists() and "gc --scope dead-sessions" in calls.read_text(), (
         "the dead-session reclaim never ran", p.stderr)
+
+
+@posix_only
+def test_the_session_end_browser_prune_is_bounded_too(tmp_path, path_farm):
+    """Every python call of the SessionEnd worker runs under a bound, the browser prune included:
+    a hung filesystem must not hold the detached worker forever."""
+    root = tmp_path / "plugin"
+    lib = root / "scripts" / "lib"
+    lib.mkdir(parents=True)
+    shutil.copy2(HELPER, lib / "run_bounded.sh")
+    (lib / "allocator.py").write_text("import sys\n")
+    (lib / "browser_mcp_servers.py").write_text("import sys\n")
+    log = tmp_path / "timeout.log"
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    (stubs / "timeout").write_text(f'#!/bin/sh\necho "$@" >> "{log}"\nshift\nexec "$@"\n',
+                                   encoding="utf-8")
+    (stubs / "timeout").chmod(0o755)
+    env = dict(os.environ, PATH=farm_path(path_farm(drop=("timeout", "gtimeout")), stubs),
+               CLAUDE_PLUGIN_ROOT=str(root), ODOO_AI_HOME=str(tmp_path / "state"),
+               HOME=str(tmp_path / "home"))
+    p = subprocess.run(["bash", str(HOOKS / "session-end-gc.sh"), "--detached-worker", "", ""],
+                       env=env, capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr
+    bounded = log.read_text(encoding="utf-8").splitlines()
+    assert any(line.endswith("browser_mcp_servers.py prune") for line in bounded), bounded

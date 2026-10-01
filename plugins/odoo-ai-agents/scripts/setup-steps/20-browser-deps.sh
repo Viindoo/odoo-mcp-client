@@ -147,29 +147,34 @@ _can_sudo_nopasswd() {
 }
 
 _chromium_ok() {
-    # `playwright install chromium --dry-run` lists what WOULD be installed.
-    # If chromium is already present it reports it as already installed. The
-    # version is pinned so the probe matches what `apply` would install.
+    # `playwright@<pin> install chromium --dry-run` names, per browser it would install
+    # (Chromium, its headless shell, ffmpeg), an `Install location:` - the revision-exact
+    # directory under the Playwright cache, whatever is already there. Playwright writes
+    # INSTALLATION_COMPLETE into that directory when a download finished, so the pinned Chromium
+    # is installed exactly when every listed location carries it. Another revision's
+    # chromium-* directory says nothing about this one.
+    # Once verified, the locations are recorded (browser_mcp_servers.py chromium-record) so the
+    # SessionStart hint can re-check them revision-exactly without running npx.
     command -v npx >/dev/null 2>&1 || return 1
-    local out
+    local out loc native listed=0
+    local -a verified=()
     out="$(npx -y "playwright@${PW_PIN}" install chromium --dry-run 2>/dev/null || true)"
-    # here-string (not `printf | grep`) to avoid the pipefail/SIGPIPE trap.
-    if grep -qi "is already installed" <<<"$out"; then
-        return 0
-    fi
-    # Cache-dir fallback: look for a chromium-* folder in the standard caches.
-    local cache
-    for cache in \
-        "${PLAYWRIGHT_BROWSERS_PATH:-}" \
-        "$HOME/.cache/ms-playwright" \
-        "$HOME/Library/Caches/ms-playwright" \
-        "$HOME/AppData/Local/ms-playwright"; do
-        [[ -n "$cache" && -d "$cache" ]] || continue
-        if compgen -G "$cache/chromium-*" >/dev/null 2>&1; then
-            return 0
+    while IFS= read -r loc; do
+        loc="${loc%$'\r'}"
+        [[ -n "$loc" ]] || continue
+        listed=1
+        native="$loc"
+        # Git Bash prints C:\... locations; test them in the shell's own path form.
+        if command -v cygpath >/dev/null 2>&1; then
+            loc="$(cygpath -u "$loc" 2>/dev/null || printf '%s' "$loc")"
         fi
-    done
-    return 1
+        [[ -f "$loc/INSTALLATION_COMPLETE" ]] || return 1
+        # Recorded as Playwright printed it: python reads the record, not this shell.
+        verified+=("$native")
+    done < <(sed -n 's/^[[:space:]]*Install location:[[:space:]]*//p' <<<"$out")
+    [[ "$listed" -eq 1 ]] || return 1
+    _browser_mcp_py chromium-record write "${verified[@]}" >/dev/null 2>&1 || true
+    return 0
 }
 
 # Best-effort probe that Chromium's shared system libraries are present.
@@ -305,6 +310,8 @@ _install_chromium_binary() {
     else
         echo "  Installing Playwright Chromium (npx -y playwright@${PW_PIN} install chromium)..."
         npx -y "playwright@${PW_PIN}" install chromium
+        # Re-verify: records the now-complete locations for the SessionStart hint.
+        _chromium_ok || true
         echo "  ok Playwright Chromium installed"
     fi
 }
