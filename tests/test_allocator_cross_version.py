@@ -3,29 +3,30 @@
 The registry is machine-global and shared by every session on the host, and a
 session keeps running the allocator of the plugin version it started with. So the
 allocator a still-running older session executes reads - and, on every acquire,
-SWEEPS - the rows this version writes. That older allocator (master) judges a row
+SWEEPS - the rows this version writes. The pre-anchor release (7.0.2, pinned below) judges a row
 by `owner.pid` + `owner.pid_started` compared with `==` against the ambient
 `ps -o lstart=`, and by `ttl_s` against `heartbeat_at`; a row it condemns is
 deleted and, with drop_on_release, its database is dropped.
 
 The contract, stated as behavior - for rows written by THIS allocator:
-  - a lease bound to a LIVE server pid is not condemned by master;
+  - a lease bound to a LIVE server pid is not condemned by the old release;
   - a pid-less, session-anchored lease whose session heartbeats is not condemned
-    by master, even after master's own default TTL would have elapsed;
-  - a parked lease is not condemned by master;
+    by the old release, even after its own default TTL would have elapsed;
+  - a parked lease is not condemned by the old release;
   - a lease whose bound server DIED while its session lives on is not condemned
-    by master once any current-version write (the session heartbeat, another
-    session's acquire) has run - and it can still be parked;
-  - master's acquire (its machine-wide sweep) reclaims none of them and drops
-    nothing;
+    by the old release once any current-version write (the session heartbeat,
+    another session's acquire) has run - and it can still be parked;
+  - the old release's acquire (its machine-wide sweep) reclaims none of them and
+    drops nothing;
   - the build facts this version records on a row (`server_wide_modules`,
     `built`) survive every verb master runs on it, and a row master wrote
     without them reads here as "nothing declared, nothing recorded" (the last
     section: master's CURRENT allocator whatever it is, plus the pinned 7.1.0
     release for the row written without the keys).
 
-Master's allocator is taken from git (`git show master:<path>`) into a temp dir at
-test time; the tests skip when git or the master branch is unavailable. Every
+The pre-anchor allocator is taken from git (`git show <PRE_ANCHOR_RELEASE>:<path>`) into a
+temp dir at test time - a pinned commit, never `master`, which moves past every release and now
+carries the anchor itself; the tests skip only when git or that commit is unavailable. Every
 database interaction goes through the stub interpreter of `World`, which only
 LOGS what it was asked - no Postgres, no Odoo, no real drop.
 """
@@ -47,11 +48,11 @@ from test_allocator_liveness_v3 import World, _kv  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 LIB_REL = "plugins/odoo-ai-agents/scripts/lib"
-# What master's allocator needs beside itself: its sibling import, and the
+# What the old allocator needs beside itself: its sibling import, and the
 # through-Odoo drop script it hands to the lease's interpreter (a missing one
 # would make a drop FAIL - and a failed drop keeps the row, which would let this
 # test pass without proving anything).
-MASTER_FILES = ("allocator.py", "instances_io.py", "odoo_db.py")
+OLD_FILES = ("allocator.py", "instances_io.py", "odoo_db.py")
 
 
 def _git_show(ref_path):
@@ -63,31 +64,37 @@ def _git_show(ref_path):
     return proc.stdout if proc.returncode == 0 else None
 
 
+# The last release before session-anchored leases (VERSION 7.0.2). A session started on it keeps
+# running this allocator against the shared registry.
+PRE_ANCHOR_RELEASE = "243ea1d7ee95ce30390170ca5d77a80671874d58"
+
+
 @pytest.fixture(scope="module")
-def master_lib(tmp_path_factory):
-    """A directory holding master's allocator.py and its siblings."""
+def pre_anchor_lib(tmp_path_factory):
+    """A directory holding the pre-anchor release's allocator.py and its siblings."""
     if shutil.which("git") is None:
         pytest.skip("git is not available")
-    dest = tmp_path_factory.mktemp("master_lib")
-    for name in MASTER_FILES:
-        text = _git_show("master:{lib}/{name}".format(lib=LIB_REL, name=name))
+    dest = tmp_path_factory.mktemp("pre_anchor_lib")
+    for name in OLD_FILES:
+        text = _git_show("{ref}:{lib}/{name}".format(ref=PRE_ANCHOR_RELEASE, lib=LIB_REL,
+                                                     name=name))
         if text is None:
-            pytest.skip("master:{lib}/{name} is not available".format(lib=LIB_REL, name=name))
+            pytest.skip("release {ref} is not in this clone (shallow checkout?)".format(
+                ref=PRE_ANCHOR_RELEASE[:12]))
         (dest / name).write_text(text, encoding="utf-8")
-    if "session_anchor" in (dest / "allocator.py").read_text(encoding="utf-8"):
-        pytest.skip("master already carries the session-anchored allocator; "
-                    "this test guards the pre-anchor release")
+    assert "session_anchor" not in (dest / "allocator.py").read_text(encoding="utf-8"), (
+        "PRE_ANCHOR_RELEASE must name an allocator without session-anchored leases")
     return dest
 
 
 @pytest.fixture
-def old_alloc(master_lib, monkeypatch):
-    """master's allocator imported in-process, bound to master's instances_io."""
+def old_alloc(pre_anchor_lib, monkeypatch):
+    """The pre-anchor allocator imported in-process, bound to its own instances_io."""
     saved = sys.modules.pop("instances_io", None)
-    monkeypatch.syspath_prepend(str(master_lib))
+    monkeypatch.syspath_prepend(str(pre_anchor_lib))
     try:
-        spec = importlib.util.spec_from_file_location("allocator_master",
-                                                      master_lib / "allocator.py")
+        spec = importlib.util.spec_from_file_location("allocator_pre_anchor",
+                                                      pre_anchor_lib / "allocator.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
     finally:
@@ -143,10 +150,10 @@ def _new_rows(world, server):
     return a, bound, anchored, parked
 
 
-def test_master_does_not_condemn_a_lease_bound_to_a_live_server(world, old_alloc, monkeypatch):
-    """THE BLOCKER: master compares owner.pid_started with `==` against the
+def test_the_old_release_does_not_condemn_a_lease_bound_to_a_live_server(world, old_alloc, monkeypatch):
+    """THE BLOCKER: the old release compares owner.pid_started with `==` against the
     ambient `ps -o lstart=`. A TZ-free fingerprint written there never matches,
-    so master read every live bound server as `owner-pid-recycled`."""
+    so the old release read every live bound server as `owner-pid-recycled`."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     server = _server()
     try:
@@ -154,7 +161,7 @@ def test_master_does_not_condemn_a_lease_bound_to_a_live_server(world, old_alloc
         row = world.lease(bound)
         assert row["owner"]["pid"] == server.pid
         assert old_alloc._condemn_reason(row) is None, (
-            "master condemns a live, bound server's lease written by the current "
+            "the old release condemns a live, bound server's lease written by the current "
             "allocator (reason {r!r}); owner.pid_started = {v!r}".format(
                 r=old_alloc._condemn_reason(row), v=row["owner"].get("pid_started")))
         assert old_alloc._is_stale(row) is False
@@ -162,31 +169,31 @@ def test_master_does_not_condemn_a_lease_bound_to_a_live_server(world, old_alloc
         _stop(server)
 
 
-def test_master_does_not_condemn_a_heartbeating_pid_less_anchored_lease(
+def test_the_old_release_does_not_condemn_a_heartbeating_pid_less_anchored_lease(
         world, old_alloc, monkeypatch):
-    """A pid-less lease is judged by master's TTL arm alone: ttl_s against
+    """A pid-less lease is judged by the old release's TTL arm alone: ttl_s against
     heartbeat_at. The session's periodic `heartbeat --session mine` must keep
-    heartbeat_at fresh - refreshing only the anchor's seen_at would leave master
+    heartbeat_at fresh - refreshing only the anchor's seen_at would leave the old release
     to reap it once its TTL lapsed."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     server = _server()
     try:
         a, _bound, anchored, _parked = _new_rows(world, server)
-        world.age(anchored, 30 * 3600)  # beyond master's 2h default and the 24h floor
+        world.age(anchored, 30 * 3600)  # beyond the old release's 2h default and the 24h floor
         assert old_alloc._condemn_reason(world.lease(anchored)) is not None, (
-            "test setup: an unrefreshed row this old must be condemned by master")
+            "test setup: an unrefreshed row this old must be condemned by the old release")
         p = world.run(world.env(a), "heartbeat", "--session", "mine")
         assert p.returncode == 0, p.stderr
         row = world.lease(anchored)
         assert row["owner"].get("pid") is None
         assert old_alloc._condemn_reason(row) is None, (
-            "after the session heartbeat master must see a fresh heartbeat_at, got "
+            "after the session heartbeat the old release must see a fresh heartbeat_at, got "
             "reason {r!r}".format(r=old_alloc._condemn_reason(row)))
     finally:
         _stop(server)
 
 
-def test_master_does_not_condemn_a_parked_lease(world, old_alloc, monkeypatch):
+def test_the_old_release_does_not_condemn_a_parked_lease(world, old_alloc, monkeypatch):
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     server = _server()
     try:
@@ -198,7 +205,7 @@ def test_master_does_not_condemn_a_parked_lease(world, old_alloc, monkeypatch):
         _stop(server)
 
 
-def test_masters_acquire_sweep_reclaims_none_of_the_new_rows(world, master_lib):
+def test_the_old_releases_acquire_sweep_reclaims_none_of_the_new_rows(world, pre_anchor_lib):
     """End to end, the way the incident happens: another session still on the
     released plugin acquires. Its acquire sweeps the machine-wide registry and
     drops what it condemns. Nothing written by the current allocator for a live
@@ -208,18 +215,18 @@ def test_masters_acquire_sweep_reclaims_none_of_the_new_rows(world, master_lib):
         a, bound, anchored, parked = _new_rows(world, server)
         env = world.env(None)
         p = subprocess.run(
-            [sys.executable, str(master_lib / "allocator.py"), "acquire", "--series", "17.0",
+            [sys.executable, str(pre_anchor_lib / "allocator.py"), "acquire", "--series", "17.0",
              "--mode", "ephemeral", "--no-create", "--run-id", "run-old"],
             capture_output=True, text=True, env=env, timeout=60)
         assert p.returncode == 0, p.stderr
         assert _kv(p.stdout).get("ALLOC_TOKEN"), p.stdout
         left = {lz["token"] for lz in world.leases()}
         assert {bound, anchored, parked} <= left, (
-            "master's acquire reclaimed a lease the current allocator wrote for a live "
+            "the old release's acquire reclaimed a lease the current allocator wrote for a live "
             "session:\n" + p.stderr)
-        assert world.drops() == [], "master's acquire dropped a database: " + p.stderr
+        assert world.drops() == [], "the old release's acquire dropped a database: " + p.stderr
         assert "RECLAIMED" not in p.stderr, p.stderr
-        assert server.poll() is None, "master's sweep stopped a live server"
+        assert server.poll() is None, "the old release's sweep stopped a live server"
         # And the registry is still one the current allocator reads unchanged.
         listed = json.loads(world.run(world.env(a), "list", "--show-tokens").stdout)
         assert {bound, anchored, parked} <= {lz["token"] for lz in listed["leases"]}
@@ -227,8 +234,8 @@ def test_masters_acquire_sweep_reclaims_none_of_the_new_rows(world, master_lib):
         _stop(server)
 
 
-def test_a_pid_fingerprint_rewritten_by_master_is_not_trusted_for_the_new_pid(
-        world, master_lib, old_alloc, monkeypatch):
+def test_a_pid_fingerprint_rewritten_by_the_old_release_is_not_trusted_for_the_new_pid(
+        world, pre_anchor_lib, old_alloc, monkeypatch):
     """Master's `bind` rewrites owner.pid + owner.pid_started and knows nothing of
     owner.pid_fp. The stale pid_fp (measured on the OLD pid) must not make the
     current allocator read the NEW, live server as recycled."""
@@ -239,7 +246,7 @@ def test_a_pid_fingerprint_rewritten_by_master_is_not_trusted_for_the_new_pid(
         p, out = world.acquire(world.env(a), "--no-create", "--pid", str(first.pid))
         assert p.returncode == 0, p.stderr
         token = out["ALLOC_TOKEN"]
-        p = subprocess.run([sys.executable, str(master_lib / "allocator.py"), "bind", token,
+        p = subprocess.run([sys.executable, str(pre_anchor_lib / "allocator.py"), "bind", token,
                             "--pid", str(second.pid)],
                            capture_output=True, text=True, env=world.env(None), timeout=60)
         assert p.returncode == 0, p.stderr
@@ -277,22 +284,22 @@ def _verdict(world, env, token):
     return listed["leases"][0]["verdict"]
 
 
-def test_master_protects_a_live_sessions_lease_after_its_server_died_and_the_session_heartbeat(
+def test_the_old_release_protects_a_live_sessions_lease_after_its_server_died_and_the_session_heartbeat(
         world, old_alloc, monkeypatch):
-    """The current allocator protects this row by its live anchor; master knows
+    """The current allocator protects this row by its live anchor; the old release knows
     no anchor and reads the dead bound pid as `owner-pid-dead`. The session's
-    periodic heartbeat must leave the row in a shape master protects too."""
+    periodic heartbeat must leave the row in a shape the old release protects too."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     a, token, _pid = _bound_then_server_dies(world)
     assert _verdict(world, world.env(a), token)["protected_by"] == "session"
     assert old_alloc._condemn_reason(world.lease(token)) == old_alloc.CONDEMN_PID_DEAD, (
-        "test setup: before the heartbeat master must condemn the dead bound pid")
+        "test setup: before the heartbeat the old release must condemn the dead bound pid")
 
     p = world.run(world.env(a), "heartbeat", "--session", "mine")
     assert p.returncode == 0, p.stderr
     row = world.lease(token)
     assert old_alloc._condemn_reason(row) is None, (
-        "after the session heartbeat master still condemns a live session's lease "
+        "after the session heartbeat the old release still condemns a live session's lease "
         "({r!r}); owner = {o!r}".format(r=old_alloc._condemn_reason(row), o=row["owner"]))
     # The current allocator's own judgment is unchanged: still the session.
     verdict = _verdict(world, world.env(a), token)
@@ -300,7 +307,7 @@ def test_master_protects_a_live_sessions_lease_after_its_server_died_and_the_ses
     assert verdict["state"] == "reserved"
 
 
-def test_masters_acquire_sweep_keeps_a_live_sessions_lease_whose_server_died(world, master_lib):
+def test_the_old_releases_acquire_sweep_keeps_a_live_sessions_lease_whose_server_died(world, pre_anchor_lib):
     """End to end, the incident: the bound server died, session A heartbeats,
     then a session still on the released plugin acquires. Its sweep must not
     reclaim A's lease nor drop A's database."""
@@ -308,20 +315,20 @@ def test_masters_acquire_sweep_keeps_a_live_sessions_lease_whose_server_died(wor
     p = world.run(world.env(a), "heartbeat", "--session", "mine")
     assert p.returncode == 0, p.stderr
     old = subprocess.run(
-        [sys.executable, str(master_lib / "allocator.py"), "acquire", "--series", "17.0",
+        [sys.executable, str(pre_anchor_lib / "allocator.py"), "acquire", "--series", "17.0",
          "--mode", "ephemeral", "--no-create", "--run-id", "run-old"],
         capture_output=True, text=True, env=world.env(None), timeout=60)
     assert old.returncode == 0, old.stderr
     assert world.lease(token) is not None, (
-        "master's acquire reclaimed a live session's lease:\n" + old.stderr)
-    assert world.drops() == [], "master's acquire dropped a database: " + old.stderr
+        "the old release's acquire reclaimed a live session's lease:\n" + old.stderr)
+    assert world.drops() == [], "the old release's acquire dropped a database: " + old.stderr
     assert "RECLAIMED" not in old.stderr, old.stderr
 
 
 def test_another_sessions_acquire_also_sheds_the_dead_server_pid(world, old_alloc, monkeypatch):
     """The shed is not only the owner's heartbeat: any current-version write
     under the lock (here another session's acquire) leaves the row safe for
-    master, without waiting for session A's next heartbeat."""
+    the old release, without waiting for session A's next heartbeat."""
     monkeypatch.setenv("ODOO_AI_HOME", str(world.home))
     _a, token, _pid = _bound_then_server_dies(world)
     b = world.session("sess-B")
@@ -371,7 +378,7 @@ def test_an_ended_sessions_lease_and_a_live_server_are_left_as_they_are(world):
 # runs against a row this version wrote must keep both keys intact and must not
 # choke on them: its sessions share the registry with this one.
 # --------------------------------------------------------------------------- #
-RELEASED_FILES = MASTER_FILES + ("session_anchor.py",)
+RELEASED_FILES = OLD_FILES + ("session_anchor.py",)
 BUILD_FACTS = {"server_wide_modules": ["to_base", "viin_brand"],
                "built": {"demo": True, "languages": ["en_US", "vi_VN"]}}
 
