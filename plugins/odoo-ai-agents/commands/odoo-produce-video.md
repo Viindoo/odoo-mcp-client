@@ -39,7 +39,8 @@ Gate replies are the two declared sets only (`${CLAUDE_PLUGIN_ROOT}/snippets/pla
 matching `workflows/video-produce.workflow.yaml` line for line. At Phase 1, `refine: [scene numbers]`
 re-takes just those scenes. At Phase 2, `approve` saves the assembled video and `skip` leaves it unsaved.
 
-Output lands in `<ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+Scene clips land in `<ISOLATE_DIR>/visual/videos/`; the assembled video lands at
+`<ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
 absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 

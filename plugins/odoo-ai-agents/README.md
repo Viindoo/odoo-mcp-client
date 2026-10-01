@@ -350,7 +350,7 @@ programmatically before the visual workflow resumes.
 ```mermaid
 flowchart TD
     SETUP["/odoo-setup (one-time, interactive)"]
-    SETUP --> MCPW["1 eager chrome-devtools (bundled)<br/>+ 5 opt-in families on demand<br/>(chrome-devtools-headed, playwright[-headed], pagecast[-headed])"]
+    SETUP --> MCPW["1 eager chrome-devtools (bundled, started by a launcher)<br/>+ 5 opt-in families on demand<br/>(chrome-devtools-headed, playwright[-headed], pagecast[-headed])<br/>exact pins + state-root flags; drifted entries re-registered"]
     SETUP --> CTX["instances.toml<br/>(rows + confirmed server_wide_modules)"]
 
     INST["odoo-instance skill<br/>(programmatic path)"]
@@ -780,22 +780,45 @@ The four Visual skills (`odoo-ui-review`, `odoo-visual-regression`,
 Only ONE family is **eager**: the headless `chrome-devtools`, bundled natively per runtime and
 auto-loaded. The other five families (`chrome-devtools-headed`, `playwright[-headed]`,
 `pagecast[-headed]`) are **opt-in** so a plain session never launches browser processes it does
-not need - `/odoo-ai-agents:odoo-setup browser` wires them on demand. Package versions are
-pinned (no `@latest`).
+not need - `/odoo-ai-agents:odoo-setup browser` wires them on demand.
+
+Every family runs an **exact package version** (never `@latest`, never a major range, so file-write
+rules cannot differ between machines) and is started with flags that make its captures land under
+the plugin's state root (`$ODOO_AI_HOME/projects`, the ancestor of every `<SHARE_DIR>` and
+`<ISOLATE_DIR>`):
+
+| Family | State-root setting | Also |
+|--------|--------------------|------|
+| `chrome-devtools[-headed]` | `--workspace=<state root>/projects` (one more per `$ODOO_AI_PROJECT_DIR` / `$ODOO_AI_WORKTREE_DIR` override outside it) | the bundled copy is started by `scripts/mcp/browser_mcp_launch.py` (`python3`), which resolves the state root at every launch |
+| `playwright[-headed]` | `--output-dir=<state root>/projects` | `--idle-timeout` closes a browser nobody drives |
+| `pagecast[-headed]` | recording directory `<state root>/scratch/pagecast`, set in the registration's environment | runs with a pinned `playwright`; setup installs that same version's Chromium |
+
+Captures are written to the run's `<ISOLATE_DIR>` (`visual/...`; a capture no skill owns goes to
+`visual/adhoc/<slug>/`, pruned after 30 days). An image a module doc uses is then `mv`d to where the
+doc resolves it. A **PreToolUse hook** refuses a capture whose destination is relative or outside
+the capture area, because a relative path would land in your repository. It refuses only when the
+answering server provably carries its state-root flag; a server you have not re-registered yet gets
+an advisory instead.
+
+**After updating the plugin, re-run `/odoo-ai-agents:odoo-setup browser` and restart the session**
+(MCP does not hot-reload). Setup replaces any registration that differs from what it would write
+today (older pin, missing flag, moved `$ODOO_AI_HOME`). On Claude Code a SessionStart hint
+(`browser MCP flags outdated`) tells you when this is due; Codex and Gemini get no such hint, so
+re-run it by hand after every update.
 
 | Runtime | How the eager `chrome-devtools` ships | What to run |
 |---------|-------------|-------------|
-| **Claude Code** | Bundled `.mcp.json` (auto-loaded on plugin install; eager `chrome-devtools` only). Claude deduplicates by command - a same-command server already in your config wins silently. No manual step. | Nothing extra after `claude plugin install`; run `/odoo-ai-agents:odoo-setup browser` to wire the five opt-in families. |
-| **Gemini CLI** | `gemini-extension.json` in the plugin directory (eager `chrome-devtools` only). **Gemini requires a repo root**, so install via local path: `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev). Dedup is by server name. The `trust` field is not allowed in the extension manifest. | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` |
-| **Codex CLI** | `.codex-plugin/plugin.json` (eager `chrome-devtools` only). Installed from a marketplace snapshot: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json to be published separately). | `codex plugin add odoo-ai-agents@<marketplace>` |
+| **Claude Code** | Bundled `.mcp.json` (auto-loaded on plugin install; eager `chrome-devtools` only). Started by `scripts/mcp/browser_mcp_launch.py`, so it carries the state-root flag with no manual step. | Nothing extra after `claude plugin install`; run `/odoo-ai-agents:odoo-setup browser` to wire the five opt-in families (and again after every update). |
+| **Gemini CLI** | `gemini-extension.json` in the plugin directory (eager `chrome-devtools` only). **Gemini requires a repo root**, so install via local path: `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev). Started through the same `python3` launcher. Dedup is by server name. The `trust` field is not allowed in the extension manifest. | `gemini extensions install <your-clone>/plugins/odoo-ai-agents`, then `/odoo-ai-agents:odoo-setup browser` |
+| **Codex CLI** | `.codex-plugin/plugin.json` (eager `chrome-devtools` only). Installed from a marketplace snapshot: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json to be published separately). The bundled entry is pinned but carries no state-root flag. | `codex plugin add odoo-ai-agents@<marketplace>`, then `/odoo-ai-agents:odoo-setup browser` |
 
 **Opt-out (browser-free host).** To also stop the eager `chrome-devtools` from loading, add
 `"disabledMcpjsonServers": ["chrome-devtools"]` to your Claude settings (`~/.claude/settings.json`)
 and simply do not run the opt-in wiring.
 
 **Fallback (Codex/Gemini without native install):** run `/odoo-ai-agents:odoo-setup runtime`
-inside Claude Code - it writes the correct eager `chrome-devtools` config for Codex and Gemini
-idempotently. It does **not** write to `~/.claude.json` for Claude Code (served by the
+inside Claude Code - it writes all six browser families, with this machine's state-root flags, into
+Codex and Gemini idempotently (and replaces a drifted entry). It does **not** write to `~/.claude.json` for Claude Code (served by the
 bundled `.mcp.json`).
 
 Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP setup](docs/setup.md#visual-stack--browser-mcp-setup).
@@ -818,7 +841,7 @@ ends, its running leases are reclaimed (a parked lease keeps its database until 
 lapses, and the shared render server is reclaimed only once its server is gone). `lease_gc`
 previews by default, and an applying `lease_gc` is never auto-approved. Hooks keep agents honest: a
 subagent can neither hand back its report nor finish while a lease it obtained is still live and not
-handed off, nor release, park or adopt a lease it did not obtain. It is Claude Code only (it resolves
+handed off, nor release, park or adopt a lease it did not obtain, and no browser capture can be written to a relative path or outside the capture area (`<state root>/projects`, i.e. the run's ISOLATE/SHARE dirs). It is Claude Code only (it resolves
 `${CLAUDE_PLUGIN_ROOT}`); Codex and Gemini use the allocator CLI instead. **After updating the
 plugin, restart every Claude Code session on the machine**, so no older allocator keeps working
 on the shared lease registry. Tool index, CLI and error codes:
@@ -864,6 +887,9 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/test-behavior-contract.md` | Tests drive the REAL workflow (call `action_confirm`/`action_validate`/`button_validate`, build via `Form()` for onchange, `with_user()` not `sudo()` for access) and assert observable outcomes - never seed the terminal state with `create({'state': ...})`, which hides transition/constraint/onchange bugs |
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`<ISOLATE_DIR>/worklog/<run>/<NNN>-<agent>.md`) read at start, appended before every exit including a refusal, so a later phase can look up why an earlier one decided what it did |
 | `snippets/state-root-resolution.md` | The `$ODOO_AI_HOME` two-axis state root: Tier-1 flat (machine-global, never namespaced - the lease registry lives here) vs Tier-2 SHARE (`<SHARE_DIR>`, converges across a repo's worktrees) vs Tier-2 ISOLATE (`<ISOLATE_DIR>`, per-worktree); the repo-key/wt-key resolvers; and the mandatory resolve-once-capture-substitute protocol every skill/agent follows before any Read/Write/Edit under a Tier-2 path |
+| `snippets/module-doc-references.md` | References inside a module's shipped docs (`doc/*.rst`, `static/description/index*.html`, manifest `images`): image paths relative to the doc file and resolving inside `static/description/` (HTML) or `static/` (RST); a link to another module uses one root-relative store form (never an absolute store URL or a sibling filesystem path), spelled in the snippet; verified by `scripts/lib/doc_refs_check.py` |
+| `snippets/resource-teardown-contract.md` | Who tears down what: a browser page, recording or trace you DROVE is closed by you (the last chrome-devtools page is navigated to `about:blank`); a lease you obtained is released, parked or forwarded by name; browser findings are advisory, lease findings are hard gates |
+| `snippets/visual-evidence-lifecycle-contract.md` | The collision-proof slug rule for per-run `visual/` evidence paths, and the retention sweep for every run-scoped ISOLATE subpath; `visual/adhoc/<slug>/` (a capture no skill owns) is pruned by the plugin runtime after 30 days |
 | `snippets/odoo-bin-resource-limits.md` | The odoo-bin memory-cap policy for every launch: a version-general `ulimit -Sv` + `--limit-memory-hard` pair (the v12.0 boundary where Odoo's own enforcement begins), the `MemTotal`-derived default (overridable via `ODOO_AI_LIMIT_MEMORY_HARD`), and which limit flags fire on a `--stop-after-init` build vs a long-running listener conf |
 | `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A resume a child you launched, by the id its own launch returned / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-backend-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
@@ -877,10 +903,13 @@ protocol: `snippets/state-root-resolution.md`):
 flowchart TD
     HOME["$ODOO_AI_HOME<br/>(default ~/.odoo-ai)"]
     HOME --> T1["Tier-1 - flat, machine-global<br/>instances.toml, runtime/leases.json,<br/>logs/, i18n.json - NEVER namespaced"]
-    HOME --> PROJ["projects/&lt;repo-key&gt;/"]
-    PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>designs/, plans/,<br/>coordination/, survey/, brl/<br/>converges across a repo's worktrees"]
+    HOME --> SCR["scratch/pagecast/<br/>pagecast recordings"]
+    HOME --> PROJ["projects/&lt;repo-key&gt;/<br/>(playwright --output-dir and chrome-devtools --workspace point at projects/)"]
+    PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>designs/, plans/,<br/>coordination/, survey/, brl/,<br/>visual/baselines/, visual/doc/<br/>converges across a repo's worktrees"]
     PROJ --> WT["worktrees/&lt;wt-key&gt;/"]
     WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, integration/,<br/>workflow output_dir/<br/>distinct per worktree"]
+    ISO --> VIS["visual/ captures<br/>screenshots/, qa/, debug/, current/, videos/,<br/>adhoc/&lt;slug&gt;/ (a capture no skill owns, pruned after 30 days)"]
+    VIS -- "mv (shipped images only)" --> DOC["target doc dir in the module<br/>(static/description/, static/)"]
 
     REPOKEY["repo-key = sha256(realpath(git-common-dir))[:12]"] -.-> PROJ
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT

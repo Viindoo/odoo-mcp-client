@@ -109,13 +109,8 @@ leave the literal `<slug>` token in a path, and never improvise a fresh one per 
 **Evidence destination.** Every artifact this round captures is written under
 `<ISOLATE_DIR>/visual/debug/<slug>/` (resolve `<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; `mkdir -p` it first). NEVER call a
-capture tool with no destination: for chrome-devtools this means never improvising a relative
-filename that resolves against the user's repo CWD instead of the absolute `filePath` above;
-playwright (OPT-IN) legitimately REQUIRES a RELATIVE `filename` under its own output root (absolute
-paths are REJECTED) - capture there, then Bash `cp`/`mv` the result into the same
-`<ISOLATE_DIR>/visual/debug/<slug>/` dir; pagecast (OPT-IN) exposes NO destination parameter at
-all - record, `stop_recording`, then Bash `cp`/`mv` its output file the same way. Family mechanics +
-the refusal fallback (chrome-devtools on resolver REFUSAL: omit `filePath`, write the literal
+capture tool with no destination; every capture call names an absolute path under that dir.
+Family mechanics (parameter names, pagecast `mv`) + the refusal fallback (write the literal
 `inline (state root unresolvable)` into the Output Contract's Observation field instead of a path):
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 
@@ -228,9 +223,9 @@ Before handing off, map the blast radius along the **template/asset-bundle inher
 
 ### Round 5 - Close your pages (before terminal status)
 
-CLOSE every page you opened this dispatch (`list_pages` -> `close_page` each; playwright:
-`browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
-opened still open. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+CLOSE every page you DROVE this dispatch, opened or reused (chrome-devtools `close_page` +
+`about:blank`; playwright `browser_close`; pagecast `stop_recording`). You may not report DONE with
+a page you drove still open. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - Browser: close what you drove (T0-T4).
 
 ---
 
@@ -310,7 +305,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 - Empty render vs render-then-throw are distinct root causes - always check the DOM snapshot before blaming JS logic.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the Output Contract grounding field.
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
-- CLOSE every page you opened before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+- CLOSE every page you drove before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ---
 

@@ -170,10 +170,10 @@ List each screen as UNCHANGED / DRIFTED, attach both screenshots for drifted scr
 back to the Round 1 blast radius. Flag any drifted screen NOT predicted by the impact analysis as a
 higher-priority surprise.
 
-**Close before reporting (unconditional, every run).** Before emitting the report, call `list_pages`,
-then `close_page` on every page it reports that YOU created this run - not just the one you think you
-reused. This step is unconditional: run it even when Round 2/3 stayed on one page. Full rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+**Close before reporting (unconditional, every run).** Before emitting the report, `close_page`
+each page you DROVE this run, including the reused one; when it is the last open page,
+`navigate_page` it to `about:blank` instead. Run this even when Round 2/3 stayed on one page. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+T2 - Browser: close what you drove.
 
 ## Standalone-first fallback
 

@@ -1,9 +1,7 @@
 <!-- SSOT snippet. The single source of truth for the namespaced ~/.odoo-ai/ state root:
      the two-axis Tier model, the exact subpath classification tables, and the
      MANDATORY resolve-capture-substitute prose protocol every skill/agent follows before it
-     touches ANY project-scoped .odoo-ai/ path. Referenced (not copy-pasted) by
-     project-facts-resolution.md (Round 0) and every skill/agent/workflow that reads or writes a
-     Tier-2 subpath. Edit here only; consumers point at
+     touches ANY project-scoped .odoo-ai/ path. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md. -->
 
 # State-Root Resolution (`~/.odoo-ai/` two-axis convention)
@@ -31,9 +29,7 @@ repo-key = sha256(realpath(git rev-parse --git-common-dir))[:12]   # same for ev
 wt-key   = sha256(realpath(git rev-parse --show-toplevel))[:12]    # distinct per worktree
 ```
 
-`--git-common-dir` always resolves to the ONE shared `.git` dir regardless of the linked
-worktree, so the SHARE key converges; `--show-toplevel` diverges per worktree, so the
-ISOLATE key diverges too. Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
+Explicit overrides `$ODOO_AI_PROJECT_DIR` (SHARE) /
 `$ODOO_AI_WORKTREE_DIR` (ISOLATE) win when set. Outside any git repo, the resolver walks UP from
 the cwd to the nearest project marker: an explicit `.odoo-ai-root` sentinel has GLOBAL priority
 (scanned up to `/` first); only when none exists does it fall back to the NEAREST
@@ -65,9 +61,8 @@ series+profile) to avoid cross-project contamination. Treat them as Tier-1 until
 
 ## Tier-2 SHARE list (`<repo-key>/`, converges across a repo's worktrees)
 
-This table enumerates every `.odoo-ai/`-rooted SHARE subpath used in this repo's prose today. A
-codemod agent needs zero judgment on any of these - every row already carries its rationale. Note:
-because most consumers reference these paths through the `<SHARE_DIR>`/`<ISOLATE_DIR>` placeholder
+This table enumerates every `.odoo-ai/`-rooted SHARE subpath used in this repo's prose today.
+Because most consumers reference these paths through the `<SHARE_DIR>`/`<ISOLATE_DIR>` placeholder
 (never a literal `.odoo-ai/...` string), no single grep can mechanically re-verify this table's
 completeness - a NEW subpath is a maintainer responsibility to add here (§ The rule below), not a
 lint finding.
@@ -110,6 +105,7 @@ trees named individually (never "...").
 | `visual/qa/<slug>/<module>/` | acceptance evidence, per-module (parallel browser families); cited by each PASS/FAIL/UNVERIFIED verdict; owned by `odoo-qa-tester` |
 | `visual/debug/<slug>/` | symptom evidence for ONE debug/upgrade-P5 diagnosis, cited by the Output Contract's Observation field; owned by `odoo-ui-debugger` |
 | `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` | terminal demo-recording deliverable - a FILENAME with the same collision-proof suffix mechanism as the sibling `visual/*/<slug>/` dirs |
+| `visual/adhoc/<slug>/` | a capture no skill owns (`<slug>` per `visual-evidence-lifecycle-contract.md` Clause 1); 30-day retention |
 | `i18n/<slug>-<date>/` (`glossary-tm-<lang>.json`, `<module>.pot`, `translation-report-<lang>.json`, `consistency-audit-<lang>.md`) | i18n MANDATES a fresh `.pot`/TM re-export every invocation, forbidding artifact reuse - ephemeral, not reusable (contrast `glossary.yml` above) |
 
 Plus the 13 workflow `output_dir` trees, each ISOLATE for the same reason (a per-run deliverable +
@@ -125,17 +121,14 @@ exactly 13, one per `output_dir:` line across `workflows/*.workflow.yaml`: `bids
 
 **Note the split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE (reusable
 cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`,
-`visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, and
+`visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, `visual/adhoc/<slug>/` and
 `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` are ISOLATE (transient or terminal,
 run-scoped). FOUR sibling evidence subpaths, four owners, no shared directory: `visual/screenshots/<slug>/`
 (`odoo-ui-reviewer`), `visual/current/<slug>/` (`odoo-visual-regression`),
 `visual/qa/<slug>/<module>/` (`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`).
-A fifth sibling evidence path lives in the same `visual/` root - the demo-recording video filename
-`visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}`, owned by odoo-demo-recording and
-collision-proofed by the identical mechanism as the four above - a FILENAME rather than a
-`<slug>/` directory, so it sits outside this note's FOUR-directory count while following the same
-rule. Classify by the FULL subpath, never by the top-level directory name alone - `visual/` itself
-is not a Tier.
+The demo-recording video is a FILENAME (owned by odoo-demo-recording, same collision-proof
+mechanism) and `visual/adhoc/<slug>/` has no owner, so neither counts among the FOUR. Classify by
+the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a Tier.
 
 ## Codemod guards
 
@@ -187,41 +180,46 @@ a continuation hook the same way `run-<id>.json` would):
 If genuinely unsure, treat it as ISOLATE by default (safer: two copies, not a silent overwrite) and
 flag it for a maintainer to add to the tables above.
 
-## Where a captured artifact goes (three buckets, keyed on the capture call)
+## Where a captured artifact goes
 
-A capture call (screenshot, DOM snapshot, heap snapshot, performance trace, console/network log,
-video/GIF recording) NEVER writes into the target repo's working tree and NEVER runs with no
-destination. Classify the DESTINATION OF THE CAPTURE CALL - not the artifact, and not where it ends
-up later - into exactly one bucket:
+Every capture call (screenshot, DOM or heap snapshot, trace, Lighthouse report, video/GIF) names an
+ABSOLUTE path under the resolved `<ISOLATE_DIR>` or `<SHARE_DIR>` - never a relative path, never a
+path inside the target repo or any working tree, never no destination. Pick the root by bucket:
 
 1. **Reusable across runs** (visual-regression BASELINES, the cached login `storageState`, the
    doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...` per `## Tier-2 SHARE list` above.
-2. **Run-scoped** (a visual-regression run's state-B comparison set, acceptance evidence, debug
-   symptom evidence, UI-review evidence, demo-video output, staging LATER copied into a module
-   tree) -> `<ISOLATE_DIR>/...` per `## Tier-2 ISOLATE list` above. The default when in doubt.
+2. **Run-scoped** (a visual-regression run's state-B comparison set, acceptance, debug and UI-review
+   evidence, demo-video output, doc staging) -> `<ISOLATE_DIR>/...` per `## Tier-2 ISOLATE list`
+   above. The default when in doubt; a capture no skill owns goes to `<ISOLATE_DIR>/visual/adhoc/<slug>/`.
 3. **A committed module deliverable** (`<module>/static/description/...`, `<module>/doc/...`) is
-   NEVER a capture destination - reached only by an explicit Bash `cp`/`mv` of one named file out
-   of bucket (1) or (2), then committed via `git-toolkit:git-ops`.
+   NEVER a capture destination. An image the module ships is `mv`d from ISOLATE into the location the
+   target doc resolves (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md`
+   § Place finals where the target doc resolves them), then committed via `git-toolkit:git-ops`.
 
-Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer`, `odoo-marketing-writer`,
-`odoo-user-doc-writer` each reach it only by an explicit copy step - never a direct capture target.
+Bucket 3 keeps the committed-deliverable pipeline intact: the doc writers reach a module tree
+only by that explicit `mv`.
 
-**Family mechanics.** chrome-devtools (eager default): pass the absolute path as **`filePath`**
-(never `path` - unknown keys are silently ignored); omitting it attaches the image inline instead
-of writing a file. playwright (opt-in): absolute paths REJECTED - capture with a RELATIVE
-`filename`, then Bash `cp`/`mv` the returned path into the tier dir; never omit `filename`
-(defaults to `page-<timestamp>.png`). pagecast (opt-in): no destination parameter - record,
-`stop_recording`, `cp`/`mv` the returned `.webm` path. `list_console_messages`/
-`list_network_requests` return data inline - Write it verbatim to a file under the ISOLATE
-evidence dir yourself so the report cites a real path.
+**Per family.** chrome-devtools: `filePath` (`take_screenshot`, `take_snapshot`,
+`take_heapsnapshot`, `performance_stop_trace`; never `path` - unknown keys are silently ignored, and
+omitting `filePath` attaches the output inline) or `outputDirPath` (`lighthouse_audit`).
+playwright: `filename` = the absolute path (`browser_take_screenshot`, `browser_start_video`). A
+trace (`browser_stop_tracing`) or a pagecast `.webm` (`stop_recording`) has no destination: `mv` the
+path it returns into `<ISOLATE_DIR>` immediately. Console/network listings return inline - Write
+what you keep under `<ISOLATE_DIR>` so the report cites a real path.
 
-**The refusal fallback (family-conditional, fail-closed).** On resolver REFUSAL:
+**Refused path.** Never retry with a relative path.
+- A HOOK deny: re-issue the call ONCE with an absolute path under the directory it names (or
+  omit `filePath`, or stop, as it says); denied again -> stop `BLOCKED` quoting the deny. Keep the
+  file where it was written and cite that path; only bucket 3 moves a file.
+- A SERVER refusal ("Access denied", "outside allowed roots") of an absolute path under your
+  `<ISOLATE_DIR>`/`<SHARE_DIR>`: stop `BLOCKED(browser MCP flags outdated)`, remedy "run
+  /odoo-ai-agents:odoo-setup browser, then restart the session".
+
+**Resolver REFUSAL (state root unresolvable), fail-closed:**
 - **chrome-devtools**: omit `filePath` entirely - attaches to the response, nothing written - and
   write the literal `inline (state root unresolvable)` into the report's evidence field.
 - **playwright / pagecast**: emit `BLOCKED(state root unresolvable - cannot place evidence)`. Do
-  NOT capture. Both families write by default and neither can be told where; scattering files is
-  the defect this rule exists to prevent. A brief naming an opt-in family in a marker-less cwd is
-  a misconfiguration worth blocking on.
+  NOT capture - both write a file by default.
 
 A scenario is not downgraded to UNVERIFIED for this reason alone when the observation was made.
 

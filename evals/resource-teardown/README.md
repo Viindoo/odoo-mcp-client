@@ -13,8 +13,9 @@ things at runtime. That is what the two evals here are for:
   instance lease plus a hard "never release it" ban right next to a "close every page you
   opened" instruction. Targets `odoo-user-doc-writer` and `odoo-marketing-writer`.
 - **Eval B - visual-regression matrix** (`eval-b-visual-regression-matrix/`): proves the
-  visual-regression matrix-close (T0/T2) leaves no page the run created still open after a
-  5-screen x 4-breakpoint x 2-state sweep. Targets `odoo-visual-regression`.
+  visual-regression matrix-close (T0/T2) ends a 5-screen x 4-breakpoint x 2-state sweep with one
+  page left, navigated to `about:blank` (chrome-devtools refuses to close its last page; a page
+  reused by navigating is driven just like one opened). Targets `odoo-visual-regression`.
 
 This directory lives outside `plugins/*/skills/` deliberately - an eval workspace under
 `plugins/*/skills/` breaks `make gen` (the SSOT generator only expects `SKILL.md` + its own
@@ -23,8 +24,12 @@ generated regions under a skill directory).
 ## What's here
 
 - **`lib/grading.py`** - the two DETERMINISTIC graders (`grade_eval_a`, `grade_eval_b`; no LLM
-  judgment - both PASS assertions are mechanical: tool-name suffix match, substring/regex
-  absence, page-id set membership). Imported directly by
+  judgment - every PASS assertion is mechanical: tool-name suffix match, a navigation URL,
+  substring/regex absence, the final open-page count). Both graders also judge each
+  chrome-devtools page PER `pageId` when the calls carry one (page-id routing, the
+  chrome-devtools-mcp default since 1.10): a page driven by `pageId` and left on a URL without a
+  later `close_page` fails, whatever the last call was - the same rule
+  `hooks/enforce-teardown.sh` nudges on. Imported directly by
   `tests/test_resource_teardown_evals.py`, which runs in CI today with no live model or browser
   required - it grades hand-authored fixture transcripts to prove the grading logic itself is
   correct (and can fail for the right reason).

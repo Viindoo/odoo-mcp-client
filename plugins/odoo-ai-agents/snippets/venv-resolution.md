@@ -5,6 +5,9 @@ When you must actually RUN something against Odoo - `odoo-bin` (`scaffold`, `-i 
 auto installed modules when testing, reviewing, debugging, developing, maintaining, etc), a unit-test suite,
 or a migration script - you need a Python interpreter whose virtualenv has that Odoo series' dependencies.
 
+Run plugin scripts (`${CLAUDE_PLUGIN_ROOT}/scripts/...`) with the plugin interpreter `python3`, never
+with an Odoo venv python; run Odoo, tests and migrations only with the venv python resolved here.
+
 **Never fall through to the system `python3` for a RUN.** It usually lacks `psycopg2` / `lxml` / `babel`, so
 the import crashes before Odoo even loads - and even when it happens to import cleanly, it is not the
 series-pinned interpreter, so package versions can silently drift from what the target series expects.

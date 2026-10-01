@@ -125,7 +125,8 @@ _final_turn_unresolved_count() {
 
 # The agent's own activity as one line per signal, ASSISTANT-authored only (a tool name or label
 # quoted in a brief or a tool_result never counts):
-#   CALL\t<tool name>\t<command | file_path | path>   one per tool_use (newlines squashed)
+#   CALL\t<tool name>\t<command | file_path | path | url>   one per tool_use (newlines squashed;
+#                                                    url is what a browser navigation carries)
 #   TEXT\t<line>                                     one per LINE of a text block, and of the
 #                                                    `message` of a SubagentHandback call
 # Every line of a text carries the TEXT prefix, so a `^TEXT\t...` pattern sees a label on any line,
@@ -142,12 +143,30 @@ _assistant_signals() {
   | (if type == "array" then .[] else empty end) | select(type == "object")
   | if (.type == "tool_use") then
       ("CALL\t" + ((.name // "") | tostring) + "\t"
-        + (((.input.command // .input.file_path // .input.path // "") | tostring) | gsub("\n"; " "))),
+        + (((.input.command // .input.file_path // .input.path // .input.url // "") | tostring) | gsub("\n"; " "))),
       (if (((.name // "") | tostring) == "SubagentHandback") then
          ((.input.message // "") | if type == "string" then . else tojson end | textlines)
        else empty end)
     elif (.type == "text") then ((.text // "") | tostring | textlines)
     else empty end
+  ' "$transcript" 2>/dev/null || true
+}
+
+# The agent's chrome-devtools page calls, ASSISTANT-authored only, in transcript order, one line
+# each (any namespace - keyed on the tool-name suffix):
+#   <op>\t<pageId>\t<url>   op = new_page | navigate_page | close_page; <pageId> is empty when the
+#                           call carries none (new_page never does - the server assigns the id);
+#                           <url> is empty for a navigation without one (back / forward / reload)
+_chrome_page_calls() {
+  local transcript="$1"
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 0
+  jq -rRs "$_FR_JQ_RECORDS"'
+  | $R[] | select(.role == "assistant") | .content
+  | (if type == "array" then .[] else empty end) | select(type == "object" and .type == "tool_use")
+  | (((.name // "") | tostring) | capture("__(?<op>new_page|navigate_page|close_page)$")) as $m
+  | $m.op + "\t" + ((.input.pageId // "") | tostring | gsub("[\t\n]"; " "))
+    + "\t" + ((.input.url // "") | tostring | gsub("[\t\n]"; " "))
   ' "$transcript" 2>/dev/null || true
 }
 

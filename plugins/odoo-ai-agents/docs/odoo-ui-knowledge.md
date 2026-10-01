@@ -28,7 +28,7 @@ the login page and produces misleading screenshots.
 | Form view | `.o_form_view` | Active record form. |
 | List view | `.o_list_view` | Editable/non-editable list. |
 | Kanban view | `.o_kanban_view` | Card layout. |
-| Main content area | `.o_content` | Wraps the active view; useful as a screenshot crop region. |
+| Main content area | `.o_content` | Wraps the active view. |
 | Action manager root | `.o_action_manager` | Container for the current action. |
 | Control panel | `.o_control_panel` | Breadcrumb + view switcher + search. |
 
@@ -240,18 +240,10 @@ module visual documentation into `<module>/static/description/`. All paths below
 |-------|------|------|
 | App icon | `static/description/icon.png` | PNG 256x256 (App Store de-facto; 100x100 and 128x128 also accepted). Use `odoo-icon-design` to DESIGN/GENERATE a new icon (SVG code-gen + rasterize, brand-aware). Auto-discovery finds this path with no manifest key; any other path or an SVG needs the `icon` key - next row. The `odoo-doc-illustration` skill captures a LIVE 128x128 viewport crop as fallback only - it is NOT a designed icon |
 | Manifest `icon` key (boundary owner) | `__manifest__.py` `'icon': '<module>/static/description/icon.svg'` | Odoo READS it: `ir.module.module._get_icon_image` takes the module's own `icon` value FIRST and only auto-discovers `static/description/icon.png` when that value is empty (`get_values_from_terp` copies the manifest key onto the field). OSM-verified on every series whose compute body is indexed: 11.0-19.0. At 8.0/9.0/10.0 the `icon` field is indexed but the compute body is not, so the effect there is UNVERIFIED - resolve it via `find_examples(query='_get_icon_image module icon manifest key', odoo_version='<series>', chunk_types=['method'])`. Auto-discovery helper name: `get_module_icon(<name>)` up to 14.0, `get_module_icon_path(<record>)` from 15.0. NEVER state the key is ignored or refuse it on a version gate |
-| Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
-| Banner screenshot | `static/description/main_screenshot.png` | 1280x600 |
-| Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | 1280x600; one file per locale |
-| Feature screenshot | `static/description/<N>-<slug>.<locale>.jpg` | ~1800px target, >=1200x800 floor; `N` = two-digit ordering prefix |
 
-Manifest key: `'images': ['static/description/main_screenshot.png']`.
-
-### Writing screenshots from the agent
-
-SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relative-filename ->
-`.playwright-mcp` -> Bash cp staging): see `skills/odoo-doc-illustration/references/capture-mechanics.md`
-(shared browser mechanics reference). Do not duplicate that mechanism here - follow the skill SSOT.
+Screenshot names and sizes: `skills/odoo-doc-illustration/references/app-store-template.md`
+§ Image Specifications; staging, framing and placing finals:
+`skills/odoo-doc-illustration/references/capture-mechanics.md`.
 
 ### UC2 - cluster / docs-repo output
 

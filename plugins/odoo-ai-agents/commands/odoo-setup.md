@@ -452,9 +452,9 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 
 | Runtime | How the eager server is bundled | Dedup rule |
 |---------|------------------------|------------|
-| **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install; eager `chrome-devtools` only) | Claude deduplicates by command/endpoint: an already-configured server with the same command simply wins; the bundled copy is skipped - this is normal, not an error. No manual step. |
-| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-ai-agents` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo - the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
-| **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | Same dedup-by-name behaviour as Claude. |
+| **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install; eager `chrome-devtools` only) | The bundled copy is started by `scripts/mcp/browser_mcp_launch.py`, so the state-root flag is applied at every start. No manual step beyond re-running setup after an update. |
+| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-ai-agents` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo - the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Started through the same `python3` launcher. Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
+| **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | The bundled eager entry is a pinned `npx` command without the state-root flag; step 10 registers it with the flag. Dedup is by server name. |
 
 > **Fallback:** To wire the browser servers into Codex or Gemini without the plugin
 > marketplace, run `/odoo-ai-agents:odoo-setup runtime` - it writes the correct config
@@ -472,12 +472,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   `mcpServers.*` entry with `"trust": true` in `$GEMINI_SETTINGS`). For
   **Claude Code** it writes nothing here: Claude's eager `chrome-devtools` comes
   from the bundled `.mcp.json`, and its five opt-in families are wired by step 12
-  - so this step never touches `~/.claude.json`. Pinned packages come from the
-  `scripts/lib/browser-mcp-servers.sh` SSOT (no `@latest`). No secrets.
+  - so this step never touches `~/.claude.json`. Packages, pins and server flags come from the
+  `scripts/lib/browser_mcp_servers.py` SSOT. No secrets.
 - **12-browser-mcp-optin** - wires the FIVE **opt-in** browser MCP families
   (`chrome-devtools-headed`, `playwright[-headed]`, `pagecast[-headed]`) into
-  **Claude Code** at USER scope on demand (`claude mcp add --scope user <server>
-  -- npx -y <pinned> <flags>`), idempotent. It never touches the eager
+  **Claude Code** at USER scope on demand, idempotent, with the packages, pins and flags
+  `scripts/lib/browser_mcp_servers.py` yields. It never touches the eager
   `chrome-devtools` (the bundled `.mcp.json` owns that) and needs no permission
   change (browser_prefixes.py allow-lists all six families statically). If the
   `claude` CLI is not on PATH it prints guidance and does nothing. **Opt-out for
@@ -485,12 +485,11 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   add `"disabledMcpjsonServers": ["chrome-devtools"]` to your Claude settings and
   simply do not run step 12.
 - **20-browser-deps** - INSTALL-only, never registers or runs anything. Pre-
-  installs the 3 pinned browser MCP packages (`scripts/lib/browser-mcp-servers.sh`
-  SSOT - `chrome-devtools-mcp@1`, `@playwright/mcp@0`, `@mcpware/pagecast@0`) on
+  installs the 3 pinned browser MCP packages (`scripts/lib/browser_mcp_servers.py`
+  SSOT) on
   disk via a throwaway `npm install --ignore-scripts` (never `npx`/`npm exec`,
   which would execute the package) so npm's cache is warm and a later real spawn
-  - by step 10/12's registration, or any manual `npx -y <pinned>` - has no
-  download latency; idempotent (`npm install --offline --dry-run` detects an
+  - by step 10/12's registration - has no download latency; idempotent (`npm install --offline --dry-run` detects an
   already-cached package and skips it). Also runs `npx -y playwright install
   chromium`. For ffmpeg it ONLY prints install guidance for your OS - it never
   runs sudo/apt for you. **Install vs register/run:** this step costs disk, never
@@ -637,26 +636,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   gracefully even without `00-osm-gate.sh`.
 - If a step script reports the shared lib is missing
   (`scripts/lib/config_merge.py`, `discover_odoo.sh`, or `instances_io.py`), the
-  plugin is only partially installed. Tell the user to reinstall
-  `odoo-ai-agents@viindoo-plugins` fully, then point them at the manual
-  equivalents:
-  - Browser MCP (packages PINNED, must match `scripts/lib/browser-mcp-servers.sh`).
-    Each backend ships a **headless default** and a **`-headed`** variant; the AI
-    picks the headed variant only when the human asks to watch the browser. The
-    eager `chrome-devtools` is the bundled `.mcp.json`; the rest are opt-in:
-    `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@1 --headless --isolated`
-    (`chrome-devtools-headed` → drop `--headless`; `playwright` →
-    `npx -y @playwright/mcp@0 --caps=devtools --headless --isolated` and
-    `playwright-headed` drops `--headless`; `pagecast` →
-    `npx -y @mcpware/pagecast@0 --headless` and `pagecast-headed` drops `--headless`).
-  - Permissions: add `mcp__chrome-devtools`, `mcp__playwright`, `mcp__pagecast`
-    to `permissions.allow[]` in `~/.claude/settings.json`. (With the plugin
-    installed, the SessionStart hook `ensure-browser-permissions.sh` adds the
-    plugin-namespaced `mcp__plugin_odoo-ai-agents_*` prefixes for you - these
-    bare prefixes are only for the standalone, no-plugin case.)
-- The manual `claude mcp add` line above is only for using these servers
-  **without** the plugin installed. If the plugin is installed, do **not** add
-  them to `~/.claude.json` - the bundled `.mcp.json` already provides them, and a
+  plugin is only partially installed and no step can run without it. Tell the user
+  to reinstall `odoo-ai-agents@viindoo-plugins` fully, restart the session, and
+  re-run this command; do not hand-write the browser MCP or permission config in
+  its place.
+- If the plugin is installed, do **not** add the browser servers by hand
+  to `~/.claude.json` - the bundled `.mcp.json` already provides them, and a
   duplicate entry is exactly what produces the "skipped - same command" notes.
 
 ## See also

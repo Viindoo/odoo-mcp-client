@@ -75,18 +75,11 @@ not the author, not the fixer.
    result, browser console messages (JS errors / blank OWL mounts), the network log (4xx/5xx), the
    resulting record state/field value, and any raised error. For durable regression results
    (tour/`HttpCase`), record the exit status. Write EVERY captured artifact under
-   `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` (`mkdir -p` it first) - chrome-devtools: pass it as
-   `filePath`, never `path` (the schema silently swallows an unknown key and writes nothing).
-   `list_console_messages`/`list_network_requests` return data inline (no destination parameter) -
-   Write the returned text to a file under the same dir. NEVER call a capture tool with no
-   destination: for chrome-devtools this means never improvising a relative filename that resolves
-   against the user's repo CWD instead of the absolute `filePath` above; playwright (OPT-IN)
-   legitimately REQUIRES a RELATIVE `filename` under its own output root (absolute paths are
-   REJECTED) - capture there, then Bash `cp`/`mv` the result into the same
-   `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` dir; pagecast (OPT-IN) exposes NO destination
-   parameter at all - record, `stop_recording`, then Bash `cp`/`mv` its output file the same way.
-   Family mechanics + the refusal fallback (chrome-devtools on resolver REFUSAL:
-   omit `filePath`, write the literal `inline (state root unresolvable)`):
+   `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` (`mkdir -p` it first); every capture call names an
+   absolute path under that dir (chrome-devtools: `filePath`). `list_console_messages`/`list_network_requests` return data inline
+   (no destination parameter) - Write the returned text to a file under the same dir. NEVER call a
+   capture tool with no destination. Family mechanics (parameter names, pagecast `mv`) + the refusal
+   fallback:
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 4. **Adjudicate against the oracle.** Observed vs the scenario's `expected`: matches with full
    evidence = PASS; contradicts = FAIL; evidence missing/unobtainable = UNVERIFIED. Do not rationalize
@@ -120,9 +113,10 @@ roll-up + top failures + `REPORT_PATH` - do NOT dump the full log or every scree
 Before emitting the verdict roll-up as a terminal status (ACCEPTED/REJECTED, or any
 BLOCKED/UNVERIFIED-driven early exit):
 
-1. **CLOSE every page you opened this dispatch** (`list_pages` -> `close_page` each; playwright:
-   `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
-   opened still open.
+1. **CLOSE every page you DROVE this dispatch**, opened or reused (chrome-devtools `close_page` +
+   `about:blank`; playwright `browser_close`; pagecast `stop_recording`), per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - Browser: close what you drove.
+   You may not report DONE with a page you drove still open.
 2. **RELEASE only a self-provisioned instance.** If you self-provisioned via `Skill(odoo-instance)`
    because no `INSTANCE_HANDLE` was passed in your brief, call
    `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` on the lease you acquired (its

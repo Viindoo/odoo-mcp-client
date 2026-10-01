@@ -5,7 +5,7 @@ description: >
   Record a screen-capture video (MP4/GIF) of one Odoo workflow for a demo, sales walkthrough,
   marketing clip, or narrated before/after bug-evidence pair - driving the live instance through
   a scripted click path and saving the result. Capture runs via pagecast/Playwright-video MCP
-  (chrome-devtools drives the path; screenshot→GIF fallback when the recorder is unreachable).
+  (the recorder drives the path; chrome-devtools screenshot frames when no recorder is wired).
   Use when the deliverable is a video of a live flow, not a static review. Pushy trigger: fire on
   "record a demo of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture
   a short MP4 for the website", "record narrated before/after evidence", "quay video demo Odoo",
@@ -55,27 +55,30 @@ OSM use is light here - only to plan the click path: `module_inspect(name=<modul
 
 ## Browser tools
 
-Chrome-devtools MCP tools drive and record the live instance. Each has a **headless default**
-(`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a **headed** (`...chrome-devtools-headed__*`)
-variant - default to headless (recording works headless; only safe choice on no-display hosts); use
-headed only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch
-brief) - call the `-headed` tool directly when needed:
+Each family is its own browser: the family that records a take is the family that drives it. Pick
+ONE path per take. Each family has a **headless default** and a **headed** (`-headed`) variant -
+default to headless (recording works headless; only safe choice on no-display hosts); use headed
+only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch brief)
+- call the `-headed` tool directly when needed.
 
-- `navigate_page` - open each step's URL. Its `initScript` param runs a script on every new
-  document before any other script - the injection point narrated mode's overlay bundle uses
-  (below); re-pass the SAME `initScript` on every navigation this run, a fresh document wipes
-  any previously injected globals.
-- `click` / `fill` / `fill_form` / `hover` - perform the scripted click path on camera.
-- `take_screenshot` - capture key frames (poster image, GIF frames, or fallback when video unavailable).
-- `evaluate_script` - set up deterministic demo state (e.g. scroll position) between steps, and
-  (narrated mode) update the injected caption/badge/end-card overlay between steps.
+- **pagecast (OPT-IN) - records its own private browser.** `record_page` (`url`, `width`,
+  `height`) opens it and starts the video; `interact_page` drives it with the actions `wait`,
+  `scroll`, `click`, `hover`, `type`, `press`, `select`, `navigate`; `stop_recording` saves the
+  `.webm`. `record_and_gif` records a fixed duration of one URL with no interaction. pagecast has
+  no script evaluation, no screenshot and no form fill.
+- **playwright (OPT-IN) - records the page you drive.** `browser_start_video` (`filename`,
+  `size`) / `browser_stop_video` around `browser_navigate`, `browser_click`, `browser_type`,
+  `browser_fill_form`, `browser_select_option`, `browser_evaluate`, `browser_take_screenshot`.
+- **chrome-devtools (eager) - drives, never records video.** `navigate_page` (its `initScript`
+  runs on every new document before any other script - narrated mode's overlay injection point;
+  re-pass the SAME `initScript` on every navigation, a fresh document wipes injected globals),
+  `click` / `fill` / `fill_form` / `hover`, `evaluate_script`, `take_screenshot`. Use it for the
+  screenshot-frame path.
 
-> Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video).
-> **pagecast and playwright are OPT-IN** - only the headless `chrome-devtools` is eager (bundled
-> `.mcp.json`); the recorder families must be wired first via
-> `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If the
-> recorder MCP is not wired (its tools are absent) or only screenshot capture is available, fall
-> back to a `chrome-devtools take_screenshot` frame sequence assembled into a GIF.
+> **pagecast and playwright are OPT-IN** - only `chrome-devtools` is eager (bundled `.mcp.json`);
+> the recorder families must be wired first via `/odoo-ai-agents:odoo-setup browser` (step 12 for
+> Claude, step 10 for Codex/Gemini). If no recorder is wired (its tools are absent), capture a
+> chrome-devtools `take_screenshot` frame sequence and assemble it in Round 4.
 
 ## Workflow
 
@@ -113,26 +116,48 @@ For the feature to demo, fire in parallel:
 
 Produce an ordered step list (menu → record → field input → action) before recording.
 
-### Round 2 - Set up deterministic state (browser)
+### Round 2 - Set up deterministic state (in the recording browser)
 
-Log in, navigate to the start screen, and use `evaluate_script` / `fill` to put the instance into a
-clean, repeatable demo state (known record, expanded menu, top of page).
+Log in and reach a clean, repeatable demo state (known record, expanded menu, top of page) in the
+browser that will record - a login in another family's browser does not carry over:
+
+- **pagecast:** inside the pagecast session - `record_page` at `<instance_base_url>/web/login`, then
+  `interact_page`: `type` the login and the password into their inputs, `press` `Enter`, `navigate`
+  to the start screen. The login is part of the take; trim it off in Round 4.
+- **playwright:** `browser_navigate` to `/web/login` and `browser_fill_form` the credentials before
+  `browser_start_video`; set state with `browser_evaluate`.
+- **chrome-devtools (frame path):** `navigate_page` + `fill_form`; set state with
+  `evaluate_script` / `fill`.
 
 ### Round 3 - Record the take (browser)
 
-Start the recorder, then drive the planned path with `click` / `fill` / `fill_form` / `hover`,
-pausing briefly on key screens. Capture `take_screenshot` key frames for the poster and as GIF
-fallback. Stop the recorder by name - `stop_recording` (pagecast) - then CLOSE the page you drove
-this round (`close_page` / `browser_close`) before moving to Round 4. Both steps are mandatory for
-EVERY recording round, including a retake. Full rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+The recorder and the browser that drives the path must be the SAME browser, or the take records
+nothing of the drive:
+
+- **pagecast:** drive the path with `interact_page` in the session Round 2 opened; never drive
+  with chrome-devtools while a pagecast recording runs. `record_and_gif` fits only a page that
+  needs no login. Immediately after `stop_recording`, `mv` the `.webm` it returns into
+  `<ISOLATE_DIR>/visual/videos/`.
+- **playwright:** `browser_start_video` with `filename` = the absolute path
+  `<ISOLATE_DIR>/visual/videos/<stem>.webm`, drive with the playwright tools in that same browser,
+  then `browser_stop_video`.
+
+Pause briefly on key screens. Capture key frames (poster, frame path) with the driving family's
+screenshot tool (chrome-devtools `take_screenshot` `filePath`, playwright `browser_take_screenshot`
+`filename`) to the absolute path `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` (NN zero-padded
+in step order), `<stem>` being the slug Round 4 mints - mint it before the first capture. pagecast
+takes no screenshot: extract a poster from its video with `ffmpeg` in Round 4. Delete the frames
+once the video/GIF is assembled (a frame sequence that IS the deliverable stays). Stop the recorder, then CLOSE every page you DROVE this round
+before moving to Round 4. Both steps are mandatory for EVERY recording round, including a retake.
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0 and T2 - Browser: close
+what you drove.
 
 ### Round 4 - Produce the artifact
 
 `visual/videos/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol
 (captured path shown as `<ISOLATE_DIR>` below).
 
-**Mint the filename slug ONCE, before the orphan sweep below.** `<feature>-<YYYYMMDD>-<4 random
+**Mint the filename slug ONCE, before the first Round 3 capture and the orphan sweep below.** `<feature>-<YYYYMMDD>-<4 random
 chars>` - the IDENTICAL collision-proof suffix mechanism the four sibling `visual/*/<slug>/`
 evidence directories use, applied here to a filename instead of a directory (`<feature>` plays the
 role of `<intent-slug>`); SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
@@ -149,6 +174,13 @@ old recording today, so `visual/videos/` leaks one file per run forever:
 this run's own file cannot match since it does not exist yet). Full rule + bound rationale:
 `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
 executes `odoo-demo-recording` next, unconditionally, every run.
+
+**Produce the file.** pagecast `convert_to_mp4` / `convert_to_gif` each convert ONE `.webm`
+(`webmPath` = its absolute path under `<ISOLATE_DIR>`); a GIF's `width` is the size it is shown
+at. Trim a pagecast login off the start with `convert_to_gif` `startTime`, or with `ffmpeg` for
+an MP4. Assemble a frame sequence, or join clips, with `ffmpeg`; check `command -v ffmpeg` first -
+when it is missing, deliver the frames or per-clip files and name the missing `ffmpeg` in
+`concerns:`.
 
 Save the MP4 (or GIF) to
 `<ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` and report the
@@ -216,15 +248,17 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
 - **playwright wired:** `browser_start_video` before the first step; drive with playwright's own
   `browser_click` / `browser_fill_form` / `browser_type`, updating the caption via
   `browser_evaluate` immediately before each action; hold the end-card on screen >= 2s before
-  `browser_stop_video`. Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
+  `browser_stop_video` (the start call names an absolute `filename` under
+  `<ISOLATE_DIR>/visual/videos/` per Round 3). Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
   a pure file-format conversion (both take a file path, not a live session), so this cross-family
   reuse needs no new capability.
 - **chrome-devtools only:** `take_screenshot` one frame per step AFTER the caption update and the
   action complete (the frame must show the rendered result, not the pending state - see Grounding
-  rule below), plus one final frame of the held end-card. This is the SAME screenshot-frame path
+  rule below), plus one final frame of the held end-card; each frame goes to
+  `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` per Round 3. This is the SAME screenshot-frame path
   the base flow already uses when the recorder is unreachable (`## Standalone-first fallback`
-  below) - reused deliberately here, not a second assembly path. If no frame-to-clip assembler is
-  configured in the deployment, the ordered PNG sequence itself IS the deliverable - report it as
+  below) - reused deliberately here, not a second assembly path. If `ffmpeg` is not on PATH (Round 4),
+  the ordered PNG sequence itself IS the deliverable - report it as
   such (Output format) rather than claiming an MP4 the tool surface did not produce.
 
 ### Grounding rule
@@ -254,10 +288,10 @@ any file here regardless of suffix:
   capable family exists. Emit `BLOCKED(narrated mode needs chrome-devtools or playwright for
   overlay injection; only pagecast is reachable)`. Do not silently produce an unnarrated pagecast
   clip and call it narrated.
-- **chrome-devtools is reachable (it always is - eager, bundled) but no frame-to-clip assembler is
-  configured and playwright is not wired:** produce the PNG frame sequence (each frame
+- **chrome-devtools is reachable (it always is - eager, bundled) but `ffmpeg` is not on PATH and
+  playwright is not wired:** produce the PNG frame sequence (each frame
   overlay-correct) and return `status: DONE` with a `concerns:` entry naming the missing
-  assembler and the sequence path, rather than promising an MP4/GIF the toolchain cannot produce.
+  `ffmpeg` and the sequence path, rather than promising an MP4/GIF the toolchain cannot produce.
 - Recorder single-flight (never two drivers on the same MCP family) and close-before-DONE still
   apply unchanged - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser
   exclusivity + `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2; this mode adds

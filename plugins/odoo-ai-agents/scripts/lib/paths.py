@@ -38,6 +38,7 @@ marker is found.
 CLI:
     python paths.py share      # prints the absolute SHARE dir
     python paths.py isolate    # prints the absolute ISOLATE dir
+    python paths.py root       # prints the state root ($ODOO_AI_HOME), never created
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ import os
 import subprocess
 import sys
 
-__all__ = ["ProjectDirError", "share_dir", "isolate_dir"]
+__all__ = ["ProjectDirError", "share_dir", "isolate_dir", "state_root"]
 
 
 class ProjectDirError(RuntimeError):
@@ -173,13 +174,23 @@ def _no_marker_message(var: str, root: str | None = None) -> str:
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
-def share_dir(root: str | None = None) -> str:
+def state_root() -> str:
+    """The machine-global state root ($ODOO_AI_HOME, default ~/.odoo-ai), absolute and NOT
+    created. The one resolver every caller that writes the root into a launch flag or a config
+    file uses, so a shell-built path (Git Bash's /c/Users/...) never reaches a native reader."""
+    return os.path.abspath(_home())
+
+
+def share_dir(root: str | None = None, create: bool = True) -> str:
     """Return the absolute SHARE dir, creating it first. Honors an explicit
     $ODOO_AI_PROJECT_DIR override verbatim (still created, never re-hashed).
 
     `root` (optional): resolve as if the cwd were this directory. None = cwd,
     byte-identical to the pre-`root` behavior. Mirrors the shell's
-    `resolve_project_dir.sh --root <abs-path> share`."""
+    `resolve_project_dir.sh --root <abs-path> share`.
+
+    `create=False` computes the same path without creating anything (a caller
+    that only NAMES the directory, such as a hook's refusal message)."""
     override = os.environ.get("ODOO_AI_PROJECT_DIR")
     if override:
         # Strip ALL trailing "/" (a doubled/tripled trailing slash denotes the
@@ -190,7 +201,8 @@ def share_dir(root: str | None = None) -> str:
         # `_project_dir_rstrip_slashes` + `[ -n ] || override="/"` mirrors this
         # exactly - `${var%/}` alone strips only ONE and would diverge here.
         d = override.rstrip("/") or "/"
-        os.makedirs(d, exist_ok=True)
+        if create:
+            os.makedirs(d, exist_ok=True)
         return d
     if root is not None and not os.path.isdir(root):
         raise ProjectDirError(f"resolve_project_dir: --root {root} is not a directory.")
@@ -198,30 +210,34 @@ def share_dir(root: str | None = None) -> str:
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_PROJECT_DIR", root))
     d = os.path.join(_home(), "projects", key)
-    os.makedirs(d, exist_ok=True)
+    if create:
+        os.makedirs(d, exist_ok=True)
     return d
 
 
-def isolate_dir(root: str | None = None) -> str:
+def isolate_dir(root: str | None = None, create: bool = True) -> str:
     """Return the absolute ISOLATE dir, creating it first. Honors an explicit
     $ODOO_AI_WORKTREE_DIR override verbatim. When unset, resolves the SHARE dir
     first (so an $ODOO_AI_PROJECT_DIR override is respected for the SHARE half
     of the path too) and nests <SHARE>/worktrees/<wt-key>/ under it.
 
-    `root` (optional): as in share_dir - forwarded to BOTH halves."""
+    `root` (optional): as in share_dir - forwarded to BOTH halves.
+    `create` (optional): as in share_dir - forwarded to BOTH halves."""
     override = os.environ.get("ODOO_AI_WORKTREE_DIR")
     if override:
         # Same full-rstrip + all-slashes fallback as share_dir above (parity
         # invariant with resolve_project_dir.sh's `_project_dir_rstrip_slashes`).
         d = override.rstrip("/") or "/"
-        os.makedirs(d, exist_ok=True)
+        if create:
+            os.makedirs(d, exist_ok=True)
         return d
-    share = share_dir(root)
+    share = share_dir(root, create)
     key = _wt_key(root)
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR", root))
     d = os.path.join(share, "worktrees", key)
-    os.makedirs(d, exist_ok=True)
+    if create:
+        os.makedirs(d, exist_ok=True)
     return d
 
 
@@ -235,8 +251,11 @@ def _main(argv: list) -> int:
             print("paths.py: --root needs an absolute path", file=sys.stderr)
             return 2
         root, argv = argv[1], argv[2:]
+    if argv == ["root"] and root is None:
+        print(state_root())
+        return 0
     if len(argv) != 1 or argv[0] not in ("share", "isolate"):
-        print("Usage: paths.py [--root <abs-path>] share|isolate", file=sys.stderr)
+        print("Usage: paths.py [--root <abs-path>] share|isolate | paths.py root", file=sys.stderr)
         return 2
     try:
         print(share_dir(root) if argv[0] == "share" else isolate_dir(root))

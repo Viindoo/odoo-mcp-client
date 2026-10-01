@@ -87,7 +87,8 @@ first call - only a fresh document (new navigation) needs it again.
    ```
 2. **Round 3 (recording), before EACH step's action:** update the caption with the step's text
    inlined, THEN perform the click/fill for that step, THEN capture the frame (chrome-devtools
-   `take_screenshot`) or let playwright's continuous video keep rolling:
+   `take_screenshot` to `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png`) or let playwright's
+   continuous video keep rolling:
    ```javascript
    () => { window.__setCaption('Confirm sales order - line added'); }
    ```
@@ -96,8 +97,9 @@ first call - only a fresh document (new navigation) needs it again.
    even though the visual style/behavior is identical.
 4. **End of Round 3, before stopping the recorder:** show the end-card and hold it on screen (>= 2s
    of frames / continuous-video time) before `stop_recording` / `browser_stop_video` /
-   `close_page` / `browser_close` - mandatory for every narrated take, same as the base flow. Full
-   rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+   closing every page you drove - mandatory for every narrated take, same as the base flow. Full
+   rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0 and T2 - Browser: close
+   what you drove.
    ```javascript
    () => { window.__endCard('bug', 'Co-loader X appears as vendor on the LCL ocean line', 'Vendor field is empty'); }
    ```

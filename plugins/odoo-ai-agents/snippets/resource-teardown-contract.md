@@ -24,7 +24,7 @@ not forbid, and never excuses skipping, the browser CLOSE rules below.
 ## T0 - The DONE-gate
 
 You may not emit `status: DONE` while:
-(a) a browser page, tab, context, recording, or trace that YOU opened this dispatch is still
+(a) a browser page, tab, context, recording, or trace that YOU drove this dispatch (T1) is still
     open or running, or
 (b) an Odoo instance lease that YOU obtained this dispatch (`lease_acquire`, `lease_adopt`, or
     an `instance_serve` by series that leased it for you; serving a forwarded token is consumption,
@@ -49,7 +49,7 @@ and instances are enforced differently" below):
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
   on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
   when it infers an apparently-open page from the transcript. You remain contract-bound to close
-  every page you opened before DONE; only the ENFORCEMENT tier differs, not the obligation.
+  every page you drove before DONE; only the ENFORCEMENT tier differs, not the obligation.
 
 ## T1 - Ownership: who tears down what
 
@@ -57,7 +57,7 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 
 | How you hold it | Who tears it down | When |
 |---|---|---|
-| Browser page/context/recording you opened | YOU (close/stop it) | as you go + before your terminal status |
+| Browser page/context/recording you DROVE this dispatch - opened, or reused by navigating it (navigating acquires it) | YOU (T2) | as you go + before your terminal status |
 | Lease you obtained yourself (no `INSTANCE_HANDLE` in your brief - any mode but `shared`) | YOU (one of the three exits below) | before your terminal status |
 | `INSTANCE_HANDLE` forwarded DOWN to you in your brief | NEVER you | the agent that acquired it |
 | Lease acquired for YOUR run and handed back UP to you (you dispatched its provisioning), or one you acquired AND forwarded to children - you are the run-level owner | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
@@ -97,20 +97,18 @@ A lease stays protected for as long as the Claude Code session that acquired it 
 reclaims it mid-session and you never keep it alive yourself. When the session ends, its leftover
 leases are reclaimed. That net catches crashes, not laziness - you still release.
 
-## T2 - Browser: close what you opened
+## T2 - Browser: close what you drove
 
 - **Close pages, never the server.** The browser MCP servers (chrome-devtools, playwright,
   pagecast; headed and headless variants) are deliberately long-lived shared processes. Your
   teardown scope is INSIDE the server: pages, tabs, contexts, recordings, traces. NEVER kill,
-  restart, or "clean up" the MCP server process itself. Closing the current/last page is safe by
-  design - a subsequent navigate re-creates a page.
-- **The close calls, by family:** chrome-devtools -> `close_page` (per page you opened; use
-  `list_pages` to find strays you created); playwright -> `browser_close` (plus
-  `browser_stop_video` / `browser_stop_tracing` if you started a video or trace); pagecast ->
-  `stop_recording` (by its tool name, not just "stop the recorder" in prose).
+  restart, or "clean up" the MCP server process itself.
+- **End of dispatch, by family:** chrome-devtools -> `close_page` each page you drove; if it is
+  the last open page, `navigate_page` it to `about:blank` instead (it cannot close its last page);
+  playwright -> `browser_close` (plus `browser_stop_video` / `browser_stop_tracing` if you
+  started either); pagecast -> `stop_recording` for every session you started.
 - **Clean up as you go, not just at the end.** Reuse ONE page across a sweep instead of opening a
-  page per screen/breakpoint/role; close an extra page/context when that step ends. Before your
-  terminal status, close every page `list_pages` reports that YOU created.
+  page per screen/breakpoint/role; close an extra page/context when that step ends.
 - **Single-flight (exclusivity) - PER FAMILY.** At most ONE browser-driving agent runs at a
   time **per MCP family** (chrome-devtools, playwright, pagecast; each headed/headless variant
   is its own family - 6 total). Two drivers on the SAME family share one Chromium process

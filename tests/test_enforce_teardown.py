@@ -66,12 +66,14 @@ def _line(role="assistant", content=None):
     return json.dumps({"role": role, "content": content or []})
 
 
-def _tu(name, file_path=None, command=None):
+def _tu(name, file_path=None, command=None, url=None):
     inp = {}
     if file_path:
         inp["file_path"] = file_path
     if command:
         inp["command"] = command
+    if url:
+        inp["url"] = url
     return {"type": "tool_use", "name": name, "input": inp}
 
 
@@ -232,16 +234,118 @@ def test_hooks_exist_and_are_shell_scripts():
 # --------------------------------------------------------------------------- #
 # Browser matcher - ADVISORY only, suffix-keyed, never a block
 # --------------------------------------------------------------------------- #
-def test_navigate_only_plus_one_close_is_no_finding(tmp_path):
-    """One-page-reuse discipline: navigate (reuse) + close, zero new_page -> nothing to nudge."""
+def test_a_reused_page_returned_to_about_blank_is_no_finding(tmp_path):
+    """One-page-reuse discipline: the reused page is driven, then navigated to about:blank (the
+    server refuses to close its last page) -> nothing to nudge."""
     lines = [
-        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
-        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo/sales")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, "a reused page ending on about:blank must pass clean - no false nudge"
+
+
+def test_a_reused_page_left_on_a_url_is_nudged_to_about_blank(tmp_path):
+    """A page reused by navigate_page is DRIVEN even though this agent never opened it; leaving
+    it on the app keeps its session, timers and memory alive -> advisory, never a block."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo")]),
         _line(content=[_tu("mcp__chrome-devtools__close_page")]),
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is None, "navigate_page/close only (no new_page) must pass clean - no false nudge"
+    assert out is not None and out.get("continue") is True and "decision" not in out
+    msg = out["systemMessage"]
+    assert "about:blank" in msg and "http://127.0.0.1:8069/odoo" in msg, msg
+
+
+def test_driving_again_after_blanking_is_nudged(tmp_path):
+    """The LAST navigation decides: a blank followed by more driving leaves a live page."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_tu("mcp__chrome-devtools__new_page", url="http://127.0.0.1:8069/web")]),
+        _line(content=[_tu("mcp__chrome-devtools__close_page")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "about:blank" in out["systemMessage"], out
+
+
+def test_a_navigation_without_url_is_not_a_blank(tmp_path):
+    """navigate_page back / reload carries no url and leaves the page on a real URL."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "about:blank" in out["systemMessage"], out
+
+
+def _page(op, page_id=None, url=None):
+    """A chrome-devtools page call as chrome-devtools-mcp 1.10 issues it: page-scoped tools carry
+    the pageId they act on (page-id routing is on by default); new_page never carries one."""
+    inp = {}
+    if page_id is not None:
+        inp["pageId"] = page_id
+    if url is not None:
+        inp["url"] = url
+    return _line(content=[{"type": "tool_use", "name": f"mcp__plugin_odoo-ai-agents_chrome-devtools__{op}",
+                           "input": inp}])
+
+
+def test_every_page_left_on_a_url_is_named_even_when_the_last_navigation_was_blank(tmp_path):
+    """With pageIds, the LAST navigation no longer decides: page 2 still shows the app although
+    page 1 ended on about:blank, and page 2 was never closed."""
+    lines = [
+        _page("navigate_page", 1, "http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/sales"),
+        _page("navigate_page", 1, "about:blank"),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and out.get("continue") is True and "decision" not in out, out
+    msg = out["systemMessage"]
+    assert "page(s) 2 (http://127.0.0.1:8069/odoo/sales)" in msg, msg
+    assert "1 (" not in msg, "page 1 ended on about:blank and must not be named"
+
+
+def test_a_page_closed_after_driving_is_not_named(tmp_path):
+    """Closing page 2 after it drove the app is its teardown, even though the last navigation
+    on record (page 2's) was not about:blank."""
+    lines = [
+        _page("navigate_page", 1, "about:blank"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/sales"),
+        _page("close_page", 2),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, out
+
+
+def test_a_keyed_reload_is_not_a_blank(tmp_path):
+    lines = [
+        _page("navigate_page", 3, "about:blank"),
+        _page("navigate_page", 3),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "page(s) 3 (back/forward/reload)" in out["systemMessage"], out
+
+
+def test_every_keyed_page_on_about_blank_or_closed_passes_clean(tmp_path):
+    lines = [
+        _page("new_page", url="http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 2, "http://127.0.0.1:8069/odoo/inventory"),
+        _page("close_page", 2),
+        _page("navigate_page", 1, "http://127.0.0.1:8069/odoo"),
+        _page("navigate_page", 1, "about:blank"),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, out
 
 
 def test_two_new_pages_one_close_is_advisory_never_block(tmp_path):

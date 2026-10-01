@@ -49,6 +49,8 @@ CATALOG_STEPS = (
 JSON_ONLY_STEPS = (
     "00-osm-gate.sh",
     "10-browser-mcp.sh",
+    "12-browser-mcp-optin.sh",
+    "20-browser-deps.sh",
     "30-permissions.sh",
     "32-permissions-state-root.sh",
 )
@@ -60,14 +62,25 @@ def _steps_invoking_python() -> set[str]:
     found = set()
     for path in sorted(STEPS.glob("*.sh")):
         text = path.read_text(encoding="utf-8", errors="replace")
-        if "python3 - " in text or "python3 -c" in text:
+        if "python3 - " in text or "python3 -c" in text or "browser-mcp-servers.sh" in text:
             found.add(path.name)
     return found
 
 
+def _python_on_path(tmp_path: Path, python3: str) -> str:
+    """A PATH whose first `python3` is `python3` - the real interpreter, or a path that does not
+    exist (a shim resolving to nothing, the common broken case)."""
+    stub_dir = tmp_path / "pybin"
+    stub_dir.mkdir(exist_ok=True)
+    stub = stub_dir / "python3"
+    stub.write_text(f"#!/bin/sh\nexec {python3} \"$@\"\n", encoding="utf-8")
+    stub.chmod(0o755)
+    return f"{stub_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
 def _run(step: str, *args: str, tmp_path: Path, python3: str) -> subprocess.CompletedProcess:
     env = dict(os.environ)
-    env["ODOO_AI_PYTHON3"] = python3
+    env["PATH"] = _python_on_path(tmp_path, python3)
     env["ODOO_AI_HOME"] = str(tmp_path / "state")
     env["ODOO_AI_INSTANCES"] = str(tmp_path / "instances.toml")
     (tmp_path / "instances.toml").write_text(
@@ -82,9 +95,9 @@ def test_the_preflight_ssot_exists_and_is_the_only_copy():
     assert LIB.is_file(), f"missing preflight SSOT: {LIB}"
     body = LIB.read_text(encoding="utf-8")
     assert "require_python3()" in body
-    assert "ODOO_AI_PYTHON3" in body, (
-        "an operator whose interpreter is not on PATH must have a way to name one without "
-        "editing PATH - a shim that resolves to nothing is the common case"
+    assert 'python3 -c "import sys, $mods' in body, (
+        "the preflight must probe the `python3` every step and hook actually runs, not a "
+        "separately named interpreter the hooks never use"
     )
 
 
@@ -118,7 +131,7 @@ def test_a_broken_interpreter_is_named_not_hidden(step, tmp_path):
     out = res.stdout + res.stderr
     assert res.returncode == 2, f"expected the invocation to be refused; got {res.returncode}\n{out}"
     assert "python3" in out, f"the refusal must name the interpreter:\n{out}"
-    assert "ODOO_AI_PYTHON3" in out, f"the refusal must name the way out:\n{out}"
+    assert "first on PATH" in out and "Odoo venv" in out, f"the refusal must name the way out:\n{out}"
     assert "nothing was proven" not in out, (
         "the step reached its downstream symptom instead of stopping at the cause - this is the "
         f"exact defect the preflight exists to prevent:\n{out}"

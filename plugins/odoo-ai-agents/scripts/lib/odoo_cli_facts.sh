@@ -52,7 +52,7 @@ odoo_cli_facts() {
     ODOO_CLI_SECOND_PORT_KEY=""
     ODOO_CLI_DEV_TAKES_VALUE=""
     local _ocf_out _ocf_line
-    _ocf_out="$("${PY3:-python3}" "$_ODOO_CLI_FACTS_PY" cli-facts "${1:-}")" || return 1
+    _ocf_out="$(python3 "$_ODOO_CLI_FACTS_PY" cli-facts "${1:-}")" || return 1
     while IFS= read -r _ocf_line; do
         case "$_ocf_line" in
             CORE_PACKAGE=*)    ODOO_CLI_CORE_PACKAGE="${_ocf_line#*=}" ;;
@@ -78,7 +78,7 @@ odoo_i18n_facts() {
     ODOO_I18N_OUTPUT_FLAG=""
     ODOO_I18N_LANGUAGES_FLAG=""
     local _oif_out _oif_line
-    _oif_out="$("${PY3:-python3}" "$_ODOO_CLI_FACTS_PY" i18n-facts "${1:-}")" || return 1
+    _oif_out="$(python3 "$_ODOO_CLI_FACTS_PY" i18n-facts "${1:-}")" || return 1
     while IFS= read -r _oif_line; do
         case "$_oif_line" in
             I18N_FORM=*)            ODOO_I18N_FORM="${_oif_line#*=}" ;;

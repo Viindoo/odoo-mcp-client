@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # session-end-gc.sh - SessionEnd crash backstop for the resource-teardown mechanism (L1.3).
 #
-# WHAT IT RECLAIMS - the ENDING session's own leases, and provably-dead owners; nothing else:
+# WHAT IT RECLAIMS - the ENDING session's own leases, provably-dead owners, and stale browser-server
+# byproducts; nothing else:
 #   1. `gc --scope dead-sessions` - the allocator's AUTOMATIC semantics over the machine-global
 #      registry: a lease whose recorded session anchor has been dead past the allocator's grace
 #      window, a dead or recycled server pid on this host, an expired park. NEVER the TTL arm, so a
@@ -18,6 +19,8 @@
 #      nothing. A lease the session PARKED survives its end by design: park is how a session
 #      keeps a database for a later one.
 #   3. `reap-orphans` in its DEFAULT list-only mode - see "Discovery half" below.
+#   4. Files the browser MCP servers wrote on their own under the state root, past their age
+#      limit (`browser_mcp_servers.py prune`; never a per-repo state dir).
 # Every other session's live lease is untouched: the registry is MACHINE-GLOBAL (every concurrent
 # session on this host writes the same leases.json), so a sweep that is not scoped by session
 # anchor is a sweep over other people's work in progress.
@@ -123,6 +126,9 @@ set -uo pipefail
 # LIST is harmless (no mutation is in flight to interrupt, unlike a drop).
 GC_TIMEOUT_S=300
 REAP_TIMEOUT_S=120
+# The browser byproduct prune only lists and unlinks old files; a slow or hung filesystem must not
+# hold the worker past its other steps.
+PRUNE_TIMEOUT_S=60
 # How long the worker waits for the ending session's anchor process to exit before it asks the
 # allocator to reclaim that session's leases. SessionEnd fires while `claude` is still shutting
 # down, so an immediate check would find it alive and (correctly) be refused. Past this bound the
@@ -189,6 +195,10 @@ _run_worker() {
     # redirect that cannot open its target makes bash skip the command entirely,
     # which would turn a lost log line into a lost reclamation.
     local diag=/dev/null diag_log
+    # Every allocator call below is bounded through run_bounded (scripts/lib/run_bounded.sh): a
+    # bare `timeout` does not exist on stock macOS, and behind `|| true` it skipped every reclaim.
+    # shellcheck source=../scripts/lib/run_bounded.sh
+    source "$lib_dir/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
     if [[ -f "$lib_dir/state_reclaim.sh" ]]; then
         # shellcheck source=../scripts/lib/state_reclaim.sh
         source "$lib_dir/state_reclaim.sh" 2>/dev/null || true
@@ -211,7 +221,7 @@ _run_worker() {
     # Step 1 (header): provably-dead owners, automatic semantics, never the TTL arm. It runs
     # FIRST because it does not depend on the ending session at all, so the anchor wait below
     # never delays it.
-    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope dead-sessions >/dev/null 2>>"$diag" || true
+    run_bounded "$GC_TIMEOUT_S" python3 "$alloc" gc --scope dead-sessions >/dev/null 2>>"$diag" || true
 
     # Step 2 (header): the ending session's own running/reserved leases, once its anchor is gone.
     # `/clear` ends a session inside a process that keeps running - nothing to reclaim for it.
@@ -224,8 +234,15 @@ _run_worker() {
             done
             # No --force: the allocator re-checks the anchor (pid AND fingerprint) and refuses a
             # live one with ANCHOR_ALIVE, which is the answer we want if the wait ran out.
-            timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope anchor --anchor "$anchor" >/dev/null 2>>"$diag" || true
+            run_bounded "$GC_TIMEOUT_S" python3 "$alloc" gc --scope anchor --anchor "$anchor" >/dev/null 2>>"$diag" || true
         fi
+    fi
+
+    # Stale files the browser MCP servers wrote on their own under the state root (playwright's
+    # auto-named files in projects/, pagecast's scratch recordings). Same rule the browser
+    # launcher applies at every start: scripts/lib/browser_mcp_servers.py prune.
+    if [[ -f "$lib_dir/browser_mcp_servers.py" ]]; then
+        run_bounded "$PRUNE_TIMEOUT_S" python3 "$lib_dir/browser_mcp_servers.py" prune >/dev/null 2>&1 || true
     fi
 
     # Discovery half: default (list-only) reap-orphans, persisted so a human can
@@ -243,7 +260,7 @@ _run_worker() {
             local runtime_dir
             runtime_dir="$(_odoo_ai_runtime_dir 2>/dev/null || true)"
             if [[ -n "$runtime_dir" ]] && mkdir -p "$runtime_dir" 2>/dev/null; then
-                timeout "$REAP_TIMEOUT_S" python3 "$alloc" reap-orphans \
+                run_bounded "$REAP_TIMEOUT_S" python3 "$alloc" reap-orphans \
                     >"$runtime_dir/reap-orphans-candidates.log" 2>&1 || true
             fi
         fi

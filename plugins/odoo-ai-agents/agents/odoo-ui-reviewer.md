@@ -91,11 +91,12 @@ Authenticate first, reusing a saved session: if `${screenshot_baseline_dir}/stor
 
 **View-type and form-internal render sweep.** Using the view types Step 1 found, switch to each one via the control-panel view switcher (read-only navigation) and confirm it mounts against the selectors and success signals in `docs/odoo-ui-knowledge.md` ("View-type render checks") - search (filters / group-by / favorites / search panel), pivot, graph, calendar, activity. On a form, confirm the internals render ("Form internals"): open each notebook tab, confirm the button-box smart buttons show an icon + a non-placeholder count, confirm the chatter mounts (messages / activities / followers), and confirm the statusbar shows the current state with its header buttons (an empty mobile statusbar is EXPECTED where header buttons fold into the Cog menu - not a finding). Capture a screenshot and read the console per view type / region, and classify any defect with the break-signal taxonomy (G1-G8 - determine the frontend era first per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`, then use G8 Legacy on a v8-v14 screen instead of force-fitting an OWL class) in `docs/odoo-ui-knowledge.md`. Stay read-only: switching views, opening tabs / dropdowns, and clicking a smart button to confirm it opens an action are navigation, not mutation - do NOT create / edit / delete records, change record state via statusbar action buttons, or re-log as another role (that cluster-wide CRUD + role matrix is `odoo-qa-tester`'s scope).
 
-**Screenshot output directory (P9):** Stage all screenshots to `<ISOLATE_DIR>/visual/screenshots/<slug>/` (`<ISOLATE_DIR>` per `## Step 0 - Load context` §State dir resolution) to keep evidence files out of the repo working tree. Pass this as `filePath` to `take_screenshot` (chrome-devtools family, incl. `chrome-devtools-headed` - the schema accepts unknown keys silently, so `path` writes nothing); playwright (OPT-IN) uses a RELATIVE `filename` under its own output root, then Bash `cp`/`mv` into the tier dir. NEVER call a capture tool with no destination. On resolver REFUSAL (state root unresolvable), omit `filePath` entirely so the image attaches to the response, and note `inline (state root unresolvable)` in the review report rather than fabricating a path. Family mechanics + refusal fallback: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
+**Screenshot output directory (P9):** Stage all screenshots to `<ISOLATE_DIR>/visual/screenshots/<slug>/` (`<ISOLATE_DIR>` per `## Step 0 - Load context` §State dir resolution) to keep evidence files out of the repo working tree. Every screenshot call names an absolute path under it (chrome-devtools: `filePath`). NEVER call a capture tool with no destination. On resolver REFUSAL (state root unresolvable), note `inline (state root unresolvable)` in the review report rather than fabricating a path. Family mechanics (parameter names) + refusal fallback: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 
 ### Step 3 - Accessibility + performance
 
-`lighthouse_audit` for performance/accessibility/best-practices scores. Tie each a11y finding to a
+`lighthouse_audit` for performance/accessibility/best-practices scores, with
+`outputDirPath: <ISOLATE_DIR>/visual/screenshots/<slug>/lighthouse/`. Tie each a11y finding to a
 snapshot node.
 
 ### Step 4 - Responsive sweep
@@ -124,10 +125,11 @@ If OSM is unreachable, skip Steps 1 and 5 and grep the repo on disk for the view
 
 ### Step 6 - Close your pages (before terminal status)
 
-1. CLOSE every page you created (`list_pages` -> `close_page` each; playwright: `browser_close`;
-   pagecast: confirm `stop_recording`). You may not report DONE with a page you opened still open.
+1. CLOSE every page you DROVE, opened or reused (chrome-devtools `close_page` + `about:blank`;
+   playwright `browser_close`; pagecast `stop_recording`). You may not report DONE with a page you
+   drove still open.
 
-Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - Browser: close what you drove (T0-T4).
 
 ---
 
@@ -196,7 +198,7 @@ pass rates. When `DESIGN_DOC` is absent, this rule does not apply.
 - Do NOT modify any file in the repository or the running Odoo instance - read-only.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the output.
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
-- CLOSE every page you opened before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+- CLOSE every page you drove before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ## Continuation Contract
 

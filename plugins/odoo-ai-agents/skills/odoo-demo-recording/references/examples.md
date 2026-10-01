@@ -6,23 +6,31 @@ Prompt: "Record a 30-second demo of creating and confirming a sales order in Odo
 
 - Round 0: context → `odoo_version: <version>`, base URL, login; format MP4, ~30s.
 - Round 1 (parallel): `check_module_exists(name='sale_management', odoo_version='<version>')` + `module_inspect(name='sale', method='views', odoo_version='<version>')` + `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` + `find_examples(query='create confirm sale order flow', odoo_version='<version>')` → step list.
-- Round 2: log in, navigate to Sales, set clean state.
-- Round 3: record click path: New → pick customer → add line → Confirm; `stop_recording`, then
-  `close_page` the driven page before Round 4.
+- Round 2 (pagecast): `record_page` at `<instance_base_url>/web/login`, then `interact_page`:
+  `type` login + password, `press` `Enter`, `navigate` to Sales.
+- Round 3: drive the click path in the same session with `interact_page`: New → pick customer →
+  add line → Confirm; `stop_recording` and `mv` the `.webm` into `<ISOLATE_DIR>/visual/videos/`.
+  (With playwright instead: log in, `browser_start_video` with an absolute `filename` under that
+  dir, drive with playwright tools, `browser_stop_video`; key frames go to
+  `<ISOLATE_DIR>/visual/videos/sale-order-20260803-a1b2-frameNN.png`, deleted after assembly.)
+  Close every page you drove before Round 4 (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
 - Round 4: mint the slug once (`sale-order-20260803-a1b2`, per
   `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1), then save to
   the Tier-2 ISOLATE dir resolved per
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` -
-  `<ISOLATE_DIR>/visual/videos/sale-order-20260803-a1b2.mp4`, report path + duration.
+  `<ISOLATE_DIR>/visual/videos/sale-order-20260803-a1b2.mp4` (`convert_to_mp4` on the `.webm`, the
+  login trimmed off with `ffmpeg`), report path + duration.
 
 ## Example 2 - website portal GIF, recorder unavailable
 
 Prompt: "Make a GIF of the customer portal invoice download."
 
 - Round 1: `module_inspect` for portal views; `find_examples(query='portal invoice download flow', odoo_version='<version>')`.
-- Round 3: recorder unavailable → capture `take_screenshot` frames at each step; no `stop_recording`
-  needed (none started), but still `close_page` the driven page before Round 4.
-- Round 4: assemble frames into a GIF; prefix output with the recorder-unreachable warning.
+- Round 3: recorder unavailable → capture `take_screenshot` frames at each step to
+  `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png`; no `stop_recording` needed (none started), but
+  still close every page you drove before Round 4.
+- Round 4: assemble frames into a GIF with `ffmpeg` (missing → deliver the frames, say so); prefix
+  output with the recorder-unreachable warning.
 
 ## Example 3 - narrated before/after bug-evidence pair (chrome-devtools only)
 
@@ -51,12 +59,12 @@ co-loader as vendor - fix is already merged - `--label before`, then `--label af
   against the captured frame per the Grounding rule, not assumed); finish with
   `evaluate_script` calling `__endCard('bug', <expected>, <observed>)` (before run) /
   `__endCard('fixed', <expected>, <observed>)` (after run), held for the final 2+ frames, then
-  `close_page` (chrome-devtools has no recorder to stop - pagecast is excluded here, see § Overlay
+  close the driven pages (chrome-devtools has no recorder to stop - pagecast is excluded here, see § Overlay
   mechanism).
-- Round 4: no frame-to-clip assembler configured in this deployment → the ordered PNG sequence is
+- Round 4: `ffmpeg` is not on PATH → the ordered PNG sequence is
   the deliverable for each label; report `status: DONE` with a `concerns:` entry naming the
-  missing assembler, with
-  paths `<ISOLATE_DIR>/visual/videos/lcl-coloader-vendor-20260803-a1b2-before/` and
-  `.../lcl-coloader-vendor-20260803-a1b2-after/` (frame sequences, same minted slug from Round 0,
+  missing `ffmpeg`, with
+  paths `<ISOLATE_DIR>/visual/videos/lcl-coloader-vendor-20260803-a1b2-before-frameNN.png` and
+  `.../lcl-coloader-vendor-20260803-a1b2-after-frameNN.png` (frame sequences, same minted slug,
   `-before`/`-after` suffix - the random suffix is what keeps this pair from colliding with any
   other same-day `lcl-coloader-vendor` recording).

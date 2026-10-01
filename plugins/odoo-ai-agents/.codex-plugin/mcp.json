@@ -3,7 +3,7 @@
     "command": "npx",
     "args": [
       "-y",
-      "chrome-devtools-mcp@1",
+      "chrome-devtools-mcp@1.10.1",
       "--headless",
       "--isolated"
     ]

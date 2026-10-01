@@ -408,16 +408,16 @@ def test_hooks_json_registers_the_gate_and_its_matcher_reaches_bash():
 
 def test_the_hooks_json_description_does_not_undercount_the_denies():
     """A stale restatement is how a rule gets reverted: the description used to assert "exactly ONE
-    PreToolUse hard deny", then "exactly TWO" - each made false by the next gate (this one, then
-    block-handback-with-live-lease.sh). Whoever changes the count must change the sentence in the
-    same commit."""
+    PreToolUse hard deny", then "exactly TWO", then "exactly THREE" - each made false by the next
+    gate (this one, block-handback-with-live-lease.sh, block-capture-outside-state-root.sh).
+    Whoever changes the count must change the sentence in the same commit."""
     desc = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))["description"]
     denies = sum(
         1 for g in _pretooluse_groups() for h in g.get("hooks", [])
         if "block-" in h.get("command", "")
     )
-    assert denies == 3, f"the deny set changed ({denies}) - update the description below too"
-    assert "exactly THREE PreToolUse hard denies" in desc, (
+    assert denies == 4, f"the deny set changed ({denies}) - update the description below too"
+    assert "exactly FOUR PreToolUse hard denies" in desc, (
         "the description must state the ACTUAL number of PreToolUse hard denies; a stale count is "
         f"the restatement that outlives its definition: {desc[:400]!r}"
     )
@@ -427,7 +427,7 @@ def test_the_hooks_json_description_does_not_undercount_the_denies():
 
 
 def test_the_hooks_json_description_attributes_command_segmenting_to_the_right_denies():
-    """Review finding 3: next to "exactly THREE PreToolUse hard denies" the description said "Both
+    """Review finding 3: next to the "exactly N PreToolUse hard denies" count the description said "Both
     PreToolUse denies segment the command" - a count word left over from when there were two. Only
     the denies that SOURCE hooks/command-segments.sh segment anything (the SubagentHandback gate
     parses a report, not a command). Read that set from the scripts, not from this test."""

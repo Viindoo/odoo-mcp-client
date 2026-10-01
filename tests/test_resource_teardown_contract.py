@@ -3,8 +3,8 @@
 Six checks lock in the BEHAVIOR the contract promises (ETHOS #10: a DONE claim needs
 observable evidence; a leaked browser page/instance is the absence of that evidence):
 
-1. Wiring + executable-step presence - a file that opens a browser resource or
-   self-provisions an Odoo instance must carry BOTH a pointer to the SSOT contract
+1. Wiring + executable-step presence - a file that drives a browser page (opens or
+   reuses it) or self-provisions an Odoo instance must carry BOTH a pointer to the SSOT contract
    AND a concrete, tool-named teardown step for its class. A pointer alone (prose
    with no named verb) does not prove the agent will actually call the tool.
 2. Hub presence - the two hubs every skill/agent already reads
@@ -99,12 +99,20 @@ ALL_SCANNED_FILES = (
     + _yaml_files("workflows")
 )
 
-BROWSER_OPEN_RE = re.compile(r"new_page|browser_navigate|record_page|record_and_gif|start_video|start_trac")
-# navigate_page is deliberately EXCLUDED - chrome-devtools' one-page-reuse pattern
-# (T2's own prescription) means a bare navigate is not proof of a NEW resource;
-# this mirrors enforce-teardown.sh's own matcher spec (L1.6): ACQUIRE = new_page only.
+# A file DRIVES a browser page when it opens one OR reuses one: T1 counts a page reused by
+# navigating it as acquired, so chrome-devtools `navigate_page` is an open token too (the
+# same DRIVE set enforce-teardown.sh counts).
+BROWSER_OPEN_RE = re.compile(
+    r"new_page|navigate_page|browser_navigate|record_page|record_and_gif|start_video|start_trac"
+)
 
-BROWSER_STEP_RE = re.compile(r"close_page|browser_close|stop_recording")
+# The executable close step, by family (T2 "End of dispatch, by family"): close_page,
+# browser_close, stop_recording - or, for the chrome-devtools page that cannot be closed
+# because it is the last one, navigate_page to about:blank. A bare `about:blank` or a bare
+# navigate_page is not a close step; the two must name the same call.
+BROWSER_STEP_RE = re.compile(
+    r"close_page|browser_close|stop_recording|navigate_page\W{0,4}(?:\w+\W{1,4}){0,6}?about:blank"
+)
 
 INSTANCE_ACQUIRE_RE = re.compile(
     r"Skill\(odoo-instance\)|lease_acquire|allocator\.py acquire|persist:\s*ephemeral"
@@ -205,7 +213,19 @@ def test_browser_step_predicate_can_fail():
     assert _browser_step_present("call `close_page` for each page you created")
     assert _browser_step_present("playwright: `browser_close`")
     assert _browser_step_present("pagecast: `stop_recording`")
+    assert _browser_step_present("then `navigate_page` that page to `about:blank`")
     assert not _browser_step_present("CLOSE every page you opened before terminal status")
+    # navigating somewhere else is driving the page, not closing it
+    assert not _browser_step_present("`navigate_page` to the next form view")
+    assert not _browser_step_present("the page ends on about:blank")
+
+
+def test_browser_open_predicate_counts_a_reused_page():
+    """Navigating a reused chrome-devtools page acquires it (T1), so a file that only
+    navigates must still be held to the close-step check."""
+    assert BROWSER_OPEN_RE.search("`navigate_page` to the record URL")
+    assert BROWSER_OPEN_RE.search("`new_page` per role")
+    assert not BROWSER_OPEN_RE.search("`take_snapshot` of the current form")
 
 
 def test_pointer_predicate_can_fail():
@@ -239,7 +259,8 @@ def test_browser_open_site_has_pointer_and_close_step(path: Path):
     )
     assert _browser_step_present(text), (
         f"{rel}: opens a browser resource and points at the contract, but names no "
-        f"executable close verb (close_page/browser_close/stop_recording) - a pointer "
+        f"executable close verb (close_page/browser_close/stop_recording, or navigate_page "
+        f"to about:blank) - a pointer "
         f"alone does not prove the agent will actually close the page"
     )
 
@@ -358,7 +379,7 @@ def test_verb_noun_collision_predicate_can_fail():
 
 
 def test_t2_never_collocates_release_or_drop_with_a_browser_noun():
-    t2 = _section(_read(SNIPPET), "## T2 - Browser: close what you opened")
+    t2 = _section(_read(SNIPPET), "## T2 - Browser: close what you drove")
     offenders = _verb_noun_collisions(t2)
     assert not offenders, f"T2 must never pair release/drop with a browser noun: {offenders}"
 

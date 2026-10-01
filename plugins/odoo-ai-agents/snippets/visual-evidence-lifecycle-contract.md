@@ -93,10 +93,7 @@ under `visual/videos/` (`<feature>` plays the role of `<intent-slug>`; full wiri
 `odoo-demo-recording` § Round 4 and § Narrated evidence mode). Mint it once per
 run, before Round 4's orphan sweep, and reuse the SAME value for both takes of a narrated
 before/after pair (the `-before`/`-after` suffix is appended on top, never a second random mint).
-This closes the exact gap a bare `<feature>-<timestamp>` resolving to a date-only string would
-leave: two same-day recordings of a similarly-named feature would otherwise silently overwrite
-each other's clip - the identical failure mode the four directory-based siblings above avoid by
-the same mechanism. Any FUTURE skill that mints a new `visual/`-rooted per-run path - directory or
+Without it, two same-day recordings of a similarly-named feature overwrite each other's clip. Any FUTURE skill that mints a new `visual/`-rooted per-run path - directory or
 filename - follows this same Clause 1 rule; do not invent a per-skill variant.
 
 ## Clause 2 - orphan-sweep retention (GC)
@@ -105,7 +102,7 @@ filename - follows this same Clause 1 rule; do not invent a per-skill variant.
 run-scoped evidence, per `state-root-resolution.md` § Where a captured artifact goes). NEVER
 a SHARE reusable cache (`visual/baselines/`, `visual/doc/`) - its whole value IS surviving
 across runs, so sweeping it on a TTL would destroy the thing it exists to provide. NEVER a
-committed module deliverable (bucket 3) - it is reached only by an explicit copy into the
+committed module deliverable (bucket 3) - it is reached only by an explicit `mv` into the
 module tree and thereafter lives under git, entirely outside this sweep's reach.
 
 **Bound.** `visual/current/<slug>/` already self-deletes at its own run's terminal status
@@ -180,16 +177,15 @@ pattern did not arise.
 **Sweeping a shared parent directory - exclude siblings by name.** `visual/<run_id>/<module>_staging/`'s
 own 24h crash-backstop cannot blindly sweep every immediate child of `visual/` the way the other
 rows sweep their OWN dedicated subdir - `visual/` is the shared parent of `baselines/`, `doc/`
-(SHARE) AND `current/`, `qa/`, `debug/`, `screenshots/`, `videos/` (four other skills' OWN ISOLATE
+(SHARE) AND `current/`, `qa/`, `debug/`, `screenshots/`, `videos/`, `adhoc/` (other owners' ISOLATE
 trees), none of which are `<run_id>/` dirs. A naive `find <ISOLATE_DIR>/visual/ -mindepth 1
 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} +` would delete those ENTIRE sibling trees the
 moment their own top-level directory goes 24h without a NEW child being created inside it - far
-worse than the leak this contract exists to close. The sweep MUST exclude all seven known
+worse than the leak this contract exists to close. The sweep MUST exclude all eight known
 siblings by name (`! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name
-screenshots ! -name videos`) so only an actual `<run_id>/` leftover matches
-(`odoo-doc-illustration` § the exact command). Any future skill adding an EIGHTH named
-child directly under `visual/` must add itself to this exclusion list, or `odoo-doc-illustration`'s
-crash-backstop would delete that new sibling's tree the same way.
+screenshots ! -name videos ! -name adhoc`) so only an actual `<run_id>/` leftover matches
+(`odoo-doc-illustration` § the exact command). Any NINTH named child directly under `visual/`
+must be added to this exclusion list, or that crash-backstop deletes its tree the same way.
 
 ### 3.2 - Not eligible / never eligible / not applicable (excluded, with reasons)
 
@@ -199,7 +195,8 @@ crash-backstop would delete that new sibling's tree the same way.
 | `run-<id>.json` | Excluded - mtime is not a reliable liveness signal here | see § 3.3 below |
 | `brainstorm/state.json` | Not applicable - no leak | a SINGLE overwritten file with no `<slug>` in its name (unlike every other row in this table) - it does not accumulate one directory per run, so there is nothing to sweep |
 | bucket-1 reusable caches (`visual/baselines/`, `visual/doc/`, `designs/`, `plans/`, `gap-analysis/`, `survey/<slug>-<date>/`, `brl/<job-id>/`, `documentation/...`, `brand-tokens.json`, `mockups/`, `glossary.yml`, `cost-config.json`) | NEVER eligible - SHARE tier | see § 3.4 below; not part of the ISOLATE table at all |
-| a committed module deliverable (bucket 3) | NEVER eligible | reached only by an explicit copy into the module tree and thereafter lives under git - never resides under `.odoo-ai/` at all, so it is structurally outside this sweep's reach; no ISOLATE row is actually a bucket-3 item (confirmed by inspection - every ISOLATE row is either an agent-authored artifact or a staging area that PRECEDES a bucket-3 copy, never the deliverable itself) |
+| `visual/adhoc/<slug>/` | Swept by the plugin runtime, not a skill | no skill owns it; `prune_browser_byproducts` removes entries older than 30d when a browser MCP server starts and at session end |
+| a committed module deliverable (bucket 3) | NEVER eligible | reached only by an explicit `mv` into the module tree and thereafter lives under git - never resides under `.odoo-ai/` at all, so it is structurally outside this sweep's reach; no ISOLATE row is actually a bucket-3 item (confirmed by inspection - every ISOLATE row is either an agent-authored artifact or a staging area that PRECEDES a bucket-3 `mv`, never the deliverable itself) |
 
 Every ISOLATE-table row not listed in § 3.2 is covered by § 3.1 - the enumeration is exhaustive
 against `state-root-resolution.md`'s own exhaustive ISOLATE table.

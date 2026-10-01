@@ -6,7 +6,10 @@
 #   - Node.js >= 20            (npx/npm runtime for all three servers)
 #   - The 3 pinned npm packages, cached on disk (chrome-devtools-mcp,
 #     @playwright/mcp, @mcpware/pagecast - see below)
-#   - Playwright + Chromium    (browser driver + a real browser binary)
+#   - Playwright + Chromium    (browser driver + a real browser binary; pagecast)
+#   - Google Chrome (stable)   (chrome-devtools and playwright launch the INSTALLED
+#                               Chrome, never Playwright's Chromium - see
+#                               browser_mcp_servers.py chrome_locations)
 #   - Chromium system libs     (libnss3 / libgbm / fonts / ... on Linux)
 #   - ffmpeg                   (video/GIF capture for pagecast recordings)
 #
@@ -19,26 +22,30 @@
 # machine can pre-install everything (e.g. in a base image) without ever
 # starting a browser process or paying any idle-RAM cost.
 #
-# The 3 npm packages are pinned via the `scripts/lib/browser-mcp-servers.sh`
-# SSOT (same pins steps 10/12 register) - never duplicated here. Playwright
-# itself is pinned via PLAYWRIGHT_PIN (default below): the first release that
-# supports current Ubuntu while still running on older Linux / macOS /
-# Windows. The pagecast server resolves to the same Playwright minor and
-# therefore shares this Chromium build + system libs, so installing them here
-# covers pagecast's browser needs as well.
+# The 3 npm packages are pinned to exact versions by the SSOT
+# `scripts/lib/browser_mcp_servers.py` (read through `browser-mcp-servers.sh`;
+# the same pins steps 10/12 register and the launcher runs) - never duplicated
+# here. The Playwright used for `install chromium` / `install-deps` is the exact
+# `playwright` pagecast is launched with (it runs that package's bundled
+# Chromium), from the same SSOT (PLAYWRIGHT_PIN overrides it there, for the
+# launch and this install alike).
 #
 # Subcommands:
 #   describe   One-line description.
 #   check      Exit 0 if node>=20 AND all 3 MCP packages are cached on disk
-#              AND chromium installed AND (on apt-based Linux) chromium
-#              system libs present AND ffmpeg present; exit 1 if anything is
-#              missing.
+#              AND chromium installed AND Google Chrome installed AND (on
+#              apt-based Linux) chromium system libs present AND ffmpeg
+#              present; exit 1 if anything is missing (a missing Chrome is
+#              also reported, with the command that installs it).
 #   apply      Pre-install the 3 pinned MCP packages on disk (npm cache warm,
 #              never executed), install the pinned Playwright Chromium
 #              browser, and on apt-based Linux also install its system
 #              libraries - automatically only when passwordless sudo is
-#              available, otherwise print the exact command to run. For
-#              ffmpeg ONLY print OS-specific guidance.
+#              available, otherwise print the exact command to run. Google
+#              Chrome follows the same rule: installed only on apt-based Linux
+#              with passwordless sudo, otherwise the command is printed (it
+#              needs administrator rights). For ffmpeg ONLY print OS-specific
+#              guidance.
 #
 # HARD RULES:
 #   - Never run sudo silently. System libs run via `playwright install-deps`
@@ -62,9 +69,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/state_reclaim.sh
 . "$SCRIPT_DIR/../lib/state_reclaim.sh"
 
-# Pinned Playwright version (single source of truth, env-overridable so users
-# and CI can pick a different release without editing this script).
-PW_PIN="${PLAYWRIGHT_PIN:-1.61.0}"
+# Pinned Playwright version: the one pagecast runs, from the SSOT (which applies
+# the PLAYWRIGHT_PIN override), so the Chromium installed here is the one it loads.
+PW_PIN="$BROWSER_MCP_BROWSER_PLAYWRIGHT_VERSION"
 
 # The 3 backend packages this plugin's browser MCP families resolve to,
 # pinned by the shared SSOT (scripts/lib/browser-mcp-servers.sh) - never
@@ -80,7 +87,7 @@ MCP_SERVER_PACKAGE_PINS=(
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Pre-install on disk (no run): the 3 pinned browser MCP packages (npm cache warm) + pinned Playwright Chromium + system libs on apt Linux; verify ffmpeg"
+    echo "Pre-install on disk (no run): the 3 pinned browser MCP packages (npm cache warm) + pinned Playwright Chromium + system libs on apt Linux; verify Google Chrome + ffmpeg"
 }
 
 # ---------------------------------------------------------------------------
@@ -140,29 +147,34 @@ _can_sudo_nopasswd() {
 }
 
 _chromium_ok() {
-    # `playwright install chromium --dry-run` lists what WOULD be installed.
-    # If chromium is already present it reports it as already installed. The
-    # version is pinned so the probe matches what `apply` would install.
+    # `playwright@<pin> install chromium --dry-run` names, per browser it would install
+    # (Chromium, its headless shell, ffmpeg), an `Install location:` - the revision-exact
+    # directory under the Playwright cache, whatever is already there. Playwright writes
+    # INSTALLATION_COMPLETE into that directory when a download finished, so the pinned Chromium
+    # is installed exactly when every listed location carries it. Another revision's
+    # chromium-* directory says nothing about this one.
+    # Once verified, the locations are recorded (browser_mcp_servers.py chromium-record) so the
+    # SessionStart hint can re-check them revision-exactly without running npx.
     command -v npx >/dev/null 2>&1 || return 1
-    local out
+    local out loc native listed=0
+    local -a verified=()
     out="$(npx -y "playwright@${PW_PIN}" install chromium --dry-run 2>/dev/null || true)"
-    # here-string (not `printf | grep`) to avoid the pipefail/SIGPIPE trap.
-    if grep -qi "is already installed" <<<"$out"; then
-        return 0
-    fi
-    # Cache-dir fallback: look for a chromium-* folder in the standard caches.
-    local cache
-    for cache in \
-        "${PLAYWRIGHT_BROWSERS_PATH:-}" \
-        "$HOME/.cache/ms-playwright" \
-        "$HOME/Library/Caches/ms-playwright" \
-        "$HOME/AppData/Local/ms-playwright"; do
-        [[ -n "$cache" && -d "$cache" ]] || continue
-        if compgen -G "$cache/chromium-*" >/dev/null 2>&1; then
-            return 0
+    while IFS= read -r loc; do
+        loc="${loc%$'\r'}"
+        [[ -n "$loc" ]] || continue
+        listed=1
+        native="$loc"
+        # Git Bash prints C:\... locations; test them in the shell's own path form.
+        if command -v cygpath >/dev/null 2>&1; then
+            loc="$(cygpath -u "$loc" 2>/dev/null || printf '%s' "$loc")"
         fi
-    done
-    return 1
+        [[ -f "$loc/INSTALLATION_COMPLETE" ]] || return 1
+        # Recorded as Playwright printed it: python reads the record, not this shell.
+        verified+=("$native")
+    done < <(sed -n 's/^[[:space:]]*Install location:[[:space:]]*//p' <<<"$out")
+    [[ "$listed" -eq 1 ]] || return 1
+    _browser_mcp_py chromium-record write "${verified[@]}" >/dev/null 2>&1 || true
+    return 0
 }
 
 # Best-effort probe that Chromium's shared system libraries are present.
@@ -192,11 +204,51 @@ _ffmpeg_ok() {
     command -v ffmpeg >/dev/null 2>&1
 }
 
+# Google Chrome stable, where chrome-devtools-mcp and @playwright/mcp look for it (fixed install
+# locations, never PATH): the SSOT's chrome-path.
+_chrome_ok() {
+    _browser_mcp_py chrome-path >/dev/null 2>&1
+}
+
+_chrome_guidance() {
+    echo "  ! Google Chrome is not installed - the chrome-devtools and playwright browser servers" >&2
+    echo "    launch the installed Chrome (not Playwright's Chromium) and fail to start without it." >&2
+    echo "    Install it once (needs administrator rights; NO sudo is ever run for you):" >&2
+    case "$(uname -s 2>/dev/null || echo unknown)" in
+        Linux) echo "      sudo npx -y playwright@${PW_PIN} install chrome" >&2 ;;
+        *)     echo "      npx -y playwright@${PW_PIN} install chrome   (from an administrator shell)" >&2 ;;
+    esac
+    echo "    or install Google Chrome from https://www.google.com/chrome/" >&2
+}
+
+# Same semantics as the system libraries: install only where passwordless sudo is available on
+# apt-based Linux (Playwright's Chrome installer is an apt script there); everywhere else print the
+# command. A failed attempt with sudo is a real error.
+_ensure_chrome() {
+    if _chrome_ok; then
+        echo "  ok Google Chrome present - skip"
+        return 0
+    fi
+    if _is_apt_linux && _can_sudo_nopasswd; then
+        echo "  Installing Google Chrome (passwordless sudo detected)..."
+        if sudo -n env "PATH=$PATH" npx -y "playwright@${PW_PIN}" install chrome; then
+            echo "  ok Google Chrome installed"
+            return 0
+        fi
+        echo "  x Failed to install Google Chrome." >&2
+        echo "    Retry manually: sudo npx -y playwright@${PW_PIN} install chrome" >&2
+        return 1
+    fi
+    _chrome_guidance
+    return 0
+}
+
 cmd_check() {
     local ok=0
     _node_ok             || ok=1
     _mcp_packages_cached || ok=1
     _chromium_ok         || ok=1
+    _chrome_ok           || { ok=1; _chrome_guidance; }
     _system_deps_ok      || ok=1
     _ffmpeg_ok           || ok=1
     return "$ok"
@@ -258,6 +310,8 @@ _install_chromium_binary() {
     else
         echo "  Installing Playwright Chromium (npx -y playwright@${PW_PIN} install chromium)..."
         npx -y "playwright@${PW_PIN}" install chromium
+        # Re-verify: records the now-complete locations for the SessionStart hint.
+        _chromium_ok || true
         echo "  ok Playwright Chromium installed"
     fi
 }
@@ -343,6 +397,7 @@ cmd_apply() {
     _install_mcp_packages || return 1
     _install_chromium_binary
     _ensure_system_deps || return 1
+    _ensure_chrome || return 1
 
     if _ffmpeg_ok; then
         echo "  ok ffmpeg present ($(command -v ffmpeg))"
@@ -356,6 +411,19 @@ cmd_apply() {
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
+# --- interpreter preflight ------------------------------------------------------------------
+# The pins and the Playwright version come from the python SSOT; without a working python3 they
+# are empty and every install below would run unpinned. SSOT: scripts/lib/require_python.sh.
+_REQ_PY="$SCRIPT_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "${1:-}" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") ${1:-}" json || exit 2 ;;
+    esac
+fi
+
 case "${1:-}" in
     describe) cmd_describe ;;
     check)    cmd_check ;;

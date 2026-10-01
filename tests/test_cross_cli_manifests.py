@@ -1,8 +1,10 @@
 """
 Behavioral contract tests for the Codex CLI and Gemini CLI MCP manifests.
 
-These tests verify that the derived manifest files correctly mirror the SSOT
-(.mcp.json) and satisfy the structural requirements of each target runtime.
+These tests verify that the derived manifest files bundle the servers .mcp.json bundles,
+launched as the browser launch SSOT (scripts/lib/browser_mcp_servers.py) says - never copied from
+.mcp.json, whose ${CLAUDE_PLUGIN_ROOT} only Claude Code expands - and satisfy the structural
+requirements of each target runtime.
 
 Rules tested (one intent per test, named after the business rule):
   1. gemini_extension_is_valid_json_with_three_servers
@@ -10,7 +12,7 @@ Rules tested (one intent per test, named after the business rule):
   3. codex_plugin_json_has_all_required_interface_fields
   4. codex_plugin_json_mcpservers_points_to_relative_path
   5. codex_mcp_json_is_flat_with_three_servers
-  6. all_derived_manifests_server_command_args_match_ssot
+  6. derived_manifests_launch_the_bundled_browser_families_from_the_launch_ssot
   7. local_servers_are_claude_only_and_absent_from_derived_manifests
 """
 
@@ -54,21 +56,21 @@ def _local_servers() -> frozenset:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def ssot_servers() -> dict:
-    """Load the SSOT MCP server definitions (stripped of 'type' field), EXCLUDING
-    any LOCAL (Claude-only) server. A local server is deliberately absent from the
-    derived Codex/Gemini manifests (see gen_mcp_manifests.py and rule 7 below), so
-    including it here would make rule 6 fail on an exclusion that is correct by
-    design, not a real SSOT/manifest drift."""
+def bundled_browser_servers() -> list:
+    """The browser families .mcp.json bundles, LOCAL (Claude-only) servers excluded."""
     assert SSOT_MCP.is_file(), f"SSOT missing: {SSOT_MCP}"
-    data = json.loads(SSOT_MCP.read_text(encoding="utf-8"))
-    raw = data.get("mcpServers", data)
-    local = _local_servers()
-    return {
-        name: {k: v for k, v in entry.items() if k != "type"}
-        for name, entry in raw.items()
-        if name not in local
-    }
+    raw = json.loads(SSOT_MCP.read_text(encoding="utf-8")).get("mcpServers", {})
+    return [name for name in raw if name not in _local_servers()]
+
+
+@pytest.fixture(scope="module")
+def launch_ssot():
+    spec = importlib.util.spec_from_file_location(
+        "browser_mcp_servers_manifest", PLUGIN_ROOT / "scripts" / "lib" / "browser_mcp_servers.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 @pytest.fixture(scope="module")
@@ -196,49 +198,34 @@ def test_codex_mcp_json_is_flat_with_three_servers(codex_mcp_data):
 
 
 # ---------------------------------------------------------------------------
-# Rule 6: All derived manifests' server command+args match the SSOT
+# Rule 6: the derived manifests launch each bundled family from the launch SSOT
 # ---------------------------------------------------------------------------
 
-def test_all_derived_manifests_server_command_args_match_ssot(
-    ssot_servers, gemini_data, codex_mcp_data
+def test_derived_manifests_launch_the_bundled_browser_families_from_the_launch_ssot(
+    bundled_browser_servers, launch_ssot, gemini_data, codex_mcp_data
 ):
     """
-    Every server entry in gemini-extension.json and .codex-plugin/mcp.json must have
-    the same command and args as the SSOT .mcp.json (after stripping 'type').
+    Codex expands no plugin-root variable, so its entry is the plain `npx -y <exact pin>
+    <base flags>` (setup step 10 writes the state-root flags into the user's own config).
+    Gemini expands ${extensionPath} and ${/} in gemini-extension.json, so its entry runs the
+    bundled launcher, which resolves the state root at every start. Neither carries 'type'.
     """
+    assert bundled_browser_servers == ["chrome-devtools"], bundled_browser_servers
     gemini_servers = gemini_data.get("mcpServers", {})
-    mismatches = []
+    for name in bundled_browser_servers:
+        assert codex_mcp_data.get(name) == {
+            "command": "npx", "args": ["-y"] + launch_ssot.npx_args(name, {})}, name
+        assert gemini_servers.get(name) == {
+            "command": "python3",
+            "args": ["${extensionPath}${/}scripts${/}mcp${/}browser_mcp_launch.py", name]}, name
+    assert set(codex_mcp_data) == set(bundled_browser_servers)
+    assert set(gemini_servers) == set(bundled_browser_servers)
 
-    for server_name, expected in ssot_servers.items():
-        for manifest_label, manifest_servers in [
-            ("gemini-extension.json", gemini_servers),
-            (".codex-plugin/mcp.json", codex_mcp_data),
-        ]:
-            if server_name not in manifest_servers:
-                mismatches.append(f"{manifest_label}: missing server '{server_name}'")
-                continue
-            actual = manifest_servers[server_name]
-            if actual.get("command") != expected.get("command"):
-                mismatches.append(
-                    f"{manifest_label}.{server_name}: command mismatch "
-                    f"(expected {expected.get('command')!r}, got {actual.get('command')!r})"
-                )
-            if actual.get("args") != expected.get("args"):
-                mismatches.append(
-                    f"{manifest_label}.{server_name}: args mismatch "
-                    f"(expected {expected.get('args')!r}, got {actual.get('args')!r})"
-                )
-            # 'type' must not appear in derived manifests (Codex/Gemini infer from command)
-            if "type" in actual:
-                mismatches.append(
-                    f"{manifest_label}.{server_name}: must not contain 'type' field "
-                    f"(got {actual['type']!r})"
-                )
 
-    assert not mismatches, (
-        "Derived manifest server entries diverge from SSOT (.mcp.json):\n"
-        + "\n".join(f"  - {m}" for m in mismatches)
-    )
+def test_the_gemini_launcher_path_exists_in_the_extension(gemini_data):
+    for entry in gemini_data.get("mcpServers", {}).values():
+        rel = entry["args"][0].replace("${extensionPath}", "").replace("${/}", "/").lstrip("/")
+        assert (PLUGIN_ROOT / rel).is_file(), rel
 
 
 # ---------------------------------------------------------------------------

@@ -158,7 +158,7 @@ node by node onto ONE run-integration branch, then ONE PR).
 **Prompt**: "tôi cần tài liệu cho module Sale với ảnh chụp màn hình minh hoạ các bước"
 
 - `odoo-doc-illustration`: handles "viết tài liệu module / cập nhật tài liệu có ảnh chụp màn hình /
-  làm static/description / document this module" -> produces a STATIC written guide with annotated
+  làm static/description / document this module" -> produces a STATIC written guide with
   screenshots captured from the live instance, saved as docs/description files.
 - `odoo-demo-recording`: handles "quay video tính năng / demo video / screencast / GIF" ->
   drives the live instance and produces a REAL recorded MP4/GIF screencast of a flow.

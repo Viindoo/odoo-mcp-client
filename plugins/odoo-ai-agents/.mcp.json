@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "chrome-devtools": { "type": "stdio", "command": "npx", "args": ["-y", "chrome-devtools-mcp@1", "--headless", "--isolated"] },
+    "chrome-devtools": { "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/browser_mcp_launch.py", "chrome-devtools"] },
     "odoo-local": { "type": "stdio", "command": "python3", "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp/odoo_local_server.py"] }
   }
 }

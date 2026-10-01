@@ -15,7 +15,11 @@ jobs:
     name: plugin schema + skill format
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 - tests/test_allocator_cross_version.py reads pinned release commits with
+      # `git show`; a depth-1 clone has none of them, and in CI that is a test failure, not a skip.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'

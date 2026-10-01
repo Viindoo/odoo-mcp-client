@@ -119,7 +119,7 @@ After install, 51 skills activate automatically:
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
-> **Visual skills need browser setup.** The three `Coder / Visual` skills above (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
+> **Visual skills need browser setup.** The four browser-driving skills (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`, `odoo-doc-illustration`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
 > **`/odoo-ai-agents:odoo-setup`** once to provision them - see
 > [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup) below.
@@ -197,8 +197,8 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 ## Visual stack / browser MCP setup
 <a id="visual-stack--browser-mcp-setup"></a>
 
-The three `Visual` skills (`odoo-ui-review`, `odoo-visual-regression`,
-`odoo-demo-recording`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
+The four `Visual` skills (`odoo-ui-review`, `odoo-visual-regression`,
+`odoo-demo-recording`, `odoo-doc-illustration`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
 live browser**. They depend on the browser MCP families - three backends (`chrome-devtools`,
 `playwright`, `pagecast`), each with a headless default and a `-headed` variant (local stdio
 `npx` servers) - plus browser binaries and `ffmpeg`.
@@ -206,8 +206,46 @@ live browser**. They depend on the browser MCP families - three backends (`chrom
 Only ONE family is **eager**: the headless `chrome-devtools`, bundled in the plugin's
 `.mcp.json` and auto-loaded. The other five are **opt-in** so a plain session never launches
 browser processes it does not need; `/odoo-ai-agents:odoo-setup browser` wires them on demand
-(step 10 for Codex/Gemini, step 12 for Claude at user scope). Package versions are pinned (no
-`@latest`).
+(step 10 for Codex/Gemini, step 12 for Claude at user scope).
+
+Package versions are **exact pins** (no `@latest`, no major range - a range reuses whatever
+version a machine's npm cache holds, so the file-write rules would differ between machines), and
+every family is started with the flags that let it write captures under the capture area
+(`<state root>/projects`).
+Capture destinations are always absolute paths under the run's `<ISOLATE_DIR>` or `<SHARE_DIR>`
+(both live under `$ODOO_AI_HOME/projects`); an image a module doc uses is `mv`d from there to
+where the doc resolves it.
+
+| Family | State-root setting |
+|--------|--------------------|
+| `chrome-devtools[-headed]` | `--workspace=<state root>/projects`, plus one `--workspace` per `$ODOO_AI_PROJECT_DIR` / `$ODOO_AI_WORKTREE_DIR` override outside it. The server otherwise writes only inside the session's working directory and the OS temp dir. The bundled copy is started by `scripts/mcp/browser_mcp_launch.py` (run with `python3`), which resolves the state root at every launch, creates the directories and prunes stale byproducts. |
+| `playwright[-headed]` | `--output-dir=<state root>/projects`, plus `--idle-timeout` so a browser nobody drives is closed (it relaunches on the next call). It accepts one output dir, so an override outside the root is not writable by playwright. |
+| `pagecast[-headed]` | recordings go to `<state root>/scratch/pagecast`, set in the registration's environment. Pagecast launches the Chromium bundled with a `playwright` package, so it runs with a pinned `playwright`, and step 20 installs the Chromium of that same version. |
+
+The launcher needs `python3` (3.8 or newer) on `PATH`; when the state root cannot be computed or Python is older, it starts the pinned server with its base flags alone and says why on stderr (captures then rely on the advisory path above).
+
+The capture area is `<state root>/projects` only - never the whole state root, which also holds the
+lease registry, the catalog and the logs. A **PreToolUse hook**
+(`hooks/block-capture-outside-state-root.sh`) refuses a browser capture whose destination is
+relative or outside that area, because a relative path resolves against the session's working
+directory - usually your repository - and the servers accept it. The hook refuses only when the
+answering server provably carries its state-root flag; for a server you have not re-registered it
+allows the call with an advisory to re-run setup. It never refuses a tool that only reads a path
+(an upload) or a call with no destination.
+
+Files the servers write on their own (playwright's auto-named files, pagecast recordings, older than
+24 hours) and `visual/adhoc/<slug>/` captures no skill owns (older than 30 days) are pruned when the
+eager server starts and at session end.
+
+> **After every plugin update, re-run `/odoo-ai-agents:odoo-setup browser`, then restart the
+> session** (MCP does not hot-reload). Setup compares each registered family with the spec it would
+> write now (pin, flags, environment, state root) and **replaces** a drifted entry rather than
+> merging into it. This applies to all three runtimes:
+> - **Claude Code** - the SessionStart hint prints `browser MCP flags outdated (...)` when a
+>   registration differs from the current spec.
+> - **Codex CLI and Gemini CLI** - their session hooks do not run that probe, so there is no
+>   nudge; re-run the command yourself after updating. The Codex bundle's own eager entry is
+>   pinned but carries no state-root flag until step 10 registers the family.
 
 > **Opt-out (browser-free host).** To also stop the eager `chrome-devtools` from loading, add
 > `"disabledMcpjsonServers": ["chrome-devtools"]` to your Claude settings (`~/.claude/settings.json`)
@@ -231,11 +269,11 @@ Each supported AI runtime ships the EAGER `chrome-devtools` family as part of th
 bundle; the five opt-in families are wired on demand. For most users, install the plugin and
 the eager server is wired automatically:
 
-| Runtime | Bundle file | Install command | Dedup behaviour |
-|---------|-------------|-----------------|-----------------|
-| **Claude Code** | `.mcp.json` (auto-loaded on plugin install; eager `chrome-devtools` only) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped - normal, not an error. No extra step. |
-| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo - use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
-| **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
+| Runtime | Bundle file | Install command | Notes |
+|---------|-------------|-----------------|-------|
+| **Claude Code** | `.mcp.json` (auto-loaded on plugin install; eager `chrome-devtools` only) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Started by the `browser_mcp_launch.py` launcher, so the state-root flag is applied at every start. No extra step beyond the re-run after an update. |
+| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Started through the same `python3` launcher. Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo - use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
+| **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | The bundled eager entry is a pinned `npx` command without the state-root flag; run `/odoo-ai-agents:odoo-setup browser` so step 10 registers it with the flag. Dedup is by server name. |
 
 > **Fallback for Codex / Gemini non-native installs:** run
 > `/odoo-ai-agents:odoo-setup runtime` - it writes the correct config for each
@@ -256,12 +294,14 @@ drop-in. What it does:
 1. **Browser MCP** - wires the browser families on demand: step 10 registers them into Codex
    CLI and Gemini CLI; step 12 registers Claude's five opt-in families at user scope. Claude's
    eager `chrome-devtools` comes from the bundled `.mcp.json`, so neither step writes it to
-   `~/.claude.json`. Packages are pinned (no `@latest`).
+   `~/.claude.json`. Packages are pinned to exact versions; a registration that differs from the
+   current spec (older pin, missing state-root flag, moved state root) is replaced, not merged.
 2. **Browser deps** - checks Node >= 20; pre-installs the 3 pinned browser MCP packages ON
    DISK (npm cache warm - install only, never launched: disk cost, zero RAM cost, and strictly
    separate from step 12's register/run); installs Playwright Chromium; checks `ffmpeg`.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions
-   (`30-permissions`), plus the narrow set of state-root Bash/Read/Edit
+   (`30-permissions`; the allow-list covers all six families, so a re-registration needs no
+   permission change), plus the narrow set of state-root Bash/Read/Edit
    rules the planning pipeline needs to resolve and write under `$ODOO_AI_HOME`
    without a per-call prompt (`32-permissions-state-root`). The state-root
    write rules cover ONLY `$ODOO_AI_HOME/projects/**` - both the plan (SHARE)
@@ -292,7 +332,7 @@ drop-in. What it does:
 6. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
-`/odoo-ai-agents:odoo-setup` whenever a dependency is missing.
+`/odoo-ai-agents:odoo-setup` whenever a dependency is missing. The same hint prints `browser MCP flags outdated` when a registered browser server differs from the current spec (see the re-run note above).
 
 ### Cross-runtime MCP wiring (what `/odoo-setup runtime` writes)
 
@@ -302,7 +342,7 @@ shape for each, merging idempotently into existing config:
 
 | Runtime | Config file | Schema | Note |
 |---------|-------------|--------|------|
-| Claude Code | user-scope MCP registry (`claude mcp add --scope user`) | pinned `npx` stdio | Eager `chrome-devtools` comes from the bundled `.mcp.json` (never written to `~/.claude.json` - a duplicate is what causes the "skipped" notes). Step 12 registers ONLY the five opt-in families at user scope, on demand. |
+| Claude Code | user-scope MCP registry (`claude mcp add --scope user`) | pinned `npx` stdio | Eager `chrome-devtools` comes from the bundled `.mcp.json` (never written to `~/.claude.json`). Step 12 registers ONLY the five opt-in families at user scope, on demand, and replaces any that drifted from the current spec. |
 | Codex CLI | `~/.codex/config.toml` | TOML - `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
 | Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON - per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
 
