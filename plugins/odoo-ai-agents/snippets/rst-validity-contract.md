@@ -48,6 +48,8 @@ in ANOTHER file renders an "Unknown target name" `system_message`. Use one of:
 NEVER use `:ref:` (banned by rule 1) and never use an internal `` `Title`_ `` reference that
 crosses a file boundary - internal references stay inside their own document.
 
+Image paths and links to another module follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
+
 ## 4. Titles - underline-only, exact length
 
 Every title (top-level or subsection) is underline-only - no overline. Use a consistent

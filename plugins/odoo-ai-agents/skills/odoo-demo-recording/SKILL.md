@@ -120,19 +120,31 @@ clean, repeatable demo state (known record, expanded menu, top of page).
 
 ### Round 3 - Record the take (browser)
 
-Start the recorder, then drive the planned path with `click` / `fill` / `fill_form` / `hover`,
-pausing briefly on key screens. Capture `take_screenshot` key frames for the poster and as GIF
-fallback. Stop the recorder by name - `stop_recording` (pagecast) - then CLOSE the page you drove
-this round (`close_page` / `browser_close`) before moving to Round 4. Both steps are mandatory for
-EVERY recording round, including a retake. Full rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+The recorder and the browser that drives the path must be the SAME browser, or the take records
+nothing of the drive:
+
+- **pagecast:** `record_page` records its OWN private browser context, so chrome-devtools actions
+  are NOT in the recording. Drive the path inside pagecast (`interact_page` actions, or
+  `record_and_gif`); never drive with chrome-devtools while a pagecast recording runs. Immediately
+  after `stop_recording`, `mv` the `.webm` it returns into `<ISOLATE_DIR>/visual/videos/`.
+- **playwright:** `browser_start_video` with `filename` = the absolute path
+  `<ISOLATE_DIR>/visual/videos/<stem>.webm`, drive with the playwright tools in that same browser,
+  then `browser_stop_video`.
+
+Pause briefly on key screens. Capture `take_screenshot` key frames (poster, GIF fallback) to the
+absolute path `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` (`filePath`; NN zero-padded in step
+order), `<stem>` being the slug Round 4 mints - mint it before the first capture. Delete the frames
+once the video/GIF is assembled (a frame sequence that IS the deliverable stays). Stop the recorder, then CLOSE every page you DROVE this round
+before moving to Round 4. Both steps are mandatory for EVERY recording round, including a retake.
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0 and T2 - Browser: close
+what you drove.
 
 ### Round 4 - Produce the artifact
 
 `visual/videos/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol
 (captured path shown as `<ISOLATE_DIR>` below).
 
-**Mint the filename slug ONCE, before the orphan sweep below.** `<feature>-<YYYYMMDD>-<4 random
+**Mint the filename slug ONCE, before the first Round 3 capture and the orphan sweep below.** `<feature>-<YYYYMMDD>-<4 random
 chars>` - the IDENTICAL collision-proof suffix mechanism the four sibling `visual/*/<slug>/`
 evidence directories use, applied here to a filename instead of a directory (`<feature>` plays the
 role of `<intent-slug>`); SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
@@ -216,12 +228,14 @@ verdict (`VERDICT_STATUS` plus expected/observed text). Absent all four, run Rou
 - **playwright wired:** `browser_start_video` before the first step; drive with playwright's own
   `browser_click` / `browser_fill_form` / `browser_type`, updating the caption via
   `browser_evaluate` immediately before each action; hold the end-card on screen >= 2s before
-  `browser_stop_video`. Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
+  `browser_stop_video` (the start call names an absolute `filename` under
+  `<ISOLATE_DIR>/visual/videos/` per Round 3). Convert the result with pagecast's `convert_to_mp4` / `convert_to_gif` -
   a pure file-format conversion (both take a file path, not a live session), so this cross-family
   reuse needs no new capability.
 - **chrome-devtools only:** `take_screenshot` one frame per step AFTER the caption update and the
   action complete (the frame must show the rendered result, not the pending state - see Grounding
-  rule below), plus one final frame of the held end-card. This is the SAME screenshot-frame path
+  rule below), plus one final frame of the held end-card; each frame goes to
+  `<ISOLATE_DIR>/visual/videos/<stem>-frameNN.png` per Round 3. This is the SAME screenshot-frame path
   the base flow already uses when the recorder is unreachable (`## Standalone-first fallback`
   below) - reused deliberately here, not a second assembly path. If no frame-to-clip assembler is
   configured in the deployment, the ordered PNG sequence itself IS the deliverable - report it as

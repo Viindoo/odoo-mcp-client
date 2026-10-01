@@ -35,6 +35,10 @@
 #     healing leak. Their count is only inferable from the transcript (open/close
 #     calls), which is fuzzy. So browser findings are ADVISORY ONLY (systemMessage,
 #     NEVER decision:block) on both SubagentStop and Stop - prevention + a nudge.
+#     A chrome-devtools page counts as DRIVEN whether this agent opened it (new_page)
+#     or reused one (navigate_page); the server refuses to close its last page, so
+#     the rule nudged here is "close every page but one, then navigate that one to
+#     about:blank" - read from the URL of the last new_page / navigate_page call.
 #
 # CONTRACT (Claude Code Stop / SubagentStop): stdin JSON has transcript_path,
 # stop_hook_active, hook_event_name; SubagentStop also carries agent_transcript_path.
@@ -106,10 +110,16 @@ _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' 
 # namespace is matched for free. Each CALL line is "CALL\t<name>\t<cmd>"; `[^\t]*__<name>\t`
 # anchors on the name field ending in __<name>.
 
-# chrome-devtools: ACQUIRE = new_page ONLY; RELEASE = close_page. navigate_page / select_page /
-# list_pages NEVER count (matching them would false-block the repo's one-page-reuse discipline).
+# chrome-devtools: OPEN = new_page, CLOSE = close_page, DRIVE = new_page or navigate_page (a reused
+# page is driven too). The last page cannot be closed, so it must end on about:blank: the URL of
+# the LAST new_page / navigate_page call is the third CALL field (final-report.sh). A navigate_page
+# with no url (back / forward / reload) left the page on a real URL, so it is not about:blank.
+# select_page / list_pages never count.
 NEW_PAGE=$(_cnt $'^CALL\t[^\t]*__new_page\t')
 CLOSE_PAGE=$(_cnt $'^CALL\t[^\t]*__close_page\t')
+CD_NAVIGATE=$(_cnt $'^CALL\t[^\t]*__navigate_page\t')
+CD_DRIVE=$(( NEW_PAGE + CD_NAVIGATE ))
+CD_LAST_URL="$(printf '%s\n' "$NORM" | grep -E $'^CALL\t[^\t]*__(new_page|navigate_page)\t' 2>/dev/null | tail -n 1 | cut -f3 || true)"
 
 # playwright: a page is IMPLICIT and close is close-ALL (one browser_close satisfies any number
 # of opens). DRIVE = any browser_* call EXCEPT the lifecycle verbs (close + video/tracing pairs +
@@ -136,13 +146,15 @@ PW_ETRACE=$(_cnt $'^CALL\t[^\t]*__browser_stop_tracing\t')
 RECORD=$(_cnt $'^CALL\t[^\t]*__record_page\t')
 STOP_REC=$(_cnt $'^CALL\t[^\t]*__stop_recording\t')
 
-BROWSER_ANY=$(( NEW_PAGE + CLOSE_PAGE + PW_ALL + RECORD + STOP_REC ))
+BROWSER_ANY=$(( CD_DRIVE + CLOSE_PAGE + PW_ALL + RECORD + STOP_REC ))
 
 # Build the ADVISORY message (concrete unmatched counts). Never blocks.
 BROWSER_MSG=""
 _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; else BROWSER_MSG="$1"; fi; }
 [[ "$NEW_PAGE" -gt "$CLOSE_PAGE" ]] && \
-  _add_note "$NEW_PAGE new_page vs $CLOSE_PAGE close_page - close the chrome-devtools pages you created before your terminal status"
+  _add_note "$NEW_PAGE new_page vs $CLOSE_PAGE close_page - close every chrome-devtools page but one before your terminal status (list_pages, then close_page each extra page)"
+[[ "$CD_DRIVE" -gt 0 && "$CD_LAST_URL" != "about:blank" ]] && \
+  _add_note "chrome-devtools: your last navigation left a page on ${CD_LAST_URL:-a non-blank page} - navigate_page the page you keep to about:blank before your terminal status"
 [[ "$PW_DRIVE" -gt 0 && "$PW_CLOSE" -eq 0 && "$PW_TABS" -eq 0 ]] && \
   _add_note "playwright: $PW_DRIVE driving call(s) with 0 browser_close - one browser_close closes everything you drove; call it before your terminal status"
 [[ "$PW_SVIDEO" -gt "$PW_EVIDEO" ]] && \

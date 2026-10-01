@@ -28,11 +28,10 @@
 # preflight is how "without" becomes a diagnosable answer instead of a silent no-op.
 #
 # CONTRACT
-#   PY3                     - the interpreter every caller should invoke, set by this file.
-#                             `$ODOO_AI_PYTHON3` wins when set, so an operator can name an
-#                             interpreter without touching PATH.
 #   require_python3 [label] [module ...]
-#                           - 0 when PY3 runs AND can import every named module; otherwise
+#                           - 0 when the `python3` on PATH - the interpreter every step and
+#                             hook actually runs - starts AND can import every named module;
+#                             otherwise
 #                             prints a precise, actionable refusal on stderr and returns 1.
 #                             Modules default to `tomllib` (3.11+), which is what reading
 #                             instances.toml needs. A caller that only parses JSON should say
@@ -44,23 +43,21 @@
 # `2>/dev/null` call sites alone, because once the interpreter is known good their silence
 # means what it was always meant to mean - no data, rather than no interpreter.
 
-PY3="${ODOO_AI_PYTHON3:-python3}"
-
 require_python3() {
     local label="${1:-this step}"; shift || true
     local out rc=0 resolved="" mods="" m
     for m in "${@:-tomllib}"; do mods="${mods:+$mods, }$m"; done
-    out="$("$PY3" -c "import sys, $mods; sys.stdout.write(sys.executable)" 2>&1)" || rc=$?
+    out="$(python3 -c "import sys, $mods; sys.stdout.write(sys.executable)" 2>&1)" || rc=$?
     if [[ "$rc" -eq 0 && -n "$out" ]]; then
         return 0
     fi
 
-    resolved="$(command -v "$PY3" 2>/dev/null || true)"
+    resolved="$(command -v python3 2>/dev/null || true)"
     echo "x $label needs a working python3 and this host does not provide one." >&2
     if [[ -z "$resolved" ]]; then
-        echo "  '$PY3' is not on PATH at all." >&2
+        echo "  'python3' is not on PATH at all." >&2
     else
-        echo "  '$PY3' resolves to $resolved but running it failed (exit $rc):" >&2
+        echo "  'python3' resolves to $resolved but running it failed (exit $rc):" >&2
         printf '    %s\n' "${out:-<no output>}" >&2
     fi
     echo "  This is reported HERE, at the interpreter, because every step downstream reads the" >&2
@@ -69,8 +66,8 @@ require_python3() {
     echo "  Choose ONE:" >&2
     echo "    - install a python3 providing: $mods" >&2
     echo "      (tomllib means 3.11 or newer - it is how instances.toml is read); or" >&2
-    echo "    - if one IS installed but not on PATH - a pyenv/asdf/mise shim that resolves to" >&2
-    echo "      nothing here is the common case - export ODOO_AI_PYTHON3=/full/path/to/python3" >&2
-    echo "      and re-run this step." >&2
+    echo "    - if one IS installed, put it first on PATH and re-run this step: deactivate an" >&2
+    echo "      activated Odoo venv (its python3 shadows the system one), or fix the" >&2
+    echo "      pyenv/asdf/mise shim that resolves to nothing here." >&2
     return 1
 }

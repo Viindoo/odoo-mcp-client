@@ -1,17 +1,14 @@
 """Behavior/contract tests for the OPT-IN browser MCP wiring.
 
-Only ONE browser family is eager (chrome-devtools, in .mcp.json - see
-test_browser_mcp.py). The other five are OPT-IN, wired on demand by the
-odoo-setup steps from the SSOT `scripts/lib/browser-mcp-servers.sh`. The five
-per-family invariants that used to live in test_browser_mcp.py (correct pinned
-package, headed/headless flag, --isolated for chrome/playwright but not
-pagecast, headed shares its default's package) are RELOCATED here - they now
-protect the WIRING the setup steps emit, not the (now single-server) .mcp.json.
+Only ONE browser family is eager (chrome-devtools, in .mcp.json - see test_browser_mcp.py). The
+other five are OPT-IN, wired on demand by the odoo-setup steps from the SSOT
+`scripts/lib/browser_mcp_servers.py`, read by the steps through `browser-mcp-servers.sh`.
 
-We assert the invariants against `browser_mcp_npx_args` (the shell SSOT the
-wiring steps consume) so the args the step registers are exactly right, and we
-assert the new Claude opt-in step (12-browser-mcp-optin.sh) uses
-`claude mcp add --scope user` over the five opt-in families.
+The per-family invariants (exact pinned package, headed/headless flag, --isolated for
+chrome/playwright but not pagecast, headed shares its default's package) are asserted against
+`browser_mcp_npx_args` - what the wiring steps consume - and the step's registration through
+`claude mcp add --scope user` with the RESOLVED launch spec. The drift behaviour (check reports a
+stale registration, apply removes and re-adds it) is in test_setup_browser_drift.py.
 
 Stdlib + bash only.
 """
@@ -47,14 +44,19 @@ HEADED_OPTIN = {"chrome-devtools-headed", "playwright-headed", "pagecast-headed"
 # chrome-devtools/playwright pass --isolated; pagecast never does.
 ISOLATED_OPTIN = {"chrome-devtools-headed", "playwright", "playwright-headed"}
 NO_ISOLATED_OPTIN = {"pagecast", "pagecast-headed"}
-# Expected pinned package per family (data-driven; current published major).
+# Expected package per family; the version is checked separately (exact, never a range).
 EXPECTED_PKG = {
-    "chrome-devtools-headed": "chrome-devtools-mcp@1",
-    "playwright": "@playwright/mcp@0",
-    "playwright-headed": "@playwright/mcp@0",
-    "pagecast": "@mcpware/pagecast@0",
-    "pagecast-headed": "@mcpware/pagecast@0",
+    "chrome-devtools-headed": "chrome-devtools-mcp",
+    "playwright": "@playwright/mcp",
+    "playwright-headed": "@playwright/mcp",
+    "pagecast": "@mcpware/pagecast",
+    "pagecast-headed": "@mcpware/pagecast",
 }
+EXACT = re.compile(r"^(@?[^@]+)@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$")
+
+
+def _clean_env():
+    return {k: v for k, v in os.environ.items() if not k.startswith("BROWSER_MCP_")}
 
 
 def _npx_args(server: str) -> list[str]:
@@ -62,7 +64,7 @@ def _npx_args(server: str) -> list[str]:
     assert LIB.is_file(), f"missing SSOT lib: {LIB}"
     res = subprocess.run(
         ["bash", "-c", f'. "{LIB}"; browser_mcp_npx_args "$1"', "_", server],
-        capture_output=True, text=True,
+        capture_output=True, text=True, env=_clean_env(),
     )
     assert res.returncode == 0, f"browser_mcp_npx_args {server} failed: {res.stderr}"
     return [ln for ln in res.stdout.splitlines() if ln != ""]
@@ -91,16 +93,13 @@ def test_eager_family_not_in_optin_list():
 
 @requires_bash
 @pytest.mark.parametrize("server", OPTIN_SERVERS)
-def test_optin_family_package_is_pinned(server):
-    """Each opt-in family must launch its expected pinned package, never @latest."""
+def test_optin_family_package_is_pinned_to_an_exact_version(server):
+    """`npx -y pkg@1` reuses whatever 1.x the machine's npm cache holds; only an exact version
+    makes the file-write rules the same on every machine."""
     args = _npx_args(server)
-    pkgs = [a for a in args if "@" in a]
-    assert pkgs, f"{server} must name a pinned npm package (got {args})"
-    assert EXPECTED_PKG[server] in pkgs, (
-        f"{server} must pin {EXPECTED_PKG[server]!r} (got {pkgs})"
-    )
-    for pkg in pkgs:
-        assert not pkg.endswith("@latest"), f"{server} must be pinned, not @latest ({pkg})"
+    m = EXACT.match(args[0])
+    assert m, f"{server} must launch an exactly pinned package first (got {args})"
+    assert m.group(1) == EXPECTED_PKG[server], f"{server} launches the wrong package: {args[0]}"
 
 
 @requires_bash
@@ -129,25 +128,19 @@ def test_pagecast_optin_omits_isolated(server):
 
 @requires_bash
 def test_headed_variant_shares_package_with_headless_default():
-    """A -headed opt-in family must launch the same package as its headless sibling."""
-    for backend in ("playwright", "pagecast"):
-        default_pkgs = [a for a in _npx_args(backend) if "@" in a]
-        headed_pkgs = [a for a in _npx_args(f"{backend}-headed") if "@" in a]
-        assert default_pkgs == headed_pkgs, (
-            f"{backend}-headed must launch the same package as {backend} "
-            f"({default_pkgs} vs {headed_pkgs})"
-        )
-    # chrome-devtools-headed shares the eager chrome-devtools package.
-    assert [a for a in _npx_args("chrome-devtools-headed") if "@" in a] == ["chrome-devtools-mcp@1"]
+    """A -headed family must launch the same package as its headless sibling."""
+    for backend in ("chrome-devtools", "playwright", "pagecast"):
+        assert _npx_args(backend)[0] == _npx_args(f"{backend}-headed")[0], backend
 
 
-def test_claude_optin_step_uses_user_scope_add():
-    """The Claude opt-in step must register families with `claude mcp add --scope user`."""
+def test_claude_optin_step_registers_the_resolved_spec_at_user_scope():
+    """The Claude opt-in step registers each family with `claude mcp add --scope user`, from the
+    resolved launch spec (state-root flags included), and replaces a drifted entry."""
     text = STEP12.read_text(encoding="utf-8")
     assert "mcp add --scope user" in text, "step 12 must wire families at user scope"
-    assert "-- npx -y" in text, "step 12 must register a local npx stdio server"
+    assert "mcp remove --scope user" in text, "step 12 must remove a drifted entry before re-adding"
     assert "BROWSER_MCP_OPTIN_SERVERS" in text, "step 12 must iterate the opt-in family SSOT"
-    assert "browser_mcp_npx_args" in text, "step 12 must source args from the SSOT lib"
+    assert "browser_mcp_spec" in text, "step 12 must register the SSOT's resolved launch spec"
 
 
 def test_claude_optin_step_documents_disabled_optout():
@@ -157,7 +150,7 @@ def test_claude_optin_step_documents_disabled_optout():
 
 
 def test_both_steps_source_the_shared_ssot():
-    """Codex/Gemini (step 10) and Claude (step 12) share ONE npx-args SSOT."""
+    """Codex/Gemini (step 10) and Claude (step 12) share ONE launch SSOT."""
     for step in (STEP10, STEP12):
         assert "browser-mcp-servers.sh" in step.read_text(encoding="utf-8"), (
             f"{step.name} must source the shared browser-mcp-servers.sh SSOT"

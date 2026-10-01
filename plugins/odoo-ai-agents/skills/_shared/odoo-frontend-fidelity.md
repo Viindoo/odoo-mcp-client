@@ -158,8 +158,8 @@ Never trust that an edit "took" - read the computed value:
 
 1. Read computed styles on `:root` + representative elements -> list RESOLVE vs EMPTY; detect
    self-ref cycles and transparent surfaces.
-2. Edit SCSS -> recompile the asset bundle (`--dev=assets` or restart) -> screenshot + re-read
-   computed styles.
+2. Edit SCSS -> recompile the asset bundle (`--dev=assets` or restart) -> screenshot (destination: state-root-resolution.md
+   § Where a captured artifact goes) + re-read computed styles.
 3. Iterate until tokens resolve and the UI matches the mockup.
 
 ### D. Mockup-first

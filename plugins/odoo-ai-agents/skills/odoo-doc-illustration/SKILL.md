@@ -25,8 +25,9 @@ and embed them into durable module documentation - `odoo-user-doc-writer` (end-u
 scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
 SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
 code+doc product-lifecycle plan.
-Captured images land in the module's `static/description/` so they survive across sessions and
-git commits. NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
+Captured images land where each target doc resolves them (`references/capture-mechanics.md`
+§ Place finals where the target doc resolves them) so they survive across sessions and git commits.
+NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
 to EMBED into docs.
 
 ## Out of Scope
@@ -68,11 +69,11 @@ this run's own `<run_id>` exists below).** The end-of-run staging cleanup below 
 clean finish - a run that crashed, was killed, or was abandoned mid-loop leaks its
 `visual/<run_id>/` dir forever unless a later run reaps it. `visual/` itself is NOT a `<run_id>/`
 directory - it is the shared parent of `baselines/`, `doc/` (SHARE, reusable - NEVER sweep) and
-`current/`, `qa/`, `debug/`, `screenshots/`, `videos/` (other skills' OWN sibling ISOLATE trees -
+`current/`, `qa/`, `debug/`, `screenshots/`, `videos/`, `adhoc/` (other owners' sibling ISOLATE trees -
 NEVER sweep, they are not `<run_id>/` dirs and this skill does not own them), so the sweep MUST
-exclude all seven by name rather than blindly sweeping every `visual/` child:
+exclude all eight by name rather than blindly sweeping every `visual/` child:
 
-`find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos -mmin +1440 -exec rm -rf {} +`
+`find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos ! -name adhoc -mmin +1440 -exec rm -rf {} +`
 
 (any remaining child - by construction only a `<run_id>/` dir - untouched for over 24h is
 presumed abandoned; a healthy doc run finishes well inside that window). Full rule + bound
@@ -151,8 +152,11 @@ PARALLEL across independent instance-paths up to
       env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
       no consumer sets a writer's model - model authority stays with this orchestrator.
    4. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
-      completion block (files exist at the reported paths), then COMMIT M's docs via git-toolkit
-      `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
+      completion block (files exist at the reported paths), then run the doc reference gate on M
+      (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
+      resolved series) - a finding sends M back to its writer, exit 2 stops the run `NEEDS_CONTEXT`.
+      Only on exit 0 COMMIT M's docs via git-toolkit `git-ops` (per-module commit, one-way git; the
+      skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
 3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
    delta (step B, init-delta on the SAME DB) then ensure-up (step C), and repeat step 2 for M+1.
@@ -171,11 +175,10 @@ BEFORE emitting the aggregate index, delete this run's transient capture staging
 §State dir resolution above (the identical literal every writer this run staged under, per the
 `SHARE_DIR:`/`ISOLATE_DIR:` fields in §Writer dispatch briefs) - do NOT re-resolve here, then:
 ```
-rm -rf <ISOLATE_DIR>/visual/<run_id>/ .playwright-mcp/<run_id>/
+rm -rf <ISOLATE_DIR>/visual/<run_id>/
 ```
-HARD RULE: never `rm` another run's subtree (no bare `<ISOLATE_DIR>/visual/` or `.playwright-mcp/`); the
-final committed images already live in each module's `static/description/` (or `doc/`), so removing
-the run-scoped staging loses nothing.
+HARD RULE: never `rm` another run's subtree (no bare `<ISOLATE_DIR>/visual/`); every final was
+already `mv`d out of staging into its module, so removing the run-scoped staging loses nothing.
 
 **Files vs teardown (distinct steps - do all three, in order).** The staging `rm -rf` above handles
 FILES only - it is NOT resource teardown; see
@@ -183,8 +186,8 @@ FILES only - it is NOT resource teardown; see
 emitting the aggregate index, also: (a) RELEASE EVERY path-incremental lease this run provisioned (one per
 instance-path, so one per independent branch) via `odoo-instance` step E (or
 `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` with each handle's `lease_token` and this
-run's run_id) - never leave any path's last instance leased (If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md); (b) CLOSE every browser page a writer opened this run (`list_pages`, then `close_page` for
-any stray this run created).
+run's run_id) - never leave any path's last instance leased (If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md); (b) tear down every browser page this run drove, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 (end of dispatch, by family).
 
 Then emit one aggregate index per run (`doc-run-<run_id>/index.jsonl`) listing every output path.
 
@@ -201,7 +204,7 @@ agent does not inherit this skill's cwd, per `${CLAUDE_PLUGIN_ROOT}/snippets/dis
 field 5 § Universal skeleton) using `ADDONS_PATH` (resolved per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) before falling back to a disk scan. Omitting an axis field
 preserves today's behavior (see Documentation axes). Shared
-browser-capture mechanics (2-tier write, headless/headed, on-theme check per
+browser-capture mechanics (staging, framing, finals placement, headless/headed, on-theme check per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a screen with an empty or
 self-referential token resolves off-theme and must be skipped, never embedded in shipped docs -
 per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanics.md`; the skill
@@ -211,8 +214,7 @@ Both briefs carry `RUN_ID: <run-or-slug>` - REUSE the run's worklog run-or-slug 
 `doc-run-<run_id>/index.jsonl`); do NOT mint a new id. Both briefs ALSO carry `WORKTREE_PATH:` /
 `SHARE_DIR:` / `ISOLATE_DIR:` - the SAME absolute paths captured ONCE at §State dir resolution
 above; writers use them literally per `references/capture-mechanics.md` section 3, never
-re-resolving (WORKTREE_PATH is the cwd that section's Branch selection assumes - `cd` there first
-if the agent's shell cwd differs). The writers
+re-resolving. The writers
 stage captures under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/...` (using the passed
 `ISOLATE_DIR` literal), so two modules or concurrent runs never clobber each other, and the
 end-of-run cleanup (which reuses the same literal) always finds the real staging tree.
@@ -395,8 +397,9 @@ self-checks that the module is installed and behaves as today.
 
 **extends_in_scope (cross-reference hint).** An optional list of in-scope base module names (from the
 planner/scoper `depends_in_scope ∩ doc:true` set). When non-empty, the writer inserts one
-cross-reference per base - "Extends `<base>` - see its documentation" (a relative link when the base
-shares the addons path) - into `doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
+cross-reference per base - "Extends `<base>` - see its documentation", linked per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module - into
+`doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
 `static/description/index.html` (`odoo-marketing-writer`, after the hero). Absent/empty -> nothing
 added; default behavior preserved.
 

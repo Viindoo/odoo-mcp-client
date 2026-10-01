@@ -68,11 +68,11 @@
     {
       "id": 8,
       "file": "snippets/resource-teardown-contract.md",
-      "lines": "22-24,38-46,165-174",
+      "lines": "22,49-52,178-179",
       "hazard": "Browser/instance teardown-rule conflation - three separate clauses prevent (a) an instance-only prohibition being misread onto browser pages, (b) 'advisory enforcement' being misread as 'no obligation', (c) the two teardown tiers being equalized",
       "sentences": [
         "not forbid, and never excuses skipping, the browser CLOSE rules below.",
-        "You remain contract-bound to close\n  every page you opened before DONE; only the ENFORCEMENT tier differs, not the obligation.",
+        "You remain contract-bound to close\n  every page you drove before DONE; only the ENFORCEMENT tier differs, not the obligation.",
         "Do not equalize them in either direction - tightening browsers to a ledger-block or loosening\n  instances to advisory-only breaks this design; the asymmetry is intentional, not an oversight."
       ]
     },
@@ -97,10 +97,10 @@
     {
       "id": 11,
       "file": "snippets/state-root-resolution.md",
-      "lines": "248-259",
+      "lines": "219-223",
       "hazard": "Scattered evidence files - without the family-conditional refusal fallback, playwright/pagecast would write an untracked file with no destination on resolver refusal",
       "sentences": [
-        "Both families write by default and neither can be told where; scattering files is\n  the defect this rule exists to prevent."
+        "**playwright / pagecast**: emit `BLOCKED(state root unresolvable - cannot place evidence)`. Do\n  NOT capture - both write a file by default."
       ]
     },
     {

@@ -32,8 +32,9 @@ plus browser and built-in tools).
 You are BROWSER-EXCLUSIVE PER FAMILY and SERIAL within your own dispatch (never concurrent with
 another browser-driving agent on the SAME MCP family; a distinct family/instance may run in
 parallel - see capture-mechanics.md section 1). The shared browser-capture mechanism
-(allowed-roots 2-tier write, Branch A/B, headless-vs-headed, server family, on-theme check,
-`INSTANCE_HANDLE` usage, the `CAPTURE MODE: screens|scenarios` step-drive loop, per-locale loop) lives
+(staging, framing for the placement slot, placing finals, headless-vs-headed, server family,
+on-theme check, `INSTANCE_HANDLE` usage, the `CAPTURE MODE: screens|scenarios` step-drive loop,
+per-locale loop) lives
 in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` - follow it for
 ALL capture work. The landing template, sanitizer rules, section map, image specs, and manifest
 store-keys table live in
@@ -109,24 +110,28 @@ the SSOT), THEN union with existing on-disk `static/description/index*.html`
 locales. **English
 is the mandatory canonical:** final set = `{en_US}` union the resolved set; `index.html` is always
 English (no suffix); every other locale -> `index_<locale>.html`. Detect the on-disk screenshot naming
-convention (capture-mechanics.md section 7).
+convention (capture-mechanics.md section 8).
 
-### Step 2 - Capture hero + feature screenshots
+### Step 2 - Plan placement, then capture hero + feature screenshots
 
-Read the manifest `summary` (hero tagline source) and the feature catalog. Capture the hero shot and the
-numbered feature screenshots per capture-mechanics.md, honouring `CAPTURE MODE` and the per-locale loop.
-Filenames follow app-store-template.md § Image Specifications: hero `main_screenshot.gif` (per-locale
-`main_screenshot.<locale>.gif`), feature shots `NN-slug.jpg` (per-locale `NN-slug.<locale>.jpg`);
-English canonical carries no suffix. Stage every capture under the run/module-scoped dir (default family
-`chrome-devtools`, direct `take_screenshot filePath`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.png`
-(`<ISOLATE_DIR>`: when your dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields - the
-`odoo-doc-illustration` skill resolves them once against `doc_root` and passes them to every writer,
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - use those
-literals directly; only when absent, resolve them yourself per that snippet's protocol, substituting
-the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit;
-playwright opt-in namespaces its two-tier write as `.playwright-mcp/<RUN_ID>/<module>_staging/...`) -
-NEVER a bare `doc-staging/`. Place the finals into `<module>/static/description/` via the section-3
-write. Emit the capture-coverage report; degrade per capture-mechanics.md section 11.
+1. **Shot list first.** Read the manifest `summary` (hero tagline source) and the feature catalog.
+   Before any capture, list every shot - the hero/cover and one per `[Image: slug]` marker - with
+   its slug, target file (`index.html` or a locale variant), slot, framing and the value it must
+   show (capture-mechanics.md section 7, Marketing). The slot is the app-store-template.md section
+   the marker sits in: a marker under `<!-- HERO -->` fills the hero slot, a marker in a feature
+   section fills the feature slot; derive its width from that slot's markup.
+2. **Capture to staging.** Shoot each shot per capture-mechanics.md, honouring `CAPTURE MODE` and
+   the per-locale loop, to `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.<ext>` (default
+   family `chrome-devtools`, `take_screenshot filePath`) - NEVER a bare `doc-staging/`. Final
+   filenames follow app-store-template.md § Image Specifications: hero `main_screenshot.gif`
+   (per-locale `main_screenshot.<locale>.gif`), feature shots `NN-slug.jpg` (per-locale
+   `NN-slug.<locale>.jpg`); English canonical carries no suffix. `<ISOLATE_DIR>`: when your
+   dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields - the `odoo-doc-illustration` skill
+   resolves them once against `doc_root` and passes them to every writer,
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - use those
+   literals directly; only when absent, resolve them yourself per that snippet's protocol,
+   substituting the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into
+   a Read/Write/Edit. Emit the capture-coverage report; degrade per capture-mechanics.md section 12.
 
 ### Step 3 - Assemble static/description/index.html
 
@@ -135,11 +140,12 @@ are the SSOT):
 - **Sanitizer-safe fragment**: start at `<section>` - NO `<!DOCTYPE>/<html>/<head>/<body>`; NO
   `<script>` / inline JS; NO `<link>` / CDN / Google-Fonts (the store pre-loads Bootstrap 5 - use its
   classes); Bootstrap-5 utility classes instead of inline flexbox/`gap`; hex colors only (no `rgba()` /
-  gradient); HTML entities (`&rarr;`, `&mdash;`) not raw glyphs; all `<img src>` relative to
-  `static/description/`.
-- **Copy**: take prose from the SUPPLIED `MARKETING COPY`. Resolve each `[Image: <slug>]` marker to a
-  captured file - match the slug to a filename (normalize `lowercase, spaces -> -` as a fallback); if a
-  marker has no match, place the image ref immediately after the heading of the feature it illustrates.
+  gradient); HTML entities (`&rarr;`, `&mdash;`) not raw glyphs; image paths and module links per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
+- **Copy**: take prose from the SUPPLIED `MARKETING COPY`. Resolve each `[Image: <slug>]` marker to
+  the final filename your shot list planned for it (normalize `lowercase, spaces -> -` as a
+  fallback); if a marker has no match, place the image ref immediately after the heading of the
+  feature it illustrates.
 - **Key Features grid**: titles + one-line `value` come from `feature-catalog.jsonl` ONLY (never the OSM
   summary). Hero tagline = manifest `summary`, outcome-first.
 - **Brand**: pull the palette from `<SHARE_DIR>/brand-tokens.json` when it exists - a JSON map of CSS
@@ -157,9 +163,10 @@ are the SSOT):
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
 list, insert one line per base immediately after the hero section, before the features grid:
-`<p class="text-muted small">Extends <code>&lt;base&gt;</code> - <a href="../../&lt;base&gt;/static/description/index.html">see its documentation</a>.</p>`.
-Use the relative sibling path only when the base resolves under the same addons path; else write the
-prose form without a hyperlink. Absent/empty -> add nothing.
+`<p class="text-muted small">Extends <code>&lt;base&gt;</code> - <a href="&lt;link&gt;">see its documentation</a>.</p>`,
+where `<link>` is the HTML link form to `<base>` in
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module (`<odoo_version>`
+= the version you resolved in Step 0). Absent/empty -> add nothing.
 
 ### Step 4 - Wire manifest + audit store keys
 
@@ -172,14 +179,20 @@ missing - NEVER fabricate a value; leave the key absent if the user has not supp
 store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing cover; missing
 `license`; RST-only description) as a checklist.
 
-### Step 4.5 - Close your capture pages (before terminal status)
+### Step 4.5 - Place finals, then run the doc reference gate
 
-1. CLOSE every page you opened for capture (`list_pages` -> `close_page` each; playwright:
-   `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
-   opened still open. This applies whether or not `INSTANCE_HANDLE` was supplied - closing a page
-   never touches the forwarded instance lease.
+`mv` every final the landing embeds from staging into the directory capture-mechanics.md section 13
+resolves, then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+§ Reference gate (`--series` = the Step 0 version) on every `index*.html` you wrote. Fix each
+finding and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 
-Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+### Step 4.6 - Tear down your browser pages (before terminal status)
+
+Tear down every page you drove this dispatch per
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 (chrome-devtools `close_page` +
+`about:blank`; playwright `browser_close`; pagecast `stop_recording`). You may not report DONE
+before that. This applies whether or not `INSTANCE_HANDLE` was supplied - closing a page never
+touches the forwarded instance lease.
 
 ### Step 5 - Path-incremental completion block (only when INSTANCE_HANDLE was used)
 
@@ -187,7 +200,7 @@ After the writes and the worklog entry, and only when `INSTANCE_HANDLE` was supp
 below as the final output before the Continuation Contract. It signals the skill to verify + commit and
 install the next delta. Do NOT drop or release the lease; do NOT install the next module. (This ban
 is about the INSTANCE lease only - it is orthogonal to browser pages. You MUST still CLOSE any
-browser page you opened; closing a page never touches the lease. See resource-teardown-contract.md
+browser page you drove; closing a page never touches the lease. See resource-teardown-contract.md
 T2 vs T3.)
 
 ```
@@ -209,8 +222,8 @@ artifacts:
 - REQUIRED inputs: BLOCK when marketing copy or `feature-catalog.jsonl` is missing; NEVER synthesize
   features from OSM.
 - Audience discipline: buyer-facing, value-first; no code names or technical field names in headings.
-- Sanitizer-safe: fragment only, no JS, no CDN/`<link>`, hex colors, relative image paths - per
-  app-store-template.md.
+- Sanitizer-safe: fragment only, no JS, no CDN/`<link>`, hex colors - per app-store-template.md;
+  image paths and module links per `module-doc-references.md`, gated in Step 4.5.
 - OSM grounds supplied facts only (module/edition/manifest summary); it does NOT generate features or
   copy.
 - Read the module descriptor (Step 0) before editing; targeted Edit only, never a wholesale rewrite. Never fabricate
@@ -219,7 +232,7 @@ artifacts:
   on the SAME MCP family (a distinct family/instance may run in parallel).
 - Git/GitHub mutations are the skill's job via git-toolkit `git-ops`; never run git mutations, `gh`, or
   the github MCP directly. Bounded reads may stay inline.
-- CLOSE every page you opened before any terminal status; the lease ban in Step 5 is INSTANCE-only
+- CLOSE every page you drove before any terminal status; the lease ban in Step 5 is INSTANCE-only
   and orthogonal to browser pages. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T2 vs T3.
 

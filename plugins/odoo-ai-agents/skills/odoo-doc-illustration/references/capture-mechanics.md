@@ -29,16 +29,16 @@ an isolated process with its own Chromium profile - no shared-DOM risk).
   the bundled `.mcp.json`); the others are OPT-IN and require the odoo-setup wiring step
   (`/odoo-ai-agents:odoo-setup browser`) before their tools exist:
   - **chrome-devtools (default)** - `mcp__plugin_odoo-ai-agents_chrome-devtools__*`: `navigate_page`,
-    `resize_page`, `take_screenshot` (accepts a configurable `filePath` - stage DIRECTLY, see section 3),
+    `emulate` (viewport + device pixel ratio, section 7), `take_screenshot` (`filePath`, section 3),
     `click` / `fill` / `fill_form` / `hover`, `evaluate_script`. Use for ALL standard capture steps,
     plus any Lighthouse / console-log illustration.
   - **playwright (OPT-IN)** - `mcp__plugin_odoo-ai-agents_playwright__*` (`browser_navigate`,
     `browser_take_screenshot`, `browser_resize`, `browser_evaluate`, `browser_fill_form`, ...). No
     longer eager; use only when the brief explicitly selects it AND it has been wired.
-  - **pagecast (OPT-IN)** - use ONLY when the brief asks for a banner GIF / short clip
+  - **pagecast (OPT-IN)** - use ONLY when the brief asks for a banner GIF / short video
     (`record_and_gif`); also requires the wiring step.
   The staging constraint (section 3) applies to every family. The generic verbs below
-  (navigate / resize / screenshot / fill) map to the chosen family's tool names above.
+  (navigate / emulate / screenshot / fill) map to the chosen family's tool names above.
 
 ## 2. Browser mode - headless by default
 
@@ -49,54 +49,32 @@ your own. Pick one variant for the whole run.
 
 ## 3. Run/module-scoped staging (mandatory for every capture)
 
-Every capture stages under a **run- and module-scoped** path so two modules (or two concurrent runs)
-never clobber each other's images. `<run_id>` is the brief's `RUN_ID` (the worklog run-or-slug -
-reuse it, never mint a new id); `<module>` is the module being documented. **NEVER stage into a bare
-`doc-staging/<...>` with no `<run_id>/<module>` prefix.** Both roots below are gitignored.
+Stage every capture, on every family, at the absolute path
+
+```
+<ISOLATE_DIR>/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.<ext>
+```
+
+per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes (the
+per-family parameter and the refused-path stop live there). `<run_id>` is the brief's `RUN_ID` (the
+worklog run-or-slug - reuse it, never mint a new id); `<module>` is the module being documented.
+**NEVER stage into a bare `doc-staging/<...>` with no `<run_id>/<module>` prefix.** `mkdir -p` the
+dir first. On chrome-devtools pass the path as `take_screenshot filePath` (never `path` - the schema
+accepts unknown keys silently, so the wrong key writes nothing).
 
 **`<ISOLATE_DIR>` resolution.** This staging tree is Tier-2 ISOLATE. Your dispatch brief carries
 `ISOLATE_DIR:` (the `odoo-doc-illustration` skill resolves it ONCE against `doc_root` and passes it
 to every writer + reuses it at its own end-of-run cleanup - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - use that
-literal directly below; do NOT re-resolve. Only when it is absent (standalone dispatch outside the
+literal directly; do NOT re-resolve. Only when it is absent (standalone dispatch outside the
 skill's pipeline) resolve it yourself via the resolve-capture-substitute protocol in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 
-- **Default family `chrome-devtools`** accepts a configurable `take_screenshot` `filePath`, so stage
-  DIRECTLY - no two-tier dance:
-  ```
-  <ISOLATE_DIR>/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.png
-  ```
-  Pass that path as `take_screenshot filePath` (never `path` - the schema accepts unknown keys
-  silently, so the wrong key writes nothing); `mkdir -p` its dir first. Read the returned
-  actual path, then Bash `cp`/`mv` (not MCP file tools) to place the image at its final destination
-  inside the module dir.
-- **OPT-IN family `playwright`** writes only inside its allowed roots (the MCP process cwd plus
-  `.playwright-mcp/`), so it keeps the two-tier write, now NAMESPACED by run + module:
-  1. Capture with a RELATIVE filename `<run_id>/<module>_staging/<scenario_id>-step<NN>.png`. The tool
-     writes to `<cwd>/.playwright-mcp/<run_id>/<module>_staging/...` and RETURNS the actual path.
-  2. READ the returned path, then Bash `cp`/`mv` to the final destination inside the module dir.
-  Never pass an absolute filename to playwright (OPT-IN); never pass
-  `--allow-unrestricted-file-access` (an absolute path outside the allowed roots is REJECTED: `File
-  access denied: ... outside allowed roots`). This absolute-path ban is SCOPED to the playwright/
-  pagecast opt-in families only - chrome-devtools (default) takes an absolute `filePath`, per the
-  bullet above.
-- **OPT-IN family `pagecast`** (GIF/clip only) stages its output dir under the same
-  `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` prefix.
-
-**Branch selection (decide once, before the capture loop):**
-- **Branch A (dest inside cwd):** if the final destination is a subpath of cwd
-  (`realpath --relative-base=<cwd> <dest>` returns no leading `../`), capture with the relative
-  staged path pointing straight into the dest subfolder - no `cp` needed.
-- **Branch B (dest outside cwd, default safe branch):** capture into the run/module-scoped staging
-  dir, read the returned path, Bash `cp` to the dest absolute path. `mkdir -p` the dest dir first.
-
-The skill owns end-of-run cleanup of `<ISOLATE_DIR>/visual/<run_id>/` and `.playwright-mcp/<run_id>/`
-(scoped to `<run_id>` only), reusing the SAME `ISOLATE_DIR` literal it passed to every writer this
-run (never a fresh resolve at cleanup time, so the `rm -rf` target always matches where writers
-actually staged); do not delete another run's subtree. This staging cleanup is a FILES step only -
-it is not resource teardown (the browser page you drove and the instance lease the skill holds are
-separate obligations); see `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
+The skill owns end-of-run cleanup of `<ISOLATE_DIR>/visual/<run_id>/` (scoped to `<run_id>` only),
+reusing the SAME `ISOLATE_DIR` literal it passed to every writer this run; do not delete another
+run's subtree. This staging cleanup is a FILES step only - it is not resource teardown (the browser
+page you drove and the instance lease the skill holds are separate obligations); see
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
 
 ## 4. INSTANCE_HANDLE - the instance is already provisioned
 
@@ -113,8 +91,8 @@ started, and installed the module (as a cumulative delta) on that instance and o
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
   owns provisioning. Never drop or release the lease. (This ban is about the INSTANCE lease only -
-  it is orthogonal to browser pages. You MUST still CLOSE any browser page you opened; closing a
-  page never touches the lease. See resource-teardown-contract.md T2 vs T3.)
+  it is orthogonal to browser pages. You MUST still CLOSE every browser page you drove, opened or
+  reused; closing a page never touches the lease. See resource-teardown-contract.md T2 vs T3.)
 - After all writes, emit the path-incremental completion block so the skill can verify + commit and
   install the next module delta. Never install the next module yourself.
 
@@ -154,40 +132,67 @@ the render is off-theme - skip this screen, log `WARN: off-theme render detected
 and move on; emit `NEEDS_CONTEXT` only if every screen fails. Reference:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 
-## 7. Capture step (per screen)
+## 7. Frame for the placement slot
+
+Decide where each image goes BEFORE you capture it - the slot decides the frame.
+
+1. **Placement first.** For each shot, name the target doc and the markup of the slot the image
+   fills: the `<img>` and its enclosing grid column in `index.html`, or the `.. image::` directive
+   in the RST.
+2. **Slot width from that markup.** Derive the slot's rendered CSS width from the markup itself:
+   for the store HTML, the container width x `col-N/12` of the enclosing column at the breakpoint
+   it renders at, minus gutters, padding and any `offset-*`; for RST, the directive's `:width:`,
+   else the width the doc's existing images render at. Never take a width from a fixed table.
+3. **Legibility.** The captured CSS width must be at most 1.25 x the slot width, or the store scales
+   UI text below readability. Narrow the viewport toward the slot width, but never so far that the
+   web client switches to its mobile layout - when it does, widen back. For a slot narrower than
+   that, capture element-scoped: chrome-devtools `take_screenshot` `uid` (from the page snapshot),
+   playwright `browser_take_screenshot` `target`.
+4. **Device pixel ratio 2.** Set the viewport with chrome-devtools `emulate` `viewport`
+   `<W>x<H>x2`. Prefer chrome-devtools for doc shots: playwright cannot change the device pixel
+   ratio at runtime.
+5. **Required context.**
+   - **User guide** (an enterprise end user who must recognize where they are and what to click):
+     the app name / top menu, the breadcrumb and control panel, the active notebook tab when the
+     subject lives in one, and the button or field group being described. Capture the smallest
+     element that contains the subject AND that context - never `.o_content` alone (it drops the
+     breadcrumb).
+   - **Marketing** (a prospect judging value): the visible outcome - a result, a dashboard, a
+     completed document, never an empty form - plus the app name, legible at the slot width. A
+     full-width slot (hero/banner) may capture the whole viewport at a deliberately chosen width.
+6. **Final format at capture time.** chrome-devtools `take_screenshot` `format` `jpeg` + `quality`,
+   or `png`; playwright `type`. A GIF's frame width = slot width x device pixel ratio.
+7. **Verify.** Read the produced image's pixel width from its file header (stdlib only, run with
+   `python3`), divide by the device pixel ratio, and re-capture when the legibility ratio fails.
+8. **No annotation.** Neither family's default path has a highlight/annotate overlay. Do NOT use
+   `browser_highlight` unless the brief explicitly requests it (`ANNOTATION: highlight`) AND the
+   playwright family has been wired (chrome-devtools has no highlight equivalent - requesting one
+   on the default family is a routing signal to the OPT-IN playwright family, never a bare-verb
+   call). NEVER use `browser_annotate` on any family - it opens an interactive dashboard that
+   blocks on headless hosts.
+
+## 8. Capture step (per screen)
 
 1. Navigate to the screen URL - **chrome-devtools (default):** `navigate_page`; **playwright
    (OPT-IN):** `browser_navigate`. Resolve backend URLs per version using
    `docs/odoo-ui-knowledge.md` (e.g. the `/odoo/<model>` vs `/web#action=...` split); resolve a
    menu entry via the live `ir.ui.menu` action when needed.
-2. Resize to the OUTPUT SIZE the caller needs (banner vs feature vs hero) - **chrome-devtools
-   (default):** `resize_page`; **playwright (OPT-IN):** `browser_resize`. If the module already
-   ships screenshots of the same type, MATCH their dimensions (`identify <file>`).
+2. Frame the shot for its slot (section 7).
 3. On-theme check (section 6).
-4. **Crop/region default:** capture the smallest region that shows the feature.
-   - **chrome-devtools (default):** `take_screenshot` scoped with a `uid` (the smallest
-     containing element from the page snapshot) instead of a full-viewport shot; chrome-devtools
-     has no free-form `clip` rect, so element-scoping IS the region-crop equivalent.
-   - **playwright (OPT-IN):** `browser_take_screenshot` with a `clip` rect.
-   Neither family's default path has a highlight/annotate overlay. Do NOT use `browser_highlight`
-   unless the brief explicitly requests it (`ANNOTATION: highlight`) AND the playwright family has
-   been wired (chrome-devtools has no highlight equivalent - requesting one on the default family
-   is a routing signal to the OPT-IN playwright family, never a bare-verb call). NEVER use
-   `browser_annotate` on any family, default or opt-in - it opens an interactive dashboard that
-   blocks on headless hosts.
-5. Capture via the Branch A or Branch B write (section 3).
+4. Capture straight to the section-3 staging path in the final format, then verify its width
+   (section 7).
 
 **Screenshot filenames** follow the DETECTED on-disk convention when one exists (tiebreaker: disk
-`ls` of `static/description/` wins, then the caller's default).
+`ls` of the directory the target doc resolves (section 13) wins, then the caller's default).
 General rule: the English canonical carries NO locale suffix; every non-English locale appends
-`.<locale>` (see section 8). Marketing filename specs live in
+`.<locale>` (see section 9). Marketing filename specs live in
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` Image
 Specifications.
 
-## 8. CAPTURE MODE - screens vs scenarios
+## 9. CAPTURE MODE - screens vs scenarios
 
 - **`screens` (default):** navigate + snapshot per screen. Read-only, so a screen is language-neutral
-  UI-chrome-wise - but text on screen IS locale-dependent, so honour the per-locale loop (section 9).
+  UI-chrome-wise - but text on screen IS locale-dependent, so honour the per-locale loop (section 10).
 - **`scenarios`:** the brief supplies a `WALKTHROUGH:` walkthrough.jsonl (from `odoo-doc-scenarist`);
   each scenario carries `steps[]` of `{action: navigate|fill|click|select|wait, target, value, note}`.
   For each step, in order:
@@ -199,14 +204,15 @@ Specifications.
        `fill_form` (or single-element `fill`), which sets a `<select>` element's value directly.
      - **playwright (OPT-IN):** `browser_navigate` / `browser_fill_form` / `browser_click` /
        `browser_select_option` / `browser_wait_for`.
-  3. On-theme check, then `take_screenshot` (chrome-devtools default) for this step.
+  3. Frame for the step's slot (section 7), on-theme check, then `take_screenshot` (chrome-devtools
+     default) to the section-3 staging path.
   4. Optional state-assert: confirm the step produced the expected record/state via the live Odoo MCP
      (`mcp__odoo__read_record` / `search_records` / `execute_method`) before driving the next step.
   Per-step filename: `<scenario-slug>-step<NN>.<locale>.png`; English canonical =
   `<scenario-slug>-step<NN>.png` (no suffix). This is the gap vs `odoo-demo-recording` (one continuous
-  clip) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per step.
+  video) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per step.
 
-## 9. Per-locale capture loop
+## 10. Per-locale capture loop
 
 Applies whenever the resolved language set is larger than English-only. English (no suffix) is
 captured FIRST and in full.
@@ -217,13 +223,13 @@ captured FIRST and in full.
   screenshot user's `res.users.lang`, or append `?lang=<locale>` on the backend URL, then
   re-establish the precondition), **middle = scenario**, **inner = step**.
 
-## 10. No silent cap + capture-coverage report
+## 11. No silent cap + capture-coverage report
 
 Never trim silently (See-Something-Say-Something). Emit one capture-coverage line per
 `(scenario, locale, step)` marking it `captured / downgraded-to-screen / skipped` + the reason and
 the bound that triggered it, so the caller sees exactly what was produced.
 
-## 11. Degraded paths
+## 12. Degraded paths
 
 - **Per-locale failure (never block the whole run for one locale):** if a locale fails to load or
   switch, reuse the English screenshots for that locale, mark each affected image with an
@@ -236,13 +242,22 @@ the bound that triggered it, so the caller sees exactly what was produced.
 - **OSM unreachable:** disk-grep the module XML for view names + menu ids; prefix
   `WARN: OSM unreachable - screens/labels from disk source`.
 
-## 12. Hard constraints (capture)
+## 13. Place finals where the target doc resolves them
 
-- Image `src` refs inside the assembled artifact MUST be relative (`./file.png`, `../static/...`);
-  absolute paths appear ONLY at the Bash write/cp step.
-- Never pass an absolute path as a screenshot filename to the playwright/pagecast OPT-IN families
-  (rejected by allowed-roots). This ban does NOT apply to chrome-devtools (default), which requires
-  an absolute `filePath` per section 3.
+Find the destination directory for each final, in this order - the first that answers wins:
+1. The directory the target doc's existing image references resolve to.
+2. Sibling locale docs of the same doc, then the manifest `images` entries.
+3. The directory the store serves for that doc type: `static/description/` for `index.html`; for
+   RST, the module `static/` subtree, following the convention already on disk.
+
+`mv` (never `cp`) each final from staging into that directory (`mkdir -p` it first). Reference it
+per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's reference
+gate (§ Reference gate) until it exits 0. A capture the doc does not embed stays in staging.
+
+## 14. Hard constraints (capture)
+
+- Every capture names its absolute section-3 staging path; every image reference and cross-module
+  link in the assembled artifact follows `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
 - Never use `browser_annotate` (playwright-only; chrome-devtools has no equivalent) in the
   capture loop, on any family; never run concurrently with another browser-driving agent on the
   SAME MCP family (T2) - a distinct family/instance may run in parallel.

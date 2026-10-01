@@ -125,7 +125,8 @@ _final_turn_unresolved_count() {
 
 # The agent's own activity as one line per signal, ASSISTANT-authored only (a tool name or label
 # quoted in a brief or a tool_result never counts):
-#   CALL\t<tool name>\t<command | file_path | path>   one per tool_use (newlines squashed)
+#   CALL\t<tool name>\t<command | file_path | path | url>   one per tool_use (newlines squashed;
+#                                                    url is what a browser navigation carries)
 #   TEXT\t<line>                                     one per LINE of a text block, and of the
 #                                                    `message` of a SubagentHandback call
 # Every line of a text carries the TEXT prefix, so a `^TEXT\t...` pattern sees a label on any line,
@@ -142,7 +143,7 @@ _assistant_signals() {
   | (if type == "array" then .[] else empty end) | select(type == "object")
   | if (.type == "tool_use") then
       ("CALL\t" + ((.name // "") | tostring) + "\t"
-        + (((.input.command // .input.file_path // .input.path // "") | tostring) | gsub("\n"; " "))),
+        + (((.input.command // .input.file_path // .input.path // .input.url // "") | tostring) | gsub("\n"; " "))),
       (if (((.name // "") | tostring) == "SubagentHandback") then
          ((.input.message // "") | if type == "string" then . else tojson end | textlines)
        else empty end)

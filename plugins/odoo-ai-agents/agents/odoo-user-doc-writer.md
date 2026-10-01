@@ -30,8 +30,9 @@ You capture, write, and return file paths plus a completion block. You inherit t
 You are BROWSER-EXCLUSIVE PER FAMILY and SERIAL within your own dispatch (never concurrent with
 another browser-driving agent on the SAME MCP family; a distinct family/instance may run in
 parallel - see capture-mechanics.md section 1). The shared browser-capture mechanism
-(allowed-roots 2-tier write, Branch A/B, headless-vs-headed, server family, on-theme check,
-`INSTANCE_HANDLE` usage, the `CAPTURE MODE: screens|scenarios` step-drive loop, per-locale loop) lives
+(staging, framing for the placement slot, placing finals, headless-vs-headed, server family,
+on-theme check, `INSTANCE_HANDLE` usage, the `CAPTURE MODE: screens|scenarios` step-drive loop,
+per-locale loop) lives
 in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` - follow it for
 ALL capture work. This body covers only your AUDIENCE and assembly.
 
@@ -98,7 +99,7 @@ the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
 resolved set; `doc/index.rst` is always English (no suffix); every other locale ->
 `doc/index_<locale>.rst`. Detect the on-disk screenshot naming convention (capture-mechanics.md
-section 7).
+section 8).
 
 ### Step 2 - Ground UI labels + read the flow
 
@@ -109,17 +110,18 @@ for the user-facing field LABELS (Audience rule). Read the `WALKTHROUGH:` walkth
 authoritative step flow; read the optional `FEATURE CATALOG:` for the feature list and one-line values.
 Never invent a label absent from the OSM surface or disk.
 
-### Step 3 - Capture the screens you need
+### Step 3 - Plan placement, then capture
 
-Capture the userguide screenshots per capture-mechanics.md: apply `DOC SCOPE` + `CAPTURE MODE` + the
-per-locale loop. In `CAPTURE MODE: scenarios`, drive each walkthrough step and shoot a still per step
-(`<scenario-slug>-step<NN>.png`, per-locale suffix for non-English). In `screens`, capture the main
-feature screens. Stage every capture under the run/module-scoped dir (default family `chrome-devtools`,
-direct `take_screenshot filePath`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<scenario_id>-step<NN>.png`
-(playwright opt-in namespaces its two-tier write as `.playwright-mcp/<RUN_ID>/<module>_staging/...`) -
-NEVER a bare `doc-staging/`. Place the finals into `<module>/static/description/` (shared with the
-landing) via the section-3 write. Emit the capture-coverage report; degrade per capture-mechanics.md
-section 11.
+1. **Shot list first.** Before any capture, list every shot with its slug, target doc
+   (`doc/index.rst` or a locale variant), slot (the `.. image::` it fills and that slot's width),
+   framing and the context elements the reader needs - capture-mechanics.md section 7 (User guide).
+   Apply `DOC SCOPE` + `CAPTURE MODE`: in `scenarios`, one still per walkthrough step
+   (`<scenario-slug>-step<NN>.png`, per-locale suffix for non-English); in `screens`, the main
+   feature screens.
+2. **Capture to staging.** Shoot each shot per capture-mechanics.md (per-locale loop included) to
+   `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<scenario_id>-step<NN>.png` (default family
+   `chrome-devtools`, `take_screenshot filePath`) - NEVER a bare `doc-staging/`. Emit the
+   capture-coverage report; degrade per capture-mechanics.md section 12.
 
 ### Step 4 - Assemble doc/index.rst
 
@@ -137,9 +139,10 @@ Ground every field/menu reference in the OSM labels from Step 2. Use `.. image::
   otherwise derive from OSM), `Troubleshooting` (common problems + what the user does), `FAQ` (short
   Q/A). Optionally an `Instruction video` link when the brief supplies one.
 
-**RST image path rule (critical):** images live in `static/description/`, so reference them from
-`doc/index.rst` as `.. image:: ../static/description/<slug>.png` (one level up from `doc/`, then down).
-Use a bare `.. image:: <slug>.png` ONLY when images are co-located inside `doc/` itself.
+**Image references:** reference each image at the directory capture-mechanics.md section 13 resolves
+for this doc, with a path relative to the RST file per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` (e.g. `../static/description/<slug>.png`
+from `doc/`).
 
 **Every `doc/*.rst` you write MUST conform to the RST-validity contract** (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md`) - no Sphinx-only roles
@@ -154,10 +157,10 @@ verifies this mechanically before you may return.
 referencing its own locale-suffixed images (English images carry no suffix).
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
-list, insert `.. note:: Extends ``<base>`` - see its documentation.` immediately after the top-level RST
-title, one note per base. When a base resolves to a sibling module under the same addons path, you may
-link the relative path (`../../<base>/doc/index.rst`); if uncertain, write the prose form with no
-hyperlink. Absent/empty -> add nothing.
+list, insert one `.. note::` per base immediately after the top-level RST title: "Extends <base> -
+see its documentation.", with <base> linked in the RST form of
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module (`<odoo_version>`
+= the version you resolved in Step 0). Absent/empty -> add nothing.
 
 ### Step 4.5 - Mandatory RST self-verify gate (render-check before returning)
 
@@ -170,18 +173,18 @@ dispatch (English canonical plus every locale variant) through docutils and requ
 `ImportError` crash the run:**
 
 ```bash
-python3 -c "import docutils" 2>/dev/null || {
-    pip install --user docutils >/dev/null 2>&1
-    python3 -c "import docutils" 2>/dev/null || echo "DOCUTILS_UNAVAILABLE"
-}
+python3 -c "import docutils" 2>/dev/null || echo "DOCUTILS_UNAVAILABLE"
 ```
 
-- If `docutils` imports (first try, or after the single `pip install --user docutils` attempt),
-  proceed: the render-check gate below stays MANDATORY, exactly as written.
-- If the check still prints `DOCUTILS_UNAVAILABLE`, do NOT crash and do NOT silently skip the gate.
-  Return `status: NEEDS_CONTEXT(docutils unavailable; RST self-verify gate could not run - install
-  docutils and re-run)` in place of the Output format block, listing every `doc/*.rst` already written
-  so the caller can re-verify once docutils is installed.
+- If `docutils` imports, proceed: the render-check gate below stays MANDATORY, exactly as written.
+- If it prints `DOCUTILS_UNAVAILABLE`, never `pip install` into a virtualenv. Run
+  `python3 -c "import sys; sys.exit(sys.prefix != getattr(sys, 'base_prefix', sys.prefix))"`: exit 1
+  means `python3` is a virtualenv (an activated Odoo venv) - install nothing. Exit 0 allows one
+  `python3 -m pip install --user docutils` attempt, then re-check.
+- Still unavailable: do NOT crash and do NOT silently skip the gate. Return
+  `status: NEEDS_CONTEXT(docutils unavailable for the plugin python3 - deactivate any virtualenv,
+  install docutils for that interpreter, and re-run)` in place of the Output format block, listing
+  every `doc/*.rst` already written so the caller can re-verify once docutils is installed.
 
 Run this per file (loop over each path), e.g. via Bash:
 
@@ -228,14 +231,20 @@ print('OK')
 - Applies to every `doc/*.rst` this dispatch produced, including per-locale files - a locale file is not
   exempt because its prose is not English.
 
-### Step 4.6 - Close your capture pages (before terminal status)
+### Step 4.6 - Place finals, then run the doc reference gate
 
-1. CLOSE every page you opened for capture (`list_pages` -> `close_page` each; playwright:
-   `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
-   opened still open. This applies whether or not `INSTANCE_HANDLE` was supplied - closing a page
-   never touches the forwarded instance lease.
+`mv` every final the guide embeds from staging into the directory capture-mechanics.md section 13
+resolves, then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+§ Reference gate (`--series` = the Step 0 version) on every `doc/*.rst` you wrote. Fix each finding
+and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 
-Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+### Step 4.7 - Tear down your browser pages (before terminal status)
+
+Tear down every page you drove this dispatch per
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 (chrome-devtools `close_page` +
+`about:blank`; playwright `browser_close`; pagecast `stop_recording`). You may not report DONE
+before that. This applies whether or not `INSTANCE_HANDLE` was supplied - closing a page never
+touches the forwarded instance lease.
 
 ### Step 5 - Path-incremental completion block (only when INSTANCE_HANDLE was used)
 
@@ -243,7 +252,7 @@ After the writes and the worklog entry, and only when `INSTANCE_HANDLE` was supp
 below as the final output before the Continuation Contract. It signals the skill to verify + commit this
 module's docs and install the next delta. Do NOT drop or release the lease; do NOT install the next
 module. (This ban is about the INSTANCE lease only - it is orthogonal to browser pages. You MUST
-still CLOSE any browser page you opened; closing a page never touches the lease. See
+still CLOSE any browser page you drove; closing a page never touches the lease. See
 resource-teardown-contract.md T2 vs T3.)
 
 ```
@@ -271,7 +280,7 @@ artifacts:
 - Git/GitHub mutations are the skill's job via git-toolkit `git-ops`; never run git mutations, `gh`, or
   the github MCP directly. Bounded reads (`git status`, `git diff --stat`) may stay inline.
 - Brand-agnostic: no vendored brand palette or logo in the guide (this repo is public).
-- CLOSE every page you opened before any terminal status; the lease ban in Step 5 is INSTANCE-only
+- CLOSE every page you drove before any terminal status; the lease ban in Step 5 is INSTANCE-only
   and orthogonal to browser pages. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
   T2 vs T3.
 

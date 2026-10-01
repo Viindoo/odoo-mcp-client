@@ -38,6 +38,7 @@ marker is found.
 CLI:
     python paths.py share      # prints the absolute SHARE dir
     python paths.py isolate    # prints the absolute ISOLATE dir
+    python paths.py root       # prints the state root ($ODOO_AI_HOME), never created
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ import os
 import subprocess
 import sys
 
-__all__ = ["ProjectDirError", "share_dir", "isolate_dir"]
+__all__ = ["ProjectDirError", "share_dir", "isolate_dir", "state_root"]
 
 
 class ProjectDirError(RuntimeError):
@@ -173,6 +174,13 @@ def _no_marker_message(var: str, root: str | None = None) -> str:
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
+def state_root() -> str:
+    """The machine-global state root ($ODOO_AI_HOME, default ~/.odoo-ai), absolute and NOT
+    created. The one resolver every caller that writes the root into a launch flag or a config
+    file uses, so a shell-built path (Git Bash's /c/Users/...) never reaches a native reader."""
+    return os.path.abspath(_home())
+
+
 def share_dir(root: str | None = None) -> str:
     """Return the absolute SHARE dir, creating it first. Honors an explicit
     $ODOO_AI_PROJECT_DIR override verbatim (still created, never re-hashed).
@@ -235,8 +243,11 @@ def _main(argv: list) -> int:
             print("paths.py: --root needs an absolute path", file=sys.stderr)
             return 2
         root, argv = argv[1], argv[2:]
+    if argv == ["root"] and root is None:
+        print(state_root())
+        return 0
     if len(argv) != 1 or argv[0] not in ("share", "isolate"):
-        print("Usage: paths.py [--root <abs-path>] share|isolate", file=sys.stderr)
+        print("Usage: paths.py [--root <abs-path>] share|isolate | paths.py root", file=sys.stderr)
         return 2
     try:
         print(share_dir(root) if argv[0] == "share" else isolate_dir(root))

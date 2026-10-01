@@ -19,13 +19,12 @@
 # machine can pre-install everything (e.g. in a base image) without ever
 # starting a browser process or paying any idle-RAM cost.
 #
-# The 3 npm packages are pinned via the `scripts/lib/browser-mcp-servers.sh`
-# SSOT (same pins steps 10/12 register) - never duplicated here. Playwright
-# itself is pinned via PLAYWRIGHT_PIN (default below): the first release that
-# supports current Ubuntu while still running on older Linux / macOS /
-# Windows. The pagecast server resolves to the same Playwright minor and
-# therefore shares this Chromium build + system libs, so installing them here
-# covers pagecast's browser needs as well.
+# The 3 npm packages are pinned to exact versions by the SSOT
+# `scripts/lib/browser_mcp_servers.py` (read through `browser-mcp-servers.sh`;
+# the same pins steps 10/12 register and the launcher runs) - never duplicated
+# here. The Playwright used for `install chromium` / `install-deps` is the exact
+# `playwright-core` the pinned @playwright/mcp depends on, from the same SSOT
+# (PLAYWRIGHT_PIN overrides it).
 #
 # Subcommands:
 #   describe   One-line description.
@@ -62,9 +61,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/state_reclaim.sh
 . "$SCRIPT_DIR/../lib/state_reclaim.sh"
 
-# Pinned Playwright version (single source of truth, env-overridable so users
-# and CI can pick a different release without editing this script).
-PW_PIN="${PLAYWRIGHT_PIN:-1.61.0}"
+# Pinned Playwright version: derived from the SSOT, env-overridable so users and
+# CI can pick a different release without editing this script.
+PW_PIN="${PLAYWRIGHT_PIN:-$BROWSER_MCP_PLAYWRIGHT_CORE_VERSION}"
 
 # The 3 backend packages this plugin's browser MCP families resolve to,
 # pinned by the shared SSOT (scripts/lib/browser-mcp-servers.sh) - never
@@ -356,6 +355,19 @@ cmd_apply() {
 # ---------------------------------------------------------------------------
 # dispatch
 # ---------------------------------------------------------------------------
+# --- interpreter preflight ------------------------------------------------------------------
+# The pins and the Playwright version come from the python SSOT; without a working python3 they
+# are empty and every install below would run unpinned. SSOT: scripts/lib/require_python.sh.
+_REQ_PY="$SCRIPT_DIR/../lib/require_python.sh"
+if [[ -r "$_REQ_PY" ]]; then
+    # shellcheck source=/dev/null
+    . "$_REQ_PY"
+    case "${1:-}" in
+        describe|-h|--help|"") ;;
+        *) require_python3 "$(basename "$0") ${1:-}" json || exit 2 ;;
+    esac
+fi
+
 case "${1:-}" in
     describe) cmd_describe ;;
     check)    cmd_check ;;

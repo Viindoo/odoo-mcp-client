@@ -50,12 +50,18 @@ phases:
       Record all scenes from the storyboard produced in the storyboard phase.
       For each scene in order: plan the click path using the storyboard description,
       set up deterministic demo state (login, navigate, fill), start the recorder,
-      drive the planned path (click / fill / fill_form / hover / take_screenshot),
-      stop the recorder by name (stop_recording), then CLOSE the page you drove this
-      scene (close_page / browser_close) before starting the next scene, and save the
-      clip to .odoo-ai/video/{project_label}/{scene-N}-<timestamp>.{mp4,gif}. Both the
-      stop and the close are mandatory per scene, including a retake - see
-      ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T0/T2.
+      drive the planned path (click / fill / fill_form / hover / take_screenshot) in the
+      SAME browser the recorder records - a pagecast recording captures only what
+      pagecast itself drives (interact_page / record_and_gif), so never drive with
+      chrome-devtools while a pagecast recording runs - stop the recorder by name
+      (stop_recording), then CLOSE every page you DROVE this scene before starting the
+      next scene. Use {project_label}-scene-N as the scene's feature name, so its clip
+      lands at odoo-demo-recording's own absolute path
+      <ISOLATE_DIR>/visual/videos/{project_label}-scene-N-<YYYYMMDD>-<4 random chars>.{mp4,gif}.
+      Never pass a relative path to a capture tool. Both the stop and the close are mandatory per
+      scene, including a retake - see
+      ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md T0 and T2 - Browser: close
+      what you drove.
       After all scenes are recorded, report each clip path and duration so the user
       can review before assembly.
       If a scene's storyboard description says "narrated", "before/after evidence", or carries a
@@ -75,13 +81,14 @@ phases:
     model_tier: sonnet
     gate: "approve / skip / cancel"   # approve = save the artifact; skip = do not save
     # Runner assembles the individual scene clips into a single deliverable:
-    #   1. Concatenate clips in storyboard order using pagecast convert_to_mp4 / convert_to_gif
+    #   1. Concatenate the scene clips reported by Phase 1 (under <ISOLATE_DIR>/visual/videos/)
+    #      in storyboard order using pagecast convert_to_mp4 / convert_to_gif
     #      or, if concatenation is unavailable, produce a numbered frame sequence with a
     #      scene-boundary annotation and a per-scene GIF fallback.
-    #   2. Write final file to .odoo-ai/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
+    #   2. Write final file to <ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
     #   3. Print artifact path, total duration, scene count, and the re-runnable storyboard.
-    #   4. Remind: .odoo-ai/video/... resolves to the per-worktree ISOLATE dir under
-    #      $ODOO_AI_HOME at runtime, outside the repo - the final file is not committed.
+    #   4. Remind: <ISOLATE_DIR> is the per-worktree ISOLATE dir under the state root,
+    #      outside the repo - the final file is not committed.
     # Fallback: if only screenshot capture was available for any scene, the assembler
     # stitches frame sequences and prefixes the output with:
     #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.

@@ -41,7 +41,7 @@ command -v ffmpeg >/dev/null 2>&1 || missing+=("ffmpeg (not in PATH)")
 
 # (d) chrome-devtools MCP wired in at least one CLI config.
 # Claude Code itself is already wired by virtue of this plugin bundling its own
-# .mcp.json (the three browser servers load when the plugin is installed) - so a
+# .mcp.json (the eager chrome-devtools loads when the plugin is installed) - so a
 # running Claude Code session that executes this hook is by definition wired.
 # We do NOT check ~/.claude.json: step 10 intentionally never writes there to
 # avoid duplicate-skip notes. We only check cross-runtime CLIs (Codex / Gemini)
@@ -57,6 +57,17 @@ if [ -f "${_gemini_cfg}" ] && ! grep -q "chrome-devtools" "${_gemini_cfg}" 2>/de
 fi
 
 ${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemini - run setup)")
+
+# (e) browser MCP registrations whose launch differs from what setup writes today (an older pin,
+# no state-root flag, a moved state root). Read-only: scripts/lib/browser_mcp_servers.py drift.
+_plugin_lib="$(cd "$(dirname "${BASH_SOURCE[0]}")/../scripts/lib" 2>/dev/null && pwd)"
+_drift=""
+if command -v python3 >/dev/null 2>&1 && [ -f "${_plugin_lib}/browser_mcp_servers.py" ]; then
+  _drift="$(python3 "${_plugin_lib}/browser_mcp_servers.py" drift 2>/dev/null | tr '\n' ' ' || true)"
+fi
+if [ -n "${_drift// /}" ]; then
+  echo "i  browser MCP flags outdated (${_drift% }) - run /odoo-ai-agents:odoo-setup browser, then restart the session." >&2
+fi
 
 # Emit the human dep hint on STDERR (visible console nudge; does not collide with the
 # JSON we put on stdout for SessionStart context injection).

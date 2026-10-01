@@ -55,21 +55,14 @@ _LIB_DIR = str(Path(__file__).resolve().parent)
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 import plugin_mcp_servers  # noqa: E402  (sibling lib; resolves via the path insert above)
+import browser_mcp_servers  # noqa: E402  (sibling lib; the six families' launch SSOT)
 
-# The STATIC full six-family server list (three backends x headless+headed). This
-# is the permission SSOT: every family gets an allow-prefix regardless of whether
-# it is currently in .mcp.json, so an opt-in family wired later by odoo-setup is
-# never permission-blocked. Kept in sync with scripts/lib/browser-mcp-servers.sh
-# (the shell SSOT for the same six families' npx args).
+# The STATIC full six-family server list (three backends x headless+headed), read from
+# browser_mcp_servers.ALL_SERVERS. Every family gets an allow-prefix regardless of whether
+# it is currently in .mcp.json, so an opt-in family wired later by odoo-setup is never
+# permission-blocked.
 FALLBACK_PLUGIN_NAME = "odoo-ai-agents"
-STATIC_SERVERS = [
-    "chrome-devtools", "chrome-devtools-headed",
-    "playwright", "playwright-headed",
-    "pagecast", "pagecast-headed",
-]
-# Back-compat alias: this list was historically the read-failure fallback; it is
-# now the always-applied static base of the union.
-FALLBACK_SERVERS = STATIC_SERVERS
+STATIC_SERVERS = list(browser_mcp_servers.ALL_SERVERS)
 
 _SAFE = re.compile(r"[^A-Za-z0-9_-]")
 

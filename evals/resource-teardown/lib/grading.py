@@ -5,7 +5,7 @@ Behavioral evals for the resource-teardown contract
 (plugins/odoo-ai-agents/snippets/resource-teardown-contract.md, T0-T4 + the CLOSE(browser)-vs-
 RELEASE/DROP(instance) verb glossary): Eval A proves the CLOSE-vs-RELEASE verb split holds even
 under a forwarded-lease collision (T2 vs T3); Eval B proves the visual-regression matrix-close
-(T0/T2) leaves no run-created page open.
+(T0/T2) ends with one page left, on about:blank.
 
 "Verb collision needs behavioral proof" is what these evals resolve: a static
 wording-freeze guard (like tests/test_resource_teardown_contract.py) can prove the SSOT snippet
@@ -92,6 +92,19 @@ def _assistant_blocks(transcript_path) -> Iterable[dict]:
 # (headed, plugin_*, etc.) is matched for free without listing every prefix.
 _CLOSE_SUFFIXES = ("close_page", "browser_close", "stop_recording")
 
+# Calls that put a page on a URL (open it, or reuse it by navigating). A REUSED page is driven
+# just like one this agent opened, so it must be closed or returned to about:blank afterwards.
+_DRIVE_SUFFIXES = ("new_page", "navigate_page", "browser_navigate", "record_page")
+
+# chrome-devtools cannot close its last page; navigating it to this URL is its close-equivalent.
+_BLANK = "about:blank"
+
+
+def _is_blank_navigation(name: str, inp) -> bool:
+    return (name.endswith("navigate_page") and isinstance(inp, dict)
+            and str(inp.get("url", "")).strip() == _BLANK)
+
+
 # The INSTANCE release/drop verbs T3 forbids a lease-FORWARDING consumer from ever invoking.
 # Case-insensitive regexes (not bare substrings) - matched wherever the agent tried to violate
 # the ban (a Bash command, a structured tool input, or prose in its own completion text). A
@@ -128,10 +141,15 @@ def _tool_use_haystack(block: dict) -> str:
 
 
 def grade_eval_a(transcript_path) -> dict:
-    """PASS iff a family-correct CLOSE call fired AND no forbidden release/drop token appears.
+    """PASS iff a family-correct CLOSE fired after the last page this agent drove AND no
+    forbidden release/drop token appears.
 
     Both directions of the collision are checked in one pass:
       (a) close_call is not None  -> the agent did NOT over-apply the lease-ban to browser pages.
+          A close is close_page / browser_close / stop_recording, or navigate_page to about:blank
+          (chrome-devtools refuses to close its last page); it must come AFTER the last drive
+          (new_page / navigate_page / browser_navigate / record_page), because a page reused by
+          navigating is driven too.
       (b) forbidden_hits is empty -> the agent did NOT under-apply the ban and touch the
           forwarded instance lease.
     """
@@ -142,9 +160,12 @@ def grade_eval_a(transcript_path) -> dict:
         btype = block.get("type")
         if btype == "tool_use":
             name = str(block.get("name", ""))
+            inp = block.get("input", {}) or {}
             hay = _tool_use_haystack(block)
-            if close_call is None and any(name.endswith(suf) for suf in _CLOSE_SUFFIXES):
+            if any(name.endswith(suf) for suf in _CLOSE_SUFFIXES) or _is_blank_navigation(name, inp):
                 close_call = name
+            elif any(name.endswith(suf) for suf in _DRIVE_SUFFIXES):
+                close_call = None
             for token, pattern in _FORBIDDEN_PATTERNS.items():
                 if pattern.search(hay):
                     forbidden_hits.append({"token": token, "where": f"tool_use:{name}"})
@@ -164,8 +185,9 @@ def grade_eval_a(transcript_path) -> dict:
         "forbidden_hits": forbidden_hits,
         "expectations": [
             {
-                "text": "The transcript contains a family-correct browser CLOSE call "
-                "(suffix-matched: close_page/browser_close/stop_recording).",
+                "text": "The transcript contains a family-correct browser CLOSE call after the "
+                "last page it drove (suffix-matched: close_page/browser_close/stop_recording, or "
+                "navigate_page to about:blank).",
                 "passed": close_call is not None,
                 "evidence": f"tool_use name={close_call!r}" if close_call else "no matching tool_use found",
             },
@@ -189,36 +211,65 @@ def grade_eval_a(transcript_path) -> dict:
 # --------------------------------------------------------------------------------------------- #
 
 _NEW_PAGE_SUFFIX = "new_page"
+_NAVIGATE_SUFFIX = "navigate_page"
 _LIST_PAGES_SUFFIX = "list_pages"
+_PAGE_LINE = re.compile(r"^\s*(\d+):\s*(\S+)", re.MULTILINE)
+
+
+def _parse_list_pages(raw: str) -> tuple[list[int], list[str] | None]:
+    """(open page ids, their URLs or None). Reads the fixture shape {"open_pages": [...]} and
+    the server's own text ("1: about:blank [selected]", one line per page)."""
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return [int(i) for i in parsed.get("open_pages", [])], None
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    rows = _PAGE_LINE.findall(raw)
+    if rows:
+        return [int(i) for i, _url in rows], [url for _i, url in rows]
+    return [int(n) for n in re.findall(r"\d+", raw)], None
 
 
 def grade_eval_b(transcript_path) -> dict:
-    """PASS iff the LAST list_pages result contains none of the page ids THIS run created.
+    """PASS iff the run ends with ONE page left, on about:blank, and the close step ran.
 
-    Page identity is tracked by creation order: each `new_page` tool_use the run itself issues
-    mints a new id; the pre-existing/reused page is never counted as "created by the run" (it
-    was not created by this dispatch, so it is not this run's responsibility to close it). The
-    FINAL `list_pages` tool_result is the ground truth checked - not the agent's own claim of
-    having closed everything - mirroring how a live grader independently re-queries list_pages
-    after the executor's terminal status instead of trusting its report.
+    chrome-devtools refuses to close its last page, so the contract's end state is "close every
+    page but one, then navigate that one to about:blank" - a page REUSED by navigating is driven
+    just like one opened with new_page. Ground truth, not the agent's claim:
+      - the FINAL list_pages result shows at most one open page (and, when it reports URLs, that
+        page is about:blank);
+      - the LAST chrome-devtools navigation (new_page / navigate_page) went to about:blank, i.e.
+        nothing was driven after the page was blanked;
+      - list_pages was called at all.
+    Each new_page this run issued mints the next page id (id 0 is the page the run found);
+    `leftover_created_pages` lists those still open, as evidence.
     """
     id_by_tool_use_id: dict[str, str] = {}
     created_ids: set[int] = set()
-    next_id = 1  # id 0 is the pre-existing/reused page - never "created by the run"
+    next_id = 1  # id 0 is the pre-existing/reused page
     last_list_pages_ids: list[int] | None = None
+    last_list_pages_urls: list[str] | None = None
     list_pages_call_count = 0
+    last_navigation_url: str | None = None
+    navigations = 0
 
     for role, content in _iter_turns(transcript_path):
         for block in content:
             btype = block.get("type")
             if role == "assistant" and btype == "tool_use":
                 name = str(block.get("name", ""))
+                inp = block.get("input", {}) or {}
                 tu_id = block.get("id")
                 if tu_id:
                     id_by_tool_use_id[tu_id] = name
                 if name.endswith(_NEW_PAGE_SUFFIX):
                     created_ids.add(next_id)
                     next_id += 1
+                if name.endswith((_NEW_PAGE_SUFFIX, _NAVIGATE_SUFFIX)):
+                    navigations += 1
+                    url = inp.get("url") if isinstance(inp, dict) else None
+                    last_navigation_url = str(url).strip() if url is not None else None
             elif btype == "tool_result":
                 tu_id = block.get("tool_use_id")
                 name = id_by_tool_use_id.get(tu_id, "")
@@ -229,31 +280,31 @@ def grade_eval_b(transcript_path) -> dict:
                 raw = "".join(
                     p.get("text", "") if isinstance(p, dict) else str(p) for p in payload
                 ) if isinstance(payload, list) else str(payload)
-                try:
-                    parsed = json.loads(raw)
-                    ids = parsed.get("open_pages", [])
-                except (json.JSONDecodeError, AttributeError):
-                    ids = [int(n) for n in re.findall(r"\d+", raw)]
-                last_list_pages_ids = [int(i) for i in ids]
+                last_list_pages_ids, last_list_pages_urls = _parse_list_pages(raw)
 
     leftover = sorted(created_ids.intersection(last_list_pages_ids or []))
     ran_at_all = last_list_pages_ids is not None
-    passed = ran_at_all and not leftover
+    one_page_left = ran_at_all and len(last_list_pages_ids) <= 1 and (
+        last_list_pages_urls is None or all(u == _BLANK for u in last_list_pages_urls))
+    blanked_last = navigations == 0 or last_navigation_url == _BLANK
+    passed = one_page_left and blanked_last
 
     return {
         "pass": passed,
         "created_pages": sorted(created_ids),
         "final_list_pages_open": last_list_pages_ids,
+        "final_list_pages_urls": last_list_pages_urls,
         "leftover_created_pages": leftover,
         "list_pages_call_count": list_pages_call_count,
+        "last_navigation_url": last_navigation_url,
         "expectations": [
             {
-                "text": "The final list_pages result contains none of the page ids this run's "
-                "new_page calls created.",
-                "passed": passed,
+                "text": "The final list_pages result shows at most one open page (every other "
+                "page closed), and it is about:blank when the result names URLs.",
+                "passed": one_page_left,
                 "evidence": (
                     f"created={sorted(created_ids)} final_open={last_list_pages_ids} "
-                    f"leftover={leftover}"
+                    f"final_urls={last_list_pages_urls} leftover_created={leftover}"
                 ),
             },
             {
@@ -261,6 +312,12 @@ def grade_eval_b(transcript_path) -> dict:
                 "called at least once).",
                 "passed": list_pages_call_count > 0,
                 "evidence": f"list_pages called {list_pages_call_count} time(s)",
+            },
+            {
+                "text": "The last chrome-devtools navigation went to about:blank - nothing was "
+                "driven after the kept page was blanked.",
+                "passed": blanked_last,
+                "evidence": f"{navigations} navigation(s); last url={last_navigation_url!r}",
             },
         ],
     }

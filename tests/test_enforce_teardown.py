@@ -66,12 +66,14 @@ def _line(role="assistant", content=None):
     return json.dumps({"role": role, "content": content or []})
 
 
-def _tu(name, file_path=None, command=None):
+def _tu(name, file_path=None, command=None, url=None):
     inp = {}
     if file_path:
         inp["file_path"] = file_path
     if command:
         inp["command"] = command
+    if url:
+        inp["url"] = url
     return {"type": "tool_use", "name": name, "input": inp}
 
 
@@ -232,16 +234,54 @@ def test_hooks_exist_and_are_shell_scripts():
 # --------------------------------------------------------------------------- #
 # Browser matcher - ADVISORY only, suffix-keyed, never a block
 # --------------------------------------------------------------------------- #
-def test_navigate_only_plus_one_close_is_no_finding(tmp_path):
-    """One-page-reuse discipline: navigate (reuse) + close, zero new_page -> nothing to nudge."""
+def test_a_reused_page_returned_to_about_blank_is_no_finding(tmp_path):
+    """One-page-reuse discipline: the reused page is driven, then navigated to about:blank (the
+    server refuses to close its last page) -> nothing to nudge."""
     lines = [
-        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
-        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo/sales")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is None, "a reused page ending on about:blank must pass clean - no false nudge"
+
+
+def test_a_reused_page_left_on_a_url_is_nudged_to_about_blank(tmp_path):
+    """A page reused by navigate_page is DRIVEN even though this agent never opened it; leaving
+    it on the app keeps its session, timers and memory alive -> advisory, never a block."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8069/odoo")]),
         _line(content=[_tu("mcp__chrome-devtools__close_page")]),
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is None, "navigate_page/close only (no new_page) must pass clean - no false nudge"
+    assert out is not None and out.get("continue") is True and "decision" not in out
+    msg = out["systemMessage"]
+    assert "about:blank" in msg and "http://127.0.0.1:8069/odoo" in msg, msg
+
+
+def test_driving_again_after_blanking_is_nudged(tmp_path):
+    """The LAST navigation decides: a blank followed by more driving leaves a live page."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_tu("mcp__chrome-devtools__new_page", url="http://127.0.0.1:8069/web")]),
+        _line(content=[_tu("mcp__chrome-devtools__close_page")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "about:blank" in out["systemMessage"], out
+
+
+def test_a_navigation_without_url_is_not_a_blank(tmp_path):
+    """navigate_page back / reload carries no url and leaves the page on a real URL."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page")]),
+        _line(content=[_cont("DONE")]),
+    ]
+    _, out = _run(tmp_path, lines)
+    assert out is not None and "about:blank" in out["systemMessage"], out
 
 
 def test_two_new_pages_one_close_is_advisory_never_block(tmp_path):

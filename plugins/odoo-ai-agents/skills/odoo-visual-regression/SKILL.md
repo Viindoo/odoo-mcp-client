@@ -171,9 +171,10 @@ back to the Round 1 blast radius. Flag any drifted screen NOT predicted by the i
 higher-priority surprise.
 
 **Close before reporting (unconditional, every run).** Before emitting the report, call `list_pages`,
-then `close_page` on every page it reports that YOU created this run - not just the one you think you
-reused. This step is unconditional: run it even when Round 2/3 stayed on one page. Full rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+then `close_page` on every page it reports that you DROVE this run, including the reused one (the
+last page is navigated to `about:blank`). This step is unconditional: run it even when Round 2/3
+stayed on one page. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+T2 - Browser: close what you drove.
 
 ## Standalone-first fallback
 

@@ -472,12 +472,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   `mcpServers.*` entry with `"trust": true` in `$GEMINI_SETTINGS`). For
   **Claude Code** it writes nothing here: Claude's eager `chrome-devtools` comes
   from the bundled `.mcp.json`, and its five opt-in families are wired by step 12
-  - so this step never touches `~/.claude.json`. Pinned packages come from the
-  `scripts/lib/browser-mcp-servers.sh` SSOT (no `@latest`). No secrets.
+  - so this step never touches `~/.claude.json`. Packages, pins and server flags come from the
+  `scripts/lib/browser_mcp_servers.py` SSOT. No secrets.
 - **12-browser-mcp-optin** - wires the FIVE **opt-in** browser MCP families
   (`chrome-devtools-headed`, `playwright[-headed]`, `pagecast[-headed]`) into
-  **Claude Code** at USER scope on demand (`claude mcp add --scope user <server>
-  -- npx -y <pinned> <flags>`), idempotent. It never touches the eager
+  **Claude Code** at USER scope on demand, idempotent, with the packages, pins and flags
+  `scripts/lib/browser_mcp_servers.py` yields. It never touches the eager
   `chrome-devtools` (the bundled `.mcp.json` owns that) and needs no permission
   change (browser_prefixes.py allow-lists all six families statically). If the
   `claude` CLI is not on PATH it prints guidance and does nothing. **Opt-out for
@@ -485,12 +485,11 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   add `"disabledMcpjsonServers": ["chrome-devtools"]` to your Claude settings and
   simply do not run step 12.
 - **20-browser-deps** - INSTALL-only, never registers or runs anything. Pre-
-  installs the 3 pinned browser MCP packages (`scripts/lib/browser-mcp-servers.sh`
-  SSOT - `chrome-devtools-mcp@1`, `@playwright/mcp@0`, `@mcpware/pagecast@0`) on
+  installs the 3 pinned browser MCP packages (`scripts/lib/browser_mcp_servers.py`
+  SSOT) on
   disk via a throwaway `npm install --ignore-scripts` (never `npx`/`npm exec`,
   which would execute the package) so npm's cache is warm and a later real spawn
-  - by step 10/12's registration, or any manual `npx -y <pinned>` - has no
-  download latency; idempotent (`npm install --offline --dry-run` detects an
+  - by step 10/12's registration - has no download latency; idempotent (`npm install --offline --dry-run` detects an
   already-cached package and skips it). Also runs `npx -y playwright install
   chromium`. For ffmpeg it ONLY prints install guidance for your OS - it never
   runs sudo/apt for you. **Install vs register/run:** this step costs disk, never
@@ -640,23 +639,19 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   plugin is only partially installed. Tell the user to reinstall
   `odoo-ai-agents@viindoo-plugins` fully, then point them at the manual
   equivalents:
-  - Browser MCP (packages PINNED, must match `scripts/lib/browser-mcp-servers.sh`).
+  - Browser MCP (packages, pins and flags: `scripts/lib/browser_mcp_servers.py`).
     Each backend ships a **headless default** and a **`-headed`** variant; the AI
     picks the headed variant only when the human asks to watch the browser. The
-    eager `chrome-devtools` is the bundled `.mcp.json`; the rest are opt-in:
-    `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@1 --headless --isolated`
-    (`chrome-devtools-headed` → drop `--headless`; `playwright` →
-    `npx -y @playwright/mcp@0 --caps=devtools --headless --isolated` and
-    `playwright-headed` drops `--headless`; `pagecast` →
-    `npx -y @mcpware/pagecast@0 --headless` and `pagecast-headed` drops `--headless`).
+    eager `chrome-devtools` is the bundled `.mcp.json`; the rest are opt-in and are
+    wired by step 12 (`/odoo-ai-agents:odoo-setup browser`). After updating the
+    plugin, re-run `/odoo-ai-agents:odoo-setup browser` and restart the session.
   - Permissions: add `mcp__chrome-devtools`, `mcp__playwright`, `mcp__pagecast`
     to `permissions.allow[]` in `~/.claude/settings.json`. (With the plugin
     installed, the SessionStart hook `ensure-browser-permissions.sh` adds the
     plugin-namespaced `mcp__plugin_odoo-ai-agents_*` prefixes for you - these
     bare prefixes are only for the standalone, no-plugin case.)
-- The manual `claude mcp add` line above is only for using these servers
-  **without** the plugin installed. If the plugin is installed, do **not** add
-  them to `~/.claude.json` - the bundled `.mcp.json` already provides them, and a
+- If the plugin is installed, do **not** add the browser servers by hand
+  to `~/.claude.json` - the bundled `.mcp.json` already provides them, and a
   duplicate entry is exactly what produces the "skipped - same command" notes.
 
 ## See also

@@ -6,9 +6,10 @@ staging, and the doc default capture family must be the ONE eager browser MCP
 
   - capture-mechanics.md documents chrome-devtools as the DEFAULT capture family;
   - the staging path is run+module scoped: `<run_id>/<module>_staging/...` under
-    BOTH `<ISOLATE_DIR>/visual/` (chrome-devtools direct, Tier-2 ISOLATE per
-    state-root-resolution.md) and `.playwright-mcp/` (playwright opt-in), and a
-    bare `doc-staging/` with no `<run_id>/<module>` prefix is explicitly FORBIDDEN;
+    `<ISOLATE_DIR>/visual/` (Tier-2 ISOLATE per state-root-resolution.md) for EVERY
+    browser family - no family stages into a cwd-relative tree such as
+    `.playwright-mcp/` - and a bare `doc-staging/` with no `<run_id>/<module>`
+    prefix is explicitly FORBIDDEN;
   - the odoo-doc-illustration skill threads `RUN_ID` into BOTH writer briefs and
     owns an end-of-run cleanup scoped to `<run_id>` only;
   - the two writer agents' staging examples use the `<run_id>/<module>_staging/`
@@ -42,14 +43,19 @@ def test_chrome_devtools_is_the_documented_default_family():
 
 def test_staging_path_is_run_and_module_scoped():
     text = _read(CAPTURE)
-    # chrome-devtools default stages directly under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/
+    # Every family stages under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/
     # (Tier-2 ISOLATE per state-root-resolution.md - resolved+captured, never a bare .odoo-ai/ literal)
     assert "<ISOLATE_DIR>/visual/<run_id>/<module>_staging/" in text, (
-        "chrome-devtools default must stage under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/"
+        "captures must stage under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/"
     )
-    # playwright opt-in namespaces .playwright-mcp/ by run + module
-    assert ".playwright-mcp/<run_id>/<module>_staging/" in text, (
-        "playwright opt-in must namespace .playwright-mcp/ by <run_id>/<module>_staging/"
+    flat = " ".join(text.split()).lower()
+    assert "stage every capture, on every family, at the absolute path" in flat, (
+        "the ISOLATE staging rule must bind every browser family, not only the default one"
+    )
+    # No family may keep a second, cwd-relative staging tree: that is where captures leaked
+    # into the session's repo.
+    assert ".playwright-mcp" not in text, (
+        "capture-mechanics must not route any family's captures into a cwd-relative .playwright-mcp/ tree"
     )
 
 
@@ -75,8 +81,8 @@ def test_skill_threads_run_id_into_both_writer_briefs():
 
 def test_skill_has_end_of_run_cleanup_scoped_to_run_id():
     text = _read(SKILL)
-    assert "rm -rf <ISOLATE_DIR>/visual/<run_id>/ .playwright-mcp/<run_id>/" in text, (
-        "skill must own an end-of-run rm -rf scoped to <run_id>"
+    assert "rm -rf <ISOLATE_DIR>/visual/<run_id>/\n" in text, (
+        "skill must own an end-of-run rm -rf scoped to <ISOLATE_DIR>/visual/<run_id>/ only"
     )
     # And it must forbid deleting another run's subtree.
     assert "never `rm` another run's subtree" in text or "never rm another run's subtree" in text

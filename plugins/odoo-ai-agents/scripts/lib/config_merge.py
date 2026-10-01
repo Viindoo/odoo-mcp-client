@@ -82,6 +82,19 @@ Subcommands:
            with "<P> " (P then a literal space) - the documented prefix-match
            semantics for Bash rules.
 
+  mcp-server-matches <json|toml> <target> <name>
+      Read-only. Read the DESIRED server spec ({"command", "args", "env"}) as JSON
+      on stdin; exit 0 when <target> registers server <name> with exactly that
+      command, args and env, 1 when it is missing or differs (drift), 2 when the
+      target cannot be parsed. json: <target>.mcpServers.<name> (Gemini settings,
+      Claude's ~/.claude.json user scope). toml: [mcp_servers.<name>] (Codex).
+
+  mcp-server-set <json|toml> <target> <name>
+      REPLACE server <name> with the spec on stdin (extra keys such as "trust"
+      are written too). Never merges: a merged args list would keep a stale
+      flag next to its replacement. Backup before write, refuse invalid JSON
+      (exit 2), "unchanged" (no write, no backup) when already identical.
+
 Exit codes:
   0  success / no change needed
   1  general error (I/O, parse failure for input, etc.)
@@ -603,7 +616,7 @@ def _atomic_replace(path: str, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
-            if mode is not None:
+            if mode is not None and hasattr(os, "fchmod"):
                 os.fchmod(fh.fileno(), mode)
         os.replace(tmp, real)
     except OSError:
@@ -1016,6 +1029,176 @@ def cmd_json_rule_covered(args: list[str]) -> int:
     return 0 if covered else 1
 
 
+
+# ---------------------------------------------------------------------------
+# Subcommands: mcp-server-matches / mcp-server-set
+# ---------------------------------------------------------------------------
+
+def _read_spec_stdin() -> dict | None:
+    try:
+        spec = json.loads(sys.stdin.read())
+    except json.JSONDecodeError as exc:
+        print(f"x stdin is not valid JSON: {exc}", file=sys.stderr)
+        return None
+    if not isinstance(spec, dict) or not isinstance(spec.get("command"), str) \
+            or not isinstance(spec.get("args"), list):
+        print('x the spec must be an object with "command" (string) and "args" (list)',
+              file=sys.stderr)
+        return None
+    return spec
+
+
+def _launch_equal(entry, spec: dict) -> bool:
+    """Same command, same args (order included) and same env; a missing env equals {}."""
+    if not isinstance(entry, dict):
+        return False
+    return (entry.get("command") == spec["command"]
+            and list(entry.get("args") or []) == list(spec["args"])
+            and dict(entry.get("env") or {}) == dict(spec.get("env") or {}))
+
+
+def _toml_server_header(name: str) -> str:
+    return f"[mcp_servers.{name}]"
+
+
+def _toml_render_server(name: str, spec: dict) -> str:
+    lines = [_toml_server_header(name),
+             f"command = {_toml_basic_string(spec['command'])}",
+             "args = [" + ", ".join(_toml_basic_string(str(a)) for a in spec["args"]) + "]"]
+    env = spec.get("env") or {}
+    if env:
+        pairs = ", ".join(f"{_toml_basic_string(k)} = {_toml_basic_string(str(v))}"
+                          for k, v in sorted(env.items()))
+        lines.append("env = { " + pairs + " }")
+    return "\n".join(lines) + "\n"
+
+
+def _toml_server_spans(src_lines: list, name: str) -> list:
+    """(start, end) line spans of [mcp_servers.<name>] and its sub-tables."""
+    own = _toml_server_header(name)[:-1]  # "[mcp_servers.<name>"
+    spans, start = [], None
+    for i, line in enumerate(src_lines):
+        head = line.strip()
+        if head.startswith("["):
+            if start is not None:
+                spans.append((start, i))
+                start = None
+            compact = head.replace(" ", "")
+            if compact == own + "]" or compact.startswith(own + "."):
+                start = i
+    if start is not None:
+        spans.append((start, len(src_lines)))
+    return spans
+
+
+def _toml_server_entry(path: str, name: str):
+    """The registered [mcp_servers.<name>] entry as a dict, or None (needs tomllib, 3.11+).
+    Without tomllib, cmd_mcp_server_matches compares the table's text against what
+    _toml_render_server writes instead."""
+    import tomllib  # py3.11+
+    with open(path, "rb") as fh:
+        data = tomllib.load(fh)
+    return (data.get("mcp_servers") or {}).get(name)
+
+
+def cmd_mcp_server_matches(args: list[str]) -> int:
+    """mcp-server-matches <json|toml> <target> <name>  (desired spec JSON on stdin)"""
+    if len(args) != 3 or args[0] not in ("json", "toml"):
+        print("Usage: config_merge.py mcp-server-matches <json|toml> <target> <name>",
+              file=sys.stderr)
+        return 2
+    fmt, target, name = args
+    spec = _read_spec_stdin()
+    if spec is None:
+        return 2
+    if not os.path.isfile(target):
+        return 1
+    if fmt == "json":
+        try:
+            with open(target, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return 2
+        entry = ((data.get("mcpServers") or {}) if isinstance(data, dict) else {}).get(name)
+        return 0 if _launch_equal(entry, spec) else 1
+    try:
+        import tomllib  # noqa: F401  py3.11+
+        have_tomllib = True
+    except ImportError:
+        have_tomllib = False
+    if have_tomllib:
+        try:
+            entry = _toml_server_entry(target, name)
+        except Exception:
+            return 2
+        return 0 if _launch_equal(entry, spec) else 1
+    with open(target, encoding="utf-8") as fh:
+        src_lines = fh.read().splitlines()
+    spans = _toml_server_spans(src_lines, name)
+    if len(spans) != 1:
+        return 1
+    start, end = spans[0]
+    have = [ln.strip() for ln in src_lines[start:end]
+            if ln.strip() and not ln.strip().startswith("#")]
+    want = [ln.strip() for ln in _toml_render_server(name, spec).splitlines()]
+    return 0 if have == want else 1
+
+
+def cmd_mcp_server_set(args: list[str]) -> int:
+    """mcp-server-set <json|toml> <target> <name>  (spec JSON on stdin)"""
+    if len(args) != 3 or args[0] not in ("json", "toml"):
+        print("Usage: config_merge.py mcp-server-set <json|toml> <target> <name>",
+              file=sys.stderr)
+        return 1
+    fmt, target, name = args
+    spec = _read_spec_stdin()
+    if spec is None:
+        return 1
+    if fmt == "json":
+        existing = _load_json_target(target)  # exits 2 on invalid JSON
+        if not isinstance(existing, dict):
+            print(f"x {target} is not a JSON object. Refusing to overwrite.", file=sys.stderr)
+            return 2
+        servers = existing.get("mcpServers")
+        if servers is not None and not isinstance(servers, dict):
+            print(f"x {target}: mcpServers is not an object. Refusing to overwrite.",
+                  file=sys.stderr)
+            return 2
+        if (servers or {}).get(name) == spec:
+            print("unchanged")
+            return 0
+        updated = dict(existing)
+        updated["mcpServers"] = dict(servers or {})
+        updated["mcpServers"][name] = spec
+        if os.path.exists(target):
+            print(f"backup -> {_backup(target)}")
+        _write_json(target, updated)
+        print(f"ok -> {target}")
+        return 0
+    text = ""
+    if os.path.exists(target):
+        with open(target, encoding="utf-8") as fh:
+            text = fh.read()
+    src_lines = text.splitlines()
+    rendered = _toml_render_server(name, spec)
+    keep = list(src_lines)
+    for start, end in reversed(_toml_server_spans(src_lines, name)):
+        del keep[start:end]
+    while keep and not keep[-1].strip():
+        keep.pop()
+    new_text = ("\n".join(keep) + "\n\n" if keep else "") + rendered
+    if new_text == text:
+        print("unchanged")
+        return 0
+    if os.path.exists(target):
+        print(f"backup -> {_backup(target)}")
+    else:
+        os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
+    _atomic_replace(target, new_text)
+    print(f"ok -> {target}")
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Entry point / dispatch
 # ---------------------------------------------------------------------------
@@ -1028,6 +1211,8 @@ SUBCOMMANDS = {
     "json-ensure-allow": cmd_json_ensure_allow,
     "json-prune-allow": cmd_json_prune_allow,
     "json-rule-covered": cmd_json_rule_covered,
+    "mcp-server-matches": cmd_mcp_server_matches,
+    "mcp-server-set": cmd_mcp_server_set,
 }
 
 

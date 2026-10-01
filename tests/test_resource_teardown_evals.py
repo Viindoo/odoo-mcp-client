@@ -1,7 +1,7 @@
 """Behavioral evals for the resource-teardown contract (plugins/odoo-ai-agents/snippets/
 resource-teardown-contract.md): Eval A proves the CLOSE(browser)-vs-RELEASE(instance) verb split
 (T2 vs T3) holds even under a forwarded-lease collision; Eval B proves the visual-regression
-matrix-close (T0/T2) leaves no run-created page open.
+matrix-close (T0/T2) ends with one page left, on about:blank.
 
 WHY these tests exist (and what they do NOT prove): tests/test_resource_teardown_contract.py
 (a static wording-freeze guard) can prove the SSOT snippet text is unchanged. It CANNOT prove
@@ -99,6 +99,10 @@ def _list_pages_result(tool_use_id, open_pages):
     return _tool_result(tool_use_id, json.dumps({"open_pages": open_pages}))
 
 
+def _blank_line():
+    return _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")])
+
+
 def _write_transcript(tmp_path, lines) -> Path:
     tpath = tmp_path / "transcript.jsonl"
     tpath.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -194,6 +198,44 @@ def test_eval_a_suffix_matching_across_headed_and_plugin_prefixes(tmp_path):
     out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
     assert out["pass"] is True, out
     assert out["close_call"] == "mcp__plugin_odoo-ai-agents_chrome-devtools__close_page"
+
+
+def test_eval_a_a_reused_page_blanked_after_driving_counts_as_closed(tmp_path):
+    """chrome-devtools refuses to close its last page: driving a REUSED page and then navigating
+    it to about:blank is the close-equivalent."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8172/odoo")]),
+        _line(content=[_tu("mcp__chrome-devtools__take_screenshot")]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="about:blank")]),
+        _line(content=[_text("status: doc-complete\ninstance_handle: odoo_17_0_doc:8172")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is True, out
+    assert out["close_call"] == "mcp__chrome-devtools__navigate_page"
+
+
+def test_eval_a_a_reused_page_left_on_the_app_fails(tmp_path):
+    """A page reused by navigating is DRIVEN: never opening a page does not exempt the agent."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8172/odoo")]),
+        _line(content=[_tu("mcp__chrome-devtools__take_screenshot")]),
+        _line(content=[_text("status: doc-complete\ninstance_handle: odoo_17_0_doc:8172")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["close_call"] is None
+
+
+def test_eval_a_a_close_before_more_driving_does_not_count(tmp_path):
+    """The close must come AFTER the last page the agent drove."""
+    lines = [
+        _line(content=[_tu("mcp__chrome-devtools__new_page")]),
+        _line(content=[_tu("mcp__chrome-devtools__close_page", pageId=2)]),
+        _line(content=[_tu("mcp__chrome-devtools__navigate_page", url="http://127.0.0.1:8172/odoo")]),
+        _line(content=[_text("status: doc-complete")]),
+    ]
+    out = grading.grade_eval_a(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
 
 
 def test_eval_a_forgetting_to_close_fails_direction_one(tmp_path):
@@ -312,7 +354,8 @@ def _matrix_capture_lines(extra_page_created: bool) -> list[str]:
                     # A single lapse: one extra page opened instead of reusing page 0.
                     lines.append(_line(content=[_tu("mcp__chrome-devtools__new_page")]))
                 lines.append(_line(content=[_tu(
-                    "mcp__chrome-devtools__navigate_page", screen=screen, state=state,
+                    "mcp__chrome-devtools__navigate_page", url=f"http://127.0.0.1:8069/{screen}",
+                    screen=screen, state=state,
                 )]))
                 lines.append(_line(content=[_tu("mcp__chrome-devtools__resize_page", width=breakpoint)]))
                 lines.append(_line(content=[_tu(
@@ -326,15 +369,17 @@ def _matrix_capture_lines(extra_page_created: bool) -> list[str]:
 def test_matrix_fixture_covers_the_full_5x4x2_sweep():
     """Guard the fixture itself: the eval must exercise the whole matrix, not a stub subset."""
     lines = _matrix_capture_lines(extra_page_created=False)
-    navigate_calls = sum(1 for l in lines if "navigate_page" in l)
+    navigate_calls = sum(1 for line in lines if "navigate_page" in line)
     assert navigate_calls == 40, "the sweep must cover all 5 screens x 4 breakpoints x 2 states"
 
 
 def test_eval_b_clean_single_page_sweep_with_no_leftover_passes(tmp_path):
-    """PASS shape: single-page discipline held throughout - zero pages created, nothing to leak."""
+    """PASS shape: single-page discipline held throughout - zero pages created, the reused page
+    returned to about:blank."""
     lines = _matrix_capture_lines(extra_page_created=False)
     lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
     lines.append(_line(role="user", content=[_list_pages_result("lp1", open_pages=[0])]))
+    lines.append(_blank_line())
     lines.append(_line(content=[_text("## Visual Regression: baseline vs current (Odoo v17)\nstatus: DONE")]))
     out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
     assert out["pass"] is True, out
@@ -351,6 +396,7 @@ def test_eval_b_lapse_correctly_closed_before_final_report_passes(tmp_path):
     lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
     lines.append(_line(role="user", content=[_list_pages_result("lp1", open_pages=[0, 1])]))
     lines.append(_line(content=[_tu("mcp__chrome-devtools__close_page", pageId=1)]))
+    lines.append(_blank_line())
     lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp2")]))
     lines.append(_line(role="user", content=[_list_pages_result("lp2", open_pages=[0])]))
     lines.append(_line(content=[_text("## Visual Regression: baseline vs current (Odoo v17)\nstatus: DONE")]))
@@ -370,13 +416,46 @@ def test_eval_b_lapse_left_open_fails_and_gates_the_keep_inline_decision(tmp_pat
     # Round 4 calls list_pages but the created page (id 1) is never closed.
     lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
     lines.append(_line(role="user", content=[_list_pages_result("lp1", open_pages=[0, 1])]))
+    lines.append(_blank_line())
     lines.append(_line(content=[_text("## Visual Regression: baseline vs current (Odoo v17)\nstatus: DONE")]))
     out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
     assert out["pass"] is False, out
     assert out["created_pages"] == [1]
     assert out["leftover_created_pages"] == [1]
     failed_texts = [e["text"] for e in out["expectations"] if not e["passed"]]
-    assert any("none of the page ids" in t for t in failed_texts)
+    assert any("at most one open page" in t for t in failed_texts)
+
+
+def test_eval_b_the_kept_page_left_on_the_app_fails(tmp_path):
+    """FAIL shape: every extra page closed, but the page kept is still on the app - the last
+    navigation was a capture, never about:blank."""
+    lines = _matrix_capture_lines(extra_page_created=False)
+    lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
+    lines.append(_line(role="user", content=[_list_pages_result("lp1", open_pages=[0])]))
+    lines.append(_line(content=[_text("status: DONE")]))
+    out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["last_navigation_url"] == "http://127.0.0.1:8069/invoice_list"
+    failed_texts = [e["text"] for e in out["expectations"] if not e["passed"]]
+    assert any("about:blank" in t for t in failed_texts)
+
+
+def test_eval_b_reads_the_servers_own_list_pages_text(tmp_path):
+    """A live transcript carries the server's text, one `<id>: <url>` line per page: digits in a
+    URL are not page ids, and a page left on a URL is not blank."""
+    lines = _matrix_capture_lines(extra_page_created=False)
+    lines.append(_blank_line())
+    lines.append(_line(content=[_tu("mcp__chrome-devtools__list_pages", id_="lp1")]))
+    lines.append(_line(role="user", content=[_tool_result(
+        "lp1", "## Pages\n1: about:blank [selected]")]))
+    out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
+    assert out["pass"] is True, out
+    assert out["final_list_pages_open"] == [1]
+    lines[-1] = _line(role="user", content=[_tool_result(
+        "lp1", "## Pages\n1: about:blank\n2: http://127.0.0.1:8069/odoo [selected]")])
+    out = grading.grade_eval_b(_write_transcript(tmp_path, lines))
+    assert out["pass"] is False, out
+    assert out["final_list_pages_open"] == [1, 2]
 
 
 def test_eval_b_list_pages_never_called_fails_the_matrix_shaped_close_check(tmp_path):

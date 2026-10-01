@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -53,7 +54,17 @@ LIB = (
     / "browser-mcp-servers.sh"
 )
 
-PIN = "1.61.0"  # default PLAYWRIGHT_PIN; the floor that supports current Ubuntu
+def _ssot_value(cmd: str) -> str:
+    """One value from the launch SSOT (scripts/lib/browser_mcp_servers.py) - never hardcoded
+    here, so a pin bump needs no test edit."""
+    res = subprocess.run([sys.executable, str(LIB.parent / "browser_mcp_servers.py"), cmd],
+                         capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    return res.stdout.strip()
+
+
+# Default PLAYWRIGHT_PIN: the exact playwright-core the pinned @playwright/mcp depends on.
+PIN = _ssot_value("playwright-core-version")
 
 requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None, reason="bash not available"
@@ -90,8 +101,12 @@ def script_text():
 # ---------------------------------------------------------------------------
 def test_playwright_version_is_pinned(script_text):
     assert "PLAYWRIGHT_PIN" in script_text, "pin must be an env-overridable var"
-    assert PIN in script_text, f"default pin {PIN} must be present"
+    assert 'PW_PIN="${PLAYWRIGHT_PIN:-$BROWSER_MCP_PLAYWRIGHT_CORE_VERSION}"' in script_text, (
+        "the default must be the playwright-core version derived in the launch SSOT, not a "
+        "second hand-kept literal"
+    )
     assert 'playwright@${PW_PIN}' in script_text, "installs must use the pinned var"
+    assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", PIN), PIN
 
 
 def test_no_unpinned_playwright_install(script_text):

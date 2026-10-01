@@ -3,18 +3,25 @@
 gen_mcp_manifests.py - SSOT generator for Codex CLI and Gemini CLI MCP manifests.
 
 Reads:
-  - plugins/odoo-ai-agents/.mcp.json          (browser + local MCP server SSOT)
+  - plugins/odoo-ai-agents/.mcp.json          (WHICH servers the plugin bundles)
+  - scripts/lib/browser_mcp_servers.py        (HOW each browser family launches: pin + flags)
   - plugins/odoo-ai-agents/.claude-plugin/plugin.json  (name/version/description)
 
 Emits:
   - plugins/odoo-ai-agents/gemini-extension.json
   - plugins/odoo-ai-agents/.codex-plugin/mcp.json
 
-LOCAL servers (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS, e.g. ``odoo-local``)
-are Claude-only and are EXCLUDED from both derived manifests: their command/args
-reference ``${CLAUDE_PLUGIN_ROOT}``, which only Claude Code resolves - forwarding
-them verbatim to Codex/Gemini would ship a manifest entry neither runtime can ever
-launch. Codex/Gemini fall back to the Bash CLI for that surface.
+Claude starts the bundled browser family through scripts/mcp/browser_mcp_launch.py with
+``${CLAUDE_PLUGIN_ROOT}``, which only Claude Code expands. So the derived entries are built from
+the launch SSOT, never copied from .mcp.json:
+  - Gemini expands ``${extensionPath}`` and ``${/}`` in gemini-extension.json, so its entry runs
+    the same launcher (state-root flags resolved at every start).
+  - Codex expands neither, so its entry is the plain ``npx -y <pin> <base flags>``; the setup
+    step 10-browser-mcp.sh writes the state-root flags into the user's own Codex config.
+
+LOCAL servers (scripts/lib/plugin_mcp_servers.py LOCAL_SERVERS, e.g. ``odoo-local``) are
+Claude-only and EXCLUDED from both derived manifests; Codex/Gemini use the Bash CLI for that
+surface.
 
 Usage:
   python3 generator/gen_mcp_manifests.py          # write mode (idempotent)
@@ -40,6 +47,10 @@ _LIB_DIR = str(PLUGIN_ROOT / "scripts" / "lib")
 if _LIB_DIR not in sys.path:
     sys.path.insert(0, _LIB_DIR)
 import plugin_mcp_servers  # noqa: E402  (sibling lib; resolves via the path insert above)
+import browser_mcp_servers  # noqa: E402  (sibling lib; the browser launch SSOT)
+
+# Gemini expands these in gemini-extension.json (extension directory, path separator).
+GEMINI_LAUNCHER_ARG = "${extensionPath}${/}scripts${/}mcp${/}browser_mcp_launch.py"
 
 
 def _load_json(path: Path) -> dict:
@@ -52,71 +63,60 @@ def _dump(data: dict) -> str:
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
-def _strip_type(entry: dict) -> dict:
-    """Return a copy of entry without the 'type' field (Codex/Gemini infer from command)."""
-    return {k: v for k, v in entry.items() if k != "type"}
+def _codex_entry(server: str) -> dict:
+    """Plain npx launch with the default pin (no env override: generation is deterministic)."""
+    return {"command": "npx", "args": ["-y"] + browser_mcp_servers.npx_args(server, {})}
 
 
-def build_gemini_extension(ssot_servers: dict, plugin_meta: dict) -> dict:
+def _gemini_entry(server: str) -> dict:
+    """The bundled launcher, which adds the state-root flags at every start."""
+    return {"command": "python3", "args": [GEMINI_LAUNCHER_ARG, server]}
+
+
+def build_gemini_extension(servers: list, plugin_meta: dict) -> dict:
     """
     Build gemini-extension.json content.
 
-    Shape:
-      {
-        "name": "...",
-        "version": "...",
-        "description": "...",
-        "mcpServers": {
-          "<server>": { "command": "npx", "args": [...] }
-        }
-      }
-
     Note: no 'trust' field (forbidden in Gemini extension manifests).
     Note: no 'type' field per server (Gemini infers transport from command).
-    Note: 'cwd' omitted - not needed for npx invocations.
     """
-    mcp_servers = {
-        name: _strip_type(entry)
-        for name, entry in ssot_servers.items()
-    }
     return {
         "name": plugin_meta["name"],
         "version": plugin_meta["version"],
         "description": plugin_meta["description"],
-        "mcpServers": mcp_servers,
+        "mcpServers": {name: _gemini_entry(name) for name in servers},
     }
 
 
-def build_codex_mcp(ssot_servers: dict) -> dict:
+def build_codex_mcp(servers: list) -> dict:
     """
-    Build .codex-plugin/mcp.json content.
+    Build .codex-plugin/mcp.json content: flat (no 'mcpServers' wrapper, no 'type').
+    """
+    return {name: _codex_entry(name) for name in servers}
 
-    Flat shape (no 'mcpServers' wrapper, no 'type'):
-      {
-        "<server>": { "command": "npx", "args": [...] }
-      }
-    """
-    return {
-        name: _strip_type(entry)
-        for name, entry in ssot_servers.items()
-    }
+
+def bundled_browser_servers() -> list:
+    """The browser families .mcp.json bundles (LOCAL servers excluded), in file order."""
+    ssot = _load_json(SSOT_MCP)
+    names = [n for n in ssot.get("mcpServers", ssot) if n not in plugin_mcp_servers.LOCAL_SERVERS]
+    unknown = [n for n in names if n not in browser_mcp_servers.ALL_SERVERS]
+    if unknown:
+        raise SystemExit(
+            f"gen_mcp_manifests.py: .mcp.json bundles {unknown}, which is neither a LOCAL server "
+            "(plugin_mcp_servers.LOCAL_SERVERS) nor a browser family "
+            "(browser_mcp_servers.ALL_SERVERS) - add it to one of them."
+        )
+    return names
 
 
 def generate() -> dict[str, str]:
     """Return a mapping of output_path -> serialized content (write mode helper)."""
-    ssot = _load_json(SSOT_MCP)
-    ssot_servers = ssot.get("mcpServers", ssot)  # handle both wrapped and flat SSOT
-    # Exclude LOCAL (Claude-only) servers - see module docstring.
-    ssot_servers = {
-        name: entry
-        for name, entry in ssot_servers.items()
-        if name not in plugin_mcp_servers.LOCAL_SERVERS
-    }
+    servers = bundled_browser_servers()
     plugin_meta = _load_json(CLAUDE_PLUGIN)
 
     return {
-        str(GEMINI_OUT): _dump(build_gemini_extension(ssot_servers, plugin_meta)),
-        str(CODEX_MCP_OUT): _dump(build_codex_mcp(ssot_servers)),
+        str(GEMINI_OUT): _dump(build_gemini_extension(servers, plugin_meta)),
+        str(CODEX_MCP_OUT): _dump(build_codex_mcp(servers)),
     }
 
 
@@ -165,7 +165,7 @@ def check_mode() -> int:
     if drifted:
         print(
             "ERROR: gen_mcp_manifests.py check failed - the following generated files are "
-            "out of sync with plugins/odoo-ai-agents/.mcp.json.\n"
+            "out of sync with plugins/odoo-ai-agents/.mcp.json + scripts/lib/browser_mcp_servers.py.\n"
             "Run: python3 plugins/odoo-ai-agents/generator/gen_mcp_manifests.py",
             file=sys.stderr,
         )

@@ -30,7 +30,7 @@ into every Read - never the placeholder or a bare `.odoo-ai/`.
 | Bootstrap 5 for flexbox | Use `d-flex align-items-center justify-content-between gap-3`, `row`/`col-*` grid. Do NOT use inline `display:flex`, `align-items`, `justify-content`, `flex-wrap`, `flex-direction`, `gap` - all stripped. |
 | Hex colors only | `background-color:#714B67`, `color:#ffffff`. No `rgba()`, no `linear-gradient` (both stripped). |
 | HTML entities | `&rarr;` not `->`, `&mdash;` not `--`, `&copy;` not `(c)`. Raw Unicode glyphs may corrupt on render. |
-| Relative image paths | All `<img src="...">` must be relative to `static/description/` (e.g. `./main_screenshot.gif` for the English canonical, `./main_screenshot.vi_VN.gif` per locale). External image URLs are blocked. |
+| Image paths and module links | Per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`. |
 | Safe inline styles | `background-color`, `color`, `font-weight`, `font-size`, `line-height`, `padding`, `margin`, `border`, `border-radius`, `width`, `height`, `max-width`, `text-align` survive. |
 | Legacy oe_* classes | Still accepted. Use for OCA-style modules. New modules: prefer Bootstrap 5. Do not mix both in the same file. |
 
@@ -111,7 +111,8 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
       </div>
     </div>
   </div>
-  <!-- Hero screenshot -->
+  <!-- Hero screenshot. Slot: col-md-10 offset-md-1 of the full container (the widest image slot);
+       frame per capture-mechanics.md § Frame for the placement slot -->
   <div class="row mt-4">
     <div class="col-md-10 offset-md-1 text-center"
          style="border-radius:20px;padding:3px;background-color:{{PRIMARY_HEX}};">
@@ -219,6 +220,8 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
             </h3>
           </div>
           <div class="col-md-12 col-xl-8 mt-3 mt-xl-0 d-flex justify-content-center">
+            <!-- Feature slot: col-xl-8 (col-md-12 below xl) inside 32px padding; frame per
+                 capture-mechanics.md § Frame for the placement slot -->
             <!-- NN = 2-digit sequence, slug = kebab-case task name; English canonical = NO suffix (NN-slug.jpg), per-locale = NN-slug.<locale>.jpg (e.g. 01-submit-request.vi_VN.jpg) -->
             <img alt="{{FEATURE_TASK_TITLE}}" class="img-fluid" loading="lazy"
                  src="./NN-slug.jpg"
@@ -364,16 +367,20 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 
 ## 4. Image Specifications
 
+Every screenshot size is derived from the slot it fills
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` § Frame for the
+placement slot); the module icon is the only fixed size.
+
 | Asset | Path | Format | Size | Notes |
 |---|---|---|---|---|
 | Module icon | `static/description/icon.png` | PNG only | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. |
-| Main screenshot / hero | Declared first in `manifest['images']` | PNG, GIF, or JPEG | No official spec; 960-1100px wide recommended | Used as cover in store browse/grid views. |
-| Feature screenshots | Additional entries in `manifest['images']` or inline in `index.html` | PNG, GIF, or JPEG | No official spec; ~1100px wide | Inline-only images (not in `images`) do not appear in grid views. |
-| Banner/enlarged display | Any image whose filename ends with `_screenshot` | PNG, GIF, or JPEG | Full demo page width | First `*_screenshot` file is selected as the main banner display. |
-| Feature screenshot (English canonical) | `static/description/NN-slug.jpg` | JPEG or PNG | ~1100px wide | No locale suffix. `index.html` references these. |
-| Per-locale screenshot | `static/description/NN-slug.<locale>.jpg` | JPEG or PNG | ~1100px wide | Each locale's `index_<locale>.html` references its own locale-suffixed images. |
-| Animated walkthrough (English canonical) | `static/description/main_screenshot.gif` | GIF | ~960px wide, 16:9 | No locale suffix. Declared in `manifest['images']` for the cover position. |
-| Animated walkthrough (per locale) | `static/description/main_screenshot.<locale>.gif` | GIF | ~960px wide, 16:9 | One per non-English locale. |
+| Main screenshot / hero | Declared first in `manifest['images']` | PNG, GIF, or JPEG | from the hero slot | Used as cover in store browse/grid views. |
+| Feature screenshots | Additional entries in `manifest['images']` or inline in `index.html` | PNG, GIF, or JPEG | from the feature slot | Inline-only images (not in `images`) do not appear in grid views. |
+| Banner/enlarged display | Any image whose filename ends with `_screenshot` | PNG, GIF, or JPEG | from the hero slot | First `*_screenshot` file is selected as the main banner display. |
+| Feature screenshot (English canonical) | `static/description/NN-slug.jpg` | JPEG or PNG | from the feature slot | No locale suffix. `index.html` references these. |
+| Per-locale screenshot | `static/description/NN-slug.<locale>.jpg` | JPEG or PNG | from the feature slot | Each locale's `index_<locale>.html` references its own locale-suffixed images. |
+| Animated walkthrough (English canonical) | `static/description/main_screenshot.gif` | GIF | from the hero slot | No locale suffix. Declared in `manifest['images']` for the cover position. |
+| Animated walkthrough (per locale) | `static/description/main_screenshot.<locale>.gif` | GIF | from the hero slot | One per non-English locale. |
 
 **Filename convention** (enforced for new modules): the English canonical has NO locale suffix -
 `NN-slug.<ext>` and `main_screenshot.<ext>`; every non-English locale appends `.<locale>` -
@@ -382,9 +389,6 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 (`vi_VN`, `fr_FR`, etc.). This matches the step-capture naming in
 `skills/odoo-doc-illustration/references/capture-mechanics.md`
 (English step files carry no suffix).
-
-All paths in `index.html` must be relative to `static/description/` (i.e. start with `./`).
-External image URLs are blocked by the store.
 
 ---
 
@@ -399,7 +403,7 @@ unknown.
 | `name` | str | h1 on listing page + page title + store search | Max 25 chars (vendor guideline). No adjectives or company name prefix. |
 | `summary` | str | Grid/browse teaser text (NOT on the detail page itself). Tagline source for `index.html` hero. | 1-2 sentences, outcome-first. Match to hero tagline in `index.html`. |
 | `description` | str (RST) | Description tab fallback ONLY when `index.html` is absent | Store prefers `index.html`; RST fallback incurs ranking penalty. Keep for text-only fallback. |
-| `images` | list[str] | First entry = cover in browse/grid. Subsequent entries = store carousel. | Must have at least one entry (ranking penalty if absent). Paths relative to module root (e.g. `static/description/main_screenshot.gif` for the English cover). |
+| `images` | list[str] | First entry = cover in browse/grid. Subsequent entries = store carousel. | Must have at least one entry (ranking penalty if absent). Each entry per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images (e.g. `static/description/main_screenshot.gif` for the English cover). |
 | `license` | str | License row in sidebar metadata table | Required (ranking penalty if missing). Common values: `LGPL-3`, `OPL-1`, `AGPL-3`. |
 | `price` | float | Price display; determines Add-to-Cart vs Download button | Minimum 9 EUR if set. Absent or `<= 0` = free. DO NOT fabricate; ask user. |
 | `currency` | str | Price display | `EUR` (default) or `USD` only. Audit: only set when `price` is set. |

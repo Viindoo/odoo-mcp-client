@@ -101,7 +101,7 @@ def world(tmp_path, path_farm):
 
     def run(*extra, env_over=None):
         env = {k: v for k, v in os.environ.items()
-               if k not in ("PYENV_ROOT", "ODOO_AI_PYTHON2", "ODOO_AI_PYTHON3")}
+               if k not in ("PYENV_ROOT", "ODOO_AI_PYTHON2")}
         env.update(PATH=farm_path(path_farm(drop=DROP), stubs), HOME=str(home),
                    ODOO_AI_INSTANCES=str(toml), ODOO_AI_HOME=str(tmp_path / "odoo-ai-home"))
         env.update(env_over or {})
