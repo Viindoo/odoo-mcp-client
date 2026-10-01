@@ -70,7 +70,9 @@ database (`INSTANCE-ALLOCATION-RECLAIM.md` §7.2).
    live lease) - status-blind, including `BLOCKED` / `NEEDS_CONTEXT`. After a delivered handback
    the report is final, so the `SubagentStop` block then offers release or park only. Browser findings are ADVISORY only on both `SubagentStop`
    and `Stop` - see `resource-teardown-contract.md` "Why browsers and instances are enforced
-   differently".
+   differently". The advisory covers every page the agent DROVE (opened, or reused by navigating it):
+   each is closed, and the last open chrome-devtools page, which that server cannot close, is
+   navigated to `about:blank`.
 3. **`SessionEnd` backstop** (`hooks/session-end-gc.sh`) - scoped to the ENDING session plus
    provably dead owners, never other sessions' live work. The hook captures this session's anchor,
    spawns a detached worker and returns at once (a SessionEnd hook is aborted about a second after
