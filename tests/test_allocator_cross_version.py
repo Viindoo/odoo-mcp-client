@@ -21,7 +21,8 @@ The contract, stated as behavior - for rows written by THIS allocator:
   - the build facts this version records on a row (`server_wide_modules`,
     `built`) survive every verb master runs on it, and a row master wrote
     without them reads here as "nothing declared, nothing recorded" (the last
-    section, which runs against master's CURRENT allocator whatever it is).
+    section: master's CURRENT allocator whatever it is, plus the pinned 7.1.0
+    release for the row written without the keys).
 
 Master's allocator is taken from git (`git show master:<path>`) into a temp dir at
 test time; the tests skip when git or the master branch is unavailable. Every
@@ -389,6 +390,33 @@ def released_lib(tmp_path_factory):
     return dest
 
 
+# The last release whose allocator is session-anchored but records NO build facts: 7.1.0 (the
+# commit that set VERSION to 7.1.0; 7.2.0 added `server_wide_modules` / `built`). A session
+# started on 7.1.0 keeps running this allocator against the shared registry, so its rows are the
+# ones this version must read as "nothing declared, nothing recorded". Pinned to a commit, not to
+# `master`: master moves past every release, and once it carries the build facts a row its
+# allocator writes is no longer a row WITHOUT them.
+PRE_BUILD_FACTS_RELEASE = "e71d6cda31aef085fc79a7526df11de5172b3c5e"
+
+
+@pytest.fixture(scope="module")
+def pre_build_facts_lib(tmp_path_factory):
+    """The 7.1.0 allocator and siblings, from the pinned release commit."""
+    if shutil.which("git") is None:
+        pytest.skip("git is not available")
+    dest = tmp_path_factory.mktemp("pre_build_facts_lib")
+    for name in RELEASED_FILES:
+        text = _git_show("{ref}:{lib}/{name}".format(ref=PRE_BUILD_FACTS_RELEASE, lib=LIB_REL,
+                                                     name=name))
+        if text is None:
+            pytest.skip("release {ref} is not in this clone (shallow checkout?)".format(
+                ref=PRE_BUILD_FACTS_RELEASE[:12]))
+        (dest / name).write_text(text, encoding="utf-8")
+    assert "server_wide_modules" not in (dest / "allocator.py").read_text(encoding="utf-8"), (
+        "PRE_BUILD_FACTS_RELEASE must name an allocator that records no build facts")
+    return dest
+
+
 def _released(world, lib, env, *args):
     return subprocess.run([sys.executable, str(lib / "allocator.py"), *args], capture_output=True,
                           text=True, env=env, timeout=60)
@@ -444,12 +472,13 @@ def test_the_released_allocator_lists_and_releases_a_row_with_the_build_facts(wo
     assert world.drops() == [], "a --no-create lease created no database to drop"
 
 
-def test_a_row_the_released_allocator_wrote_reads_as_no_build_facts_here(world, released_lib):
-    """The other direction: a row without the keys (acquired by the released allocator) is read
-    by this version as `nothing declared, nothing recorded`, and record-build fills it."""
+def test_a_row_an_allocator_without_build_facts_wrote_reads_as_no_build_facts_here(
+        world, pre_build_facts_lib):
+    """The other direction: a row without the keys (acquired by a release that predates them) is
+    read by this version as `nothing declared, nothing recorded`, and record-build fills it."""
     a = world.session("sess-A")
     env = world.env(a)
-    p = _released(world, released_lib, env, "acquire", "--series", "17.0", "--mode", "ephemeral",
+    p = _released(world, pre_build_facts_lib, env, "acquire", "--series", "17.0", "--mode", "ephemeral",
                   "--no-create", "--run-id", "run-A")
     assert p.returncode == 0, p.stderr
     token = _kv(p.stdout)["ALLOC_TOKEN"]
