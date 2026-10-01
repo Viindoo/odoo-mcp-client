@@ -17,10 +17,16 @@
 # Fails open: no python3, no CLAUDE_PLUGIN_ROOT/scripts/lib/allocator.py, an allocator error, a
 # row with no verdict - every one prints nothing and returns non-zero.
 
+# The bound on the allocator call works on every host, stock macOS (no `timeout`) included:
+# scripts/lib/run_bounded.sh. Unreadable -> no bounded call -> fail open.
+# shellcheck source=../scripts/lib/run_bounded.sh
+. "${BASH_SOURCE[0]%/*}/../scripts/lib/run_bounded.sh" 2>/dev/null || true
+
 # One `allocator.py list` call, JSON envelope in, the lease array out ("" on any failure).
 _alloc_list_json() {
   local alloc="${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/allocator.py" out
-  out="$(timeout 5 python3 "$alloc" list --with-verdict --show-tokens --format json "$@" \
+  declare -F run_bounded >/dev/null 2>&1 || return 0
+  out="$(run_bounded 5 python3 "$alloc" list --with-verdict --show-tokens --format json "$@" \
          2>/dev/null || true)"
   printf '%s' "$out" | jq -c 'select(.ok == true) | (.fields.leases // [])' 2>/dev/null || true
 }

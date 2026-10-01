@@ -192,6 +192,10 @@ _run_worker() {
     # redirect that cannot open its target makes bash skip the command entirely,
     # which would turn a lost log line into a lost reclamation.
     local diag=/dev/null diag_log
+    # Every allocator call below is bounded through run_bounded (scripts/lib/run_bounded.sh): a
+    # bare `timeout` does not exist on stock macOS, and behind `|| true` it skipped every reclaim.
+    # shellcheck source=../scripts/lib/run_bounded.sh
+    source "$lib_dir/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
     if [[ -f "$lib_dir/state_reclaim.sh" ]]; then
         # shellcheck source=../scripts/lib/state_reclaim.sh
         source "$lib_dir/state_reclaim.sh" 2>/dev/null || true
@@ -214,7 +218,7 @@ _run_worker() {
     # Step 1 (header): provably-dead owners, automatic semantics, never the TTL arm. It runs
     # FIRST because it does not depend on the ending session at all, so the anchor wait below
     # never delays it.
-    timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope dead-sessions >/dev/null 2>>"$diag" || true
+    run_bounded "$GC_TIMEOUT_S" python3 "$alloc" gc --scope dead-sessions >/dev/null 2>>"$diag" || true
 
     # Step 2 (header): the ending session's own running/reserved leases, once its anchor is gone.
     # `/clear` ends a session inside a process that keeps running - nothing to reclaim for it.
@@ -227,7 +231,7 @@ _run_worker() {
             done
             # No --force: the allocator re-checks the anchor (pid AND fingerprint) and refuses a
             # live one with ANCHOR_ALIVE, which is the answer we want if the wait ran out.
-            timeout "$GC_TIMEOUT_S" python3 "$alloc" gc --scope anchor --anchor "$anchor" >/dev/null 2>>"$diag" || true
+            run_bounded "$GC_TIMEOUT_S" python3 "$alloc" gc --scope anchor --anchor "$anchor" >/dev/null 2>>"$diag" || true
         fi
     fi
 
@@ -253,7 +257,7 @@ _run_worker() {
             local runtime_dir
             runtime_dir="$(_odoo_ai_runtime_dir 2>/dev/null || true)"
             if [[ -n "$runtime_dir" ]] && mkdir -p "$runtime_dir" 2>/dev/null; then
-                timeout "$REAP_TIMEOUT_S" python3 "$alloc" reap-orphans \
+                run_bounded "$REAP_TIMEOUT_S" python3 "$alloc" reap-orphans \
                     >"$runtime_dir/reap-orphans-candidates.log" 2>&1 || true
             fi
         fi

@@ -90,7 +90,10 @@ LIVE_ROWS="$(printf '%s' "$INPUT" | jq -r '
 AGENT_TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)"
 [[ -n "$AGENT_TRANSCRIPT" && -f "$AGENT_TRANSCRIPT" ]] || _pass
 
-_tmo() { if command -v timeout >/dev/null 2>&1; then timeout 5 "$@"; else "$@"; fi; }
+# A 5s bound on every host (stock macOS has no `timeout`): scripts/lib/run_bounded.sh.
+# shellcheck source=../scripts/lib/run_bounded.sh
+. "${BASH_SOURCE[0]%/*}/../scripts/lib/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
+_tmo() { run_bounded 5 "$@"; }
 
 # Every string anywhere in the subagent's transcript, one per line. Recursive descent (`..`)
 # rather than a role/content walk on purpose: the evidence lives in a `tool_result`, which the
