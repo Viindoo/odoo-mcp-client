@@ -210,7 +210,8 @@ browser processes it does not need; `/odoo-ai-agents:odoo-setup browser` wires t
 
 Package versions are **exact pins** (no `@latest`, no major range - a range reuses whatever
 version a machine's npm cache holds, so the file-write rules would differ between machines), and
-every family is started with the flags that let it write captures under the plugin's state root.
+every family is started with the flags that let it write captures under the capture area
+(`<state root>/projects`).
 Capture destinations are always absolute paths under the run's `<ISOLATE_DIR>` or `<SHARE_DIR>`
 (both live under `$ODOO_AI_HOME/projects`); an image a module doc uses is `mv`d from there to
 where the doc resolves it.

@@ -841,7 +841,7 @@ ends, its running leases are reclaimed (a parked lease keeps its database until 
 lapses, and the shared render server is reclaimed only once its server is gone). `lease_gc`
 previews by default, and an applying `lease_gc` is never auto-approved. Hooks keep agents honest: a
 subagent can neither hand back its report nor finish while a lease it obtained is still live and not
-handed off, nor release, park or adopt a lease it did not obtain, and no browser capture can be written to a relative path or outside the state root. It is Claude Code only (it resolves
+handed off, nor release, park or adopt a lease it did not obtain, and no browser capture can be written to a relative path or outside the capture area (`<state root>/projects`, i.e. the run's ISOLATE/SHARE dirs). It is Claude Code only (it resolves
 `${CLAUDE_PLUGIN_ROOT}`); Codex and Gemini use the allocator CLI instead. **After updating the
 plugin, restart every Claude Code session on the machine**, so no older allocator keeps working
 on the shared lease registry. Tool index, CLI and error codes:
@@ -909,7 +909,7 @@ flowchart TD
     PROJ --> WT["worktrees/&lt;wt-key&gt;/"]
     WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, integration/,<br/>workflow output_dir/<br/>distinct per worktree"]
     ISO --> VIS["visual/ captures<br/>screenshots/, qa/, debug/, current/, videos/,<br/>adhoc/&lt;slug&gt;/ (a capture no skill owns, pruned after 30 days)"]
-    VIS -- "mv" --> DOC["target doc dir in the module<br/>(static/description/, doc/)"]
+    VIS -- "mv (shipped images only)" --> DOC["target doc dir in the module<br/>(static/description/, static/)"]
 
     REPOKEY["repo-key = sha256(realpath(git-common-dir))[:12]"] -.-> PROJ
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
