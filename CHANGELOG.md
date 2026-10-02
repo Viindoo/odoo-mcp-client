@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `git-toolkit` - **a launcher collects a child's result by the launch tool it holds.**
+  `snippets/git-nesting-protocol.md` said every launch is asynchronous and a dispatched launcher is
+  always woken with its child's result. That is untrue where the launch tool has a
+  `run_in_background` parameter: there a subagent that ends its turn is not woken, and the child's
+  result goes to the main conversation. The new N0 rule branches on the launcher's own tool - with the parameter, launch
+  with `run_in_background: false` (several in one message run concurrently) and never end the turn
+  while a child runs; without it, launch and end the turn to be woken once per child. It adds the
+  async-receipt rule and tells the main conversation to resume a nested launcher instead of acting
+  on its child's result. `git-pipeline-lead` and the `git-ops` skill point at N0.
+  (`git-toolkit` 0.6.6 -> 0.6.7.)
+
 ## [7.3.0] - 2026-10-01
 
 ## [7.2.0] - 2026-09-28

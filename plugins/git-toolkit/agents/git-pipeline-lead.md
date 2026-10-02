@@ -37,7 +37,9 @@ caller to delegate one leaf directly.
 
 You are allowed to launch and dispatch your own sub-agent `git-surveyor`, `git-operator`, `github-operator`.
 All dispatch is COLD-SPAWN per `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`: self-contained brief in,
-compact summary + findings-file path out.
+compact summary + findings-file path out. Collect every leaf's result by that file's N0 rule: read your own
+launch tool before P1 - whether your launch tool has a `run_in_background` parameter decides whether a launch
+returns the leaf's result inside your turn or you end your turn and are woken with it.
 
 ## Brief self-check
 

@@ -63,6 +63,12 @@ OUTPUT SIZE and RISK (never step count):
    HUMAN-CONFIRM -> P4 execute -> P5 verify below the caller, and returns only the final result.
    P3 strategy and the human-confirm gate are the LEAD's job, not the surveyor's.
 
+Collect the worker's result by the N0 rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
+This skill runs in whatever context invoked it - the main conversation or a dispatched agent - so
+read the launch tool THIS context holds: whether this launch tool has a `run_in_background`
+parameter decides whether the launch returns the result inside this turn or this turn ends and the
+result arrives on a wake.
+
 Fallback: if THIS context cannot cold-spawn (no agent-launch capability), degrade SINGLE-DELEGATE ->
 INLINE-with-contract per `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N4 - never fail
 silently.

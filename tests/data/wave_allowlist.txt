@@ -47,7 +47,6 @@ tests/test_context_budget.py: (a) the grandfather/wave-13 budget entries generat
 tests/test_continuation_version_flow.py: (a) a comment dating run-harness's driver role to the between-wave integration it replaced.
 tests/test_counted_section_reference_agreement.py: (e) `wave` is one of the retired count-unit literals the `<N>-<unit>` scanner still polices, so a resurrected "3-wave" heading is caught in the plugin trees this file's word ban does not reach.
 tests/test_execute_agent_hardening.py: (e)(c) the consume-only guard names the deleted `## Between-wave integration` section it generalizes from, and the reviewer guard uses the idiom "not wave it through".
-tests/test_git_toolkit_independence.py: (a) a comment scheduling a file to a later delivery round ("that file belongs to a LATER wave").
 tests/test_instance_ops_hardening.py: (a) comments dating two behaviour changes to the delivery rounds that shipped them.
 tests/test_inversion_scope_preserved.py: (a) the M9 contract-inversion checklist guard, scoped to the PR7 / wave-7 delivery round.
 tests/test_isolate_gc_generalization.py: (d)(e) asserts the legacy `.odoo-ai/wave/` directory still has a migration case that lands in `integration/`, and rejects a `wave/` destination.
