@@ -26,14 +26,24 @@ deleted, or would fail on a correct rewrite, it guards nothing - rewrite it.
 
 ## Simulate the user with Form
 
-Test any behavior a user reaches through a form view with Odoo's `Form` helper: set only the fields
-the user can set on THAT view, in the order the user sets them, let onchange fire, `save()`. `Form`
-enforces the view's readonly/invisible/required, so never force a field the user cannot set through
-`create`/`write`/`Form` workarounds to make the test pass. Pass `view=` when the behavior lives in a
-specific view. A button = call that button's method on the saved record as the acting user
-(`with_user()`). Confirm the target series ships `Form`
-(`test_base_classes(name='Form', odoo_version='<series>')`); where it does not, drive the flow with a
-tour / HttpCase.
+When the rule is triggered by data a user enters or changes in a form view - a constraint on save,
+an onchange, a default, readonly/required - arrange AND act through `Form`:
+
+1. **Ground the view first.** Read the model's form view (OSM `model_inspect` views, or the view XML
+   in the worktree) for the fields the acting user can set, their order and their groups. Confirm
+   the target series ships `Form` (`test_base_classes(name='Form', odoo_version='<series>')`);
+   where it does not, drive the flow with a tour / HttpCase.
+2. **Set only those fields on the `Form`, in the user's order**, so onchange fires as it would. Pass
+   `view=` when the behavior lives in a specific view. `Form` enforces the view's
+   readonly/invisible/required: never force a field the user cannot set through
+   `create`/`write`/`Form` workarounds.
+3. **Refused value:** `save()` inside `assertRaises(<BusinessError>)`, then assert the record's
+   field values / state unchanged. **Accepted value:** plain `save()`, then assert the stored
+   outcome.
+4. **A button** = call that button's method on the saved record as the acting user (`with_user()`).
+
+ORM `create`/`write` is only for ARRANGE data the user does not enter in that flow. A reviewer flags
+any test that sets through the ORM a field the user enters in a form.
 
 ## Never freeze the present
 
@@ -63,7 +73,7 @@ would be fixed by editing a `.po`.
 
 | Instead of the text | Assert |
 |---|---|
-| the exception's wording | the exception TYPE (`ValidationError` / `UserError` / `AccessError`) and the state that did NOT change |
+| the exception's wording | the exception TYPE (`ValidationError` / `UserError` / `AccessError`) and the record's field values / state unchanged |
 | a selection's label | its technical VALUE (`state == 'sale'`) |
 | a field's `string` / `help` | the behavior the field drives - or nothing |
 | a menu / action name | what triggering the action produces - or nothing |
@@ -93,25 +103,38 @@ rule (a number, a state value) - never computed in the test. No loops, comprehen
 that build expectations, no re-implementing the rule, no clever fixtures. A junior reads it top-down
 and sees the rule; if a test needs its own test, rewrite it.
 
-## Odoo BAD vs GOOD (approval workflow)
+Odoo's test loader imports `<module>.tests` itself: register each test file in `tests/__init__.py`,
+and never add `from . import tests` to the module's own `__init__.py`.
 
-BAD - seeds the end state, so a broken `action_approve` (missing guard, wrong access rule, skipped
+## Odoo BAD vs GOOD (confirm workflow)
+
+BAD - seeds the end state, so a broken `action_confirm` (missing guard, wrong access rule, skipped
 onchange) is never caught:
 
-    leave = self.env['hr.leave'].create({
-        'employee_id': self.emp.id, 'holiday_status_id': self.type.id,
-        'state': 'validate',  # SHORTCUT: jumps straight to approved
+    order = self.env['sale.order'].create({
+        'partner_id': self.partner.id,
+        'state': 'sale',  # SHORTCUT: jumps straight to confirmed
     })
-    self.assertEqual(leave.state, 'validate')  # tests the assignment, not the workflow
+    self.assertEqual(order.state, 'sale')  # tests the assignment, not the workflow
 
-GOOD - the employee fills the form as the user would, the manager clicks the button:
+GOOD - the salesperson fills the form as the user would, then clicks the button; each rule gets its
+own test (rule: a line discount above 20% is refused; the view shows `discount` only to the discount
+group, which `setUp` grants the salesperson):
 
-    with Form(self.env['hr.leave'].with_user(self.employee_user)) as f:
-        f.holiday_status_id = self.type          # onchange fires
-        f.request_date_from = date(2026, 6, 1)
-        f.request_date_to = date(2026, 6, 3)
-    leave = f.save()
-    leave.with_user(self.manager_user).action_approve()   # the button, as the approver
-    self.assertEqual(leave.state, 'validate')
-    with self.assertRaises(AccessError):                  # a non-manager is refused
-        leave.with_user(self.employee_user).action_approve()
+    def test_order_within_discount_cap_confirms(self):
+        f = Form(self.env['sale.order'].with_user(self.salesman))
+        f.partner_id = self.partner                     # onchange fires
+        with f.order_line.new() as line:
+            line.product_id = self.product
+            line.discount = 15
+        order = f.save()
+        order.action_confirm()                          # the button, as the salesperson
+        self.assertEqual(order.state, 'sale')
+
+    def test_discount_above_cap_is_refused_on_save(self):
+        f = Form(self.draft_order.with_user(self.salesman))   # arranged in setUp, discount 10
+        with f.order_line.edit(0) as line:
+            line.discount = 25
+        with self.assertRaises(ValidationError):
+            f.save()
+        self.assertEqual(self.draft_order.order_line.discount, 10)   # stored value unchanged

@@ -58,7 +58,7 @@ Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used
 | How you hold it | Who tears it down | When |
 |---|---|---|
 | Browser page/context/recording you DROVE this dispatch - opened, or reused by navigating it (navigating acquires it) | YOU (T2) | as you go + before your terminal status |
-| Lease you obtained yourself (no `INSTANCE_HANDLE` in your brief - any mode but `shared`) | YOU (one of the three exits below) | before your terminal status |
+| Lease you obtained yourself (any mode but `shared` - including a test-build port lease on a forwarded handle's database) | YOU (one of the three exits below) | before your terminal status |
 | `INSTANCE_HANDLE` forwarded DOWN to you in your brief | NEVER you | the agent that acquired it |
 | Lease acquired for YOUR run and handed back UP to you (you dispatched its provisioning), or one you acquired AND forwarded to children - you are the run-level owner | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
 | `MODE_HINT: path-incremental` lease | the skill that drives the path, inline (`odoo-instance` step E) | at path completion - never between steps |

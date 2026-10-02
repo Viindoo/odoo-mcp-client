@@ -334,9 +334,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
    Which addons a site loads server-wide (`--load`) is a deployment fact kept on each catalog
    row as `server_wide_modules`; Odoo's own core default is a source fact the odoo-local tools
-   read from the checkout. Every build and serve applies core default + the row's list, so an
-   agent never composes `--load` - and a module missing from the row is missing from every
-   build. For EVERY series (and profile) in the confirmed spec, after AI-4 recorded
+   read from the checkout. Every build and serve applies core default + the row's list by
+   default, so an agent never composes `--load` - and a module missing from the row is missing
+   from every build that does not add it for its own task (the tools' per-call `server_wide`). For EVERY series (and profile) in the confirmed spec, after AI-4 recorded
    `odoo_root`:
 
    1. **Local evidence.** Run `"$STEPS_DIR/46-server-wide.sh" propose --series <X.Y>

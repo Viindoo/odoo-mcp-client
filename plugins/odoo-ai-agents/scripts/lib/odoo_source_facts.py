@@ -47,6 +47,16 @@ Public API (stable - other scripts import it):
       `odoo`, or `openerp` on the oldest series: the core package holding
       release.py, which is also the root of Odoo's logger namespace.
 
+  module_search_dirs(odoo_root=None, addons_paths=None) -> list[str]
+      Where Odoo finds addons for that instance: the addons_path entries in
+      order, then the located checkout's core `<core package>/addons`, which
+      Odoo always adds itself.
+
+  module_dirs(module, dirs) -> list[str]
+      Every directory of `dirs` holding `module` (a directory with a module
+      descriptor), in order; one directory reached twice (a repeated entry, a
+      symlink) counts once. [] = Odoo cannot find that module there.
+
   i18n_export_cli(odoo_root) -> dict | None
       Which command line exports one module's translation file, and how its
       options are spelled - the SERVER command where config.py declares
@@ -157,6 +167,8 @@ __all__ = [
     "i18n_export_cli",
     "locate_odoo_launcher",
     "locate_odoo_root",
+    "module_dirs",
+    "module_search_dirs",
     "python_recommendation",
     "python_support",
     "second_port_key",
@@ -578,6 +590,36 @@ def core_package(odoo_root) -> str | None:
         if os.path.isfile(os.path.join(str(odoo_root), pkg, "release.py")):
             return pkg
     return None
+
+
+def module_search_dirs(odoo_root=None, addons_paths=None) -> list[str]:
+    """Where Odoo finds addons: the addons_path entries in order, then the core
+    `<core package>/addons` of the checkout locate_odoo_root picks (Odoo always
+    adds that directory itself)."""
+    dirs = [str(d) for d in (addons_paths or []) if d]
+    root = locate_odoo_root(odoo_root, addons_paths)
+    pkg = core_package(root) if root else None
+    if pkg:
+        core = os.path.join(root, pkg, "addons")
+        if core not in dirs:
+            dirs.append(core)
+    return dirs
+
+
+def module_dirs(module, dirs) -> list[str]:
+    """Every directory `module` resolves to across `dirs` (one holding a module
+    descriptor), in order; one directory reached through two entries (a
+    repeated entry, a symlink) counts once."""
+    found, seen = [], set()
+    for base in dirs or []:
+        path = os.path.join(str(base), module)
+        if not any(os.path.isfile(os.path.join(path, d)) for d in _DESCRIPTORS):
+            continue
+        real = os.path.realpath(path)
+        if real not in seen:
+            seen.add(real)
+            found.append(path)
+    return found
 
 
 _SERVER_EXPORT_OPTIONS = ("--i18n-export", "--modules", "--language")

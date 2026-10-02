@@ -9,21 +9,16 @@
 
 # Dispatch Brief (caller-side template)
 
-**This file is the SSOT for the CALLER-side dispatch brief - the content of the dispatch prompt a
-spawner sends to a specialist agent.** Fields are content SLOTS in `KEY: value` form, not literal
-headings. Reference existing homes for intent/acceptance/artifacts - `DESIGN_DOC`, `ORACLE_PATH`,
-worklog - rather than restating them here or in a filled brief.
-
-Non-leaf spawners **READ IT BY PATH** while composing a prompt; it is **NEVER inlined verbatim into
-a hard-leaf brief** (a leaf self-checks against the family-delta field list already inline in its
-own body, `## Brief self-check` below). That is the opposite of `worker-brief.md`, which IS inlined
-into leaves because it is worker-side behavior.
+Fields are content SLOTS in `KEY: value` form, not literal headings. Reference existing homes for
+intent/acceptance/artifacts - `DESIGN_DOC`, `ORACLE_PATH`, worklog - rather than restating them.
+Non-leaf spawners READ IT BY PATH; it is NEVER inlined into a hard-leaf brief (a leaf self-checks
+against its own family-delta list, `## Brief self-check` below), unlike `worker-brief.md`.
 
 ## Universal skeleton (11 fields)
 
 | # | Field | ALWAYS / COND | Definition |
 |---|-------|----------------|------------|
-| 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure. Governed by ODOO-AI-ETHOS #4 (Outcomes over Procedures) - cited, not restated, here: see `## Brief self-check` below for the site-specific application. |
+| 1 | `OBJECTIVE` | ALWAYS | The outcome as an end-state/question, not a procedure (ODOO-AI-ETHOS #4; applied in `## Brief self-check` below). |
 | 2 | `WHY` | ALWAYS (1 line) | Upstream reason; lets the agent judge under-specified edges and push back. Point at the worklog for detail; do not restate it. |
 | 3 | `SCOPE` (in / out) | ALWAYS (non-trivial tasks) | Explicit include + exclude list. |
 | 4 | `INPUTS` (artifact paths) | COND - ALWAYS when priors exist; `none yet` is a valid explicit value | Absolute paths to survey/research/gap/design/oracle files + specific prior findings (`file:line`). Reuse existing key names: `DESIGN_DOC`/`MASTER_DESIGN_DOC`, `SURVEY` (opted-in deep-survey findings - explicit `none` when none ran this session), `GAP_MATRIX`, `SCENARIOS_PATH`/`ORACLE_PATH`, `CATALOG_PATH`, `diff_path`. The key itself must be present - omitting it entirely (not even the literal `none yet`) is a load-bearing gap, checked in `## Brief self-check` below. |
@@ -33,7 +28,7 @@ into leaves because it is worker-side behavior.
 | 8 | `CONSTRAINTS` | COND | Hard boundaries (read-only, do-not-commit, must-not-touch paths, human-confirm gates, confidentiality). A boundary, never a procedure - same ODOO-AI-ETHOS #4 governance as `OBJECTIVE` above (cited, not restated). |
 | 9 | `MODEL`/`EFFORT` hint | COND - only when the caller holds signal the dispatcher lacks | Tier/effort override; `INSTANCE_HANDLE` forwarded when one exists (else the explicit value `none provisioned`). |
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
-| 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is what an Odoo lease is acquired under, what the teardown gate correlates a live lease to, and what a leak audit matches on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
+| 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); a front-door skill invoked standalone that will need a lease mints it ONCE as its `<run-or-slug>` (`worklog-contract.md` § Where it lives); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is the owner every Odoo lease, the teardown gate and a leak audit key on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent (a coordinator included) NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
 **No reply-address field exists.** Do not add one under any name. The agent you dispatch hands its
 report back once, and you are woken with it once you end that turn - rule:
@@ -67,8 +62,7 @@ either.
 Keep the brief SHORT: **one line per field, the whole brief on one screen (~40 lines).** Past that
 the receiver starts acting before it reaches the tail, which is where your boundaries and return
 shape sit. Over budget, cut HOW, never a field - a dropped field costs a `NEEDS_CONTEXT`
-round-trip, a dropped procedure costs nothing. A field needing more than a line was never resolved;
-resolve it (rule 1).
+round-trip, a dropped procedure costs nothing.
 
 **Do not delegate what nobody owns.** Ask for the outcome you need. Do not assert what the agent
 does internally to reach it - an assumption that turns out false leaves that gap enforced by no one.
@@ -85,8 +79,8 @@ pointer back to this file - never the full skeleton table.
 
 `odoo-solution-architect`, `odoo-planner`, `odoo-doc-planner`:
 
-`odoo-solution-architect` is `role: spawner` (it may source its own grounding); the other two are
-leaves. All three take the LEAF self-check variant - see the SPAWNER variant note below.
+All three take the LEAF self-check variant (`odoo-solution-architect`, a spawner of anonymous
+grounding workers only, too).
 
 - Pointer to the CURRENT architecture/constraint snapshot to fit inside.
 - Which decisions need an ADR-style tradeoff vs are already-settled.
@@ -104,6 +98,11 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
 - `COMMIT` - `odoo-coder` only, optional: `self` (default) or `caller` (commit nothing, return the
   file list).
+- `CONSTRAINTS` - the caller's hard boundaries passed through unchanged (forward-port: C1-C3,
+  LINT-ONLY, the `fp-merge-absorption.md` pointer); `odoo-coding` forwards it into every coder brief
+  as `CONSTRAINTS:`, where the backend coder reads it.
+- `INTENT` - adapt mode: the intent record per source commit (same key from every caller).
+- `RUN_ID` - forwarded unchanged to the coordinator and every leaf (skeleton field 11).
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only, never a field on
@@ -130,7 +129,7 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 - The coverage baseline, so a dimension a sibling pass already owns is not re-run.
 - `CHANGED_SET`/`SCOPE_FILES` for diff-scoping (the diff-scoped code reviewer).
 - `ACCEPTANCE` resolves to `DESIGN_DOC` §9 when a design doc exists for this change; otherwise
-  `N/A` (a review/audit pass often has no upstream TDD to point at).
+  `N/A`.
 
 ### Diff comparator (rebase / upgrade absorption)
 
@@ -138,8 +137,7 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 
 - `mode` - `rebase` or `upgrade`; determines which of the remaining fields apply and which output
   it emits.
-- Rebase mode: `diff_path` (the diff/range-diff file the orchestrator wrote via
-  `git-toolkit:git-ops`, read-only - this agent is git-free) + `diff_scope` (the two refs, e.g.
+- Rebase mode: `diff_path` (written via `git-toolkit:git-ops`, read-only; this agent is git-free) + `diff_scope` (the two refs, e.g.
   `new-base...feature-ref`) + `intents_dir` (per-commit intent records from
   `odoo-intent-extractor`).
 - Upgrade mode: `diff_scope` (module path/name) + `repo_root` (local source root for `Read`/`Grep`,
@@ -155,9 +153,16 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 `odoo-test-writer`, `odoo-qa-planner`, `odoo-qa-tester`:
 
 - The oracle/scenario file - expected results chosen BEFORE execution.
-- Environment / `INSTANCE_HANDLE` - required for `odoo-test-writer`: its break-check runs on it.
-- `odoo-test-writer` in a coding node also gets `CHANGED CODE` (checkpoint + per-WI files and
-  behavior) and `CHANGE KIND`; expected values still come from the REQUEST/AC, never the code.
+- Environment / `INSTANCE_HANDLE` - `odoo-coder` always forwards one to `odoo-test-writer` (its
+  break-check runs use it); optional from any other caller (absent -> tests
+  written, `PENDING BREAK_CHECK`).
+- `odoo-test-writer` also gets `CHANGED CODE` (node base SHA + the coders' file lists + one-line
+  behavior summaries), `CHANGE KIND` per behavior (a row value of `test-sensitivity-contract.md`
+  § How to break each change kind), `CROSS-MODULE ASSERTIONS`, and in adapt mode `SOURCE TESTS`,
+  `BROKEN TEST-SYMBOLS`, `BUCKET`, `INTENT`, `TARGET TEST EXAMPLES`. A caller with no coder output
+  (`odoo-acceptance`, `odoo-code-review` coverage) derives `CHANGE KIND` from the code under test
+  (default `new`), sets `CHANGED CODE` = the files under review, and says so. Expected
+  values come from the REQUEST/AC, never the code.
 - Roles/personas.
 - Adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence.
 - Exception - `odoo-qa-planner`'s input is the raw `REQUIREMENT`/intent, NOT the implementation.
@@ -189,10 +194,8 @@ no format choice. Its brief is worktree-and-instance shaped:
 
 - `MODULE_PATH` - the absolute module path (never a bare module name).
 - `BRIEF` palette hex values (`BG`/`FG`) when a brand differs from the category-hue default.
-- `odoo_version` - drives the era-correct visual style and the manifest `icon` key
-  resolution (the agent's Step 5).
-- No locale/language list and no feature-catalog grounding - this agent is standalone (OSM +
-  disk), not audience-facing prose.
+- `odoo_version` - drives the era-correct visual style and the manifest `icon` key.
+- No locale/language list and no feature-catalog grounding (standalone: OSM + disk).
 
 ### Instance / ops
 
@@ -209,8 +212,7 @@ no format choice. Its brief is worktree-and-instance shaped:
   guessed either way. Detailed rule owned by `odoo-instance-ops` (§ Lint modules HARD RULE) -
   not restated here.
 - The "provision-once / forward-everywhere" rule (`instance-handle-contract.md`).
-- Carries NO git ref / force-push / commit-convention fields - this family provisions databases and
-  runs zero git.
+- No git fields - this family runs zero git.
 
 ### Survey / analyst
 
@@ -223,10 +225,8 @@ no format choice. Its brief is worktree-and-instance shaped:
 
 ### Git family - not here
 
-The **Git** family delta (base ref + target ref; safety-gate for destructive rewrite/force-push;
-"detect the commit convention, do not invent one"; what must NOT be touched) lives ONLY in
-`git-toolkit`'s `git-nesting-protocol.md` - it is intentionally NOT reproduced in this file
-(cross-plugin boundary; `git-toolkit` cannot depend on `odoo-ai-agents`).
+The **Git** family delta lives ONLY in `git-toolkit`'s `git-nesting-protocol.md` - never reproduced
+here (cross-plugin boundary; `git-toolkit` cannot depend on `odoo-ai-agents`).
 
 ## Brief self-check
 
@@ -272,13 +272,10 @@ Replace `<family fields>` with the agent's own family-delta field list (e.g. the
 
 ### SPAWNER variant (a spawner that RE-BRIEFS named leaves - `odoo-coder`)
 
-Copy this variant only if you dispatch NAMED leaves whose briefs you fill. A spawner whose
-children are anonymous read-only workers (`odoo-solution-architect`) keeps its own family
-self-check and adds a re-brief rung to it instead.
-
-Such a spawner validates its OWN inbound brief, then RE-BRIEFS each leaf by reading this file BY
-PATH. It must NOT carry the leaf-only "STOP and return NEEDS_CONTEXT" wording verbatim - that
-phrasing belongs to a leaf with no one left to re-brief.
+Only for a spawner that fills NAMED leaves' briefs (a spawner of anonymous read-only workers,
+`odoo-solution-architect`, keeps its own family self-check plus a re-brief rung). It validates its
+OWN inbound brief, then RE-BRIEFS each leaf; it never carries the leaf-only "STOP and return
+NEEDS_CONTEXT" wording - that belongs to a leaf with no one left to re-brief.
 
 ```markdown
 ## Brief self-check

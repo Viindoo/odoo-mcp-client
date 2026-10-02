@@ -74,10 +74,11 @@ put any of them in `extra_args` and never compose them by hand. The judgement le
 `demo` and which `languages` to ask for, and what to do with the warnings `job_wait` reports.
 
 - **Server-wide modules.** The tools load the series' core default (read from the lease's Odoo
-  checkout) plus the `server_wide_modules` of the lease's catalog row, fixed on the lease when it is
-  acquired. A `job_wait` warning that a module must be loaded server-wide means that catalog row is
-  incomplete: follow its remedy (it names the row and its `/odoo-ai-agents:odoo-setup refresh`),
-  then release the lease and acquire a new one before you trust any result from that instance. Never answer it by installing the module with `-i`.
+  checkout) plus the catalog row's `server_wide_modules`, fixed on the lease when it is acquired:
+  the default for every build. Another set for one task: `server_wide` exclude/include on each
+  build and serve of that DB. A `job_wait` server-wide warning: `server_wide.include` it for
+  the task, or follow its catalog remedy (`/odoo-ai-agents:odoo-setup refresh`), then release the
+  lease and acquire a new one before trusting it. Never answer it by installing the module with `-i`.
 - **Languages.** Pass the target codes as `languages`; the tool adds `en_US` to every build.
   `job_wait` reports `languages_loaded` and `languages_failed`, proven from the build log; a code in
   `languages_failed` is not loaded, whatever you asked for.

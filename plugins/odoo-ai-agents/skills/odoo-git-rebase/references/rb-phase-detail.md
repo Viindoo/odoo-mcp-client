@@ -586,32 +586,37 @@ git-ops to write the commit dump to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sh
 then dispatch `odoo-intent-extractor` (rebase MODE, P2 brief with `commit_dump_path:` set)
 to create the intent file before proceeding to the coder.
 
-Dispatch Explore first if context is needed, then the `odoo-coding` skill via the Skill tool
-(mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`
-agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder`
-per-node coordinator), and synthesis):
+Read the stopped commit's P4 outcome first. Outcome (a) or (d): invoke git-ops to skip the commit
+(`--skip`) and dispatch nothing else - a bucket-(a)/(d) commit is never sent to `odoo-coding`.
+Outcome (b)/(c): dispatch Explore first if context is needed, then the `odoo-coding` skill via the
+Skill tool (mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
+`odoo-frontend-coder` agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its
+`odoo-coder` per-node coordinator), and synthesis):
 
 ```
 SKILL: odoo-coding
 DISPATCH MODEL: <adapt_tier from plan.md>
 TASK: Resolve a rebase conflict for one commit in a same-series Odoo rebase.
 SHA: <sha>
-INTENT_FILE: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
-OUTCOME: <a|b|c|d>
+INTENT: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
+BUCKET: <b | c - the P4 outcome; an (a)/(d) commit is skipped, never sent>
+COMMIT: caller   (make NO commit - the rebase is stopped on this commit; return the resolved file
+      list, and the caller stages it and continues)
+TEST LEG: deferred - P9   (launch no test-writer and run no integrated test here; P9 runs this
+      module's test leg once the rebase is done)
 FAILURE_MODE: <from comparison.md>
 CONFLICTED_FILES: <list from git diff --check - text hunks only; .po/binary/generated handled above>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
-RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new base.
-      If OUTCOME=(a): do not resolve - caller will instruct git-ops to skip that commit.
-      If OUTCOME=(d): do not resolve - caller will instruct git-ops to skip that commit.
+RULE: Resolve to the INTENT recorded at INTENT, using the idiom of the new base.
       Never leave a line referencing a symbol that was renamed/moved at the new base.
-      On a module-descriptor `version` conflict (`__manifest__.py`, or `__openerp__.py` on v8-v9),
+      On a module-descriptor `version` conflict (the descriptor filename
+      ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md row 6 names for the series),
       keep the new-base ref's `version` field unchanged -
       a same-series replay never bumps it. (Same-series analogue only; do NOT import the cross-series
       forward-port C1/C2 migration logic.)
-      If rerere auto-resolved any file: verify each auto-resolved hunk against INTENT_FILE
+      If rerere auto-resolved any file: verify each auto-resolved hunk against INTENT
       before staging - rerere replays text, not intent.
       After resolving: emit a "RESOLVED" status listing the resolved files.
       Caller will invoke git-ops to stage and continue per the stateless-resume recipe.
@@ -620,11 +625,11 @@ RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new
       on-theme and design-system-correct for the target series.
 ```
 
-After `odoo-coding` returns RESOLVED: invoke git-ops to drive continue/skip per the
-canonical continue-driver (git-toolkit S10, cited in the Conflict-TYPE taxonomy above) and the
-stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`:
-- outcome=(a) or (d): instruct git-ops to skip that commit (--skip)
-- outcome=(b)/(c): instruct git-ops to stage the resolved files and invoke --continue
+After `odoo-coding` returns RESOLVED: record each module its returned file list touches in
+`rebase-log.md` § P8-resolved modules (one `<sha>: <module>, ...` line) - P9 owes each of them a
+test leg. Then invoke git-ops to stage the returned file list and invoke
+--continue, per the canonical continue-driver (git-toolkit S10, cited in the Conflict-TYPE taxonomy
+above) and the stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 Loop until git-ops returns `DONE` (rebase complete - proceed to P8b). `BLOCKED-CONFLICT`
 continues the loop with the next stopped commit from `stopped_commit`; on 3 consecutive
@@ -740,13 +745,16 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 
 ## P9 - Adapt + test forward (per touched module)
 
-For each module whose behavior changed, invoke the `odoo-coding` skill (via the Skill tool) ONCE
-with the adapt fields below - `odoo-coding` owns the coder fan-out + model and the node's test leg
+For each module whose behavior changed - and for every module listed in `rebase-log.md`
+§ P8-resolved modules, whose test leg P8 deferred here - invoke the `odoo-coding` skill (via the
+Skill tool) ONCE with the adapt fields below - `odoo-coding` owns the coder fan-out + model and the node's test leg
 (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). Inside the node
 the code is adapted to the new-base idiom first; the node's test leg then adapts the branch's own
-tests and returns one `BREAK_CHECK:` line per adapted test
+tests and returns its record lines - a `BREAK_CHECK:` line per adapted test
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
-Record those lines in the run's worklog. Adapt brief:
+Record every returned line verbatim, in its contract shape (§ Break-check record), in the
+`## Test-leg records` section of `rebase-log.md`, one `<module>: <line>` per line - P10 B3 reads
+their `data-file` field. Adapt brief:
 
 ```
 DISPATCH MODEL: <adapt_tier>
@@ -755,12 +763,16 @@ MODE: adapt
 MODULE SCOPE: <module> @ <WT_ROOT>/rb-integration/<module>
 INTENT: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md - the behavioral oracle (one path per
       replayed sha touching the module)
-BUCKET: <per sha: the 4-outcome bucket recorded for it - [[rb-intent-4outcome]]>
+BUCKET: <per replayed sha touching the module: b | c | d - [[rb-intent-4outcome]]; never a
+      bucket-(a) sha: (a) commits are skipped or already on the base, with no code and no test
+      to forward (rb-triage-table.md Table 2 short-circuit)>
 SOURCE TESTS: <the branch's own test files for this module, in the integration worktree>
 BROKEN TEST-SYMBOLS: <the P8b symbol-survival entries that land in those test files | omit when none>
 ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
+ADDONS_PATH: <that handle's addons_path, comma-joined - the coordinator's addons coverage assertion
+      reads it; omit with INSTANCE_HANDLE: none>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
 RULE: The node's test leg forwards each source test as the behavioral oracle and adapts its API to
@@ -805,10 +817,12 @@ Loop + escalate:
    ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
    ADAPT TIER: <same tier as the P8 adapt for these files>
    INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none'>
+   ADDONS_PATH: <that handle's addons_path, comma-joined - omit with INSTANCE_HANDLE: none>
    FIX BRIEF: <the CRITICAL/HIGH findings + reviewer's corrected version>
    RULE: fix to the finding's root cause only; do not expand scope; keep tests GREEN.
    ```
-   Then RE-REVIEW (step 1). Record MED/LOW in `rebase-log.md` for P12, do not block on them.
+   Record the fix's returned test-leg lines in `rebase-log.md` § Test-leg records, then RE-REVIEW
+   (step 1). Record MED/LOW in `rebase-log.md` for P12, do not block on them.
 3. Cap = 3 review->fix iterations. 3rd iteration still CRITICAL/HIGH -> STOP, escalate BLOCKED
    per ETHOS #7 with the failing finding + diff. Never relax the severity bar to pass the gate.
 
@@ -856,7 +870,11 @@ restate them here. Its Step 4 return block's
 ### B3 - conditional instance verify
 
 If P8b Lane 2 already provisioned the run's instance, reuse its `INSTANCE_HANDLE` here (`mode: reuse`)
-and provision nothing. Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the
+and provision nothing - unless any `rebase-log.md` § Test-leg records line says `data-file yes`. That
+break-check ran on this database while a data file was broken, and the broken records survive the
+restore and a `reuse` reload (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The
+break-check): release that lease and take the verdict from a fresh build - ONE new instance via
+the `odoo-instance` skill, `mode: fresh`, same `WORKTREE_PATH`, modules and test tags. Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the
 rebased range touches ANY of:
 - A model field add, remove, rename, or type-change
 - A stored compute or constraint
@@ -873,7 +891,7 @@ canonical output block ONCE as the run's `INSTANCE_HANDLE` and forwards that han
 the provided handle, never invent a DB or a port, and never re-derive `addons_path` from the catalog.
 The DISPATCHER owns addons provenance: whenever a brief names a `WORKTREE_PATH`, have the lease acquired
 with `addons_path` naming THAT worktree so the instance loads it, or authorize
-`SELF_PROVISION: worktree-addons`. One instance per run, and you are its run-level owner
+`SELF_PROVISION: worktree-addons`. One live instance per run at a time, and you are its run-level owner
 (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1): once every brief that carried the
 handle has returned and the P10 verdict is final - BEFORE the P11 human gate, never while a leaf still
 holds it - call `mcp__plugin_odoo-ai-agents_odoo-local__lease_release` on its `lease_token` and this
@@ -970,6 +988,14 @@ orchestrator does not rewrite commit messages (an outcome-(a) skip records the r
 | abc1234 | add double-post guard | (b) | renamed | `_post`->`action_post` at `account/models/account_move.py:123` | sonnet | resolved |
 | def5678 | fix typo in docstring | (a) | already-present | patch-id match on new-base | haiku | skipped |
 | ghi9012 | OWL widget refactor | (c) | override-refactored | `ListRenderer` replaced by `ListController` | fable | designed |
+
+## P8-resolved modules
+
+<sha>: <module>, ...   (the modules a P8 conflict resolution touched; each gets a P9 test leg)
+
+## Test-leg records
+
+<module>: BREAK_CHECK: <the line as the P9 / P9b test leg returned it, verbatim>
 ```
 
 ---

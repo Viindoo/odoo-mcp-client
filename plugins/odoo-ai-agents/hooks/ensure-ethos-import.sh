@@ -8,6 +8,16 @@
 # content into the current session via additionalContext (because CLAUDE.md was
 # already read before this hook ran). Subsequent runs are no-ops.
 #
+# Marketplace vs dev root: the managed import must point at the INSTALLED plugin
+# (under ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/), never at a throwaway dev
+# checkout loaded with `claude --plugin-dir` - deleting that checkout would leave
+# a dangling global import. So:
+#   - running from a marketplace root: heal ANY differing path to the running root
+#     (version upgrades, and a stray dev path is healed back);
+#   - running from any other root (dev checkout): leave an existing block whose
+#     import target file still EXISTS byte-identical; write/heal to the dev path
+#     only when there is no block or the current target file is missing.
+#
 # Contract: idempotent, never blocks the session, always exits 0.
 #   - Escape hatch: export ODOO_AI_NO_ETHOS_IMPORT=1 to disable (dedicated var;
 #     separate from ODOO_AI_NO_AUTO_PERMS so opting out of browser permissions
@@ -20,7 +30,7 @@ if [ "${ODOO_AI_NO_ETHOS_IMPORT:-0}" = "1" ]; then
   exit 0
 fi
 
-_plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
+_plugin_root="$(cd -P "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd -P)"
 P="${_plugin_root}/ODOO-AI-ETHOS.md"
 
 # Source file absent (other agent hasn't written it yet) -> stay silent, do nothing.
@@ -32,6 +42,23 @@ _md="${_cfg_dir}/CLAUDE.md"
 mkdir -p "${_cfg_dir}"
 # Create CLAUDE.md if missing.
 [ -f "${_md}" ] || : > "${_md}"
+
+# Marketplace root = the running plugin root lives under <config dir>/plugins/
+# (both sides symlink-resolved). Anything else is a dev checkout.
+_cfg_real="$(cd -P "${_cfg_dir}" 2>/dev/null && pwd -P)"
+_is_marketplace=0
+case "${_plugin_root}/" in
+  "${_cfg_real}/plugins/"*) _is_marketplace=1 ;;
+esac
+
+# Dev root only: path of an existing ETHOS import whose target file still exists
+# (first match). Empty = nothing to preserve. Marketplace roots never preserve.
+_keep_import=""
+if [ "${_is_marketplace}" -eq 0 ]; then
+  while IFS= read -r _cand; do
+    if [ -f "${_cand#@}" ]; then _keep_import="${_cand}"; break; fi
+  done < <(grep -E '^@/.*/ODOO-AI-ETHOS\.md$' "${_md}" 2>/dev/null || true)
+fi
 
 # Sentinel marker strings (fixed; used with grep -F for literal matching).
 _BEGIN='<!-- BEGIN odoo-ai-agents ETHOS import (managed by ensure-ethos-import.sh - do not edit inside) -->'
@@ -101,6 +128,9 @@ elif [ "${_begin_count}" -eq 1 ] && [ "${_end_count}" -eq 1 ]; then
     if [ "${_current_import}" = "${_import_line}" ]; then
       # Already exactly right -> no-op (file stays byte-identical).
       :
+    elif [ "${_is_marketplace}" -eq 0 ] && [ "${_current_import}" = "${_keep_import}" ]; then
+      # Dev root, existing import target still on disk -> do not hijack it.
+      :
     else
       # Stale/relocated path -> range-delete block, re-append correct one.
       _tmp=$(mktemp "${_md}.ethos.XXXXXX")
@@ -123,6 +153,8 @@ fi
 if [ "${_begin_count}" -ne 0 ] && \
    { [ "${_begin_count}" -ne 1 ] || [ "${_end_count}" -ne 1 ] || \
      [ "${_begin_count}" -eq 99 ]; }; then
+  # Dev root: keep pointing at a still-existing import instead of the dev path.
+  [ -n "${_keep_import}" ] && _import_line="${_keep_import}"
   _tmp=$(mktemp "${_md}.ethos.XXXXXX")
   grep -vxF "${_BEGIN}" "${_md}" | \
     grep -vxF "${_END}" | \

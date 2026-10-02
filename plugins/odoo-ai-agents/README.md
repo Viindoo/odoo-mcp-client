@@ -771,6 +771,7 @@ Installing `odoo-ai-agents` **automatically pulls in `odoo-semantic-mcp`** via t
 
 **On first session after install**, a SessionStart hook adds a managed `@import` block of `ODOO-AI-ETHOS.md` to your **global `~/.claude/CLAUDE.md`**. Because CLAUDE.md is loaded by every Claude Code session (and `@import` is resolved recursively), these principles apply to **all your Claude Code projects**, not only Odoo work. The current session gets coverage immediately via `additionalContext`; subsequent sessions load the file through the `@import`.
 
+- **Dev checkouts:** a `--plugin-dir` dev checkout never repoints an existing import whose target file still exists; only the installed (marketplace) plugin heals the path.
 - **Opt out:** set `ODOO_AI_NO_ETHOS_IMPORT=1` before starting Claude Code (dedicated var - independent of `ODOO_AI_NO_AUTO_PERMS`).
 - **Uninstall cleanup:** removing the plugin leaves an orphan `@import` block in `~/.claude/CLAUDE.md`. To fully remove it, delete the sentinel-marked block between `<!-- BEGIN odoo-ai-agents ETHOS import ... -->` and `<!-- END odoo-ai-agents ETHOS import -->` from `~/.claude/CLAUDE.md` manually.
 
@@ -833,7 +834,8 @@ to lease an isolated database and ports, build and serve an instance, wait on lo
 release or park what they hold, and export translation files (`lease_*`, `instance_*` including
 `instance_i18n_export`, `job_wait`, `catalog_*`, `db_preflight`, `series_detect`, `project_dir`,
 `server_info`). The tools apply every build fact themselves - server-wide modules (`--load`: the
-series' core default + the catalog row's `server_wide_modules`), languages (`en_US` always) and
+series' core default + the catalog row's `server_wide_modules`, adjustable for one call with
+`server_wide` exclude/include), languages (`en_US` always) and
 demo data - reading each series-dependent fact from your own Odoo checkout, so an agent never
 composes those flags. One build or export runs on a database at a time. Every Odoo the tools launch
 reads a config file they generate, never your `~/.odoorc`; the database password comes only from

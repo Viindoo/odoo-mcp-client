@@ -423,27 +423,102 @@ def core_server_wide_default(odoo_root, addons_paths=None):
     return list(mods) if mods is not None else None
 
 
-def effective_server_wide_modules(declared, odoo_root, addons_paths=None):
+class ServerWideOverrideInvalid(Exception):
+    """A per-call server-wide adjustment (exclude / include) that cannot be
+    applied. `field` is `exclude` or `include`, `modules` the names refused,
+    `reason` one of: core (exclude names a core module), not-declared (exclude
+    names a module the declared set does not hold), both (a module is excluded
+    and included at once), not-found (include names a module with no module
+    directory where Odoo looks for addons)."""
+
+    def __init__(self, field, reason, modules, message):
+        Exception.__init__(self, message)
+        self.field = field
+        self.reason = reason
+        self.modules = list(modules)
+
+
+def effective_server_wide_modules(declared, odoo_root, addons_paths=None, exclude=None,
+                                  include=None):
     """The --load set a build or a server of this instance must use:
-    (effective, core). effective = core default + declared, deduplicated, core
-    first. ([], core-or-None) when nothing is declared - no --load is passed
-    and Odoo applies its own default, which is already correct. Raises
-    ServerWideCoreUnknown when modules are declared but the core default is
-    unreadable: --load REPLACES Odoo's default, so a set without the core
-    modules would drop them, and the core set is never guessed."""
+    (effective, core).
+
+    Without an adjustment (exclude and include both empty): effective = core
+    default + declared, deduplicated, core first; ([], core-or-None) when
+    nothing is declared - no --load is passed and Odoo applies its own
+    default, which is already correct.
+
+    With an adjustment for ONE call (the declared set itself is unchanged):
+    effective = core default + (declared - exclude) + include, deduplicated,
+    core first, and always non-empty (--load is then passed explicitly).
+    Refused with ServerWideOverrideInvalid: excluding a core module (with
+    --load given, Odoo loads only what it names, and the core modules must
+    stay), excluding a module not declared (a typo would otherwise be a silent
+    no-op), excluding and including one module, including a module Odoo
+    cannot find (odoo_source_facts.module_search_dirs: addons_path + the
+    checkout's core addons). Including a module already in the set is a
+    no-op.
+
+    Raises ServerWideCoreUnknown when a set must be passed (modules declared,
+    or an adjustment given) but the core default is unreadable: --load
+    REPLACES Odoo's default, so a set without the core modules would drop
+    them, and the core set is never guessed."""
     declared = split_module_list(declared)
+    exclude = split_module_list(exclude)
+    include = split_module_list(include)
+    adjusted = bool(exclude or include)
     core = core_server_wide_default(odoo_root, addons_paths)
-    if not declared:
+    if not declared and not adjusted:
         return [], core
     if core is None:
         raise ServerWideCoreUnknown(
-            "server_wide_modules declares %s, but Odoo's core --load default could not be read "
-            "from the checkout (odoo_root %r)" % (MODULE_LIST_SEP.join(declared), odoo_root or ""))
+            "a server-wide set must be passed (%s), but Odoo's core --load default could not be "
+            "read from the checkout (odoo_root %r)" % (
+                "declared: %s" % MODULE_LIST_SEP.join(declared) if declared else
+                "this call adjusts it", odoo_root or ""))
+    if adjusted:
+        _check_server_wide_adjustment(declared, core, exclude, include, odoo_root, addons_paths)
     out = []
-    for m in core + declared:
+    for m in core + [d for d in declared if d not in exclude] + include:
         if m not in out:
             out.append(m)
     return out, core
+
+
+def _check_server_wide_adjustment(declared, core, exclude, include, odoo_root, addons_paths):
+    """ServerWideOverrideInvalid for the first rule `exclude` / `include` break
+    (effective_server_wide_modules states the rules)."""
+    both = [m for m in exclude if m in include]
+    if both:
+        raise ServerWideOverrideInvalid(
+            "exclude", "both", both,
+            "%s is both excluded and included - name it in one list only" % ", ".join(both))
+    in_core = [m for m in exclude if m in core]
+    if in_core:
+        raise ServerWideOverrideInvalid(
+            "exclude", "core", in_core,
+            "%s is in Odoo's core server-wide default (%s), which stays loaded whenever a set is "
+            "passed; exclude only declared modules (%s)" % (
+                ", ".join(in_core), MODULE_LIST_SEP.join(core),
+                MODULE_LIST_SEP.join(declared) or "none declared"))
+    undeclared = [m for m in exclude if m not in declared]
+    if undeclared:
+        raise ServerWideOverrideInvalid(
+            "exclude", "not-declared", undeclared,
+            "%s is not in the declared server-wide set (%s); exclude only declared modules" % (
+                ", ".join(undeclared), MODULE_LIST_SEP.join(declared) or "none declared"))
+    facts = _source_facts()
+    already = set(core) | set(declared)
+    new = [m for m in include if m not in already]
+    if not new:
+        return
+    dirs = facts.module_search_dirs(odoo_root, addons_paths) if facts is not None else []
+    missing = [m for m in new if not facts or not facts.module_dirs(m, dirs)]
+    if missing:
+        raise ServerWideOverrideInvalid(
+            "include", "not-found", missing,
+            "%s has no module directory where Odoo looks for addons (%s)" % (
+                ", ".join(missing), ", ".join(dirs) or "no addons directory"))
 
 
 def _rstrip_slashes_locate(path):

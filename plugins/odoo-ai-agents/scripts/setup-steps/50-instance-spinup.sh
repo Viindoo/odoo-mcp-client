@@ -84,8 +84,16 @@
 #              Declared modules whose core default cannot be read -> BLOCKED
 #              with SERVE_REFUSED=SERVER_WIDE_CORE_UNKNOWN on stdout (the key
 #              REPLACES Odoo's default, so a set without the core would drop
-#              it). --load <modules> is a human override that states the
-#              COMPLETE set instead; the odoo-local tools never pass it.
+#              it). --load <modules> states the COMPLETE set instead: a
+#              human override, and what instance_serve passes when its caller
+#              adjusts the set for one call (`server_wide`; the tool computes
+#              core default + the adjusted declared set, core first).
+#              On an ATTACH (the instance already answers), the running
+#              server keeps the set it was launched with: apply then prints
+#              RUNNING_SERVER_WIDE_MODULES=<the server_wide_modules of the
+#              conf that launch wrote; empty = no key, Odoo's own default>,
+#              printed only when that conf exists, so a caller can tell
+#              whether the set it asked for is the one serving.
 #              apply prints the resolution as machine-readable stdout facts -
 #              SERVED_ADDONS_PATH / SERVED_ADDONS_SOURCE /
 #              SERVED_SERVER_WIDE_MODULES - so a caller can verify the served
@@ -532,6 +540,14 @@ _probe_ready_fallback() {
 #   still recognised via _identity_token_legacy, a one-time backward-compat
 #   bridge _identity_ok checks after the canonical token - see both functions.
 # ---------------------------------------------------------------------------
+# _served_conf_path <db_name> <port> - the ONE spelling of the generated conf a
+#   launch writes (keyed by the instance's db_name + http port, see the conf
+#   block in cmd_apply), so the attach path reads the very file the running
+#   server was launched with.
+_served_conf_path() {
+    printf '%s/conf/%s-%s.conf\n' "$(odoo_ai_state_root)" "$1" "$2"
+}
+
 _identity_marker_path() {
     # $1 = port. Lives under the SAME machine-global runtime root the
     # allocator/resolver use (_odoo_ai_runtime_dir, sourced from
@@ -1213,6 +1229,11 @@ cmd_apply() {
     if _probe_ready "$port"; then
         if _identity_ok "$port" "$_id_expected" "${INST_ADDONS_PATH:-}"; then
             [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
+            local _running_conf
+            _running_conf="$(_served_conf_path "$db_name" "$port")"
+            if [[ -f "$_running_conf" ]]; then
+                echo "RUNNING_SERVER_WIDE_MODULES=$(sed -n 's/^server_wide_modules = //p' "$_running_conf" | tail -n 1)"
+            fi
             _emit_serve_facts attached ""
             echo "ok Instance ${INST_SERIES} already up at http://localhost:$port$_last_ready_path"
             return 0
@@ -1422,7 +1443,7 @@ cmd_apply() {
             _conf_dir="$(odoo_ai_state_root)/conf"
             mkdir -p "$_conf_dir"
             prune_stale_run_artifacts "$_conf_dir" '*.conf'
-            conf="$_conf_dir/${db_name}-${port}.conf"
+            conf="$(_served_conf_path "$db_name" "$port")"
             {
                 echo "[options]"
                 # The tree this launch SERVES: resolved once above (argument >

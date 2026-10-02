@@ -286,15 +286,19 @@ worktree, avoiding the `fatal: already used by worktree` abort. git-ops returns
 `stopped_commit: <sha>` (-> P8). Full dispatch brief: `references/rb-phase-detail.md` P7.
 
 **P8 - Conflict-resolution loop [per stopped commit: Explore + the `odoo-coding` skill, ADAPT tier].**
-For each commit the rebase stops on: dispatch Explore to read conflicted files + the commit's
-`intents/<sha>.md` + P4 outcome; then dispatch the `odoo-coding` skill (via the Skill tool,
-mirroring §P9b) at the ADAPT tier to resolve hunks to INTENT on the new-base idiom. `odoo-coding`
+For each commit the rebase stops on, read its P4 outcome first: outcome (a) or (d) -> instruct
+git-ops to skip that commit and invoke nothing else - a bucket-(a)/(d) commit is never sent to
+`odoo-coding`. Outcome (b)/(c): dispatch Explore to read conflicted files + the commit's
+`intents/<sha>.md`; then dispatch the `odoo-coding` skill (via the Skill tool,
+mirroring §P9b) at the ADAPT tier with `COMMIT: caller` (the rebase's own continue creates the
+replayed commit) and `TEST LEG: deferred - P9` (the node's test leg runs once, at P9) to resolve
+hunks to INTENT on the new-base idiom. Record every module each resolution touched - P9 covers
+them all. `odoo-coding`
 owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-node
 coordinator) - including `odoo-frontend-coder`
 for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
-`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder` agents for conflict resolution. If outcome=(a) or (d),
-instruct git-ops to skip that commit. Never leave an auto-merged line referencing a
+`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a
 renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-invoke git-ops per the
 stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
 semantic bounce -> on-disk --continue). On 3 consecutive BLOCKED returns from git-ops:
@@ -317,7 +321,8 @@ import gate: `references/rb-phase-detail.md` P8b.
 
 **P9 - Adapt + test forward (per touched module, conditional) [odoo-coding, MODE: adapt - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md
-modules[], not a vague "behavior changed" heuristic), invoke `odoo-coding` once per module with the
+modules[], not a vague "behavior changed" heuristic) AND every module a P8 resolution touched (its
+test leg was deferred to here), invoke `odoo-coding` once per module with the
 adapt fields: the code is adapted to the new-base idiom first, then the node's test leg adapts the
 branch's own tests and break-checks them
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
@@ -348,8 +353,11 @@ DB-stateful behavior (model field add/remove/type-change, stored-compute, ORM
 create/write/unlink override, migration dir, or TransactionCase/HttpCase test). Skip for
 pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3 metadata -
 no inline diff read. If P8b's database collection lane already provisioned the run's instance,
-reuse that `INSTANCE_HANDLE` instead of provisioning again. Full condition list:
-`references/rb-phase-detail.md` P10 § B3.
+reuse that `INSTANCE_HANDLE` (`mode: reuse`) instead of provisioning again - unless a P9/P9b
+break-check record says `data-file yes`: a break that touched a data file left broken records in
+that database, so the verdict then comes from a fresh build
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check). Full condition
+list: `references/rb-phase-detail.md` P10 § B3.
 When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
 `odoo_version=<series>`); instance lifecycle protocol:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md`; test invocation conventions:

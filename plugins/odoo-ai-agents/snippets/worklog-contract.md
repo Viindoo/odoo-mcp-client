@@ -39,8 +39,10 @@ top-level dir (no `<module>` subpath): `<ISOLATE_DIR>/worklog/<run-or-slug>/NNN-
 Log only **decisions that change the outcome or that a later phase must not re-litigate** - not
 routine narration: an approach chosen AND the alternatives rejected; scope added or dropped; a
 model-tier pick or downgrade; a cross-module impact found + its mitigation; a deliberate deviation
-from a platform design principle + its justification; a break-check record, or the no-test-leg
-category + file list; a BLOCKED/escalation - what was tried, what was ruled out and WHY, and the
+from a platform design principle + its justification; a test-leg record (`BREAK_CHECK`,
+`COVERED`, `ADJUSTED`, `ABSORBED`, `NO NEW TEST`, `MANIFEST TEST ASSETS` - shapes in
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record, copied
+verbatim), the restore-proof verdict, or the no-test-leg category + file list; a BLOCKED/escalation - what was tried, what was ruled out and WHY, and the
 reasoning behind the refusal itself.
 
 **Every terminal status is an exit that owes an entry** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT` and
@@ -66,7 +68,7 @@ read them oldest-first. They tell you what upstream phases decided so you build 
 those decisions. If the dir is absent, you are the first writer - create it.
 
 **Orphan sweep (the FIRST writer of a run does this, before creating the new dir above).**
-`worklog/<run-or-slug>/` is never deleted by anything today, so a run's decision log leaks one
+`worklog/<run-or-slug>/` is deleted by nothing else, so a run's decision log leaks one
 directory per run forever. Sweep stale siblings first:
 `find <ISOLATE_DIR>/worklog/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any
 sibling `<run-or-slug>/` dir untouched for over 30 days is presumed consumed - a directory's own

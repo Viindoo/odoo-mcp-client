@@ -37,17 +37,17 @@ brief that touches code or tests (coder, test-author, verify, debug).
 
 ## Downstream agents consume, never self-provision
 
-An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation (a break-check,
-`init` / `update`, `test`) by passing its `lease_token` to `instance_build` / `instance_serve`, and
-MUST NOT call `lease_acquire`, invent a `db_name` or port, or re-derive `addons_path`.
+An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation: `init` / `update` /
+serve by passing its `lease_token` to `instance_build` / `instance_serve`; a test run per § Test
+build on a forwarded handle. It never invents a `db_name` or port and never re-derives
+`addons_path`.
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context (an `ephemeral` lease by default; a listening one when the process must stay up), applying
 the instance HARD RULES per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo
 instance allocation; `odoo-test-writer` never self-provisions (no handle -> `NEEDS_NEXT`,
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check). A provided
 handle always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons
-carve-out below. (`odoo-instance` may lease a test port on the
-handle's database; it never releases or parks the handle's lease.)
+carve-out below.
 
 **Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session
 owns; give it its own port, database, config and log.
@@ -91,6 +91,22 @@ This section authorizes worktree-addons provenance and NOTHING else. A receiver 
 a `db_name` or a port (`lease_acquire` mints both), MUST NOT re-derive `addons_path` from the
 catalog, and MUST NOT self-provision to change the series, add a module, or because a handle looks
 stale.
+
+## Test build on a forwarded handle (ONE rule, every consumer points here)
+
+A test build binds an HTTP port on every series, and the handle's port may belong to its running
+server. A consumer that RUNS tests on a forwarded `INSTANCE_HANDLE` (`odoo-test-writer`'s baseline
+and break-check runs, any verify run on a forwarded handle) therefore takes ONE lease of its own on
+the handle's database and holds it across its runs:
+
+1. `lease_acquire` - mode `exclusive`, `no_create` true, `ports` 1, with the handle's `db_name`,
+   `addons_path`, series and `run_id`, `cwd` = your `WORKTREE_PATH`.
+2. Every `instance_build` op `test` (`test_mode` `reuse`) runs on THAT lease's token, never the
+   handle's, then `job_wait`. `DATABASE_BUSY` -> `job_wait` the job it names, then retry.
+3. `lease_release` that token before you return, on every exit.
+
+Never release, park or adopt the handle's own lease - it stays its owner's - and never provision a
+new database. A lease you hold yourself that reserved a port is built on directly.
 
 ## One build or export per database (ONE rule, every parallel fan-out points here)
 

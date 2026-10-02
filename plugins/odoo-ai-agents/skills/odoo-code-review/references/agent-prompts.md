@@ -8,7 +8,7 @@ review_root: <abs-path of the PR worktree - TARGET=pr only>
 pr_meta: <PR metadata from git-ops - TARGET=pr only>
 pr_changed_files: <PR changed-file list from git-ops - TARGET=pr only>
 BASE: <base-ref, default master>
-odoo_version: <e.g. 17.0>
+odoo_version: <concrete series, e.g. the pinned `<major>.0`>
 USER LANGUAGE: <e.g. Vietnamese>
 SHARE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
 ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
@@ -93,7 +93,7 @@ Dispatch once per module with `needs_ui_review` (`true` or `candidate`) when an 
 
 ```
 USER LANGUAGE: <e.g. Vietnamese>
-ODOO_VERSION: <e.g. 17.0>
+ODOO_VERSION: <concrete series, e.g. the pinned `<major>.0`>
 SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
 ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
 Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, baselines, screenshot

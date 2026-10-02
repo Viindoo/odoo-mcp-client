@@ -393,3 +393,80 @@ def test_jq_absent_block_still_written(tmp_path):
     assert _END in text, "END sentinel missing when jq absent"
     assert re.search(r"^@/.*/ODOO-AI-ETHOS\.md$", text, re.MULTILINE), \
         "import line missing when jq absent"
+
+
+# ---------------------------------------------------------------------------
+# Marketplace root vs dev root: a dev checkout must not hijack the global import
+# ---------------------------------------------------------------------------
+
+
+def _make_marketplace_plugin(cfg: Path) -> Path:
+    """Plugin tree placed under <cfg>/plugins/, i.e. a marketplace-installed root."""
+    root = cfg / "plugins" / "cache" / "mkt" / "odoo-ai-agents" / "1.0.0"
+    (root / "hooks").mkdir(parents=True)
+    (root / "ODOO-AI-ETHOS.md").write_text("# ETHOS market\n", encoding="utf-8")
+    shutil.copy2(str(HOOK), str(root / "hooks" / "ensure-ethos-import.sh"))
+    return root / "hooks" / "ensure-ethos-import.sh"
+
+
+def _seed(cfg: Path, target: Path) -> str:
+    seed = f"# mine\n\n{_BEGIN}\n@{target}\n{_END}\n"
+    (cfg / "CLAUDE.md").write_text(seed, encoding="utf-8")
+    return seed
+
+
+def test_dev_root_keeps_existing_valid_marketplace_import(tmp_path):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    market_hook = _make_marketplace_plugin(cfg)
+    market_ethos = market_hook.parent.parent / "ODOO-AI-ETHOS.md"
+    seed = _seed(cfg, market_ethos)
+    dev_hook = _make_temp_plugin(tmp_path)  # outside <cfg>/plugins -> dev checkout
+
+    r = _run(dev_hook, cfg)
+    assert r.returncode == 0, r.stderr
+    assert _read_md(cfg) == seed, "dev checkout rewrote a valid existing import"
+    assert r.stdout == ""
+
+
+def test_dev_root_heals_block_whose_target_is_missing(tmp_path):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    _seed(cfg, tmp_path / "gone" / "ODOO-AI-ETHOS.md")
+    dev_hook = _make_temp_plugin(tmp_path)
+
+    r = _run(dev_hook, cfg)
+    assert r.returncode == 0, r.stderr
+    text = _read_md(cfg)
+    _assert_exactly_one_block(text)
+    assert f"@{dev_hook.parent.parent.resolve()}/ODOO-AI-ETHOS.md" in text
+    assert "/gone/" not in text
+
+
+def test_marketplace_root_replaces_dev_path(tmp_path):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    dev_hook = _make_temp_plugin(tmp_path)
+    _seed(cfg, dev_hook.parent.parent / "ODOO-AI-ETHOS.md")  # dev target exists
+    market_hook = _make_marketplace_plugin(cfg)
+
+    r = _run(market_hook, cfg)
+    assert r.returncode == 0, r.stderr
+    text = _read_md(cfg)
+    _assert_exactly_one_block(text)
+    assert f"@{market_hook.parent.parent.resolve()}/ODOO-AI-ETHOS.md" in text
+    assert "plugin_root" not in text
+
+
+def test_dev_root_malformed_block_keeps_valid_existing_target(tmp_path):
+    cfg = tmp_path / "cfg"
+    cfg.mkdir()
+    market_ethos = _make_marketplace_plugin(cfg).parent.parent / "ODOO-AI-ETHOS.md"
+    (cfg / "CLAUDE.md").write_text(f"{_BEGIN}\n@{market_ethos}\n", encoding="utf-8")  # lone BEGIN
+    dev_hook = _make_temp_plugin(tmp_path)
+
+    r = _run(dev_hook, cfg)
+    assert r.returncode == 0, r.stderr
+    text = _read_md(cfg)
+    _assert_exactly_one_block(text)
+    assert f"@{market_ethos}" in text and "plugin_root" not in text

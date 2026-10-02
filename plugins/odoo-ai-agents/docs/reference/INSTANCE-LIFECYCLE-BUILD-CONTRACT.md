@@ -42,12 +42,14 @@ or test run must satisfy. Teardown is a separate half: `INSTANCE-LIFECYCLE-TEARD
     `server_wide_modules`), every requested language with `en_US` always added, and the series'
     demo flag from its `demo` argument; `instance_serve` applies the same server-wide set. A caller
     passes `languages`, passes `demo` on an `init` build only (a test build runs the series default),
+    adjusts the server-wide set for one call with `server_wide` when the task needs a different one,
     and never puts those flags in `extra_args`. The rules: SSOT
     `snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
 11. **A build's warnings are acted on before its instance is trusted.** `job_wait` reports problems
-    a build logged without failing. A module Odoo says must be loaded server-wide means the catalog
-    row is incomplete: fix the row (`/odoo-ai-agents:odoo-setup refresh`, or the operator adds the
-    module), then release the lease and acquire a new one - the set is fixed at acquire. Owned by
+    a build logged without failing. A module Odoo says must be loaded server-wide means the set that
+    build loaded lacks it: for the task, rebuild with `server_wide.include`; for every build, fix the
+    catalog row (`/odoo-ai-agents:odoo-setup refresh`, or the operator adds the module), then release
+    the lease and acquire a new one - the set is fixed at acquire. Owned by
     `odoo-instance-ops` (§ Demo, languages and server-wide modules (HARD RULE)).
 12. **Lint modules installed, not just tagged, on any test-run build.** A `--test-enable` build must
     UNION the present lint module(s) into the `-i`/`-u` install list from the same probe that

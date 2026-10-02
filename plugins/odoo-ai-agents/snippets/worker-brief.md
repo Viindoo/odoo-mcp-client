@@ -74,9 +74,10 @@ list). It NEVER authors the node's source itself: every source file is written b
   static gate (ORM-validation for the backend leg, `verify-frontend.sh` for the frontend leg), and
   any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
   `odoo-instance` run - the lint-class gate runs ONCE at
-  `run-harness`'s pre-PR tail, never inside either leaf. `odoo-test-writer` runs its break-checks
-  on the forwarded handle and never self-provisions
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md` § Three roles). Contract:
+  `run-harness`'s pre-PR tail, never inside either leaf. `odoo-test-writer` never self-provisions:
+  it runs its baseline and break-checks through `odoo-instance` inline on the forwarded handle's
+  database, on ONE lease of its own that it releases before returning
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle). Contract:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
   **Self-provisioning carries teardown:** what you acquire under this carve-out you
   `lease_release` (or `lease_park`) before your terminal status -

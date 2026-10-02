@@ -27,25 +27,28 @@ probe every symbol the intent touches:
 
 ```
 # 1 - pin target
-set_active_version(odoo_version='17.0')   # or '18.0' - always explicit
+set_active_version(odoo_version='<target>')   # always explicit
 
 # 2 - diff the API at source vs target for each touched symbol
-api_version_diff(symbol='account.move._post', from_version='16.0', to_version='17.0')
+api_version_diff(symbol='account.move._post', from_version='<source>', to_version='<target>')
 
 # 3 - inspect the model/field at target
-model_inspect(model='account.move', method='summary', odoo_version='17.0')
+model_inspect(model='account.move', method='summary', odoo_version='<target>')
 ```
 
 - If a field or method **is present at target** with compatible signature -> bucket (b).
 - If it **was removed or structurally replaced** (different model, renamed field, new OWL
   component) -> bucket (c).
 - If the target already ships the exact behavior (new built-in, merged upstream, refactored
-  core) and the forwarded test passes without any adapt code -> bucket (a).
+  core) -> bucket (a), to be confirmed by the Absorption probe below.
 - If the source behavior was a compensating fix for a bug or platform limit that no longer
   exists in target -> bucket (d).
 
-**Bucket (a) evidence - the Absorption probe:** a bucket-(a) classification is confirmed or
-re-bucketed by the adapt node's test leg, per
+**Bucket (a) evidence - the Absorption probe:** the module's adapt node confirms or re-buckets a
+bucket-(a) commit in its single test-writer launch, after the node's (b)/(c) code is adapted - the
+forwarded source test runs with the (a) commit's hunks neutralised (pass them as
+`BUCKET a (hunks file:lines)`): GREEN -> `ABSORBED`; FAIL -> re-bucket to (b)/(c) on the commit's
+row and the coder adapts it. Rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
 classification, not a test gate).
 
@@ -58,9 +61,9 @@ Append to the shared `merge-log.md` after classifying each commit:
 
 | Commit SHA | Intent summary | Bucket | Reason | Evidence (file:line or OSM citation) |
 |---|---|---|---|---|
-| `abc1234` | Prevent double-post on `account.move` | (b) | `_post` present at target, signature compatible | `model_inspect account.move @17.0 - _post exists` |
-| `def5678` | Guard against `res.partner.comment` Html/Text mismatch | (c) | field type changed - `api_version_diff` shows `Html->Text` at 17.0 | `api_version_diff res.partner.comment@16->17` |
-| `ghi9012` | Patch: bypass ORM lazy-load bug fixed in v17 | (d) | core bug resolved in 17.0 - no equivalent trigger | OSM `lookup_core_api` + issue link |
+| `abc1234` | Prevent double-post on `account.move` | (b) | `_post` present at target, signature compatible | `model_inspect account.move @<target> - _post exists` |
+| `def5678` | Guard against `res.partner.comment` Html/Text mismatch | (c) | field type changed - `api_version_diff` shows `Html->Text` at target | `api_version_diff res.partner.comment@<source>-><target>` |
+| `ghi9012` | Patch: bypass ORM lazy-load bug fixed at target | (d) | core bug resolved at target - no equivalent trigger | OSM `lookup_core_api` + issue link |
 
 Do not leave a row blank in the Reason or Evidence columns. "No data" is not acceptable -
 probe until you have a citation.

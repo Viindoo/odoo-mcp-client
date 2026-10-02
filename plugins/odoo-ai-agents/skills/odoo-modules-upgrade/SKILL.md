@@ -266,7 +266,10 @@ and UNANCHORED items stay untouched in source); flip `installable: False -> True
 manifest `version` (keep the short form; a series-prefixed value is CONVERTED to it, never bumped -
 `references/upg-classification-table.md` § Manifest breaks, the Rule A row); set
 `auto_install`/`application` only when a manifest-comment breadcrumb directs (NO auto-detect of
-"bridge").
+"bridge"). The same brief carries the adapt fields - `MODE: adapt`, `INTENT` (the behavior the
+module keeps, from `absorption/<module>.md`), `SOURCE TESTS` (its existing tests),
+`BROKEN TEST-SYMBOLS` and `CHANGE KIND` per behavior - so the node's test leg adapts the module's
+own tests after the code (template: `references/upg-phase-detail.md` § odoo-coding dispatch brief).
 The commit inside each child worktree is produced by `odoo-coding` via the `git-toolkit:git-ops`
 skill (its coders write files, never run git); message per § Git / PR conventions.
 Converge each child worktree back to integration (serialized); remove child worktree.
