@@ -140,7 +140,7 @@ When you find one, name it and build on it.
 
 **Required:**
 - Assert on observable results (return value, state, side effect per contract), NOT on internals (private method, call count) when the business rule does not care.
-- Each test MUST be capable of failing, and fail for the right reason - red before green. Test names state the business rule ("order above threshold must be blocked"), not the function name.
+- Each test MUST fail for the right reason when the behavior it protects is deliberately broken - prove it by breaking the rule and watching the assertion fail. Test names state the business rule ("order above threshold must be blocked"), not the function name.
 - Coverage is a byproduct, not the goal. FIRST: Fast, Independent, Repeatable (deterministic), Self-validating, Timely.
 
 **Banned (ties to #6):** changing the expected value to match actual output; loosening/deleting assertions; `@skip`/comment-out/deleting a failing case to make CI green; `assert True` or no assert at all; re-implementing the function's logic inside the test and comparing against itself; mocking to the point where only the mock is verified.

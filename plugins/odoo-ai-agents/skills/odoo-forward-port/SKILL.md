@@ -7,7 +7,7 @@ description: >-
   as an ordered agentic pipeline that forwards INTENT, not code text. It runs a parallel
   read-only intent sweep, a 4-outcome classification, an installable probe, a conditional
   design route-out, a Plan Mode gate, an SHA-preserving git merge, a symbol-survival check
-  that catches autosilent field breaks, test-first adapt, per-batch verify-by-behavior, a
+  that catches autosilent field breaks, code-first adapt, per-batch verify-by-behavior, a
   human-confirm gate, and a PR. Invoked when asked to
   "forward-port", "port commits to a
   newer Odoo version", "merge a fix forward", "continuous forward-port", "one-shot
@@ -31,7 +31,8 @@ which: `[[fp-symbol-survival-check]]` - Who runs this check). You record verdict
 lines; you do not produce them.
 Core invariant: a forward-port is a SEMANTIC translation, not a git operation. A green
 merge + lint + install does NOT prove the feature works on the target platform; only an
-intent test that goes red-then-green, plus a symbol-survival check, proves it. SHA is sacred -
+intent test that passes on the target and carries a break-check record, plus a symbol-survival
+check, proves it. SHA is sacred -
 continuous forward-port absorbs the source RANGE into the target DAG with a single merge of its
 tip, so every source SHA is preserved and the merge-base advances in one step; never squash,
 never cherry-pick, and never merge the range one commit at a time.
@@ -131,9 +132,10 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    P1 extracts intent (read-only); P8 re-implements that intent on the target
    idiom. Never paste a source diff hunk forward and call it done. SSOT: `[[fp-intent-4outcome]]`.
 
-4. **Verify by behavior, not by text** - success = the forwarded INTENT test goes RED then
-   GREEN on the target, plus confirm-by-toggle (disable the adapt code -> the FP-delta test
-   must go red again). A clean merge is necessary, never sufficient.
+4. **Verify by behavior, not by text** - success = the forwarded INTENT test passes on the
+   target AND carries the `BREAK_CHECK:` record its P8 node test leg returned, proving it fails
+   when the adapted rule is broken (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
+   § The break-check). A clean merge is necessary, never sufficient.
 
 5. **Symbol-survival before adapt** - after every merge, run the P6 symbol-survival
    check on BOTH conflicted files and merge-clean-but-source-touched files. A source line
@@ -230,12 +232,12 @@ skill) uses.
 ## The pipeline
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for any specialist agent
-dispatched across the phases below (`odoo-intent-extractor`, `odoo-installable-prober`,
-`odoo-test-writer`), fill the caller-side skeleton in
+dispatched across the phases below (`odoo-intent-extractor`, `odoo-installable-prober`), fill
+the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's family
 delta; never inline that file verbatim into a hard-leaf brief. This pipeline dispatches leaves
-(P1/P8a/P8b etc.) that run inside the JOB-tier integration worktree rather than the principal -
-P8a/P8b never use a WORK-tier child worktree (§ Git topology above) - the
+(P1, the P8 adapt invocation, etc.) that run inside the JOB-tier integration worktree rather than
+the principal - P8 never uses a WORK-tier child worktree (§ Git topology above) - the
 general rule for resolving/threading `<SHARE_DIR>`/`<ISOLATE_DIR>` across such a target-vs-principal
 split is `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch; this
 pipeline's resolve-once-and-pass-the-slug pattern (below, and at each `<ISOLATE_DIR>/forward-port/
@@ -498,7 +500,7 @@ test is broken CONFIRM the symbol is absent at target via
 `model_inspect(model='<model>', method='fields', odoo_version='<target_version>')`. Test methods
 referencing a symbol absent at target MUST be triaged into the same bucket (not forwarded
 verbatim). Record every broken test-symbol reference in the `merge-log.md` per-commit row; the
-P8a adapt brief MUST include this list.
+P8 adapt brief MUST carry this list as `BROKEN TEST-SYMBOLS`.
 
 **P7 - Pre-adapt drift scan [MUST, before the behavioral loop].** Distinct from P6:
 P6 catches OSM-indexed symbol-graph breaks (cross-version via index); P7 catches static
@@ -515,9 +517,9 @@ leave an auto-merged line referencing a dead symbol.
 **ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
 (`python -m pytest --collect-only`; a `setUpClass` that needs a database is confirmed by P9's
 `odoo-instance` run-tests, never by a raw `odoo-bin` run) before any
-red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from
+adapt starts. A `setUpClass` crash means tests never ran, so a green count from
 P9 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record findings in
-`merge-log.md`; P8a brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.
+`merge-log.md`; the P8 adapt brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.
 Full commands: `references/fp-phase-detail.md` P7.
 
 P7 is also where the VIEW-TOPOLOGY sub-check surfaces: once a bucket-(b) OR bucket-(c) commit's
@@ -536,7 +538,7 @@ Predicate, the two non-defect exceptions (different-module base;
 a conditional child via `mode="primary"` / `active=False` / `groups`), and the merge-unsafe
 escape: `references/fp-triage-table.md` § Bucket-(c) same-module inherit-view check.
 
-**P8 - Adapt [test-first; SERIAL per-module; runs INSIDE the batch's single open merge window].**
+**P8 - Adapt [code first, then tests; SERIAL per-module; runs INSIDE the batch's single open merge window].**
 The batch's whole range is already absorbed into the working tree by P5, so P8 adapts the MERGED
 RESULT, module by module, driven by the per-commit intent records - it does NOT re-open, re-merge,
 or re-stage anything per source commit. For each touched module/WI,
@@ -565,101 +567,82 @@ most one agent per module across the run) rests on; it is never a name anyone in
 resumed agent holds no address for you (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
 Tier A).
 
-CHP Tier-A applies to the P8a test-forward worker (`odoo-test-writer`, which
-authors by invoking the `odoo-test-writing` skill inline) both WITHIN one commit's P9 verify cycle
-AND ACROSS commits for the SAME module (R2b for the 8a leg): after 8a+8b and the merge back to
-integration, P9 may reveal a failing test - instead of spawning a cold fresh one for the re-adapt,
-resume the SAME `odoo-test-writer` worker by its recorded id, sending it the P9 failure
-output. **Cross-commit reuse (R2b - at most one `odoo-test-writer` instance per module across the
-WHOLE run):** record the id its FIRST launch for that module returned; when a LATER source commit in
-this run also touches the module, RESUME that SAME id (never a fresh dispatch) - the brief for the
-resume carries the NEW commit's own intent record and bucket; the Worktree path field (below) never
-changes across a resume (§ Git topology above). The worker keeps
-its full prior context (earlier commits' intent records, bucket history) - far
-cheaper than rebuilding from a brief, and this is what lets the SAME module's test-authoring see
-its own whole picture across commits, not just within one commit's retry loop.
+**R2b is CLOSED at the 8b leg: one coordinator per module, resumed.** P8's only launch per module is
+the `odoo-coder` coordinator that the `odoo-coding` skill starts; the node's test leg runs inside it,
+so there is no second per-module agent to cap. On the module's FIRST P8 invocation this run, invoke
+`odoo-coding` without `WORKER_AGENT_ID`; it runs INLINE in your context, so the coordinator id that
+launch returns is yours to keep - record it for that module in `plan.md`. On every LATER invocation for the same
+module (a P9 re-adapt, or a later batch touching it), carry that recorded value as
+`WORKER_AGENT_ID: <id>` in the FP-ENRICHED brief; `odoo-coding`'s brief-consumption contract resumes
+that id instead of cold-spawning a fresh coordinator. The resumed coordinator keeps its prior
+context (earlier intent records, bucket history, the tests its test leg forwarded). Hard rule 2 is
+unaffected: resuming the AGENT is a context-economy decision with NO effect on git topology - the
+batch's range is already absorbed by P5's single merge, so every adapt lands inside that ONE open
+window and closes as ONE merge commit.
 A resume is reachable at ANY depth, and it is reachable on exactly one condition: you STOP after
-sending (CHP § Async park-and-be-resumed semantics). Structure the exchange as async
-park-and-be-resumed - send the P9 failure output (or the next commit's brief), END YOUR TURN, and
-consume the worker's result when you are woken with it. Emitting anything after the send, or carrying
-on with the next commit in the same turn, is what strands it: there is then no point at which the
-worker's answer can be handed back, and the run continues without it. If the worker's id no longer
-resolves, cold-spawn a replacement (CHP Tier C) rather than pressing on. On
-resume the worker MUST immediately `cd` to the integration worktree path before any Bash command (the
+sending (CHP § Async park-and-be-resumed semantics). Send the P9 failure output (or the next batch's
+brief), END YOUR TURN, and consume the coordinator's result when you are woken with it. Emitting
+anything after the send, or carrying on with the next module in the same turn, strands it. On resume
+the coordinator MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
 a git worktree - cd on resume").
+Fallback (Tier C): when no id is recorded for the module, the recorded id no longer resolves, or no
+messaging tool is present, re-invoke the `odoo-coding` skill cold with the full FP-ENRICHED brief -
+the same **Worktree path: `<path>/fp-integration`** field and, for a re-adapt, the P9 failure output.
+Tier C is always correct; the worklog is always written regardless of tier.
 
-**8b CODE adapt - closing R2b's remaining gap: launch the coder once, resume it across commits.**
-The `odoo-coder` coordinator is ROUND-scoped, not single-shot-forever: nothing in its own
-contract stops a caller from resuming the SAME
-coordinator for a LATER round (a subsequent source commit touching the same module) instead of
-cold-spawning a fresh one - the identical mechanism already proven above for the 8a
-`odoo-test-writer` leg. **Same field shape as 8a - an ID your own launch returned, never a name:**
-on the module's FIRST commit in this run, invoke the `odoo-coding` skill (via the Skill tool)
-without the field; it runs INLINE in your context, so the coordinator id that launch returns is
-yours to keep - record it for that module in `plan.md`; on every LATER commit touching this module, carry that recorded value as
-`WORKER_AGENT_ID: <id>` in the FP-ENRICHED brief. One registry, one field label, one shape for both
-legs - never a second, differently-shaped field for the same purpose.
-
-**R2b is CLOSED at the 8b leg: `odoo-coding`'s brief-consumption contract recognizes
-`WORKER_AGENT_ID` and resumes that id instead of cold-spawning a fresh coordinator.** R2b
-(at most one agent per module) holds at 8b exactly as it already
-does at 8a and at P1: the module's `odoo-coder` coordinator is launched once on the module's first
-commit, its returned id recorded, and it is resumed by that SAME id
-on every later commit touching that module - never cold-spawned a second time.
-Hard rule 2 is NOT in conflict with this design: resuming the AGENT is a context-economy decision
-and has NO effect on git topology. The batch's whole range is already absorbed by P5's single
-merge before any coder runs, so N commits' worth of adapt work lands inside that ONE open window
-and closes as ONE merge commit - a resumed coordinator neither adds nor removes a merge commit.
-Fallback (Tier C): when no id is recorded for the module (its first commit), the recorded id no
-longer resolves, or no messaging tool is present, re-invoke the `odoo-coding` skill (code re-adapt)
-and/or spawn a fresh `odoo-test-writer` agent (test re-adapt) with an explicit brief containing
-the P9 failure output - in Tier C, EVERY dispatch is a fresh spawn (no resume available), so the
-R2b module cap above rests on the id registry, not on the fallback. Tier C is always correct; the
-worklog is always written regardless of tier.
-
-- **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes
-  the `odoo-test-writing` skill inline, which owns the whole classify/strip/translate/confirm-RED
-  method). The forwarded source test IS the
-  oracle: adapt it in place; only write one from scratch when the source commit shipped none,
-  anchored to the source intent record, not improvised.
-  Build an FP-ENRICHED brief carrying a named **Worktree path: `<path>/fp-integration`** field
-  (the SAME JOB-tier integration worktree for the WHOLE run - P8 never uses a per-module child
-  worktree, § Git topology above - so this value never changes across a resume), plus:
-  (0) **cd-on-resume (HARD RULE - Tier-A):** On resume, immediately `cd` to the
-  Worktree path listed in this brief before running any Bash command. Shell cwd is NOT
-  guaranteed to be restored across a resume; the explicit `cd` makes Tier-A re-adapt
-  safe regardless of runtime behavior. Apply this on every resume, not only the first;
+- **8a ground the adapt brief** (orchestrator-inline OSM calls, attached as raw output so the node's
+  test leg uses target-native idiom):
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
   confirm the correct base class, applying the ADAPT RULE in
   `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3 (test base-class windows +
   `SavepointCase` adapt boundary) - do not restate the windows here. `cr.commit()` FORBIDDEN in all
-  test cases. Attach the raw output so the agent uses target-native idiom for every OTHER base
-  class in the menu;
+  test cases;
   (ii) **test examples at target** - call `find_test_examples(query='<feature_or_model>', odoo_version='<target_version>')`
   (optional `model='<model>'`; for kind: `'transaction'`|`'http'`|`'form'`; `kind='js'` only
   for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;
-  (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
-  every test assertion referencing a symbol removed at target;
-- **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
+  (iii) **broken test-symbol list** from P6 test-survival - every test assertion referencing a
+  symbol removed at target is rewritten or dropped by the test leg, never forwarded verbatim.
+- **8b adapt the module: ONE `odoo-coding` invocation per module** (via the Skill tool) -
   `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-node
-  coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
-  `odoo-frontend-coder`) -
-  with an FP-ENRICHED brief = the named **Worktree path: `<path>/fp-integration`** field (same
-  JOB-tier integration worktree as 8a - never a per-module child worktree, § Git topology above)
-  + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
-  test + the installable:False checklist + `WORKER_AGENT_ID: <id recorded for this module on its
-  first dispatch this run>` (per the R2b rule above - omit on the module's first commit) +
+  coordinator), model, synthesis, and the node's test leg (do NOT dispatch raw `odoo-coder`,
+  `odoo-backend-coder`, or `odoo-frontend-coder`). Inside the node the code is adapted FIRST, then
+  the test leg forwards and adapts the module's source tests and break-checks every FP-delta test
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+  The forwarded source test IS the oracle: the test leg adapts it in place and writes one from
+  scratch only when the source commit shipped none, anchored to the source intent record.
+  Build the FP-ENRICHED brief = the named **Worktree path: `<path>/fp-integration`** field (the SAME
+  JOB-tier integration worktree for the WHOLE run - never a per-module child worktree, § Git
+  topology above - so this value never changes across a resume) +
+  **cd-on-resume (HARD RULE - Tier-A):** on resume, immediately `cd` to the Worktree path before
+  running any Bash command, on every resume, not only the first +
+  `MODE: adapt` + `SOURCE TESTS` (the module's merged test files, read/write in place) +
+  `BROKEN TEST-SYMBOLS` (8a (iii)) + `BASE CLASS` (8a (i)) + `TARGET TEST EXAMPLES` (8a (ii)) +
+  `INTENT` (the intent record per source commit touching the module) + `BUCKET` per commit +
+  `COMMIT: caller` (the coordinator makes
+  NO commit and returns its file list - the merge window stays open and P10 commits the batch) +
+  the installable:False checklist + `WORKER_AGENT_ID: <id recorded for this module>` (omit on the
+  module's first invocation) +
   `DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>` (P3's route-out
   result, so 8b never adapts blind - `none` when P3 never routed this commit to design; same
   sentinel shape `odoo-coding`'s own brief-resolution already uses:
   "DESIGN_DOC: <child TDD path | none>") +
   `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
   version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs
-  faithfully, do not inline-fix) - [[fp-merge-absorption]]`. Bucket (a)/(d): no adapt code.
-  Bucket (b): 3-way merge + adapt. Bucket (c): re-implement on the target idiom. The frontend leg
-  additionally grounds any ported OWL/QWeb/SCSS against `skills/_shared/odoo-frontend-fidelity.md`
-  so the forwarded UI stays on-theme and design-system-correct for the target version.
+  faithfully, do not inline-fix) - [[fp-merge-absorption]]`. Pass no `INSTANCE_HANDLE` and
+  provision nothing for the test leg: `odoo-coding` resolves the node's instance over that
+  `WORKTREE_PATH`.
+  Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt. Bucket (c): re-implement on the
+  target idiom. A bucket-(a) commit's evidence is the test leg's Absorption probe
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
+  classification, not a test gate)); a probe that re-buckets the commit to (b)/(c) is recorded on
+  its `merge-log.md` row and the code is adapted first.
+  The frontend leg additionally grounds any ported OWL/QWeb/SCSS against
+  `skills/_shared/odoo-frontend-fidelity.md` so the forwarded UI stays on-theme and
+  design-system-correct for the target version.
+  Return: the file list, the integrated verdict, and one `BREAK_CHECK:` line per FP-delta test
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record) - record them
+  in `merge-log.md`; P9 adjudicates them.
 - **8c installable:False modules** - two sub-cases, same manifest action:
   (i) **New module** (absent at target): set `installable: False` + comment `auto_install`/
       `application`, lint-fix only.
@@ -672,11 +655,11 @@ worklog is always written regardless of tier.
   `M`; bump the manifest only in the `S<=M` case; legacy source-only data fix keeps `<src-series>.a.b.c`).
   This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
   `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`.
-There is no child worktree to converge back or remove: 8a/8b already wrote directly into the
+There is no child worktree to converge back or remove: 8b already wrote directly into the
 integration worktree (§ Git topology above), so nothing merges INTO integration here beyond the
 adapt edits already sitting in its working tree - P10 is what commits them. This is also why a
-Tier-A resume is always safe: the worker's `cd`-on-resume target (the integration worktree) is the
-SAME long-lived path for the WHOLE run, never a per-module path created and removed per cycle.
+Tier-A resume is always safe: the coordinator's `cd`-on-resume target (the integration worktree) is
+the SAME long-lived path for the WHOLE run, never a per-module path created and removed per cycle.
 
 **P9 - Verify by behavior [PER-BATCH, in integration].** DELEGATE the run - do NOT allocate a DB +
 port and run the full suite inline. A full per-batch suite is exactly the case the test-execution
@@ -697,9 +680,12 @@ and drops the DB through Odoo on release). Every build on that ONE database (a b
 clean-tip re-run) follows `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build
 or export per database. The executor returns a structured result block (per-test
 pass/fail + the instance log path), NOT the raw firehose. From that block THIS skill stays the
-adjudicator of FP intent: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta tests
-only, triaging each red test as FP-delta vs pre-existing (re-run it on clean target tip via the same
-executor). Never relax an assertion to hide a pre-existing failure. Full per-batch protocol +
+adjudicator of FP intent: the whole-module suite is green AND every FP-delta test carries the
+`BREAK_CHECK:` line its P8 node test leg returned (`merge-log.md`); an FP-delta test with no such
+line is unverified - resume the module's coordinator through `odoo-coding` (8b, `WORKER_AGENT_ID`)
+to produce it. Triage each red test as FP-delta vs pre-existing (re-run it on clean target tip via
+the same executor); an FP-delta red goes back to the module's coordinator with the P9 failure output.
+Never relax an assertion to hide a pre-existing failure. Full per-batch protocol +
 § Ephemeral isolation: `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` and `docs/reference/ODOO-TESTING.md`.
 
@@ -763,7 +749,7 @@ reconcile (P9.5, already mandatory per batch, ahead of every P10 gate) both land
 its review for the reason the constant states: a stage that can force a CODE CHANGE runs before the
 PR opens, so the PR does not churn and regression testing is not chasing a moving target. Goal: prove the forward-ported batch works end-to-end on a real running
 instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies. P9's per-batch
-verify-by-behavior proves RED-then-GREEN + confirm-by-toggle for the ported intent tests; it does
+verify-by-behavior proves the ported intent tests green and break-checked; it does
 NOT prove the touched cluster behaves correctly for a real user across roles/state/search -
 closing that gap is this stage's job. This is a DIFFERENT concept from the P7 pre-adapt drift-scan
 **ACCEPTANCE GATE** (the test-collection sanity check that merged test files import and collect

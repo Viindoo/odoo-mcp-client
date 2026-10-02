@@ -99,14 +99,11 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 `odoo-coder` (coordinator/spawner - see the SPAWNER self-check variant below, not the leaf one),
 `odoo-backend-coder`, `odoo-frontend-coder`:
 
-- `RED_TEST_PATH` - the failing test(s) `odoo-test-writer` already authored (hand over the failing
-  test, not a spec).
-- `RED_MODE` - `constructed` | `measured` | `toggle` | `exempt`, as `odoo-test-writer` declared it,
-  WITH that mode's evidence. It travels beside `RED_TEST_PATH`; a resolving path with no `RED_MODE`
-  is not a RED. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
-- `TEST_EXEMPTION` - `none` (what an absent key also means), or a caller-DECLARED
-  `<category> - <specifics>` for a change that cannot go red; never inferred by the
-  receiver. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
+- No test field: the coders write code only, never tests, and RETURN
+  `OBSOLETE TESTS: <existing test ids this REQUEST makes obsolete | none>`
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+- `COMMIT` - `odoo-coder` only, optional: `self` (default) or `caller` (commit nothing, return the
+  file list).
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only, never a field on
@@ -158,7 +155,9 @@ leaves. All three take the LEAF self-check variant - see the SPAWNER variant not
 `odoo-test-writer`, `odoo-qa-planner`, `odoo-qa-tester`:
 
 - The oracle/scenario file - expected results chosen BEFORE execution.
-- Environment / `INSTANCE_HANDLE`.
+- Environment / `INSTANCE_HANDLE` - required for `odoo-test-writer`: its break-check runs on it.
+- `odoo-test-writer` in a coding node also gets `CHANGED CODE` (checkpoint + per-WI files and
+  behavior) and `CHANGE KIND`; expected values still come from the REQUEST/AC, never the code.
 - Roles/personas.
 - Adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence.
 - Exception - `odoo-qa-planner`'s input is the raw `REQUIREMENT`/intent, NOT the implementation.
@@ -292,9 +291,7 @@ Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `
 field 4 `INPUTS`), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are
 NOT literal dispatch-brief keys - no real dispatch site emits either; the Coder family's own
 required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do
-not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. `RED_TEST_PATH` is
-PRODUCED by this coordinator (you launch `odoo-test-writer` to author it) - it is NOT required
-inbound; never self-block looking for it in your own brief.
+not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `SURVEY` (the key entirely absent, not even the literal
   `none`), or a load-bearing field with no safe default: surface the gap
@@ -312,9 +309,7 @@ inbound; never self-block looking for it in your own brief.
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
-passed through unchanged. Leaf coders (`odoo-backend-coder`/`odoo-frontend-coder`) KEEP
-`RED_TEST_PATH` AND `RED_MODE` as required inbound fields in THEIR OWN leaf-variant self-check -
-only this coordinator's self-check carves them out, because it produces both.
+passed through unchanged.
 ```
 
 ## How a caller uses it

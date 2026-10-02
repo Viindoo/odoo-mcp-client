@@ -129,8 +129,8 @@ P9b writes `<sha>: reviewed` after the code-review loop returns no CRITICAL/HIGH
 ## The pipeline
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for any specialist agent
-dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`,
-`odoo-test-writer`, etc.), fill the caller-side skeleton in
+dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`, etc.), fill
+the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's family
 delta; never inline that file verbatim into a hard-leaf brief.
 
@@ -315,14 +315,16 @@ same gate as forward-port P7. WHO may run it is the shared SSOT `[[fp-symbol-sur
 § Who runs this check - do not restate that rule here. Full brief incl. delegation contract +
 import gate: `references/rb-phase-detail.md` P8b.
 
-**P9 - Test forward (per touched module, conditional) [odoo-test-writer adapt + odoo-coding - no gate].**
+**P9 - Adapt + test forward (per touched module, conditional) [odoo-coding, MODE: adapt - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md
-modules[], not a vague "behavior changed" heuristic), adapt the branch's own tests to the
-new-base idiom: RED first, then GREEN. P8b collection gate is a precondition. Brief template:
-`references/rb-phase-detail.md` P9.
+modules[], not a vague "behavior changed" heuristic), invoke `odoo-coding` once per module with the
+adapt fields: the code is adapted to the new-base idiom first, then the node's test leg adapts the
+branch's own tests and break-checks them
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+P8b collection gate is a precondition. Brief template: `references/rb-phase-detail.md` P9.
 
 **P9b - Code-review loop [odoo-code-review -> odoo-code-reviewer; fix via odoo-coding; cap 3].**
-After P9 leaves the adapt diff test-GREEN, dispatch `odoo-code-review` (via the Skill tool) scoped
+After P9 leaves the adapt diff green with every adapted test break-checked, dispatch `odoo-code-review` (via the Skill tool) scoped
 to the replayed/adapted diff in the integration worktree (`TARGET: worktree:<WT_ROOT>/rb-integration`,
 attribute findings only to replayed lines - not pre-existing base debt). On any CRITICAL/HIGH
 finding, dispatch `odoo-coding` (same ADAPT tier) to fix to root cause, then RE-REVIEW; MED/LOW are

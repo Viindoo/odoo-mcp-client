@@ -40,12 +40,14 @@ model_inspect(model='account.move', method='summary', odoo_version='17.0')
 - If it **was removed or structurally replaced** (different model, renamed field, new OWL
   component) -> bucket (c).
 - If the target already ships the exact behavior (new built-in, merged upstream, refactored
-  core) and the forwarded test turns green without any adapt code -> bucket (a).
+  core) and the forwarded test passes without any adapt code -> bucket (a).
 - If the source behavior was a compensating fix for a bug or platform limit that no longer
   exists in target -> bucket (d).
 
-**Bucket (a) evidence gate:** forward the source test to target syntax, run it. GREEN with
-zero adapt code = confirmed (a). If it needs any code change to pass, it is (b) or (c).
+**Bucket (a) evidence - the Absorption probe:** a bucket-(a) classification is confirmed or
+re-bucketed by the adapt node's test leg, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
+classification, not a test gate).
 
 **`odoo_version=` is mandatory** in every odoo-semantic-mcp call above - never omit it and
 never rely on a default.

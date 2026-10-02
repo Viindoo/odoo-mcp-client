@@ -1,5 +1,5 @@
 {
-  "_comment": "SSOT fixture for tests/test_inversion_scope_preserved.py (PR7/M9). The 14 path:line items the audit measured as BEHAVIOR-changing (not merely cost-changing) if their adjacent explanation is removed during the wave-7 contract-inversion pass. Each 'sentences' entry must survive, whitespace-normalized, verbatim in its file after every commit of the wave and forever after. Two are hang/deadlock risks (ids 1-2); the rest silently destroy a guarantee (mutual exclusion, OOM bound, lease-leak visibility, status-enum authority, blocked_reason groundedness, teardown obligation, base-branch correctness, evidence placement, lead-strand prevention, active-run data safety, red-before-green semantics).",
+  "_comment": "SSOT fixture for tests/test_inversion_scope_preserved.py (PR7/M9). The 14 path:line items the audit measured as BEHAVIOR-changing (not merely cost-changing) if their adjacent explanation is removed during the wave-7 contract-inversion pass. Each 'sentences' entry must survive, whitespace-normalized, verbatim in its file after every commit of the wave and forever after. Two are hang/deadlock risks (ids 1-2); the rest silently destroy a guarantee (mutual exclusion, OOM bound, lease-leak visibility, status-enum authority, blocked_reason groundedness, teardown obligation, base-branch correctness, evidence placement, lead-strand prevention, active-run data safety, absorption-probe semantics).",
   "items": [
     {
       "id": 1,
@@ -123,11 +123,12 @@
     },
     {
       "id": 14,
-      "file": "snippets/test-first-contract.md",
-      "lines": "51-59",
-      "hazard": "Red-before-green misapplication - without this distinction, a forward-ported test's RED-on-target could be treated as a violation of red-before-green instead of the platform-gap signal it is",
+      "file": "snippets/test-sensitivity-contract.md",
+      "lines": "83-89",
+      "hazard": "Absorption-probe misapplication - without this distinction, a forward-ported test run on target BEFORE any adapt code could be treated as a test gate (or its load error as a classification) instead of the bucket-(a) classification probe it is",
       "sentences": [
-        "This is **different from red-before-green** (writing a new test that fails first)."
+        "the adapt test leg forwards its source test and\nruns it BEFORE any adapt code",
+        "A load/import error is a broken translation,\nnever a classification."
       ]
     }
   ]

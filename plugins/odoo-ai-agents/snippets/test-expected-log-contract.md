@@ -1,5 +1,5 @@
 <!-- SSOT snippet. Orthogonal to test-behavior-contract.md (governs HOW a test is arranged)
-     and test-first-contract.md (governs WHEN - red before green); this one governs how a
+     and test-sensitivity-contract.md (governs the break-check); this one governs how a
      test that legitimately emits a server/console WARNING or ERROR captures or mutes that
      log so it never leaks into CI/Runbot output. Referenced (not copy-pasted) by
      odoo-test-writing + odoo-test-writer (the authoring skill + its context-isolated agent),
@@ -42,7 +42,7 @@ as a HIGH finding.
       self.assertTrue(any('access_rule_name' in line for line in cm.output))
 
 - The guard behavior must be asserted, not merely suppressed. If the guard is removed or
-  changed, `cm.output` assertions fail - that is the desired red-before-green property.
+  changed, `cm.output` assertions fail - the test stays sensitive to the guard.
 
 **Reserve `@mute_logger` / `with mute_logger(...)` when:**
 
@@ -86,8 +86,7 @@ version; do NOT hardcode "v17 = Hoot" or any equivalent mapping.
 **v18 and later - Hoot:**
 
 - Record an expected error: `expectErrors('message or pattern');`
-- Hoot asserts that the expected error actually occurred; the test fails if it does not fire,
-  preserving the red-before-green property.
+- Hoot asserts that the expected error actually occurred; the test fails if it does not fire.
 - Do NOT use `patchWithCleanup(console, ...)` as the primary suppress mechanism in Hoot -
   use `expectErrors` so the assertion is explicit.
 

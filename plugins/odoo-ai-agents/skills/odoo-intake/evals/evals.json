@@ -404,7 +404,7 @@
     {
       "id": 51,
       "prompt": "Write a TransactionCase test asserting the discount can never exceed 20% of unit price on sale.order.line.",
-      "expected_output": "Row 62 odoo-test-writing: writes a RUNNABLE test file (RED-first). MUST NOT route to odoo-qa-suite (prose test-plan) or odoo-acceptance (live run+adjudicate).",
+      "expected_output": "Row 62 odoo-test-writing: writes a RUNNABLE test file (behavior tests proven by a break-check). MUST NOT route to odoo-qa-suite (prose test-plan) or odoo-acceptance (live run+adjudicate).",
       "expected_routed_to": "odoo-test-writing",
       "category": "coverage-new-row",
       "files": []

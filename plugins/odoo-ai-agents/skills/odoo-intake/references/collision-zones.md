@@ -397,7 +397,7 @@ SQL injection?" -> `odoo-security-audit`. "smell-test this PR before merge" -> `
 **Prompt**: "write tests for this module".
 
 - `odoo-test-writing`: writes RUNNABLE files (Python TransactionCase/Form/@tagged, JS Hoot/QUnit,
-  tours) that fail RED then protect behavior.
+  tours) written after the code and proven sensitive by an executed break-check, so they protect behavior.
 - `odoo-qa-suite`: a non-executing prose test-PLAN table + pre-deploy checklist + bug triage - nothing runs.
 - `odoo-acceptance`: drives a LIVE instance/UI to execute an oracle and adjudicate PASS/FAIL/UNVERIFIED.
 

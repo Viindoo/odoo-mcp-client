@@ -295,7 +295,7 @@ class TestWiredIntoP7InBothConsumers:
         # Whitespace-normalized: a Markdown line-wrap must not defeat this check.
         text = _norm(SKILL_MD.read_text(encoding="utf-8"))
         p7_marker = "P7 - Pre-adapt drift scan"
-        p8_marker = "P8 - Adapt [test-first;"
+        p8_marker = "P8 - Adapt [code first, then tests;"
         pointer = "Bucket-(c) same-module inherit-view check"
         assert p7_marker in text and p8_marker in text and pointer in text, (
             "SKILL.md must reference 'Bucket-(c) same-module inherit-view check' "

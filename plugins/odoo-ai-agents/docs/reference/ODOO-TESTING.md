@@ -187,6 +187,23 @@ method; that section is the build-time enforcement point.
 
 Tests that exercise a deny-path, guard, or constraint that legitimately emits WARNING/ERROR must capture or silence that log - an unwrapped test leaks expected noise into CI output and misses asserting the guard fired. The rule applies across all three layers (Python server log, SQL constraint, and JS-OWL with the era-correct idiom). Full rule per layer: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
 
+## Writing tests
+
+How tests are written and proven is owned by two plugin contracts; this document covers only how
+to run them.
+
+- `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` - how a single test is written: assert
+  the business outcome rather than the implementation, drive the real workflow, simulate the user
+  with `Form`, never freeze the present, keep the test simple.
+- `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` - code first, then tests, each proven
+  by an executed break-check (alter the business rule, the test must fail on its assertion, restore
+  and prove the restore).
+
+To ground a test in the target series, use the OSM test tools: `test_base_classes` (which base
+classes and helpers exist), `test_class_inspect` (a test class's shape), `tests_covering` (which
+tests already cover a symbol), `find_test_examples` (existing tests to model on),
+`test_coverage_audit` (what a module leaves unprotected) and `js_test_inspect` (JS test suites).
+
 ## Verify-via-OSM checklist before writing a test command
 
 1. `set_active_version(<target>)`.

@@ -229,8 +229,8 @@ genuinely distinct (each independently contributes to the symptom), designate a 
 cause plus any contributing factors** - name both, never silently drop a secondary cause.
 
 Compile the final **Output Contract** block from `debug-method.md`: the proven root cause (single,
-or primary + contributing per the multi-layer merge above), exact fix location, red→green
-regression test.
+or primary + contributing per the multi-layer merge above), exact fix location, regression
+test (authored by odoo-test-writer via odoo-coding after the fix).
 
 **Then drive the fix autonomously (mandatory).** The Skill tool is available here
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause

@@ -303,7 +303,7 @@ INVERTED_SNIPPETS = (
     "snippets/spawner-completion-contract.md",
     "snippets/continuation-contract.md",
     "snippets/worklog-contract.md",
-    "snippets/test-first-contract.md",
+    "snippets/test-sensitivity-contract.md",
     "snippets/state-root-resolution.md",
     "snippets/instance-handle-contract.md",
 )

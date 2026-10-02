@@ -148,7 +148,7 @@ def test_code_writing_agent_inlines_the_two_headline_rules(agent):
 
 @pytest.mark.parametrize("agent", CODE_WRITING_AGENTS)
 def test_code_writing_agent_inlines_the_unshippable_reference_ban(agent):
-    """The vector is the brief itself: a coder is handed DESIGN_DOC, SURVEY, RED_TEST_PATH,
+    """The vector is the brief itself: a coder is handed DESIGN_DOC, SURVEY, REQUEST,
     WORKLOG, SHARE_DIR/ISOLATE_DIR and WORKTREE_PATH as authoritative inputs, so pointing a comment
     at one reads as helpful traceability. None of them exists in the repo the code ships in, and
     nothing else catches it: the repo's own confidentiality hook scans THIS repo's commits, while a

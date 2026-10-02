@@ -243,8 +243,8 @@ Evidence + bisect: <how the search space was halved; which OSM call / evaluate_s
 Confirm-by-toggle: <how toggling the suspected cause made the bug appear/disappear - or NOT YET CONFIRMED>
 Root cause: <the single proven cause - NOT a symptom>
 Fix location: <file · method/selector · coding skill for the launcher to route to: odoo-coding>
-Regression test (red->green): <describe a test that protects the behavior; assert it fails pre-fix>
-Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
+Regression test: <describe a test that protects the behavior; reverting the fix makes it fail>
+Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```
 

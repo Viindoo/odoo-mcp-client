@@ -74,11 +74,11 @@ Both widen BOTH sides together. Neither is an exception to the two-sided rule.
   worse than a noisy run.
 
 Deriving `T` from `M` is always allowed. Narrowing below `M` never is - not to quiet a failing
-dependency, not to fit a timeout. The ONE carve-out is a RED PROBE
-(`${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`): a single-test run whose GREEN licenses
-nothing - it signals a defective test. Any run whose green lets work PROCEED is a verdict run and
-never narrows. A failure inside `M` is in scope and BLOCKING even in a module the
-change did not touch.
+dependency, not to fit a timeout. The ONE carve-out is the selected-test run of a break-check or an
+absorption probe (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check,
+§ Absorption probe): a measurement, never a verdict - the integrated run still covers all of `M`.
+Any run whose green lets work PROCEED is a verdict run and never narrows. A failure inside `M` is in
+scope and BLOCKING even in a module the change did not touch.
 
 ## Reporting
 

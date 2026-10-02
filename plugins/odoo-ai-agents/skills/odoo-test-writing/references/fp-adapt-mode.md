@@ -1,17 +1,19 @@
-<!-- SSOT reference for adapt mode. Loaded by odoo-test-writing (adapt mode) and by
-     odoo-forward-port P4a. Edit here only; SKILL.md carries the summary + pointer.
+<!-- SSOT reference for adapt mode. Loaded by odoo-test-writing (adapt mode).
+     Edit here only; SKILL.md carries the summary + pointer.
      Dau gach ASCII `-`. -->
 
 # odoo-test-writing - Adapt Mode (Forward-Port Test Forwarding)
 
 Adapt mode translates existing test files from a source Odoo version to a target version
-during continuous forward-port. It forwards the INTENT of tests, not their text.
+during forward-port or rebase. It forwards the INTENT of tests, not their text, and it runs
+AFTER the adapt code exists.
 
 ## When adapt mode applies
 
-Invoke adapt mode (not new-test mode) when:
+Invoke adapt mode (not `change` mode) when:
 - The input is an existing test file path or diff from a source version
-- The context is a forward-port pipeline (P4a of odoo-forward-port)
+- The brief carries `MODE: adapt` with `SOURCE TESTS` (a forward-port or rebase node, reached
+  through `odoo-coding` -> `odoo-coder` -> `odoo-test-writer`)
 - The user explicitly requests "translate tests from vX to vY" or "forward tests for this commit"
 
 ## Inputs
@@ -21,7 +23,9 @@ Invoke adapt mode (not new-test mode) when:
 | Test file path or raw diff | Yes | Source test file to translate |
 | `src_version` | Yes | E.g. `16.0` |
 | `tgt_version` | Yes | E.g. `17.0` |
-| Intent doc | Recommended | `intents/<sha>.md` from P1 of forward-port pipeline; confirms what behavior the test was written to protect |
+| Intent doc | Recommended | the commit's intent doc from the forward-port intent sweep; confirms what behavior the test was written to protect |
+| `BROKEN TEST-SYMBOLS` | When the caller has them | source symbols the symbol-survival check found absent on target - each is CAPTURE-CODE or a step-3 mapping, never a reference left in the test |
+| `BUCKET` | When the caller has it | the commit's forward-port bucket; (a) runs the Absorption probe in step 4 instead of a break-check |
 
 Call `set_active_version('<tgt_version>')` at the start of adapt mode - the target version
 drives all OSM grounding.
@@ -84,32 +88,20 @@ OSM-ground every API reference for `tgt_version`:
   (`import { describe, test, expect } from "@odoo/hoot"`). Call
   `find_examples(query='Hoot describe test expect', odoo_version='<tgt>')`.
 
-## Step 4 - Confirm RED on target
+## Step 4 - Prove it after the code (break-check, or the Absorption probe for bucket (a))
 
-The translated test MUST fail on the target version BEFORE the adapted production code
-exists. This is the FP-delta proof.
+The forwarded test is proven the same way as any behavior test: AFTER the adapt code exists, by
+an executed break-check (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
+§ The break-check, recorded per § Break-check record). The break is disabling the adapt code that
+carries the rule; every forwarded behavior test must then fail ON THE ASSERTION.
 
-Modes and evidence: `${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`.
-
-- If in the no-commit merge absorption window (see [[fp-merge-absorption]]): this is
-  `RED_MODE: measured` - run the target module's test suite against the current working
-  tree (source merged but NOT yet platform-adapted). The test must fail ON THE ASSERTION
-  because the target platform lacks the adapted behavior. A `KeyError` /
-  `AttributeError` / `Invalid field` instead means YOUR TRANSLATION is incomplete - a
-  renamed symbol step 3 missed - not that the target lacks the behavior. That is a broken
-  measurement: fix the translation and re-measure. Letting it stand as RED-on-target
-  misclassifies the outcome in [[fp-intent-4outcome]].
-- If running in isolation: this is `RED_MODE: constructed` - no run is available, so the
-  proof must be structural. From the intent doc + OSM, name the asserted VALUE and why the
-  raw target cannot produce it. An assertion the absent behavior would already satisfy
-  (a default, a falsy flag, "no exception raised") proves nothing here and must be
-  strengthened before the test is forwarded.
-- If the test passes immediately without any adapted code: the behavior is already in the
-  target platform - record this as outcome (a) in [[fp-intent-4outcome]], forward the test
-  (it passes as a regression guard), skip the code-adapt step.
-
-`RED_MODE` + its evidence is required in the Continuation Contract. A test without it may
-be a green-by-accident test (change-detector, not a guard).
+- A `KeyError` / `AttributeError` / `Invalid field` on the target means YOUR TRANSLATION is
+  incomplete - a renamed symbol step 3 missed - not that the target lacks the behavior. It is a
+  broken measurement (§ Broken measurement is not a red): fix the translation and re-run. It never
+  classifies the commit.
+- `BUCKET` (a) - the behavior is already absorbed by target core - leaves no adapt code to break:
+  run the forwarded test BEFORE any adapt code, as § Absorption probe (forward-port
+  classification, not a test gate) states, and report what the probe decided.
 
 ## What is BANNED in adapt mode
 
@@ -125,20 +117,18 @@ exception in adapt mode. Additionally:
   entry, or an explicit note in the intent doc. Quote the source.
 - **Do not drop a test because translating it is difficult.** Difficulty = the test was
   protecting something real. Escalate as BLOCKED with the specific obstacle.
-- Do not add `@skip`, `pass`, or empty assertion bodies to silence a red test.
+- Do not add `@skip`, `pass`, or empty assertion bodies to silence a failing test.
 
 ## Linking back to fp-merge-absorption
 
 Adapt mode runs inside the absorption window described in
 `${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md`:
 
-- Symbol-survival check (P6) runs BEFORE adapt mode. If a field or method in the
-  source test was flagged by symbol-survival as absent on target, treat it as
-  CAPTURE-CODE for that symbol and translate accordingly (do not leave a reference to a
-  removed symbol).
-- RED-then-GREEN and confirm-by-toggle for FP-delta tests is part of P9 verify
-  (per-batch), NOT per-test during adapt. Adapt mode confirms RED conceptually (step 4
-  above); the actual toggle runs in P9.
+- Symbol-survival check runs BEFORE adapt mode. A field or method in the source test that it
+  flagged as absent on target (`BROKEN TEST-SYMBOLS`) is CAPTURE-CODE for that symbol or a step-3
+  mapping - never leave a reference to a removed symbol.
+- The adapt code is written first; the forwarded tests and their break-checks follow it in the
+  same node (step 4).
 
 ## Continuation Contract for adapt mode
 
@@ -147,11 +137,8 @@ End with a Continuation Contract block per
 lists the translated test file path. The `status` block MUST include:
 
 ```
-RED_MODE: measured - <assertion> fails on target because <reason>
-         | constructed - target cannot produce <value> because <reason>
+BREAK_CHECK: <one line per forwarded behavior test, the shape test-sensitivity-contract.md § Break-check record fixes>
+Absorption probe: <bucket (a) only - the probe's result and decision, or "n/a">
 Dropped (capture-code): <list of test_* methods dropped and why, or "none">
 Expected changed: <list of changed expected values with cited reason, or "none">
 ```
-
-The coder (P4b) reads this block to understand what tests must go green before the merge
-commit is created.
