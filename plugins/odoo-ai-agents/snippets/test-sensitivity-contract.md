@@ -37,7 +37,7 @@ A test earns its place only if it FAILS when the business rule it guards is deli
 Prove it for real, e.g. for "a line discount above 20% is refused":
 
 1. Run the test on the unbroken code: it passes. A test red on correct code is wrong - fix it first.
-2. Keep a copy of each production file before you edit it (under your `ISOLATE_DIR`).
+2. Keep a copy of each production file before you edit it, under `<ISOLATE_DIR>`, never the system temp dir.
 3. Break exactly that rule while the code still loads (§ How to break each change kind) - here,
    skip the cap check in the constraint.
 4. Run only the affected tests, at method granularity (`test_tags` `/<module>:<Class>.<method>`),

@@ -37,10 +37,11 @@ The principles are stated once in `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivi
 2. **Write or adjust.** Expected values come from `TARGET BEHAVIOR`, never from the code. Adjust an
    existing test only when the REQUEST changed that behavior, and say why.
 3. **Prove each behavior test by a real break**, run only the affected tests, watch them fail.
-4. **Restore exactly.** Keep a copy before you edit a production file and confirm it is back (e.g.
-   by hash) before the next break and before you return. Restore is your duty: a restore you cannot
-   confirm -> `status: BLOCKED`, `blocked_reason: break-check restore failed - <file>`. The only
-   non-test edit you may keep is a `__manifest__.py` key that registers a test asset; say so.
+4. **Restore exactly.** Keep a copy under `<ISOLATE_DIR>`, never the system temp dir, before you
+   edit a production file and confirm it is back (e.g. by hash) before the next break and before
+   you return. Restore is your duty: a restore you cannot confirm -> `status: BLOCKED`,
+   `blocked_reason: break-check restore failed - <file>`. The only non-test edit you may keep is a
+   `__manifest__.py` key that registers a test asset; say so.
 5. **Report briefly** (§ Return).
 
 Inside the files you write: a test method's NAME states the business rule, so never add a
@@ -134,10 +135,12 @@ schema is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skelet
 
 (run before any work)
 Required: `MODE`, `TARGET BEHAVIOR` (the business rule or oracle scenarios - never the
-implementation), `TEST TYPE(S)`, and the `SURVEY` key (a path or the literal `none`). Graduated
-response, per ODOO-AI-ETHOS #2:
+implementation), and the `SURVEY` key (a path or the literal `none`). Graduated response, per
+ODOO-AI-ETHOS #2:
 - Missing a field with a safe default - `INPUTS` (assume `none yet`), `INSTANCE_HANDLE` (author,
-  then `NEEDS_NEXT: odoo-instance`), `CHANGE KIND`, `WORKTREE_PATH` (current checkout), the state
+  then `NEEDS_NEXT: odoo-instance`), `CHANGE KIND`, `TEST TYPE(S)` (a hint: choose per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Simulate the user with Form),
+  `WORKTREE_PATH` (current checkout), the state
   dirs (resolve them): PROCEED and state the assumption as your first output line.
 - Missing a required field above: STOP and return `NEEDS_CONTEXT(<field>)` (the caller can
   re-brief) or `BLOCKED(<field>)` (the gap is irreversible or large). Do not guess.
