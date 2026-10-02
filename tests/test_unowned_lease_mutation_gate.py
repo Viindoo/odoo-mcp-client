@@ -316,6 +316,32 @@ def test_non_destructive_verbs_pass(command):
 
 
 @pytest.mark.parametrize("command", [
+    f"{ALLOC} release --help",
+    f"{ALLOC} release -h",
+    f"{ALLOC} park --help",
+    f"{ALLOC} adopt --help",
+    f"{ALLOC} gc --help",
+    f"{ALLOC} release tok --help",
+    f"{ALLOC} release '--help'",
+])
+def test_asking_a_verb_for_its_usage_is_not_running_it(command):
+    """Observed live: an agent read `allocator.py release --help` to learn the flags, and was
+    refused for naming no owner. The allocator answers `-h`/`--help` anywhere in a verb's own
+    arguments with usage text and exits before touching a lease, so there is nothing to own."""
+    _passed(_run(command, agent_type="odoo-qa-planner"))
+
+
+@pytest.mark.parametrize("command", [
+    f'{ALLOC} release tok --reason "see --help"',
+    f"{ALLOC} release tok --reason 'a -h b'",
+])
+def test_a_help_word_inside_a_quoted_value_buys_no_pass(command):
+    """A `--help` spelled inside a quoted value reaches the allocator as part of that value, so the
+    release really runs - it still has to name its owner."""
+    _denied(_run(command, agent_type="odoo-qa-planner"))
+
+
+@pytest.mark.parametrize("command", [
     "grep -rn 'allocator.py release' scripts/",
     'grep -rn "allocator.py release tok" .',
     "sed -n '/allocator.py release/p' snippets/instance-resolution.md",
@@ -580,6 +606,22 @@ def test_the_agent_that_acquired_the_lease_may_release_or_park_it(tmp_path, key,
 def test_an_eval_acquirer_may_give_back_its_own_lease_through_bash(tmp_path, command):
     lines = [_brief("build and test sale"), *_eval_acquire()]
     _passed(_run_a4(tmp_path, lines, tool="Bash", tool_input={"command": command}))
+
+
+def test_an_acquirer_that_trimmed_its_acquire_output_may_still_release_its_own_lease(tmp_path):
+    """Observed live: an agent ran `allocator.py acquire ... 2>&1 | tail -5`, and its own release
+    of that lease was refused as unowned - the trim had cut every line naming the token. The
+    allocator now writes its receipt as the LAST line of the merged stream
+    (tests/test_allocator_lease_contracts.py pins that), so the tail the agent saw names the lease
+    and the release passes. What a tail cannot leave is anything naming another lease."""
+    tid, use = _use("Bash", {"command": f"{ALLOC} acquire --series 17.0 --mode exclusive "
+                                        f"--no-create --run-id run-R 2>&1 | tail -5"})
+    tail = ("ALLOC_DB_USER=odoo\nALLOC_DB_PORT=5437\nALLOC_SERIES=17.0\n"
+            "ALLOC_SERVER_WIDE_MODULES=''\n"
+            f"allocator: acquired lease {C_TOK} run_id=run-R\n")
+    lines = [_brief("build"), use, _result(tid, tail)]
+    _passed(_run_a4(tmp_path, lines, tool="Bash",
+                    tool_input={"command": f"{ALLOC} release {C_TOK} --run-id run-R"}))
 
 
 def test_an_orchestrator_may_release_a_lease_a_child_handed_up(tmp_path):

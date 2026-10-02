@@ -153,25 +153,47 @@ Convention findings cite the violated guideline by version file + section (e.g. 
 
 ### Test coverage of the behavior
 
-A CRITICAL or HIGH change to business behavior (new/altered constraint, compute, override, access rule, or view behavior) that ships **without a test protecting that rule**, or whose protecting test carries no well-formed break-check record, is itself a HIGH finding; flag it and emit `next: odoo-test-writing` in the Continuation Contract. Read the records where the run holds them (your brief, the test author's worklog entry under the run's `<ISOLATE_DIR>/worklog/`); the shapes are `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record (a forwarded bucket-(a) test carries `ABSORBED:` instead). Grade each of these break-check defects **also a HIGH finding** (`test-sensitivity-contract.md` § The break-check, § Broken measurement is not a red):
+A CRITICAL or HIGH change to business behavior (a new or altered constraint, compute, override,
+access rule or view behavior) that ships **without a test protecting that rule** is itself a HIGH
+finding: flag it and emit `next: odoo-test-writing`. When the run holds the test author's report
+(your brief, or its worklog entry under `<ISOLATE_DIR>/worklog/`), a behavior test with no evidence
+that it failed when its rule was deliberately broken - or whose "failure" was a load or setup error
+rather than the rule - is also a HIGH finding
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). The report is free form; judge
+its substance, never its shape.
 
-- **Malformed or missing record** - a behavior test with no `BREAK_CHECK:` line, a line that does not follow the fixed shape field by field, prose in place of a field, a `COVERED:` claim with no executed break-check of its own, or an `ADJUSTED:` with no following `BREAK_CHECK:`.
-- **Error counted as red** - a `red` that is a setup, load or infrastructure error (an entry § Broken measurement is not a red lists) rather than the targeted test failing at its assertion or its act step raising the business exception the broken rule produces.
-- **Whole-module break run** - a break-check tagged `/<module>` or untagged instead of the targeted `/<module>:<Class>.<method>` set, or a `selected` count that differs from the number of tests the break targeted.
+Tests protect the **business behavior, not the current implementation**. Grade each defect below
+as **also a HIGH finding**, citing `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`:
 
-Tests protect the **business behavior, not the current implementation** - grade each defect below as **also a HIGH finding** and cite the `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` section it breaks:
+- **Insensitive** - it would still pass with the rule absent or broken (`assertFalse` on a new
+  field's default, "no exception raised").
+- **Shortcut** - terminal state seeded through `create({'state': ...})`, or `sudo()` on the action
+  whose access it claims to check, instead of driving the real action as the acting user.
+- **Form bypass** - a field the user ENTERS in a form view set through ORM `create`/`write` instead
+  of a `Form`, or a field forced that the user cannot set on that view; ORM is fine for arrange data
+  the user does not enter.
+- **Frozen present** - asserting `__manifest__.py` contents, names, existence or counts of
+  fields/views/methods/records, or arch strings.
+- **Complex** - loops or helpers computing the expected value, or the rule re-implemented in the
+  test; a junior must read it at a glance.
+- **Duplicate** - a new test repeating one that already protects the behavior (the author did not
+  search existing tests first).
+- **Test imported from the module** - `from . import tests` in the module's own `__init__.py`:
+  Odoo's loader imports `<module>.tests` itself; each file belongs in `tests/__init__.py`.
+- **Forward-ported coupling** - a test still asserting SOURCE-version internals (a private-method
+  call count, a field removed on target, a mock bound to the old argument shape, an expected value
+  read from the old implementation): it passes trivially or fails for the wrong reason. Route the
+  rewrite to `next: odoo-test-writing`; never hand-edit the test.
 
-- **Insensitive** - an assertion the ABSENCE or the breaking of the rule would still pass: `assertFalse` on a field the change introduces, the field's own default, "no exception raised" (§ Protect the outcome, never the implementation; `test-sensitivity-contract.md` § The break-check).
-- **Shortcut** - seeding terminal state with `create({'state': ...})`, raw-inserting an already-validated record, or `sudo()`-ing the action whose access it claims to check instead of driving `action_confirm`/`action_validate`/`button_validate` as the acting user (§ Drive the real workflow).
-- **Form bypass** - forcing a field the user cannot set on that view, or setting through ORM `create`/`write` a field the user ENTERS in a form view (a constraint on save, an onchange, a default, a readonly/required rule) instead of setting it on a `Form` and saving; ORM is fine only for arrange data the user does not enter in that flow (§ Simulate the user with Form).
-- **Test imported from the module** - `from . import tests` (or any import of the test package) in the module's own `__init__.py`: Odoo's test loader imports `<module>.tests` itself, so this loads test code on every production boot; each test file belongs in `tests/__init__.py`.
-- **Frozen present** - asserting `__manifest__.py` contents, or the names, existence or counts of fields/views/methods/records, or arch strings (§ Never freeze the present).
-- **Complex test logic** - loops, comprehensions or helpers computing the expected value, or the rule re-implemented inside the test (§ Keep the test simple).
-- **Duplicate** - a new test repeating one that already protects the same behavior.
-
-A test that asserts TRANSLATED or DISPLAY text - any shape `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text lists - is **also a HIGH finding**: that wording is improved continuously by people who never see the test, so the test fails on an IMPROVEMENT and its only cheap remedy is editing the expectation. Recommend REMOVING the assertion (removal here is cleanup, not loosening) or replacing it with the exception TYPE / technical value / state (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or DISPLAY text).
-
-A negative test whose path actually logs a server WARNING/ERROR (or an `IntegrityError`) WITHOUT `assertLogs` / `mute_logger` is **also a HIGH finding**: it leaks expected noise into CI logs and misses asserting that the guard actually fired. So is an assertion on a log record's message WORDING - assert the logger and level fired, the exception TYPE and the unchanged state. A wrapper around a path that logs nothing (a constraint's `ValidationError` on save) is noise, not a finding to demand (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`). A test forward-ported from a lower Odoo version that still asserts SOURCE-side internals - a call-count on a private method, a field name removed at target, a `mock.assert_called_once_with(...)` bound to source-side argument shape, or an `assertEqual` whose expected value was read from the old implementation rather than the observable contract - is **also a HIGH finding**: it passes trivially on target (the private symbol is gone, so the call/mock never fires) or fails for the wrong reason - false confidence either way. Recommend rewriting the assertion to the observable outcome on target (state value, produced record, raised exception, computed-field result) via the real action method, proven by its `BREAK_CHECK` record, and route the fix to the test author (`next: odoo-test-writing`) rather than hand-editing the test yourself. A review with zero CRITICAL/HIGH findings must say so clearly - it is valuable signal.
+A test that asserts TRANSLATED or DISPLAY text - any shape `test-behavior-contract.md` § Never
+assert TRANSLATED or DISPLAY text lists - is **also a HIGH finding**: people improve that wording
+without seeing the test, so it fails on an improvement. Recommend REMOVING the assertion (cleanup,
+not loosening) or replacing it with the exception TYPE, technical value or state. A negative test
+whose path really logs a WARNING/ERROR (or an `IntegrityError`) without `assertLogs` /
+`mute_logger`, or one asserting a log message's WORDING, is **also a HIGH finding**; a wrapper on a
+path that logs nothing is noise, not a finding
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`). A review with zero CRITICAL/HIGH
+findings must say so clearly - it is valuable signal.
 
 ## Output format
 
@@ -315,7 +337,7 @@ The lenses you review through - pattern-match during Step 1, confirm against OSM
 - Run `verify-frontend.sh` for any JS/OWL/SCSS finding (see `## Verification gates`).
 
 ### D7 - Test quality
-Detailed rules + severity live in `### Test coverage of the behavior` (under `## Severity & scoring`). In short - each is a HIGH finding: a CRITICAL/HIGH behavior change with no protecting test or no well-formed `BREAK_CHECK` record; a break-check whose red is an error rather than the assertion or the rule's business exception, or that ran the whole module instead of the targeted methods; an insensitive, shortcut, Form-bypass (an ORM set of a form-entered field), frozen-present, over-complex or duplicate test; a test package imported from the module's own `__init__.py`; an assertion on translated or display text or on log wording; `cr.commit()` inside `TransactionCase`; a negative test whose path logs, missing `assertLogs`/`mute_logger`; a forward-ported test still coupled to source-version internals (call-count, removed field, mock argument shape) instead of the observable outcome on target. Tests must protect BEHAVIOR, not the current implementation.
+Detailed rules + severity live in `### Test coverage of the behavior` (under `## Severity & scoring`): an untested behavior change, an unproven test, and insensitive, shortcut, Form-bypass, frozen-present, complex or duplicate tests. Also flag `cr.commit()` inside a `TransactionCase`.
 
 ## Examples
 

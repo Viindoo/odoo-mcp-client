@@ -507,3 +507,24 @@ def test_job_wait_of_a_build_reports_no_exports(i18n):
         lease = _lease(c, i18n)
         done = _wait(c, _ok(_build(c, i18n, lease["token"], demo="on"))["job_id"])
     assert done["exports"] == []
+
+
+def test_the_export_hands_the_script_the_declared_odoo_root(i18n, tmp_path):
+    """The export script locates the Odoo launcher on the served addons_path and falls back to the
+    instance's declared odoo_root - which instance_i18n_export must therefore hand it, or an
+    export from a worktree-only addons_path cannot find the launcher."""
+    from test_odoo_local_mcp_instance import _ops_recorder
+
+    core = i18n["addons"].parent
+    toml = i18n["home"] / "instances.toml"
+    toml.write_text(toml.read_text() + 'odoo_root = "%s"\n' % core, encoding="utf-8")
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+    stand_in, record = _ops_recorder(tmp_path)
+    with McpClient(i18n["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), i18n["work"]) as c:
+        c.initialize()
+        _wait(c, _ok(_export(c, i18n, lease["token"]))["job_id"])
+    argv = json.loads(record.read_text())["argv"]
+    assert argv[0] == "i18n-export"
+    assert dict(zip(argv[1::2], argv[2::2])).get("--odoo-root") == str(core), argv

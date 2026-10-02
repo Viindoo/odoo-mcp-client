@@ -6,7 +6,8 @@ Three things would bring the retired doctrine back, and each has one check here:
   (a) a retired token in runtime prose - an agent reading it would wait for a test before coding;
   (b) a registry brief that makes a coder require a test, or a coordinator fence that launches the
       test-writer without the instance its break-check needs;
-  (c) the SSOT losing the break-check record, the broken-measurement classes, or the restore proof.
+  (c) the SSOT losing the break-check principle (break the rule, watch the test fail, restore the
+      code) or the broken-measurement classes.
 
 Run: python -m pytest tests/test_test_sensitivity_contract.py -v
 """
@@ -104,32 +105,13 @@ def test_coordinator_accepts_commit_ownership_from_its_caller():
 # (c) the SSOT ----------------------------------------------------------------------------------
 
 
-def test_contract_defines_the_break_check_record_line():
-    assert CONTRACT.is_file()
-    line = re.search(r"^BREAK_CHECK: .*$", CONTRACT.read_text(encoding="utf-8"), re.MULTILINE)
-    assert line, "the contract must fix the BREAK_CHECK record shape on its own line"
-    fields = [f.strip() for f in line.group(0).split("|")]
-    assert fields[0] == "BREAK_CHECK: <module>:<Class>.<method>", fields
-    for prefix in ("broke ", "red ", "selected ", "restored sha256 match", "data-file "):
-        assert any(f.startswith(prefix) for f in fields[1:]), (prefix, fields)
-
-
-def test_contract_defines_absorbed_and_pending_break_check_records():
-    """ABSORBED is the only evidence a bucket-(a) forwarded test owes; PENDING BREAK_CHECK is how
-    a test-writer with no handle reports the runs still owed. Both must have a fixed shape."""
-    text = CONTRACT.read_text(encoding="utf-8")
-    assert re.search(r"^ABSORBED: <test> - ", text, re.MULTILINE)
-    assert re.search(r"^PENDING BREAK_CHECK: <test ids>$", text, re.MULTILINE)
-
-
-def test_hash_manifest_ignores_bytecode_a_test_run_writes():
-    """A test run writes .pyc files into the module tree; hashing them would report a restore
-    failure for code nobody touched."""
-    command = next(ln for ln in CONTRACT.read_text(encoding="utf-8").splitlines()
-                   if "prod-hashes.txt" in ln and "find " in ln)
-    assert "! -path '*/__pycache__/*'" in command, command
-    for test_dir in ('"$m/tests/*"', '"$m/static/tests/*"', '"$m/static/tours/*"'):
-        assert f"! -path {test_dir}" in command, (test_dir, command)
+def test_contract_says_a_test_must_fail_when_its_rule_is_broken_and_the_code_be_restored():
+    """The one principle the test leg exists for: a test guards a rule only if breaking that rule
+    turns it red, and the writer never leaves the production code broken."""
+    text = _flat(CONTRACT).lower()
+    assert "fails when the business rule it guards is deliberately broken" in text
+    assert "restore every file exactly as it was" in text
+    assert "never leave production code broken" in text
 
 
 def test_contract_names_broken_measurements_that_are_not_a_red():
@@ -137,9 +119,3 @@ def test_contract_names_broken_measurements_that_are_not_a_red():
     assert "## Broken measurement is not a red" in text
     assert "KeyError" in text
     assert "0 tests selected" in text
-
-
-def test_contract_requires_a_sha256_restore_proof():
-    text = _flat(CONTRACT)
-    assert "sha256sum" in text
-    assert "every hash must match" in text

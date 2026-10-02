@@ -192,6 +192,8 @@ def _export(args, ctx):
             argv += [flag, lease[key]]
     if lease.get("series"):
         argv += ["--version", lease["series"]]
+    if row.get("odoo_root"):
+        argv += ["--odoo-root", row["odoo_root"]]  # launcher fallback (55 _find_odoo_bin)
 
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     base = os.path.join(tools_instance._logs_dir(), "%s-i18n-%s_%s" % (db, stamp, uuid.uuid4().hex[:4]))

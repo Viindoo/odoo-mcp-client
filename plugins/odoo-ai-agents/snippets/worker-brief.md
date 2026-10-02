@@ -27,14 +27,13 @@ the read-only case: it launches grounding workers only, writes no source, and ru
 `odoo-coder` is the WRITING case, and the rest of this section is its detail. It is a sanctioned
 nested spawner (one agent level below `odoo-coding`, launched once per work node) that
 launches its hard-leaf teammates - `odoo-backend-coder` and/or `odoo-frontend-coder` (the code)
-first, then ONE `odoo-test-writer` per node (the tests and their break-checks,
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg) -
-per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: it collects each
-teammate's result by its R0 move), tests the integrated node via
-`Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
-invoking `git-toolkit:git-ops` via the Skill tool, then returns the SHA to `odoo-coding`, which
-collects it and never re-commits (under `COMMIT: caller` it commits nothing and returns the file
-list). It NEVER authors the node's source itself: every source file is written by a teammate.
+first, then ONE `odoo-test-writer` per node
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg) -
+per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`), tests the integrated node
+via `Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
+invoking `git-toolkit:git-ops` via the Skill tool and returns the node's commit range to
+`odoo-coding`, which never re-commits (under `COMMIT: caller` it commits nothing and returns the
+file list). It NEVER authors the node's source itself: every source file is written by a teammate.
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
@@ -75,10 +74,8 @@ list). It NEVER authors the node's source itself: every source file is written b
   any live check is owned by the `odoo-coder` coordinator's integrated test or a delegated
   `odoo-instance` run - the lint-class gate runs ONCE at
   `run-harness`'s pre-PR tail, never inside either leaf. `odoo-test-writer` never self-provisions:
-  it runs its baseline and break-checks through `odoo-instance` inline on the forwarded handle's
-  database, on ONE lease of its own that it releases before returning
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle). Contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+  it runs its break-checks through `odoo-instance` inline on the forwarded handle
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle).
   **Self-provisioning carries teardown:** what you acquire under this carve-out you
   `lease_release` (or `lease_park`) before your terminal status -
   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.

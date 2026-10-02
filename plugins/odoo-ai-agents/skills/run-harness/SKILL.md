@@ -220,13 +220,13 @@ loop:
                         # above) | FAILED->retry<3 else BLOCKED | BLOCKED | NEEDS_CONTEXT. NO
                         # parseable contract -> FAILED (counts toward the 3-strike cap); never mine
                         # the transcript for a status.
-        if n wrote source and returned a commit SHA:
-            cherry_pick(sha, into = repos[n.repo].run_integration)
+        if n wrote source and returned a commit range:
+            cherry_pick(range, into = repos[n.repo].run_integration)
                         # Run start invariant 3 - saga + verify + checkpoint per
                         # references/run-integration.md § Run start procedure. TWO CHERRY-PICKS ONTO
                         # ONE BRANCH RACE: never overlap them and never batch this step, however
                         # many nodes were dispatched together. A FAILED member picks nothing.
-        for nx in contract.next:    # SUGGEST -> CHAIN ; cross-workflow on_complete lands here too
+        for nx in contract.next: # SUGGEST -> CHAIN; cross-workflow on_complete lands here too
             if (nx.confidence or 0) >= 0.5 and not duplicate(nx) and within_budget:
                 RUN.dynamic_nodes.append(materialize(nx))
                         # new READY node, depends_on = n; the tier function returns L2 for ANY

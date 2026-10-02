@@ -291,8 +291,8 @@ git-ops to skip that commit and invoke nothing else - a bucket-(a)/(d) commit is
 `odoo-coding`. Outcome (b)/(c): dispatch Explore to read conflicted files + the commit's
 `intents/<sha>.md`; then dispatch the `odoo-coding` skill (via the Skill tool,
 mirroring §P9b) at the ADAPT tier with `COMMIT: caller` (the rebase's own continue creates the
-replayed commit) and `TEST LEG: deferred - P9` (the node's test leg runs once, at P9) to resolve
-hunks to INTENT on the new-base idiom. Record every module each resolution touched - P9 covers
+replayed commit), `TEST LEG: deferred - P9` (the node's test leg runs once, at P9) and the run's `RUN_ID`
+to resolve hunks to INTENT on the new-base idiom. Record every module each resolution touched - P9 covers
 them all. `odoo-coding`
 owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-node
 coordinator) - including `odoo-frontend-coder`
@@ -324,12 +324,12 @@ For modules whose behavior changed (driven by P8b symbol-survival findings + rec
 modules[], not a vague "behavior changed" heuristic) AND every module a P8 resolution touched (its
 test leg was deferred to here), invoke `odoo-coding` once per module with the
 adapt fields: the code is adapted to the new-base idiom first, then the node's test leg adapts the
-branch's own tests and break-checks them
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+branch's own tests and proves each by breaking its rule
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Bucket (a) is never forwarded here.
 P8b collection gate is a precondition. Brief template: `references/rb-phase-detail.md` P9.
 
 **P9b - Code-review loop [odoo-code-review -> odoo-code-reviewer; fix via odoo-coding; cap 3].**
-After P9 leaves the adapt diff green with every adapted test break-checked, dispatch `odoo-code-review` (via the Skill tool) scoped
+After P9 leaves the adapt diff green with every adapted test proven, dispatch `odoo-code-review` (via the Skill tool) scoped
 to the replayed/adapted diff in the integration worktree (`TARGET: worktree:<WT_ROOT>/rb-integration`,
 attribute findings only to replayed lines - not pre-existing base debt). On any CRITICAL/HIGH
 finding, dispatch `odoo-coding` (same ADAPT tier) to fix to root cause, then RE-REVIEW; MED/LOW are
@@ -353,10 +353,8 @@ DB-stateful behavior (model field add/remove/type-change, stored-compute, ORM
 create/write/unlink override, migration dir, or TransactionCase/HttpCase test). Skip for
 pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3 metadata -
 no inline diff read. If P8b's database collection lane already provisioned the run's instance,
-reuse that `INSTANCE_HANDLE` (`mode: reuse`) instead of provisioning again - unless a P9/P9b
-break-check record says `data-file yes`: a break that touched a data file left broken records in
-that database, so the verdict then comes from a fresh build
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check). Full condition
+reuse that `INSTANCE_HANDLE` (`mode: reuse`) instead of provisioning again - and use judgment on its
+freshness: a break that touched data files or schema left stale records in it, so rebuild fresh then. Full condition
 list: `references/rb-phase-detail.md` P10 § B3.
 When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
 `odoo_version=<series>`); instance lifecycle protocol:

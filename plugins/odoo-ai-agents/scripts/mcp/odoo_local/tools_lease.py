@@ -1050,8 +1050,9 @@ def register(registry, ctx):
         "call fails with RUN_ID_REQUIRED (report NEEDS_CONTEXT(RUN_ID)) - never invent one. If you "
         "were forwarded an INSTANCE_HANDLE, do NOT call this - use that handle. Pass ports 1 when the "
         "instance must listen (instance_serve), 2 only for prefork, 0 for build/test only. Pass cwd = "
-        "your working tree; when it is a worktree, pass addons_path naming the tree you build or the "
-        "call is refused (ADDONS_PATH_WORKTREE_MISMATCH). Returns lease (keep lease.token and "
+        "your working tree; when it is a worktree, pass addons_path = the catalog row's addons_path "
+        "with the entry that covers this repo replaced by your worktree path, or the call is "
+        "refused (ADDONS_PATH_WORKTREE_MISMATCH). Returns lease (keep lease.token and "
         "lease.run_id) and instance_handle (forward it verbatim to downstream agents). "
         "venv_missing=true (explained in warnings) means the catalog declares no python for that "
         "series/profile: builds and serves on this lease will be refused until the venv is built - "
@@ -1078,7 +1079,10 @@ def register(registry, ctx):
             "addons_path": {"type": ["string", "array"], "items": {"type": "string"},
                             "description": "The addons directories to build and serve (absolute paths; a "
                                            "list, or one comma-joined string). Omit to use the catalog's; "
-                                           "pass it when working in a worktree."},
+                                           "when working in a worktree, pass the catalog row's "
+                                           "addons_path with only the entry that covers this repo "
+                                           "replaced by your worktree path - a path that drops the "
+                                           "Odoo checkout's core addons is refused."},
             "db_name": {"type": "string", "minLength": 1,
                         "description": "exclusive/shared only: the database to hold; omit for the "
                                        "declared one. Ignored by ephemeral (a unique name is minted)."},

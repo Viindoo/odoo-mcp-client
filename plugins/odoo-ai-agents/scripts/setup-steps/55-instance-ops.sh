@@ -64,6 +64,10 @@
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             [--load <a,b>] [--languages <a,b>] [--demo on|off]   (all three verbs;
 #             see "Build facts" above)
+#             [--odoo-root <dir>]   (all three verbs and i18n-export): the instance's
+#             declared checkout root. The launcher is located on the addons_path being
+#             served first; this root only fills in when no addons_path entry leads to
+#             one (a worktree-only addons_path) - the rule 50-instance-spinup.sh applies.
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
 #                  --unaccent --stop-after-init --log-level=info
 #                  --log-handler=<ns>.modules.loading:INFO <extra>
@@ -154,7 +158,7 @@
 #   i18n-export --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--languages <code,...>] --target <module>=<dir> (one per module)
 #             [--i18n-dir <module>=<dir>] [--db-host H] [--db-user U] [--db-port P]
-#             [--version <X.Y>]
+#             [--version <X.Y>] [--odoo-root <dir>]
 #             Per module: the `.pot` template FIRST, then one `.po` per language
 #             (named as the module already names it, else by the language's ISO
 #             code as Odoo names it - see cmd_i18n_export), all from this one
@@ -396,7 +400,11 @@ cmd_check() {
 _find_odoo_bin() {
     # The shared locator (resolve_instances.sh): $ODOO_BIN, else odoo-bin - or
     # openerp-server on the oldest series - at the addons_path / odoo_root.
-    _odoo_find_launcher "$1"
+    # $1 = addons_path, $2 = the declared odoo_root (--odoo-root). The addons_path
+    # being served decides; the declared odoo_root only fills in - the same rule as
+    # 50-instance-spinup.sh's _find_odoo_bin.
+    _odoo_find_launcher "$1" \
+        || { [[ -n "${2:-}" ]] && _odoo_find_launcher "" "$2"; }
 }
 
 # ---------------------------------------------------------------------------
@@ -1892,6 +1900,8 @@ _parse_common_args() {
     arg_load=""
     arg_languages=""
     arg_demo=""
+    # The instance's declared checkout root - the launcher fallback (_find_odoo_bin).
+    arg_odoo_root=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -1954,6 +1964,9 @@ _parse_common_args() {
             --version)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --version requires a value" >&2; exit 2; }
                 arg_version="$2"; shift 2 ;;
+            --odoo-root)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --odoo-root requires a value" >&2; exit 2; }
+                arg_odoo_root="$2"; shift 2 ;;
             --test-tags)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --test-tags requires a value" >&2; exit 2; }
                 arg_test_tags="$2"; shift 2 ;;
@@ -2109,11 +2122,11 @@ _build_fact_args() {
 cmd_init() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
-    local arg_load arg_languages arg_demo
+    local arg_load arg_languages arg_demo arg_odoo_root
     _parse_common_args "$@"
 
     local odoo_bin
-    odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
+    odoo_bin="$(_find_odoo_bin "$arg_addons" "$arg_odoo_root")" || {
         echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
@@ -2271,11 +2284,11 @@ cmd_init() {
 cmd_update() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
-    local arg_load arg_languages arg_demo
+    local arg_load arg_languages arg_demo arg_odoo_root
     _parse_common_args "$@"
 
     local odoo_bin
-    odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
+    odoo_bin="$(_find_odoo_bin "$arg_addons" "$arg_odoo_root")" || {
         echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
@@ -2394,11 +2407,11 @@ cmd_test() {
     # run, and _parse_test_result reads it by dynamic scope for the era gate.
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port arg_http_port arg_gevent_port arg_gevent_port_key
-    local arg_load arg_languages arg_demo
+    local arg_load arg_languages arg_demo arg_odoo_root
     _parse_common_args "$@"
 
     local odoo_bin
-    odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
+    odoo_bin="$(_find_odoo_bin "$arg_addons" "$arg_odoo_root")" || {
         echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }
@@ -2690,11 +2703,11 @@ _i18n_export_one() {
 
 cmd_i18n_export() {
     local arg_db="" arg_python="" arg_addons="" arg_modules="" arg_languages="" arg_version=""
-    local arg_db_host="" arg_db_user="" arg_db_port=""
+    local arg_db_host="" arg_db_user="" arg_db_port="" arg_odoo_root=""
     local -a arg_targets=() arg_i18n_dirs=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --db|--python|--addons|--modules|--languages|--version|--db-host|--db-user|--db-port|--target|--i18n-dir)
+            --db|--python|--addons|--modules|--languages|--version|--db-host|--db-user|--db-port|--odoo-root|--target|--i18n-dir)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): $1 requires a value" >&2; exit 2; }
                 case "$1" in
                     --db) arg_db="$2" ;;
@@ -2706,6 +2719,7 @@ cmd_i18n_export() {
                     --db-host) arg_db_host="$2" ;;
                     --db-user) arg_db_user="$2" ;;
                     --db-port) arg_db_port="$2" ;;
+                    --odoo-root) arg_odoo_root="$2" ;;
                     --target) arg_targets+=("$2") ;;
                     --i18n-dir) arg_i18n_dirs+=("$2") ;;
                 esac
@@ -2731,7 +2745,7 @@ cmd_i18n_export() {
     done
 
     local odoo_bin
-    odoo_bin="$(_find_odoo_bin "$arg_addons")" || {
+    odoo_bin="$(_find_odoo_bin "$arg_addons" "$arg_odoo_root")" || {
         echo "x Could not locate the Odoo server launcher (odoo-bin, or openerp-server on the oldest series). Set ODOO_BIN=/path/to/it and retry." >&2
         exit 1
     }

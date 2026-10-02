@@ -271,7 +271,7 @@ Before finishing, APPEND your significant findings/decisions to the run worklog 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the paths actually written; decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`).
 **The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active you have ALREADY invoked the target; `next:` advances nothing on its own, so **never stop at it**.
 - CRITICAL/HIGH findings needing a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-harness instead, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, report_path: <this report>, ...}` (the driver bounds the loop to 3 iterations, then escalates).
-- Behavior change with no protecting test → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (collected per R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`; context isolation; it authors by invoking the `odoo-test-writing` skill inline) with this brief (the `CHANGE KIND` enum and the break each value selects: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § How to break each change kind):
+- Behavior change with no protecting test → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (collected per R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`; it authors by invoking the `odoo-test-writing` skill inline and proves each test by a real break - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`):
 
   ```
   # odoo-test-writer (coverage gate - the code is fine, only the test is missing)
@@ -279,14 +279,15 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
   MODULE SCOPE: <name(s)> @ <path(s)>
   TARGET BEHAVIOR: <the uncovered behavior as a business rule, from the request / design AC - never from the code>
   TEST TYPE: <python unit | Form | tour | HttpCase | JS hoot/QUnit>
-  CHANGE KIND: <per behavior: new, unless the diff alters, fixes, removes or restricts an existing rule>
-  CHANGED CODE: <the files under review, stated as such - no coder output exists>
   SURVEY: <deep-survey synthesis path | none>
   WORKTREE_PATH: <absolute worktree path under review>
-  INSTANCE_HANDLE: <when you hold one, so it runs its baseline and break-checks | omit>
-  PRIOR ATTEMPT: <re-launch only: the tests it already wrote | omit>
+  INSTANCE_HANDLE: <when you hold one | omit>
+  SHARE_DIR: <the Phase 0 literal>
+  ISOLATE_DIR: <the Phase 0 literal>
+  RUN_ID: <the run id, when one exists | omit>
+  INPUTS: <this review's report path>
   ```
 
-  With no handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` with a `PENDING BREAK_CHECK:` line - invoke `odoo-instance`, then re-launch it with the handle and `PRIOR ATTEMPT` naming the tests it wrote (it then runs only their pending baseline and break-checks), and release the lease you obtained for it once it returns (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). When a code fix is also needed, drive both through `odoo-coding` (its `odoo-coder` coordinator writes the code first, then launches `odoo-test-writer` once for the node). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
+  With no handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` naming the pending tests - invoke `odoo-instance`, then re-launch it with the handle and `PRIOR ATTEMPT` (what it wrote, what is still pending), and release the lease you obtained for it once it returns (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1). When a code fix is also needed, drive both through `odoo-coding` (its `odoo-coder` coordinator writes the code first, then launches `odoo-test-writer` once for the node). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
 - Clean review, behavior covered → no fix, no `next` (loop terminates).
 A CRITICAL bug in a behavior that also lacks a test drives BOTH the fix and its test through `odoo-coding` (code first, then the node's test leg) - under a run-harness: `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, ...}`. Additive output for the run-harness; it changes nothing produced above.

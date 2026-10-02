@@ -76,8 +76,7 @@ across every module's adapt work, and closes once. All work happens here - in th
     never bump "to be safe". (The only bump permitted anywhere in forward-port is the C2 case below,
     and it is a migration-threshold bump, not a conflict decision.)
 3. Adapt per module, code first: ONE `odoo-coding` node adapts the code, then its test leg forwards
-   and adapts the tests (translate API to target, strip implementation-coupled assertions - see
-   [[test-behavior-contract]]) and proves each
+   and adapts the tests and proves each
    (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
 4. Fix any lint/eslint/prettier errors introduced by the merge.
 5. Invoke `git-toolkit:git-ops` to commit - the merge commit encapsulates the entire
@@ -140,16 +139,15 @@ survive the rename and mislead operators.
 Outcome buckets (a) and (d) from [[fp-intent-4outcome]] require NO adapt diff:
 
 - **(a) already satisfied** - target platform already provides the behavior; write no adapt
-  code for it. Forward its tests only; the node's Absorption probe confirms or re-buckets it.
+  code for it. Forward its tests only; the node's absorption probe confirms or re-buckets it.
 - **(d) no longer relevant** - the source commit worked around a platform limitation that
   the target has removed.
 
 **How the merge leaves their hunks.** A CONFLICTED hunk of an (a)/(d) commit resolves to the
 TARGET side - no adapt content is written for it. A CLEANLY-merged hunk stays as the merge left it,
-so an (a)/(d) commit's source code can be in the tree. That is why the Absorption probe never runs on
-the tree as merged: it neutralises the (a) commit's hunks first
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
-classification, not a test gate)).
+so an (a)/(d) commit's source code can be in the tree - which is why the absorption probe takes that
+code out of play first (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption
+probe).
 
 **In both cases the commit is still ABSORBED - never excluded from the merge range.** The single
 range merge is what advances the merge-base past them; a bucket is a statement about ADAPT WORK,
@@ -208,13 +206,11 @@ After install:
 - **Green suite (all tests):** the full suite for the target module must be green.
   A pre-existing red test is a pre-existing failure - triage it (see Triage below), do not
   fix it as part of this forward-port.
-- **Break-check records (FP-delta tests only):** every test NEWLY forwarded or adapted in this
-  batch carries the `BREAK_CHECK:` line - or, for a bucket-(a) commit's test, the `ABSORBED:` line -
-  the node test leg returned at P8
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test
-  without one is unverified - send it back to the module's P8 adapt node; the verify run never
-  breaks code itself. A verify on a database a break-check touched follows that contract's
-  § The break-check (Database state).
+- **Break-checks (FP-delta tests only):** every test NEWLY forwarded or adapted in this batch was
+  break-checked - or, for a bucket-(a) commit, absorption-probed - by the node's test leg at P8
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test the
+  report does not cover is unverified - send it back to the module's P8 adapt node; the verify run
+  never breaks code itself.
 
 ## Triage: FP-delta vs pre-existing failure
 

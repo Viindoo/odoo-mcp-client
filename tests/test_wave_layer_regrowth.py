@@ -942,7 +942,7 @@ def test_dependency_order_behaviour_survives_the_vocabulary_purge():
 
 
 # ===========================================================================
-# G7 - one instance, one run, one commit, one SHA per node
+# G7 - one instance, one run, one commit range per node
 # ===========================================================================
 
 _PER_MODULE_EXECUTION = (
@@ -955,16 +955,19 @@ _PER_MODULE_EXECUTION = (
 )
 
 
-def test_one_instance_one_run_one_commit_one_sha_per_node():
-    """`odoo-coder` verifies and commits the WHOLE NODE once - not once per module inside it.
+def test_one_instance_one_run_one_commit_range_per_node():
+    """`odoo-coder` verifies the WHOLE NODE once and returns it as ONE commit range - not once per
+    module inside it.
 
     Behaviour protected: the node is the unit of readiness (`depends_on`), of cherry-pick and of
-    rollback. A node that landed as two commits has no single SHA the integration saga can
-    checkpoint or revert, and a per-module instance cannot see a cross-module assertion at all.
-    Grounded: `-i`/`-u` accept a comma-separated module list in every indexed series, so ONE
-    instance and ONE run genuinely cover a multi-module node.
+    rollback. Its commits are the range `<node base>..<head>` - normally one commit, plus any
+    work-in-progress commit an earlier stop made - so the integration saga picks and reverts the
+    node as one unit; squashing or amending would rewrite commits a later step already cites. A
+    per-module instance cannot see a cross-module assertion at all. Grounded: `-i`/`-u` accept a
+    comma-separated module list in every indexed series, so ONE instance and ONE run genuinely
+    cover a multi-module node.
 
-    Fails if: the single-instance / dependency-order / single-commit / single-SHA statements are
+    Fails if: the single-instance / dependency-order / commit-range / no-rewrite statements are
     dropped, or a per-module instance or commit claim returns.
     """
     flat = _flat(_read(CODER))
@@ -979,14 +982,14 @@ def test_one_instance_one_run_one_commit_one_sha_per_node():
         "odoo-coder must state ONE instance and ONE integrated run cover the whole node - the "
         "grounded fact (-i/-u take a LIST in every indexed series) that makes the node the unit"
     )
-    assert re.search(r"(?i)capture the ONE returned SHA", flat), (
-        "odoo-coder must commit the node ONCE and capture the ONE returned SHA"
+    assert re.search(r"(?i)your node's result is the range <node base>\.\.<head>", flat), (
+        "odoo-coder must return the node as the commit range `<node base>..<head>`"
     )
-    assert re.search(
-        r"(?i)a node that landed as two commits has no single SHA the saga can checkpoint or revert",
-        flat), (
-        "odoo-coder must state WHY one commit per node is load-bearing (the saga's checkpoint and "
-        "revert unit) - a rule with no reason is the first thing an agent optimises away"
+    assert re.search(r"(?i)on a resumed round keep the node base of the FIRST round", flat), (
+        "a resumed round must keep the first round's node base, so the range covers every round"
+    )
+    assert re.search(r"(?i)never squash or amend", flat), (
+        "odoo-coder must never squash or amend the node's commits"
     )
 
     offenders = []
@@ -1003,8 +1006,9 @@ def test_one_instance_one_run_one_commit_one_sha_per_node():
 
 
 def test_cross_module_test_staging_names_both_era_remedies():
-    """A node may span modules, so the cross-module staging rule must be stated in BOTH authors,
-    and both era remedies must be reachable from them through the era-boundary SSOT.
+    """A node may span modules, so the cross-module staging rule must be stated where tests are
+    authored - `odoo-test-writing`, the one place that owns it (coders never author tests) - and
+    both era remedies must be reachable from it through the era-boundary SSOT.
 
     Behaviour protected: Odoo runs tests in two phases, and a test class is `at_install` by
     DEFAULT - so an unstaged assertion in the first module of a node fires before the second
@@ -1013,10 +1017,10 @@ def test_cross_module_test_staging_names_both_era_remedies():
     modern one silently breaks every series before the tagging boundary.
 
     The boundary is a version fact, so it lives in ONE place - `snippets/odoo-era-boundaries.md`
-    row 8 - and the authors point at it instead of restating a version range
+    row 8 - and the test-authoring skill points at it instead of restating a version range
     (check_orchestration rules 17/18).
 
-    Fails if: either author loses the staging rule, the pointer to row 8, or the last-module
+    Fails if: the test-authoring skill loses the staging rule, the pointer to row 8, or the last-module
     caveat, or restates the boundary as a series range; or row 8 stops naming both remedies.
     """
     era = _flat(_read(PLUGIN / "snippets" / "odoo-era-boundaries.md"))
@@ -1030,8 +1034,7 @@ def test_cross_module_test_staging_names_both_era_remedies():
         "row 8 must name the older remedy - the phase decorators @common.post_install(True) / "
         "@common.at_install(False) - not just say 'use the old API'"
     )
-    for label, path in (("agents/odoo-coder.md", CODER),
-                        ("skills/odoo-test-writing/SKILL.md", TEST_WRITING)):
+    for label, path in (("skills/odoo-test-writing/SKILL.md", TEST_WRITING),):
         flat = _flat(_read(path))
         assert re.search(r"(?i)must be staged into the post-install phase", flat), (
             f"{label} must state that a cross-module assertion is STAGED into the post-install "

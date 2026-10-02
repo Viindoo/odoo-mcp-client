@@ -176,9 +176,11 @@ dispatch loop (one node per iteration, forked from that repo's run-integration b
 `odoo-intake -> Phase P -> run-harness` chain (run-harness Hard rule 6). The `odoo-coder`
 COORDINATOR `cd`s there, its hard-leaf coders author + RETURN their file list (no git, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), then - once the integrated node test is green -
-the COORDINATOR itself COMMITS the node by invoking `git-toolkit:git-ops` and returns the SHA.
-THIS skill does not re-commit: it COLLECTS the coordinator's returned SHA and passes it up (for
-`run-harness` to cherry-pick into the run-integration branch, or reports it). If invoked standalone
+the COORDINATOR itself COMMITS the node by invoking `git-toolkit:git-ops` and returns the node's
+commit range `<node base>..<head>` (normally one commit SHA; a work-in-progress commit from an
+earlier stop is part of it). THIS skill does not re-commit, squash or amend: it COLLECTS the
+coordinator's returned range and passes it up (for `run-harness` to cherry-pick into the
+run-integration branch, or reports it). If invoked standalone
 with NO `WORKTREE_PATH`, this skill FIRST invokes `git-toolkit:git-ops` to provision a
 worktree/branch (never the principal checkout, resolving the fork point per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch resolution rather than the
@@ -312,7 +314,7 @@ modules.
 |---|---|---|
 | 1 | Design doc grades it Custom-XL AND the change alters an inheritance axis across multiple modules - the apex of domain + structural complexity | **fable** |
 | 2 | The node reasons across MULTIPLE hard business domains AND is coupled to many interacting modules (both together - not size alone). Qualifying signals: design doc Extension-L / Custom-XL with high cross-module coupling; a core `create`/`write`/`unlink` override whose correctness spans many dependents (`find_override_point` >=3-entry chain, OR `impact_analysis` shows a wide downstream ripple); a cross-model computed chain plus multi-company logic spanning modules; a migration with >1 viable strategy touching many modules | **opus** |
-| 3 | Design doc grades it Standard or Config; OR (single-stack AND <=2 intended files AND ~<=50 LOC AND no method override): one field/attr, boilerplate XML view shell, label/string change, security CSV row | **haiku** |
+| 3 | Design doc grades it Standard or Config; OR (single-stack AND <=2 intended files AND ~<=50 LOC AND no method override AND no new method - a constraint, onchange or compute is a method, never `quick`): one field/attr, boilerplate XML view shell, label/string change, security CSV row | **haiku** |
 | 4 | Everything else - and the RIGHT default for large-but-tractable work: a big single-domain node, high LOC or many files, a normal computed/onchange/constraint, a single-method override, a standard OWL widget, a full-stack node, even a large / high-blast-radius node that stays within one business domain - plus ANY genuinely ambiguous case you cannot classify confidently. Size, file count, and blast radius alone never escalate past sonnet; only Row-2 multi-domain + heavy-dependency complexity does | **sonnet** (default) |
 
 Constraints on the table:
@@ -337,6 +339,10 @@ Constraints on the table:
   above), no inline human confirmation is possible: if step 5 resolves a node to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<n>: opus (fable auto-downgraded - gate suppressed)`
   in plan.md, in the same format as the human-declined downgrade above.
+- **The tier is the depth of the node's coders, never of its coordinator.** The `odoo-coder`
+  coordinator judges the test leg and the fix loop, so it never runs below sonnet: launch it with
+  `model` = the node tier, raised to sonnet when the tier is haiku, and carry the node tier itself
+  in `DISPATCH MODEL` - the coordinator caps its coders by it.
 - A fullstack node gets ONE tier applied to both legs by default; you MAY set a
   lower `frontendModel` when the design doc splits effort (e.g. opus backend +
   sonnet frontend). Never set the frontend leg HIGHER than the node tier.
@@ -379,15 +385,14 @@ module it touches to ground the test scope - only write what is NOT already cove
 **A node spanning modules - name the cross-module assertions.** When a node's module set has more
 than one entry, state in the brief, in one line, which assertions (if any) exercise behaviour
 contributed by a LATER module in the node's dependency order (or by a module with no dependency
-edge to the asserting one): `odoo-coder` stages those into the post-install phase
-(its own Cross-module test staging step) instead of the default at-install phase, where they
-would run before that module exists.
+edge to the asserting one): the node's `odoo-test-writer` stages those into the post-install
+phase instead of the default at-install phase, where they would run before that module exists.
 
 Skip the coverage pre-flight only when OSM is unreachable (standalone/disk fallback, same flag
 as step 4); in that case `odoo-test-writer` works from disk context alone.
 
-Whether a node needs a test leg at all is decided by its coordinator from the node's ACTUAL diff
-(that contract's § No test leg), never declared here.
+Whether a node needs a test leg at all is judged by its coordinator from the code actually
+written, never declared here.
 
 Carry the coverage pre-flight results (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`) into
 the coder brief so the coordinator seeds the `odoo-test-writer` brief with them (additive tests
@@ -407,9 +412,8 @@ Plan:
   | n2   | <m2>                 | fullstack | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, <m2>/<descriptor> |
   | n3   | <m3> (after n1)      | frontend  | standard | test-writer | <m3>/static/src/*.js |
 test = `test-writer` (the node's tests are written and break-checked after its code), or
-     `none (No test leg)` when every intended file falls in
-     `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg - the coordinator
-     confirms it from the actual changed files.
+     `none` when the change looks like it needs no test (e.g. comments, docs or translations
+     only) - the coordinator judges it again from the code actually written.
 depth = how much reasoning each node gets, and what it costs: quick (cheapest, mechanical
      edits) < standard (the default) < deep (costlier - multi-domain, many dependents) <
      deepest (rare, ~2x deep, and always asked separately). Reply `refine:` to change one.
@@ -445,14 +449,10 @@ The coder agents run as autonomous agents - never inline codegen in main, never 
 | Standalone (no plan) | `odoo-coding` derives its own node set in Phase 0 by the schema's two rules (disjoint file scopes; same-landing-moment closure) | one per derived node, packed into model-weighted batches |
 
 Launch the agent by TYPE; if a short type fails to resolve, retry with the plugin-qualified form
-`odoo-ai-agents:odoo-coder`. It coordinates the node end to end: it splits the node into 1..N
-INTERNAL WIs by disjoint file sets, schedules independent WIs in parallel and dependent ones
-sequentially (backend before a frontend that binds it), launches `odoo-backend-coder` for each
-backend WI and `odoo-frontend-coder` for each frontend WI, owns the integrated whole-node test on
-ONE instance + the bounded fix loop, and RETURNS the aggregated file list to this skill. You do NOT
-launch the worker agents yourself and you do NOT decide the WI split - the coordinator does. The
-stack tag is passed to the coordinator as a hint; a single-stack node simply yields one-or-more
-same-stack WIs.
+`odoo-ai-agents:odoo-coder`. It coordinates the node end to end - its private work-item split,
+its coders, its test leg, the integrated whole-node test and the commit - and RETURNS the node's
+commit range and file list to this skill. You do NOT launch the worker agents yourself and you do
+NOT decide the work-item split; the stack tag is only a hint to the coordinator.
 
 Do NOT build a Claude Code Workflow (JS) script for this - all fan-out is real agent launches;
 narrating a dispatch in prose instead of launching the agent is not allowed.
@@ -476,7 +476,7 @@ coordinator hands it, and without one it relays `NEEDS_NEXT: odoo-instance` up t
 **Dispatcher-level invariant.** A node's coding run is not DONE until every instance its
 `odoo-coder` coordinator self-provisioned this run is released by that coordinator - whether it
 self-provisioned because no handle was forwarded OR because you authorized
-`SELF_PROVISION: worktree-addons`. A returned node SHA with a still-leased self-provisioned
+`SELF_PROVISION: worktree-addons`. A returned node commit range with a still-leased self-provisioned
 instance is not a clean handoff. Under the worktree-addons carve-out this is ONE lease per node, so
 the release is per-node and non-negotiable. Full rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
@@ -553,19 +553,16 @@ what carries that id across the invocation boundary.
    a graceful business BLOCKED the coordinator itself chose. Fail CLOSED on any doubt whether a
    return is a real report; never mark a node `failed` on a mere suspicion when a valid
    Continuation Contract WAS returned.
-5. Each subagent launch sets BOTH the `model` parameter AND the first prompt line
-   `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring `odoo-debug`).
+5. Each `odoo-coder` launch sets the `model` parameter to the node tier raised to sonnet when it
+   is haiku (step 5's coordinator floor), and the first prompt line
+   `DISPATCH MODEL: <haiku|sonnet|opus|fable>` to the node tier itself.
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
    subagent error), retry that node ONCE at `model: opus` and record the downgrade in plan.md
    (`opus (fable unavailable)`).
 7. Code, then the node's test leg: pass each node's coverage pre-flight results (including which
-   assertions cross a module boundary, step 6) to its `odoo-coder` coordinator. The coordinator
-   runs every node in the order `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
-   § Code first, then the test leg sets: its coder WIs write the code -> ONE `odoo-test-writer` per
-   node writes or adjusts the tests after the code (the dedicated context-isolated test author -
-   never the code author) -> a break-check proves each behavior test -> the integrated verify.
-   THIS skill does NOT launch `odoo-test-writer`; the coordinator does, and it is the ONLY test
-   author.
+   assertions cross a module boundary, step 6) to its `odoo-coder` coordinator, which runs the
+   order `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test
+   leg sets. THIS skill does NOT launch `odoo-test-writer`; the coordinator does.
 
 ### Dependency-BLOCKED handling + the module-coordination ledger
 
@@ -633,7 +630,7 @@ never inline that file verbatim into a hard-leaf brief.
 Coder brief (target = the `odoo-coder` coordinator for the node):
 
 ```
-DISPATCH MODEL: <tier>
+DISPATCH MODEL: <node tier>
 NODE: <node-id> - the plan node this dispatch fulfills (or a self-derived node id when standalone).
 WORKER_AGENT_ID: <an id the CALLER captured from ITS OWN earlier launch of this node's coordinator, never a string anyone invented | omit to cold-spawn>
 REQUEST: <the change for this node: target model(s) + constraints (+ frontendRequest for a frontend WI)>
@@ -702,9 +699,9 @@ The `odoo-coder` coordinator (not this skill) launches ONE `odoo-test-writer` ag
 the node's code is written - its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S),
 plus the coverage pre-flight and adapt fields above) is the coordinator's to assemble; this skill
 never pre-dispatches a test author and the coders never author tests. The coordinator skips that
-launch only for a diff in the closed set of
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg, or when the caller
-sent `TEST LEG: deferred - <caller phase>` - never because a test looked hard to write. `odoo-test-writer` carries its own authoring contracts:
+launch only when it judges the written code needs no test (and says why), or when the caller sent
+`TEST LEG: deferred - <caller phase>` - never because a test looked hard to write, and never for
+adapt work (`SOURCE TESTS`, a `BUCKET` (a) commit), even when the coders changed nothing. `odoo-test-writer` carries its own authoring contracts:
 `snippets/test-sensitivity-contract.md` (the executed break-check) and
 `snippets/test-behavior-contract.md` (behavior over internals).
 
@@ -712,11 +709,12 @@ Each hard-leaf coder locates files via Read/Grep, writes its output, and reports
 plus `__manifest__.py` changes - it does NOT run git. The node's `odoo-coder` coordinator
 aggregates ALL its WIs' workers' file lists and, once the integrated node test is green, **COMMITS
 the node itself by invoking the `git-toolkit:git-ops` skill** inside the worktree (it requests the
-commit; git-ops owns the message convention + DCO + mechanics) and captures the ONE commit SHA on
-the node's branch. **THIS skill then COLLECTS the coordinator's returned SHA and passes it up so
-`run-harness` can cherry-pick it into the run-integration branch (or so any caller can integrate) -
-it does NOT re-commit; a DONE with no returned file list, no integrated-test verdict, no SHA from
-the coordinator (under `COMMIT: caller`, the file list stands in its place), no stated WI count + terminal-status accounting for that node (D2 - the private WI
+commit; git-ops owns the message convention + DCO + mechanics) and returns the node's commit range
+`<node base>..<head>` on the node's branch. **THIS skill then COLLECTS the coordinator's returned
+range and passes it up so `run-harness` can cherry-pick it into the run-integration branch (or so
+any caller can integrate) - it does NOT re-commit, squash or amend; a DONE with no returned file
+list, no integrated-test verdict, no commit range (each SHA in it) from the coordinator (under
+`COMMIT: caller`, the file list stands in its place), no stated WI count + terminal-status accounting for that node (D2 - the private WI
 list is the coordinator's, but the ACCOUNTING statement is not), or no explicit mapping of every
 item in that node's `REQUEST`/`frontendRequest` to the WI(s) that implemented it (D7 - a node that
 silently covers only PART of what was asked is not a green node even when every file it DID touch

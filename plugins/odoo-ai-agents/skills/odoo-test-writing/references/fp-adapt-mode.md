@@ -25,9 +25,8 @@ Invoke adapt mode (not `change` mode) when:
 | `tgt_version` | Yes | the target series, concrete (`<major>.0`) |
 | Intent doc | Recommended | the commit's intent doc from the forward-port intent sweep; confirms what behavior the test was written to protect |
 | `BROKEN TEST-SYMBOLS` | When the caller has them | source symbols the symbol-survival check found absent on target - each is CAPTURE-CODE or a step-3 mapping, never a reference left in the test |
-| `BUCKET` | When the caller has it | the commit's forward-port bucket; (a) runs the Absorption probe in step 4 instead of a break-check |
+| `BUCKET` | When the caller has it | the commit's forward-port bucket; (a) runs the absorption check in step 4 instead of a break |
 | `TARGET TEST EXAMPLES` | When the caller has them | existing target-series tests to pattern the translation on |
-| `CHANGE KIND` | When the caller has it | `adapt (rule file:lines)` per behavior - where the business rule the forwarded test guards lives on target |
 
 Call `set_active_version('<tgt_version>')` at the start of adapt mode - the target version
 drives all OSM grounding.
@@ -52,8 +51,7 @@ one of:
 - Asserts call order of ORM hooks / compute order not mandated by the business contract
 - Asserts the text of an error message word-for-word (acceptable to strip to
   `assertRaises(ValidationError)` without message check)
-- Freezes the present (`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never freeze
-  the present): a count of files/records/fields/methods/views/menus that is not itself the business
+- Freezes the present (`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`): a count of files/records/fields/methods/views/menus that is not itself the business
   result, that a field / view / method / xml-id / menu EXISTS or what it is NAMED, an arch string,
   or `__manifest__.py` contents
 
@@ -97,24 +95,20 @@ OSM-ground every API reference for `tgt_version`:
   framework that module uses on target, patterned on
   `find_test_examples(query='<framework> describe test expect', kind='js', odoo_version='<tgt>')`.
 
-## Step 4 - Prove it after the code (break-check, or the Absorption probe for bucket (a))
+## Step 4 - Prove it after the code
 
-The forwarded test is proven the same way as any behavior test: AFTER the adapt code exists, by
-the baseline and the executed break-check of the skill's Round 7
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check, recorded per
-§ Break-check record). The break is the BUSINESS RULE the forwarded test guards, at the
-`adapt (rule file:lines)` the brief names (§ How to break each change kind) - never "disable the
-adapt code": an idiom or API adapt cannot be disabled without leaving a broken measurement.
+Prove the forwarded test like any behavior test, AFTER the adapt code exists
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`): break the BUSINESS RULE it guards
+on target, watch it fail, restore exactly - never "disable the adapt code", which an idiom or API
+adapt cannot survive without a broken measurement.
 
-- A `KeyError` / `AttributeError` / `Invalid field` on the target means YOUR TRANSLATION is
-  incomplete - a renamed symbol step 3 missed - not that the target lacks the behavior. It is a
-  broken measurement (§ Broken measurement is not a red): fix the translation and re-run. It never
-  classifies the commit.
-- `BUCKET` (a) - the behavior is already absorbed by target core - leaves no ported code to break.
-  Run its forwarded test in this same launch, after the node's (b)/(c) code is adapted, as
-  § Absorption probe (forward-port classification, not a test gate) states. Green -> an
-  `ABSORBED:` record. Red on the assertion -> report that commit for re-bucketing to (b)/(c) and
-  stop for its tests; the coordinator re-dispatches the coder, then you for the normal break-check.
+- A `KeyError` / `AttributeError` / `Invalid field` on the target means YOUR TRANSLATION missed a
+  renamed symbol in step 3 - a broken measurement, not a missing behavior. Fix it and re-run; it
+  never classifies the commit.
+- `BUCKET` (a) - already absorbed by target core - has no ported code to break. Run its forwarded
+  test against the target with that commit's own code taken out of play (keep a copy, neutralise
+  its hunks, run, restore): green = absorbed by core, keep the test and say so; red on the
+  assertion = report the commit for re-bucketing to (b)/(c).
 
 ## What is BANNED in adapt mode
 
@@ -140,18 +134,16 @@ Adapt mode runs inside the window
 - Symbol-survival check runs BEFORE adapt mode. A field or method in the source test that it
   flagged as absent on target (`BROKEN TEST-SYMBOLS`) is CAPTURE-CODE for that symbol or a step-3
   mapping - never leave a reference to a removed symbol.
-- The adapt code is written first; the forwarded tests and their break-checks follow it in the
-  same node (step 4).
+- The adapt code is written first; the forwarded tests and their breaks follow it in the same node
+  (step 4).
 
 ## Continuation Contract for adapt mode
 
-End with a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. For adapt mode, `produced`
-lists the translated test file path. The `status` block MUST include:
+End with a block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`; `produced` lists
+the translated test files. Besides the brief per-test report, state:
 
 ```
-<one record per forwarded behavior, in the exact shapes test-sensitivity-contract.md § Break-check record fixes: BREAK_CHECK / COVERED / ADJUSTED / ABSORBED (bucket (a) only)>
-Re-bucket: <bucket (a) commits whose probe went red on the assertion, or "none">
-Dropped (capture-code): <list of test_* methods dropped and why, or "none">
-Expected changed: <list of changed expected values with cited reason, or "none">
+Re-bucket: <bucket (a) commits whose test went red on the assertion, or "none">
+Dropped (capture-code): <test_* methods dropped and why, or "none">
+Expected changed: <changed expected values with cited reason, or "none">
 ```

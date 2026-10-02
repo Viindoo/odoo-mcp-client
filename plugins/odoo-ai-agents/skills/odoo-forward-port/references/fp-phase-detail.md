@@ -478,36 +478,24 @@ same-module inherit-view check.
 
 ## P8 - Adapt (code first, then tests; serial per-module; ALWAYS directly in the integration worktree)
 
-P5 already absorbed the batch's whole range into the working tree, so P8 adapts the MERGED RESULT
-module by module, driven by the per-commit intent records - it never re-opens, re-merges, or
-re-stages anything per source commit. For each touched module/WI, dispatch the adapt unit DIRECTLY
-in the integration worktree
-(`<path>/fp-integration`, the JOB-tier worktree already created at P4 - `## P4` above) and process
-modules serially - complete one module before starting the next. A module whose files were touched
-by several commits in the range is adapted ONCE, against the combined merged result. P8 NEVER
-creates a per-module child worktree (full derivation: `SKILL.md` § Git topology "WORK tier - NOT
-used by P8 adapt"): P8 is serial (no concurrent writer to filesystem-isolate) AND the open-merge
-window below never clears before P8 runs (no committed tip for a child to fork from, and no way to
-converge one back in time even if created).
+P5 already absorbed the batch's whole range into the working tree, so P8 adapts the MERGED RESULT module
+by module, driven by the per-commit intent records - it never re-opens, re-merges, or re-stages anything
+per source commit. Dispatch the adapt unit DIRECTLY in the integration worktree (`<path>/fp-integration`,
+the JOB-tier worktree created at P4) and process modules serially; a module touched by several commits is
+adapted ONCE, against the combined merged result. P8 NEVER creates a per-module child worktree
+(derivation: `SKILL.md` § Git topology "WORK tier - NOT used by P8 adapt").
 
-**Open-merge window (CRITICAL constraint - unconditional, not a special case).** For the ENTIRE
-span from P5 (`--no-commit`) through P10 (`commit`) - i.e. the batch's whole P6/P7/P8/P9 -
-`MERGE_HEAD` is live in the
-integration worktree. Git rejects any second merge in that worktree until the first is committed
-or aborted (error: `MERGE_HEAD exists`), so a child worktree could never converge back during P8.
-There is no per-commit gap to exploit, because absorb-all is the ONLY shape the pipeline has:
-ONE window per batch, opened by P5 and closed only by P10, never a per-commit window
-opened and closed inside the batch (`SKILL.md` Hard rule 2 bans that outright). Adapt all modules
-SERIALLY, DIRECTLY in the integration worktree - `MERGE_HEAD` stays live for the batch's whole
-P6-P9 span.
-SSOT: `[[fp-merge-absorption]]` § Absorption window (inside the ONE no-commit merge).
+**Open-merge window (unconditional).** From P5 (`--no-commit`) through P10 (`commit`) - the batch's whole
+P6/P7/P8/P9 - `MERGE_HEAD` is live in the integration worktree and git rejects a second merge there
+(`MERGE_HEAD exists`). Absorb-all has ONE window per batch, opened by P5 and closed only by P10, never a
+per-commit window (`SKILL.md` Hard rule 2). SSOT: `[[fp-merge-absorption]]` § Absorption window (inside the
+ONE no-commit merge).
 
-**One `odoo-coding` invocation per module.** Code is adapted FIRST, then the node's single
-test-leg launch forwards and adapts the module's source tests, break-checks every FP-delta test, and
-runs the Absorption probe for each bucket-(a) commit - all inside the one node `odoo-coding` runs
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg,
-§ Absorption probe (forward-port classification, not a test gate)). This skill launches no test
-author of its own.
+**One `odoo-coding` invocation per module.** Code is adapted FIRST, then the node's single test leg
+forwards and adapts the module's source tests, proves each FP-delta test by breaking its rule, and
+confirms absorption for each bucket-(a) commit - all inside the one node `odoo-coding` runs
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). This skill launches no test author of
+its own.
 
 **8a - ground the adapt brief.** Resolve the test-leg enrichment lines BEFORE the invocation:
 
@@ -516,42 +504,30 @@ test_base_classes(odoo_version='18.0')                                      # BA
 find_test_examples(query='double-post guard on account.move', odoo_version='18.0')  # TARGET TEST EXAMPLES
 ```
 
-`BROKEN TEST-SYMBOLS` is the subset of the P6 symbol-survival finding list (plus any P7 drift
-finding) whose `<file>` is one of this module's test files - copy those rows in verbatim; omit the
-line when the list is empty for the module.
+`BROKEN TEST-SYMBOLS` is the subset of the P6 symbol-survival findings (plus any P7 drift finding) whose
+`<file>` is one of this module's test files - copy those rows in verbatim; omit the line when empty.
 
-**Bucket-(a) hunk map.** P5's merge keeps every cleanly-merged hunk of a bucket-(a) commit in the
-working tree (`[[fp-merge-absorption]]` § Skip-code-but-still-absorb rule), so a probe on that tree
-would measure the forwarded code, not the target core - the test leg neutralises those hunks for
-the probe run. For each bucket-(a) commit touching this module, dispatch `Explore` (read-only) with
-its commit dump (`<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`) and
-`<path>/fp-integration`; it returns each of the commit's hunks as `<file>:<start>-<end>` in the
-merged tree, `conflicted` when the hunk sits inside conflict markers, or `absent` when the merge
-left no trace of it (the target already carried the identical change). Carry the result on that
-commit's `BUCKET` line below, together with the dump path - the coders' (b)/(c) edits can move the
-lines before the probe runs, and the dump lets the test leg find each hunk by its text.
+**Bucket-(a) hunk map.** P5's merge keeps every cleanly-merged hunk of a bucket-(a) commit in the working
+tree (`[[fp-merge-absorption]]` § Skip-code-but-still-absorb rule), so running its source test on that tree
+would measure the forwarded code, not the target core - the test leg takes those hunks out of play first.
+For each bucket-(a) commit touching this module, dispatch `Explore` (read-only) with its commit dump
+(`<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`) and `<path>/fp-integration`; it returns each hunk
+as `<file>:<start>-<end>` in the merged tree, `conflicted` when the hunk sits inside conflict markers, or
+`absent` when the merge left no trace of it (the target already carried the identical change). Carry the
+result and the dump path on that commit's `BUCKET` line: the coders' edits can move the lines, and the
+dump lets the test leg find each hunk by its text.
 
 **8b - adapt the module** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
-FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out (via its
-`odoo-coder` per-node coordinator), model, synthesis, and the node's test leg (do NOT dispatch raw
-`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one
-coordinator per module across the WHOLE run: launch it once, record the id, resume it - an id your
-own launch returned.**
-The `odoo-coder` coordinator is round-scoped, not single-shot-forever - a caller may resume the
-SAME coordinator for a LATER invocation on the same module (a P9 re-adapt, or a later batch)
-instead of cold-spawning a fresh one.
-On the module's FIRST invocation omit the field and record the coordinator id `odoo-coding` reports
-back for that module in `plan.md`; on every LATER invocation for the same module, carry that
-recorded value as `WORKER_AGENT_ID: <id>` in the brief below - never a string anyone invented.
-**R2b IS closed at 8b: `odoo-coding`'s brief-consumption contract
-recognizes `WORKER_AGENT_ID` and resumes that id instead of
-cold-spawning a fresh coordinator** (full reasoning:
-`SKILL.md` § P8). Hard rule 2 is unaffected either way: resuming the AGENT is a context-economy
-decision with NO effect on git topology - the batch's whole range is already absorbed by P5's
-single merge before any coder runs, so every adapt lands inside that ONE open window and closes as
-ONE merge commit. The brief is identical on a fresh launch or a resume; the Worktree path never
-changes (P8 always adapts directly in the SAME integration worktree for the whole run, `SKILL.md`
-§ Git topology). The extra context a generic coder brief lacks:
+FP-ENRICHED brief - it owns the backend/frontend split, coder fan-out (its `odoo-coder` coordinator),
+model, synthesis and the node's test leg (never dispatch raw `odoo-coder`, `odoo-backend-coder` or
+`odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coordinator per module across the WHOLE
+run: launch it once, record the id, resume it - an id your own launch returned.** On the module's FIRST
+invocation omit the field and record the coordinator id `odoo-coding` reports in `plan.md`; on every LATER
+one carry it as `WORKER_AGENT_ID: <id>` - never a string anyone invented; `odoo-coding` resumes that id
+instead of cold-spawning (reasoning: `SKILL.md` § P8). Resuming has no effect on git topology (Hard rule 2):
+the batch's range is already absorbed by P5's single merge, so every adapt lands inside that ONE open
+window and closes as ONE merge commit. The brief is identical on a fresh launch or a resume, and the
+Worktree path never changes. The extra context a generic coder brief lacks:
 
 ```
 DISPATCH MODEL: <adapt-tier>
@@ -562,16 +538,13 @@ INTENT: <ISOLATE_DIR>/forward-port/<slug>/<module>/intents/<sha>.md   (one path 
       commit in this batch touching the module - THIS module's own perspective on the sha, written
       by its P1 extractor per § P1 write path - the why, build to this, not the source diff)
 BUCKET: <per sha: a (hunks <file>:<start>-<end>[ conflicted][, ...] | absent; dump <path>) - no
-      adapt code: leave the clean hunks as merged and resolve a `conflicted` one to the TARGET
-      side; the test leg's probe neutralises the clean hunks | b 3-way+adapt | c re-implement on
-      target idiom | d skip-code>
+      adapt code: leave the clean hunks as merged, resolve a `conflicted` one to the TARGET side; the
+      test leg runs the source test with the clean hunks out of play | b 3-way+adapt | c re-implement
+      on target idiom | d skip-code>
 SOURCE TESTS (READ/WRITE, in the integration worktree): <path>/fp-integration/<module>/tests/<test_file>[, ...]
-      (merged working-tree content; for bucket (b) it may still carry conflict markers or
-       auto-merged text - the test leg resolves IN PLACE and writes the adapted result back to the
-       SAME path. A bucket-(a) sha's source test is the Absorption probe, run after the (b)/(c)
-       code - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe
-       (forward-port classification, not a test gate); a re-bucket it reports goes on that sha's
-       `merge-log.md` row)
+      (merged working-tree content; for bucket (b) it may still carry conflict markers - the test leg
+       resolves IN PLACE and writes the adapted result back to the SAME path. A bucket-(a) sha's source
+       test is its absorption check; a re-bucket it reports goes on that sha's `merge-log.md` row)
 BROKEN TEST-SYMBOLS: <the P6 / P7 SYMBOL-BROKEN entries that land in this module's test files -
       repair each, never forward them verbatim>
 BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for each source
@@ -579,7 +552,7 @@ BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') 
 TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo_version='<target>')
       that already test this behavior the target-idiomatic way>
 COMMIT: caller   (make NO commit - the batch's merge window stays open; return the file list and
-      the test-leg record lines; P10 commits the batch)
+      the test leg's report; P10 commits the batch)
 NEW MODULE: <yes | no>
 DESIGN_DOC: <path from plan.md's design_doc column for this commit | none>   (P3's route-out
       result, so 8b never adapts blind; `none` when P3 never routed this commit to design; same
@@ -593,6 +566,7 @@ ODOO VERSION: <target>
 WORKTREE_PATH: <path>/fp-integration   (the integration worktree named in MODULE SCOPE - the ONE
   root this dispatch works in; `odoo-coding` resolves the node's instance over it - pass no
   INSTANCE_HANDLE)
+RUN_ID: <this run's id>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - the SAME literal INTENT above was
   built from; substitute it, never re-resolve from a worktree cwd>
@@ -608,12 +582,10 @@ WORKER_AGENT_ID: <id recorded for this module on its first invocation this run> 
 USER LANGUAGE: <lang | omit when English>
 ```
 
-Store the return on the module's own `merge-log.md` row: the file list as `files: <path>, ...`
-(P10 stages exactly this union), then every test-leg record line verbatim, one per line, in its
-contract shape (`BREAK_CHECK:`, `COVERED:`, `ADJUSTED:`, `ABSORBED:`, `NO NEW TEST:`,
-`MANIFEST TEST ASSETS:` - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
-§ Break-check record), and any re-bucket the node reports as the new bucket + reason on that sha's
-row. P9 adjudicates the records.
+Store the return on the module's own `merge-log.md` row: the file list as `files: <path>, ...` (P10 stages
+exactly this union), the test leg's brief per-test report (what it broke, how the test failed - one short
+line each, free form), and any re-bucket the node reports as the new bucket + reason on that sha's row.
+P9 adjudicates the report.
 
 **8c - installable:False modules** - two sub-cases, same manifest action. (i) **New module** (absent
 at target): `installable: False`, comment `auto_install`/`application`, lint-fix only.
@@ -786,18 +758,16 @@ A bare `pkill` risks matching the wrong process or a sibling batch's server. Re-
 above for a clean retry.
 
 - **Whole module green:** the target suite must be green.
-- **Every FP-delta test break-checked:** each newly-forwarded or adapted test carries the
-  well-formed `BREAK_CHECK:` line its P8 node test leg returned (recorded on the module's
-  `merge-log.md` row; shapes: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
-  § Break-check record) - a bucket-(a) commit's forwarded test carries its `ABSORBED:` line in that
-  place, and a `COVERED:` line counts only with its own break-check fields. A test without one is
-  unverified - resume the module's coordinator through `odoo-coding` (8b, `WORKER_AGENT_ID`) to
+- **Every FP-delta test proven:** each newly-forwarded or adapted test was proven by its node's test leg -
+  the report recorded on the module's `merge-log.md` row says what it broke and how the test failed
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`); a bucket-(a) commit's source test is
+  instead confirmed absorbed (green on the target with the commit's own code out of play). A test with
+  neither is unverified - resume the module's coordinator through `odoo-coding` (8b, `WORKER_AGENT_ID`) to
   produce it; never run a break of your own here.
-- **Never read a verdict from a database a break-check updated without a reload.** 8b passes no
-  `INSTANCE_HANDLE`, so the node test legs break code on the coordinator's own instance and this
-  batch's database stays clean - `mode: reuse` above is valid. Never hand this handle to a P8
-  invocation; if a break-check ever ran on it, the next verdict needs a fresh build whenever any of
-  its `BREAK_CHECK:` lines says `data-file yes` (`test-sensitivity-contract.md` § The break-check).
+- **Database freshness - judgment.** 8b passes no `INSTANCE_HANDLE`, so the node test legs break code on the
+  coordinator's own instance and this batch's database stays clean (`mode: reuse` above is valid). Never
+  hand this handle to a P8 invocation; if a break ever ran on it, rebuild fresh when the break touched data
+  files or schema.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
   regression - whether the red is in the edited module or in a co-installed dependency pulled
   in by the closure. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of

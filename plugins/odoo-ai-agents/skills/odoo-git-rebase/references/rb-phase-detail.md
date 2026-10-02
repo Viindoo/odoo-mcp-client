@@ -602,8 +602,9 @@ INTENT: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
 BUCKET: <b | c - the P4 outcome; an (a)/(d) commit is skipped, never sent>
 COMMIT: caller   (make NO commit - the rebase is stopped on this commit; return the resolved file
       list, and the caller stages it and continues)
-TEST LEG: deferred - P9   (launch no test-writer and run no integrated test here; P9 runs this
-      module's test leg once the rebase is done)
+TEST LEG: deferred - P9   (write no test and run no integrated test here; P9 runs this module's
+      test leg once the rebase is done)
+RUN_ID: <this run's id>
 FAILURE_MODE: <from comparison.md>
 CONFLICTED_FILES: <list from git diff --check - text hunks only; .po/binary/generated handled above>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
@@ -746,15 +747,12 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 ## P9 - Adapt + test forward (per touched module)
 
 For each module whose behavior changed - and for every module listed in `rebase-log.md`
-§ P8-resolved modules, whose test leg P8 deferred here - invoke the `odoo-coding` skill (via the
-Skill tool) ONCE with the adapt fields below - `odoo-coding` owns the coder fan-out + model and the node's test leg
-(do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). Inside the node
-the code is adapted to the new-base idiom first; the node's test leg then adapts the branch's own
-tests and returns its record lines - a `BREAK_CHECK:` line per adapted test
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
-Record every returned line verbatim, in its contract shape (§ Break-check record), in the
-`## Test-leg records` section of `rebase-log.md`, one `<module>: <line>` per line - P10 B3 reads
-their `data-file` field. Adapt brief:
+§ P8-resolved modules, whose test leg P8 deferred here - invoke the `odoo-coding` skill (via the Skill
+tool) ONCE with the adapt fields below (never raw `odoo-coder`, `odoo-backend-coder` or
+`odoo-frontend-coder`). Inside the node the code is adapted to the new-base idiom first; the node's test
+leg then adapts the branch's own tests and proves each by breaking its rule, reporting briefly per test
+what it broke and how it failed (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`). Record
+that report in `rebase-log.md` § Test-leg reports, one `<module>: <report>` per module. Adapt brief:
 
 ```
 DISPATCH MODEL: <adapt_tier>
@@ -770,6 +768,7 @@ SOURCE TESTS: <the branch's own test files for this module, in the integration w
 BROKEN TEST-SYMBOLS: <the P8b symbol-survival entries that land in those test files | omit when none>
 ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
+RUN_ID: <this run's id>
 INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
 ADDONS_PATH: <that handle's addons_path, comma-joined - the coordinator's addons coverage assertion
       reads it; omit with INSTANCE_HANDLE: none>
@@ -813,6 +812,7 @@ Loop + escalate:
    ```
    ODOO VERSION: <series>
    WORKTREE_PATH: <WT_ROOT>/rb-integration
+   RUN_ID: <this run's id>
    SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
    ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
    ADAPT TIER: <same tier as the P8 adapt for these files>
@@ -821,7 +821,7 @@ Loop + escalate:
    FIX BRIEF: <the CRITICAL/HIGH findings + reviewer's corrected version>
    RULE: fix to the finding's root cause only; do not expand scope; keep tests GREEN.
    ```
-   Record the fix's returned test-leg lines in `rebase-log.md` § Test-leg records, then RE-REVIEW
+   Add the fix's test-leg report to `rebase-log.md` § Test-leg reports, then RE-REVIEW
    (step 1). Record MED/LOW in `rebase-log.md` for P12, do not block on them.
 3. Cap = 3 review->fix iterations. 3rd iteration still CRITICAL/HIGH -> STOP, escalate BLOCKED
    per ETHOS #7 with the failing finding + diff. Never relax the severity bar to pass the gate.
@@ -870,11 +870,10 @@ restate them here. Its Step 4 return block's
 ### B3 - conditional instance verify
 
 If P8b Lane 2 already provisioned the run's instance, reuse its `INSTANCE_HANDLE` here (`mode: reuse`)
-and provision nothing - unless any `rebase-log.md` § Test-leg records line says `data-file yes`. That
-break-check ran on this database while a data file was broken, and the broken records survive the
-restore and a `reuse` reload (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The
-break-check): release that lease and take the verdict from a fresh build - ONE new instance via
-the `odoo-instance` skill, `mode: fresh`, same `WORKTREE_PATH`, modules and test tags. Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the
+and provision nothing - using judgment on its freshness: a break the test leg ran on this database that
+touched data files or schema leaves stale records a `reuse` reload keeps, so then release that lease and take
+the verdict from ONE fresh build via the `odoo-instance` skill (`mode: fresh`, same `WORKTREE_PATH`,
+modules and test tags). Otherwise provision ONE instance via the `odoo-instance` skill ONLY when the
 rebased range touches ANY of:
 - A model field add, remove, rename, or type-change
 - A stored compute or constraint
@@ -993,9 +992,9 @@ orchestrator does not rewrite commit messages (an outcome-(a) skip records the r
 
 <sha>: <module>, ...   (the modules a P8 conflict resolution touched; each gets a P9 test leg)
 
-## Test-leg records
+## Test-leg reports
 
-<module>: BREAK_CHECK: <the line as the P9 / P9b test leg returned it, verbatim>
+<module>: <the P9 / P9b test leg's brief per-test report: what it broke, how the test failed>
 ```
 
 ---

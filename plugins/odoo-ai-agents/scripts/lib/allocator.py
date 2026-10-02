@@ -149,7 +149,9 @@ CLI (every verb also takes --format json, see OUTPUT):
                  # lease (not readonly) also writes ONE line to STDERR:
                  #   allocator: acquired lease <full-token> run_id=<id>
                  # - it reaches the caller's transcript even when stdout is
-                 # consumed by `eval "$(...)"`; stdout is unchanged.
+                 # consumed by `eval "$(...)"`; stdout is unchanged. It is written
+                 # AFTER stdout is flushed, so in a merged `2>&1 | tail -N` it is
+                 # the LAST line (and `| head -N` keeps ALLOC_TOKEN, the first).
                  # With NO --addons-path-override, acquire refuses (exit 5) instead
                  # of silently defaulting ALLOC_ADDONS_PATH when the caller's cwd is
                  # a git worktree of the SAME repo as a catalog addons_path entry
@@ -407,6 +409,9 @@ PORT_RETRY_INTERVAL_S = 0.25
 # PORT_POOL_EXHAUSTED's `reason` when NO lease holds a port of the pool (see
 # ERROR_CODES): the ports are busy outside the registry.
 PORTS_BUSY_OUTSIDE_REGISTRY = "ports-busy-outside-registry"
+# ADDONS_PATH_OVERRIDE_INVALID refinement: the override keeps no directory holding the core addons
+# the catalog row declares (instances_io.core_addons_missing).
+CORE_ADDONS_MISSING = "core-addons-missing"
 # The registry's current schema. v3 adds `owner.session` (the session anchor),
 # `owner.via`, `owner.acquired_by`, `ttl_explicit`, and the `orphaned` /
 # `reclaiming` row markers. Readers stay lenient: a v1/v2 row simply lacks those
@@ -2913,7 +2918,14 @@ ERROR_CODES = {
     "ADDONS_PATH_OVERRIDE_INVALID": {"rc": 2,
                                      "summary": "--addons-path-override is empty or names "
                                                 "missing directories",
-                                     "remedy": "pass existing directories"},
+                                     "remedy": "pass existing directories",
+                                     "reasons": {
+                                         CORE_ADDONS_MISSING: {
+                                             "summary": "--addons-path-override drops the "
+                                                        "checkout's core addons directory",
+                                             "remedy": "keep the catalog row's addons_path and "
+                                                       "replace only the entry that covers this "
+                                                       "repo with your worktree path"}}},
     "NO_INSTANCE": {"rc": 1, "summary": "no instance for that series/profile in the catalog",
                     "remedy": "declare one with /odoo-ai-agents:odoo-setup or pass --instances"},
     "NO_INSTANCE_CATALOG": {"rc": 1, "summary": "the instance catalog (instances.toml) is "
@@ -3065,9 +3077,17 @@ def _fail(code, rc=None, msg=None, reason=None):
 
 # The one success line a teardown hook keys on. STDERR, never stdout: under
 # `eval "$(allocator.py acquire ...)"` the shell consumes stdout, while stderr
-# still reaches the caller's transcript (a Bash tool result).
+# still reaches the caller's transcript (a Bash tool result). Called AFTER the
+# verb's stdout facts, with stdout flushed first, so a merged stream ends on it:
+# a caller that trims the merged output with `2>&1 | tail -N` (observed live) still
+# keeps the one line that proves which lease it obtained, and `| head -N` keeps
+# ALLOC_TOKEN - without either, its own release of that lease is refused as unowned.
 def _announce_lease(verb, token, run_id):
-    """`allocator: <verb> lease <full-token> run_id=<id>` on stderr."""
+    """`allocator: <verb> lease <full-token> run_id=<id>` on stderr, after stdout."""
+    try:
+        sys.stdout.flush()
+    except (OSError, ValueError):
+        pass
     sys.stderr.write("allocator: {v} lease {t} run_id={r}\n".format(
         v=verb, t=token, r=run_id or ""))
 
@@ -3112,7 +3132,8 @@ def _resolve_instance(path, series, profile=None):
 
 
 def _resolve_addons_csv(inst, override):
-    """Return (comma_joined_addons_path, error_or_None) for this acquire.
+    """Return (comma_joined_addons_path, error_or_None) for this acquire; an
+    error is (message, ADDONS_PATH_OVERRIDE_INVALID reason or None).
 
     This is the ONE place that reads the catalog's declared addons_path, so
     there is a single spelling of that read to keep correct.
@@ -3131,19 +3152,29 @@ def _resolve_addons_csv(inst, override):
     existing directory - a non-existent entry is refused loudly, so a mistyped
     worktree path can never produce a green run against the wrong tree. This
     function never hand-rolls the separator - both branches go through the
-    instances_io SSOT, the same one every other producer/consumer uses.
+    instances_io SSOT, the same one every other producer/consumer uses. An
+    override that drops the core addons the catalog row declares is refused
+    too (instances_io.core_addons_missing): a worktree-only path still finds
+    the launcher through odoo_root, so the build would start and then fail on
+    every module that depends on a core addon.
     """
     if not override:
         return instances_io.join_addons_path(instances_io.addons_path_list(inst)), None
     parts = instances_io.split_addons_path(override)
     if not parts:
-        return None, "--addons-path-override is empty"
+        return None, ("--addons-path-override is empty", None)
     missing = [p for p in parts if not os.path.isdir(p)]
     if missing:
+        return None, ("--addons-path-override names non-existent directories: "
+                      + ", ".join(missing), None)
+    dropped = instances_io.core_addons_missing(inst.get("odoo_root"),
+                                               instances_io.addons_path_list(inst), parts)
+    if dropped:
         return None, (
-            "--addons-path-override names non-existent directories: "
-            + ", ".join(missing)
-        )
+            "--addons-path-override drops the checkout's core addons ({d}): Odoo would find its "
+            "launcher but no core module. Keep the catalog row's addons_path and replace only "
+            "the entry that covers this repo with your worktree path".format(d=", ".join(dropped)),
+            CORE_ADDONS_MISSING)
     return instances_io.join_addons_path(parts), None
 
 
@@ -3267,8 +3298,9 @@ def cmd_acquire(opts):
 
     addons_csv, addons_err = _resolve_addons_csv(inst, opts.get("addons_path_override"))
     if addons_err:
-        sys.stderr.write(f"allocator: {addons_err}\n")
-        return _fail("ADDONS_PATH_OVERRIDE_INVALID", 2)
+        msg, reason = addons_err
+        sys.stderr.write(f"allocator: {msg}\n")
+        return _fail("ADDONS_PATH_OVERRIDE_INVALID", 2, reason=reason)
 
     mode = opts.get("mode", "ephemeral")
     host = inst.get("db_host", "localhost")
@@ -3411,7 +3443,6 @@ def cmd_acquire(opts):
                 reg["leases"].append(new_lease)
             _shed_gone_servers(reg, now)
             _write_registry(reg)
-        _announce_lease("acquired", token, run_id)
         _emit("ALLOC_TOKEN", token)
         _emit("ALLOC_MODE", "shared")
         _emit("ALLOC_DB_NAME", db_name)
@@ -3419,6 +3450,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_ATTACHED", attached)
         _emit("ALLOC_RUN_ID", run_id)
         _emit_instance_common(inst, addons_csv)
+        _announce_lease("acquired", token, run_id)
         return 0
 
     if mode not in ("ephemeral", "exclusive"):
@@ -3680,13 +3712,13 @@ def cmd_acquire(opts):
         if stopped and "ports" in reclaimed and port_wait_until is None:
             port_wait_until = time.time() + PORT_FREE_WAIT_S
 
-    _announce_lease("acquired", token, run_id)
     _emit("ALLOC_TOKEN", token)
     _emit("ALLOC_MODE", mode)
     _emit("ALLOC_DB_NAME", db_name)
     _emit("ALLOC_PORTS", ports)
     _emit("ALLOC_RUN_ID", run_id)
     _emit_instance_common(inst, addons_csv)
+    _announce_lease("acquired", token, run_id)
     return 0
 
 
@@ -5155,10 +5187,10 @@ def cmd_adopt(opts):
         target["heartbeat_at"] = now
         _shed_gone_servers(reg, now)
         _write_registry(reg)
-    _announce_lease("adopted", token, run_id)
     _emit("ALLOC_TOKEN", token)
     _emit(session_anchor.ANCHOR_ENV,
           session_anchor.format_anchor(anchor["pid"], anchor.get("started")))
+    _announce_lease("adopted", token, run_id)
     return 0
 
 

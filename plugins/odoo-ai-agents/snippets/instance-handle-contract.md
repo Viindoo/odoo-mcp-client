@@ -44,8 +44,7 @@ build on a forwarded handle. It never invents a `db_name` or port and never re-d
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context (an `ephemeral` lease by default; a listening one when the process must stay up), applying
 the instance HARD RULES per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo
-instance allocation; `odoo-test-writer` never self-provisions (no handle -> `NEEDS_NEXT`,
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check). A provided
+instance allocation; `odoo-test-writer` never self-provisions (no handle -> `NEEDS_NEXT`). A provided
 handle always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons
 carve-out below.
 
@@ -94,19 +93,13 @@ stale.
 
 ## Test build on a forwarded handle (ONE rule, every consumer points here)
 
-A test build binds an HTTP port on every series, and the handle's port may belong to its running
-server. A consumer that RUNS tests on a forwarded `INSTANCE_HANDLE` (`odoo-test-writer`'s baseline
-and break-check runs, any verify run on a forwarded handle) therefore takes ONE lease of its own on
-the handle's database and holds it across its runs:
-
-1. `lease_acquire` - mode `exclusive`, `no_create` true, `ports` 1, the handle's `db_name`,
-   `addons_path` and series, `run_id` = the handle's `run_id`, `cwd` = your `WORKTREE_PATH`.
-2. Every `instance_build` op `test` (`test_mode` `reuse`) runs on THAT lease's token, never the
-   handle's, then `job_wait`. `DATABASE_BUSY` -> `job_wait` the job it names, then retry.
-3. `lease_release` that token with the handle's `run_id` before you return, on every exit.
-
-Never release, park or adopt the handle's own lease - it stays its owner's - and never provision a
-new database. A lease you hold yourself that reserved a port is built on directly.
+A test build binds an HTTP port, so a consumer that RUNS tests on a forwarded `INSTANCE_HANDLE`
+(`odoo-test-writer`'s break-checks, a verify run) judges by the handle's port: when no server listens
+on it, build on the handle's own `lease_token`; otherwise take ONE small lease of your own on the
+handle's database (`lease_acquire` mode `exclusive`, `no_create` true, `ports` 1, the handle's
+`db_name`, `addons_path`, series and `run_id`, `cwd` = your `WORKTREE_PATH`), run your test builds
+on it, and `lease_release` it before you return, on every exit. Never release, park or adopt the
+handle's lease, and never provision a new database.
 
 ## One build or export per database (ONE rule, every parallel fan-out points here)
 

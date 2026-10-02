@@ -22,8 +22,15 @@
 #       spellings resolve - bare (`odoo-coder`) and plugin-qualified (`odoo-ai-agents:odoo-coder`) -
 #       via the same `${AGENT_TYPE##*:}` normalization remind-delegate.sh uses.
 #   (c) the call writes PRODUCTION SOURCE, resolved by extension and location (never a name list):
-#       a path ending in one of SOURCE_EXT_RE and NOT under an exempt scratch/state tree
-#       (EXEMPT_PATH_RE - the run state root, /tmp, .git, node_modules, __pycache__, .venv).
+#       a path ending in one of SOURCE_EXT_RE and NOT under an exempt scratch/state tree:
+#       EXEMPT_PATH_RE (a `.odoo-ai` state dir, .git, node_modules, __pycache__, .venv), the plugin
+#       state root and the caller's SHARE / ISOLATE dirs (ODOO_AI_HOME, default $HOME/.odoo-ai,
+#       ODOO_AI_PROJECT_DIR, ODOO_AI_WORKTREE_DIR - the same three variables
+#       scripts/lib/resolve_project_dir.sh and paths.py honour, read directly rather than by running
+#       either resolver in this hot path). The system temp dir is deliberately NOT exempt, in any
+#       part: it is wiped on reboot, so nothing durable - and no scratch this plugin writes - belongs
+#       there, while a worktree created there holds real module source. A blanket temp exemption let
+#       a coordinator edit a model file in exactly such a worktree unrefused.
 #       `.claude/` is deliberately NOT exempt: `.claude/worktrees/<branch>/` is where this
 #       repo's own flow authors real module source, so exempting it would hole the gate. A worklog,
 #       findings file, plan, design doc or any other .md/.json/.yaml artifact is NOT source and
@@ -149,14 +156,25 @@ esac
 # machine-readable artifacts (.md/.json/.yaml/.txt/.log/.po) are deliberately absent - a
 # coordinator legitimately writes a worklog, a plan and a findings file.
 SOURCE_EXT='(py|pyi|ipynb|xml|js|mjs|cjs|ts|tsx|jsx|css|scss|sass|less|csv|sql|xsl|xslt|qweb)'
-# Scratch/state trees where even a source-extension file is not module source.
-EXEMPT_PATH_RE='(^|/)(\.git|node_modules|__pycache__|\.odoo-ai)(/|$)|^/tmp/|/\.venv/'
+# Scratch/state trees where even a source-extension file is not module source. The system temp
+# dir is NOT one of them (see the header): a git worktree there is real source.
+EXEMPT_PATH_RE='(^|/)(\.git|node_modules|__pycache__|\.odoo-ai)(/|$)|/\.venv/'
+# The plugin state root and the caller's SHARE / ISOLATE overrides - absolute dirs only, trailing
+# slashes stripped. Every one of them is a state tree, never a checkout.
+STATE_DIRS=()
+for _d in "${ODOO_AI_HOME:-}" "${HOME:+$HOME/.odoo-ai}" "${ODOO_AI_PROJECT_DIR:-}" "${ODOO_AI_WORKTREE_DIR:-}"; do
+  while [[ "$_d" == */ && "$_d" != / ]]; do _d="${_d%/}"; done
+  [[ "$_d" == /?* ]] && STATE_DIRS+=("$_d")
+done
 
 _is_source_path() {
-  local p="$1"
+  local p="$1" d
   [[ -n "$p" ]] || return 1
   printf '%s' "$p" | grep -qiE "\.${SOURCE_EXT}\$" || return 1
   printf '%s' "$p" | grep -qE "$EXEMPT_PATH_RE" && return 1
+  for d in ${STATE_DIRS[@]+"${STATE_DIRS[@]}"}; do
+    [[ "$p" == "$d"/* ]] && return 1
+  done
   return 0
 }
 

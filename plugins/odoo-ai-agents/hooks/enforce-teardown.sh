@@ -55,6 +55,15 @@
 #     DELIVERED `SubagentHandback` call, else the final message (the payload's
 #     last_assistant_message; hooks/final-report.sh). The status and the forwarded handles are read from that
 #     report's closed continuation fence, never from assistant text the caller never saw.
+#   - A stop that WAITS is not the end of the dispatch. On a surface that wakes a stopped subagent
+#     once per teammate it launched (any surface but the unattended one - the same surface test
+#     enforce-background-wait.sh applies), a coordinator ends its turn to wait for a teammate while
+#     it still holds its node lease for the work it resumes (snippets/spawner-completion-contract.md
+#     R0 move 3). So a SubagentStop whose payload still lists, running, a teammate THIS subagent
+#     launched asynchronously (hooks/teammate-wait.sh - the wait gate's own correlation) is not
+#     gated, unless a report was already DELIVERED through SubagentHandback (a real final report:
+#     gated as always). Residual: an unattended surface that exports neither surface signal is
+#     read as one that wakes, and its lease then outlives the stop until the SessionEnd backstop.
 #   - A report handed back through SubagentHandback is delivered BEFORE this hook runs, so this
 #     block alone arrives too late for it. block-handback-with-live-lease.sh (PreToolUse) runs the
 #     SAME check (hooks/teardown-check.sh) at the handback itself; this gate remains the backstop
@@ -85,7 +94,7 @@ EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null ||
 # hooks/teardown-check.sh (the allocator-verdict check and its refusal). Resolved relative to THIS
 # script. Either unreadable -> fail open, the convention every hook in this plugin follows.
 _HOOK_DIR="${BASH_SOURCE[0]%/*}"
-for _lib in final-report.sh teardown-check.sh lease-correlation.sh; do
+for _lib in final-report.sh teardown-check.sh lease-correlation.sh teammate-wait.sh; do
   [[ -r "$_HOOK_DIR/$_lib" ]] || _pass
   # shellcheck source=/dev/null
   . "$_HOOK_DIR/$_lib"
@@ -200,6 +209,8 @@ STATUS="$(_continuation_status "$CONT_BLOCK")"
 # The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic spelling must never be
 # what turns a declared status into a hard block: compare the normalized KEY. Empty = no status.
 STATUS_KEY="$(_continuation_status_key "$STATUS")"
+# The stopping subagent's own id - its own `background_tasks` entry is never one of its teammates.
+AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
 # Was the report already DELIVERED through the SubagentHandback tool? Then a second handback is
 # refused by the harness, and the block below must not send the agent to hand back again.
 HANDED_BACK=0
@@ -259,6 +270,14 @@ _instance_block_reason() {
   # prose - a handle promised in prose forwards nothing a consumer can act on).
   # Per lease: forwarding ONE lease's handle clears that lease only, never its siblings.
   [[ -n "$UNFWD_TOKENS" ]] || return 1   # every obtained lease forwarded in next.inputs -> handoff -> pass
+
+  # A WAIT, not the end of the dispatch (see CONTRACT): a teammate this subagent launched is still
+  # running and this surface wakes the subagent when it finishes, so the lease is still in use. A
+  # report already delivered through SubagentHandback is final whatever is still running.
+  if [[ "$HANDED_BACK" != "1" ]] && ! _tw_unattended \
+     && [[ -n "$(_tw_own_live_teammates "$INPUT" "$AGENT_ID" "$TRANSCRIPT")" ]]; then
+    return 1
+  fi
 
   # Name what this turn actually did, so the fix is unambiguous for every shape: a declared status
   # needs the release or the handoff; a turn with no status needs the release AND the missing block.

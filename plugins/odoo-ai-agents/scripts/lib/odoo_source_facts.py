@@ -606,6 +606,50 @@ def module_search_dirs(odoo_root=None, addons_paths=None) -> list[str]:
     return dirs
 
 
+def core_addons_dirs(odoo_root=None, addons_paths=None) -> list[str]:
+    """The `addons_paths` entries that are the core addons directory of the Odoo checkout
+    locate_odoo_root picks: `<root>/addons`, the directory Odoo's own default addons_path adds next
+    to its core package (whose `<core package>/addons` Odoo always adds itself). A custom repo kept
+    inside the checkout is not core and is never returned."""
+    root = locate_odoo_root(odoo_root, addons_paths)
+    if not root:
+        return []
+    core = os.path.realpath(os.path.join(root, "addons"))
+    if not os.path.isdir(core):
+        return []
+    out = []
+    for entry in addons_paths or []:
+        if os.path.realpath(str(entry)) == core and str(entry) not in out:
+            out.append(str(entry))
+    return out
+
+
+def _module_names(directory) -> set:
+    try:
+        names = os.listdir(str(directory))
+    except OSError:
+        return set()
+    return {n for n in names
+            if any(os.path.isfile(os.path.join(str(directory), n, d)) for d in _DESCRIPTORS)}
+
+
+def uncovered_addons_dirs(required, entries) -> list[str]:
+    """Each directory of `required` that no directory of `entries` covers - covering means the same
+    real directory, or one holding every module `required`'s directory holds (a worktree of the
+    Odoo checkout itself)."""
+    real_entries = [os.path.realpath(str(e)) for e in entries or [] if e]
+    out = []
+    for req in required or []:
+        real = os.path.realpath(str(req))
+        if real in real_entries:
+            continue
+        wanted = _module_names(real)
+        if wanted and any(wanted <= _module_names(e) for e in real_entries):
+            continue
+        out.append(str(req))
+    return out
+
+
 def module_dirs(module, dirs) -> list[str]:
     """Every directory `module` resolves to across `dirs` (one holding a module
     descriptor), in order; one directory reached through two entries (a

@@ -714,7 +714,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping; cli_help confirms the series' test-tag filter for the break-check run. Launched by odoo-coder (ONE per node, AFTER the coders - writes or adjusts the node's tests, adapt mode included, and break-checks each on the forwarded INSTANCE_HANDLE), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate). Returns the test file paths plus one BREAK_CHECK record per behavior test. min_server 0.15.0 for the test-surface tools.",
+      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping; cli_help confirms the series' test-tag filter for the break-check run. Launched by odoo-coder (ONE per node, AFTER the coders - writes or adjusts the node's tests, adapt mode included, and proves each by breaking its rule on the forwarded INSTANCE_HANDLE), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate). CHANGE KIND is an optional hint - the writer infers the change from the code. Returns the test file paths plus a short free-form report line per behavior test (what it broke, how the test failed, that the code was restored). min_server 0.15.0 for the test-surface tools.",
       "brief": {
         "required": [
           "MODE",
@@ -744,7 +744,10 @@
           "WORKTREE_PATH",
           "DESIGN_DOC",
           "MASTER_DESIGN_DOC",
-          "PRIOR ATTEMPT"
+          "PRIOR ATTEMPT",
+          "INPUTS",
+          "ODOO VERSION",
+          "WORKLOG"
         ]
       }
     },
@@ -803,7 +806,7 @@
       "spawns_agents": [
         "odoo-gap-analyzer"
       ],
-      "notes": "Designer that may source its own missing grounding. It PREFERS the front-door skill (odoo-gap-analysis, odoo-feature-check, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory), which fans out below it; odoo-gap-analyzer is listed because the architect launches it DIRECTLY on the R0-move-1 fallback where the Skill tool is absent from its own toolset (fence: agents/odoo-solution-architect.md \u00a7 Direct-launch fallback). It may also launch anonymous read-only research workers for a bounded external question. It never launches a coder/reviewer/executor and never writes production source.",
+      "notes": "Designer that may source its own missing grounding. It PREFERS the front-door skill (odoo-gap-analysis, odoo-feature-check, odoo-override-finding, odoo-version-diff, odoo-deprecation-audit, odoo-frontend-design, odoo-doc-feature-map, odoo-customization-inventory), which fans out below it; odoo-gap-analyzer is listed because the architect launches it DIRECTLY on the R0-move-1 fallback where the Skill tool is absent from its own toolset (fence: agents/odoo-solution-architect.md § Direct-launch fallback). It may also launch anonymous read-only research workers for a bounded external question. It never launches a coder/reviewer/executor and never writes production source.",
       "brief": {
         "required": [
           "REQUIREMENT"

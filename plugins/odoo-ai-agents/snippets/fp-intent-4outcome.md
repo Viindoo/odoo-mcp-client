@@ -40,17 +40,14 @@ model_inspect(model='account.move', method='summary', odoo_version='<target>')
 - If it **was removed or structurally replaced** (different model, renamed field, new OWL
   component) -> bucket (c).
 - If the target already ships the exact behavior (new built-in, merged upstream, refactored
-  core) -> bucket (a), to be confirmed by the Absorption probe below.
+  core) -> bucket (a), to be confirmed by the absorption probe below.
 - If the source behavior was a compensating fix for a bug or platform limit that no longer
   exists in target -> bucket (d).
 
-**Bucket (a) evidence - the Absorption probe:** the module's adapt node confirms or re-buckets a
-bucket-(a) commit in its single test-writer launch, after the node's (b)/(c) code is adapted - the
-forwarded source test runs with the (a) commit's hunks neutralised (pass them as
-`BUCKET a (hunks file:lines)`): GREEN -> `ABSORBED`; FAIL -> re-bucket to (b)/(c) on the commit's
-row and the coder adapts it. Rule:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
-classification, not a test gate).
+**Bucket (a) evidence - the absorption probe:** the module's adapt node runs the forwarded source
+test with the (a) commit's own code out of play (pass its hunks in `BUCKET`): green confirms (a);
+red re-buckets the commit to (b)/(c) on its row and the coder adapts it
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe).
 
 **`odoo_version=` is mandatory** in every odoo-semantic-mcp call above - never omit it and
 never rely on a default.

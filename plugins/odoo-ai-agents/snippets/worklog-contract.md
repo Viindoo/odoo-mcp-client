@@ -39,10 +39,9 @@ top-level dir (no `<module>` subpath): `<ISOLATE_DIR>/worklog/<run-or-slug>/NNN-
 Log only **decisions that change the outcome or that a later phase must not re-litigate** - not
 routine narration: an approach chosen AND the alternatives rejected; scope added or dropped; a
 model-tier pick or downgrade; a cross-module impact found + its mitigation; a deliberate deviation
-from a platform design principle + its justification; a test-leg record (`BREAK_CHECK`,
-`COVERED`, `ADJUSTED`, `ABSORBED`, `NO NEW TEST`, `MANIFEST TEST ASSETS` - shapes in
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record, copied
-verbatim), the restore-proof verdict, or the no-test-leg category + file list; a BLOCKED/escalation - what was tried, what was ruled out and WHY, and the
+from a platform design principle + its justification; the test leg's report lines
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record) or why no new
+test was needed; a BLOCKED/escalation - what was tried, what was ruled out and WHY, and the
 reasoning behind the refusal itself.
 
 **Every terminal status is an exit that owes an entry** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT` and

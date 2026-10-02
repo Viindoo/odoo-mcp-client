@@ -6,9 +6,8 @@
      odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate only -
      ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a delegated
      odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail); odoo-test-writer
-     runs only its baseline / break-check / absorption-probe method-scoped runs, inline, on the
-     forwarded handle. Canonical NEEDS_NEXT example lives in odoo-test-writing § Standalone-first
-     fallback.
+     runs only its own break-check runs, inline, on the forwarded handle. Canonical NEEDS_NEXT
+     example lives in odoo-test-writing § Standalone-first fallback.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
 # Test-Execution Handoff Contract (who runs the suite, and where the output goes)
@@ -23,15 +22,12 @@ caller.
 - **Author** - writes the test or the oracle: the `odoo-test-writer` agent authors the test (it
   invokes the `odoo-test-writing` skill inline, in its own context), and `odoo-qa-planner` authors
   the oracle. Does NOT decide PASS from a run it controls.
-  **Carve-out - the break-check.** `odoo-test-writer` runs its own baseline, break-check and
-  absorption-probe runs (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The
-  break-check, § Absorption probe) itself, by invoking `Skill(odoo-instance)` INLINE on the
-  forwarded `INSTANCE_HANDLE`: it never launches `odoo-instance-ops` and never provisions a new
-  database; it takes ONE lease of its own on the handle's database, runs every test build on it and
-  releases it before it returns, never touching the handle's lease
-  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle).
-  With no handle it writes the tests, runs nothing, and returns `NEEDS_NEXT: odoo-instance` with
-  `PENDING BREAK_CHECK: <test ids>`.
+  **Carve-out - the break-check.** `odoo-test-writer` runs its own break-check runs
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check) by invoking
+  `Skill(odoo-instance)` INLINE on the forwarded `INSTANCE_HANDLE` - never `odoo-instance-ops`, never
+  a new database (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a
+  forwarded handle). With no handle it writes the tests, runs nothing, and returns
+  `NEEDS_NEXT: odoo-instance` naming the break-checks still owed.
 - **Execute** - provisions/operates the live instance and runs the suite (`odoo-instance` skill ->
   `odoo-instance-ops` agent). Returns structured results, not raw firehose.
 - **Adjudicate** - compares observed-vs-oracle and rules PASS/FAIL/UNVERIFIED (`odoo-qa-tester`,

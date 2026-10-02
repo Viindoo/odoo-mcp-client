@@ -137,7 +137,7 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] No `setUpClass` errors (would give false-green `0 failed, N error(s)`)
 - [ ] No `cr.commit()` in test files
 - [ ] No test referencing a model/field removed at target (from deprecation.md)
-- [ ] Each test adapted in P4 carries a `BREAK_CHECK:` record (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record)
+- [ ] Each test adapted in P4 was proven by the node's test leg (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`)
 
 ### Commit structure verification
 

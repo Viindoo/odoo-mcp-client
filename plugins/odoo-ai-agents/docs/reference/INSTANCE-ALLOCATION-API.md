@@ -132,7 +132,7 @@ Every non-zero exit names one code with one exit code. Remedies are the CLI's; t
 |------|----|---------|--------|
 | `USAGE` | 2 | invalid arguments | fix the flags named in the message (`allocator.py --help`) |
 | `SERIES_REQUIRED` | 2 | acquire needs `--series <X.Y>` | pass the series you mean; nothing is picked for you |
-| `ADDONS_PATH_OVERRIDE_INVALID` | 2 | `--addons-path-override` is empty or names missing directories | pass existing directories |
+| `ADDONS_PATH_OVERRIDE_INVALID` | 2 | `--addons-path-override` is empty or names missing directories | pass existing directories. `fields.reason` `core-addons-missing` (the override drops the checkout's core addons the catalog row declares): keep the catalog row's addons_path and replace only the entry that covers this repo with your worktree path |
 | `ANCHOR_REQUIRED` | 2 | `gc --scope anchor` has no anchor | pass `--anchor <pid:fingerprint>` (see `anchor --print`) |
 | `NO_INSTANCE` | 1 | no instance for that series/profile in the catalog | declare one with `/odoo-ai-agents:odoo-setup`, or pass `--instances` |
 | `NO_INSTANCE_CATALOG` | 1 | `instances.toml` missing or unreadable | run `/odoo-ai-agents:odoo-setup`, or pass `--instances <path>` |

@@ -2107,6 +2107,65 @@ def test_nonexistent_override_dir_is_refused_non_zero(fixt, tmp_path):
     assert str(missing) in p.stderr
 
 
+def _core_catalog(tmp_path):
+    """A catalog row whose addons_path is an Odoo checkout's core `addons` dir plus a custom repo,
+    as odoo-setup declares one; returns (env, core addons dir, custom repo dir, worktree dir)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from odoo_tree_fixtures import write_checkout
+
+    root = write_checkout(tmp_path / "odoo", "17.0")
+    core = root / "addons"
+    (core / "web").mkdir(parents=True)
+    (core / "web" / "__manifest__.py").write_text("{}", encoding="utf-8")
+    custom = tmp_path / "custom"
+    custom.mkdir()
+    worktree = tmp_path / "wt-custom"
+    worktree.mkdir()
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML.replace(
+        'addons_path = ["/srv/odoo/addons", "/srv/custom"]',
+        'addons_path = ["%s", "%s"]\nodoo_root = "%s"' % (core, custom, root)), encoding="utf-8")
+    return _env(home, toml), core, custom, worktree
+
+
+def test_a_worktree_only_override_that_drops_the_core_addons_is_refused(tmp_path):
+    """Observed live: an override naming only the worktree still found the launcher through
+    odoo_root, so the build started - and every module depending on a core addon failed at load.
+    The acquire refuses it up front and says how to build the right path."""
+    env, core, _custom, worktree = _core_catalog(tmp_path)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--no-create",
+             "--ports", "0", "--addons-path-override", str(worktree), "--format", "json")
+    assert p.returncode == 2, p.stderr
+    envelope = json.loads(p.stdout)
+    assert envelope["error"]["code"] == "ADDONS_PATH_OVERRIDE_INVALID"
+    assert envelope["fields"]["reason"] == "core-addons-missing"
+    assert "replace only the entry that covers this repo" in envelope["fields"]["remedy"]
+    assert str(core) in p.stderr
+    assert _leases(env) == [], "a refused acquire must reserve nothing"
+
+
+def test_an_override_that_keeps_the_core_addons_and_swaps_the_repo_entry_is_accepted(tmp_path):
+    env, core, _custom, worktree = _core_catalog(tmp_path)
+    p, out = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+                      "--addons-path-override", f"{core},{worktree}")
+    assert p.returncode == 0, p.stderr
+    assert out["ALLOC_ADDONS_PATH"] == f"{core},{worktree}"
+
+
+def test_a_worktree_of_the_odoo_checkout_itself_covers_the_core_addons(tmp_path):
+    """Working on Odoo core in a worktree replaces the core addons entry with the worktree's own
+    copy of it: that copy holds every core module, so it is not a dropped core."""
+    env, _core, custom, _worktree = _core_catalog(tmp_path)
+    wt_core = tmp_path / "wt-odoo" / "addons"
+    (wt_core / "web").mkdir(parents=True)
+    (wt_core / "web" / "__manifest__.py").write_text("{}", encoding="utf-8")
+    p, _ = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+                    "--addons-path-override", f"{wt_core},{custom}")
+    assert p.returncode == 0, p.stderr
+
+
 def test_first_addons_entry_wins_resolves_under_the_worktree(fixt, tmp_path):
     """The CONTRACT test: Odoo's addons-path is first-wins, so the fix means
     nothing unless the worktree's copy of the module is the FIRST entry."""

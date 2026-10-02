@@ -232,6 +232,57 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
     assert "STATUS=ok" in res.stdout, f"Expected STATUS=ok.\nstdout:\n{res.stdout}"
 
 
+@requires_bash
+@pytest.mark.parametrize("verb", ["init", "update", "test"])
+def test_a_worktree_only_addons_path_builds_from_the_declared_odoo_root(tmp_path, verb):
+    """Observed live: a lease whose addons_path named only a worktree of custom modules failed
+    every build with "Could not locate the Odoo server launcher", although the lease row declared
+    the checkout's odoo_root. The addons_path being served decides where the launcher is; the
+    declared root fills in when no addons_path entry leads to one - the rule the spin-up step
+    already applies. Without the declared root the build must still refuse, launching nothing."""
+    core = tmp_path / "core"
+    core.mkdir()
+    fake_bin = _make_fake_odoo_bin(core, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    worktree_addons = tmp_path / "wt" / "addons"
+    (worktree_addons / "x_cap").mkdir(parents=True)
+    env = _base_env(tmp_path)
+    env.pop("ODOO_BIN", None)
+    args = ["--db", "wtdb", "--python", str(fake_py), "--addons", str(worktree_addons),
+            "--modules", "x_cap"]
+
+    refused = _run(verb, *args, env=env)
+    assert refused.returncode != 0
+    assert "Could not locate the Odoo server launcher" in refused.stderr, refused.stderr
+    assert not (core / "odoo-bin-calls.log").exists(), "a refused build must launch nothing"
+
+    res = _run(verb, *args, "--odoo-root", str(core), env=env)
+    assert "Could not locate the Odoo server launcher" not in res.stderr, res.stderr
+    calls = (core / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert str(worktree_addons) in calls, calls  # the served addons_path is unchanged
+
+
+@requires_bash
+def test_an_i18n_export_from_a_worktree_only_addons_path_finds_the_declared_odoo_root(tmp_path):
+    """The export verb locates the launcher by the same rule as the build verbs."""
+    core = tmp_path / "core"
+    core.mkdir()
+    fake_bin = _make_fake_odoo_bin(core)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    worktree_addons = tmp_path / "wt" / "addons"
+    (worktree_addons / "x_cap").mkdir(parents=True)
+    env = _base_env(tmp_path)
+    env.pop("ODOO_BIN", None)
+    args = ["--db", "wtdb", "--python", str(fake_py), "--addons", str(worktree_addons),
+            "--modules", "x_cap", "--target", "x_cap=%s" % (tmp_path / "out")]
+    refused = _run("i18n-export", *args, env=env)
+    assert "Could not locate the Odoo server launcher" in refused.stderr, refused.stderr
+    res = _run("i18n-export", *args, "--odoo-root", str(core), env=env)
+    assert "Could not locate the Odoo server launcher" not in res.stderr, res.stderr
+    # Past the locator and every preflight: the run opened its log (what follows needs a database).
+    assert any(l.startswith("LOG_PATH=") for l in res.stdout.splitlines()), res.stdout + res.stderr
+
+
 # ---------------------------------------------------------------------------
 # Contract 2a: test - passing run -> TEST_RESULT=passed
 # ---------------------------------------------------------------------------
