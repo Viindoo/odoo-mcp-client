@@ -1,39 +1,39 @@
-"""Whole-tree guard: no file may tell an agent to use a launch lever the Agent tool does not have.
+"""Whole-tree guard: no file may tell an agent to use a launch lever WITHOUT conditioning it on the
+reader's own launch tool.
 
-Measured ground truth. The Agent tool delivered to a subagent in this harness carries exactly
-{description, isolation, model, prompt, subagent_type} and nothing else. A key the schema does not
-declare is stripped silently before the call is evaluated - no `InputValidationError`, no feedback of
-any kind. So an instruction to "pass `run_in_background: false`" or to "launch it blocking" is not
-merely awkward: it is inert. The reader executes it, sees the launch behave asynchronously anyway,
-and falls through to whatever the next live rung says - which is how a coordinator that must not
-author source came to write a module's `__manifest__.py` itself.
+Measured ground truth (snippets/spawner-completion-contract.md R0). The agent-launch tool differs by
+surface. On the interactive surface its schema carries {description, isolation, model, prompt,
+subagent_type} and nothing else - a key it does not declare is stripped silently, so an instruction
+to "pass `run_in_background: false`" there is inert, and the reader falls through to whatever the
+next live rung says (which is how a coordinator that must not author source once wrote a module's
+`__manifest__.py` itself). On the unattended print surface the same tool DOES carry
+`run_in_background`, and `false` returns the child's result inside the launcher's turn - the one way
+a subagent there collects a child at all. So an UNCONDITIONAL instruction is wrong on one surface
+or the other: the lever may only be named together with the condition that selects it (R0 move 2:
+"your launch tool HAS a `run_in_background` parameter") or by citing R0.
 
-This guard is about the LEVER, not about whether a subagent may dispatch. It may: every launch is
-asynchronous, the launcher ends its turn, and it is woken with the child's result at any depth.
-
-`Bash`'s `run_in_background` is a DIFFERENT tool's real parameter - it is how `odoo-instance-ops`
-launches every long Odoo build before its foreground wait-log call - so this guard can never be a
+`Bash`'s `run_in_background` is a DIFFERENT tool's real parameter, so this guard can never be a
 blanket token ban.
 
 Two rules, both over normalized whitespace so a claim split across wrapped lines is scanned as one
 string, and both scoped to a SENTENCE rather than to line adjacency:
 
-  R1 - a sentence naming `run_in_background` must also name `Bash` (the tool that has it), or state
-       outright that the parameter does not exist. Nothing else admits it. There is deliberately NO
-       path allowlist: a NEW Bash-scoped mention passes automatically, and a NEW Agent-scoped one
-       fails, which is the behavior an allowlist would invert as soon as a file were added to it.
-  R2 - the capability can also be asserted without ever naming the parameter ("launch it blocking",
-       "a blocking switch"). Those phrasings are banned outright unless the same sentence denies the
-       capability in the same breath.
+  R1 - a sentence naming `run_in_background` must also name `Bash` (the tool that always has it),
+       or carry the R0 condition / an R0 citation, or state that the parameter is absent. There is
+       deliberately NO path allowlist: a NEW Bash-scoped or R0-conditioned mention passes
+       automatically, and a NEW unconditional one fails.
+  R2 - the capability can also be asserted without naming the parameter ("launch it blocking",
+       "a blocking switch"). Those phrasings are banned unless the same sentence denies the
+       capability or carries the R0 condition.
 
 STATED FALSE NEGATIVES - this is a LEXICAL guard and cannot be anything else:
   1. A phrasing neither list anticipates ("hand it the synchronous flag", "wait on the child in
-     place") escapes both rules. That is the honest limit; the enforcing mechanism for the breach
-     this protects against is `hooks/block-coordinator-code-write.sh` (the write gate), not this
-     file.
-  2. R2's denial carve-out is a claim check, not a semantic one: a sentence could in principle carry
-     a denial marker AND an instruction. The markers are absolute by construction ("does not exist",
-     "exposes no"), so such a sentence would contradict itself on its face.
+     place") escapes both rules. The enforcing mechanism for the coordinator-authoring breach is
+     `hooks/block-coordinator-code-write.sh`, and for a subagent that stops with a live async child
+     on the unattended surface it is `hooks/enforce-background-wait.sh` - not this file.
+  2. The condition carve-out is a marker check, not a semantic one: a sentence could carry an R0
+     citation and still misstate the rule. Accuracy of R0 itself is pinned by
+     tests/test_spawner_completion_contract.py.
   3. The corpus is `plugins/**` `.md`, `.sh` and `hooks.json`. Python under `generator/` is
      developer-facing tooling, not text an agent is handed, and is covered by
      `check_orchestration.py`'s own rule set instead.
@@ -66,7 +66,17 @@ _BANNED_CAPABILITY_PHRASES = (
     "block on that launch",
 )
 
-# The only thing that admits either rule: the same sentence says the capability is absent.
+# What admits either rule: the same sentence says the capability is absent, or conditions it on the
+# reader's own launch tool / cites R0, the SSOT that conditions it.
+_CONDITION_MARKERS = (
+    "launch tool has",
+    "launch tool carries",
+    "launch tool holds",
+    "you hold the parameter",
+    "r0 move 2",
+    "r0 ",
+    "spawner-completion-contract",
+)
 _DENIAL_MARKERS = (
     "does not exist",
     "no such parameter",
@@ -107,13 +117,14 @@ def test_corpus_is_not_empty():
 
 
 def _denies(sentence_low: str) -> bool:
-    return any(marker in sentence_low for marker in _DENIAL_MARKERS)
+    return any(marker in sentence_low for marker in _DENIAL_MARKERS + _CONDITION_MARKERS)
 
 
-def test_run_in_background_is_only_ever_attributed_to_the_bash_tool():
-    """R1. The parameter is real on `Bash` and absent from the Agent tool. Every mention must make
-    that attribution visible in the same sentence, or say the parameter does not exist - because a
-    reader who meets it un-attributed will try it on the launch they are holding."""
+def test_run_in_background_is_attributed_to_bash_or_conditioned_on_r0():
+    """R1. The parameter is always real on `Bash` and real on the launch tool only on some surfaces.
+    Every mention must make that visible in the same sentence - Bash, the R0 condition, or the
+    parameter's absence - because a reader who meets it unconditioned passes it to a launch tool
+    that may strip it, or skips it on one whose default is asynchronous."""
     offenders = []
     for path in CORPUS:
         for sentence in _sentences(path):
@@ -124,18 +135,18 @@ def test_run_in_background_is_only_ever_attributed_to_the_bash_tool():
                 continue
             offenders.append(f"{path.relative_to(ROOT)}: {sentence.strip()[:180]}")
     assert not offenders, (
-        "`run_in_background` is a parameter of the Bash tool ONLY - the Agent tool's schema in this "
-        "harness does not declare it, and an undeclared key is stripped before the call is "
-        "evaluated. A mention that names neither `Bash` nor the parameter's absence reads as an "
-        "instruction to pass it to a launch, which is inert and pushes the reader to the next rung "
-        "instead. Attribute it to Bash, or delete it:\n  " + "\n  ".join(offenders)
+        "`run_in_background` is named with neither `Bash` nor the R0 condition. Whether a launch "
+        "tool carries it depends on the surface (snippets/spawner-completion-contract.md R0), so an "
+        "unconditioned mention is wrong on one surface or the other. Attribute it to Bash, "
+        "condition it on the reader's own launch tool / cite R0, or delete it:\n  "
+        + "\n  ".join(offenders)
     )
 
 
-def test_no_file_asserts_a_blocking_launch_capability():
-    """R2. The capability can be claimed without ever naming the parameter, which is exactly how it
-    survived the last correction: prose said "launch each teammate blocking" and the token-level
-    check saw nothing. Ban the phrasings; admit one only where the same sentence denies it."""
+def test_no_file_asserts_an_unconditional_blocking_launch():
+    """R2. The capability can be claimed without ever naming the parameter: prose once said "launch
+    each teammate blocking" and the token-level check saw nothing. Ban the phrasings; admit one only
+    where the same sentence denies it or conditions it on R0."""
     offenders = []
     for path in CORPUS:
         for sentence in _sentences(path):
@@ -145,9 +156,9 @@ def test_no_file_asserts_a_blocking_launch_capability():
                 continue
             offenders.append(f"{path.relative_to(ROOT)}: [{hit}] {sentence.strip()[:180]}")
     assert not offenders, (
-        "a blocking/foreground agent launch does not exist in this harness, so prose asserting one "
-        "sends the reader to a dead rung. State the absence, or route to "
-        "spawner-completion-contract.md R0 § Which fallback is yours:\n  " + "\n  ".join(offenders)
+        "a launch that returns its result in-turn exists only when the reader's own launch tool "
+        "carries `run_in_background` (R0 move 2), so an unconditional claim sends some readers to a "
+        "dead rung. Condition it on R0, or state the absence:\n  " + "\n  ".join(offenders)
     )
 
 
@@ -160,7 +171,9 @@ def test_no_file_asserts_a_blocking_launch_capability():
     [
         ("Launch the teammate with run_in_background: false and read its result.", True),
         ("Run the build via Bash with run_in_background: true, then wait in the foreground.", False),
-        ("The Agent tool has no such parameter, so run_in_background cannot be passed.", False),
+        ("The launch tool has no such parameter, so run_in_background cannot be passed.", False),
+        ("When your launch tool has a run_in_background parameter, pass it false.", False),
+        ("Launch it with run_in_background: false (R0 move 2).", False),
         # The wrapped form: normalization must rejoin it before the sentence is scanned.
         ("Launch the teammate with\n   run_in_background:\n   false.", True),
     ],
@@ -182,6 +195,7 @@ def test_r1_detector_discriminates(tmp_path, text, should_flag):
     [
         ("Its launch capability exposes a blocking switch, so it blocks on each teammate.", True),
         ("Use a blocking launch when you need the child's result.", True),
+        ("Per R0 move 2, a blocking launch returns the result in your turn.", False),
         ("A blocking launch does not exist here, so do not ask for one.", False),
         ("The Agent tool exposes no blocking launch at all.", False),
     ],
@@ -216,7 +230,7 @@ def test_no_retired_nested_spawn_hook_is_cited_anywhere():
     ]
     assert not offenders, (
         "a retired nested-spawn denial hook is still cited. Neither hook exists: a subagent may "
-        f"dispatch, and the launcher is woken with the result once it ends its turn. Found: "
+        f"dispatch, and it collects the result by its R0 move. Found: "
         f"{offenders}"
     )
 

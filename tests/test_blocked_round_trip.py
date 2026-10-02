@@ -1,7 +1,7 @@
 """The BLOCKED round trip - what a refusing worker must leave behind for its replacement.
 
-A nested coordinator (`agents/odoo-coder.md`) dispatches a worker, ends its turn, and is woken with
-that worker's result. When the result is BLOCKED its round trip is worker-returns-BLOCKED ->
+A nested coordinator (`agents/odoo-coder.md`) dispatches a worker and collects that worker's result
+by its R0 move (snippets/spawner-completion-contract.md). When the result is BLOCKED its round trip is worker-returns-BLOCKED ->
 coordinator COLD-SPAWNS a replacement. The replacement inherits exactly two things: whatever landed
 in the shared `WORKTREE_PATH`, and whatever landed in the run's worklog - a resumed worker is an
 optimization (CHP Tier A), never something this round trip may depend on. Four contracts keep that

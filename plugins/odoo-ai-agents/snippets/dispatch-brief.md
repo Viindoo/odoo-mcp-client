@@ -31,7 +31,7 @@ against its own family-delta list, `## Brief self-check` below), unlike `worker-
 | 11 | `RUN_ID` | ALWAYS when a run owns this dispatch (the value from `run-<id>.json`); a front-door skill invoked standalone that will need a lease mints it ONCE as its `<run-or-slug>` (`worklog-contract.md` § Where it lives); the explicit literal `none` otherwise | The run's OWNERSHIP identity, forwarded UNCHANGED to every descendant. It is the owner every Odoo lease, the teardown gate and a leak audit key on. It travels as its OWN field, never only inside `INSTANCE_HANDLE`: the agents allowed to self-provision are exactly the ones handed no handle, so a brief saying `none provisioned` would carry no run id at all. A dispatched agent (a coordinator included) NEVER invents this value - an invented id looks owned to the registry while being invisible to the only run that could release it. Absent where a lease will be acquired, it returns `NEEDS_CONTEXT(RUN_ID)`. |
 
 **No reply-address field exists.** Do not add one under any name. The agent you dispatch hands its
-report back once, and you are woken with it once you end that turn - rule:
+report back once, and R0 delivers it to you - rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3.
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per

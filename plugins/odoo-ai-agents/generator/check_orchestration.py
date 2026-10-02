@@ -28,11 +28,12 @@ is complete and that skills thread the shared contracts they are required to:
                     spawn language nor a positive git-mutation instruction. (Historically this
                     pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
   9. wait-scope   - WARN-ONLY (see below). Ground truth (see R0, spawner-completion-contract.md):
-                    the Agent tool exposes NO blocking/foreground parameter here, so EVERY launch
-                    is asynchronous. A launcher at ANY depth is woken with its child's result once
-                    the child completes AND the launcher has ended its turn; a launcher that keeps
-                    working in the launching turn offers no delivery point and never gets the
-                    result. A park/wait instruction
+                    the launcher's own launch tool decides how a result is collected. Holding a
+                    `run_in_background` parameter (move 2), it launches with it false and the
+                    result returns inside its turn - a subagent that ends its turn there is never
+                    woken. Without that parameter (move 3) every launch is asynchronous and a
+                    launcher at ANY depth is woken with its child's result once it has ended its
+                    turn. A park/wait instruction
                     (end turn / park / hold until / wait to be resumed / await) near turn/child/
                     worker/agent vocabulary, anywhere under skills/*/SKILL.md, agents/*.md,
                     snippets/*.md, is a finding when EITHER of two real hazards is present: (a) its
@@ -43,12 +44,11 @@ is complete and that skills thread the shared contracts they are required to:
                     states no commit/checkpoint safeguard - the non-interactive-surface hazard R0
                     itself names: never end a turn with uncommitted work.
  10. wait-mechanism - WARN-ONLY (see below). Two real hazards, neither ever correct under any R0
-                    branch: (a) an instruction to POLL or SLEEP while waiting for a child - an
-                    async launch is collected by ending the turn and being woken, so nothing ever
-                    legitimately polls
-                    or sleeps FOR a child's completion (a periodic task-list status check is a
-                    DIFFERENT, sanctioned pattern - tracking status, not busy-waiting - and is
-                    excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
+                    branch: (a) an instruction to POLL or SLEEP while waiting for a child that does
+                    not attribute it to R0 - the one sanctioned in-turn wait is R0 move 2's async-
+                    receipt rule, so a poll/sleep near child vocabulary must cite R0 (a periodic
+                    task-list status check is a DIFFERENT, sanctioned pattern - tracking status,
+                    not busy-waiting - and is excluded); (b) a claim that a dispatch happened (launch/dispatch/invoke
                     the Agent tool) with no nearby capability-handling language (own toolset /
                     Agent tool absent / nesting cap / R0 / NEEDS_NEXT) - R0 move 1 requires
                     checking your own toolset FIRST, so a dispatch claim with no cap-check nearby
@@ -962,31 +962,32 @@ def check_brief_knowhow(findings: list[str], warn_only_findings: list[str]) -> N
 
 # --- [wait-scope] / [wait-mechanism] (M1 guard - rules 9/10, WARN-FIRST for one release) -------
 #
-# Ground truth (R0, spawner-completion-contract.md): the Agent tool exposes NO blocking/foreground
-# parameter in this harness, so EVERY launch is asynchronous. "Launch, then END YOUR TURN and be
-# woken with the child's result" is the ONE collection mechanism, and it holds at every depth - a
-# nested launcher is woken by its own child exactly as the root is. It has one precondition, the
-# launcher's own: it must actually stop. The hazards this pair detects are: an unattributed park
-# instruction (a reader cannot tell which R0 branch it exercises), uncommitted work surviving a
-# turn boundary, a poll/sleep loop standing in for the end-of-turn collection, and a dispatch claim
-# made with no visible check that the launching capability exists in the first place.
+# Ground truth (R0, spawner-completion-contract.md): the launcher's own launch tool decides how a
+# child's result is collected. With a `run_in_background` parameter (move 2) the launcher passes it
+# false and the result returns inside its turn; it must never end its turn while a child runs, and
+# an async receipt it still gets is waited for IN the turn. Without that parameter (move 3) every
+# launch is asynchronous: "launch, then END YOUR TURN and be woken with the child's result", at
+# every depth. The hazards this pair detects are: an unattributed park instruction (a reader cannot
+# tell which R0 branch it exercises), uncommitted work surviving a turn boundary, a poll/sleep loop
+# not attributed to R0, and a dispatch claim made with no visible check that the launching
+# capability exists in the first place.
 #
 # [wait-scope] (rule 9) - a park/wait instruction (end turn / park / hold until / wait to be
 # resumed / await) near turn/child/worker/agent vocabulary, anywhere under skills/*/SKILL.md,
 # agents/*.md, snippets/*.md, is a finding when its enclosing section:
 #   (a) names no R0 branch - no R0/move-N/NEEDS_NEXT/nesting-cap/
-#       spawner-completion-contract.md citation - so a reader cannot tell whether this is the
-#       async launch-and-be-woken branch or the no-capability branch; or
+#       spawner-completion-contract.md citation - so a reader cannot tell which R0 move it
+#       exercises; or
 #   (b) shows file-writing language (write/author/edit) with no commit/checkpoint safeguard
 #       stated nearby - the non-interactive-surface bound R0 itself names: never end a turn with
 #       uncommitted work.
 #
-# [wait-mechanism] (rule 10) - two independent detectors, neither ever correct under any R0
-# branch:
-#   (a) an instruction to POLL or SLEEP while waiting for a child - the launcher ends its turn and
-#       is woken with the result, so nothing
-#       legitimately polls or sleeps FOR a child's completion. A periodic task-list check is a
-#       DIFFERENT, sanctioned pattern (status tracking, not a busy-wait loop) and is excluded.
+# [wait-mechanism] (rule 10) - two independent detectors:
+#   (a) an instruction to POLL or SLEEP while waiting for a child, with no R0 attribution in its
+#       window. The ONE sanctioned in-turn wait is R0 move 2's async-receipt rule, and prose that
+#       applies it cites R0; an unattributed poll/sleep reads as a busy-wait standing in for R0's
+#       collection move. A periodic task-list check is a DIFFERENT, sanctioned pattern (status
+#       tracking, not a busy-wait loop) and is excluded.
 #   (b) a claim that a dispatch happened (launch/dispatch/invoke the Agent tool) with no nearby
 #       capability-handling language (own toolset / Agent tool absent / nesting cap / R0 /
 #       NEEDS_NEXT) - R0 move 1 requires checking your own toolset FIRST, so an unattended dispatch
@@ -1009,13 +1010,9 @@ H2_RE = re.compile(r"^##\s+(.*)$", re.M)
 LAUNCH_VERB_RE = re.compile(r"\b(launch|dispatch|spawn|Agent tool)\b", re.I)
 
 # R0-branch attribution: any citation proving the instruction states WHICH branch it belongs to
-# (move 1 no-capability / move 3 async launch-and-be-woken; move 2 is retired and its number is
-# deliberately not reused), or a pointer to the R0 SSOT itself.
-# `run_in_background` is deliberately ABSENT from this alternation. The Agent tool exposes no such
-# parameter in this harness, so citing it proved nothing about which R0 branch an instruction
-# belongs to - it let a park instruction attributed to a non-existent capability satisfy the lint.
-# Do not re-add it: `Bash`'s identically named flag is a different tool's parameter and is not an
-# R0 branch at all.
+# (move 1 no-capability / move 2 launch-tool parameter present / move 3 no parameter), or a pointer
+# to the R0 SSOT itself. `run_in_background` alone is deliberately ABSENT from this alternation:
+# `Bash` has an identically named flag, so the bare token proves nothing about an R0 branch.
 R0_BRANCH_CITE_RE = re.compile(
     r"\bR0\b|move\s*[123]\b|NEEDS_NEXT|nesting cap|"
     r"spawner-completion-contract\.md",
@@ -1120,12 +1117,14 @@ def check_wait_mechanism(warn_only_findings: list[str]) -> None:
                 window = "\n".join(lines[max(0, i - 3): i + 4])
                 if TASK_LIST_RE.search(window):
                     continue  # sanctioned task-list status check, not a busy-wait loop
+                if R0_BRANCH_CITE_RE.search(window):
+                    continue  # attributed to R0 - move 2's in-turn wait on an async receipt
                 if WAIT_SCOPE_CONTEXT_RE.search(window):
                     warn_only_findings.append(
                         f"[wait-mechanism] {rel}:{i + 1}: {m.group()!r} instructs polling/"
-                        f"sleeping near wait-for-a-child vocabulary - never correct under any R0 "
-                        f"branch (the launcher ends its turn and is woken with the result, never a "
-                        f"poll/sleep loop)"
+                        f"sleeping near wait-for-a-child vocabulary with no R0 attribution - the "
+                        f"only sanctioned in-turn wait is R0 move 2's async-receipt rule; cite it, "
+                        f"or collect the result by your R0 move"
                     )
 
         # (b) a dispatch claim with no nearby capability-handling language.

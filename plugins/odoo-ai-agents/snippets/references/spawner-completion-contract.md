@@ -5,6 +5,22 @@
 
 # Spawner Completion Contract - rationale
 
+## Why R0 decides by the agent-launch tool's own `run_in_background` parameter
+
+Measured on one Claude Code build with a throwaway plugin, in both surfaces. On an unattended print
+surface (`claude -p`; hooks see `CLAUDE_CODE_ENTRYPOINT=sdk-cli`, `CLAUDE_CODE_SESSION_ATTENDED=0`)
+the agent-launch tool carries `run_in_background`. A subagent that launches a child asynchronously
+and then ends its turn is NOT woken: the harness marks it completed and the child's completion
+notification goes to the main conversation, which then has to resume the launcher. With
+`run_in_background: false` (R0 move 2) the launch returns the child's result inside the launcher's
+turn, also at depth 2 and also when the launcher itself runs in the background; several such
+launches in one message run concurrently and all return in that turn. A launcher that stays in its
+turn receives an async child's notification at its next tool round. On the interactive surface
+(`ENTRYPOINT=cli`, `ATTENDED=1`) the agent-launch tool has no such parameter, every launch is
+asynchronous, and a subagent that ends its turn is woken once per child. The parameter's presence is
+the one signal an agent can read from its own toolset that separates the two physics, so R0 keys on
+it instead of on the surface name.
+
 ## Why R3 states the whole return path inline rather than citing it
 
 Every earlier revision of this rule assumed a reply address the runtime never provides, and each
@@ -34,8 +50,8 @@ checks.
 ## Why an inferred send target is worse than no send at all
 
 A guessed address either fails to resolve or silently misdelivers to a context that is not waiting
-on the sender (R1). The wake that follows a child's completion already delivers the report to the
-launcher that stopped for it, so a send adds a failure mode and no capability.
+on the sender (R1). R0 already delivers the report to the launcher - inside its launch call under
+move 2, on its wake under move 3 - so a send adds a failure mode and no capability.
 
 ## Why the task-list tool's native status field is a mirror, not the authority
 

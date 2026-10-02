@@ -10,34 +10,52 @@
 
 # Spawner Completion Contract (barrier + no-early-DONE + return path)
 
-## R0 - Dispatch physics: observe your own toolset, then act
+## R0 - Dispatch physics: observe your own agent-launch tool, then act
 
-Before launching any agent, read the launch capability you hold:
+Before launching any agent, look at the agent-launch tool you hold. It alone decides your move:
 
 - **Move 1 - NO agent-launch capability** -> you are at the nesting cap
   (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3; the tool is removed silently at the cap).
   Take the fallback § Which fallback is yours assigns you - never report a dispatch you could not
   make.
-- **Move 3 - you HOLD an agent-launch capability** -> every launch is asynchronous, returning a
-  receipt, not a result. LAUNCH, THEN END YOUR TURN (§ below). This holds at EVERY depth: a nested
-  launcher is woken by its own child exactly as the root is, so a subagent coordinating its own
-  workers is a sanctioned shape, not an exception. Never poll, never sleep, never re-launch.
+- **Move 2 - your agent-launch tool HAS a `run_in_background` parameter** -> launch every teammate
+  whose result you need with `run_in_background: false`, at any depth. That call returns the
+  teammate's result inside your own turn. Put independent teammates in ONE message as several launch
+  calls: they run in parallel and every result returns in this turn (batch size:
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Mode A - subagent batching). Always
+  pass the parameter - its default is asynchronous. Never end your turn while a teammate you
+  launched is still running: on this surface nothing wakes a subagent that stopped, so the result
+  goes to the main conversation instead of to you.
+- **Move 3 - your agent-launch tool has NO `run_in_background` parameter** -> every launch is
+  asynchronous and returns a receipt, not a result. LAUNCH, THEN END YOUR TURN (§ below). This holds
+  at EVERY depth: a nested launcher is woken by its own child exactly as the root is. You are woken
+  once per teammate, as each one completes - re-check the R1 barrier on every wake and never assume
+  every teammate is done.
 
-**There is no move 2.** Your launch capability exposes NO foreground or blocking parameter, and an
-undeclared key is stripped before the call is evaluated - so no parameter makes a launch hand its
-result back inside the turn that issued it. Any instruction citing `R0 move 2`, or telling you to
-"launch it blocking" or "launch it synchronously", names a lever that does not exist here: ignore it
-and take move 1 or move 3. (`Bash`'s own background flag is a DIFFERENT tool's real parameter - it
-is governed by § A background shell command is a SAME-TURN result below, never by this ladder.)
+**An async receipt under move 2.** You hold the parameter, yet a launch - or a resume send to a
+child you launched (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A) - hands
+back an asynchronous receipt (`Async agent launched successfully`): do NOT end your turn. Wait for
+it in this turn per R0 move 2 - keep making tool calls (a bounded sleep in a Bash call, then a look
+at what has arrived) until its completion notification reaches you at a tool round, then read the
+result. Every response you emit before you hold it MUST carry a tool call.
 
-### END YOUR TURN after dispatching - the whole discipline
+**The main conversation** (the session the user talks to; a skill invoked there runs in it) may take
+move 2 or move 3 - it is notified of every completion on every surface. On an unattended surface a
+completion notification for a NESTED launcher's teammate can reach the main conversation instead of
+that launcher. Do not act on that result yourself: resume the launcher - send it a message by its
+id - so it collects the result and clears its own R1 barrier.
 
-**After you dispatch, END YOUR TURN. Do not keep working in the same turn.** Stopping IS the
-delivery point: you are woken with the child's report once it completes and you hold no other live
-child of your own. Keep working in the launching turn instead and no delivery point ever exists, so
-the report is never handed to you - not because the harness failed to send it, but because you never
-stopped to receive it. That is the one failure mode of nested dispatch, and it is entirely yours to
-prevent.
+`Bash`'s `run_in_background` flag is a DIFFERENT tool's parameter, governed by § A background shell
+command is a SAME-TURN result below, never by these moves.
+
+Under every move, never do a child's work while it runs - you continue from its result.
+
+### Move 3: END YOUR TURN after dispatching
+
+**Under move 3, after you dispatch, END YOUR TURN. Do not keep working in the same turn.** Stopping
+IS the delivery point: you are woken with the child's report once it completes. Keep working in the
+launching turn instead and no delivery point ever exists, so the report is never handed to you - not
+because the harness failed to send it, but because you never stopped to receive it.
 
 So: commit what you have written, issue every launch this turn needs - independent children in ONE
 message - then write nothing further except a one-line note of what you are waiting for, and END THE
@@ -45,17 +63,15 @@ TURN. Never end a turn with uncommitted work, with ONE exception: work your cont
 uncommitted because the child you launch works on that same tree (a node's code before its test
 leg - the restore proof is a hash manifest, never a checkpoint commit:
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
-Never do a child's work while it runs. You resume with its result and continue from there.
 
 ### A background shell command is a SAME-TURN result - nothing wakes you for one
 
-`Bash`'s own background flag is a DIFFERENT tool's real parameter, unrelated to agent dispatch, and
-the receipt it hands back says you will be notified when the command completes. That sentence is
-written for the ROOT conversation, where it is true. **It is not true for you.** A dispatched
-agent's turn end IS the end of its dispatch, so nothing resumes you for a background shell command
-and its result is reachable ONLY inside the turn that started it. Stop while one is still running
-and the result reaches nobody: your caller receives whatever text you left behind, and the command
-finishes alone.
+The receipt `Bash` hands back for a backgrounded command says you will be notified when the command
+completes. That sentence is written for the ROOT conversation, where it is true. **It is not true
+for you.** A dispatched agent's turn end IS the end of its dispatch, so nothing resumes you for a
+background shell command and its result is reachable ONLY inside the turn that started it. Stop
+while one is still running and the result reaches nobody: your caller receives whatever text you
+left behind, and the command finishes alone.
 
 Backgrounding is not restricted - ONE shape is correct. Start the command, then stay in the SAME
 turn and drive it to a result with FOREGROUND tool calls: a call that blocks until the command is
@@ -65,9 +81,11 @@ running" reply is the stall itself, never compliance with the receipt. If the re
 inside this turn, kill the command, or report `status: BLOCKED` naming its output path - never a
 completion claim over output you never read.
 
-Never generalize either rule onto the other. An agent child DOES deliver to a launcher that stopped
-for it (move 3); a background shell command never does. A `SubagentStop` gate refuses a turn end
-that still holds one: `${CLAUDE_PLUGIN_ROOT}/hooks/enforce-background-wait.sh`.
+Never generalize either rule onto the other. Under move 3 an agent child delivers to a launcher that
+stopped for it; a background shell command never does, under any move. One `SubagentStop` gate,
+`${CLAUDE_PLUGIN_ROOT}/hooks/enforce-background-wait.sh`, refuses a turn end that still holds a
+background shell command you started or - on an unattended surface - a teammate you launched that
+is still running.
 
 ### Which fallback is yours - your DECLARED ROLE decides it, never convenience
 
@@ -83,31 +101,30 @@ Move 1 only - an edge case, never the default:
 
 An unavailable dispatch is a routing failure to report upward. It never reassigns the work to you.
 
-Move 3 is unreliable on a non-interactive surface (`-p` / SDK), where nothing resumes a parked
-agent - bound the damage by committing before every turn boundary.
-
 You are a SPAWNER this turn iff you launched at least one agent (a direct dispatch call) or invoked a
 spawner skill that fans out agents below you. A HARD LEAF that launched nothing is vacuously compliant
 on R1/R2; only R3 addresses it.
 
 ## R1 - Completion barrier (block until every launched child returns)
 
-Every launch is asynchronous (R0 move 3), so this barrier is the same at every depth - the root and
-a nested launcher both hold it. You MUST NOT compose your own result while any child you launched
-this turn is still running.
+You collect every child per R0 - inside your turn under move 2, on a wake under move 3 - so this
+barrier is the same at every depth: the root and a nested launcher both hold it. You MUST NOT
+compose your own result while any child you launched this turn is still running.
 
-- DEPENDENT children (a later child needs an earlier one's output): launch the first child, END
-  YOUR TURN, consume its result when you are woken, then launch the next the same way.
-- INDEPENDENT children (a parallel sibling batch): launch the whole batch in ONE message, END YOUR
-  TURN, and track each child's arrival on your task list until every one is terminal. The barrier
-  gates every step that CONSUMES THE BATCH AS A WHOLE - composing or returning your own result, an
-  integrated/whole-scope test, a commit, any synthesis over the batch: none of those may start
-  while one member is still running. It does NOT gate reading each arrival to mark it terminal
-  (that read is REQUIRED - see the count rule below), and it does NOT gate launching a further
-  child whose OWN prerequisites have already returned terminal: launch it in the turn you are woken
-  with that prerequisite's result, END YOUR TURN again, and the outstanding siblings stay on the
-  list. Holding a ready dependent launch back until an unrelated sibling finishes serializes work
-  the barrier never asked you to serialize.
+- DEPENDENT children (a later child needs an earlier one's output): launch the first child, collect
+  its result (move 2: the launch returns it; move 3: END YOUR TURN and take it from the wake), then
+  launch the next the same way.
+- INDEPENDENT children (a parallel sibling batch): launch the whole batch in ONE message, then
+  collect every result (move 2: all return in this turn; move 3: END YOUR TURN and track each
+  arrival on your task list until every one is terminal). The barrier gates every step that
+  CONSUMES THE BATCH AS A WHOLE - composing or returning your own result, an integrated/whole-scope
+  test, a commit, any synthesis over the batch: none of those may start while one member is still
+  running. It does NOT gate reading each arrival to mark it terminal (that read is REQUIRED - see
+  the count rule below), and it does NOT gate launching a further child whose OWN prerequisites have
+  already returned terminal: under move 3, launch it in the turn you are woken with that
+  prerequisite's result, END YOUR TURN again, and the outstanding siblings stay on the list. Holding
+  a ready dependent launch back until an unrelated sibling finishes serializes work the barrier never
+  asked you to serialize.
 
 Count launched-vs-returned on your ALWAYS-ON task list (`execution-tasklist-contract.md`) - one
 task per child at/before launch; the batch barrier clears ONLY when every child has returned ONE OF
@@ -118,13 +135,14 @@ status field MIRRORS it, never the authority. Mark a task-list item terminal the
 returns ANY of the four, and record WHICH of the four separately in your own tracking (worklog or
 equivalent) - the tool's own state is not guaranteed to distinguish them, and a barrier gated on a
 tool-native label the tool does not actually expose (e.g. a literal `blocked` state) is unsatisfiable
-and must never be the release condition. The task list persists across the re-invocations a
-an async batch is woken with. "Wait" is the all-children-terminal barrier - never a passive
-hope.
+and must never be the release condition. The task list persists across every wake of a move-3
+batch. "Wait" is the all-children-terminal barrier - never a passive hope.
 
-**Boundary - the wake is keyed on YOU having stopped, not on your depth.** A nested launcher is
-woken exactly as the root is (R0 move 3). Nothing the child can do repairs a launcher that never
-stopped (R3); prevention is entirely the launcher's.
+**Boundary - your agent-launch tool decides how a result reaches you, never your depth.** Under move
+3 the wake is keyed on YOU having stopped, not on your depth: a nested launcher is woken exactly as
+the root is. Under move 2 a subagent that stops is never woken: its teammates' results go to the
+main conversation. Nothing the child can do repairs either mistake (R3); prevention is entirely the
+launcher's.
 
 **Reading a child's result - a pending-dispatch announcement is a STALL, not a completion.** Judge
 every returned result by the release condition above and by nothing else. A result that announces
@@ -150,8 +168,9 @@ clears - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4.
 ## R3 - Your report reaches your launcher exactly once, after teardown
 
 Your launcher receives your completion report ONCE, as the last act of your dispatch: the summary,
-`produced`, and the closed `continuation` block. A launch, and a resume send, deliver it on
-completion to the launcher that stopped to take it (R0 move 3, Tier A). THE ONE DECIDABLE ACTION
+`produced`, and the closed `continuation` block. A launch, and a resume send (Tier A), hand it back on
+completion - inside the launching call under R0 move 2, on the wake of a launcher that stopped to
+take it under R0 move 3. THE ONE DECIDABLE ACTION
 depends on one fact only - whether `SubagentHandback` is in your toolset:
 
 - **`SubagentHandback` is in your toolset** -> deliver the report by calling it with the FULL

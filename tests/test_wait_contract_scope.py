@@ -1,16 +1,18 @@
 """Self-check for the [wait-scope] / [wait-mechanism] detectors (M1 guard, rules 9/10 in
 generator/check_orchestration.py).
 
-Ground truth these detectors protect (see R0, spawner-completion-contract.md): no blocking or
-foreground launch parameter exists in this harness, so EVERY launch is asynchronous, and
-"launch, then END YOUR TURN and be woken with the child's result" is the ONE collection mechanism.
-It holds at every depth - a nested launcher is woken by its own child exactly as the root is - and
-its only precondition is the launcher's own: it must actually stop.
+Ground truth these detectors protect (see R0, spawner-completion-contract.md): the launcher's own
+launch tool decides how a child's result is collected. Without a `run_in_background` parameter
+(move 3) every launch is asynchronous and "launch, then END YOUR TURN and be woken with the child's
+result" holds at every depth. With that parameter (move 2) the launcher passes it false and the
+result returns in-turn; it must not end its turn while a child runs, and an async receipt it still
+gets is waited for IN the turn - the one sanctioned poll/sleep near child vocabulary.
 
-Two retired premises this docstring has now outlived, both named so neither grows back:
-`run_in_background: false` is NOT a blocking lever (the citation regex below no longer accepts that
-token as R0-branch attribution), and "only the ROOT conversation is ever resumed" is NOT true (the
-transcript corpus shows nested launchers woken repeatedly, at depth 3).
+Two retired premises this docstring has outlived, both named so neither grows back: "only the ROOT
+conversation is ever resumed" is NOT true on the surface without the parameter (nested launchers are
+woken repeatedly, at depth 3), and "there is no foreground launch" is NOT true on the unattended
+print surface (the launch tool carries `run_in_background` there). The bare `run_in_background`
+token is still not R0-branch attribution: `Bash` has an identically named flag.
 
 Neither detector keys on WHO is parking (they are proximity and citation checks, not semantic
 reads); what they catch is a park nobody can attribute to an R0 branch, and work left uncommitted
@@ -20,9 +22,10 @@ across the turn boundary. The hazards:
                   which R0 move it exercises), or (b) shows file-writing language
                   with no stated commit/checkpoint safeguard (risking uncommitted work surviving a
                   turn boundary - R0's own non-interactive-surface bound).
-  [wait-mechanism] - (a) an instruction to poll/sleep while waiting for a child (never correct
-                  under any R0 branch - the launcher ends its turn and is woken instead),
-                  excluding a sanctioned check of the agent's OWN task list; (b) a dispatch claim
+  [wait-mechanism] - (a) an instruction to poll/sleep while waiting for a child with no R0
+                  attribution (the only sanctioned in-turn wait is R0 move 2's async-receipt
+                  rule, and prose applying it cites R0), excluding a sanctioned check of the
+                  agent's OWN task list; (b) a dispatch claim
                   (launch/dispatch/invoke the Agent tool) with no nearby capability-handling
                   language (R0 move 1 requires checking your own toolset FIRST).
 
@@ -223,8 +226,8 @@ def test_pass_a_and_pass_b_run_clean_against_the_real_ssot_files_that_are_fully_
 
 
 def test_wait_mechanism_flags_poll_near_wait_for_a_child_vocabulary(tmp_path, monkeypatch):
-    """RED: an instruction to poll while waiting for a dispatched child - never correct under any
-    R0 branch (the launcher ends its turn and the harness wakes it with the result)."""
+    """RED: an instruction to poll while waiting for a dispatched child with no R0 attribution - a
+    busy-wait standing in for the launcher's R0 collection move."""
     import generator.check_orchestration as co
 
     snippet_dir = tmp_path / "snippets"
@@ -250,6 +253,23 @@ def test_wait_mechanism_flags_poll_near_wait_for_a_child_vocabulary(tmp_path, mo
     assert any(
         "wait-mechanism" in f and "synthetic.md" in f and "polling" in f for f in findings
     ), "check_wait_mechanism must flag a poll instruction near wait-for-a-child vocabulary"
+
+
+def test_wait_mechanism_clears_a_poll_attributed_to_r0_move_2():
+    """GREEN: the in-turn wait R0 move 2 sanctions - a launcher that holds the parameter yet got an
+    async receipt keeps making tool calls until the notification arrives - is legal when it says
+    which R0 move it applies. Without this exemption the detector would flag the SSOT's own rule."""
+    text = (
+        "## Dispatch\n"
+        "Launch the worker agent now.\n"
+        "Per R0 move 2, poll for the child agent with a bounded sleep until its notification "
+        "arrives.\n"
+    )
+    findings: list[str] = []
+    _drive_over_text(check_wait_mechanism, text, findings)
+    assert not any("instructs polling" in f for f in findings), (
+        "check_wait_mechanism must not flag a poll/sleep attributed to R0 move 2"
+    )
 
 
 def test_wait_mechanism_clears_poll_when_negated():

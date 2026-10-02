@@ -29,8 +29,8 @@ nested spawner (one agent level below `odoo-coding`, launched once per work node
 launches its hard-leaf teammates - `odoo-backend-coder` and/or `odoo-frontend-coder` (the code)
 first, then ONE `odoo-test-writer` per node (the tests and their break-checks,
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg) -
-per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: it dispatches, ENDS ITS
-TURN, and is woken with each teammate's result), tests the integrated node via
+per R0 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`: it collects each
+teammate's result by its R0 move), tests the integrated node via
 `Skill(odoo-instance)` inline, and - once the integrated test is green - COMMITS its node by
 invoking `git-toolkit:git-ops` via the Skill tool, then returns the SHA to `odoo-coding`, which
 collects it and never re-commits (under `COMMIT: caller` it commits nothing and returns the file

@@ -157,14 +157,25 @@ For High- AND Med-tier modules in `test_set`: first have `odoo-instance` build t
 test instance (`init` of `test_set`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR
 lint gate); then launch the `odoo-test-writer` agent (mode tour/HttpCase; it authors by invoking the
 `odoo-test-writing` skill inline, in its own context) with that instance's `INSTANCE_HANDLE`, to
-realize the oracle's user-flow scenarios as durable regression and break-check each test on it.
-Its brief carries `TARGET BEHAVIOR` = the oracle scenarios it realizes (`ORACLE_PATH`), `CHANGE KIND`
-per behavior derived from the change under acceptance (`new` unless the change alters, fixes,
-removes or restricts an existing rule - the enum: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
-§ How to break each change kind), `CHANGED CODE` = the `CHANGED_SET` files, stated as the change
-under acceptance (no coder output exists), `MODULE SCOPE` = `test_set`, and the `INSTANCE_HANDLE`
-whenever you hold this channel's instance (without one it writes the tests and returns
-`NEEDS_NEXT: odoo-instance` with its break-checks pending);
+realize the oracle's user-flow scenarios as durable regression and break-check each test on it:
+
+```
+# odoo-test-writer (Phase 2a durable channel)
+MODE: tour/HttpCase
+MODULE SCOPE: <test_set modules> @ <path(s)>
+TARGET BEHAVIOR: <the oracle scenarios it realizes - ORACLE_PATH>
+TEST TYPE: <tour | HttpCase>
+CHANGE KIND: <per behavior: new, unless the change under acceptance alters, fixes, removes or restricts an existing rule - enum: test-sensitivity-contract.md § How to break each change kind>
+CHANGED CODE: <the CHANGED_SET files, stated as the change under acceptance - no coder output exists>
+SURVEY: none
+WORKTREE_PATH: <Phase 2's WORKTREE_PATH>
+INSTANCE_HANDLE: <this channel's own test-instance handle whenever you hold it - never Phase 2's cluster handle>
+RUN_ID: <the run id your brief carried>
+```
+
+Without a handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` with its
+break-checks pending (`CHANGE KIND` enum:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § How to break each change kind);
 then have `odoo-instance` run them on that same handle (headless `--test-enable`, `mode: reuse`,
 `GATE_ROLE: node-verify`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance
 verdict is about those modules, and an untagged run would spend the sweep re-testing the core
