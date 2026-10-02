@@ -84,8 +84,8 @@ orphan sweep) and reused in every artifact path from there on - including each d
 
 ## Phase 0 - SCOPE (verify-scope manifest)
 
-Resolve the Tier-2 ISOLATE dir per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s
-resolve-capture-substitute protocol (captured path shown as `<ISOLATE_DIR>` below).
+Resolve the SHARE and ISOLATE dirs per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s
+resolve-capture-substitute protocol (captured paths shown as `<SHARE_DIR>` / `<ISOLATE_DIR>` below).
 
 **Orphan sweep (do this every run, BEFORE minting this run's slug below).** `visual/qa/<slug>/`
 evidence is RETAINED past its own run (it is the cited evidence behind each PASS/FAIL/UNVERIFIED
@@ -163,20 +163,20 @@ realize the oracle's user-flow scenarios as durable regression and break-check e
 # odoo-test-writer (Phase 2a durable channel)
 MODE: tour/HttpCase
 MODULE SCOPE: <test_set modules> @ <path(s)>
-TARGET BEHAVIOR: <the oracle scenarios it realizes - ORACLE_PATH>
+TARGET BEHAVIOR: <the oracle scenarios it realizes - ORACLE_PATH; the tests build their own data, never demo>
 TEST TYPE: <tour | HttpCase>
-CHANGE KIND: <per behavior: new, unless the change under acceptance alters, fixes, removes or restricts an existing rule - enum: test-sensitivity-contract.md § How to break each change kind>
-CHANGED CODE: <the CHANGED_SET files, stated as the change under acceptance - no coder output exists>
 SURVEY: none
 WORKTREE_PATH: <Phase 2's WORKTREE_PATH>
 INSTANCE_HANDLE: <this channel's own test-instance handle whenever you hold it - never Phase 2's cluster handle>
+SHARE_DIR: <the Phase 0 literal>
+ISOLATE_DIR: <the Phase 0 literal>
 RUN_ID: <the run id your brief carried>
+INPUTS: <ORACLE_PATH>
 ```
 
-Without a handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` with its
-break-checks pending (`CHANGE KIND` enum:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § How to break each change kind);
-then have `odoo-instance` run them on that same handle (headless `--test-enable`, `mode: reuse`,
+Without a handle it writes the tests and returns `NEEDS_NEXT: odoo-instance` naming the pending
+tests: build the instance, re-launch it with the handle and `PRIOR ATTEMPT` to prove them. Then
+have `odoo-instance` run the suite on that same handle (headless `--test-enable`, `mode: reuse`,
 `GATE_ROLE: node-verify`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance
 verdict is about those modules, and an untagged run would spend the sweep re-testing the core
 closure they pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`), and release that

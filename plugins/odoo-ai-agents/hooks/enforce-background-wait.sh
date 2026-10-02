@@ -4,8 +4,9 @@
 # WHY: a dispatched agent that ends its turn while it still waits on something it started loses
 # that thing's result whenever nothing will wake it. Two shapes, both refused here:
 #
-#   (1) A BACKGROUND SHELL COMMAND, on every surface. The Bash tool answers a backgrounded command
-#       with "You will be notified when it completes." That promise is written for the ROOT
+#   (1) A BACKGROUND SHELL COMMAND OR MONITOR WATCH, on every surface. The Bash tool answers a
+#       backgrounded command with "You will be notified when it completes."; the Monitor tool
+#       answers with "You will be notified on each event". That promise is written for the ROOT
 #       conversation and holds there. It does NOT hold for a dispatched agent: a SubagentStop IS
 #       the end of that dispatch, nothing resumes it, and the command's result is delivered to
 #       nobody. Measured shape - a subagent backgrounded a command, wrote one "WAITING, I have not
@@ -43,8 +44,12 @@
 #   - OWNERSHIP: `background_tasks` is SESSION-wide, so a task the ROOT (or a sibling)
 #     started appears here too. Blocking this subagent for someone else's work would demand a
 #     fix it cannot make, so a live task counts only when the subagent's OWN transcript
-#     (agent_transcript_path) shows it receiving that task id: the Bash tool's "running in
-#     background with ID: <id>" receipt for a shell task, the agent-launch tool's "Async agent launched
+#     (agent_transcript_path) shows it receiving that task id: for a shell task the Bash tool's
+#     "running in background with ID: <id>" receipt, its "moved to the background (ID: <id>)"
+#     receipt for a foreground command that outran its timeout, or the Monitor tool's "Monitor
+#     started (task <id>," receipt - a Monitor watch is a `type: "shell"` entry in
+#     `background_tasks` (measured: the harness labels its local-shell task kind "shell" whatever
+#     started it) - and for a subagent task the agent-launch tool's "Async agent launched
 #     successfully ... agentId: <id>" receipt for a subagent task. Its own entry never correlates
 #     (its id is also skipped outright).
 #   - SURFACE (subagent arm only): unattended iff CLAUDE_CODE_SESSION_ATTENDED=0, or that variable
@@ -89,13 +94,16 @@ EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null ||
 AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
 [[ -n "$AGENT_ID" ]] || _pass   # no caller identity -> fail open
 
+# The surface test and the teammate correlation are hooks/teammate-wait.sh, shared with
+# enforce-teardown.sh (which reads the same stop as a WAIT on the surfaces this arm leaves alone).
+# Unreadable -> fail open.
+[[ -r "${BASH_SOURCE[0]%/*}/teammate-wait.sh" ]] || _pass
+# shellcheck source=/dev/null
+. "${BASH_SOURCE[0]%/*}/teammate-wait.sh"
+
 # --- Surface: only an UNATTENDED one leaves a stopped subagent unwoken for an agent child -------
 UNATTENDED=0
-if [[ "${CLAUDE_CODE_SESSION_ATTENDED-}" == "0" ]]; then
-    UNATTENDED=1
-elif [[ -z "${CLAUDE_CODE_SESSION_ATTENDED-}" && "${CLAUDE_CODE_ENTRYPOINT-}" == "sdk-cli" ]]; then
-    UNATTENDED=1
-fi
+_tw_unattended && UNATTENDED=1
 
 # --- Live background tasks --------------------------------------------------------------------
 # An absent / non-array `background_tasks` is an unknown payload shape, not an empty one:
@@ -112,16 +120,7 @@ LIVE_ROWS="$(printf '%s' "$INPUT" | jq -r '
   | @tsv' 2>/dev/null || true)"
 
 LIVE_AGENT_ROWS=""
-if [[ "$UNATTENDED" == "1" ]]; then
-    LIVE_AGENT_ROWS="$(printf '%s' "$INPUT" | jq -r --arg self "$AGENT_ID" '
-      .background_tasks[]?
-      | select((.type // "") == "subagent")
-      | select((.status // "") == "running")
-      | select(((.id // "") | tostring) != $self)
-      | [((.id // "") | tostring),
-         ((((.agent_type // "agent") | tostring) + ": " + ((.description // "") | tostring)) | gsub("[\n\t]"; " "))]
-      | @tsv' 2>/dev/null || true)"
-fi
+[[ "$UNATTENDED" == "1" ]] && LIVE_AGENT_ROWS="$(_tw_live_agent_rows "$INPUT" "$AGENT_ID")"
 [[ -n "$LIVE_ROWS" || -n "$LIVE_AGENT_ROWS" ]] || _pass
 
 # --- Ownership: the subagent's OWN transcript must show it receiving that id -----------------
@@ -131,9 +130,7 @@ fi
 AGENT_TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.agent_transcript_path // empty' 2>/dev/null || true)"
 [[ -n "$AGENT_TRANSCRIPT" && -f "$AGENT_TRANSCRIPT" ]] || _pass
 
-# A 5s bound on every host (stock macOS has no `timeout`): scripts/lib/run_bounded.sh.
-# shellcheck source=../scripts/lib/run_bounded.sh
-. "${BASH_SOURCE[0]%/*}/../scripts/lib/run_bounded.sh" 2>/dev/null || run_bounded() { shift; "$@"; }
+# A 5s bound on every host (stock macOS has no `timeout`): run_bounded, loaded by teammate-wait.sh.
 _tmo() { run_bounded 5 "$@"; }
 
 # Every string anywhere in the subagent's transcript, one per line. Recursive descent (`..`)
@@ -143,20 +140,19 @@ _tmo() { run_bounded 5 "$@"; }
 OWN_STRINGS="$(_tmo jq -rR 'fromjson? | .. | strings' "$AGENT_TRANSCRIPT" 2>/dev/null || true)"
 [[ -n "$OWN_STRINGS" ]] || _pass
 
-OWN_IDS="$(printf '%s\n' "$OWN_STRINGS" \
-  | grep -oE 'running in background with ID: [A-Za-z0-9_-]+' 2>/dev/null \
-  | sed -E 's/.*ID: //' | grep -vE '^$' | sort -u || true)"
+# Shell task ids this subagent was handed: the Bash background receipt, the Bash receipt for a
+# foreground command moved to the background on timeout, and the Monitor receipt. A Monitor id is
+# also kept apart, only so the refusal can say which kind of task it names.
+OWN_MONITOR_IDS="$(printf '%s\n' "$OWN_STRINGS" \
+  | grep -oE 'Monitor started \(task [A-Za-z0-9_-]+' 2>/dev/null \
+  | sed -E 's/.*\(task //' | grep -vE '^$' | sort -u || true)"
+OWN_IDS="$( { printf '%s\n' "$OWN_STRINGS" \
+  | grep -oE 'running in background with ID: [A-Za-z0-9_-]+|moved to the background \(ID: [A-Za-z0-9_-]+' 2>/dev/null \
+  | sed -E 's/.*ID: //'; printf '%s\n' "$OWN_MONITOR_IDS"; } | grep -vE '^$' | sort -u || true)"
 
-# Agent ids this subagent launched asynchronously: read only from strings that ARE an async launch
-# receipt, so an agentId merely mentioned elsewhere never counts.
+# Agent ids this subagent launched asynchronously (teammate-wait.sh _tw_async_launched_ids).
 OWN_AGENT_IDS=""
-if [[ -n "$LIVE_AGENT_ROWS" ]]; then
-    OWN_AGENT_IDS="$(_tmo jq -rR '
-      fromjson? | .. | strings
-      | select(test("Async agent launched successfully"))
-      | scan("agentId: ([A-Za-z0-9_-]+)")[]' "$AGENT_TRANSCRIPT" 2>/dev/null \
-      | grep -vE '^$' | sort -u || true)"
-fi
+[[ -n "$LIVE_AGENT_ROWS" ]] && OWN_AGENT_IDS="$(_tw_async_launched_ids "$AGENT_TRANSCRIPT")"
 
 # --- Build the findings ----------------------------------------------------------------------
 LINES=""
@@ -167,6 +163,11 @@ if [[ -n "$LIVE_ROWS" && -n "$OWN_IDS" ]]; then
         printf '%s\n' "$OWN_IDS" | grep -qxF "$task_id" 2>/dev/null || continue
         # The output file the Bash tool named back to this subagent, read from its own transcript -
         # never reconstructed from a guessed temp-dir layout.
+        if printf '%s\n' "$OWN_MONITOR_IDS" | grep -qxF "$task_id" 2>/dev/null; then
+            N=$(( N + 1 ))
+            LINES="$LINES"$'\n'"  [$task_id] (Monitor watch) $task_cmd"$'\n'"      its events reach you only while this turn lasts - wait for them now, or stop the watch"
+            continue
+        fi
         out_path="$(printf '%s\n' "$OWN_STRINGS" | grep -oE "/[^ \"']*${task_id}\.output" 2>/dev/null | head -1 || true)"
         [[ -n "$out_path" ]] || out_path="(output path not recorded in your transcript - re-read the Bash result that started task ${task_id})"
         N=$(( N + 1 ))
@@ -189,12 +190,12 @@ fi
 
 REASON=""
 if [[ "$N" -gt 0 ]]; then
-REASON="Unwakeable-wait gate: you are a DISPATCHED agent and this turn is ending with ${N} background shell command(s) you started still running. Ending your turn ENDS your dispatch - the Bash tool's \"You will be notified when it completes\" line is written for the root conversation and does NOT hold for you. Nothing resumes a dispatched agent for a background shell command, so its result is reachable only inside THIS turn, and stopping now discards it.${LINES}
+REASON="Unwakeable-wait gate: you are a DISPATCHED agent and this turn is ending with ${N} background shell command(s) or Monitor watch(es) you started still running. Ending your turn ENDS your dispatch - the Bash tool's \"You will be notified when it completes\" and the Monitor tool's \"You will be notified on each event\" lines are written for the root conversation and do NOT hold for you. Nothing resumes a dispatched agent for a background task, so its result is reachable only inside THIS turn, and stopping now discards it.${LINES}
 
 Do ONE of these for EACH command above, before you stop:
 1) READ IT NOW - the output file above already holds everything the command has printed so far. Read it, use what is there, and say in your report that the command had not finished.
 2) WAIT FOR IT IN THIS TURN - make your VERY NEXT action a FOREGROUND tool call that blocks until the command is finished (never a text-only reply), then read that output file. Repeat the foreground wait as many times as it takes; every response you emit before you hold the result MUST carry a tool call.
-3) STOP IT - if you no longer need the result, kill the command (\`KillShell\` on task id <id> when your toolset has it, otherwise terminate the process from a foreground Bash call), and say so in your report.
+3) STOP IT - if you no longer need the result, stop the task (\`TaskStop\` or \`KillShell\` on task id <id> when your toolset has one, otherwise terminate the process from a foreground Bash call), and say so in your report. A Monitor watch has no output file to read: wait for its events in this turn (2) or stop it (3).
 
 Then emit your \`continuation\` block. If the result cannot be obtained inside this turn, report \`status: BLOCKED\`, naming the command and its output path so your caller can pick it up - never a completion claim over a background command you never read."
 fi

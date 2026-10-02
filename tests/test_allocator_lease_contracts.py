@@ -28,6 +28,7 @@ only LOGS what it was asked - no Postgres, no Odoo, no real drop.
 import errno
 import json
 import os
+import re
 import shlex
 import signal
 import socket
@@ -273,6 +274,35 @@ def test_every_lease_writing_acquire_names_its_lease_and_keeps_stdout_the_protoc
     doc = json.loads(js.stdout)  # exactly one JSON object on stdout
     token = doc["fields"]["ALLOC_TOKEN"]
     assert f"allocator: acquired lease {token} run_id=run-A" in js.stderr
+
+
+@pytest.mark.parametrize("verb", ["acquire", "adopt"])
+def test_the_lease_receipt_survives_a_tail_trimmed_merged_stream(world, verb):
+    """Observed live: an agent ran `allocator.py acquire ... 2>&1 | tail -5`, the trim cut both
+    ALLOC_TOKEN and the receipt, and its own release of that lease was then refused as unowned -
+    the teardown and lease-mutation gates prove ownership only from that output. The receipt is
+    the last line of the merged stream, so any `| tail -N` keeps it; `| head -N` keeps
+    ALLOC_TOKEN, the first stdout line."""
+    a, b = world.session("sess-A"), world.session("sess-B")
+    if verb == "acquire":
+        args, env = ["acquire", "--series", "17.0", "--mode", "ephemeral", "--no-create",
+                     "--run-id", "run-A"], world.env(a)
+    else:
+        _, out = world.acquire(world.env(a), "--no-create")
+        args, env = ["adopt", out["ALLOC_TOKEN"], "--run-id", "run-A"], world.env(b)
+    cmd = " ".join(shlex.quote(x) for x in [sys.executable, str(ALLOC), *args])
+    for trim in ("tail -1", "head -1"):
+        p = subprocess.run(["bash", "-c", "%s 2>&1 | %s" % (cmd, trim)], capture_output=True,
+                           text=True, env=env, timeout=TIMEOUT)
+        line = p.stdout.strip()
+        token = (re.search(r"lease ([0-9a-f]{32}) ", line) or re.search(r"ALLOC_TOKEN=([0-9a-f]{32})", line))
+        assert token, "%s of the merged output names no lease: %r" % (trim, line)
+        if trim == "tail -1":
+            assert line.startswith("allocator: %s lease " % ("acquired" if verb == "acquire" else "adopted"))
+        lease = world.lease(token.group(1))
+        assert lease, "the named token is not the lease this call wrote"
+        if verb == "acquire":
+            world.run(env, "release", token.group(1), "--run-id", "run-A")
 
 
 def test_a_readonly_attach_writes_no_lease_and_names_none(world):

@@ -1,9 +1,6 @@
-<!-- SSOT snippet. The single home for the resource-teardown-before-DONE invariant: browser
-     pages/contexts/recordings (T2) and Odoo instance leases (T3) with one DONE-gate (T0),
-     one ownership rule (T1), and one failure-path rule (T4). Also the SSOT for the browser
-     single-flight (exclusivity) rule. Edit here only; consumers
-     point at ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md.
-     Operationalizes ODOO-AI-ETHOS #10 for browsers and instances. -->
+<!-- SSOT snippet: teardown before DONE - browser pages (T2), instance leases (T3), the DONE-gate
+     (T0), ownership (T1), failure paths (T4), and browser single-flight. Edit here only; consumers
+     point at ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md. -->
 
 # Resource Teardown Contract (close/release before DONE)
 
@@ -45,7 +42,9 @@ and instances are enforced differently" below):
   non-shared lease that THIS agent's own tool calls obtained remains and no T4 named handoff
   forwards it. It never lists a lease your parent or a sibling obtained. A parked lease is not a
   live lease here: its server is already stopped, so parking clears the gate exactly as releasing
-  does.
+  does. A turn end that WAITS for a still-running teammate you launched
+  (`spawner-completion-contract.md` R0 move 3) keeps your lease through that stop; your final
+  report (`SubagentHandback`) stays gated.
 - **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
   on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
   when it infers an apparently-open page from the transcript. You remain contract-bound to close

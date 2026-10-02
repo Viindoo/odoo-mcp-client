@@ -248,6 +248,58 @@ def test_the_refusal_names_the_command_its_output_file_and_a_move_for_each(tmp_p
     )
 
 
+# The Monitor tool's receipt, verbatim in shape (read from a live subagent transcript), and the
+# Bash tool's receipt for a foreground command that outran its timeout.
+_MONITOR_RECEIPT = (
+    "Monitor started (task {tid}, expires in 2m unless the source ends first; you get one notice "
+    "at expiry \u2014 re-arm if you still need the watch). You will be notified on each event. "
+    "Keep working \u2014 do not poll or sleep."
+)
+_MOVED_RECEIPT = (
+    "Command did not complete within its 120s timeout and was moved to the background (ID: {tid}). "
+    "Output is being written to: /srv/run/tasks/{tid}.output. You will be notified when it completes."
+)
+
+
+def _receipt_transcript(tmp_path: Path, tool: str, text: str) -> Path:
+    path = tmp_path / "agent-m.jsonl"
+    path.write_text("\n".join([
+        json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "m1", "name": tool, "input": {"command": "until done; do sleep 2; done"}}]}}),
+        json.dumps({"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "m1", "content": text}]}}),
+    ]) + "\n", encoding="utf-8")
+    return path
+
+
+def test_a_subagent_stopping_with_its_own_live_monitor_is_refused(tmp_path):
+    """Observed live: a coordinator armed a Monitor to watch for a teammate's output, then ended its
+    turn. A Monitor is a background task like a backgrounded command - a session-wide
+    `type: "shell"` entry - and its "You will be notified on each event" receipt is written for the
+    root: nothing wakes a stopped dispatch for it. The refusal must say it is a Monitor, since a
+    Monitor has no output file to read."""
+    t = _receipt_transcript(tmp_path, "Monitor", _MONITOR_RECEIPT.format(tid="b56u3oz56"))
+    rc, out = _run(_subagent_payload(t, [_shell_task("b56u3oz56", command="until [ -s x ]; do sleep 2; done")]))
+    assert rc == 0 and _decision(out) == "block", out
+    reason = _reason(out)
+    assert "b56u3oz56" in reason and "monitor" in reason.lower(), reason
+
+
+def test_a_monitor_someone_else_started_is_not_this_subagents_problem(tmp_path):
+    t = _receipt_transcript(tmp_path, "Monitor", _MONITOR_RECEIPT.format(tid="bmine0001"))
+    rc, out = _run(_subagent_payload(t, [_shell_task("bother0002")]))
+    assert rc == 0 and out.strip() == "", out
+
+
+def test_a_foreground_command_moved_to_the_background_on_timeout_is_refused(tmp_path):
+    """A foreground Bash call that outruns its timeout is moved to the background and keeps
+    running under a task id the subagent was handed - the same unwakeable wait."""
+    t = _receipt_transcript(tmp_path, "Bash", _MOVED_RECEIPT.format(tid="bvpzo7bfj"))
+    rc, out = _run(_subagent_payload(t, [_shell_task("bvpzo7bfj")]))
+    assert rc == 0 and _decision(out) == "block", out
+    assert "/srv/run/tasks/bvpzo7bfj.output" in _reason(out)
+
+
 # --------------------------------------------------------------------------- #
 # 2. The narrow scope - what must NEVER be gated
 # --------------------------------------------------------------------------- #

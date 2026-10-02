@@ -497,24 +497,22 @@ def test_wi_worker_dependency_gate_defines_green_against_status_enum():
     ), "the gate must state BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT are never green"
 
 
-def test_coordinator_verifies_the_test_writer_return_before_the_integrated_run():
-    """The test-writer temporarily alters production code for each break-check. The coordinator
-    must not trust its word that the code was restored: before the integrated run it checks that
-    every behavior test carries a BREAK_CHECK record and that production is untouched - by
-    re-running the contract's production hash manifest (recorded before the test-writer launched)
-    and diffing the two. No commit separates the coders from the test leg, so that hash diff is
-    the only restore proof. Drop either check and a broken rule can be committed."""
+def test_coordinator_stands_still_while_the_test_writer_breaks_code_then_judges_its_report():
+    """The test-writer breaks production code on purpose to prove each test can fail. Three things
+    keep that safe and honest: the coordinator touches nothing on the node while it works (a build
+    or commit then would read or land broken code); it judges the returned report and, when the
+    report has a gap, re-launches the writer FRESH with what went wrong (PRIOR ATTEMPT) instead of
+    resuming it; and it never commits over a file the writer could not restore."""
     low = _norm(LEAD).lower()
-    assert "break_check:" in low, "the coordinator must require one BREAK_CHECK record per behavior test"
-    assert "production untouched" in low, (
-        "the coordinator must verify production code is untouched after the test leg"
+    assert "while the test-writer works, do nothing on the node" in low, (
+        "the coordinator must stay off the node (no build, edit or commit) while the writer works"
     )
-    assert "prod-hashes.txt" in low and "prod-hashes.after.txt" in low, (
-        "the production-untouched check must diff the hash manifest recorded before the test leg "
-        "against one re-recorded after it"
+    assert "judge its report" in low, "the coordinator must judge the test-writer's report"
+    assert re.search(r"re-launch `odoo-test-writer` fresh \(never resume it\) with `prior attempt`", low), (
+        "a gap in the report must re-launch the test-writer fresh, carrying PRIOR ATTEMPT"
     )
-    assert "test-sensitivity-contract.md` § code first, then the test leg" in low, (
-        "the coordinator must run the hash-manifest command of the contract (its SSOT), not a copy"
+    assert "never commit production code the test-writer reported it could not restore" in low, (
+        "the coordinator must never commit over production code left unrestored"
     )
 
 
@@ -547,8 +545,8 @@ def test_coordinator_commits_before_a_stop_never_while_it_waits():
     budget about to run out) with nothing committed is lost - a stall would cost the whole node.
     So every stop commits what was written, via Skill(git-toolkit:git-ops). But waiting on a
     dispatched teammate - in-turn or across a turn end, per R0 - is NOT a stop: the node's code stays uncommitted
-    while the test-writer works on that same tree (its restore proof is a hash manifest), and the
-    node lands as ONE plain commit - never squashed or amended into shape afterwards.
+    while the test-writer works on that same tree (it restores its own breaks), and the node's
+    commits land as plain commits - never squashed or amended into shape afterwards.
 
     What this proves: the rule is stated in the prose an executing agent reads. What it does NOT
     prove: that a commit actually happens at runtime - the only evidence for that is on disk."""

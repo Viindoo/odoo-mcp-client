@@ -182,7 +182,7 @@ def _lease(run_id="run-abc", mode="exclusive", pid=None, host=None, fresh=True, 
 
 
 def _run(tmp_path, lines, stop_hook_active=False, event="SubagentStop", leases=None,
-         session_lines=None, home=None, with_agent_path=True, extra_env=None):
+         session_lines=None, home=None, with_agent_path=True, extra_env=None, payload_extra=None):
     """Invoke enforce-teardown.sh with a crafted transcript + a ledger; return (rc, parsed).
 
     On SubagentStop `lines` is the SUBAGENT's own transcript (`agent_transcript_path`) and
@@ -204,6 +204,7 @@ def _run(tmp_path, lines, stop_hook_active=False, event="SubagentStop", leases=N
             payload["agent_transcript_path"] = str(tpath)
     else:
         payload["transcript_path"] = str(tpath)
+    payload.update(payload_extra or {})
     stdin = json.dumps(payload)
     env = dict(os.environ)
     env.pop("CLAUDE_PID", None)
@@ -474,6 +475,77 @@ def test_live_owned_lease_at_done_without_handle_is_blocked(tmp_path):
     assert "release" in reason and "--run-id run-abc" in reason, (
         "the reason must give the deterministic release command so the agent can self-correct"
     )
+
+
+# --------------------------------------------------------------------------- #
+# A stop that WAITS for a teammate is not the end of the dispatch (R0 move 3)
+# --------------------------------------------------------------------------- #
+_COORD_ID = "a-coord-1"
+_TEAMMATE_ID = "a5f0teammate01"
+_INTERACTIVE = {"CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SESSION_ATTENDED": "1"}
+_UNATTENDED = {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "CLAUDE_CODE_SESSION_ATTENDED": "0"}
+
+
+def _launched_teammate(aid=_TEAMMATE_ID):
+    """The coordinator's own async Agent launch and the receipt naming the teammate it started."""
+    use, tid = _tool_use_line("Agent", {"subagent_type": "odoo-ai-agents:odoo-test-writer",
+                                        "prompt": "write the RED test", "description": "test-first"})
+    receipt = ("Async agent launched successfully.\nagentId: %s (internal ID - do not mention to "
+               "user.)\nThe agent is working in the background. You will be notified "
+               "automatically when it completes." % aid)
+    return [use, _tool_result_line(tid, [{"type": "text", "text": receipt}])]
+
+
+def _teammate_task(aid=_TEAMMATE_ID, status="running"):
+    return {"id": aid, "type": "subagent", "status": status, "description": "test-first",
+            "agent_type": "odoo-ai-agents:odoo-test-writer"}
+
+
+def _waiting_stop(tmp_path, *, env, tasks, launched=True, extra_lines=()):
+    tok = "c0" * 16
+    lines = [*_acquired("run-w", tok), *(_launched_teammate() if launched else []),
+             *extra_lines, _line(content=[_text("Waiting for the test-writer to finish.")])]
+    payload = {"agent_id": _COORD_ID, "agent_type": "odoo-ai-agents:odoo-coder",
+               "background_tasks": [{"id": _COORD_ID, "type": "subagent", "status": "running",
+                                     "description": "node 1"}, *tasks]}
+    return _run(tmp_path, lines, leases=[_lease(run_id="run-w", token=tok)], extra_env=env,
+                payload_extra=payload)
+
+
+def test_a_coordinator_waiting_for_its_own_running_teammate_keeps_its_node_lease(tmp_path):
+    """Interactive R0 move 3: a coordinator ends its turn to WAIT for the teammate it launched and
+    is woken when the teammate finishes - its node lease is still in use. Ordering a release at
+    that stop destroys the instance the coordinator is about to build on."""
+    _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[_teammate_task()])
+    assert out is None or out.get("decision") != "block", out
+
+
+def test_on_an_unattended_surface_a_waiting_stop_is_still_the_end_of_the_dispatch(tmp_path):
+    """Unattended, nothing wakes a stopped subagent: the stop IS the end, the lease must be given
+    back or handed off."""
+    _, out = _waiting_stop(tmp_path, env=_UNATTENDED, tasks=[_teammate_task()])
+    assert out is not None and out.get("decision") == "block", out
+
+
+def test_a_teammate_that_already_finished_is_nothing_to_wait_for(tmp_path):
+    _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[])
+    assert out is not None and out.get("decision") == "block", out
+
+
+def test_a_running_agent_this_subagent_did_not_launch_is_not_its_wait(tmp_path):
+    """`background_tasks` is session-wide: a sibling's or the root's running agent proves nothing
+    about this subagent waiting, so the lease is still gated."""
+    _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[_teammate_task()], launched=False)
+    assert out is not None and out.get("decision") == "block", out
+
+
+def test_a_delivered_handback_is_final_even_with_a_teammate_running(tmp_path):
+    """A report handed back through SubagentHandback is the real final report: the lease is gated
+    as always, whatever is still running."""
+    use, tid = _tool_use_line("SubagentHandback", {"message": "DONE"})
+    _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[_teammate_task()],
+                           extra_lines=[use, _tool_result_line(tid, "Delivered to your caller.")])
+    assert out is not None and out.get("decision") == "block", out
 
 
 def test_acquire_with_addons_override_still_correlates_its_token(tmp_path):

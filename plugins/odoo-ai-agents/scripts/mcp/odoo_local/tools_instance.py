@@ -621,6 +621,10 @@ def _build(args, ctx):
     for flag, key in (("--db-host", "db_host"), ("--db-user", "db_user"), ("--db-port", "db_port")):
         if lease.get(key):
             argv += [flag, lease[key]]
+    if row.get("odoo_root"):
+        # The launcher fallback when no addons_path entry leads to the checkout (a worktree-only
+        # addons_path) - 55-instance-ops.sh _find_odoo_bin.
+        argv += ["--odoo-root", row["odoo_root"]]
     argv += _build_port_args(op, row, lease, token)
     if load:
         argv += ["--load", MODULE_LIST_SEP.join(load)]

@@ -1,10 +1,7 @@
-<!-- SSOT snippet. Orthogonal to test-behavior-contract.md (governs HOW a test is arranged)
-     and test-sensitivity-contract.md (governs the break-check); this one governs how a
-     test that legitimately emits a server/console WARNING or ERROR captures or mutes that
-     log so it never leaks into CI/Runbot output. Referenced (not copy-pasted) by
-     odoo-test-writing + odoo-test-writer (the authoring skill + its context-isolated agent),
-     odoo-code-reviewer, odoo-debug, and odoo-backend-debugger, plus docs/reference/ODOO-TESTING.md. Edit here only; consumers
-     point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md. -->
+<!-- SSOT snippet. How a test that legitimately emits a server/console WARNING or ERROR captures
+     or mutes that log so it never leaks into CI/Runbot output. Orthogonal to
+     test-behavior-contract.md and test-sensitivity-contract.md. Edit here only; consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md. -->
 
 # Expected-Log Contract (capture or mute the log a guard legitimately emits)
 
@@ -86,14 +83,9 @@ framework from memory.
 - Do NOT use `patchWithCleanup(console, ...)` as the primary suppress mechanism in Hoot -
   use `expectErrors` so the assertion is explicit.
 
-**QUnit does NOT have `expectErrors`. Hoot does NOT use `patchWithCleanup(console, ...)` as
-the primary idiom. Do not conflate the two frameworks.**
-
 ## mute_logger import
 
     from odoo.tools import mute_logger
 
-`mute_logger` is available as a decorator (`@mute_logger('odoo.sql_db')`) or as a context
-manager (`with mute_logger('odoo.sql_db'):`) - both forms are valid. The decorator form is
-convenient when the entire test body should suppress the logger; the context-manager form is
-preferred when suppression is scoped to a specific sub-operation within the test.
+Use it as a decorator when the whole test body is noisy, as a context manager when only one
+sub-operation is.

@@ -128,6 +128,11 @@
 #   - `reap-orphans` without `--yes` and `gc --dry-run`: both only LIST. They are deliberately not
 #     refused - a dispatch reporting what a janitor WOULD reclaim is exactly the upward report the
 #     refusals below ask for.
+#   - a HELP invocation (`allocator.py release --help`, `park -h`, `gc --help`): the allocator prints
+#     usage and exits before it reads anything else on the line (`main()` checks `-h`/`--help`
+#     anywhere in the verb's own arguments), so it mutates nothing and passes every arm. Only a bare
+#     `-h`/`--help` word counts - one inside a quoted value (`--reason "see --help"`) reaches the
+#     allocator as part of that value, so it never buys a pass.
 #   - a command substitution nested inside another one is unwrapped (`$(... $(...) ...)`), but a
 #     substitution inside a DATA heredoc body is not - that body is dropped before matching (see
 #     command-segments.sh), even though an unquoted heredoc delimiter would expand it.
@@ -394,6 +399,34 @@ _cmd_substitutions() {
   done
 }
 
+# True when the allocator would answer this segment with usage text and do nothing else: a bare
+# `-h` / `--help` word after the script path (the allocator's own `_HELP_TOKENS` check). Quote
+# state is carried across words, so a flag spelled inside a quoted value (`--reason "a --help b"`)
+# is part of that value - the allocator never sees it as a flag, and neither does this check.
+_alloc_help() {
+  local -a toks=()
+  read -r -a toks <<< "$1"
+  local n=${#toks[@]} i=0 tok q="" k ch
+  while (( i < n )); do
+    [[ "${toks[i]//[\"\']/}" == *allocator.py ]] && break
+    (( i++ ))
+  done
+  for (( i++; i < n; i++ )); do
+    tok="${toks[i]}"
+    if [[ -z "$q" ]]; then
+      case "$tok" in -h|--help|\'-h\'|\'--help\'|\"-h\"|\"--help\") return 0 ;; esac
+    fi
+    for (( k = 0; k < ${#tok}; k++ )); do
+      ch="${tok:k:1}"
+      if [[ "$ch" == "\\" && "$q" != "'" ]]; then (( k++ )); continue; fi
+      if [[ -z "$q" && ( "$ch" == "'" || "$ch" == '"' ) ]]; then q="$ch"
+      elif [[ "$ch" == "$q" ]]; then q=""
+      fi
+    done
+  done
+  return 1
+}
+
 # Every segment the shell would EXECUTE: the logical segments of the command, plus - to a fixed
 # depth - the logical segments of every command substitution inside any of them.
 _executed_segments() {
@@ -421,6 +454,7 @@ while IFS= read -r seg; do
   [[ -n "$seg" ]] || continue
   VERB="$(_alloc_verb "$seg")"
   [[ -n "$VERB" ]] || continue
+  _alloc_help "$seg" && continue          # usage text only: nothing to own
 
   # A2 first: an override flag is refused whatever else the segment says, so threading a run id
   # cannot buy a --force.
@@ -460,6 +494,7 @@ if [[ -z "$ARM" ]]; then
     [[ -n "$seg" ]] || continue
     VERB="$(_alloc_verb "$seg")"
     [[ "$VERB" == "release" || "$VERB" == "park" || "$VERB" == "adopt" ]] || continue
+    _alloc_help "$seg" && continue
     R="$(_a4_reason "allocator.py $VERB" "$(_alloc_token "$seg")" "$VERB")"
     [[ -n "$R" ]] && _deny "$R"
   done <<< "$SEGS"

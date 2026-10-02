@@ -118,9 +118,13 @@ ONLY when the dispatch brief carries `WORKTREE_PATH` + `SELF_PROVISION: worktree
 POLICY step, not a structural guarantee of the fork. Skipping it reopens the "dependency absent"
 BLOCKED path even though the source already sits in the tree.
 
-**Invariant 3 - the cherry-pick is a saga, not a bare pick.** Pick each node's returned commit onto
-that repo's run-integration branch in `depends_on` topo order via `git-toolkit:git-ops`, run that
-repo's card `verify` after each pick, and checkpoint only on a pass. A semantic conflict follows
+**Invariant 3 - the cherry-pick is a saga, not a bare pick.** Pick each node's returned commit
+range (`<node base>..<head>`, oldest first - normally one commit; a work-in-progress commit from an
+earlier stop is part of it, never squashed or amended) onto that repo's run-integration branch in
+`depends_on` topo order via `git-toolkit:git-ops`, run that repo's card `verify` after each node's
+range, and checkpoint only on a pass. Pick only the commits of that range not already on the
+run-integration branch (ask git-ops to compare them by patch id): a resumed node's
+range still holds the commits an earlier round already landed. A semantic conflict follows
 § Conflict Resolver below; a red verify applies the saga rollback in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` (clean-abort to the pre-node SHA, or
 resume from the last passing checkpoint). Never leave a half-built run-integration branch.
@@ -265,7 +269,7 @@ to `odoo-planning`. The intra-node work-item split is odoo-coder's private conce
 
 ## Cherry-pick Log
 
-| Node | Commit SHA | Verify result | Notes |
+| Node | Commit range | Verify result | Notes |
 |---|---|---|---|
 | <node-id-1> | pending | - | |
 | <node-id-2> | pending | - | |
@@ -593,10 +597,10 @@ Repo Capability Card: id=<this node's repo> base=<principal> verify=<command> co
 WORKLOG          : <runSlug> - read it, then append significant decisions
 RUN_ID           : <this run's id - the <id> of run-<id>.json; every lease the node acquires is owned
                    by it>
-Return: the commit SHA on the node's branch (REQUIRED - a DONE with no SHA is a failed contract;
-        the odoo-coder coordinator obtains the SHA by committing its coders' files via
-        git-toolkit:git-ops, NOT via a raw coder commit) so run-harness can cherry-pick it onto
-        run-integration.
+Return: the node's commit range `<node base>..<head>` on the node's branch, with each commit SHA
+        in it (REQUIRED - a DONE with no commit is a failed contract; the odoo-coder coordinator
+        commits its coders' files via git-toolkit:git-ops, NOT via a raw coder commit) so
+        run-harness can cherry-pick the range onto run-integration.
 ```
 
 ---
@@ -698,10 +702,10 @@ edit directly in `run-integration` (`<path>/run-integration`, the SAME tree this
 scoped to - no cherry-pick needed), or re-invoke `odoo-coding` with `WORKTREE_PATH` set to the
 affected node's OWN worktree (the SAME worktree `run-harness` provisioned for that node at dispatch,
 where its original code was authored) plus the AUTONOMOUS FIX (review-driven) sentinel. This third
-path uses a SEPARATE tree from `run-integration`, so it is not done until the returned SHA is
-cherry-picked back onto `run-integration` - the SAME
-`cherry_pick(sha, into = repos[node.repo].run_integration)` step
-`SKILL.md` § The loop performs for every node SHA, via the
+path uses a SEPARATE tree from `run-integration`, so it is not done until the returned commit
+range is cherry-picked back onto `run-integration` - the SAME
+`cherry_pick(range, into = repos[node.repo].run_integration)` step
+`SKILL.md` § The loop performs for every node, via the
 `git-toolkit:git-ops` skill, never a raw git command inline. **Re-run verify against
 `run-integration`'s current tip specifically** (never the node's own worktree, and never a
 worker's bare DONE self-report) after ANY of the fix paths above. The review node returns DONE only
@@ -768,7 +772,7 @@ worktree-aware. Without the field the stage's instance loads the CATALOG addons 
 translates, accepts or screenshots the PRINCIPAL checkout instead of the tree the PR ships - the same
 false-green stage (5)'s Worktree-targeting paragraph closes. Anything such a node authors outside
 `<path>/run-integration` reaches the PR only through the SAME
-`cherry_pick(sha, into = repos[node.repo].run_integration)` step the loop performs for every node SHA
+`cherry_pick(range, into = repos[node.repo].run_integration)` step the loop performs for every node
 (via `git-toolkit:git-ops`, never raw git; a semantic conflict follows § Conflict Resolver):
 `run-integration` is the ONLY branch the land tail squashes and pushes, so a doc file or a .po left
 on another branch never ships.
@@ -905,13 +909,13 @@ it replaces:
   § Cleanup Checklist above, never mid-run) - never an undefined "slice." Hand it the concrete lint
   output as evidence (the SAME "AUTONOMOUS FIX (review-driven)" sentinel pattern `odoo-code-review`
   already uses, in its own Autonomous fix loop).
-  `odoo-coding` commits the fix there and returns the SHA exactly as any node dispatch does
-  (§ Node Invocation Brief Template above, "Return: the commit SHA").
+  `odoo-coding` commits the fix there and returns the commit range exactly as any node dispatch
+  does (§ Node Invocation Brief Template above, "Return: the node's commit range").
 - **Cherry-pick the fix back onto `run-integration` (mandatory - the fix does not ship until this
   runs).** `run-integration` is the ONLY branch the terminal land-tail squashes and pushes; a fix
-  left on the node's own worktree branch never reaches the PR. Bring the returned SHA onto
+  left on the node's own worktree branch never reaches the PR. Bring the returned range onto
   `run-integration` the SAME way `SKILL.md` § The loop
-  brings every other node SHA onto it - `cherry_pick(sha, into = repos[node.repo].run_integration)`
+  brings every other node's range onto it - `cherry_pick(range, into = repos[node.repo].run_integration)`
   via the `git-toolkit:git-ops` skill. This loop never runs raw git mutations inline; the repo's
   git-delegation rule binds it exactly as it binds every other mutation in this file. A semantic
   conflict here follows the SAME § Conflict Resolver path as any other cherry-pick.
@@ -973,12 +977,12 @@ tests), then a verification node, then the terminal chain.
 Action: at Run start, sweep stale integration dirs and fork ONE `run-integration` branch + worktree
 for the repo. Per node: verify plan agreement (disjoint file scopes), fork the node's worktree FROM
 run-integration, INVOKE `odoo-coding` (which dispatches one `odoo-coder`, which commits the node and
-returns the SHA). The three carry no `depends_on` edges between one another and their file scopes are
+returns its commit range). The three carry no `depends_on` edges between one another and their file scopes are
 disjoint, so they are BATCH-ADMISSIBLE
 (§ Batch admission): size the batch to MEASURED
 machine headroom - each node self-provisions its own ephemeral instance - then launch the admitted
-members in ONE message and collect their results per R0 of spawner-completion-contract.md. Cherry-picking each returned SHA back onto run-integration
-stays STRICTLY one at a time, with per-node verify and checkpoint.
+members in ONE message and collect their results per R0 of spawner-completion-contract.md. Cherry-picking each returned range back onto run-integration
+stays STRICTLY one node at a time, with per-node verify and checkpoint.
 Then the verification node runs the suites GREEN, the review node reviews the aggregate
 diff, and the terminal `integrate` node runs the pre-PR tail, its existence precheck, squashes
 run-integration, pushes, and opens ONE PR (tree-identity verified); STOP at "PR opened". No merge.

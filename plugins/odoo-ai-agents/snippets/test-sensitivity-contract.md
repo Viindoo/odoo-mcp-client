@@ -1,146 +1,115 @@
-<!-- SSOT snippet: node order (code, then tests), the no-test-leg set, the break-check and its
-     records. HOW one test is written: test-behavior-contract.md. Consumers cite
+<!-- SSOT snippet: the code-then-test principles - who writes what, when a test is needed, and the
+     real break-check that proves a test guards its rule. HOW one test is written:
+     test-behavior-contract.md. Consumers cite
      ${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § <heading>. -->
 
-# Test-Sensitivity Contract (code first, then a test proven by a real break-check)
+# Test-Sensitivity Contract (code first, then a test proven by breaking the rule)
+
+These are principles, not a script. Real changes vary more than any list can foresee: apply each
+one with judgment and say what you decided.
 
 ## Code first, then the test leg
 
-Inside one node, with NO commit between the coders and the test leg:
+`odoo-backend-coder` / `odoo-frontend-coder` write production code only - they never author or edit
+a test - and return their file lists, a one-line behavior summary, and `OBSOLETE TESTS` (existing
+tests the REQUEST makes obsolete, or `none`). Then ONE `odoo-test-writer` per node writes the new
+tests or adjusts the existing ones, taking every expected value from the REQUEST / design AC, never
+from the code. Nothing is committed between the coders and the test leg.
 
-1. `odoo-backend-coder` / `odoo-frontend-coder` write the code, never a test, and return their file
-   lists, one-line behavior summaries and `OBSOLETE TESTS`.
-2. The coordinator decides the test leg (§ No test leg).
-3. **Restore baseline.** Before launching the test-writer, the coordinator hashes every production
-   file of the node's modules from `WORKTREE_PATH` - all but `tests/`, `static/tests/`,
-   `static/tours/` and `__pycache__/` (a test run writes `.pyc` files) - bounded, no git:
-   ```
-   mkdir -p <ISOLATE_DIR>/<node> && for m in <module dir>...; do find "$m" -type f ! -path '*/__pycache__/*' ! -path "$m/tests/*" ! -path "$m/static/tests/*" ! -path "$m/static/tours/*" -print0; done | sort -z | xargs -0r sha256sum > <ISOLATE_DIR>/<node>/prod-hashes.txt
-   ```
-4. ONE `odoo-test-writer` per node writes or adjusts the tests - expected values from the REQUEST /
-   design AC, never from the code - and break-checks each (§ The break-check). It keeps edits in
-   test files only, plus `__manifest__.py` solely to register test assets (JS test / tour bundles),
-   reported as `MANIFEST TEST ASSETS`.
-5. **Restore proof.** The coordinator re-runs step 3's command into `prod-hashes.after.txt` and
-   `diff`s the two. Any difference - other than a reported `MANIFEST TEST ASSETS` manifest - is a
-   restore failure: re-dispatch the test-writer, never commit.
-6. The integrated run (§ The loop, bounded); then ONE plain commit of the node (`COMMIT: self`), or
-   no commit and the file list returned (`COMMIT: caller`).
+While the test-writer works it breaks production code on purpose, so nobody else builds, edits or
+commits in that node until it returns. It edits test files only, plus `__manifest__.py` solely to
+register test assets (a JS test or tour bundle), and says so in its report.
 
 ## No test leg
 
-The COORDINATOR decides from the ACTUAL change - the coders' file lists, each file's diff against
-the node base read with a bounded read - never from the brief. Skip the test leg only when every
-changed file is `comment-only` (comments/docstrings), `prose-rename` (a name inside comment/doc
-prose), `formatting` (whitespace/indentation only - reordering fields or elements is observable,
-never formatting), `docs` (files no Odoo runtime loads), `translation-text` (`.po`/`.pot` msgstr
-only) or `manifest` (only `__manifest__.py` keys: a manifest-only diff needs no test; a file a
-manifest key loads is judged by its own diff). Any other runtime-observable edit requires the test
-leg. Record the category + file list in the worklog and launch no test-writer.
+Judge from the actual change (its diff), not from the brief, whether a new test is needed. Comments,
+docstrings, formatting, docs, `.po`/`.pot` translations and manifest-only edits normally need none;
+a refactor relies on the existing suite staying green. These are examples, not a closed list - a
+reordered field or a changed default is behavior, not formatting. When you decide no new test is
+needed, say why in one line (report and worklog).
+
+An empty diff never means "no test needed" when the brief carries adapt work (`SOURCE TESTS`, a
+bucket-(a) commit, a deferred test leg): those tests are still owed.
 
 ## The break-check
 
-0. **Baseline.** Run the tests you authored or adjusted, and every existing test you claim as
-   COVERED, on the UNBROKEN code: all pass, selected > 0. A test red on correct code is wrong - fix
-   it before any break.
-1. **Copy + hash.** Before altering a production file:
-   `cp <file> <ISOLATE_DIR>/break-check/<relative path>` and record its `sha256sum`.
-2. **Break** exactly the rule (§ How to break each change kind) so the result is wrong and the code
-   still loads.
-3. **Run only the guarding tests, at method granularity:** `instance_build` op `test`, `test_mode`
-   `reuse`, `test_tags` `/<module>:<Class>.<method>[,/<module>:<Class>.<method>...]`. Read selected
-   and failed from the returned summary (`TESTS_RUN`, the failed count): selected must equal the
-   number of tests you targeted.
-4. **Restore** by copying each file back; re-hash - every hash must match step 1.
+A test earns its place only if it FAILS when the business rule it guards is deliberately broken.
+Prove it for real, e.g. for "a line discount above 20% is refused":
 
-Only the tests you AUTHORED, ADJUSTED or claim as COVERED must go red; an existing test of adjacent
-behavior may stay green. A targeted test that stays green guards nothing: strengthen it, re-run.
-**Red** = the targeted test FAILS, at an assertion or because its act step raises the business
-exception the broken rule produces (an accept-path save that now raises `ValidationError`).
-Deleting a field, model, external id or imported symbol to break is banned; neutralising a method
-body, or removing a method nothing else references, is allowed. An unproven restore is `BLOCKED`,
-naming the file.
+1. Run the test on the unbroken code: it passes. A test red on correct code is wrong - fix it first.
+2. Keep a copy of each production file before you edit it (under your `ISOLATE_DIR`).
+3. Break exactly that rule while the code still loads (§ How to break each change kind) - here,
+   skip the cap check in the constraint.
+4. Run only the affected tests, at method granularity (`test_tags` `/<module>:<Class>.<method>`),
+   and watch them fail - on an assertion, or on the business exception the broken rule produces.
+5. Restore every file exactly as it was from your copy and confirm it is back (e.g. its
+   `sha256sum` matches the copy).
 
-**Instance.** Run steps 0 and 3 through `Skill(odoo-instance)` inline on the forwarded
-`INSTANCE_HANDLE` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a
-forwarded handle); never provision one. `odoo-coder` always forwards it; from any other caller it
-is optional - without it, write the tests, run nothing, and return `NEEDS_NEXT: odoo-instance` with
-`PENDING BREAK_CHECK`.
+A test that stays green guards nothing: strengthen or replace it, then break-check it again.
 
-**Database state.** A break that touched an XML/CSV data file leaves broken records in the
-database (`data-file yes` on its record). The next VERDICT on that database comes from a fresh
-build when any record says `data-file yes`; otherwise a `reuse` run is enough.
+**Restore is your own duty.** Never leave production code broken - not on success, not on failure,
+not when you stop early. If you cannot restore a file, return `BLOCKED` naming it.
+
+**Instance.** Run through `Skill(odoo-instance)` inline on the forwarded `INSTANCE_HANDLE`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle);
+never provision a new database. With no handle, write the tests, run nothing, and return
+`NEEDS_NEXT: odoo-instance` naming the break-checks still owed as method-level tags (e.g.
+`PENDING BREAK_CHECK: /sale_cap:TestDiscountCap.test_above_cap_refused`).
+
+**Database state.** A verdict must come from a database that reflects the restored code: re-run with
+`-u` (`reuse`); rebuild fresh when a break touched a data file (XML/CSV) or the schema, because
+records and columns outlive the file restore. Use judgment.
 
 ## Broken measurement is not a red
 
-A failure that never exercised the rule proves nothing - fix it and re-run: `KeyError` on a model;
-`Invalid field`; missing external id; `AttributeError` on an undefined method; `ImportError` or a
-file missing from `tests/__init__.py`; ParseError / failed install-upgrade; fixture/env error;
-0 tests selected, or fewer than you targeted. JS: unregistered component/service, asset build
-error, a tour selector that never appears.
+A failure that never reached the rule proves only that the code is broken. Deleting a field, model,
+external id or import to "break" a rule produces exactly that. Typical shapes: `KeyError` on a
+model, `Invalid field`, a missing external id, `ImportError` or a test file missing from
+`tests/__init__.py`, a ParseError or failed upgrade, a fixture error, 0 tests selected; in JS an
+unregistered component or an asset build error. Fix the break and run again.
 
 ## How to break each change kind
 
-`CHANGE KIND` takes exactly one row value per behavior.
-
-| Change kind | Break |
-|---|---|
-| `new` | neutralise the rule |
-| `altered` | put the old rule back |
-| `bug fix (fix hunk file:lines)` | neutralise the fix as it stands at those lines (the regression test must fail) |
-| `removal` | reintroduce the behavior (the test asserts it is gone) |
-| `access` | restore the old rule/domain (the test acts `with_user()`) |
-| `performance` | restore the per-record query / exceed the budget |
-| `data migration` | skip the migration step |
-| `view` (view / QWeb / OWL) | revert the modifier/binding (assert the rendered/behavioral outcome) |
-| `refactor` | none - no new test; the touched suite is green before and after |
-| `adapt (rule file:lines)` | break the business rule the forwarded test guards, at those lines - never "disable the adapt code" |
+Break the rule so the test's expected outcome becomes wrong. Examples, not a closed list: a new rule
+-> neutralise it; a changed rule -> put the old one back; a bug fix -> undo the fix (the regression
+test must fail); a removed behavior -> reintroduce it; an access rule -> restore the old rule or
+domain (the test acts `with_user()`); a forwarded / adapted test -> break the business rule it
+guards in the target code, never "disable the adapt code". An accept-path test ("a 20% discount is
+allowed") is proven by breaking the rule the other way: tighten it so 20% is refused.
 
 ## Break-check record
 
-Return exactly these lines; the coordinator rejects a malformed line and re-dispatches:
+Report briefly, one free-form line per behavior test: the test, what you broke, how it failed, that
+you restored it. For example:
 
-```
-BREAK_CHECK: <module>:<Class>.<method> | broke <file:line> - <rule> | red <assertion file:line | raised <ExceptionType>> | selected <n> | restored sha256 match | data-file <yes|no>
-COVERED: <module>:<Class>.<method> - <behavior> | <its own BREAK_CHECK fields>
-ADJUSTED: <test> - intent <old> -> <new> per <REQUEST item/AC>
-ABSORBED: <test> - probe green on target, no ported code to break
-NO NEW TEST: <behavior> - refactor, suite green before and after
-MANIFEST TEST ASSETS: <manifest file> - <keys added>
-PENDING BREAK_CHECK: <test ids>
-```
+    test_above_cap_refused - broke models/sale_order_line.py:42 (cap check skipped) - failed: ValidationError not raised - restored, hash matches
 
-An `ADJUSTED` line is followed by its test's `BREAK_CHECK`. `ABSORBED` (bucket (a) only,
-§ Absorption probe) stands wherever a forwarded test owes a `BREAK_CHECK`. `PENDING BREAK_CHECK`
-names every test whose baseline and break-check are owed when no handle was forwarded.
+Also say which existing tests already cover a behavior (you broke its rule and they failed), and
+which existing tests you adjusted and why. Put the same lines in your worklog entry.
 
 ## Adjusting an existing test
 
-Extending a partly-protected behavior = ADD a new test method to the existing test class, then
-break-check it. ADJUSTED is only for an expectation the REQUEST made obsolete. Never adjust to fit
-an unintended result; never relax or delete an assertion to get green (removing a
-translated/display text or manifest/name-freezing assertion is cleanup - say so). On a re-dispatch
-whose `PRIOR ATTEMPT` names tests you already wrote, do not re-author them: run only their pending
-baseline + break-checks (your own earlier tests are never `COVERED`).
+Search the existing tests first: a behavior they already cover needs nothing new (break-check them
+and report them as covering); a partly covered one gets a new test method in the existing class.
+Adjust an existing test only where the REQUEST changed that behavior or renamed a symbol it uses.
+Never adjust a test to fit an unintended result, and never relax or delete an assertion to get green
+(removing a translated-text or name-freezing assertion is cleanup - say so).
 
 ## The loop, bounded
 
-Integrated run red: compare each failing test to the REQUEST items first. A test failing on a
-symbol the REQUEST or the adapt renamed or removed (`BROKEN TEST-SYMBOLS`), an expectation the
-REQUEST explicitly changes, or one whose intent contradicts the REQUEST/AC -> re-dispatch
-`odoo-test-writer`. A test for behavior the REQUEST did not change -> code regression, re-dispatch
-the coder. Unsure -> the code is wrong. Restore mismatch -> re-dispatch `odoo-test-writer`, never
-commit. Max 3 iterations, then `BLOCKED` with evidence. Log each iteration
-(`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+Integrated run red: compare each failing test with the REQUEST. Its expectation was changed by the
+REQUEST, or it names a symbol the REQUEST renamed or removed -> re-launch the test-writer. It tests
+behavior the REQUEST did not change -> the code regressed: re-launch the coder. Unsure -> treat the
+code as wrong. Re-launch a worker fresh and tell it what happened before (`PRIOR ATTEMPT`) and what
+is wrong now (the failure evidence). At most 3 rounds, then `BLOCKED` with the evidence. Log each
+round (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-## Absorption probe (forward-port classification, not a test gate)
+## Absorption probe
 
-For a commit bucketed (a), the node's single test-writer launch runs the probe AFTER the node's
-(b)/(c) code is adapted. The merge keeps a cleanly-merged (a) hunk in the tree
+Forward-port only, for a bucket-(a) commit: the node's single test-writer launch runs the probe
+AFTER the node's (b)/(c) code is adapted. The merge can leave the (a) commit's own code in the tree
 (`${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md` § Skip-code-but-still-absorb rule), so
-probe with that code out of play: copy + hash (§ The break-check step 1), neutralise the (a)
-commit's hunks at the brief's `BUCKET a (hunks file:lines)`, run the forwarded source test, then
-restore and re-hash. GREEN -> `ABSORBED`. A load/import error in the test is a broken translation,
-never a classification: fix the test and re-run. The test FAILING, or production code that no
-longer loads once those hunks are neutralised, re-buckets to (b)/(c): the coordinator re-dispatches
-the coder, then the normal break-check.
+probe with that code out of play: run the forwarded source test, then restore. Green = absorbed by
+core: keep the test and report it absorbed. Red = the commit is really (b)/(c): it is re-bucketed,
+the coder adapts it, and the normal break-check follows. A load/import error in the test is a
+broken translation, never a classification - fix the test.

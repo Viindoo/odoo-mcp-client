@@ -249,6 +249,43 @@ def test_a_pool_busy_outside_the_registry_gets_a_distinct_remedy(client, world):
         blocker.close()
 
 
+def test_a_worktree_only_addons_path_that_drops_the_core_addons_is_refused_with_its_remedy(
+        client, world):
+    """Observed live: a lease whose addons_path named only the worktree found the launcher through
+    odoo_root, so its build started and then failed on every module depending on a core addon. The
+    acquire refuses it, tells the agent how to build the right path, and reserves nothing."""
+    from odoo_tree_fixtures import write_checkout
+
+    root = write_checkout(world["work"] / "odoo", SERIES)
+    core = root / "addons"
+    worktree = world["work"] / "wt"
+    worktree.mkdir()
+    (world["home"] / "instances.toml").write_text(
+        "[[instance]]\n"
+        f'series = "{SERIES}"\n'
+        f'python = "{sys.executable}"\n'
+        "http_port = 38169\n"
+        "http_port_base = 38170\n"
+        'db_name = "leasetest"\n'
+        'db_host = "localhost"\n'
+        'db_user = "odoo"\n'
+        f'odoo_root = "{root}"\n'
+        f'addons_path = ["{core}", "{world["addons"]}"]\n',
+        encoding="utf-8",
+    )
+    err = _err(_acquire(client, world, addons_path=[str(worktree)]))
+    assert err["code"] == "ADDONS_PATH_OVERRIDE_INVALID"
+    assert err["diagnostics"]["fields"]["reason"] == "core-addons-missing"
+    assert err["remedy"] == \
+        errors.TOOL_REMEDIES["ADDONS_PATH_OVERRIDE_INVALID"]["reasons"]["core-addons-missing"]
+    assert "replace only the entry that covers this repo" in err["remedy"]
+    assert _registry(world["home"])["leases"] == [], "a refused acquire must leave no lease behind"
+
+    lease = _ok(_acquire(client, world, addons_path=[str(core), str(worktree)]))["lease"]
+    assert lease["addons_path"] == [str(core), str(worktree)]
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
 # --------------------------------------------------------------------------- #
 # ownership + argument contract
 # --------------------------------------------------------------------------- #

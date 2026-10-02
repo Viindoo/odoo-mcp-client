@@ -16,8 +16,9 @@ Three sources merge into the table (later wins):
   - SERVER_CODES below: codes the server itself raises (argument validation, helper failures).
 
 A TOOL_REMEDIES value is normally a plain string. A code whose allocator-side refusal SPLITS by
-`fields.reason` (today, only PORT_POOL_EXHAUSTED: holders present vs. the pool busy with no lease
-holding it - see allocator.py PORTS_BUSY_OUTSIDE_REGISTRY) instead carries
+`fields.reason` (PORT_POOL_EXHAUSTED: holders present vs. the pool busy with no lease holding it -
+allocator.py PORTS_BUSY_OUTSIDE_REGISTRY; ADDONS_PATH_OVERRIDE_INVALID: missing directories vs. the
+core addons dropped - allocator.py CORE_ADDONS_MISSING) instead carries
 `{"default": <str>, "reasons": {<reason>: <str>}}`; `remedy_for(code, diagnostics)` picks the
 `reasons` entry when `diagnostics["fields"]["reason"]` names one, else `default`. This is still
 ONE table per code - never a second reason-keyed table alongside it.
@@ -79,7 +80,14 @@ SERVER_CODES = {
 TOOL_REMEDIES = {
     "USAGE": "Correct the argument named in the message, then call again.",
     "SERIES_REQUIRED": "Pass series (X.Y) explicitly; nothing is picked for you. catalog_read lists the declared series.",
-    "ADDONS_PATH_OVERRIDE_INVALID": "Pass addons_path entries that are existing absolute directories.",
+    "ADDONS_PATH_OVERRIDE_INVALID": {
+        "default": "Pass addons_path entries that are existing absolute directories.",
+        # allocator.py CORE_ADDONS_MISSING: the entries exist, but none holds the Odoo checkout's
+        # core addons the catalog row declares, so every module depending on one fails at load.
+        "reasons": {
+            "core-addons-missing": "Your addons_path drops the Odoo checkout's core addons (named in the message). Keep the catalog row's addons_path (catalog_read shows it) and replace only the entry that covers this repo with your worktree path, then call lease_acquire again.",
+        },
+    },
     "NO_INSTANCE_CATALOG": "No instance catalog (instances.toml) declares any instance: run /odoo-ai-agents:odoo-setup to declare the series' instance (catalog_read shows which catalog is read), then call again.",
     "NO_INSTANCE": "No catalog instance matches that series/profile: check with catalog_read, or declare one with /odoo-ai-agents:odoo-setup.",
     "EXCLUSIVE_CONFLICT": "That database is held exclusively by another lease: use mode ephemeral for an isolated database, or retry later. Never release a lease you did not acquire.",
@@ -92,7 +100,7 @@ TOOL_REMEDIES = {
             "ports-busy-outside-registry": "No lease holds a port of this pool (diagnostics.fields.holders is empty), yet none can be bound: the ports are held outside the lease registry (TIME_WAIT, or a process the allocator does not track). Retry shortly; if it persists, report to the user.",
         },
     },
-    "ADDONS_PATH_WORKTREE_MISMATCH": "Your cwd is a different worktree of a catalog addons repo: call lease_acquire again with addons_path naming the tree you are building (normally your worktree's addons dirs).",
+    "ADDONS_PATH_WORKTREE_MISMATCH": "Your cwd is a different worktree of a catalog addons repo: call lease_acquire again with addons_path = the catalog row's addons_path (catalog_read shows it) with the entry that covers this repo replaced by your worktree path.",
     "NO_CREATEDB": "The database role may not CREATE DATABASE: ask the user to grant CREATEDB, or pass no_create true if you create no database, or mode exclusive and say in your report that isolation is NOT provided.",
     "CREATEDB_UNDETERMINABLE": "CREATEDB could not be determined: run /odoo-ai-agents:odoo-setup for this series (declares python/odoo_root/db_run_mode) or start the cluster, then call again.",
     "DB_AUTH_DENIED": "Odoo cannot authenticate to Postgres: run /odoo-ai-agents:odoo-setup, or ask the user to export ODOO_PG_PASSWORD before the session starts.",

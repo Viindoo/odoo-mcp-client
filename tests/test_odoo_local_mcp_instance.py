@@ -365,6 +365,30 @@ def test_build_hands_the_script_every_lease_fact_via_the_ops_script_override(wor
     assert done["result"] == "success"
 
 
+def test_build_hands_the_script_the_declared_odoo_root(world, tmp_path):
+    """The build script locates the Odoo launcher on the served addons_path and falls back to the
+    instance's declared odoo_root - but only when it is handed that root. A lease whose
+    addons_path names only a worktree of custom modules failed every build ("Could not locate the
+    Odoo server launcher") because instance_build never passed it; an undeclared root is omitted."""
+    stand_in, record = _ops_recorder(tmp_path)
+    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world)
+        _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
+        _ok(c.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+    assert "--odoo-root" not in json.loads(record.read_text())["argv"]
+
+    core = world["addons"].parent
+    toml = world["home"] / "instances.toml"
+    toml.write_text(toml.read_text() + 'odoo_root = "%s"\n' % core, encoding="utf-8")
+    with McpClient(world["env"](ODOO_AI_OPS_SCRIPT=str(stand_in)), world["work"]) as c:
+        c.initialize()
+        lease = _lease(c, world)
+        _wait(c, _ok(_build(c, world, lease["token"]))["job_id"])
+    argv = json.loads(record.read_text())["argv"]
+    assert dict(zip(argv[1::2], argv[2::2])).get("--odoo-root") == str(core), argv
+
+
 # --------------------------------------------------------------------------- #
 # a build binds the lease's port, with the flag its series spells
 # --------------------------------------------------------------------------- #

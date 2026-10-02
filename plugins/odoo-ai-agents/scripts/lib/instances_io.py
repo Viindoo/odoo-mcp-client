@@ -423,6 +423,18 @@ def core_server_wide_default(odoo_root, addons_paths=None):
     return list(mods) if mods is not None else None
 
 
+def core_addons_missing(odoo_root, declared_paths, override_paths):
+    """The catalog's core-addons entries (odoo_source_facts.core_addons_dirs of the DECLARED
+    addons_path) that an addons_path override drops: a worktree-only override still finds the
+    launcher through odoo_root, but every module that depends on a core addon then fails at load.
+    Empty when nothing is dropped or the checkout cannot be read."""
+    facts = _source_facts()
+    if facts is None:
+        return []
+    required = facts.core_addons_dirs(odoo_root, declared_paths)
+    return facts.uncovered_addons_dirs(required, override_paths)
+
+
 class ServerWideOverrideInvalid(Exception):
     """A per-call server-wide adjustment (exclude / include) that cannot be
     applied. `field` is `exclude` or `include`, `modules` the names refused,

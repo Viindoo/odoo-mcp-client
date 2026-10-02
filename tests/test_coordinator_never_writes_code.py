@@ -238,6 +238,39 @@ def test_a_worktree_path_is_not_mistaken_for_a_scratch_tree():
     _denied(_run("Edit", {"file_path": "/repos/x/.claude/worktrees/f/addons/x/models/s.py"}))
 
 
+@pytest.mark.parametrize("root", [
+    "/tmp/live2/repo",                                        # a worktree made under the temp dir
+    "/tmp/claude-1000/-proj/sess-1/scratchpad/live2/repo",    # ... or under a session scratchpad
+])
+def test_module_source_under_the_system_temp_dir_is_still_module_source(root):
+    """Observed live: a coordinator edited `x_cap_order.py` in a worktree under the system temp
+    dir and was not refused, because every temp path was treated as scratch. The temp dir is wiped
+    on reboot, so no durable work - and no scratch this plugin writes - belongs there; a source file
+    there is module source like any other, by the Edit tools and by a Bash write alike."""
+    target = f"{root}/addons/x_cap/models/x_cap_order.py"
+    _denied(_run("Edit", {"file_path": target}))
+    _denied(_run("Write", {"file_path": target}))
+    _denied(_run("Bash", {"command": f"cat > {target} <<'EOF'\nx = 1\nEOF"}))
+    _denied(_run("Bash", {"command": f"sed -i 's/a/b/' {target}"}))
+
+
+def test_the_state_root_and_the_callers_state_dirs_stay_scratch(tmp_path):
+    """The exemption is keyed on where this plugin keeps state - the state root and the caller's
+    SHARE / ISOLATE dirs, wherever they were relocated to - so a coordinator's own scratch script
+    there is never refused, even when the relocation is under the system temp dir."""
+    home, share, isolate = tmp_path / "ai-home", tmp_path / "share", tmp_path / "iso"
+    env = {
+        "ODOO_AI_HOME": f"{home}/",
+        "ODOO_AI_PROJECT_DIR": str(share),
+        "ODOO_AI_WORKTREE_DIR": str(isolate),
+    }
+    for d in (home, share, isolate):
+        _passed(_run("Write", {"file_path": str(d / "probe.py")}, env_overrides=env))
+        _passed(_run("Bash", {"command": f"cat > {d}/probe.py <<'EOF'\nx=1\nEOF"}, env_overrides=env))
+    # A sibling of the state root that merely shares its name prefix is not inside it.
+    _denied(_run("Write", {"file_path": f"{home}-src/addons/x/models/s.py"}, env_overrides=env))
+
+
 # --------------------------------------------------------------------------- #
 # Bash-mediated writes - the path this environment actively steers agents into
 # --------------------------------------------------------------------------- #

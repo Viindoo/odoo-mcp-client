@@ -1,12 +1,8 @@
-<!-- SSOT snippet. The single home for the completion discipline every dispatched agent obeys:
-     completion barrier, no-early-DONE, the return path (R3 - your report reaches your launcher
-     exactly once, after teardown), and the same-turn rule for a background shell command (R0 § A
-     background shell command is a SAME-TURN result - the ONE home for that rule; never restate
-     it elsewhere).
-     Always-on and unconditional: it holds identically for a Tier-C cold-spawn, for a
-     resumed child, and at any nesting depth. R3 is the ONE place the message-direction rule is
-     defined; every other file points here and never restates it. Edit here only;
-     consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md. -->
+<!-- SSOT snippet. The completion discipline every dispatched agent obeys: completion barrier,
+     no-early-DONE, the return path (R3 - the ONE home of the message-direction rule), and the
+     same-turn rule for a background shell command (R0 - its ONE home). Always-on and
+     unconditional: identical for a Tier-C cold-spawn, a resumed child, and any nesting depth.
+     Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md. -->
 
 # Spawner Completion Contract (barrier + no-early-DONE + return path)
 
@@ -35,9 +31,9 @@ Before launching any agent, look at the agent-launch tool you hold. It alone dec
 **An async receipt under move 2.** You hold the parameter, yet a launch - or a resume send to a
 child you launched (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A) - hands
 back an asynchronous receipt (`Async agent launched successfully`): do NOT end your turn. Wait for
-it in this turn per R0 move 2 - keep making tool calls (a bounded sleep in a Bash call, then a look
-at what has arrived) until its completion notification reaches you at a tool round, then read the
-result. Every response you emit before you hold it MUST carry a tool call.
+it in this turn per R0 move 2 - wait in-turn with the Monitor tool or a short bounded poll loop,
+then look at what has arrived, until its completion notification reaches you at a tool round; then
+read the result. Every response you emit before you hold it MUST carry a tool call.
 
 **The main conversation** (the session the user talks to; a skill invoked there runs in it) may take
 move 2 or move 3 - it is notified of every completion on every surface. On an unattended surface a
@@ -59,10 +55,11 @@ because the harness failed to send it, but because you never stopped to receive 
 
 So: commit what you have written, issue every launch this turn needs - independent children in ONE
 message - then write nothing further except a one-line note of what you are waiting for, and END THE
-TURN. Never end a turn with uncommitted work, with ONE exception: work your contract keeps
-uncommitted because the child you launch works on that same tree (a node's code before its test
-leg - the restore proof is a hash manifest, never a checkpoint commit:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+TURN. Never end a turn with uncommitted work, except work you must not commit yet: a node's code
+before its test leg (the child works on that same tree -
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg), or
+any work under `COMMIT: caller`, where your caller owns the commit (an open merge window, a
+rebase in progress).
 
 ### A background shell command is a SAME-TURN result - nothing wakes you for one
 
@@ -74,8 +71,9 @@ while one is still running and the result reaches nobody: your caller receives w
 left behind, and the command finishes alone.
 
 Backgrounding is not restricted - ONE shape is correct. Start the command, then stay in the SAME
-turn and drive it to a result with FOREGROUND tool calls: a call that blocks until the command is
-finished, then a read of its output file, repeating that foreground wait as many times as it takes.
+turn and drive it to a result with FOREGROUND tool calls: wait in-turn with the Monitor tool or a
+short bounded loop until the command is finished, then read its output file, repeating as many
+times as it takes.
 Every response you emit before you hold the result MUST carry a tool call; a text-only "still
 running" reply is the stall itself, never compliance with the receipt. If the result cannot be had
 inside this turn, kill the command, or report `status: BLOCKED` naming its output path - never a

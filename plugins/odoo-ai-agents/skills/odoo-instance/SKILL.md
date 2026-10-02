@@ -319,28 +319,15 @@ A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and
 HANDLE-CONSUMER branch below changes them. Only with NO handle does the caller self-provision via
 the numbered steps as written.
 
-**HANDLE-CONSUMER branch (an `INSTANCE_HANDLE` is in the brief).** The handle's lease stays its
-owner's: never provision a new database, never release, park or adopt the handle's own lease. An
-`init` / `update` build or a serve passes the handle's own `lease_token`. A TEST build binds the
-lease's reserved port, and the handle's server may already listen on that port, so every `op test`
-runs on a port lease of your own on the handle's DATABASE
-(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle):
-
-- **Step 1 becomes: your port lease.** Skip the ephemeral acquire. Before your first test run, take
-  ONE `lease_acquire` of your own: mode `exclusive`, `no_create` true, `ports` 1, with the handle's
-  `db_name`, `addons_path`, `series` and `run_id`, `cwd` = your `WORKTREE_PATH` (else the current
-  checkout). It creates and drops no database.
-- **Steps 2-3** as written (pin the series, ground flags, apply the HARD RULES).
-- **Step 4 runs on YOUR lease.** Every `instance_build` op `test` on THAT lease's token, never the
-  handle's: `test_mode` `reuse` (the handle's database already holds its modules), `test_tags` as
-  the caller resolved them (per-method `/<module>:<Class>.<method>[,...]` for a break-check), the
-  caller's `server_wide` when it names one; then `job_wait` until terminal, reading `TESTS_RUN` and
-  the failed counts from its summary. Hold the one lease for every run on that database. When the
-  tool reports the database busy, `job_wait` the job it names, then retry the call.
-- **Step 5 releases only YOUR lease** - `lease_release` with its token and the `run_id`, before you
-  return, on every exit; it drops nothing (a `no_create` exclusive lease never owns its database).
-  The handback is refused while a lease you obtained is live. When you report a handle, it is the
-  forwarded one, unchanged - never your released lease's.
+**HANDLE-CONSUMER branch (an `INSTANCE_HANDLE` is in the brief).** Never provision a database (skip
+step 1's acquire) and never release, park or adopt the handle's own lease; an `init` / `update` build or a serve runs on
+the handle's token. A test build binds the lease's port, so use judgment: when no server listens on
+the handle's port, run it on the handle's token; when one does, take one small lease of your own on
+the handle's database - one port, creating and dropping nothing - and run every `op test` there with
+`test_mode` `reuse` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Release what you
+took before you return, on every exit
+(`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1), and report the forwarded handle
+unchanged.
 
 Every step runs through the odoo-local tools (`mcp__plugin_odoo-ai-agents_odoo-local__<tool>`).
 If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md.

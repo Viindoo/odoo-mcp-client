@@ -1,10 +1,5 @@
-<!-- SSOT snippet. The single home for the CALLER-side dispatch-brief schema - how any
-     spawner (main agent, a dispatching skill, or a nested coordinator) fills the dispatch
-     prompt when it dispatches a specialist agent. This is the input-side counterpart
-     to `worker-brief.md` (worker-side behavior the leaf must execute). Read BY PATH by
-     non-leaf spawners composing a dispatch prompt; NEVER inlined verbatim into a hard-leaf
-     brief - a leaf self-checks against only the family-delta field list carried inline in its
-     own body. Edit here only; consumers point at
+<!-- SSOT snippet: the CALLER-side dispatch-brief schema (input-side counterpart of
+     worker-brief.md). Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md. -->
 
 # Dispatch Brief (caller-side template)
@@ -93,8 +88,7 @@ grounding workers only, too).
 `odoo-coder` (coordinator/spawner - see the SPAWNER self-check variant below, not the leaf one),
 `odoo-backend-coder`, `odoo-frontend-coder`:
 
-- No test field: the coders write code only, never tests, and RETURN
-  `OBSOLETE TESTS: <existing test ids this REQUEST makes obsolete | none>`
+- No test field: the coders write code only and return `OBSOLETE TESTS`
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
 - `COMMIT` - `odoo-coder` only, optional: `self` (default) or `caller` (commit nothing, return the
   file list).
@@ -114,8 +108,8 @@ grounding workers only, too).
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
   `none` when no deep survey ran. Same key-must-be-present rule as field 4 `INPUTS`.
 - `WORKTREE_PATH` mandatory, with `SHARE_DIR` + `ISOLATE_DIR` (skeleton field 5).
-- `PRIOR ATTEMPT` - COND, on a re-dispatch that SUPERSEDES a failed pass ONLY (omit on a first
-  dispatch): what the failed pass returned or omitted, plus the path of the worklog entry it left.
+- `PRIOR ATTEMPT` - COND, on a re-dispatch only (omit on a first dispatch): what happened before
+  (what the earlier pass returned or left, its worklog entry) and what is wrong now (the evidence).
 
 ### Reviewer / auditor
 
@@ -154,15 +148,13 @@ grounding workers only, too).
 
 - The oracle/scenario file - expected results chosen BEFORE execution.
 - Environment / `INSTANCE_HANDLE` - `odoo-coder` always forwards one to `odoo-test-writer` (its
-  break-check runs use it); optional from any other caller (absent -> tests
-  written, `PENDING BREAK_CHECK`).
+  break-check runs use it); optional from any other caller (absent -> tests written, break-checks
+  returned as owed).
 - `odoo-test-writer` also gets `CHANGED CODE` (node base SHA + the coders' file lists + one-line
-  behavior summaries), `CHANGE KIND` per behavior (a row value of `test-sensitivity-contract.md`
-  § How to break each change kind), `CROSS-MODULE ASSERTIONS`, and in adapt mode `SOURCE TESTS`,
-  `BROKEN TEST-SYMBOLS`, `BUCKET`, `INTENT`, `TARGET TEST EXAMPLES`. A caller with no coder output
-  (`odoo-acceptance`, `odoo-code-review` coverage) derives `CHANGE KIND` from the code under test
-  (default `new`), sets `CHANGED CODE` = the files under review, and says so. Expected
-  values come from the REQUEST/AC, never the code.
+  behavior summaries; a caller with no coder output names the files under review),
+  `CROSS-MODULE ASSERTIONS`, and in adapt mode `SOURCE TESTS`, `BROKEN TEST-SYMBOLS`, `BUCKET`,
+  `INTENT`, `TARGET TEST EXAMPLES`. `CHANGE KIND` is an optional hint - the writer infers the change
+  from the code. Expected values come from the REQUEST/AC, never the code.
 - Roles/personas.
 - Adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence.
 - Exception - `odoo-qa-planner`'s input is the raw `REQUIREMENT`/intent, NOT the implementation.
