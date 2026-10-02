@@ -708,12 +708,14 @@ orchestrating context (main agent / run-harness / odoo-intake)
                     └── odoo-coder is the NODE COORDINATOR (launched ONCE PER WORK
                         NODE, whatever module(s) it touches): per work-item it
                         launches odoo-backend-coder and/or odoo-frontend-coder
-                        FIRST (code only), then - once the code is checkpointed - ONE
+                        FIRST (code only, nothing committed), then - once every
+                        work-item is done and it judges the node needs a test - ONE
                         odoo-test-writer that writes the tests and proves each with
-                        an executed break-check (all three are hard leaves), and
-                        tests the integrated node via
+                        an executed break-check (all three are hard leaves), tests
+                        the integrated node via
                         Skill(odoo-instance) - inline in its own context, or by
-                        launching odoo-instance-ops - whichever fits
+                        launching odoo-instance-ops - whichever fits - and commits
+                        the node, returning its commit range
 ```
 
 ### Leaf vs spawn
@@ -730,7 +732,7 @@ or by an orchestrator like `run-harness`), never by launching an agent with its 
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ **ONE `odoo-coder` COORDINATOR PER NODE, launched once per node** - whatever
 the node's stack tag, whether it touches one module, part of one, or several - which itself
-launches `odoo-test-writer`, `odoo-backend-coder` and/or `odoo-frontend-coder`; `odoo-coding`
+launches `odoo-backend-coder` and/or `odoo-frontend-coder` and then `odoo-test-writer`; `odoo-coding`
 never dispatches a worker directly, never splits one node's dispatch module-by-module, and never
 merges two nodes into one dispatch), `odoo-debug`,
 `odoo-solution-design`, `odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` /
@@ -741,15 +743,42 @@ level below `odoo-coding`, well under the depth cap - SSOT
 
 Within a node the teammates are ORDERED, not interchangeable: code first, then tests. For every
 work-item `odoo-coder` launches `odoo-backend-coder` and/or `odoo-frontend-coder`, which write
-production code and never author or edit tests. Once every work-item is done and the node is
-checkpointed, the coordinator decides the test leg from the ACTUAL diff and launches ONE
-`odoo-test-writer` for the whole node. That teammate writes new tests or adjusts existing ones, then
-proves each with an executed break-check: it alters exactly the business rule, the guarding test must
-fail on its assertion, and it restores the file and proves the restore by checksum. The test author
-is never the permanent code author, so independence is kept. The only node that skips the test leg
-is one whose diff falls in the closed no-test-leg categories (comment-only, prose-rename, formatting,
-docs, translation text, manifest keys), decided by the coordinator, never declared by a caller.
-Ordering SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`.
+production code and never author or edit tests; nothing is committed between the coders and the test
+leg, because the test author breaks production code on purpose and nobody else may build, edit or
+commit in the node until it returns. Once every work-item is done, the coordinator judges from the
+ACTUAL diff whether the node needs a test (comments, formatting, docs, translations and manifest-only
+edits normally do not, and a refactor leans on the existing suite - examples, not a closed list; it
+states its reason either way, and adapt work always gets the test leg) and, when it does, launches ONE
+`odoo-test-writer` for the whole node. That teammate searches the existing tests first, writes new
+tests or adjusts existing ones from the request's business rules, and proves each with an executed
+break-check: it breaks exactly the rule the test guards, watches the test fail on its assertion (a
+failure that never reached the rule is a broken measurement, not a proof), and restores the file and
+confirms the restore. It reports one free-form line per test; there is no record grammar to parse.
+The test author is never the code author, so independence is kept. Ordering and principles SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`; how a single test is written:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`.
+
+**Launching a teammate - the launch tool you hold decides how you collect it.** Every launcher in
+this chain (`run-harness`, `odoo-coding`, `odoo-coder`, a skill running inline in any of them) reads
+its OWN agent-launch tool first (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
+§R0). A launcher with no launch tool is at the nesting cap and takes its declared fallback. Where
+the launch tool has a `run_in_background` parameter, it is called with `false`, so independent
+teammates go out in ONE message, run in parallel, and every result returns inside the same turn - the
+launcher never ends its turn while a teammate is still running, because nothing wakes a stopped
+subagent on that surface. Where the launch tool has no such parameter, the launcher launches and then
+ENDS THE TURN, and it is woken once per teammate, re-checking its barrier on every wake. `git-toolkit` applies the same rule to its
+own launches (N0 in its `git-nesting-protocol.md`). Two `SubagentStop` gates back this up
+(`hooks/enforce-background-wait.sh`: no turn end while a background shell command or, on an
+unattended surface, a teammate is still running; `hooks/enforce-teardown.sh`: a stop that merely
+waits for a teammate keeps its lease, while a final report is still gated).
+
+**What a node returns.** The coordinator returns its commit range `<node base>..<head>` - normally
+one commit, plus any work-in-progress commit an earlier stop made, never squashed or amended. A
+resumed coordinator keeps the node base of its first round, so the range covers every round.
+`run-harness` cherry-picks only the commits of that range not already on the run-integration branch
+(compared by patch id) as a saga with per-node verify and checkpoint. The coordinator itself never
+runs below `sonnet`, and its source writes are refused by `hooks/block-coordinator-code-write.sh`
+(no temporary-directory exemption).
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `odoo-intake` / `run-harness` / `workflow-chaining`
@@ -832,7 +861,7 @@ referencing skills via the marker-block or direct reference.*
 `run-harness` owns the whole integration mechanism DIRECTLY - there is **no separate
 git-executor skill** and no `team_pattern` for it inside the declarative workflow system.
 It forks ONE `run-integration` branch per repo at run start, forks every source-writing
-node's worktree from that branch, cherry-picks each node's returned commit back onto it,
+node's worktree from that branch, cherry-picks each node's returned commit range (the commits not yet on it) back onto it,
 and opens that repo's ONE PR from its terminal `integrate` node - without ever touching
 the principal branch directly. `run-harness` does NOT choose agent/model and does NOT
 self-derive a plan: it dispatches the node the plan named, one node per iteration, never
@@ -907,8 +936,9 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                  nudge "consider delegating" (permissionDecision=defer, never allow/deny/ask)
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
                  (HARD CONTRACT: never blocks, purely advisory - see the script's own header; the
-                 SubagentStop array's two hard blocks live in its enforce-grounding and
-                 enforce-teardown siblings, quality gates that apply ONLY to subagents, never main)
+                 SubagentStop array's hard blocks live in its enforce-grounding, enforce-teardown
+                 and enforce-background-wait siblings, quality gates that apply ONLY to
+                 subagents, never main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
                  advisory (continue=true, never block) - main keeps the right to stop
   blackboard <ISOLATE_DIR>/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒

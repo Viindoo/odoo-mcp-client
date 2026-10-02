@@ -57,7 +57,21 @@ flowchart LR
 ```
 
 Only `git-pipeline-lead` holds the spawn tool; the three leaves declare a `tools:` allowlist that
-excludes it, hard-capping nesting at two levels (lead -> leaf). Cold-spawn (stateless brief in,
+excludes it, hard-capping nesting at two levels (lead -> leaf).
+
+**Launch and collect (N0).** A launcher - the lead, or the context a `git-ops` skill runs in - reads
+its own agent-launch tool before launching, and that tool alone decides how it collects a result:
+
+```mermaid
+flowchart TD
+    L[launcher about to start a leaf] --> T{which agent-launch tool<br/>does this context hold?}
+    T -->|launch tool absent: at the nesting cap| F[do the work inline under the contract<br/>or return BLOCKED with resumable state]
+    T -->|launch tool has a run_in_background parameter| B[launch with run_in_background false<br/>independent leaves in ONE message<br/>every result returns in this turn<br/>never end the turn while a leaf runs]
+    T -->|launch tool has no run_in_background parameter| A[launch, then END THE TURN<br/>woken once per leaf<br/>re-check who is still outstanding on every wake]
+```
+
+A launch that still hands back an asynchronous receipt while the parameter is held is waited out
+inside the same turn with tool calls, never by ending the turn. Cold-spawn (stateless brief in,
 findings file out) is the DEFAULT and always-correct baseline - robust at any caller depth, no roster
 needed. Every agent hands its completion report back once, as the last act of its dispatch, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md` - there is no addressed upward channel, so

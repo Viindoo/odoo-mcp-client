@@ -140,7 +140,12 @@ catalog `addons_path` entry is the fingerprint. When detected AND no `--addons-p
 passed, `acquire` refuses (exit 5) with a message naming both paths and the exact
 `--addons-path-override` value that would resolve it, instead of guessing. An explicit
 `--addons-path-override` always bypasses the guard (that IS the caller stating the tree
-explicitly - the whole point). The guard is scoped to modes that actually drive a build
+explicitly - the whole point), but the override is still validated: it must be non-empty, name only
+existing directories, and keep the checkout's core addons the catalog row declares. An override that
+drops them (a worktree-only path) is `ADDONS_PATH_OVERRIDE_INVALID` with reason `core-addons-missing`
+(`instances_io.core_addons_missing`) - the launcher would still be found through `odoo_root`, but every
+module depending on a core addon would fail to load. Keep the catalog row's addons_path and replace only
+the entry that covers the repo with the worktree path. The guard is scoped to modes that actually drive a build
 (`ephemeral`/`exclusive`/`shared`); `readonly` is exempt (it builds nothing). A cwd that is not a
 git repo, IS the catalog's own declared checkout, or shares no repository with any addons_path
 entry never trips it - see `tests/test_lease_ownership_and_reaping.py` for the full behavior

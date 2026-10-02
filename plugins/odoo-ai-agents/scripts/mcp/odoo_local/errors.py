@@ -85,7 +85,7 @@ TOOL_REMEDIES = {
         # allocator.py CORE_ADDONS_MISSING: the entries exist, but none holds the Odoo checkout's
         # core addons the catalog row declares, so every module depending on one fails at load.
         "reasons": {
-            "core-addons-missing": "Your addons_path drops the Odoo checkout's core addons (named in the message). Keep the catalog row's addons_path (catalog_read shows it) and replace only the entry that covers this repo with your worktree path, then call lease_acquire again.",
+            "core-addons-missing": "Your addons_path drops the Odoo checkout's core addons (named in the message). Keep the catalog row's addons_path (catalog_read shows it) and replace only the entry that covers this repo with your worktree path, then call again (lease_acquire, or instance_serve).",
         },
     },
     "NO_INSTANCE_CATALOG": "No instance catalog (instances.toml) declares any instance: run /odoo-ai-agents:odoo-setup to declare the series' instance (catalog_read shows which catalog is read), then call again.",
