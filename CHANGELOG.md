@@ -6,8 +6,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.4.0] - 2026-10-02
+
+### Added
+
+- `odoo-ai-agents` - **`instance_build` and `instance_serve` take a per-call `server_wide`
+  `{exclude, include}`.** One call can drop or add server-wide modules without touching the catalog
+  row, which stays the default; the core default is always first in the resulting `--load`.
+
+### Changed
+
+- `odoo-ai-agents` - **code first, then ONE `odoo-test-writer` per node proves the tests by
+  breaking the rule.** Tests were authored before the code, and "red" was read as an ordering
+  rule. Red now means sensitivity: a test must fail on its assertion when the business rule it
+  guards is deliberately broken. `odoo-coder` runs the coders first, decides the test leg from the
+  actual diff, then launches one test writer per node that writes or adjusts tests and proves them
+  with a real break-check on the node's instance. The leg is stated as principles and left to the
+  agents' judgment (free-form report, no record grammar, no closed no-test list).
+  `snippets/test-sensitivity-contract.md` replaces the test-first, red-evidence and test-exemption
+  contracts; the `RED_TEST_PATH`, `RED_MODE` and `TEST_EXEMPTION` brief keys are retired, and
+  `odoo-coder` always hands `odoo-test-writer` the node's `INSTANCE_HANDLE` for its break-checks.
+- `odoo-ai-agents` - **`test-behavior-contract.md` protects outcomes, not implementation.** A Form
+  test simulates the user, a test never freezes a manifest, a name, a count or an i18n string, tests
+  stay simple, and `odoo-test-writing` reads the test framework and searches the existing tests
+  before it writes.
+- `odoo-ai-agents` - `odoo-forward-port`, `odoo-git-rebase` and `odoo-modules-upgrade` adapt the
+  code first and let the node's test leg adapt the tests; bucket (a) uses an absorption probe.
+- `odoo-ai-agents` - **a node returns the commit range it made, and `run-harness` lands only the
+  commits not yet landed.** The coordinator never runs below `sonnet`.
+- `odoo-ai-agents` - **the spawner's R0 picks the move from the launch tool it holds.** Where the
+  tool has a `run_in_background` parameter the coordinator launches with `false` (several in one
+  message run concurrently) and does not end its turn while a teammate runs; elsewhere it launches
+  and ends the turn to be woken.
+
 ### Fixed
 
+- `odoo-ai-agents` - a nested spawner that ended its turn after an async launch was never woken in
+  print mode, so the child's result went to the main session. The background-wait and teardown
+  gates now also understand `Monitor` tasks and refuse an unattended subagent stop while a teammate
+  it launched still runs.
+- `odoo-ai-agents` - the coordinator source-write gate exempted `/tmp`; it no longer does.
+- `odoo-ai-agents` - a build did not reliably find `odoo-bin`; it now looks in the lease's `odoo_root`.
+- `odoo-ai-agents` - an `addons_path` override that drops the Odoo checkout's core addons is refused
+  at lease acquire and by `instance_serve`.
+- `odoo-ai-agents` - allocator receipts survive a trimmed pipe, and `--help` passes the lease gate.
+- `odoo-ai-agents` - `ensure-ethos-import` no longer lets a `--plugin-dir` checkout replace a valid
+  marketplace import.
 - `git-toolkit` - **a launcher collects a child's result by the launch tool it holds.**
   `snippets/git-nesting-protocol.md` said every launch is asynchronous and a dispatched launcher is
   always woken with its child's result. That is untrue where the launch tool has a
