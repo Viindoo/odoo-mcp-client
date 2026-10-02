@@ -176,16 +176,6 @@ ALLOWLIST: dict[str, str] = {
         "NEEDS_NEXT ensure-up is a named handoff to odoo-instance, never a "
         "self-provision; L2.3 unchanged exclusion."
     ),
-    "skills/odoo-test-writing/SKILL.md": (
-        "never self-provisions - its only run is the break-check's selected-test run on the "
-        "FORWARDED INSTANCE_HANDLE (no handle -> NEEDS_NEXT to odoo-instance) per "
-        "test-execution-handoff.md; it never acquires or releases a lease. L2.3 unchanged exclusion."
-    ),
-    "agents/odoo-test-writer.md": (
-        "never self-provisions - invokes Skill(odoo-instance) only for break-check runs on the "
-        "INSTANCE_HANDLE its caller forwards, and is forbidden to acquire, release or park a "
-        "lease (no handle -> NEEDS_NEXT). Teardown belongs to the caller that acquired it."
-    ),
     "skills/odoo-modules-upgrade/SKILL.md": (
         "consumes a forwarded instance handle; does not self-provision; L2.3 unchanged exclusion."
     ),

@@ -253,22 +253,19 @@ def _count_normalized(phrase: str) -> dict:
 def test_form_helper_window_is_v12_everywhere_not_v13():
     """Issue #177 twin survivor (R3 FIX 1): row 3 above and
     skills/odoo-test-writing/references/fp-adapt-mode.md both correctly state the Form/O2MForm
-    window as v12+; skills/odoo-test-writing/SKILL.md Round 1 must not restate a divergent v13+
-    window for the identical fact - it must cross-ref this SSOT instead. Guards against the wrong
-    window drifting back in anywhere under plugins/."""
+    window as v12+; skills/odoo-test-writing/SKILL.md Round 1 must not restate any window for the
+    identical fact - it cross-refs row 3 of this SSOT instead. Guards against the wrong window
+    drifting back in anywhere under plugins/."""
     for phrase in ("Form` helper (v13+)", "Form (v13"):
         hits = _count_normalized(phrase)
         assert sum(hits.values()) == 0, (
             f"Wrong Form-helper window {phrase!r} must not survive anywhere under plugins/; "
             f"found: {hits}"
         )
-    text = TEST_WRITING_SKILL.read_text(encoding="utf-8")
-    assert "Form` helper (v12+" in text, (
-        "odoo-test-writing/SKILL.md Round 1 must state the Form helper window as v12+"
-    )
-    assert "odoo-era-boundaries.md" in text, (
-        "odoo-test-writing/SKILL.md must cross-ref odoo-era-boundaries.md rather than restate "
-        "the Form window inline"
+    text = " ".join(TEST_WRITING_SKILL.read_text(encoding="utf-8").split())
+    assert "odoo-era-boundaries.md` row 3" in text, (
+        "odoo-test-writing/SKILL.md must cross-ref odoo-era-boundaries.md row 3 for the Form "
+        "helper window rather than restate it inline"
     )
 
 

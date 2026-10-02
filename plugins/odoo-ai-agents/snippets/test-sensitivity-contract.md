@@ -8,24 +8,24 @@
 
 Inside one node, with NO commit between the coders and the test leg:
 
-1. `odoo-backend-coder` / `odoo-frontend-coder` write the code, never a test; each returns its file
-   list, a one-line behavior summary, and `OBSOLETE TESTS: <existing test ids this REQUEST makes
-   obsolete | none>`.
+1. `odoo-backend-coder` / `odoo-frontend-coder` write the code, never a test, and return their file
+   lists, one-line behavior summaries and `OBSOLETE TESTS`.
 2. The coordinator decides the test leg (§ No test leg).
-3. Before launching the test-writer, the coordinator records the restore baseline - a hash manifest
-   of every production file in the node's module directories (all but `tests/`, `static/tests/`,
-   `static/tours/`): `find <module_dir> -type f -not -path '*/tests/*' -not -path '*/static/tours/*'
-   -print0 | sort -z | xargs -0 sha256sum > <ISOLATE_DIR>/<node>/prod-hashes.txt`.
+3. **Restore baseline.** Before launching the test-writer, the coordinator hashes every production
+   file of the node's modules from `WORKTREE_PATH` - all but `tests/`, `static/tests/`,
+   `static/tours/` and `__pycache__/` (a test run writes `.pyc` files) - bounded, no git:
+   ```
+   mkdir -p <ISOLATE_DIR>/<node> && for m in <module dir>...; do find "$m" -type f ! -path '*/__pycache__/*' ! -path "$m/tests/*" ! -path "$m/static/tests/*" ! -path "$m/static/tours/*" -print0; done | sort -z | xargs -0r sha256sum > <ISOLATE_DIR>/<node>/prod-hashes.txt
+   ```
 4. ONE `odoo-test-writer` per node writes or adjusts the tests - expected values from the REQUEST /
-   design AC, never from the code - and break-checks each (§ The break-check). It edits test files
-   only, plus `__manifest__.py` solely to register test assets (JS test / tour bundles), reported as
-   `MANIFEST TEST ASSETS`. Its `CHANGED CODE` = the node base SHA + the coders' file lists + their
-   behavior summaries.
-5. Restore proof: the coordinator re-runs the same command and diffs. Any difference outside the
-   test paths - other than a reported `MANIFEST TEST ASSETS` manifest - is a restore failure:
-   re-dispatch the test-writer, never commit.
-6. The integrated run (§ The loop, bounded); then the node is committed ONCE (`COMMIT: self`, a
-   plain commit), or nothing is committed and the file list returns (`COMMIT: caller`).
+   design AC, never from the code - and break-checks each (§ The break-check). It keeps edits in
+   test files only, plus `__manifest__.py` solely to register test assets (JS test / tour bundles),
+   reported as `MANIFEST TEST ASSETS`.
+5. **Restore proof.** The coordinator re-runs step 3's command into `prod-hashes.after.txt` and
+   `diff`s the two. Any difference - other than a reported `MANIFEST TEST ASSETS` manifest - is a
+   restore failure: re-dispatch the test-writer, never commit.
+6. The integrated run (§ The loop, bounded); then ONE plain commit of the node (`COMMIT: self`), or
+   no commit and the file list returned (`COMMIT: caller`).
 
 ## No test leg
 
@@ -62,15 +62,14 @@ body, or removing a method nothing else references, is allowed. An unproven rest
 naming the file.
 
 **Instance.** Run steps 0 and 3 through `Skill(odoo-instance)` inline on the forwarded
-`INSTANCE_HANDLE`, under
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle.
-`odoo-coder` always forwards one. From any other caller it is optional: without it, write the
-tests, run nothing, and return `NEEDS_NEXT: odoo-instance` with
-`PENDING BREAK_CHECK: <test ids>`. Never provision an instance for a break-check.
+`INSTANCE_HANDLE` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a
+forwarded handle); never provision one. `odoo-coder` always forwards it; from any other caller it
+is optional - without it, write the tests, run nothing, and return `NEEDS_NEXT: odoo-instance` with
+`PENDING BREAK_CHECK`.
 
 **Database state.** A break that touched an XML/CSV data file leaves broken records in the
-database (`data-file: yes` on its record). The next VERDICT on that database comes from a fresh
-build when any record says `data-file: yes`; otherwise a `reuse` run is enough.
+database (`data-file yes` on its record). The next VERDICT on that database comes from a fresh
+build when any record says `data-file yes`; otherwise a `reuse` run is enough.
 
 ## Broken measurement is not a red
 
@@ -113,7 +112,7 @@ PENDING BREAK_CHECK: <test ids>
 
 An `ADJUSTED` line is followed by its test's `BREAK_CHECK`. `ABSORBED` (bucket (a) only,
 § Absorption probe) stands wherever a forwarded test owes a `BREAK_CHECK`. `PENDING BREAK_CHECK`
-rides on `NEEDS_NEXT: odoo-instance` when no handle was forwarded (§ The break-check).
+names every test whose baseline and break-check are owed when no handle was forwarded.
 
 ## Adjusting an existing test
 
@@ -141,7 +140,7 @@ For a commit bucketed (a), the node's single test-writer launch runs the probe A
 (`${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md` § Skip-code-but-still-absorb rule), so
 probe with that code out of play: copy + hash (§ The break-check step 1), neutralise the (a)
 commit's hunks at the brief's `BUCKET a (hunks file:lines)`, run the forwarded source test, then
-restore and re-hash. GREEN -> `ABSORBED`. A load/import error is a broken translation, never a
-classification. Fix the test and re-run. The test FAILING, or production code that no longer loads once those hunks
-are neutralised, re-buckets to (b)/(c): the coordinator re-dispatches the coder, then the normal
-break-check.
+restore and re-hash. GREEN -> `ABSORBED`. A load/import error in the test is a broken translation,
+never a classification: fix the test and re-run. The test FAILING, or production code that no
+longer loads once those hunks are neutralised, re-buckets to (b)/(c): the coordinator re-dispatches
+the coder, then the normal break-check.

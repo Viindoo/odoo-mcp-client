@@ -99,11 +99,11 @@ server. A consumer that RUNS tests on a forwarded `INSTANCE_HANDLE` (`odoo-test-
 and break-check runs, any verify run on a forwarded handle) therefore takes ONE lease of its own on
 the handle's database and holds it across its runs:
 
-1. `lease_acquire` - mode `exclusive`, `no_create` true, `ports` 1, with the handle's `db_name`,
-   `addons_path`, series and `run_id`, `cwd` = your `WORKTREE_PATH`.
+1. `lease_acquire` - mode `exclusive`, `no_create` true, `ports` 1, the handle's `db_name`,
+   `addons_path` and series, `run_id` = the handle's `run_id`, `cwd` = your `WORKTREE_PATH`.
 2. Every `instance_build` op `test` (`test_mode` `reuse`) runs on THAT lease's token, never the
    handle's, then `job_wait`. `DATABASE_BUSY` -> `job_wait` the job it names, then retry.
-3. `lease_release` that token before you return, on every exit.
+3. `lease_release` that token with the handle's `run_id` before you return, on every exit.
 
 Never release, park or adopt the handle's own lease - it stays its owner's - and never provision a
 new database. A lease you hold yourself that reserved a port is built on directly.

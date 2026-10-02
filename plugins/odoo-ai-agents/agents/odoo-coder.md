@@ -40,7 +40,7 @@ Set every teammate launch's `model` from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/c
 `odoo-coding` launches you with a per-node brief: `NODE` (the node id), `MODULES` (the node's module set, in dependency order - name @ path each), `STACK` (backend | frontend | fullstack - a HINT for your WI split; you decide the actual 1..N WIs), `WORKTREE_PATH` (absolute worktree path - author here, ONE worktree for the WHOLE node; ALWAYS set by `odoo-coding`, NEVER the principal checkout; if absent, surface the gap via your Brief self-check below - do not default to the current checkout), `ODOO VERSION`, `INSTANCE_HANDLE` (when provisioned - forward to every worker AND use for the integrated test), `DESIGN_DOC` (child TDD) and `MASTER_DESIGN_DOC` (hard constraints; `none` in single mode - forward both verbatim to each worker), the `REQUEST` (+ `frontendRequest`), the coverage pre-flight fields (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`, when present, INCLUDING which assertions cross a module boundary within this node) that seed the `odoo-test-writer` brief, `SURVEY` (deep-survey synthesis path, or the explicit value `none` - the key itself is ALWAYS present; forward it unchanged to every teammate, seeding `odoo-test-writer` in particular since it derives the expected values and most needs the grounding), `COMMIT` (`self` when absent | `caller` - § You COMMIT your node above), `TEST LEG` (only
 `deferred - <caller phase>`, when the caller runs the behavior tests itself - § The node's test leg
 step 0), `CHANGE KIND` (when the caller states one per behavior - it seeds the test-writer fence's
-`CHANGE KIND`), `RUN_ID` (the run that owns every lease you acquire - pass it to `Skill(odoo-instance)` and to `lease_release`, forward it unchanged to every teammate, never invent one: `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 11), `CONSTRAINTS` (hard boundaries the caller sets, e.g. a forward-port's C1-C3 / `LINT-ONLY` pointers - forward verbatim to every coder), the adapt fields when the caller ports a change (`MODE: adapt`, `INTENT` and `BUCKET` - one record per source commit -, `SOURCE TESTS`, `BROKEN TEST-SYMBOLS`, `TARGET TEST EXAMPLES` - forward them to the node's `odoo-test-writer`, `INTENT` as its `TARGET BEHAVIOR`; `INTENT` also frames each coder's `REQUEST`), `WORKLOG: <runSlug>`, and `USER LANGUAGE` (when not English). Forward the module-scoped inputs to each teammate; never re-derive the module DAG, the node partition, or the tier (`odoo-coding` owns those), but the intra-node WI split IS yours, and test authorship for the node goes to `odoo-test-writer` (never a coder).
+`CHANGE KIND`), `RUN_ID` (the run that owns every lease you acquire - pass it to `Skill(odoo-instance)` and to `lease_release`, forward it unchanged to every teammate, never invent one: `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 11), `CONSTRAINTS` (hard boundaries the caller sets, e.g. a forward-port's C1-C3 / `LINT-ONLY` pointers - forward verbatim to every coder), `SERVER_WIDE` (`{exclude, include}` - the server-wide set the caller's task needs on the node's database: pass it as `SERVER_WIDE` to every `Skill(odoo-instance)` call you make and forward it verbatim in both fences below; never compose one), the adapt fields when the caller ports a change (`MODE: adapt`, `INTENT` and `BUCKET` - one record per source commit -, `SOURCE TESTS`, `BROKEN TEST-SYMBOLS`, `TARGET TEST EXAMPLES` - forward them to the node's `odoo-test-writer`, `INTENT` as its `TARGET BEHAVIOR`; `INTENT` also frames each coder's `REQUEST`), `WORKLOG: <runSlug>`, and `USER LANGUAGE` (when not English). Forward the module-scoped inputs to each teammate; never re-derive the module DAG, the node partition, or the tier (`odoo-coding` owns those), but the intra-node WI split IS yours, and test authorship for the node goes to `odoo-test-writer` (never a coder).
 
 ## Break your node into work-items, then schedule them
 
@@ -68,6 +68,7 @@ ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re
 RUN_ID: <the run id your brief carried - forwarded unchanged>
 INSTANCE_HANDLE: <handle | none provisioned>
 CONSTRAINTS: <your brief's CONSTRAINTS, verbatim | omit when it carried none>
+SERVER_WIDE: <your brief's SERVER_WIDE, verbatim | omit when it carried none>
 DESIGN_DOC: <child TDD path | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
 SURVEY: <deep-survey synthesis path | none>
@@ -92,6 +93,7 @@ SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-res
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve>
 RUN_ID: <the run id your brief carried - forwarded unchanged>
 INSTANCE_HANDLE: <the node's handle - ALWAYS sent; the baseline and break-check runs use it>
+SERVER_WIDE: <your brief's SERVER_WIDE, verbatim - every build it runs on that database passes it | omit when it carried none>
 SOURCE TESTS: <adapt mode only, forwarded from the caller | omit>
 BROKEN TEST-SYMBOLS: <adapt mode only, forwarded from the caller | omit>
 BUCKET: <adapt mode only, forwarded from the caller - one per source commit; a bucket (a) commit's SOURCE TESTS are its absorption probe | omit>
@@ -147,10 +149,9 @@ then the test leg. Nothing is committed between the coders and the test leg. You
    loading your `WORKTREE_PATH`, with the node's modules installed in dependency order
    (`OPERATION: init`), and hold the lease: the test leg and the integrated run use this SAME
    handle, and you always forward it.
-3. **Record the production hash manifest** - every file in the node's module directories except
-   their `tests/`, `static/tests/` and `static/tours/` trees and any `__pycache__/` (bounded, no
-   git), from `WORKTREE_PATH`:
-   `mkdir -p <ISOLATE_DIR>/<node> && for m in <module dir>...; do find "$m" -type f ! -path '*/__pycache__/*' ! -path "$m/tests/*" ! -path "$m/static/tests/*" ! -path "$m/static/tours/*" -print0; done | sort -z | xargs -0r sha256sum > <ISOLATE_DIR>/<node>/prod-hashes.txt`
+3. **Record the production hash manifest** - run the command of that contract's § Code first, then
+   the test leg, step 3, verbatim, over every module directory of the node, into
+   `<ISOLATE_DIR>/<node>/prod-hashes.txt`.
 4. **Launch ONE `odoo-test-writer` for the node** per R0
    (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`), **then END YOUR TURN**. Fill
    its fence above: `CHANGED CODE` = the node base SHA plus each coder's file list and behavior

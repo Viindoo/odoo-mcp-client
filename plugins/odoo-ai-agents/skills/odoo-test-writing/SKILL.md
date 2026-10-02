@@ -286,8 +286,10 @@ here:
 - **Where it runs.** Every run is one `instance_build` op `test` with `test_mode` `reuse` on the
   database of the forwarded `INSTANCE_HANDLE`, made by invoking the `odoo-instance` skill (inline
   leaf-mode inside the `odoo-test-writer` agent) on a one-port lease of your own on that database,
-  released before you return - never on the handle's own lease, never a new database, never
-  `odoo-instance-ops`. No handle: the tests stay written and
+  with the brief's `SERVER_WIDE` as `server_wide` when it carries one; `lease_release` that lease
+  before you return, on every exit (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  T1) - never the handle's own lease, never a new database, never `odoo-instance-ops`. No handle:
+  the tests stay written and
   every baseline and break-check is pending - emit the `NEEDS_NEXT` under § Standalone-first
   fallback.
 - **Method granularity.** Tag each run with exactly the test methods it targets:

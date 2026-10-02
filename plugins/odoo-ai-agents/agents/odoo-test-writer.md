@@ -64,8 +64,9 @@ forwarded handle. The ONE rule:
   own on the handle's database: mode `exclusive`, no create, one port, the handle's `db_name`,
   `addons_path`, `series` and `run_id`, `cwd` = `WORKTREE_PATH` (else the current checkout). It
   creates and drops nothing. Hold it across all your runs, and run every `instance_build` op `test`
-  (`test_mode` `reuse`) on THAT lease's token, never on the handle's.
-- **Release it before you return** - `lease_release` with its `lease_token` + the `run_id`, on
+  (`test_mode` `reuse`) on THAT lease's token, never on the handle's - with the brief's
+  `SERVER_WIDE` as `server_wide` on every one when the brief carries it.
+- **Release it before you return** - `lease_release` with its `lease_token` + the handle's `run_id`, on
   every exit (`DONE`, `BLOCKED`, `NEEDS_CONTEXT`, `NEEDS_NEXT`); it drops nothing. The handback is
   refused while a lease you obtained is live
   (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1).
@@ -118,7 +119,8 @@ Run-specific inputs (every authoring procedure lives in the `odoo-test-writing` 
   OSM before writing.
 - `ODOO VERSION`, `WORKTREE_PATH` (author here; `none` = current checkout), `SHARE_DIR` +
   `ISOLATE_DIR` (the run's captured absolute state dirs when the launcher resolved them - see
-  Method step 0), `INSTANCE_HANDLE` (§ Instance use), `EXISTING COVERAGE` + `COVERAGE GAPS` +
+  Method step 0), `INSTANCE_HANDLE` + `SERVER_WIDE` (§ Instance use), `RUN_ID` (the run's id; your
+  own lease takes the handle's `run_id`), `EXISTING COVERAGE` + `COVERAGE GAPS` +
   `BASE CLASS`, `WORKLOG: <runSlug>`, `PRIOR ATTEMPT` (re-dispatch only), `USER LANGUAGE` (when not
   English).
 - `SOURCE TESTS` / `BROKEN TEST-SYMBOLS` / `BUCKET` / `TARGET TEST EXAMPLES`: adapt mode only,

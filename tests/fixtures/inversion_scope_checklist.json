@@ -124,11 +124,12 @@
     {
       "id": 14,
       "file": "snippets/test-sensitivity-contract.md",
-      "lines": "83-89",
-      "hazard": "Absorption-probe misapplication - without this distinction, a forward-ported test run on target BEFORE any adapt code could be treated as a test gate (or its load error as a classification) instead of the bucket-(a) classification probe it is",
+      "lines": "136-146",
+      "hazard": "Absorption-probe misapplication - without this distinction, a forward-ported bucket-(a) test could be run before the node's code exists or with the (a) commit's own merged code still in play (a green that proves nothing), treated as a test gate, or its load error taken as a classification instead of the bucket-(a) classification probe it is",
       "sentences": [
-        "the adapt test leg forwards its source test and\nruns it BEFORE any adapt code",
-        "A load/import error is a broken translation,\nnever a classification."
+        "the node's single test-writer launch runs the probe AFTER the node's\n(b)/(c) code is adapted",
+        "probe with that code out of play",
+        "A load/import error in the test is a broken translation,\nnever a classification"
       ]
     }
   ]
