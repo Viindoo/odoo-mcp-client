@@ -965,6 +965,7 @@ def _serve(args, ctx):
             extra_env["INST_RUN_ID"] = args["run_id"]
     addons = _addons_arg(args.get("addons_path"))
     if addons:
+        _refuse_core_dropping_override(addons, lease, row if token else None, args, cwd)
         argv += ["--addons-path", tools_lease.join_addons(addons)]
     try:
         rc, out, err = cli.run(cli.interpreter_for(_spinup_script()) + argv, cwd, SERVE_TIMEOUT_S, extra_env)
@@ -1056,6 +1057,36 @@ def _addons_arg(value):
     if not value:
         return None
     return value if isinstance(value, list) else tools_lease._addons_list(value)
+
+
+def _refuse_core_dropping_override(addons, lease, row, args, cwd):
+    """The same rule lease_acquire applies to its addons_path override (allocator
+    _resolve_addons_csv): an override that drops the core addons the catalog row declares finds the
+    launcher through odoo_root but no core module, so the server would start and every module that
+    depends on a core addon would fail at load. Refused before anything starts."""
+    from . import tools_catalog
+    io = cli.load_lib("instances_io")
+    series = lease["series"] if lease else args.get("series")
+    profile = (lease or {}).get("profile") or args.get("profile") or ""
+    item = None
+    try:
+        items, _exists = tools_catalog._load(io, tools_catalog._resolve_catalog_path(cwd))
+        item, _defaulted = io.select_instance(items, series, profile=profile or None)
+    except ToolError:
+        pass
+    # The lease row's odoo_root first (the checkout it was built from), else the catalog row's; the
+    # declared set is the catalog row's, else the lease's own.
+    odoo_root = ((row or {}).get("odoo_root") or (item or {}).get("odoo_root") or "")
+    declared = io.addons_path_list(item) if item is not None else list((lease or {}).get("addons_path") or [])
+    dropped = io.core_addons_missing(odoo_root, declared, addons)
+    if dropped:
+        raise ToolError("ADDONS_PATH_OVERRIDE_INVALID",
+                        "addons_path drops the checkout's core addons (%s): Odoo would find its "
+                        "launcher but no core module. Keep the catalog row's addons_path and "
+                        "replace only the entry that covers this repo with your worktree path"
+                        % ", ".join(dropped),
+                        {"fields": {"reason": cli.load_lib("allocator").CORE_ADDONS_MISSING},
+                         "dropped": dropped, "series": series})
 
 
 def _module_list(value):
@@ -1195,7 +1226,9 @@ _CWD_PROP = {"type": "string", "minLength": 1,
                             "Omit to use the server's working directory."}
 _ADDONS_PROP = {"type": ["string", "array"], "items": {"type": "string"},
                 "description": "Addons directories to SERVE (absolute; a list or one comma-joined "
-                               "string). Omit: the lease's addons_path, else the catalog's."}
+                               "string); one that drops the checkout's core addons is refused "
+                               "(ADDONS_PATH_OVERRIDE_INVALID). Omit: the lease's addons_path, "
+                               "else the catalog's."}
 
 _MODULE_NAMES = {"type": "array", "items": {"type": "string", "minLength": 1}}
 SERVER_WIDE_PROP = {

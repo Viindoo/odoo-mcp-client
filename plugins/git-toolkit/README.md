@@ -39,6 +39,12 @@ monorepo, but domain-agnostic: it has no Odoo dependency.
 Only `git-pipeline-lead` can spawn sub-agents; the leaves cannot. This depth guard caps nesting at
 two levels (lead -> leaf).
 
+A launcher collects a leaf's result according to the agent-launch tool it holds (rule N0 in
+`snippets/git-nesting-protocol.md`). Where the launch tool has a `run_in_background` parameter, the
+launcher passes `false` and the result returns inside the turn (independent leaves go out in one
+message). Where the launch tool has no such parameter, the launcher launches, ends its turn, and is
+woken once per leaf.
+
 ## Dependency + auth
 
 `git-toolkit` depends on the `github` plugin (auto-installed from the default

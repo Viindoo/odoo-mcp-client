@@ -481,6 +481,32 @@ def test_serve_launches_the_leased_database_and_binds_its_server(client, world):
     assert not _alive(pid)
 
 
+def test_serve_with_an_addons_path_that_drops_the_core_addons_is_refused_before_anything_starts(
+        client, world):
+    """lease_acquire refuses an addons_path naming only a worktree (the launcher is found through
+    odoo_root, but no core module is on the path); instance_serve's addons_path override must not
+    be a way around that rule. Refused with the same code and reason, nothing is launched; the
+    same override keeping the core addons directory serves."""
+    lease = _lease(client, world, ports=1)
+    worktree = world["work"] / "wt-only"
+    worktree.mkdir()
+    err = _err(client.call("instance_serve", {"lease_token": lease["token"],
+                                              "addons_path": [str(worktree)],
+                                              "cwd": str(world["work"])}, timeout=120))
+    assert err["code"] == "ADDONS_PATH_OVERRIDE_INVALID"
+    assert err["diagnostics"]["fields"]["reason"] == "core-addons-missing"
+    assert "replace only the entry that covers this repo" in err["remedy"]
+    assert not world["calls"].exists() or "-c " not in world["calls"].read_text(), "nothing launched"
+    row = next(lz for lz in _registry(world) if lz["token"] == lease["token"])
+    assert not (row.get("owner") or {}).get("pid"), "no server was bound onto the lease"
+
+    out = _ok(client.call("instance_serve", {"lease_token": lease["token"],
+                                             "addons_path": [str(world["addons"]), str(worktree)],
+                                             "cwd": str(world["work"])}, timeout=120))
+    assert out["state"] == "launched" and out["served_addons_path"] == [str(world["addons"]), str(worktree)]
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
 def test_serve_a_lease_without_a_port_is_refused_by_name(client, world):
     lease = _lease(client, world)
     err = _err(client.call("instance_serve", {"lease_token": lease["token"]}))

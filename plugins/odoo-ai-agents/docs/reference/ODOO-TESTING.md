@@ -196,8 +196,15 @@ to run them.
   the business outcome rather than the implementation, drive the real workflow, simulate the user
   with `Form`, never freeze the present, keep the test simple.
 - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` - code first, then tests, each proven
-  by an executed break-check (alter the business rule, the test must fail on its assertion, restore
-  and prove the restore).
+  by an executed break-check (break the business rule, the test must fail on its assertion, restore
+  the code exactly and confirm it). Stated as principles and judgment, not a script.
+
+A break-check runs only the affected tests, at method granularity
+(`--test-tags /<module>:<Class>.<method>`, the selection syntax above), and reads its verdict from a
+database that reflects the restored code: `-u` on the same database normally, a fresh database when
+the break touched a data file (XML/CSV) or the schema, since records and columns outlive a file
+restore. A failure that never reached the rule (a missing field or external id, an import error, a
+test file absent from `tests/__init__.py`, 0 tests selected) is a broken measurement, not a proof.
 
 To ground a test in the target series, use the OSM test tools: `test_base_classes` (which base
 classes and helpers exist), `test_class_inspect` (a test class's shape), `tests_covering` (which

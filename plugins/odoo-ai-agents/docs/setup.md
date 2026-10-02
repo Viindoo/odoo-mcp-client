@@ -98,7 +98,7 @@ After install, 51 skills activate automatically:
 | `odoo-override-finding` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
-| `odoo-forward-port` | Coder / Engineer | Odoo forward-port (per-commit intent extract + absorb-all git topology: ONE merge of the range tip closed by ONE merge commit, keeping every source SHA; adaptive test forward); output under `<ISOLATE_DIR>/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
+| `odoo-forward-port` | Coder / Engineer | Odoo forward-port (per-commit intent extract + absorb-all git topology: ONE merge of the range tip closed by ONE merge commit, keeping every source SHA; code adapted first, then the node's source tests adapted and proven by a break-check); output under `<ISOLATE_DIR>/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
 | `odoo-coding` | Coder | The single coding front door - write production-ready backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS) code, from a single computed field to a multi-module full-stack feature; scopes the change and sequences the backend + frontend coder agents |
 | `odoo-i18n` | Coder / Engineer | Export .pot templates, non-destructively merge .po translations, dispatch hand-translation for one or more target languages in a single run (no built-in default - resolved from the request, `$ODOO_AI_HOME/i18n.json`, on-disk `.po` filenames, or the live instance, else `NEEDS_CONTEXT`), and audit cross-module term consistency - the dedicated i18n cluster and the translation step dispatched by forward-port and other workflows |
@@ -315,7 +315,8 @@ drop-in. What it does:
    Each row also gets its `server_wide_modules` - the addons this deployment must load with
    `--load`, proposed from the addons' own code, Odoo Semantic and an optional probe build, then
    confirmed by you (`46-server-wide`); Odoo's own core default is read from the checkout and
-   always applied, so it is never listed. The supported Python range for a venv is read from the
+   always applied, so it is never listed. This row is the default for every build and serve; one
+   call can exclude or include modules with `server_wide` without touching the row. The supported Python range for a venv is read from the
    Odoo checkout itself (`45-venv`); a series whose checkout declares Python 2 gets a Python 2.7 venv
    built with `virtualenv`, since neither `uv` nor `python -m venv` can target Python 2.
    `/odoo-ai-agents:odoo-setup refresh [--version X.Y] [--profile P]` re-derives both for rows you
