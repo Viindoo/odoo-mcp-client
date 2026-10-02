@@ -157,7 +157,14 @@ For High- AND Med-tier modules in `test_set`: first have `odoo-instance` build t
 test instance (`init` of `test_set`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR
 lint gate); then launch the `odoo-test-writer` agent (mode tour/HttpCase; it authors by invoking the
 `odoo-test-writing` skill inline, in its own context) with that instance's `INSTANCE_HANDLE`, to
-realize the oracle's user-flow scenarios as durable regression and break-check each test on it;
+realize the oracle's user-flow scenarios as durable regression and break-check each test on it.
+Its brief carries `TARGET BEHAVIOR` = the oracle scenarios it realizes (`ORACLE_PATH`), `CHANGE KIND`
+per behavior derived from the change under acceptance (`new` unless the change alters, fixes,
+removes or restricts an existing rule - the enum: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
+§ How to break each change kind), `CHANGED CODE` = the `CHANGED_SET` files, stated as the change
+under acceptance (no coder output exists), `MODULE SCOPE` = `test_set`, and the `INSTANCE_HANDLE`
+whenever you hold this channel's instance (without one it writes the tests and returns
+`NEEDS_NEXT: odoo-instance` with its break-checks pending);
 then have `odoo-instance` run them on that same handle (headless `--test-enable`, `mode: reuse`,
 `GATE_ROLE: node-verify`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance
 verdict is about those modules, and an untagged run would spend the sweep re-testing the core
@@ -242,7 +249,7 @@ is still leased. If the odoo-local tools are unavailable, use the allocator CLI 
 
 When Odoo Semantic is unreachable, structural grounding falls back to the local checkout
 (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §4): derive the closure from disk
-(each module's descriptor `depends` - `__manifest__.py`, or `__openerp__.py` on v8-v9 - plus grep
+(each module's descriptor `depends` - `__manifest__.py`, or `__openerp__.py` on the series `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6 names - plus grep
 for `_inherit`) and label the manifest "closure approximate from disk". When NO live instance + browser MCP is reachable, EXECUTION cannot run: still produce Phase 0
 scope and the Phase 1 oracle, then emit `NEEDS_NEXT -> odoo-instance` to provision one
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`); fall back to `BLOCKED` only when

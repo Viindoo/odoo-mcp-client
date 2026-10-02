@@ -591,6 +591,8 @@ REQUEST          : <precise description of the behaviour this node delivers>
 Repo Capability Card: id=<this node's repo> base=<principal> verify=<command> commit=<resolved by git-ops> confidential=<level>
                    (the repos[] entry whose id equals this node's `repo` - never another repo's card)
 WORKLOG          : <runSlug> - read it, then append significant decisions
+RUN_ID           : <this run's id - the <id> of run-<id>.json; every lease the node acquires is owned
+                   by it>
 Return: the commit SHA on the node's branch (REQUIRED - a DONE with no SHA is a failed contract;
         the odoo-coder coordinator obtains the SHA by committing its coders' files via
         git-toolkit:git-ops, NOT via a raw coder commit) so run-harness can cherry-pick it onto

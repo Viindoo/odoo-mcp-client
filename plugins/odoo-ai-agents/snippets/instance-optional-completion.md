@@ -22,7 +22,7 @@ per-skill judgment call:
   Emit `status: NEEDS_NEXT` with `next: odoo-instance` - there is nothing to ship without the
   instance, so the run stops and hands off provisioning instead of shipping a partial
   artifact. Examples: `odoo-ui-review` (a rated screenshot IS the deliverable),
-  `odoo-test-writing` (Round 5 suite execution), `odoo-doc-illustration` (screen captures),
+  `odoo-test-writing` (its break-check runs, § Standalone-first fallback), `odoo-doc-illustration` (screen captures),
   `odoo-acceptance` (live oracle execution).
 
 Rule of thumb: if the skill can finish with a caveat, it is instance-optional

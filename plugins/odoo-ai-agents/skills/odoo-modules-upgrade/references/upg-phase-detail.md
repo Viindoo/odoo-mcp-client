@@ -470,6 +470,23 @@ INPUTS:
 
 ADAPT TIER: <haiku | sonnet | opus | fable> (from upg-triage-table.md)
 
+ADAPT FIELDS (ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT only - omit all five for
+DELETE-absorbed / OBSOLETE; the node's test leg reads them after the code is adapted):
+MODE: adapt
+INTENT: absorption/<module>.md `features` - the module's custom behavior, PRESERVED on the target
+  (+ the P2b design doc's §9 when one exists). The test leg takes every expected value from here,
+  never from the adapted code.
+SOURCE TESTS: <the module's existing test files in WORKTREE_PATH (tests/, static/tests/,
+  static/tours/) - adapted in place | none>
+BROKEN TEST-SYMBOLS: <the P1d `blockers[]` and P1b deprecation.md rows for this module that its
+  test files reference - symbol, status, target equivalent | omit when none>
+CHANGE KIND: <per behavior in INTENT, one value from
+  ${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § How to break each change kind:
+  `adapt` for a behavior carried through an API/idiom rewrite (the coordinator adds the rule's
+  file:lines from the coder's summary); `new` / `altered` for a DUE deferred-work item or a
+  design-doc change, per its work_item / §9. A feature the module hands over to core is not
+  listed - its old test goes to the coders' OBSOLETE TESTS report.>
+
 INSTRUCTIONS:
 If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   DANGLING-REFERENCE SWEEP (MANDATORY before directory removal):

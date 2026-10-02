@@ -41,7 +41,8 @@ full gate list + reproduction steps; mark each "verify against live test class":
 
 Tier (i) + (ii) = MUST-NOT-BREAK. Record the assembled list in the worklog under `PROTECTION_SCOPE`
 before writing code. Every test on the list must still pass after your change, unless the REQUEST
-makes its expectation obsolete: report it as `OBSOLETE TESTS` and leave the test to `odoo-test-writer`
+makes its expectation obsolete or renames/removes a symbol it references: report it as `OBSOLETE
+TESTS` and leave the test to `odoo-test-writer` - never edit a test yourself
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Adjusting an existing test).
 
 Tier (iii) = framework requirements - check the parity checklist unconditionally, independent of

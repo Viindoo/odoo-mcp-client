@@ -50,7 +50,6 @@ from .errors import ToolError
 from .tools_lease import HANDLE_SCHEMA, _obj
 
 I18N_OP = "i18n-export"
-_MANIFESTS = ("__manifest__.py", "__openerp__.py")
 
 
 def _languages(args):
@@ -82,30 +81,10 @@ def _modules(args):
 
 
 def _addons_dirs(row, lease):
-    """Where Odoo finds modules for this lease: its addons_path, then the checkout's core addons
-    (`<core package>/addons`, which Odoo always adds itself)."""
-    dirs = list(lease.get("addons_path") or [])
-    root = tools_instance.lease_checkout(row, lease)
-    if root:
-        pkg = cli.load_lib("odoo_source_facts").core_package(root)
-        if pkg:
-            dirs.append(os.path.join(root, pkg, "addons"))
-    return dirs
-
-
-def _module_dirs(module, dirs):
-    """Every directory `module` resolves to across `dirs`, in addons-path order; one directory
-    reached through two entries (a repeated entry, a symlink) counts once."""
-    found, seen = [], set()
-    for base in dirs:
-        path = os.path.join(base, module)
-        if not any(os.path.isfile(os.path.join(path, m)) for m in _MANIFESTS):
-            continue
-        real = os.path.realpath(path)
-        if real not in seen:
-            seen.add(real)
-            found.append(path)
-    return found
+    """Where Odoo finds modules for this lease (odoo_source_facts.module_search_dirs): its
+    addons_path, then the checkout's core addons."""
+    return cli.load_lib("odoo_source_facts").module_search_dirs(
+        row.get("odoo_root") or "", lease.get("addons_path") or [])
 
 
 def _destinations(modules, output_dir, row, lease, token):
@@ -114,7 +93,7 @@ def _destinations(modules, output_dir, row, lease, token):
     dirs = _addons_dirs(row, lease)
     out = []
     for m in modules:
-        paths = _module_dirs(m, dirs)
+        paths = cli.load_lib("odoo_source_facts").module_dirs(m, dirs)
         if not paths:
             raise ToolError("INVALID_ARGUMENTS",
                             "arguments.modules: %s is not a module on the lease's addons path (%s)" % (

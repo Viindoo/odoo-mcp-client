@@ -133,9 +133,13 @@ instance is READY when `instance_serve` returns its URL (it blocks, bounded, unt
 requested `languages` (always with `en_US`) and the series' demo flag itself, so every build has
 `en_US` active without anyone composing a flag. Pass `languages` as a dispatch field, `demo` only
 for an `init` / `create` build (a test build runs the series default), and never put those flags in
-extra flags. The rules - including what to do with a `job_wait` warning
-that a module must be loaded server-wide - are stated once in
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the odoo-local tools apply.
+extra flags - never `--load` in `extra_args`. The catalog row's server-wide set is the default for
+every build; when the caller's task needs a different set (a database without the deployment's
+branding modules -> exclude them; a new module that must load server-wide -> include it), forward
+it as `SERVER_WIDE` and it reaches every build and serve of that database as `server_wide`. The
+rules - including what to do with a `job_wait` warning that a module must be loaded server-wide -
+are stated once in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Build facts the
+odoo-local tools apply.
 
 **Agent-side union this skill does not compute itself.** This skill resolves `PROFILE` (per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; an empty resolved value is treated as
@@ -194,6 +198,7 @@ PARK_TTL_S: <seconds or 'default'>                      # park only; 'default' k
 RUN_ID: <the caller's run id>                           # ALWAYS set - the lease-ownership identity; never invent one
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv target locales, or 'none'; the tool adds en_US to every build>
+SERVER_WIDE: <{exclude: [...], include: [...]} from the caller's brief, verbatim>   # omit unless the caller names one; the catalog row's set applies
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, the agent re-roots its lease's addons list onto it
@@ -310,8 +315,32 @@ lets a caller lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral 
 unlike a bare `lease_acquire` + `instance_build` - still under the HARD RULES.
 
 A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and do NOT provision
-(contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Only with NO handle does
-the caller self-provision via this inline path.
+(contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) - run the steps as the
+HANDLE-CONSUMER branch below changes them. Only with NO handle does the caller self-provision via
+the numbered steps as written.
+
+**HANDLE-CONSUMER branch (an `INSTANCE_HANDLE` is in the brief).** The handle's lease stays its
+owner's: never provision a new database, never release, park or adopt the handle's own lease. An
+`init` / `update` build or a serve passes the handle's own `lease_token`. A TEST build binds the
+lease's reserved port, and the handle's server may already listen on that port, so every `op test`
+runs on a port lease of your own on the handle's DATABASE
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Test build on a forwarded handle):
+
+- **Step 1 becomes: your port lease.** Skip the ephemeral acquire. Before your first test run, take
+  ONE `lease_acquire` of your own: mode `exclusive`, `no_create` true, `ports` 1, with the handle's
+  `db_name`, `addons_path`, `series` and `run_id`, `cwd` = your `WORKTREE_PATH` (else the current
+  checkout). It creates and drops no database.
+- **Steps 2-3** as written (pin the series, ground flags, apply the HARD RULES).
+- **Step 4 runs on YOUR lease.** Every `instance_build` op `test` on THAT lease's token, never the
+  handle's: `test_mode` `reuse` (the handle's database already holds its modules), `test_tags` as
+  the caller resolved them (per-method `/<module>:<Class>.<method>[,...]` for a break-check), the
+  caller's `server_wide` when it names one; then `job_wait` until terminal, reading `TESTS_RUN` and
+  the failed counts from its summary. Hold the one lease for every run on that database. When the
+  tool reports the database busy, `job_wait` the job it names, then retry the call.
+- **Step 5 releases only YOUR lease** - `lease_release` with its token and the `run_id`, before you
+  return, on every exit; it drops nothing (a `no_create` exclusive lease never owns its database).
+  The handback is refused while a lease you obtained is live. When you report a handle, it is the
+  forwarded one, unchanged - never your released lease's.
 
 Every step runs through the odoo-local tools (`mcp__plugin_odoo-ai-agents_odoo-local__<tool>`).
 If the odoo-local tools are unavailable, use the allocator CLI documented in ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-API.md.
@@ -331,7 +360,8 @@ Run these steps in order, honoring the SAME HARD RULES as the agent (single sour
    `venv_missing: true` is a lease no build can use: release it, build the venv, acquire again.
 2. **Pin series + ground CLI flags** - `set_active_version` then `cli_help` per the agent's "Common
    preamble" Steps A-B (every flag from this series' `cli_help`, never from memory).
-3. **Apply the HARD RULES** as the agent does - `languages` and (never on a test build) `demo` passed as build arguments
+3. **Apply the HARD RULES** as the agent does - `languages`, the caller's `server_wide` (when it
+   names one, on every build AND serve) and (never on a test build) `demo` passed as build arguments
    and every `job_wait` warning acted on (`odoo-instance-ops`'s own "Demo, languages and
    server-wide modules (HARD RULE)"), and lint-module install for a test-run build ONLY when
    `GATE_ROLE: pre-pr-lint-gate` (its own "Lint modules - installed ONLY for the designated pre-PR

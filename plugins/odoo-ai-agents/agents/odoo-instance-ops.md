@@ -183,8 +183,9 @@ ALWAYS reconfirm live via `cli_help` - this table is a FAST-PATH PRIOR only and 
 **Ports, connection and build facts are the tools' job.** Never put a port, database, connection,
 addons-path, config, data-dir, `-i`/`-u`, `--stop-after-init`, test switch, server-wide module,
 language or demo flag in `extra_args` (`INVALID_ARGUMENTS`): `instance_build` sets them from the
-lease and its own `demo` / `languages` arguments, and `instance_serve` derives the odoo.conf port
-keys and the server-wide set from the lease. `cli_help` grounds only the flags you add.
+lease and its own `demo` / `languages` / `server_wide` arguments, and `instance_serve` derives the
+odoo.conf port keys and the server-wide set from the lease (adjusted by its `server_wide`).
+`cli_help` grounds only the flags you add.
 
 **Lint modules row**: which module(s) to union comes from `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`, never from a version range you recall, AND the union itself only fires for the dispatch explicitly declared `GATE_ROLE: pre-pr-lint-gate` - see "Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)" below.
 
@@ -197,7 +198,8 @@ Source-fallback trigger: when `cli_help` for the db subcommand reports no usable
 ## Demo, languages and server-wide modules (HARD RULE)
 
 `instance_build` applies the server-wide modules, the languages (adding `en_US` to every build) and
-the series' demo flag itself; `instance_serve` applies the same server-wide set. The rules are stated
+the series' demo flag itself; `instance_serve` applies the same server-wide set. The rules - the
+per-call `server_wide` adjustment included - are stated
 ONCE, for every build operation below, in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
 § Build facts the odoo-local tools apply. What they leave you to do:
 
@@ -220,12 +222,21 @@ ONCE, for every build operation below, in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-v
    yourself. Report `languages_loaded` / `languages_failed` from the final `job_wait`. A language in
    `languages_failed` is a `concerns:` entry (`locale <x>: load failed - log: <log_path>`), never
    reported as loaded; the other languages of the build still count.
-4. **Act on every `job_wait` warning before you report the instance good.** A module Odoo says must
-   be loaded server-wide means the catalog row lacks it and the instance is not the deployment's:
-   report `status: error` (a build) or `tests-inconclusive` (a test run) with the warning in
-   `notes`, clear a lease you obtained, and return `NEEDS_CONTEXT` whose `blocked_reason` carries
-   the warning's remedy (the row is fixed through `/odoo-ai-agents:odoo-setup refresh` or by the
-   operator, and only a lease acquired AFTER that loads the module). A demo-data failure warning on
+4. **Pass the brief's `SERVER_WIDE` as `server_wide`** - verbatim, to every `instance_build` AND
+   every `instance_serve` of that database, so the build and the server load one set; omit it when
+   the brief has none (the catalog row's set applies). Never put `--load` in `extra_args`. When you
+   passed one, state the tool's `server_wide_modules` / `served_server_wide_modules` in `notes`.
+   A refused adjustment (an excluded module that is core or not declared, an included module the
+   lease cannot find) is a brief gap: return `NEEDS_CONTEXT` carrying the tool's message and
+   remedy, never drop or rewrite the adjustment yourself.
+5. **Act on every `job_wait` warning before you report the instance good.** A module Odoo says must
+   be loaded server-wide means the catalog row lacks it (or the brief's `SERVER_WIDE` left it out)
+   and the instance is not the deployment's: report `status: error` (a build) or
+   `tests-inconclusive` (a test run) with the warning in `notes`, clear a lease you obtained, and
+   return `NEEDS_CONTEXT` whose `blocked_reason` carries the warning's remedy - both routes: a
+   rebuild with `server_wide.include` for this task, or the catalog row fixed through
+   `/odoo-ai-agents:odoo-setup refresh` or by the operator for every build (only a lease acquired
+   AFTER that loads the module). A demo-data failure warning on
    a build that asked for `demo` `on` means demo records are missing: report `status: error` with
    the warning in `notes`, never `created`.
 
@@ -319,7 +330,7 @@ the field `false` or absent, never add it.
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (`on`/`off` - what the build REQUIRES; absent means DERIVE it from the build purpose per "Demo, languages and server-wide modules" above, never silently `off`), languages (csv; `en_US` is added by the tool), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's run id - passed on every lease call below; NEVER omitted).
+**Inputs:** series, modules (list), demo (`on`/`off` - what the build REQUIRES; absent means DERIVE it from the build purpose per "Demo, languages and server-wide modules" above, never silently `off`), languages (csv; `en_US` is added by the tool), server_wide (optional - rule 4 of "Demo, languages and server-wide modules" above), addons_path override (optional), `persist` (default `ephemeral`; the values and what each one gets you are spelled out ONLY in `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION-MODES.md` § 5 - read them there, never from a copy), `run_id` (the caller's run id - passed on every lease call below; NEVER omitted).
 
 **Resume before you build (listening `persist:` values only - run this FIRST).** An earlier
 dispatch may have PARKED an instance for this series: its database, filestore and ports are still
@@ -447,7 +458,7 @@ a terminal `result`. **Active wait (HARD RULE):** per "Active-wait on long build
 
 Run the Odoo test suite for one or more modules - either against a fresh ephemeral database (init+test in one pass) or by re-running on an existing database that already has the modules installed.
 
-**Inputs:** series, modules (no demo: a test build runs the series default - rule 2 of "Demo, languages and server-wide modules" above), languages (csv, optional; `en_US` is added by the tool), test tags (supplied by the caller, `full`, or absent - absent means DERIVE, see "Test scope" below; it never means "run untagged"), `mode` (`fresh` | `reuse`, decided by the auto rule below when absent), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
+**Inputs:** series, modules (no demo: a test build runs the series default - rule 2 of "Demo, languages and server-wide modules" above), languages (csv, optional; `en_US` is added by the tool), server_wide (optional - rule 4 of "Demo, languages and server-wide modules" above), test tags (supplied by the caller, `full`, or absent - absent means DERIVE, see "Test scope" below; it never means "run untagged"), `mode` (`fresh` | `reuse`, decided by the auto rule below when absent), `log_mode` (`info` | `debug` | `sql`, optional - omitted keeps the build default; `warn` is refused), addons_path override (optional).
 
 **Test scope (HARD RULE - every `--test-enable` build).** A build's install set (`modules`) and its
 selection set (`test_tags`) are TWO SIDES OF ONE module set and must agree. Resolve the tags
@@ -771,7 +782,8 @@ EVERY operation, not only create-instance.
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build facts left to the tools: no `--load`, language or demo flag in `extra_args`; `demo` passed on every init build (from the brief, else derived from the purpose row with the derivation in notes) and never on a test build; `languages` passed as the brief gave them, `en_US` never added by hand; `languages_loaded` / `languages_failed` / `demo` reported from job_wait
 - [ ] no test build on a database holding demo data where the series' default loads none: a brief `DEMO:` on a test dispatch never applied (noted); a forwarded handle with `demo: true` never a `reuse` target there
-- [ ] every job_wait warning acted on: a server-wide-module warning -> instance not trusted, lease cleared, `NEEDS_CONTEXT` carrying the catalog remedy; a demo-failure warning -> `status: error`
+- [ ] the brief's `SERVER_WIDE` passed verbatim as `server_wide` to every build and serve of that database (none -> omitted), never `--load` in `extra_args`
+- [ ] every job_wait warning acted on: a server-wide-module warning -> instance not trusted, lease cleared, `NEEDS_CONTEXT` carrying the warning's remedy (`server_wide.include` for this task, the catalog route for every build); a demo-failure warning -> `status: error`
 - [ ] profile resolved and PINNED before any lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
 - [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `GATE_ROLE` resolved FIRST - `pre-pr-lint-gate` -> lint modules resolved and probed per `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md` with the same pinned `profile_name=`, each resolved module unioned into BOTH `modules` AND `test_tags` from the same probe (never tagged without being installed), and each tagged module confirmed from the log to have actually installed and loaded its tests; `node-verify` -> no lint probe, no lint union, run this dispatch's own resolved scope (caller-supplied or derived tags); `GATE_ROLE` absent -> `NEEDS_CONTEXT`, never guessed either way
 - [ ] load-language: an `init` of `base` with `languages`; loaded/failed locales reported from job_wait; per-locale degradation emitted rather than hard abort

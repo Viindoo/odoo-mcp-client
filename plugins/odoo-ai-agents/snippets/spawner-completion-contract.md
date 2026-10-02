@@ -39,10 +39,13 @@ the report is never handed to you - not because the harness failed to send it, b
 stopped to receive it. That is the one failure mode of nested dispatch, and it is entirely yours to
 prevent.
 
-So: commit or checkpoint what you have written, issue every launch this turn needs -
-independent children in ONE message - then write nothing further except a one-line note of what you
-are waiting for, and END THE TURN. Never end a turn with uncommitted work, and never do a child's
-work while it runs. You resume with its result and continue from there.
+So: commit what you have written, issue every launch this turn needs - independent children in ONE
+message - then write nothing further except a one-line note of what you are waiting for, and END THE
+TURN. Never end a turn with uncommitted work, with ONE exception: work your contract keeps
+uncommitted because the child you launch works on that same tree (a node's code before its test
+leg - the restore proof is a hash manifest, never a checkpoint commit:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+Never do a child's work while it runs. You resume with its result and continue from there.
 
 ### A background shell command is a SAME-TURN result - nothing wakes you for one
 

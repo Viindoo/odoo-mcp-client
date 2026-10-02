@@ -40,6 +40,14 @@ Build facts the TOOL applies (instance_build), never the agent:
                        core default cannot be read the build is refused (SERVER_WIDE_CORE_UNKNOWN)
                        rather than guessed; nothing declared -> no --load at all. instance_serve
                        gets the same set from 50-instance-spinup.sh, which reads the same lease row.
+                       The `server_wide` argument (instance_build, and instance_serve on a lease of
+                       its own) adjusts that set for ONE call - core + (declared - exclude) +
+                       include, refused per instances_io's rules (INVALID_ARGUMENTS naming
+                       arguments.server_wide.<exclude|include>; SERVER_WIDE_MODULE_NOT_FOUND) - and is then passed as --load (serve: the
+                       complete set as 50-instance-spinup.sh --load). The lease and the catalog
+                       are never changed by it. A serve that only attached to the lease's running
+                       server cannot change that server's set: when the running conf's set differs
+                       from the adjusted one, the call is refused (SERVER_WIDE_NOT_APPLIED).
   languages            `--load-language=en_US[,...]` on every build (en_US always unioned), so every
                        build proves en_US and job_wait can report languages_loaded.
   demo                 `demo on|off`, required for op init, spelled from the checkout by
@@ -153,7 +161,8 @@ _DEMO_FAILED_RE = re.compile(r"Module ([A-Za-z0-9_]+) demo data failed to instal
 # The spin-up script's result facts (50-instance-spinup.sh header).
 _SERVE_KEYS = ("SERVE_STATE", "SERVE_HTTP_PORT", "SERVE_URL", "SERVER_PID", "SERVE_RESUMED",
                "SERVED_ADDONS_PATH", "SERVED_ADDONS_SOURCE", "SERVED_SERVER_WIDE_MODULES", "LOG_PATH",
-               "SHARED_LEASE_TOKEN", "SHARED_LEASE_ERROR", "SERVE_REFUSED")
+               "SHARED_LEASE_TOKEN", "SHARED_LEASE_ERROR", "SERVE_REFUSED",
+               "RUNNING_SERVER_WIDE_MODULES")
 
 
 # --------------------------------------------------------------------------- #
@@ -249,7 +258,9 @@ TOOL_CONTROLLED_LONG = ("database", "db-filter", "db-host", "db-port", "db-user"
 # The build facts among them, and the tool input that sets each instead (named in the refusal).
 _BUILD_FACT_OWNER = {
     "load": "server-wide modules are applied by the tool (core default + the catalog's "
-            "server_wide_modules; change the catalog via /odoo-ai-agents:odoo-setup)",
+            "server_wide_modules); to load a different set for this call use the server_wide "
+            "argument (exclude / include), to change it for every build change the catalog via "
+            "/odoo-ai-agents:odoo-setup",
     "load-language": "use the languages argument",
     "language": "use the languages argument to load a language (-l/--language only selects an "
                 "i18n export/import file)",
@@ -449,17 +460,50 @@ def _declared_server_wide(row, lease, cwd):
     return io.server_wide_modules_of(item) if item is not None else []
 
 
-def server_wide_for(row, lease, cwd, token):
-    """The complete --load set a build on this lease uses ([] = no --load: Odoo's own default)."""
+def server_wide_adjustment(args):
+    """The validated `server_wide` argument as {"exclude": [...], "include": [...]} (each
+    deduplicated, order kept), or None when the call adjusts nothing."""
+    raw = args.get("server_wide") or {}
+    out = {}
+    for key in ("exclude", "include"):
+        names = []
+        for m in raw.get(key) or []:
+            if not _MODULE_RE.match(m):
+                raise ToolError("INVALID_ARGUMENTS",
+                                "arguments.server_wide.%s: %r is not a module name" % (key, m))
+            if m not in names:
+                names.append(m)
+        out[key] = names
+    return out if (out["exclude"] or out["include"]) else None
+
+
+def server_wide_for(row, lease, cwd, token, adjustment=None, addons_path=None):
+    """The complete --load set a build or serve on this lease uses ([] = no --load: Odoo's own
+    default): instances_io.effective_server_wide_modules over the lease's declared set, adjusted
+    for this call by `adjustment` (server_wide_adjustment). `addons_path` = the tree served, when
+    it is not the lease's own (where an included module must be found)."""
     io = cli.load_lib("instances_io")
     declared = _declared_server_wide(row, lease, cwd)
+    adjustment = adjustment or {}
+    addons = addons_path if addons_path is not None else (lease.get("addons_path") or [])
     try:
-        effective, _core = io.effective_server_wide_modules(declared, row.get("odoo_root") or "",
-                                                            lease.get("addons_path") or [])
+        effective, _core = io.effective_server_wide_modules(
+            declared, row.get("odoo_root") or "", addons,
+            exclude=adjustment.get("exclude"), include=adjustment.get("include"))
     except io.ServerWideCoreUnknown as exc:
         raise ToolError("SERVER_WIDE_CORE_UNKNOWN", "lease %s: %s" % (token[:8], exc),
                         {"token_prefix": token[:8], "declared": declared,
                          "odoo_root": row.get("odoo_root") or ""})
+    except io.ServerWideOverrideInvalid as exc:
+        diagnostics = {"token_prefix": token[:8], "field": exc.field, "reason": exc.reason,
+                       "modules": exc.modules, "declared": declared}
+        if exc.reason == "not-found":
+            facts = cli.load_lib("odoo_source_facts")
+            diagnostics["searched"] = facts.module_search_dirs(row.get("odoo_root") or "", addons)
+            raise ToolError("SERVER_WIDE_MODULE_NOT_FOUND",
+                            "arguments.server_wide.include: %s" % exc, diagnostics)
+        raise ToolError("INVALID_ARGUMENTS",
+                        "arguments.server_wide.%s: %s" % (exc.field, exc), diagnostics)
     return effective
 
 
@@ -529,6 +573,7 @@ def _build(args, ctx):
             if key in args:
                 raise ToolError("INVALID_ARGUMENTS", "arguments.%s: only valid with op test" % key)
     _validate_build_facts(op, args)
+    adjustment = server_wide_adjustment(args)
     extra = args.get("extra_args") or []
     for a in extra:
         if not a or any(c.isspace() for c in a):
@@ -566,7 +611,7 @@ def _build(args, ctx):
         if opt_in:
             _refuse_demo_test(op, args, tools_lease.database_facts(row, cwd=cwd), lease, token,
                               opt_in)
-    load = server_wide_for(row, lease, cwd, token)
+    load = server_wide_for(row, lease, cwd, token, adjustment)
     languages = activation_languages(args.get("languages"))
 
     argv = [op, "--db", db, "--python", python, "--addons", tools_lease.join_addons(addons),
@@ -599,7 +644,8 @@ def _build(args, ctx):
             "kind": BUILD_JOB_KIND, "op": op, "lease_token": token, "log_path": log_path,
             "output_path": output_path, "series": lease.get("series") or "",
             "profile": lease.get("profile") or "",
-            "modules": list(modules), "server_wide_modules": load, "languages": languages,
+            "modules": list(modules), "server_wide_modules": load,
+            "server_wide_adjustment": adjustment, "languages": languages,
             "demo": demo or ""})
     with database_job_slot(lease):
         # Recorded BEFORE the build starts: a build that fails half-way may already have loaded
@@ -615,7 +661,7 @@ def _build(args, ctx):
     # read now would state its pre-build facts. job_wait returns the handle once the job finished.
     return {"job_id": rec["job_id"], "pid": rec["pid"], "op": op, "log_path": log_path,
             "output_path": output_path, "lease_token": token, "server_wide_modules": load,
-            "languages": languages, "demo": demo or None}
+            "server_wide_adjustment": adjustment, "languages": languages, "demo": demo or None}
 
 
 # --------------------------------------------------------------------------- #
@@ -693,17 +739,24 @@ def _build_warnings(wide, no_demo, meta):
     out = []
     if wide:
         key, refresh = _catalog_row_words(meta)
+        them = "them" if len(wide) > 1 else "it"
         out.append("Odoo logged that %s must be loaded server-wide (--load), and this build did not "
-                   "load %s: add %s to server_wide_modules of this lease's catalog row %s via "
+                   "load %s. For this task only: rebuild with server_wide.include %s (and pass the "
+                   "same server_wide to instance_serve). For every build of this deployment: add "
+                   "%s to server_wide_modules of this lease's catalog row %s via "
                    "/odoo-ai-agents:odoo-setup %s, then lease_release this lease, lease_acquire a "
                    "new one and rebuild - a lease keeps the set it was acquired with." % (
-                       ", ".join(wide), "them" if len(wide) > 1 else "it",
-                       "them" if len(wide) > 1 else "it", key, refresh))
+                       ", ".join(wide), them, _json_list(wide), them, key, refresh))
     if no_demo:
         out.append("demo data of %s failed to install; Odoo installed %s WITHOUT demo data - read "
                    "the log for the demo-data error before relying on demo records." % (
                        ", ".join(no_demo), "them" if len(no_demo) > 1 else "it"))
     return out
+
+
+def _json_list(names):
+    """`["a", "b"]` - how a remedy spells a list argument value."""
+    return "[%s]" % ", ".join('"%s"' % n for n in names)
 
 
 def _languages_verdict(state, modules_loaded, requested, seen):
@@ -792,6 +845,7 @@ def _job_wait(args, ctx):
         "output_tail": _tail_lines(output),
         "detail": st.get("detail") or "",
         "server_wide_modules": list(meta.get("server_wide_modules") or []),
+        "server_wide_adjustment": meta.get("server_wide_adjustment") or None,
         "demo": meta.get("demo") or None,
         "languages_loaded": loaded,
         "languages_failed": failed,
@@ -855,9 +909,13 @@ def _serve(args, ctx):
                         "arguments: pass exactly one of lease_token (serve your lease) or series "
                         "(attach to / start the shared declared instance)")
     cwd = _cwd(args)
+    adjustment = server_wide_adjustment(args)
+    if adjustment and series:
+        raise ToolError("INVALID_ARGUMENTS", _SHARED_SET_WORDS % "series")
     extra_env = {"SPINUP_TIMEOUT": os.environ.get("SPINUP_TIMEOUT") or str(SERVE_POLL_S)}
     argv = ["apply"]
     lease = None
+    load = None
     if token:
         row = _require_row(token)
         lease = tools_lease.lease_from_row(row)
@@ -874,6 +932,8 @@ def _serve(args, ctx):
         if profile:
             argv += ["--profile", profile]
         if lease["mode"] == "shared":
+            if adjustment:
+                raise ToolError("INVALID_ARGUMENTS", _SHARED_SET_WORDS % "a shared lease_token")
             run_id = args.get("run_id") or lease.get("run_id")
             if run_id:
                 extra_env["INST_RUN_ID"] = run_id
@@ -888,15 +948,20 @@ def _serve(args, ctx):
             if len(ports) > 1:
                 argv += ["--gevent-port", str(ports[1]), "--gevent-port-key",
                          _second_port_key(row, lease, token)]
+            if adjustment:
+                # The complete adjusted set: 50-instance-spinup.sh writes --load verbatim.
+                load = server_wide_for(row, lease, cwd, token, adjustment,
+                                       addons_path=_addons_arg(args.get("addons_path")))
+                argv += ["--load", MODULE_LIST_SEP.join(load)]
     else:
         argv += ["--version", series]
         if args.get("profile"):
             argv += ["--profile", args["profile"]]
         if args.get("run_id"):
             extra_env["INST_RUN_ID"] = args["run_id"]
-    addons = args.get("addons_path")
+    addons = _addons_arg(args.get("addons_path"))
     if addons:
-        argv += ["--addons-path", tools_lease.join_addons(addons if isinstance(addons, list) else tools_lease._addons_list(addons))]
+        argv += ["--addons-path", tools_lease.join_addons(addons)]
     try:
         rc, out, err = cli.run(cli.interpreter_for(_spinup_script()) + argv, cwd, SERVE_TIMEOUT_S, extra_env)
     except cli.SubprocessTimeout as exc:
@@ -926,6 +991,24 @@ def _serve(args, ctx):
         lease_token = None
         if lease is not None:
             lease = dict(lease, token=None, run_id="")
+    served_load = _module_list(facts.get("SERVED_SERVER_WIDE_MODULES"))
+    running_unknown = False
+    if facts.get("SERVE_STATE") == "attached":
+        # Attached: the server runs with the set its conf was written with when it launched.
+        if "RUNNING_SERVER_WIDE_MODULES" in facts:
+            served_load = _module_list(facts["RUNNING_SERVER_WIDE_MODULES"])
+        else:
+            running_unknown = True
+    if load is not None and (running_unknown or served_load != load):
+        raise ToolError("SERVER_WIDE_NOT_APPLIED",
+                        "lease %s: its server was already running with server-wide modules %s; "
+                        "this call's set (%s) was not applied" % (
+                            token[:8], "unknown" if running_unknown else (
+                                MODULE_LIST_SEP.join(served_load) or "Odoo's own default"),
+                            MODULE_LIST_SEP.join(load)),
+                        {"token_prefix": token[:8], "running": None if running_unknown else served_load,
+                         "requested": load,
+                         "serve_state": facts.get("SERVE_STATE")})
     http_port = _int_or_none(facts.get("SERVE_HTTP_PORT"))
     server_pid = _int_or_none(facts.get("SERVER_PID"))
     if token and lease is not None and lease.get("mode") != "shared":
@@ -949,12 +1032,30 @@ def _serve(args, ctx):
         "resumed": facts.get("SERVE_RESUMED") == "1",
         "served_addons_path": served,
         "served_addons_source": facts.get("SERVED_ADDONS_SOURCE") or "",
-        "served_server_wide_modules": [m for m in (facts.get("SERVED_SERVER_WIDE_MODULES") or "").split(",") if m],
+        "served_server_wide_modules": served_load,
+        "server_wide_adjustment": adjustment,
         "log_path": facts.get("LOG_PATH") or None,
         "lease_token": lease_token,
         "shared_lease_error": facts.get("SHARED_LEASE_ERROR") or None,
         "instance_handle": handle,
     }
+
+
+_SHARED_SET_WORDS = ("arguments.server_wide: not with %s - the shared declared instance serves its "
+                     "catalog row's server-wide set to every reader; serve a lease of your own "
+                     "(lease_acquire ports 1) to adjust the set")
+
+
+def _addons_arg(value):
+    """The addons_path argument as a list of directories (a list, or one comma-joined string);
+    None when absent."""
+    if not value:
+        return None
+    return value if isinstance(value, list) else tools_lease._addons_list(value)
+
+
+def _module_list(value):
+    return [m for m in (value or "").split(MODULE_LIST_SEP) if m]
 
 
 def _refuse_unadopted_park(row, token, cwd):
@@ -1092,6 +1193,40 @@ _ADDONS_PROP = {"type": ["string", "array"], "items": {"type": "string"},
                 "description": "Addons directories to SERVE (absolute; a list or one comma-joined "
                                "string). Omit: the lease's addons_path, else the catalog's."}
 
+_MODULE_NAMES = {"type": "array", "items": {"type": "string", "minLength": 1}}
+SERVER_WIDE_PROP = {
+    "type": "object",
+    "description": "Adjust the server-wide module set (Odoo --load) for THIS call only; omit it to "
+                   "load the default - the series' core default read from the lease's Odoo "
+                   "checkout + the server_wide_modules the lease recorded from its catalog row. "
+                   "The set loaded is core default + (declared - exclude) + include, core first; "
+                   "the lease and the catalog stay unchanged, so pass the same server_wide to "
+                   "every build and serve that must run with it. Use it when the task needs a "
+                   "different set, e.g. a database without the deployment's branding modules "
+                   "(exclude them) or a new module that must load server-wide (include it). "
+                   "Refused: excluding a core-default module or one not declared, naming a "
+                   "module in both lists (INVALID_ARGUMENTS); including a module with no module "
+                   "directory on the lease's addons path or the checkout's core addons "
+                   "(SERVER_WIDE_MODULE_NOT_FOUND). Including a module already in the set is a "
+                   "no-op. To change the set for every build, change the catalog row via "
+                   "/odoo-ai-agents:odoo-setup instead.",
+    "properties": {
+        "exclude": dict(_MODULE_NAMES, description="Declared server-wide modules (catalog_read / "
+                                                   "the lease's server_wide_modules) to leave out "
+                                                   "for this call."),
+        "include": dict(_MODULE_NAMES, description="Technical names of modules to load server-wide "
+                                                   "for this call besides the default set."),
+    },
+    "required": [],
+    "additionalProperties": False,
+}
+SERVER_WIDE_ADJUSTMENT_OUT = {
+    "anyOf": [_obj({"exclude": {"type": "array", "items": {"type": "string"}},
+                    "include": {"type": "array", "items": {"type": "string"}}},
+                   ["exclude", "include"]),
+              {"type": "null"}],
+    "description": "The server_wide adjustment this call applied (null = none: the default set)."}
+
 JOB_WAIT_OUTPUT = _obj({
     "job_id": {"type": "string"},
     "result": {"type": "string", "enum": ["success", "failure", "inconclusive", "timeout", "lost"]},
@@ -1110,6 +1245,7 @@ JOB_WAIT_OUTPUT = _obj({
     "server_wide_modules": {"type": "array", "items": {"type": "string"},
                             "description": "The complete --load set the build ran with (empty = "
                                            "none passed: Odoo's own default)."},
+    "server_wide_adjustment": SERVER_WIDE_ADJUSTMENT_OUT,
     "demo": {"type": ["string", "null"], "enum": ["on", "off", None],
              "description": "The demo value the build ran with (op test: the series default the "
                             "tool read); null = not stated (op update, or a job that is not a "
@@ -1132,8 +1268,9 @@ JOB_WAIT_OUTPUT = _obj({
                                        "languages_loaded: its database's facts, see facts_source); "
                                        "null while running or when the lease is gone."},
 }, ["job_id", "result", "state", "exit_code", "op", "marker", "progress", "test_result", "summary",
-    "log_path", "output_path", "log_tail", "output_tail", "detail", "server_wide_modules", "demo",
-    "languages_loaded", "languages_failed", "warnings", "exports", "instance_handle"])
+    "log_path", "output_path", "log_tail", "output_tail", "detail", "server_wide_modules",
+    "server_wide_adjustment", "demo", "languages_loaded", "languages_failed", "warnings", "exports",
+    "instance_handle"])
 
 
 def register(registry, ctx):
@@ -1147,8 +1284,10 @@ def register(registry, ctx):
         "server, so on a lease without one it is refused with LEASE_HAS_NO_PORT. "
         "The tool applies three build facts itself - never put them in extra_args: "
         "(1) server-wide modules: --load = the series' core default read from the lease's Odoo "
-        "checkout + the catalog row's server_wide_modules recorded on the lease; declared modules "
-        "whose core default cannot be read are refused (SERVER_WIDE_CORE_UNKNOWN), never guessed; "
+        "checkout + the catalog row's server_wide_modules recorded on the lease; when the task "
+        "needs a different set, adjust it for this call with server_wide (exclude / include); "
+        "a set whose core default cannot be read is refused (SERVER_WIDE_CORE_UNKNOWN), never "
+        "guessed; "
         "(2) languages: en_US plus every code in languages is loaded (--load-language) on every "
         "build; (3) demo: required for op init - pass on or off, the tool spells the flag the "
         "lease's Odoo checkout declares; op update takes NO demo (an update never adds demo data "
@@ -1219,7 +1358,8 @@ def register(registry, ctx):
                                           "--logfile/--syslog/--pidfile, --load, --load-language, "
                                           "-l/--language, --with-demo, --without-demo), alone, as an "
                                           "accepted prefix, or inside a combined short-flag token: "
-                                          "refused."},
+                                          "refused - adjust the server-wide set with server_wide, "
+                                          "never --load here."},
             "test_tags": {"type": "string", "minLength": 1,
                           "description": "op test only: the --test-tags selection (e.g. /my_module)."},
             "test_mode": {"type": "string", "enum": ["fresh", "reuse"],
@@ -1229,6 +1369,7 @@ def register(registry, ctx):
                                          "installed module under -i)."},
             "log_mode": {"type": "string", "enum": ["info", "debug", "sql"],
                          "description": "op test only: log verbosity; omit for info."},
+            "server_wide": SERVER_WIDE_PROP,
             "cwd": _CWD_PROP,
         }, ["lease_token", "op", "modules"]),
         _obj({
@@ -1241,6 +1382,7 @@ def register(registry, ctx):
             "server_wide_modules": {"type": "array", "items": {"type": "string"},
                                     "description": "The complete --load set this build runs with "
                                                    "(empty = none passed: Odoo's own default)."},
+            "server_wide_adjustment": SERVER_WIDE_ADJUSTMENT_OUT,
             "languages": {"type": "array", "items": {"type": "string"},
                           "description": "The --load-language set requested (en_US first)."},
             "demo": {"type": ["string", "null"], "enum": ["on", "off", None],
@@ -1248,7 +1390,7 @@ def register(registry, ctx):
                                     "default read from the checkout); null = not stated (op "
                                     "update)."},
         }, ["job_id", "pid", "op", "log_path", "output_path", "lease_token", "server_wide_modules",
-            "languages", "demo"]),
+            "server_wide_adjustment", "languages", "demo"]),
         _build, title="Start an Odoo build/test job", destructive=True,
     )
     registry.add(
@@ -1266,8 +1408,9 @@ def register(registry, ctx):
         "(a failed one is an unknown code or a build that stopped before its modules loaded - never "
         "report it as loaded; a test suite's own verdict does not change them); warnings "
         "lists problems the build logged without failing - e.g. a module Odoo says must be loaded "
-        "server-wide, whose remedy is a catalog change through /odoo-ai-agents:odoo-setup and a new "
-        "lease - act on each before trusting the instance; instance_handle is the lease's handle "
+        "server-wide, whose remedy is server_wide.include on a rebuild (this task) or a catalog "
+        "change through /odoo-ai-agents:odoo-setup and a new lease (every build) - act on each "
+        "before trusting the instance; instance_handle is the lease's handle "
         "with demo and languages_loaded read from its database (facts_source), the one to forward. "
         "For an instance_i18n_export job read exports: every file written, in order (.pot first); "
         "on failure output_tail names the cause. It records a build's proven languages on the "
@@ -1306,8 +1449,11 @@ def register(registry, ctx):
         "lease_park or lease_release that lease. Server-wide modules are applied by the tool, as for "
         "instance_build: the series' core default read from the Odoo checkout + the lease's (with "
         "series: the catalog row's) server_wide_modules, reported as served_server_wide_modules; "
-        "declared modules whose core default cannot be read are refused "
-        "(SERVER_WIDE_CORE_UNKNOWN) and nothing is launched.",
+        "a set whose core default cannot be read is refused (SERVER_WIDE_CORE_UNKNOWN) and "
+        "nothing is launched. On your own lease, server_wide adjusts the set for this call - pass "
+        "the same one the build of that database used; a server of the lease that is already "
+        "running keeps its set, and a different one asked for is refused "
+        "(SERVER_WIDE_NOT_APPLIED). Never with series or a shared lease (INVALID_ARGUMENTS).",
         _obj({
             "lease_token": {"type": "string", "minLength": 8,
                             "description": "Full token of YOUR lease to serve. Exactly one of lease_token "
@@ -1324,6 +1470,7 @@ def register(registry, ctx):
                                                       "own profile is used (a different one is refused, "
                                                       "PROFILE_MISMATCH)."),
             "addons_path": _ADDONS_PROP,
+            "server_wide": SERVER_WIDE_PROP,
             "cwd": _CWD_PROP,
         }),
         _obj({
@@ -1335,10 +1482,13 @@ def register(registry, ctx):
             "served_addons_path": {"type": "array", "items": {"type": "string"}},
             "served_addons_source": {"type": "string"},
             "served_server_wide_modules": {"type": "array", "items": {"type": "string"},
-                                           "description": "The resolved server-wide module set "
-                                                          "(core default + declared) the served conf "
-                                                          "carries; empty = none declared, Odoo's "
-                                                          "own default applies."},
+                                           "description": "The server-wide module set the serving "
+                                                          "server's conf carries (core default + "
+                                                          "declared, as adjusted by server_wide; on "
+                                                          "attach, the set it was launched with); "
+                                                          "empty = none, Odoo's own default "
+                                                          "applies."},
+            "server_wide_adjustment": SERVER_WIDE_ADJUSTMENT_OUT,
             "log_path": {"type": ["string", "null"]},
             "lease_token": {"type": ["string", "null"],
                             "description": "Your lease's token; with series, non-null only when this "
@@ -1347,8 +1497,8 @@ def register(registry, ctx):
             "shared_lease_error": {"type": ["string", "null"]},
             "instance_handle": HANDLE_SCHEMA,
         }, ["state", "url", "http_port", "server_pid", "resumed", "served_addons_path",
-            "served_addons_source", "served_server_wide_modules", "log_path", "lease_token",
-            "shared_lease_error", "instance_handle"]),
+            "served_addons_source", "served_server_wide_modules", "server_wide_adjustment",
+            "log_path", "lease_token", "shared_lease_error", "instance_handle"]),
         _serve, title="Serve an Odoo instance", long_running=True, destructive=False,
     )
     registry.add(

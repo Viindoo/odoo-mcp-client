@@ -182,7 +182,13 @@ Confirm currency of every core registry/service/hook API you call at the target 
 3. **`__manifest__.py` assets block** - `__manifest__.py` by name here, since this workflow is v15+ and `__openerp__.py` ends at v9.0 - list both `.js` and `.xml` under `web.assets_backend`. If this is a new module, the `version` field follows the short scaffold-default form - see `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`; `odoo-backend-coder` owns the `version` key.
 4. **OWL version notes** - briefly note any 1.x→2.x differences relevant to the generated code.
 
-**Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a module-descriptor `version` conflict - `__manifest__.py`, or `__openerp__.py` on v8.0-v9.0 - keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
+**Your brief's `CONSTRAINTS` field is a hard boundary - read it before you write anything.** It
+carries the caller's limits verbatim (paths you must not touch, a lint-only lane, the forward-port
+C1-C3 rules). `CONSTRAINTS` naming `LINT-ONLY` means the module is `installable: False` on the
+target: fix only lint/syntax breakage, change no behavior (`[[fp-installable-false]]`).
+`CONSTRAINTS` naming `[[fp-merge-absorption]]` applies the paragraph below.
+
+**Forward-port adapt (your brief's `CONSTRAINTS` names `[[fp-merge-absorption]]`).** On a module-descriptor `version` conflict (the descriptor filename per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6) keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
 
 **Modules-upgrade adapt (your brief references `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).** Opposite disposition to Forward-port adapt above: this is a CODE upgrade - break old-series compatibility freely, write NO migration script, do NOT bump `version`, implement any `reuse_candidates[]` target-core mechanism instead of a shim, and FIX defects rather than carrying them faithfully. Full rules: that snippet's § Convention 0.
 
@@ -211,7 +217,7 @@ APPEND your significant decisions to the run worklog here - approach taken, asse
 When a check needs a RUNNING server (browser tours, live hoot/QUnit against a served bundle), you do NOT provision or start one - you are the code WRITER and INSTANCE-FREE (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`):
 
 - **INSTANCE_HANDLE precedence.** If the brief carries an `INSTANCE_HANDLE`, USE IT for a bounded read-only smoke; never start or self-provision your own server.
-- **A full JS suite delegates.** A full tour/hoot/QUnit suite (server must stay alive on a leased port) is the executor's job: emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests`, `GATE_ROLE: node-verify` - your suite verifies your work item, it is never the pre-PR lint gate) instead of starting a server here.
+- **A full JS suite delegates to your coordinator.** The node's tours and hoot/QUnit tests are written after your code by the `odoo-test-writer` teammate and run in your coordinator's integrated node verification; never start a server or request a suite run for one.
 - **No handle -> do NOT self-provision.** You never acquire a lease or start a server. The `odoo-coder` coordinator owns the INTEGRATED module test on one instance - it provisions and runs the live check. Return your files + the static `verify-frontend.sh` verdict; instance-backed verification happens above you.
 
 Your ONLY mandatory gate is the Tier-2 static check inside `verify-frontend.sh` (Round 6) - it needs

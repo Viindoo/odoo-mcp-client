@@ -171,7 +171,7 @@ gate below.
 
 **Worktree + commit (caller-agnostic; triggered by the WORKTREE_PATH field, not caller identity).**
 Work ALWAYS lands COMMITTED inside an isolated worktree - never an uncommitted diff, never a write
-to the principal checkout (S9). A `WORKTREE_PATH` reaches this skill from `run-harness`'s node
+to the principal checkout (S9); under `COMMIT: caller` (below) the caller owns that commit. A `WORKTREE_PATH` reaches this skill from `run-harness`'s node
 dispatch loop (one node per iteration, forked from that repo's run-integration branch) or the
 `odoo-intake -> Phase P -> run-harness` chain (run-harness Hard rule 6). The `odoo-coder`
 COORDINATOR `cd`s there, its hard-leaf coders author + RETURN their file list (no git, per
@@ -191,15 +191,26 @@ inside the worktree. See `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 **`COMMIT: caller` pass-through - the caller owns the commit.** A caller that holds an open merge
 window (forward-port) sends `COMMIT: caller` with its `WORKTREE_PATH`: forward `COMMIT: caller` to
 every `odoo-coder` you dispatch, provision no worktree of your own, and collect and return each
-node's aggregated FILE LIST where this skill otherwise returns a SHA - the caller commits those files
-inside its own window. Never set `COMMIT: caller` on your own initiative.
+node's aggregated FILE LIST where this skill otherwise returns a SHA, together with the node's
+test-leg record lines verbatim - the caller commits those files inside its own window and reviews
+them in its own pipeline, so skip the inline `odoo-code-review` of § The code -> review+test -> code
+loop. Never set `COMMIT: caller` on your own initiative.
 
 **Adapt fields pass-through.** A caller that ports a change sends `MODE: adapt` with `INTENT` and
 `BUCKET` (one record per source commit), `SOURCE TESTS`, `BROKEN TEST-SYMBOLS` and
-`TARGET TEST EXAMPLES`, and may send `BASE CLASS` and `INSTANCE_HANDLE`: forward every one verbatim
-in the node's brief (§ Per-node briefs) so they reach the node's coders and test leg - a
-caller-sent `BASE CLASS` or `INSTANCE_HANDLE` takes the place of your own value; never reinterpret
-them here.
+`TARGET TEST EXAMPLES`, and may send `CHANGE KIND` (per behavior), `BASE CLASS`, `INSTANCE_HANDLE`
+with its `ADDONS_PATH`, `CONSTRAINTS` (hard boundaries such as the forward-port C1-C3 / `LINT-ONLY`
+pointers) and `TEST LEG: deferred - <caller phase>` (the caller runs the behavior tests in that
+phase): forward every one verbatim in the node's brief (§ Per-node briefs) so they reach the node's
+coders and test leg - a caller-sent `BASE CLASS` or `INSTANCE_HANDLE` takes the place of your own
+value; never reinterpret them here, and never set `TEST LEG` on your own initiative.
+
+**`RUN_ID` - forwarded, never invented.** Every lease the node's coordinator acquires is owned by
+the run id it was handed (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
+field 11). Forward your caller's `RUN_ID` unchanged to every `odoo-coder`. Standalone (no caller
+`RUN_ID`, no active `run-<id>.json`): use this run's worklog `<run-or-slug>` -
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` § Where it lives, the same value you send as
+`WORKLOG` - and forward that one literal; a coordinator never mints its own.
 
 **No plan provided (bare standalone invocation) - self-derive and proceed.** `odoo-coding` is a
 pipeline stage, not an admission point: the mandatory-planning gate is enforced UPSTREAM at the
@@ -390,6 +401,10 @@ Plan:
   | n1   | <m1>                 | backend   | quick    | test-writer | <m1>/models/*.py, <m1>/<descriptor> |
   | n2   | <m2>                 | fullstack | deep     | test-writer | <m2>/models/*.py, <m2>/static/src/*.js, <m2>/<descriptor> |
   | n3   | <m3> (after n1)      | frontend  | standard | test-writer | <m3>/static/src/*.js |
+test = `test-writer` (the node's tests are written and break-checked after its code), or
+     `none (No test leg)` when every intended file falls in
+     `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg - the coordinator
+     confirms it from the actual changed files.
 depth = how much reasoning each node gets, and what it costs: quick (cheapest, mechanical
      edits) < standard (the default) < deep (costlier - multi-domain, many dependents) <
      deepest (rare, ~2x deep, and always asked separately). Reply `refine:` to change one.
@@ -634,12 +649,16 @@ SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact groun
   pointer); read it once for grounding before authoring if present. ALWAYS state a value - `none`
   when no deep survey ran this session, never omit the field.
 COMMIT: caller - ONLY when your own caller sent `COMMIT: caller`; omit otherwise (the coordinator then commits).
+RUN_ID: <your caller's RUN_ID, or this run's worklog run-or-slug when standalone - never omitted, never minted by the coordinator>
+CONSTRAINTS: <forwarded verbatim from your caller | omit when it sent none>
 MODE: adapt - ONLY when your caller ports a change; omit otherwise, together with the five fields below.
 INTENT: <forwarded verbatim from your caller - one record per source commit>
 BUCKET: <forwarded verbatim from your caller - one per source commit>
 SOURCE TESTS: <forwarded verbatim from your caller>
 BROKEN TEST-SYMBOLS: <forwarded verbatim from your caller>
 TARGET TEST EXAMPLES: <forwarded verbatim from your caller>
+CHANGE KIND: <forwarded verbatim from your caller, per behavior | omit when it sent none>
+TEST LEG: deferred - <caller phase> - ONLY when your caller sent it; omit otherwise
 EXISTING COVERAGE: <tests_covering(model='<primary_model>', odoo_version='<version>') output - TestMethods already covering this model; author ADDITIVE tests only>
 COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>') output per module in this node - fields with zero/partial static-reference coverage (field-level only); prioritise these gaps>
 BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase>
@@ -678,8 +697,8 @@ the node's code is written - its authoring brief (MODE, MODULE SCOPE, TARGET BEH
 plus the coverage pre-flight and adapt fields above) is the coordinator's to assemble; this skill
 never pre-dispatches a test author and the coders never author tests. The coordinator skips that
 launch only for a diff in the closed set of
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg - never because a test
-looked hard to write. `odoo-test-writer` carries its own authoring contracts:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg, or when the caller
+sent `TEST LEG: deferred - <caller phase>` - never because a test looked hard to write. `odoo-test-writer` carries its own authoring contracts:
 `snippets/test-sensitivity-contract.md` (the executed break-check) and
 `snippets/test-behavior-contract.md` (behavior over internals).
 
@@ -752,12 +771,15 @@ issue or a failing/missing test.
 writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** and fix within the
 bounded loop below before returning - UNLESS the plan already places a separate review node on
 this node's dependency path, in which case `run-harness` will dispatch that node itself and
-driving review here would double-dispatch. The two branches, precisely:
+driving review here would double-dispatch - or you were invoked with `COMMIT: caller`. The three
+branches, precisely:
 
 - **Dispatched by `run-harness` as a plan node whose downstream carries its own review node.**
   `run-harness` drives every node through its ONE dispatch loop; when the approved plan already
   wires a review node (`odoo-code-review`) after this coding node, emit `next: odoo-code-review`
   and let `run-harness` schedule it; do not double-dispatch.
+- **Invoked with `COMMIT: caller`.** The caller owns the commit AND the review of the files you
+  return: do not invoke `odoo-code-review` here and emit no `next: odoo-code-review`.
 - **Every other invocation (default - drive inline).** This is the default, and it explicitly
   INCLUDES direct invocation, intake fast-path, autonomous fix, and a plan-fed standalone
   invocation whose plan carries no separate review node on this node's path. DRIVE
@@ -765,7 +787,10 @@ driving review here would double-dispatch. The two branches, precisely:
 
 Emit the Continuation Contract either way.
 
-Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The loop, bounded; still
+Route each failing test per `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The loop,
+bounded - compare it to the `REQUEST` items first; a failure on a symbol the `REQUEST` or the adapt
+renamed or removed (`BROKEN TEST-SYMBOLS`) goes to the test leg, never to a coder - and bound the
+loop to **3 iterations** per that section; still
 not green-and-clean after 3 -> STOP and escalate (bad work is worse than no work). Each iteration's
 outcome goes in the worklog.
 
@@ -774,7 +799,7 @@ outcome goes in the worklog.
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the source + test files written, plus `<ISOLATE_DIR>/coding/<slug>-<date>/plan.md` and the
-`<ISOLATE_DIR>/worklog/<slug>/` entries, and emit `next: odoo-code-review` with `inputs: {odoo_version:
+`<ISOLATE_DIR>/worklog/<slug>/` entries, and - except under `COMMIT: caller` - emit `next: odoo-code-review` with `inputs: {odoo_version:
 <the run's resolved version>}` (a reserved key - `continuation-contract.md` Rules) so the review
 runs against the same pinned version without re-deriving it (that skill now scales to the same
 multi-module node). Do NOT also emit a per-node `next: odoo-i18n` suggestion here. i18n reconcile

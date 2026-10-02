@@ -28,16 +28,16 @@ state for every symbol the commit touches:
 
 ```
 # 1 - pin version to the shared series (same for source and base)
-set_active_version(odoo_version='17.0')   # always explicit
+set_active_version(odoo_version='<series>')   # always explicit
 
 # 2 - check existence and signature on base HEAD
-model_inspect(model='account.move', method='summary', odoo_version='17.0')
+model_inspect(model='account.move', method='summary', odoo_version='<series>')
 
 # 3 - check if the intent is already present (behavior already shipped)
 # field form:
-entity_lookup(kind='field', model='<model>', field='<field_name>', odoo_version='17.0')
+entity_lookup(kind='field', model='<model>', field='<field_name>', odoo_version='<series>')
 # method form:
-entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_version='17.0')
+entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_version='<series>')
 ```
 
 - Symbol **present with compatible signature** and intent NOT yet applied -> bucket (b).
@@ -48,7 +48,9 @@ entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_
 
 **Bucket (a) evidence gate:** grep/OSM each key identifier (field name, method, XML id,
 security rule) on base HEAD. If EXACTLY ONE definition already exists and it covers the
-intent, confirmed (a). Any code change required = bucket (b) or (c).
+intent, confirmed (a). Any code change required = bucket (b) or (c). A confirmed (a) commit is
+`rebase --skip`ped, so it never reaches the adapt step: never forward `BUCKET: a` to
+`odoo-coding` (no absorption probe runs in a rebase).
 
 **`odoo_version=` is mandatory** in every OSM call - never omit, never rely on a default.
 
@@ -101,9 +103,9 @@ Append to `rebase-log.md` after classifying each commit:
 
 | Commit SHA | Intent summary | Bucket | Reason | Evidence (file:line or OSM citation) |
 |---|---|---|---|---|
-| `abc1234` | Add domain check on `sale.order.state` | (b) | Field present; method renamed `_check_state` -> `_validate_state` on base | `entity_lookup sale.order._validate_state @17.0` |
+| `abc1234` | Add domain check on `sale.order.state` | (b) | Field present; method renamed `_check_state` -> `_validate_state` on base | `entity_lookup sale.order._validate_state @<series>` |
 | `def5678` | Guard `res.partner.vat` uniqueness | (a) | Base already ships `_check_vat` constraint post-backport | `grep _check_vat - 1 hit on base HEAD` |
-| `ghi9012` | Override `account.move._post` for audit log | (c) | `_post` refactored into `_get_reconciled_invoices` chain; old override unsafe | `model_inspect account.move @17.0 - _post signature changed` |
+| `ghi9012` | Override `account.move._post` for audit log | (c) | `_post` refactored into `_get_reconciled_invoices` chain; old override unsafe | `model_inspect account.move @<series> - _post signature changed` |
 
 Do not leave Reason or Evidence blank. "No data" is not acceptable - probe until you have
 a citation.

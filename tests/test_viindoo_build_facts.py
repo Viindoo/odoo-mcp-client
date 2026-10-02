@@ -170,6 +170,9 @@ def test_server_wide_warning_is_remedied_through_the_catalog_and_a_new_lease():
     assert re.search(r"Never answer it by installing the module with `-i`", facts), (
         "an ordinary -i install misses the boot-time patch point; the prose must forbid it"
     )
+    assert "`server_wide.include`" in facts, (
+        "the warning has a per-task route too: a rebuild that includes the module for that call"
+    )
     rule = _norm(AGENT_MD)
     rule = rule[rule.index("## Demo, languages and server-wide modules (HARD RULE)"):]
     rule = rule[: rule.index("## Lint modules")]
@@ -179,6 +182,18 @@ def test_server_wide_warning_is_remedied_through_the_catalog_and_a_new_lease():
     assert "NEEDS_CONTEXT" in rule and "tests-inconclusive" in rule, (
         "the agent must not report a build or a test run green while that warning stands"
     )
+
+
+def test_pivots_states_the_per_call_server_wide_adjustment_and_keeps_the_catalog_default():
+    """A task may need a different server-wide set (a database without the deployment's branding
+    modules, a new module that must load server-wide). The SSOT must route that through the tools'
+    `server_wide` input - never `--load` in extra_args - and keep the catalog row as the default."""
+    facts = _pivot_section("## Build facts the odoo-local tools apply", "### Demo data by build PURPOSE")
+    assert "`server_wide` exclude/include" in facts, (
+        "the SSOT must name the per-call server_wide input and both of its lists"
+    )
+    assert "Never put any of them in `extra_args`" in facts, "the per-call route is not --load in extra_args"
+    assert "the default for every build" in facts, "the catalog row stays the default"
 
 
 def test_no_agent_facing_file_carries_a_server_wide_module_table():

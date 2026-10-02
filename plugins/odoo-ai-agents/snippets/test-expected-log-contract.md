@@ -8,74 +8,70 @@
 
 # Expected-Log Contract (capture or mute the log a guard legitimately emits)
 
-A deny-path test, guard test, or constraint test that does NOT capture or mute the expected
-WARNING/ERROR fails the contract in two ways at once: (1) it leaks expected noise into CI and
-Runbot logs, inflating signal-to-noise so real failures are harder to spot; (2) it misses
-asserting that the guard ACTUALLY fired - the test may pass even if the guard is silently
-deleted. Wrap the log; assert the guard.
+A test whose code path legitimately emits a WARNING/ERROR and does NOT capture or mute it leaks
+expected noise into CI and Runbot logs, so real failures are harder to spot. Wrap that log; assert
+the behavior.
 
 ## The rule, stated once
 
-Every test that drives a code path which legitimately emits a WARNING or ERROR MUST do one of:
+Every test that drives a code path which ACTUALLY emits a WARNING or ERROR does one of:
 
-- **Capture** it with `self.assertLogs(logger, level)` and assert `cm.output` confirms the
-  guard fired (preferred for deny-path / guard / ACL tests - the WARNING IS the observable
-  behavior).
+- **Capture** it with `self.assertLogs(logger, level)` and assert that the logger fired at that
+  level - `len(cm.records)`, `cm.records[0].levelname` - never the message wording (it is display
+  text: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` § Never assert TRANSLATED or
+  DISPLAY text (HARD RULE)). Use it when the log IS part of the observable behavior (a guard that
+  logs and skips).
 - **Mute** it with `@mute_logger('odoo.<logger>')` or `with mute_logger(...)` when the log is
-  incidental noise already asserted elsewhere and re-asserting it here would duplicate the
-  behavioral check.
+  incidental noise of a sub-call whose behavior is asserted elsewhere.
 
-An unwrapped negative test that emits expected noise is incomplete. A reviewer MUST flag it
-as a HIGH finding.
+Either way, the behavioral assertions stay: the exception TYPE and the record's field values /
+state unchanged. Use `assertLogs` only when the path really logs - never "by default": a
+constraint `ValidationError` raised on save emits no WARNING, so `assertLogs(..., 'WARNING')`
+around it fails on correct code. Before wrapping, find the `_logger.warning` / `_logger.error` call
+on the path and its level in the target series (OSM or the source), or read it in a run's log.
+
+An unwrapped test that emits expected WARNING/ERROR noise is incomplete; a reviewer flags it HIGH.
 
 ## assertLogs vs mute_logger (the decision rule)
 
-**Prefer `self.assertLogs(logger, level)` when:**
+**Prefer `self.assertLogs(logger, level)` when** the WARNING is the signal that the guard fired,
+so removing the guard must make the test fail:
 
-- The test is a deny-path, guard, or ACL test: the emitted WARNING IS the signal that the
-  guard fired. Assert on `cm.output` that the message is present.
-- Example - ACL deny emitting a WARNING before raising `AccessError`:
+      with self.assertLogs('odoo.addons.<module>.models.<file>', 'WARNING') as cm:
+          order.with_user(self.salesman).action_sync()   # the guard logs, then skips the sync
+      self.assertEqual(cm.records[0].levelname, 'WARNING')
+      self.assertEqual(order.sync_state, 'skipped')
 
-      with self.assertLogs('odoo.addons.base.models.ir_rule', 'WARNING') as cm:
-          with self.assertRaises(AccessError):
-              record.with_user(self.restricted_user).action_confirm()
-      self.assertTrue(any('access_rule_name' in line for line in cm.output))
+**Reserve `@mute_logger` / `with mute_logger(...)` when** the log is incidental noise from a
+sub-call already asserted by a dedicated test elsewhere - e.g. `odoo.sql_db` noise during a
+uniqueness check covered by its own constraint test.
 
-- The guard behavior must be asserted, not merely suppressed. If the guard is removed or
-  changed, `cm.output` assertions fail - the test stays sensitive to the guard.
-
-**Reserve `@mute_logger` / `with mute_logger(...)` when:**
-
-- The log is incidental noise from a sub-call whose behavior is already asserted by a
-  dedicated test elsewhere; the current test only needs to prove its own behavior is correct.
-- Example - suppressing `odoo.sql_db` constraint noise during a uniqueness check already
-  covered by a dedicated constraint test.
-
-Do NOT use `mute_logger` as a shortcut to silence a warning you do not understand. Investigate
-first; suppress only when the guard is confirmed tested elsewhere.
+Do NOT use `mute_logger` to silence a warning you do not understand. Investigate first; suppress
+only when the guard is confirmed tested elsewhere.
 
 ## 3-layer decision matrix
 
 | Layer | Trigger | Wrap with | Assert |
 |---|---|---|---|
-| Python server log | guard / ACL deny logs WARNING or ERROR before raising | `with self.assertLogs('<logger>', 'WARNING') as cm:` (preferred) or `@mute_logger('<logger>')` | `assertRaises(AccessError/ValidationError/...)` + `cm.output` contains the guard message |
+| Python server log | the path calls `_logger.warning` / `_logger.error` | `with self.assertLogs('<logger>', 'WARNING') as cm:` (log is the behavior) or `@mute_logger('<logger>')` (noise) | the outcome (exception TYPE / state) + `cm.records` at that level from that logger - never the wording |
 | SQL constraint | DB-level constraint raises `IntegrityError` at flush time | `with mute_logger('odoo.sql_db'), self.assertRaises(IntegrityError):` then call `rec.flush_recordset([...])` inside the block | the `IntegrityError` is raised; `flush_recordset` forces flush-time constraint fire (do NOT rely on implicit flush at end of test) |
-| JS-OWL (era-split) | OWL error path / console ERROR in a JS deny-path test | resolve era at runtime - see section below | uncaught error is prevented / expected error is recorded by the framework |
+| JS-OWL (per framework) | OWL error path / console ERROR in a JS deny-path test | resolve the framework at runtime - see section below | uncaught error is prevented / expected error is recorded by the framework |
 
 For the SQL constraint row: `flush_recordset` is mandatory because Odoo may batch the SQL
 write; without an explicit flush the constraint does not fire inside the `assertRaises` block
 and the test gives a false green.
 
-## JS-OWL era split (resolve at runtime - never hardcode)
+## JS-OWL framework split (resolve at runtime - never hardcode)
 
 Resolve the target Odoo series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 Never default to a series, and never take the series off a SHORT manifest `version` - that ladder's
-rung 3 already applies the only valid test. An unresolved series is `NEEDS_CONTEXT`, not `v17`.
-Then call `js_test_inspect(module=..., odoo_version=...)` to confirm the
-per-module framework before emitting any JS test code. The framework mix varies by module and
-version; do NOT hardcode "v17 = Hoot" or any equivalent mapping.
+rung 3 already applies the only valid test. An unresolved series is `NEEDS_CONTEXT`, never a guess.
+Then call `js_test_inspect(module=..., odoo_version=...)` to confirm the per-module framework before
+emitting any JS test code. Which series ship which framework, and that both can coexist in one
+series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 2 - never map a series to a
+framework from memory.
 
-**v17 and earlier - QUnit:**
+**QUnit suites:**
 
 - Silence a console ERROR: `patchWithCleanup(console, { error() {} });`
 - Silence a console ERROR on a subtree: `hushConsole(target);`
@@ -83,7 +79,7 @@ version; do NOT hardcode "v17 = Hoot" or any equivalent mapping.
   assert `ev.defaultPrevented`.
 - QUnit has NO `expectErrors` API - do not write `expectErrors(...)` in a QUnit test.
 
-**v18 and later - Hoot:**
+**Hoot suites:**
 
 - Record an expected error: `expectErrors('message or pattern');`
 - Hoot asserts that the expected error actually occurred; the test fails if it does not fire.
@@ -91,7 +87,7 @@ version; do NOT hardcode "v17 = Hoot" or any equivalent mapping.
   use `expectErrors` so the assertion is explicit.
 
 **QUnit does NOT have `expectErrors`. Hoot does NOT use `patchWithCleanup(console, ...)` as
-the primary idiom. Do not conflate the two eras.**
+the primary idiom. Do not conflate the two frameworks.**
 
 ## mute_logger import
 

@@ -75,8 +75,10 @@ across every module's adapt work, and closes once. All work happens here - in th
     CONFLICT, keep the **TARGET** file's `version` field as-is - never merge-pick the higher number,
     never bump "to be safe". (The only bump permitted anywhere in forward-port is the C2 case below,
     and it is a migration-threshold bump, not a conflict decision.)
-3. Forward tests - translate API to target, strip implementation-coupled assertions
-   (see [[test-behavior-contract]]).
+3. Adapt per module, code first: ONE `odoo-coding` node adapts the code, then its test leg forwards
+   and adapts the tests (translate API to target, strip implementation-coupled assertions - see
+   [[test-behavior-contract]]) and proves each
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
 4. Fix any lint/eslint/prettier errors introduced by the merge.
 5. Invoke `git-toolkit:git-ops` to commit - the merge commit encapsulates the entire
    translation cost.
@@ -87,7 +89,7 @@ no-commit merge while one is in progress (git index is shared; git-toolkit enfor
 ## Migration dir retarget (C2) - distinct from C1
 
 C1 ("keep target / no manual bump") does NOT license leaving a migration dir on the source series.
-A v17 commit adds `migrations/17.0.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` = the target module's
+A source-series commit adds `migrations/<src-series>.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` = the target module's
 manifest `version` BEFORE this forward-port (the version deployed target DBs have already reached).
 A migration runs only on UPGRADE and only when `installed < dir_version <= manifest`.
 
@@ -103,7 +105,7 @@ Decision criterion: **does the fix need to apply to native-target-series data?**
    - Dir named FULL `<tgt-series>.V`. Invariant: the retargeted dir version MUST be `<= the final manifest version` (guarantees `M < V <= manifest`; if this would be violated, use the `S <= M` bump path).
 2. **Exception (legacy source-origin-only data fix, irrelevant to native-target data):** KEEP the dir as
    `<src-series>.a.b.c`, do NOT bump. It still fires for src->tgt jumpers below `a.b.c`; it can never fire
-   on a native-target DB (17 < 18), which is correct.
+   on a native-target DB (the source series sorts below the target), which is correct.
 3. **C1 vs C2 de-confliction:** a manifest bump is FORBIDDEN for ordinary code commits and for conflict
    resolution (keep target). It is REQUIRED **only** in case 1 when `S <= M`; the bump target is the
    **current target manifest's next patch**, not `S`.
@@ -113,21 +115,22 @@ Decision criterion: **does the fix need to apply to native-target-series data?**
 5. Module that is `installable:False` at target = lint-only lane - do NOT retarget its migrations.
    Rule and the clean-tip read: `[[fp-installable-false]]`.
 
-### WHY (verified against Odoo source - module.py + migration.py, byte-identical v17/v18)
+### WHY (Odoo source - module.py + migration.py)
 
-`adapt_version()` at `odoo/modules/module.py` - the series-prefixing role of `adapt_version` (the same
-function also enforces the v17 version-string regex - see [[odoo-version-pivots]]) prefixes a short
+`adapt_version()` at `odoo/modules/module.py` - the series-prefixing role of `adapt_version` (from a
+later series the same function also validates the version string - see [[odoo-version-pivots]]) prefixes a short
 manifest `a.b.c` to `<series>.a.b.c` and stores it as the module's `installed_version`.
 `MigrationManager.migrate_module` (`odoo/modules/migration.py`) runs a dir only when
 `installed_version < dir <= <series>.<manifest>`. So a dir left at `<src-series>.a.b.c` SILENTLY SKIPS
 every DB already at the source-series state when it upgrades to the target series. Migrations run on
 UPGRADE only (never fresh install).
 
-Worked: M=0.1.2, S=0.1.2 (M==S) -> bump to 0.1.3, dir `18.0.0.1.3` (keeping 0.1.2: `18.0.0.1.2 <
-18.0.0.1.2` false -> never runs). M=0.1.1, S=0.1.2 (M<S) -> dir `18.0.0.1.2`, no extra bump.
-M=0.1.4, S=0.1.2 (M>S) -> S<=M applies -> bump to 0.1.5, dir `18.0.0.1.5`, manifest bumped to 0.1.5
-(naming dir `18.0.0.1.2` would never run: 0.1.4 < 0.1.2 is false).
-Legacy-only `17.0.a.b.c` -> kept, fires for v17 jumpers, inert on native v18 (correct).
+Worked (`<tgt>` = the target series): M=0.1.2, S=0.1.2 (M==S) -> bump to 0.1.3, dir `<tgt>.0.1.3`
+(keeping 0.1.2: `<tgt>.0.1.2 < <tgt>.0.1.2` false -> never runs). M=0.1.1, S=0.1.2 (M<S) -> dir
+`<tgt>.0.1.2`, no extra bump. M=0.1.4, S=0.1.2 (M>S) -> S<=M applies -> bump to 0.1.5, dir
+`<tgt>.0.1.5`, manifest bumped to 0.1.5 (naming dir `<tgt>.0.1.2` would never run: 0.1.4 < 0.1.2 is
+false). Legacy-only `<src-series>.a.b.c` -> kept, fires for source-series jumpers, inert on a native
+target DB (correct).
 
 After the rename, sweep the body for source-series literals (log strings, version constants) - they
 survive the rename and mislead operators.
@@ -136,10 +139,17 @@ survive the rename and mislead operators.
 
 Outcome buckets (a) and (d) from [[fp-intent-4outcome]] require NO adapt diff:
 
-- **(a) already satisfied** - target platform already provides the behavior; the source
-  commit adds nothing. Forward the tests only (they will pass immediately against target).
+- **(a) already satisfied** - target platform already provides the behavior; write no adapt
+  code for it. Forward its tests only; the node's Absorption probe confirms or re-buckets it.
 - **(d) no longer relevant** - the source commit worked around a platform limitation that
   the target has removed.
+
+**How the merge leaves their hunks.** A CONFLICTED hunk of an (a)/(d) commit resolves to the
+TARGET side - no adapt content is written for it. A CLEANLY-merged hunk stays as the merge left it,
+so an (a)/(d) commit's source code can be in the tree. That is why the Absorption probe never runs on
+the tree as merged: it neutralises the (a) commit's hunks first
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Absorption probe (forward-port
+classification, not a test gate)).
 
 **In both cases the commit is still ABSORBED - never excluded from the merge range.** The single
 range merge is what advances the merge-base past them; a bucket is a statement about ADAPT WORK,
@@ -199,10 +209,12 @@ After install:
   A pre-existing red test is a pre-existing failure - triage it (see Triage below), do not
   fix it as part of this forward-port.
 - **Break-check records (FP-delta tests only):** every test NEWLY forwarded or adapted in this
-  batch carries the `BREAK_CHECK:` line the node test leg returned at P8
+  batch carries the `BREAK_CHECK:` line - or, for a bucket-(a) commit's test, the `ABSORBED:` line -
+  the node test leg returned at P8
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test
   without one is unverified - send it back to the module's P8 adapt node; the verify run never
-  breaks code itself.
+  breaks code itself. A verify on a database a break-check touched follows that contract's
+  § The break-check (Database state).
 
 ## Triage: FP-delta vs pre-existing failure
 

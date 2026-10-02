@@ -14,7 +14,7 @@ A test that cannot be a snapshot of the code needs two properties:
   the REQUEST / design AC as the source of every expected value.
 - SENSITIVITY - it fails when the rule is wrong. Only an executed run can show this, so the
   break-check alters exactly the rule, runs exactly the guarding tests, and records the assertion
-  that fired.
+  (or business exception) that fired.
 
 ## Why the code comes first
 
@@ -32,6 +32,25 @@ remaining failure path is the assertion. That is also why the restore is proved 
 test-writer edits production files temporarily, and a restore that cannot be proved byte-identical
 would ship a broken rule.
 
+## Why a hash manifest, not a checkpoint commit
+
+The restore proof only has to show that no production byte changed while the test-writer worked.
+A hash manifest of the module directories shows exactly that, with no git: a checkpoint commit
+would need a later squash - a history rewrite - and in an open forward-port merge window the
+working-tree status cannot even tell the merged files from the edited ones.
+
+## Why a baseline run before the break
+
+A test that is red on correct code would also be red under the break, and the break-check would
+credit it with a sensitivity it never had. Running the targeted tests unbroken first separates
+"fails because the rule is wrong" from "fails because the test is wrong".
+
+## Why a data-file break needs a fresh build
+
+Python code is reloaded on every run, but records loaded from an XML/CSV file stay in the database
+after the file is restored, so a later `-u` run would read the broken record back. Only a fresh
+build proves the restored file.
+
 ## Worked example - one rule, three change kinds
 
 Rule: "a sale order over 100M is locked."
@@ -41,13 +60,13 @@ Rule: "a sale order over 100M is locked."
   `assertTrue(order.is_locked)`.
 - Altered behavior (threshold moved from 50M to 100M): put the 50M threshold back; a test asserting
   a 75M order stays unlocked must fail on that assertion.
-- Bug fix (orders exactly at 100M were not locked): revert the fix hunk; the regression test at
-  exactly 100M must fail.
+- Bug fix (orders exactly at 100M were not locked): neutralise the fix at its hunk lines (`>`
+  back where the fix made it `>=`); the regression test at exactly 100M must fail.
 
 ## Related snippets
 
 - `test-behavior-contract.md` - how a single test is arranged (HOW); its "would it still pass with
   the logic deleted?" question is the property the break-check makes executable.
-- `test-scope-contract.md` - the single-test run carve-out the break-check relies on.
+- `test-scope-contract.md` - the method-granularity run carve-out the break-check relies on.
 - `fp-merge-absorption.md` / `fp-intent-4outcome.md` - the forward-port buckets the absorption
   probe classifies.

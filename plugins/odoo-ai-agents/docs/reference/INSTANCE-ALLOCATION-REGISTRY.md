@@ -113,7 +113,8 @@ remove it.
 
 **`server_wide_modules`** is copied from the catalog row (§4.1) at acquire, for every mode, and is
 what `instance_build` / `instance_serve` add to the series' core default as `--load`: a catalog
-change reaches only a lease acquired after it (`ALLOC_SERVER_WIDE_MODULES`). **`built`** records
+change reaches only a lease acquired after it (`ALLOC_SERVER_WIDE_MODULES`). A call's `server_wide`
+adjustment is applied to that one call and never written to the row. **`built`** records
 what builds put into the lease's database, written by `allocator.py record-build` (the build tools
 call it): `demo` is sticky-true (a build with demo on sets it; `off` sets `false` only while it is
 not `true` - demo data never leaves a database), `languages` is the union of every language a

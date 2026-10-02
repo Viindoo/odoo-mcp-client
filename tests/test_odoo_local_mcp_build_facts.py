@@ -30,7 +30,13 @@ Contracts protected:
     "must be loaded server-wide" and "installed without demo data" lines into warnings with a
     remedy, records the proven languages on the lease, and hands back a handle whose demo and
     languages_loaded are real;
-  - instance_serve writes the same resolved set into the served conf and takes no load_modules.
+  - instance_serve writes the same resolved set into the served conf and takes no complete set
+    from the agent (no load_modules, no --load);
+  - `server_wide` adjusts the set for ONE call (instance_build, and instance_serve on a lease of
+    the caller's own): core default + (declared - exclude) + include, core first, passed as --load;
+    a core or undeclared exclude, a module in both lists and an include Odoo cannot find are
+    refused before anything starts; the lease and the catalog keep the default for the next call;
+    a running server cannot be re-set by an attach.
 """
 
 from __future__ import annotations
@@ -429,7 +435,7 @@ def test_demo_once_loaded_stays_on_the_handle(client, world):
 # --------------------------------------------------------------------------- #
 # extra_args may not carry a build fact
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("token,points_at", [("--load=base,web", "server-wide"),
+@pytest.mark.parametrize("token,points_at", [("--load=base,web", "server_wide argument"),
                                              ("--load-language=fr_FR", "languages argument"),
                                              ("-lfr_FR", "languages argument"),
                                              ("--without-demo=all", "demo argument"),
@@ -467,6 +473,8 @@ def test_job_wait_reports_proven_languages_warnings_and_a_real_handle(client, wo
     assert done["languages_failed"] == ["xx_XX"], "a language with no load evidence is not loaded"
     wide = [w for w in done["warnings"] if "viin_brand" in w]
     assert wide and "server_wide_modules" in wide[0] and "odoo-setup" in wide[0]
+    assert 'server_wide.include ["viin_brand"]' in wide[0], (
+        "the warning names the per-call route as well as the catalog route")
     assert any("my_mod" in w and "WITHOUT demo" in w for w in done["warnings"])
     handle = done["instance_handle"]
     assert handle["demo"] is False and handle["languages_loaded"] == ["en_US", "vi_VN"]
@@ -582,11 +590,16 @@ def test_serve_refuses_declared_modules_with_an_unreadable_core_and_launches_not
     assert (row.get("owner") or {}).get("pid") is None, "nothing was launched or bound"
 
 
-def test_serve_takes_no_agent_supplied_load(client, world):
+def test_serve_takes_no_complete_set_from_the_agent_only_an_adjustment(client, world):
+    """The tool composes the --load set; an agent states only what to leave out or add. A complete
+    set under any name - the removed load_modules input, or a key server_wide does not define -
+    is refused before anything is launched."""
     lease = _lease(client, world, ports=1)
-    err = _err(client.call("instance_serve", {"lease_token": lease["token"],
-                                              "load_modules": ["base", "web"]}))
-    assert err["code"] == "INVALID_ARGUMENTS" and "load_modules" in err["message"]
+    for args in ({"load_modules": ["base", "web"]}, {"server_wide": {"set": ["base", "web"]}}):
+        err = _err(client.call("instance_serve", dict(args, lease_token=lease["token"])))
+        assert err["code"] == "INVALID_ARGUMENTS", args
+        assert ("load_modules" if "load_modules" in args else "set") in err["message"], err["message"]
+    assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
 
 
 # --------------------------------------------------------------------------- #
@@ -601,3 +614,162 @@ def test_lease_and_catalog_expose_the_declared_set(client, world):
     assert [r["server_wide_modules"] for r in rows] == [["to_base"]]
     listed = next(r for r in _ok(client.call("lease_list", {}))["leases"] if r["token"] == lease["token"])
     assert listed["server_wide_modules"] == ["to_base"]
+
+
+# --------------------------------------------------------------------------- #
+# server_wide: the set adjusted for ONE call
+# --------------------------------------------------------------------------- #
+DECLARED = ["to_base", "viin_brand"]
+
+
+def _addon(base, name):
+    """A module directory Odoo would find: `<base>/<name>/__manifest__.py`."""
+    (base / name).mkdir(parents=True, exist_ok=True)
+    (base / name / "__manifest__.py").write_text("{'name': %r}\n" % name, encoding="utf-8")
+
+
+def _load_of_last_build(world):
+    return _flags(_odoo_calls(world)[-1], "--load=")
+
+
+def _declared_world(world):
+    _declare_server_wide(world, DECLARED)
+    _checkout(world, SERIES)  # core default base,web
+
+
+def test_without_server_wide_a_build_loads_the_default_set(client, world):
+    _declared_world(world)
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"]))
+    _wait(client, job["job_id"])
+    assert _load_of_last_build(world) == ["--load=base,web,to_base,viin_brand"]
+    assert job["server_wide_adjustment"] is None
+
+
+def test_exclude_leaves_a_declared_module_out_for_that_build_only(client, world):
+    """A database without the deployment's branding module: the build loads everything else, and
+    the next build without server_wide is back on the deployment's set (nothing was recorded)."""
+    _declared_world(world)
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"], server_wide={"exclude": ["viin_brand"]}))
+    done = _wait(client, job["job_id"])
+    assert _load_of_last_build(world) == ["--load=base,web,to_base"]
+    assert job["server_wide_modules"] == done["server_wide_modules"] == ["base", "web", "to_base"]
+    assert done["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": []}
+    _wait(client, _ok(_build(client, world, lease["token"], op="update"))["job_id"])
+    assert _load_of_last_build(world) == ["--load=base,web,to_base,viin_brand"]
+    row = next(r for r in _registry(world) if r["token"] == lease["token"])
+    assert row["server_wide_modules"] == DECLARED, "the lease keeps the catalog's set"
+
+
+def test_excluding_every_declared_module_still_passes_the_core_set(client, world):
+    """With an adjustment --load is always passed, so the core modules must be in it."""
+    _declared_world(world)
+    lease = _lease(client, world)
+    _wait(client, _ok(_build(client, world, lease["token"],
+                             server_wide={"exclude": DECLARED}))["job_id"])
+    assert _load_of_last_build(world) == ["--load=base,web"]
+
+
+@pytest.mark.parametrize("exclude,named", [(["web"], "core"), (["viin_brnd"], "not in the declared")])
+def test_an_exclude_of_a_core_or_undeclared_module_is_refused_before_anything_starts(
+        client, world, exclude, named):
+    _declared_world(world)
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"], server_wide={"exclude": exclude}))
+    assert err["code"] == "INVALID_ARGUMENTS", err
+    assert "arguments.server_wide.exclude" in err["message"] and named in err["message"], err
+    assert _jobs(world) == [] and _odoo_calls(world) == []
+
+
+def test_a_module_in_both_lists_is_refused(client, world):
+    _declared_world(world)
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"],
+                      server_wide={"exclude": ["to_base"], "include": ["to_base"]}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
+    assert _jobs(world) == []
+
+
+def test_include_adds_a_module_the_catalog_does_not_declare(client, world):
+    """A new module that must load server-wide, found on the lease's addons path - or in the
+    checkout's core addons, which Odoo always searches."""
+    _checkout(world, SERIES)
+    _addon(world["addons"], "my_wide")
+    _addon(world["odoo_bin"].parent / "odoo" / "addons", "core_wide")
+    lease = _lease(client, world)
+    job = _ok(_build(client, world, lease["token"],
+                     server_wide={"include": ["my_wide", "core_wide", "web"]}))
+    _wait(client, job["job_id"])
+    assert _load_of_last_build(world) == ["--load=base,web,my_wide,core_wide"], (
+        "core first; an include already in the set is a no-op")
+
+
+def test_an_include_odoo_cannot_find_is_refused_before_anything_starts(client, world):
+    _checkout(world, SERIES)
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"], server_wide={"include": ["no_such_module"]}))
+    assert err["code"] == "SERVER_WIDE_MODULE_NOT_FOUND", err
+    assert "no_such_module" in err["message"] and err["diagnostics"]["modules"] == ["no_such_module"]
+    assert str(world["addons"]) in err["diagnostics"]["searched"]
+    assert "check_module_exists" in err["remedy"]
+    assert _jobs(world) == [] and _odoo_calls(world) == []
+
+
+def test_an_adjustment_with_an_unreadable_core_default_is_refused(client, world):
+    """Nothing declared, but an include makes --load necessary - and --load without the core
+    modules would drop them."""
+    _addon(world["addons"], "my_wide")
+    _drop_core_load(world)
+    lease = _lease(client, world)
+    err = _err(_build(client, world, lease["token"], server_wide={"include": ["my_wide"]}))
+    assert err["code"] == "SERVER_WIDE_CORE_UNKNOWN" and "server_wide" in err["remedy"]
+    assert _jobs(world) == []
+
+
+def test_serve_writes_the_adjusted_set_into_the_conf(client, world):
+    _declared_world(world)
+    _addon(world["addons"], "my_wide")
+    lease = _lease(client, world, ports=1)
+    out = _ok(client.call("instance_serve", {"lease_token": lease["token"], "cwd": str(world["work"]),
+                                             "server_wide": {"exclude": ["viin_brand"],
+                                                             "include": ["my_wide"]}},
+                          timeout=120))
+    assert out["state"] == "launched"
+    assert out["served_server_wide_modules"] == ["base", "web", "to_base", "my_wide"]
+    assert out["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": ["my_wide"]}
+    assert "server_wide_modules = base,web,to_base,my_wide" in _served_conf(world)
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
+def test_an_attach_cannot_change_the_set_of_the_server_already_running(client, world):
+    """The lease's server keeps the set it was launched with. Asking for the same set again
+    attaches; asking for no adjustment reports the set really serving; asking for another set is
+    refused rather than reported as applied."""
+    _declared_world(world)
+    lease = _lease(client, world, ports=1)
+    wide = {"exclude": ["viin_brand"]}
+    serve = dict(lease_token=lease["token"], cwd=str(world["work"]))
+    first = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
+    assert first["state"] == "launched"
+    again = _ok(client.call("instance_serve", dict(serve, server_wide=wide), timeout=120))
+    assert again["state"] == "attached" and again["server_pid"] == first["server_pid"]
+    plain = _ok(client.call("instance_serve", serve, timeout=120))
+    assert plain["served_server_wide_modules"] == ["base", "web", "to_base"], (
+        "an attach reports the set the running server was launched with")
+    err = _err(client.call("instance_serve", dict(serve, server_wide={"exclude": ["to_base"]}),
+                           timeout=120))
+    assert err["code"] == "SERVER_WIDE_NOT_APPLIED", err
+    assert err["diagnostics"]["running"] == ["base", "web", "to_base"]
+    assert "lease_park" in err["remedy"]
+    _ok(client.call("lease_release", {"lease_token": lease["token"], "run_id": RUN}))
+
+
+def test_the_shared_instance_takes_no_adjustment(client, world):
+    """Serving by series attaches to (or starts) the multi-reader render server: its set is the
+    catalog row's for every reader."""
+    _declared_world(world)
+    err = _err(client.call("instance_serve", {"series": SERIES, "run_id": RUN, "cwd": str(world["work"]),
+                                              "server_wide": {"exclude": ["viin_brand"]}}))
+    assert err["code"] == "INVALID_ARGUMENTS" and "arguments.server_wide" in err["message"]
+    assert not (world["home"] / "conf").is_dir() or not list((world["home"] / "conf").glob("*.conf"))
