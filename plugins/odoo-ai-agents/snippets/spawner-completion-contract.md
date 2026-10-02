@@ -30,16 +30,16 @@ Before launching any agent, look at the agent-launch tool you hold. It alone dec
 
 **An async receipt under move 2.** You hold the parameter, yet a launch - or a resume send to a
 child you launched (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` § Tier A) - hands
-back an asynchronous receipt (`Async agent launched successfully`): do NOT end your turn. Wait for
-it in this turn per R0 move 2 - wait in-turn with the Monitor tool or a short bounded poll loop,
-then look at what has arrived, until its completion notification reaches you at a tool round; then
-read the result. Every response you emit before you hold it MUST carry a tool call.
+back an asynchronous receipt (`Async agent launched successfully`): do NOT end your turn. Wait in
+this turn per R0 move 2 - the Monitor tool or a short `until` loop (the harness refuses a bare
+`sleep N`), then a look at what has arrived - until its completion notification reaches you at a
+tool round; then read the result. Every response you emit before you hold it MUST carry a tool call.
 
-**The main conversation** (the session the user talks to; a skill invoked there runs in it) may take
-move 2 or move 3 - it is notified of every completion on every surface. On an unattended surface a
-completion notification for a NESTED launcher's teammate can reach the main conversation instead of
-that launcher. Do not act on that result yourself: resume the launcher - send it a message by its
-id - so it collects the result and clears its own R1 barrier.
+**The main conversation** (the session the user talks to; a skill invoked there runs in it) on an
+unattended surface (print mode) takes move 2, and after a resume send it waits in-turn like any
+launcher: its turn end ends the run. There a NESTED launcher's teammate's completion notification
+can reach it instead: do not act on that result yourself; resume the launcher - send it a message
+by its id - so it collects the result and clears its own R1 barrier.
 
 `Bash`'s `run_in_background` flag is a DIFFERENT tool's parameter, governed by § A background shell
 command is a SAME-TURN result below, never by these moves.
@@ -72,7 +72,7 @@ left behind, and the command finishes alone.
 
 Backgrounding is not restricted - ONE shape is correct. Start the command, then stay in the SAME
 turn and drive it to a result with FOREGROUND tool calls: wait in-turn with the Monitor tool or a
-short bounded loop until the command is finished, then read its output file, repeating as many
+short `until` loop for the command to finish, then read its output file, repeating as many
 times as it takes.
 Every response you emit before you hold the result MUST carry a tool call; a text-only "still
 running" reply is the stall itself, never compliance with the receipt. If the result cannot be had
@@ -154,9 +154,9 @@ toward the barrier and never inherit it as your own `DONE`.
 ## R2 - No early DONE
 
 Your own `status` is DONE only when (a) your own work is finished AND (b) every agent you launched
-this turn has returned DONE or BLOCKED. While any launched child still runs you are NOT done - do not
-emit a Continuation Contract with `status: DONE`. If a child returned BLOCKED (or `NEEDS_NEXT`/
-`NEEDS_CONTEXT`) and your bounded fix loop cannot resolve it, roll up the child's evidence into your
+this turn has returned one of R1's four terminal statuses. While any launched child still runs you
+are NOT done - do not emit a Continuation Contract with `status: DONE`. If a child returned a
+non-DONE status and your bounded fix loop cannot resolve it, roll up the child's evidence into your
 own BLOCKED (or the same non-DONE status) - never paper over it with your own DONE. Distinct from
 continuation-contract.md's "you never self-dispatch the next step" (forbids advancing the DAG); both
 hold. The barrier also covers RESOURCES, not just children: your own DONE additionally requires any

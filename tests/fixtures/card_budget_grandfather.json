@@ -41,7 +41,7 @@
     "snippets/resource-teardown-contract.md": 12957,
     "skills/_shared/concurrency-guard.md": 10121,
     "snippets/worker-brief.md": 8390,
-    "snippets/spawner-completion-contract.md": 15648,
+    "snippets/spawner-completion-contract.md": 15649,
     "snippets/continuation-contract.md": 7936,
     "snippets/worklog-contract.md": 5415,
     "snippets/state-root-resolution.md": 20092,
@@ -50,6 +50,6 @@
     "skills/workflow-chaining/SKILL.md": 12363,
     "skills/_shared/regression-scope.md": 5110,
     "snippets/test-scope-contract.md": 5511,
-    "snippets/test-sensitivity-contract.md": 7095
+    "snippets/test-sensitivity-contract.md": 7118
   }
 }

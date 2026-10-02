@@ -719,10 +719,10 @@
         "required": [
           "MODE",
           "TARGET BEHAVIOR",
-          "TEST TYPE",
           "SURVEY"
         ],
         "optional": [
+          "TEST TYPE",
           "INSTANCE_HANDLE",
           "SERVER_WIDE",
           "RUN_ID",
