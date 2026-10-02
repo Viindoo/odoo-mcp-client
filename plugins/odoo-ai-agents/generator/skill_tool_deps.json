@@ -677,7 +677,13 @@
           "SELF_PROVISION",
           "MASTER_DESIGN_DOC",
           "BASE",
-          "TEST_EXEMPTION",
+          "COMMIT",
+          "MODE",
+          "INTENT",
+          "BUCKET",
+          "SOURCE TESTS",
+          "BROKEN TEST-SYMBOLS",
+          "TARGET TEST EXAMPLES",
           "PRIOR ATTEMPT"
         ]
       }
@@ -702,16 +708,23 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (test-first teammate), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate), odoo-forward-port / odoo-git-rebase (adapt-mode test translation). Returns the authored RED test file paths. min_server 0.15.0 for the test-surface tools.",
+      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (ONE per node, AFTER the coders - writes or adjusts the node's tests, adapt mode included, and break-checks each on the forwarded INSTANCE_HANDLE), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate). Returns the test file paths plus one BREAK_CHECK record per behavior test. min_server 0.15.0 for the test-surface tools.",
       "brief": {
         "required": [
           "MODE",
           "TARGET BEHAVIOR",
           "TEST TYPE",
-          "SURVEY"
+          "SURVEY",
+          "INSTANCE_HANDLE"
         ],
         "optional": [
-          "INSTANCE_HANDLE",
+          "CHANGED CODE",
+          "CHANGE KIND",
+          "OBSOLETE CANDIDATES",
+          "SOURCE TESTS",
+          "BROKEN TEST-SYMBOLS",
+          "BUCKET",
+          "TARGET TEST EXAMPLES",
           "USER LANGUAGE",
           "SHARE_DIR",
           "ISOLATE_DIR",
@@ -723,8 +736,6 @@
       "role": "leaf",
       "brief": {
         "required": [
-          "RED_TEST_PATH",
-          "RED_MODE",
           "DESIGN_DOC",
           "SURVEY",
           "WORKTREE_PATH",
@@ -735,7 +746,6 @@
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
-          "TEST_EXEMPTION",
           "PRIOR ATTEMPT"
         ]
       }
@@ -852,8 +862,6 @@
       "role": "leaf",
       "brief": {
         "required": [
-          "RED_TEST_PATH",
-          "RED_MODE",
           "DESIGN_DOC",
           "SURVEY",
           "WORKTREE_PATH",
@@ -864,7 +872,6 @@
           "INSTANCE_HANDLE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
-          "TEST_EXEMPTION",
           "PRIOR ATTEMPT"
         ]
       }
@@ -1306,8 +1313,8 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-coder (node COORDINATOR - launched once per work node; the sanctioned nested spawner that owns the node's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the node's module set via odoo-instance INLINE, and returns files for odoo-coding to commit - a nested spawner-coordinator one level below odoo-coding)",
-        "odoo-test-writer (hard leaf - launched FIRST by the odoo-coder coordinator per WI to author the RED test, before the coder makes it green; authors by invoking the odoo-test-writing skill inline)",
+        "odoo-coder (node COORDINATOR - launched once per work node; the sanctioned nested spawner that owns the node's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the node's module set via odoo-instance INLINE, then commits the node via git-ops and returns its SHA to odoo-coding (under COMMIT: caller it commits nothing and returns the file list) - a nested spawner-coordinator one level below odoo-coding)",
+        "odoo-test-writer (hard leaf - ONE per node, launched by the odoo-coder coordinator AFTER the coders, writes or adjusts the tests and break-checks them; authors by invoking the odoo-test-writing skill inline)",
         "odoo-backend-coder (hard leaf - launched by the odoo-coder coordinator for a backend work-item)",
         "odoo-frontend-coder (hard leaf - launched by the odoo-coder coordinator for a frontend work-item)",
         "(dispatch: ONE odoo-coder per node; model-weighted subagent batches, explicit model per node per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
@@ -1466,7 +1473,6 @@
         "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
         "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
         "odoo-code-review skill (via Skill tool: P9b in-pipeline review + P12 final PR review)",
-        "odoo-test-writer (adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline)",
         "odoo-instance skill (CONDITIONAL at P10: provisions ONE instance when range touches DB-stateful behavior; its INSTANCE_HANDLE is forwarded to every downstream verify/coder brief - downstream never self-provisions)",
         "git-ops (all local git mutations - cherry-pick, branch, squash, force-with-lease - plus read-only diff/range analysis + tree-identity verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
@@ -1477,8 +1483,7 @@
       "default_gate_tier": "L2",
       "spawns_agents": [
         "odoo-intent-extractor",
-        "odoo-diff-comparator",
-        "odoo-test-writer"
+        "odoo-diff-comparator"
       ]
     },
     "odoo-objection-handling": {
@@ -1729,8 +1734,7 @@
       "spawns": [
         "odoo-intent-extractor (read-only, one instance PER MODULE covering that module's full ordered commit list - never per commit; model per module-bundle complexity, opus gated on human confirm)",
         "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; model per complexity / sonnet)",
-        "odoo-test-writer (P8a test-forward adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline; resumable by the id its first launch returned, one instance PER MODULE across the whole run, reused across every commit touching that module)",
-        "odoo-coding (P8 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); serial per commit via work-tier worktrees; the coordinator is launched ONCE per module and its returned id recorded, then resumed by that id on every later commit touching that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
+        "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the coder fan-out (odoo-coder coordinator -> odoo-backend-coder / odoo-frontend-coder, then the node's odoo-test-writer test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coordinator is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
         "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single P10 merge commit, and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
         "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
@@ -1743,8 +1747,7 @@
       "default_gate_tier": "L2",
       "spawns_agents": [
         "odoo-intent-extractor",
-        "odoo-installable-prober",
-        "odoo-test-writer"
+        "odoo-installable-prober"
       ]
     },
     "odoo-i18n": {

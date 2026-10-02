@@ -58,13 +58,13 @@ produces it, (c) why this fix blocks that cause rather than masking the symptom.
    **`0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
    originating from setUpClass / setUp / module-load, the test bodies DID NOT RUN - the
    collection or fixture crashed before any assertion could execute. Do NOT read this as green.
-   Do NOT conclude "transient/flaky" unless you have a deterministic RED->GREEN toggle you have
+   Do NOT conclude "transient/flaky" unless you have a deterministic toggle (cause on = failure, cause off = pass) you have
    ACTUALLY EXECUTED. Require `0 errors` before reading the failed/passed counts; fix
    setup/collection errors first.
 
 7. **Lock it with a regression test.** Write a test that protects the BEHAVIOR (the business rule
-   /contract), not the current code. It must be RED before the fix (proving it catches the bug)
-   and GREEN after. Never weaken an assertion or skip a case to get green.
+   /contract), not the current code, after the fix. It must FAIL when the fix is reverted (the
+   break-check, see `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § How to break each change kind`) and pass with the fix in place. Never weaken an assertion or skip a case to get green.
 
 ---
 
@@ -92,7 +92,7 @@ Evidence + bisect: <how the search space was halved; OSM/code evidence localizin
 Confirm-by-toggle: <how toggling the cause made the bug appear/disappear - or NOT YET CONFIRMED>
 Root cause: <the single proven cause - NOT a symptom>
 Fix location: <file · method/selector · which coding skill to hand off to>
-Regression test (red->green): <test that protects the behavior; assert it fails pre-fix>
-Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and the cause is OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
+Regression test: <test that protects the behavior; reverting the fix hunk makes it fail>
+Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and the cause is OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```

@@ -1,26 +1,26 @@
-"""Guard the untestable-change escape, the loud refusal, and the two-tier [brief-fields] walk.
+"""Guard the loud refusal, the leaf forward list, and the two-tier [brief-fields] walk.
 
 Root cause these protect (observed live, three identical dispatches): `odoo-frontend-coder` was
-handed a comment-only rename across 17 files. Its FIRST rule refuses any brief that carries no RED
-test, or a `RED_TEST_PATH` that does not open - and a comment-only rename cannot have a RED test by
-construction. So the leaf refused in 1-2 tool uses, returned near-empty text, and the coordinator
-read that as a completed work-item with zero files. The same work handed to a generic agent
-finished in ~5 minutes with 22 edits across 17 files. Three failures compound:
+handed a comment-only rename across 17 files, refused it at a precondition gate in 1-2 tool uses,
+returned near-empty text, and the coordinator read that as a completed work-item with zero files.
+The same work handed to a generic agent finished in ~5 minutes with 22 edits across 17 files. The
+precondition that refused it is gone (coders write code only; whether a node owes tests is decided
+by the coordinator from the actual diff - snippets/test-sensitivity-contract.md § No test leg,
+guarded in tests/test_test_sensitivity_contract.py). Three failures remain worth guarding:
 
-  1. no escape      - test-first was unconditional, so work that CANNOT go red had no legal path.
-  2. quiet refusal  - the leaf exited without a terminal Continuation Contract status, so a refusal
+  1. quiet refusal  - a leaf exited without a terminal Continuation Contract status, so a refusal
                       was indistinguishable from a success at the launcher.
-  3. dropped fields - odoo-coder's forward list named neither MODULE SCOPE nor REQUEST, so a
+  2. dropped fields - odoo-coder's forward list named neither MODULE SCOPE nor REQUEST, so a
                       coordinator following it literally hands a coder no module and no request.
-  4. blind lint     - [brief-fields] treated `orchestration.<skill>.spawns_agents` as a set of
-                      DIRECT skill->agent edges. `RED_TEST_PATH` travels odoo-coder -> leaf-coder,
-                      an agent->agent edge no tier of the rule walked, while the same flattening
-                      charged `odoo-coding` for four keys it never emits and never should.
+  3. blind lint     - [brief-fields] treated `orchestration.<skill>.spawns_agents` as a set of
+                      DIRECT skill->agent edges. A key that travels odoo-coder -> leaf is an
+                      agent->agent edge no tier of the rule walked, while the same flattening
+                      charged `odoo-coding` for keys it never emits and never should.
 
 These assert the CONTRACT'S BEHAVIOR, not a wording snapshot: each can fail for a real reason -
-delete the escape, make a refusal quiet again, drop a forwarded field, or flatten the edge tiers,
-and the matching assertion goes red. The lint half is proved against synthetic fixtures (never the
-real tree) so its detector is shown capable of firing, not merely observed printing "clean".
+make a refusal quiet again, drop a forwarded field, or flatten the edge tiers, and the matching
+assertion goes red. The lint half is proved against synthetic fixtures (never the real tree) so its
+detector is shown capable of firing, not merely observed printing "clean".
 
 Run: python -m pytest tests/test_untestable_change_escape.py -v
 """
@@ -42,10 +42,6 @@ SNIPPETS = PLUGIN / "snippets"
 CODER = AGENTS / "odoo-coder.md"
 BACKEND = AGENTS / "odoo-backend-coder.md"
 FRONTEND = AGENTS / "odoo-frontend-coder.md"
-CODING_SKILL = PLUGIN / "skills" / "odoo-coding" / "SKILL.md"
-EXEMPTION_CONTRACT = SNIPPETS / "test-exemption-contract.md"
-TEST_FIRST_CONTRACT = SNIPPETS / "test-first-contract.md"
-DISPATCH_BRIEF = SNIPPETS / "dispatch-brief.md"
 DEPS_FILE = PLUGIN / "generator" / "skill_tool_deps.json"
 
 if str(PLUGIN) not in sys.path:
@@ -54,10 +50,6 @@ if str(PLUGIN) not in sys.path:
 from generator import check_orchestration as co  # noqa: E402
 
 LEAF_CODERS = {"odoo-backend-coder": BACKEND, "odoo-frontend-coder": FRONTEND}
-CODER_FAMILY = {"odoo-coder": CODER, **LEAF_CODERS}
-
-# The categories the contract declares - a change class that cannot produce a failing test.
-CATEGORIES = ("comment-only", "prose-rename", "formatting", "docs", "translation-text")
 
 
 def _text(p: Path) -> str:
@@ -86,196 +78,7 @@ def _section(text: str, heading: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 1. The escape exists, is a CLOSED declaration, and is never inferred
-# ---------------------------------------------------------------------------
-
-
-def test_exemption_contract_declares_a_closed_category_set():
-    """An escape whose reason field is free text is an escape with no gate: any leaf could talk
-    itself past test-first. The contract must name a closed set of change classes that genuinely
-    cannot go red, and must require specifics alongside the category."""
-    assert EXEMPTION_CONTRACT.is_file(), (
-        "snippets/test-exemption-contract.md must exist - it is the ONE declaring file for the "
-        "escape; without it every consumer restates the rule and they drift"
-    )
-    text = _text(EXEMPTION_CONTRACT)
-    low = _norm(EXEMPTION_CONTRACT).lower()
-    assert "TEST_EXEMPTION" in text, "the contract must name the field it declares"
-    for category in CATEGORIES:
-        assert category in text, (
-            f"the closed category set must enumerate `{category}` - a caller cannot declare a "
-            "category the contract does not list"
-        )
-    assert "closed category set" in low, (
-        "the set must be stated as CLOSED - an open set is not a gate"
-    )
-    assert "<specifics>" in text or "specifics" in low, (
-        "the declaration must carry what specifically cannot go red, not a bare category"
-    )
-
-
-def test_an_absent_or_malformed_declaration_is_never_an_exemption():
-    """The hole this reopens if it regresses: a leaf that reads a missing/empty field as consent
-    is exactly the untested-code path test-first exists to close. Absence must resolve toward
-    REFUSAL, and a half-written value must not be repaired by guessing."""
-    low = _norm(EXEMPTION_CONTRACT).lower()
-    assert "malformed is absent" in low or "malformed is absent." in low, (
-        "the contract must state that a malformed declaration carries NO exemption"
-    )
-    assert "never infer" in low or "never read one into" in low or "never inferred" in low, (
-        "the contract must forbid the receiver inferring an exemption"
-    )
-    assert "absent key mean the same thing" in low or "absent key" in low, (
-        "the contract must define what an absent key means (no exemption), so absence is decided "
-        "rather than improvised"
-    )
-
-
-def test_a_resolving_red_test_always_beats_an_exemption():
-    """Precedence must be stated, or a brief carrying BOTH a real test and an exemption is decided
-    by whichever line the leaf read last - and the exemption would silently retire a real test."""
-    low = _norm(EXEMPTION_CONTRACT).lower()
-    assert "wins" in low and "red_test_path" in low, (
-        "the contract must state a resolving RED_TEST_PATH wins over an exemption"
-    )
-    assert "never cancels a test that exists" in low, (
-        "an exemption must never cancel or authorise editing an existing test"
-    )
-
-
-def test_the_receiver_verifies_the_claim_against_what_it_writes():
-    """A declaration the receiver cannot void is a blank cheque: the caller's judgment about
-    testability was made BEFORE the file set was read. The leaf holds the only evidence that the
-    work turned behavioral, so it must own the void."""
-    low = _norm(EXEMPTION_CONTRACT).lower()
-    assert "void" in low, "the contract must define when an exemption becomes VOID"
-    for observable in ("selector", "msgid", "external id", "manifest key"):
-        assert observable in low, (
-            f"the void rule must name concrete observable edits (missing: {observable!r}) - "
-            "'anything behavioral' is not decidable at runtime"
-        )
-
-
-# ---------------------------------------------------------------------------
-# 2. The escape is wired END TO END - a hop that drops it recreates the defect
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "label,path",
-    [
-        ("odoo-coding dispatch fence", CODING_SKILL),
-        ("odoo-coder coordinator", CODER),
-        ("odoo-backend-coder leaf", BACKEND),
-        ("odoo-frontend-coder leaf", FRONTEND),
-        ("dispatch-brief SSOT", DISPATCH_BRIEF),
-    ],
-)
-def test_every_hop_on_the_coding_chain_names_the_exemption(label, path):
-    assert "TEST_EXEMPTION" in _text(path), (
-        f"{label} ({path.name}) never names TEST_EXEMPTION - the escape must survive every hop "
-        "from the skill that scopes the change to the leaf that refuses it; one silent hop and "
-        "the leaf blocks on a change that cannot have a test"
-    )
-
-
-def test_the_skill_that_builds_the_brief_emits_the_field_in_its_fence():
-    """Prose ABOUT a field is not a field. The dispatch fence is what a caller copies values into,
-    so an exemption named only in surrounding explanation never reaches a brief."""
-    assert "TEST_EXEMPTION:" in _fences(CODING_SKILL), (
-        "skills/odoo-coding/SKILL.md's per-module dispatch fence must emit `TEST_EXEMPTION:` as a "
-        "brief key, not merely discuss exemptions in prose"
-    )
-
-
-def test_the_coordinator_forwards_the_field_in_its_leaf_brief():
-    assert "TEST_EXEMPTION:" in _fences(CODER), (
-        "agents/odoo-coder.md's leaf-coder dispatch brief must emit `TEST_EXEMPTION:` - the "
-        "coordinator is the caller that fills the leaf's brief, so a field it never writes is a "
-        "field the leaf never sees"
-    )
-
-
-@pytest.mark.parametrize("name", sorted(CODER_FAMILY))
-def test_registry_brief_manifest_carries_the_field(name):
-    """The registry is what [brief-fields] and the Inputs-table lint read. A field wired only in
-    prose is invisible to every machine check."""
-    brief = _registry()["agents"][name]["brief"]
-    assert "TEST_EXEMPTION" in set(brief["required"]) | set(brief["optional"]), (
-        f"agents.{name}.brief must declare TEST_EXEMPTION (optional - its absence means `none`)"
-    )
-
-
-def test_every_file_that_states_the_test_gate_also_states_the_escape():
-    """Whole-tree, no adjacency window: any agent-facing file that names `RED_TEST_PATH` is a file
-    that states the gate, and a file stating the gate WITHOUT the escape is a surviving
-    restatement that recreates the exact defect for whoever reads that file alone."""
-    offenders = []
-    for path in sorted(PLUGIN.rglob("*.md")):
-        text = path.read_text(encoding="utf-8")
-        if "RED_TEST_PATH" in text and "TEST_EXEMPTION" not in text:
-            offenders.append(str(path.relative_to(PLUGIN)))
-    assert not offenders, (
-        "these files state the RED_TEST_PATH gate but never mention the TEST_EXEMPTION escape, so "
-        f"an agent reading only them refuses work that cannot go red: {offenders}"
-    )
-
-
-def test_the_test_first_contract_points_at_its_own_exception():
-    """test-first-contract.md is the SSOT a reader lands on for red-before-green. If it asserts
-    the rule with no pointer to the one sanctioned exception, that reader concludes none exists."""
-    text = _text(TEST_FIRST_CONTRACT)
-    assert "TEST_EXEMPTION" in text and "test-exemption-contract.md" in text, (
-        "snippets/test-first-contract.md must point at the exemption contract - an SSOT that "
-        "states only the absolute form of a rule contradicts the file that qualifies it"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 3. Test-first still bites: a BEHAVIOR change with no test is still refused
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("name", sorted(LEAF_CODERS))
-def test_leaf_still_refuses_a_behavior_change_with_no_test(name):
-    """The escape must not become a bypass. Both the no-test case and the unresolvable-path case
-    must still refuse, and the leaf must void the exemption the moment the work turns behavioral."""
-    low = _norm(LEAF_CODERS[name]).lower()
-    assert "does not resolve to a real file" in low, (
-        f"{name}: an unresolvable RED_TEST_PATH must still be treated as no test at all"
-    )
-    assert "refuse" in low, f"{name}: the no-test branch must still REFUSE, not proceed untested"
-    assert "void" in low, (
-        f"{name}: the leaf must hold the exemption VOID once the work needs an observable edit - "
-        "without that, a declared exemption is a blanket licence to write untested behavior"
-    )
-
-
-@pytest.mark.parametrize("name", sorted(LEAF_CODERS))
-def test_leaf_never_infers_an_exemption_from_an_empty_field(name):
-    low = _norm(LEAF_CODERS[name]).lower()
-    assert "malformed `test_exemption` is not an exemption" in low or (
-        "is not an exemption" in low and "never read one into a missing field" in low
-    ), (
-        f"{name}: the leaf must state that an absent/empty/malformed TEST_EXEMPTION is NOT an "
-        "exemption - inferring one from an empty field reopens the untested-code hole"
-    )
-
-
-def test_the_coordinator_cannot_launder_a_lost_test_into_an_exemption():
-    """The nearest available abuse: a test-writer returns a path that does not exist, and the
-    coordinator relabels the work 'untestable' instead of re-dispatching the author."""
-    low = _norm(CODER).lower()
-    assert "never laundered into a `test_exemption`" in low or (
-        "unresolved path is never" in low and "test_exemption" in low
-    ), (
-        "agents/odoo-coder.md must forbid converting an unresolved RED_TEST_PATH into an "
-        "exemption - the exemption covers a change that cannot go red, not a test that got lost"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 4. The refusal is LOUD - a terminal status, never a near-empty message
+# 1. The refusal is LOUD - a terminal status, never a near-empty message
 # ---------------------------------------------------------------------------
 
 
@@ -316,7 +119,7 @@ def test_leaf_refusal_emits_a_terminal_continuation_block(name):
 
 @pytest.mark.parametrize("name", sorted(LEAF_CODERS))
 def test_any_gate_not_just_the_test_gate_exits_loudly(name):
-    """Defect 2 is not specific to the test gate: the brief self-check STOP and every other
+    """Defect 1 is not specific to one gate: the brief self-check STOP and every other
     precondition exit shared the same quiet path. The loud-report rule must be stated for ALL of
     them, and the self-check's STOP must route through it."""
     section = _section(_text(LEAF_CODERS[name]), "## Continuation Contract")
@@ -348,7 +151,7 @@ def test_the_refusal_names_a_referent_from_this_dispatch(name):
 
 
 # ---------------------------------------------------------------------------
-# 5. The forward list carries what a leaf cannot work without (defect 3)
+# 2. The forward list carries what a leaf cannot work without (defect 2)
 # ---------------------------------------------------------------------------
 
 
@@ -356,7 +159,7 @@ def test_leaf_coder_brief_carries_the_module_and_the_request():
     """The latent gap that alone produces 'wrote nothing': a coordinator following the forward
     list literally handed a coder no module path and no request text."""
     fences = _fences(CODER)
-    for field in ("MODULE SCOPE", "REQUEST", "ODOO VERSION", "RED_TEST_PATH", "WORKTREE_PATH"):
+    for field in ("MODULE SCOPE", "REQUEST", "ODOO VERSION", "WORKTREE_PATH"):
         assert field in fences, (
             f"agents/odoo-coder.md's teammate briefs must carry `{field}` - a leaf handed a brief "
             "without it has nothing to act on and returns empty"
@@ -388,7 +191,7 @@ def test_test_writer_brief_carries_every_key_its_registry_entry_requires():
 
 
 # ---------------------------------------------------------------------------
-# 6. [brief-fields] walks BOTH edge tiers (defect 4)
+# 3. [brief-fields] walks BOTH edge tiers (defect 3)
 # ---------------------------------------------------------------------------
 
 
@@ -416,7 +219,7 @@ def test_agent_to_agent_edge_is_actually_checked(monkeypatch):
     orch = {"a-skill": {"spawns_agents": ["a-coord"]}}
     agents = {
         "a-coord": {"role": "coordinator", "spawns_agents": ["a-leaf"], "brief": {"required": []}},
-        "a-leaf": {"role": "leaf", "brief": {"required": ["RED_TEST_PATH"]}},
+        "a-leaf": {"role": "leaf", "brief": {"required": ["LEAF_ONLY_KEY"]}},
     }
     _fake_tree(
         monkeypatch,
@@ -427,7 +230,7 @@ def test_agent_to_agent_edge_is_actually_checked(monkeypatch):
     )
     findings: list[str] = []
     co.check_brief_fields(findings)
-    assert any("a-coord" in f and "a-leaf" in f and "RED_TEST_PATH" in f for f in findings), (
+    assert any("a-coord" in f and "a-leaf" in f and "LEAF_ONLY_KEY" in f for f in findings), (
         f"the agent->agent tier did not fire on a coordinator brief missing its leaf's required "
         f"key: {findings}"
     )
@@ -439,14 +242,14 @@ def test_agent_to_agent_edge_clears_once_the_key_is_emitted(monkeypatch):
     orch = {"a-skill": {"spawns_agents": ["a-coord"]}}
     agents = {
         "a-coord": {"role": "coordinator", "spawns_agents": ["a-leaf"], "brief": {"required": []}},
-        "a-leaf": {"role": "leaf", "brief": {"required": ["RED_TEST_PATH"]}},
+        "a-leaf": {"role": "leaf", "brief": {"required": ["LEAF_ONLY_KEY"]}},
     }
     _fake_tree(
         monkeypatch,
         orch=orch,
         agents=agents,
         skill_bodies={"a-skill": "```\nNOTHING: x\n```"},
-        agent_bodies={"a-coord": "```\nRED_TEST_PATH: <path>\n```"},
+        agent_bodies={"a-coord": "```\nLEAF_ONLY_KEY: <value>\n```"},
     )
     findings: list[str] = []
     co.check_brief_fields(findings)
@@ -461,11 +264,11 @@ def test_a_skill_is_not_charged_for_a_brief_its_coordinator_writes(monkeypatch):
     silences it, not a blanket exemption for that agent name."""
     agents = {
         "a-coord": {"role": "coordinator", "spawns_agents": ["a-leaf"], "brief": {"required": []}},
-        "a-leaf": {"role": "leaf", "brief": {"required": ["RED_TEST_PATH"]}},
+        "a-leaf": {"role": "leaf", "brief": {"required": ["LEAF_ONLY_KEY"]}},
     }
     orch = {"a-skill": {"spawns_agents": ["a-coord", "a-leaf"]}}
     skill_bodies = {"a-skill": "```\nNOTHING: x\n```"}
-    agent_bodies = {"a-coord": "```\nRED_TEST_PATH: <path>\n```"}
+    agent_bodies = {"a-coord": "```\nLEAF_ONLY_KEY: <value>\n```"}
 
     _fake_tree(monkeypatch, orch=orch, agents=agents, skill_bodies=skill_bodies,
                agent_bodies=agent_bodies)
@@ -489,15 +292,17 @@ def test_a_skill_is_not_charged_for_a_brief_its_coordinator_writes(monkeypatch):
 
 
 def test_real_tree_charges_nobody_for_the_coder_family_edges():
-    """On the REAL tree: the four measured false positives (odoo-coding blamed for TARGET
-    BEHAVIOR, TEST TYPE, and RED_TEST_PATH twice) are gone, AND the real odoo-coder -> leaf edges
-    the rule now walks are clean - so the noise did not simply move one tier down."""
+    """On the REAL tree: odoo-coding is charged for no key its coordinator writes, AND the real
+    odoo-coder -> leaf edges (both coders and the node's odoo-test-writer) are clean - so the noise
+    did not simply move one tier down."""
     findings: list[str] = []
     co.check_brief_fields(findings)
+    # Keyed on the DISPATCHER: the coding chain's briefs are written by odoo-coding (skill tier)
+    # and odoo-coder (agent tier). Other callers of odoo-test-writer are outside this chain.
     coder_family = [
         f for f in findings
-        if "odoo-coding" in f or "odoo-coder" in f or "odoo-backend-coder" in f
-        or "odoo-frontend-coder" in f
+        if f.startswith("[brief-fields] 'odoo-coding'")
+        or f.startswith("[brief-fields] agent 'odoo-coder'")
     ]
     assert not coder_family, f"unexpected [brief-fields] findings on the coding chain: {coder_family}"
 

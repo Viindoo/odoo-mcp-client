@@ -707,10 +707,11 @@ orchestrating context (main agent / run-harness / odoo-intake)
               └── may spawn its own subagents (depth cap 3, capability-branching - §R0)
                     └── odoo-coder is the NODE COORDINATOR (launched ONCE PER WORK
                         NODE, whatever module(s) it touches): per work-item it
-                        launches odoo-test-writer FIRST, then - once that RED test
-                        is observed failing - odoo-backend-coder and/or
-                        odoo-frontend-coder to implement to it (all three are hard
-                        leaves), and tests the integrated node via
+                        launches odoo-backend-coder and/or odoo-frontend-coder
+                        FIRST (code only), then - once the code is checkpointed - ONE
+                        odoo-test-writer that writes the tests and proves each with
+                        an executed break-check (all three are hard leaves), and
+                        tests the integrated node via
                         Skill(odoo-instance) - inline in its own context, or by
                         launching odoo-instance-ops - whichever fits
 ```
@@ -738,13 +739,17 @@ level below `odoo-coding`, well under the depth cap - SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0); its `odoo-test-writer`,
 `odoo-backend-coder` and `odoo-frontend-coder` workers are HARD LEAVES that launch nothing.
 
-Within a node the three teammates are ORDERED, not interchangeable. For every work-item
-`odoo-coder` launches `odoo-test-writer` first; that teammate authors the RED test and the failing
-state is observed before either coder writes production source. The test author is never the code
-author: the coders implement to the returned RED test path and never edit it. The only work-item
-exempt from the test-writer launch is one whose change cannot go red, declared through
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`. Ordering SSOT:
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`.
+Within a node the teammates are ORDERED, not interchangeable: code first, then tests. For every
+work-item `odoo-coder` launches `odoo-backend-coder` and/or `odoo-frontend-coder`, which write
+production code and never author or edit tests. Once every work-item is done and the node is
+checkpointed, the coordinator decides the test leg from the ACTUAL diff and launches ONE
+`odoo-test-writer` for the whole node. That teammate writes new tests or adjusts existing ones, then
+proves each with an executed break-check: it alters exactly the business rule, the guarding test must
+fail on its assertion, and it restores the file and proves the restore by checksum. The test author
+is never the permanent code author, so independence is kept. The only node that skips the test leg
+is one whose diff falls in the closed no-test-leg categories (comment-only, prose-rename, formatting,
+docs, translation text, manifest keys), decided by the coordinator, never declared by a caller.
+Ordering SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`.
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `odoo-intake` / `run-harness` / `workflow-chaining`
@@ -1087,8 +1092,8 @@ odoo-brl) use the CHP (§6) to cut cold-start cost. Tier C (fresh spawn + worklo
 baseline; Tier A/B are optimizations that degrade silently to C. CHP is an optimization layer,
 never a dependency. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
 
-**The `code -> review+test -> code` loop.** `odoo-coding` (which now orchestrates red-test authorship before the
-code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) emits
+**The `code -> review+test -> code` loop.** `odoo-coding` (whose coordinator writes the code first, then the node's tests proven by a
+break-check, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`) emits
 `next: odoo-code-review`; that skill reviews AND checks test coverage, emitting `next: odoo-coding`
 on a CRITICAL/HIGH fix or `next: odoo-test-writing` on an uncovered behavior. The driver advances
 this loop via the Continuation Contract (a subagent never re-dispatches itself) and bounds it to 3

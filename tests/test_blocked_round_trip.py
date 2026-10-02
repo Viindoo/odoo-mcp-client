@@ -41,7 +41,7 @@ FRONTEND = AGENTS / "odoo-frontend-coder.md"
 TEST_WRITER = AGENTS / "odoo-test-writer.md"
 DISPATCH_BRIEF = SNIPPETS / "dispatch-brief.md"
 WORKLOG_CONTRACT = SNIPPETS / "worklog-contract.md"
-TEST_EXEMPTION = SNIPPETS / "test-exemption-contract.md"
+TEST_SENSITIVITY = SNIPPETS / "test-sensitivity-contract.md"
 SKILL_TOOL_DEPS = PLUGIN / "generator" / "skill_tool_deps.json"
 
 _FENCE = re.compile(r"```.*?```", re.S)
@@ -104,7 +104,7 @@ def test_every_referenced_file_exists():
         for p in (
             WORKTREE_DISPATCH_SITES
             + WORKTREE_ROOTED_LEAVES
-            + [DISPATCH_BRIEF, WORKLOG_CONTRACT, TEST_EXEMPTION, SKILL_TOOL_DEPS]
+            + [DISPATCH_BRIEF, WORKLOG_CONTRACT, TEST_SENSITIVITY, SKILL_TOOL_DEPS]
         )
         if not p.exists()
     ]
@@ -364,10 +364,12 @@ def test_the_coordinator_reads_a_blocked_childs_produced():
     )
 
 
-def test_the_exemption_contract_no_longer_prescribes_an_empty_produced():
-    """A single surviving restatement recreates the defect."""
-    body = _norm(_text(TEST_EXEMPTION))
+def test_the_test_sensitivity_contract_never_prescribes_an_empty_produced():
+    """A single surviving restatement recreates the defect. The test-sensitivity contract defines
+    the test leg's BLOCKED exits (restore not proven, loop exhausted) - its refusals report what
+    exists, like every other worker's."""
+    body = _norm(_text(TEST_SENSITIVITY))
     assert "`produced: []`" not in body, (
-        "test-exemption-contract.md must not prescribe `produced: []` for a refusal - it is the "
+        "test-sensitivity-contract.md must not prescribe `produced: []` for a refusal - it is the "
         "same pre-emption the coder templates carried"
     )

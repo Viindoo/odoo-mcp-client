@@ -6,7 +6,7 @@ BEHAVIOR (not merely cost) if their adjacent explanation is removed - two of the
 (an infinite re-queue / a deadlock) rather than a cost regression, several silently destroy a
 guarantee (mutual exclusion, the OOM bound, lease-leak visibility, status-enum authority, a
 grounded `blocked_reason`, the teardown obligation, base-branch correctness, evidence placement,
-lead-strand prevention, active-run data safety, red-before-green semantics).
+lead-strand prevention, active-run data safety, absorption-probe semantics).
 
 `tests/fixtures/inversion_scope_checklist.json` is the checked-in SSOT for those 14 items. This
 file asserts every one of their `sentences` entries survives, WHITESPACE-NORMALIZED (collapse all

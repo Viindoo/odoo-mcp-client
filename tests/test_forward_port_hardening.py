@@ -1650,7 +1650,7 @@ class TestI18nMandateComputeDispatchSplit:
 # ---------------------------------------------------------------------------
 # PR #189 runtime-review fixes F1 (secondary BLOCKS) and F5:
 #
-# F1 - P9 (RED-then-GREEN verification) never named WORKTREE_PATH anywhere in the
+# F1 - P9 (verify by behavior) never named WORKTREE_PATH anywhere in the
 # skill; only P9.5 (i18n) did, and P9.5's own text ASSUMED "the P9 INSTANCE_HANDLE
 # whose addons path covers it" - a guarantee P9 never established. odoo-instance's
 # WORKTREE_PATH field is optional and silently defaults to a catalog-tree instance
@@ -2084,7 +2084,7 @@ class TestForwardPort8bLaunchesAndResumesTheCoderById:
         text = SKILL_MD.read_text(encoding="utf-8")
         assert "WORKER_AGENT_ID:" in text, (
             "SKILL.md P8 8b must document the WORKER_AGENT_ID brief field carried into "
-            "odoo-coding - the SAME field shape the 8a leg uses, an id the caller captured from "
+            "odoo-coding - the SAME field shape odoo-coding's receiving side declares, an id the caller captured from "
             "its own earlier launch"
         )
         assert "WORKER NAME" not in text, (
@@ -2111,7 +2111,7 @@ class TestForwardPort8bLaunchesAndResumesTheCoderById:
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         assert "WORKER_AGENT_ID:" in text, (
             "fp-phase-detail.md P8b coder brief template must carry the WORKER_AGENT_ID field - "
-            "the SAME field shape 8a's odoo-test-writer leg uses"
+            "the SAME field shape SKILL.md's 8b bullet carries"
         )
         assert "WORKER NAME" not in text, (
             "the retired name-shaped field must not survive in the concrete brief template a "
@@ -2138,9 +2138,10 @@ class TestForwardPort8bLaunchesAndResumesTheCoderById:
 
 
 # ---------------------------------------------------------------------------
-# Invariant (drift guard) - the 8a (odoo-test-writer) and 8b (odoo-coder) cross-
-# invocation resume legs MUST use the IDENTICAL field shape: `WORKER_AGENT_ID`,
-# an id the caller captured from its OWN earlier launch. Two differently-labeled
+# Invariant (drift guard) - the 8b (odoo-coder, via odoo-coding) cross-invocation
+# resume leg - the only per-module agent P8 launches, its test leg included - MUST
+# use ONE field shape on both of its presentations and on the receiving side:
+# `WORKER_AGENT_ID`, an id the caller captured from its OWN earlier launch. Two differently-labeled
 # fields for one job is this repo's INST_ADDONS_PATH/ALLOC_ADDONS_PATH failure
 # class. The guard is structural on BOTH sides - the sending side (SKILL.md,
 # fp-phase-detail.md) and the receiving side (skills/odoo-coding/SKILL.md) - since
@@ -2151,9 +2152,9 @@ _AGENT_NAME_MINT_RE = re.compile(r"fp-adapt-<slug>-<module>")
 
 
 class TestBothLegsUseTheSameResumeFieldShape:
-    """The 8a odoo-test-writer leg and the 8b odoo-coder leg must carry their cross-invocation
-    resume identity as the SAME thing: an id the caller captured from ITS OWN earlier launch.
-    Neither leg may mint a name (no launch call can assign one), and the RECEIVING side
+    """The 8b odoo-coder leg must carry its cross-invocation resume identity in SKILL.md and
+    fp-phase-detail.md as the SAME thing: an id the caller captured from ITS OWN earlier launch.
+    Neither presentation may mint a name (no launch call can assign one), and the RECEIVING side
     (`skills/odoo-coding/SKILL.md`) must accept that IDENTICAL shape, not a second one."""
 
     @pytest.mark.parametrize("path,label", [
@@ -2173,7 +2174,7 @@ class TestBothLegsUseTheSameResumeFieldShape:
 
     def test_receiving_side_declares_the_same_worker_agent_id_field(self):
         """The receiving side (skills/odoo-coding/SKILL.md Coder-brief schema) must declare the
-        literal `WORKER_AGENT_ID:` field label - the SAME label the sending side (8a/8b, above)
+        literal `WORKER_AGENT_ID:` field label - the SAME label the sending side (8b, above)
         emits - not a differently-named or differently-shaped acceptance point."""
         text = CODING_SKILL_MD.read_text(encoding="utf-8")
         assert "WORKER_AGENT_ID:" in text, (
@@ -2270,10 +2271,11 @@ class TestP8NeverUsesChildWorktree:
             "F2's own finding is that no P8 invocation can ever validly fill it"
         )
 
-    def test_skill_md_8a_and_8b_briefs_carry_a_stable_integration_worktree_path_field(self):
+    def test_skill_md_adapt_brief_and_cold_fallback_carry_a_stable_integration_worktree_path_field(self):
         text = SKILL_MD.read_text(encoding="utf-8")
         assert text.count("Worktree path: `<path>/fp-integration`") >= 2, (
-            "SKILL.md 8a and 8b briefs must both carry a 'Worktree path: <path>/fp-integration' "
+            "SKILL.md's 8b adapt brief and its Tier C cold re-invoke must both carry a "
+            "'Worktree path: <path>/fp-integration' "
             "field naming the SAME JOB-tier integration worktree for the whole run - never a "
             "per-commit child worktree path"
         )
@@ -2297,10 +2299,9 @@ class TestP8NeverUsesChildWorktree:
 
     def test_phase_detail_header_no_longer_claims_work_tier_worktree_per_module(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
-        assert (
-            "## P8 - Adapt (test-first; serial per-module within a commit; "
-            "WORK-tier worktree per module for filesystem isolation)"
-        ) not in text, (
+        header = re.search(r"^## P8 - Adapt.*$", text, re.M)
+        assert header, "fp-phase-detail.md must carry its '## P8 - Adapt' header"
+        assert "WORK-tier worktree" not in header.group(0), (
             "fp-phase-detail.md's P8 header must not claim a WORK-tier worktree per module - "
             "P8 never reaches the precondition (integration HEAD already committed) that would "
             "make one valid"
@@ -2376,7 +2377,7 @@ class TestP3DesignDocReachesTheP8bBrief:
 class TestNoReplyAddressInAnyBriefTemplate:
     """A concrete brief template is what a caller actually copies, so a retired field surviving
     in one re-seeds it even after the schema drops it. None of this skill's three literal brief
-    templates - P1, 8a, 8b - may carry a reply address: a launch call cannot name the agent it
+    templates - P1, 8b - may carry a reply address: a launch call cannot name the agent it
     starts and no agent is shown its launcher, so the field can only ever hold a guess. The
     dispatched agent's report is its final message (spawner-completion-contract.md R3)."""
 
@@ -2391,19 +2392,6 @@ class TestNoReplyAddressInAnyBriefTemplate:
                 f"{banned!r}"
             )
 
-    def test_8a_brief_template_carries_no_reply_address(self):
-        text = PHASE_DETAIL.read_text(encoding="utf-8")
-        start = text.index("MODE: adapt - forward this source test to the target platform.")
-        # End at the template's own closing fence, not at a prose line inside it: the invariant
-        # is "no reply-address field anywhere in the 8a brief", and a sentence-shaped boundary
-        # marker breaks the test the moment that sentence is legitimately edited away.
-        end = text.index("\n```", start)
-        block = text[start:end]
-        for banned in ("CALLER_ID", "REPLY_TO"):
-            assert banned not in block, (
-                f"fp-phase-detail.md's 8a odoo-test-writer brief template still carries {banned!r}"
-            )
-
     def test_8b_brief_template_carries_no_reply_address(self):
         text = PHASE_DETAIL.read_text(encoding="utf-8")
         start = text.index("DISPATCH MODEL: <adapt-tier>")
@@ -2414,12 +2402,12 @@ class TestNoReplyAddressInAnyBriefTemplate:
                 f"fp-phase-detail.md's 8b odoo-coding brief template still carries {banned!r}"
             )
 
-    def test_skill_md_8a_and_8b_bullets_carry_no_reply_address(self):
+    def test_skill_md_8b_bullet_carries_no_reply_address(self):
         text = SKILL_MD.read_text(encoding="utf-8")
         for banned in ("CALLER_ID", "REPLY_TO"):
             assert banned not in text, (
-                f"SKILL.md's own 8a/8b bullets (the second literal-field presentation of the "
-                f"same briefs) still carry {banned!r}"
+                f"SKILL.md's own 8b bullet (the second literal-field presentation of the "
+                f"same brief) still carries {banned!r}"
             )
 
 

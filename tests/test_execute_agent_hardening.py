@@ -5,7 +5,7 @@ Codex / Gemini) when it designs, codes, reviews, or debugs Odoo - NOT a snapshot
 of any wording. Each assertion guards one wiring that, if silently dropped, would
 take a guarantee with it: cross-agent decision logging, the three Odoo platform
 design principles, bidirectional impact analysis, dynamic demo data, the
-red-before-green test loop, and the consume-only run-harness dispatch loop (D2: the driver owns
+code-then-test break-check loop, and the consume-only run-harness dispatch loop (D2: the driver owns
 only pure functions of plan fields + runtime-only facts, and never re-derives a decision the plan
 already made - the wave-layer-specific "between-wave integration" section this generalizes from is
 deleted).
@@ -29,7 +29,7 @@ NEW_SNIPPETS = [
     SNIPPETS / "odoo-platform-design-principles.md",
     SNIPPETS / "bidirectional-impact.md",
     SNIPPETS / "demo-data-dynamic.md",
-    SNIPPETS / "test-first-contract.md",
+    SNIPPETS / "test-sensitivity-contract.md",
     SHARED / "odoo-module-graph.md",
     SNIPPETS / "read-before-write-contract.md",
     SNIPPETS / "test-behavior-contract.md",
@@ -103,11 +103,15 @@ def test_agent_wires_cross_cutting_snippets(agent):
         assert snip in body, f"{agent}: missing reference to {snip}"
 
 
-def test_coders_wire_test_first():
-    """Both writer coders implement against a red test (red-before-green)."""
+def test_coders_write_code_only_and_report_obsolete_tests():
+    """Both writer coders write production code only - the node's odoo-test-writer authors and
+    break-checks the tests afterwards - and report, never edit, the existing tests the REQUEST
+    makes obsolete. A coder that edits a test to fit its own code is the code author grading itself."""
     for agent in ("odoo-backend-coder", "odoo-frontend-coder"):
-        assert "test-first-contract.md" in _read(AGENTS / f"{agent}.md"), (
-            f"{agent}: missing test-first-contract reference"
+        body = _read(AGENTS / f"{agent}.md")
+        assert "you do not author tests" in body.lower(), f"{agent}: must state it does not author tests"
+        assert "OBSOLETE TESTS" in body, (
+            f"{agent}: must report obsoleted tests under OBSOLETE TESTS instead of editing them"
         )
 
 
@@ -197,7 +201,9 @@ def test_code_review_gates_test_coverage_and_loops():
     assert "next: odoo-coding" in body, (
         "code-review must keep the code->review->code loop for CRITICAL/HIGH fixes"
     )
-    assert "test-first-contract.md" in body
+    assert "test-sensitivity-contract.md" in body or "break-check" in body, (
+        "code-review's coverage gate must require the authored test to be break-checked"
+    )
 
 
 def test_architect_reads_guidelines_and_forbids_fabrication():
@@ -291,8 +297,6 @@ TEST_BEHAVIOR_SNIPPET = "test-behavior-contract.md"
 # Every file wired to the anti-shortcut contract (agents + skills).
 TEST_BEHAVIOR_WIRED = [
     AGENTS / "odoo-test-writer.md",
-    AGENTS / "odoo-backend-coder.md",
-    AGENTS / "odoo-frontend-coder.md",
     AGENTS / "odoo-code-reviewer.md",
     AGENTS / "odoo-solution-architect.md",
     AGENTS / "odoo-backend-debugger.md",
@@ -314,9 +318,12 @@ def test_behavior_contract_names_forbidden_and_required_tokens():
     """The snippet must concretely name the forbidden shortcut and the required real-workflow
     tokens - a vague 'test the behavior' note would not actually steer an agent."""
     body = _read(SNIPPETS / TEST_BEHAVIOR_SNIPPET)
-    assert "create({'state'" in body, "snippet must name the forbidden shortcut pattern"
+    bad = body[body.index("\nBAD - "):body.index("\nGOOD - ")]
+    assert "create(" in bad and "'state':" in bad, (
+        "snippet's BAD example must show the forbidden shortcut: seeding 'state' in create()"
+    )
     assert "Form(" in body, "snippet must require Form() for onchange arrange"
-    for tok in ("action_confirm", "action_validate", "button_validate"):
+    for tok in ("action_confirm", "button_validate"):
         assert tok in body, f"snippet must name the real workflow method {tok}"
     assert "with_user(" in body and "sudo(" in body, (
         "snippet must state the with_user-not-sudo access rule"

@@ -191,18 +191,18 @@ principal checkout.
 Cache the returned `lease_token`/`run_id` in the batch's worklog entry (see [[worklog-contract]])
 so a crash during the batch can release the DB (step 4) rather than leaving it orphaned.
 
-## RED-then-GREEN + confirm-by-toggle
+## Green suite + break-check records
 
 After install:
 
-- **RED-then-GREEN (all tests):** the full suite for the target module must be green.
+- **Green suite (all tests):** the full suite for the target module must be green.
   A pre-existing red test is a pre-existing failure - triage it (see Triage below), do not
   fix it as part of this forward-port.
-- **Confirm-by-toggle (FP-delta tests only):** for each test that was NEWLY forwarded
-  in this batch, temporarily disable the corresponding adapt code (comment out the patch,
-  revert the field rename, etc.) and re-run ONLY that test. It must go RED. Then restore.
-  This proves the test actually exercises the adapted behavior and is not green-by-accident.
-  Do NOT toggle the entire suite - it is expensive and already covered by RED-then-GREEN.
+- **Break-check records (FP-delta tests only):** every test NEWLY forwarded or adapted in this
+  batch carries the `BREAK_CHECK:` line the node test leg returned at P8
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Break-check record). A test
+  without one is unverified - send it back to the module's P8 adapt node; the verify run never
+  breaks code itself.
 
 ## Triage: FP-delta vs pre-existing failure
 

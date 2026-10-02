@@ -37,14 +37,16 @@ brief that touches code or tests (coder, test-author, verify, debug).
 
 ## Downstream agents consume, never self-provision
 
-An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation (confirm-by-toggle,
+An agent receiving an `INSTANCE_HANDLE` MUST use it for every Odoo operation (a break-check,
 `init` / `update`, `test`) by passing its `lease_token` to `instance_build` / `instance_serve`, and
 MUST NOT call `lease_acquire`, invent a `db_name` or port, or re-derive `addons_path`.
 When NO handle is passed, the agent self-provisions by invoking `Skill(odoo-instance)` in its own
 context (an `ephemeral` lease by default; a listening one when the process must stay up), applying
 the instance HARD RULES per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo
-instance allocation. A provided handle always wins (consume, never re-provision) - with exactly ONE
-exception, § Worktree-addons carve-out below. (`odoo-instance` may lease a test port on the
+instance allocation; `odoo-test-writer` never self-provisions (no handle -> `NEEDS_NEXT`,
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The break-check). A provided
+handle always wins (consume, never re-provision) - with exactly ONE exception, § Worktree-addons
+carve-out below. (`odoo-instance` may lease a test port on the
 handle's database; it never releases or parks the handle's lease.)
 
 **Isolation, not exclusivity.** Never instruct a worker to wait for a resource another session

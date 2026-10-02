@@ -153,19 +153,22 @@ verbatim - never default to the catalog/principal checkout when one was supplied
 
 ## Phase 2a - DURABLE channel (parallelizable, no browser)
 
-For High- AND Med-tier modules in `test_set`, launch the `odoo-test-writer` agent (mode tour/HttpCase;
-it authors by invoking the `odoo-test-writing` skill inline, in its own context) to realize the
-oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
-`--test-enable`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR lint gate -
-scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance verdict
-is about those modules, and an untagged run would spend the sweep re-testing the core closure they
-pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`). **That run builds on a FRESH
-lease - `mode: fresh`, no `demo` (a test build runs the series default: the automation-test row of
+For High- AND Med-tier modules in `test_set`: first have `odoo-instance` build this channel's own
+test instance (`init` of `test_set`, `GATE_ROLE: node-verify` - acceptance is never the run's pre-PR
+lint gate); then launch the `odoo-test-writer` agent (mode tour/HttpCase; it authors by invoking the
+`odoo-test-writing` skill inline, in its own context) with that instance's `INSTANCE_HANDLE`, to
+realize the oracle's user-flow scenarios as durable regression and break-check each test on it;
+then have `odoo-instance` run them on that same handle (headless `--test-enable`, `mode: reuse`,
+`GATE_ROLE: node-verify`, scoped with `test_tags` = `/<m>` per module in `test_set` - the acceptance
+verdict is about those modules, and an untagged run would spend the sweep re-testing the core
+closure they pulled in: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`), and release that
+lease when the run is done. **That instance builds on a FRESH
+lease - no `demo` (a test build runs the series default: the automation-test row of
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE) - and NEVER on
 Phase 2's `INSTANCE_HANDLE`:** that cluster carries demo, and a test build on a series whose
-default loads no demo never runs on a demo database. Do not forward the cluster handle into this
-dispatch (thread the same `WORKTREE_PATH` as Phase 2); the cluster keeps `demo: on` for Phase 2b and
-Phase 3. **The files this channel leaves
+default loads no demo never runs on a demo database. Do not forward the cluster handle into the
+writer's brief or this run (thread the same `WORKTREE_PATH` as Phase 2); the cluster keeps
+`demo: on` for Phase 2b and Phase 3. **The files this channel leaves
 behind must not depend on demo data**, even though Phase 2's own cluster carries it: they run later
 in the automation-test environment, which on some series has no demo at all. State that constraint in
 the writer's brief; the rule itself is `odoo-test-writing`'s own. This channel uses no browser,

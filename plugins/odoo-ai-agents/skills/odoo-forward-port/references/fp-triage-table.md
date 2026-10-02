@@ -180,7 +180,7 @@ itself an INHERITED view (`inherit_id`
 set) and the base it inherits from turns out to live in the SAME module as the new record, the
 inheritance may be pure indirection carried over from a source-series module split that no longer
 exists at the target - the same result would be expressible directly in the base view. This check
-catches that shape. It runs at the SAME choke point the 8a/8b bucket-(b)/(c) legs already pass
+catches that shape. It runs at the SAME choke point the 8b bucket-(b)/(c) legs already pass
 through - once the commit's own adapt step lands or modifies the view record, directly in the
 integration worktree (P8 never uses a per-module child worktree - `SKILL.md` § Git topology) - and
 is reconfirmed clean at the P10 gate. It mirrors the P7

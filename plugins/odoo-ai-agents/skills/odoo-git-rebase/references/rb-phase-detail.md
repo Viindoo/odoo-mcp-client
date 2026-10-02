@@ -738,28 +738,34 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 
 ---
 
-## P9 - Test forward (per touched module)
+## P9 - Adapt + test forward (per touched module)
 
-Launch the `odoo-test-writer` agent (adapt mode; it authors by invoking the `odoo-test-writing`
-skill inline) for each module whose behavior changed, then invoke the `odoo-coding` skill (via the
-Skill tool) until GREEN - `odoo-coding` owns the coder fan-out + model (do NOT dispatch raw
-`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). Test-adapt brief:
+For each module whose behavior changed, invoke the `odoo-coding` skill (via the Skill tool) ONCE
+with the adapt fields below - `odoo-coding` owns the coder fan-out + model and the node's test leg
+(do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). Inside the node
+the code is adapted to the new-base idiom first; the node's test leg then adapts the branch's own
+tests and returns one `BREAK_CHECK:` line per adapted test
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg).
+Record those lines in the run's worklog. Adapt brief:
 
 ```
 DISPATCH MODEL: <adapt_tier>
-TASK: Adapt the branch's own tests to the new-base (<new-base branch>) idiom for module <module>.
-MODE: adapt (RED first, then GREEN)
+REQUEST: Adapt module <module> and the branch's own tests to the new-base (<new-base branch>) idiom.
+MODE: adapt
 MODULE SCOPE: <module> @ <WT_ROOT>/rb-integration/<module>
-TARGET BEHAVIOR / ORACLE SCENARIOS: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md - forward the
-      source test as the behavioral oracle
+INTENT: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md - the behavioral oracle (one path per
+      replayed sha touching the module)
+BUCKET: <per sha: the 4-outcome bucket recorded for it - [[rb-intent-4outcome]]>
+SOURCE TESTS: <the branch's own test files for this module, in the integration worktree>
+BROKEN TEST-SYMBOLS: <the P8b symbol-survival entries that land in those test files | omit when none>
 ODOO VERSION: <series>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 INSTANCE_HANDLE: <the P8b Lane 2 instance-ops block, verbatim - or 'none' when P8b provisioned none>
 SHARE_DIR: <the run's captured absolute SHARE path - substitute it, never re-resolve>
 ISOLATE_DIR: <the run's captured absolute ISOLATE path - substitute it, never re-resolve; `<ISOLATE_DIR>` keys on the enclosing repository root, so a leaf that resolves it from inside rb-integration writes into that worktree's own tree>
-RULE: Forward the source test as the behavioral oracle. Adapt API to target idiom
-      (base class, imports, helper signatures). Confirm RED before writing the fix.
-      Do NOT write a brand-new test if the source commit shipped one - adapt it.
+RULE: The node's test leg forwards each source test as the behavioral oracle and adapts its API to
+      the new-base idiom (base class, imports, helper signatures). Do NOT write a brand-new test if
+      the source commit shipped one - adapt it.
 ```
 
 Pass the same `INSTANCE_HANDLE` to every `odoo-coding` invocation of this phase and of P9b, and

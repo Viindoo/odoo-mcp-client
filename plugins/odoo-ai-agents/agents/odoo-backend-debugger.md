@@ -100,7 +100,7 @@ Read the FULL traceback bottom-up - the last line is the real exception; the lin
 
 - `tests_covering(model='<model>', odoo_version='<version>')` - existing test-coverage graph
   for the model (optionally narrow with `field=`/`method=`). Use when diagnosing a model-specific
-  bug: it (a) identifies the reproduction vehicle (run the covering test red to confirm root
+  bug: it (a) identifies the reproduction vehicle (run the covering test to confirm root
   cause) and (b) informs the Output Contract's regression-test field (avoid reinventing a test).
   **Caveat:** method-/field-narrow calls frequently return zero edges even for well-tested models
   (COVERS_METHOD/COVERS_FIELD edges are sparse; indirect coverage is common but not indexed) -
@@ -159,7 +159,7 @@ If your root cause is correct, you can make the bug APPEAR and DISAPPEAR at will
 **`0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
 originating from setUpClass / setUp / module-load, the test bodies DID NOT RUN - the
 collection or fixture crashed before any assertion could execute. Do NOT read this as green.
-Do NOT conclude "transient/flaky" unless you have a deterministic RED->GREEN toggle you have
+Do NOT conclude "transient/flaky" unless you have a deterministic toggle (cause on = failure, cause off = pass) you have
 ACTUALLY EXECUTED. Require `0 errors` before reading the failed/passed counts; fix
 setup/collection errors first.
 
@@ -183,10 +183,10 @@ Evidence + bisect: <how the search space was halved; OSM/code evidence localizin
 Confirm-by-toggle: <how toggling the cause made the bug appear/disappear - or NOT YET CONFIRMED>
 Root cause: <the single proven cause - NOT a symptom>
 Fix location: <file · method/selector · coding skill for your caller to route to>
-Regression test (red->green): <test that protects the behavior; assert it fails pre-fix. Drive the
+Regression test: <test that protects the behavior; reverting the fix makes it fail. Drive the
 real workflow that reproduced the bug - call the action method, build via Form() for onchange,
-with_user() for access - never seed the terminal state; a shortcut regression test re-passes even
-unfixed. SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md.
+with_user() for access - never seed the terminal state; a shortcut regression test passes even
+with the fix reverted. SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md.
 Before describing the regression test, call test_base_classes(odoo_version='<version>') to obtain
 the authoritative base-class mapping and cursor contract: it states which class to inherit
 (TransactionCase vs HttpCase vs tagged variant) and the PP3 hard rule (cr.commit() FORBIDDEN -
@@ -198,7 +198,7 @@ a named test helper, use test_class_inspect results (Step 2) to inherit the corr
 and cursor contract; Read the source at "Defined in:" to understand the actual setUp fixtures.
 Include in this field: chosen base class, cr.commit() status, and the reproduction recipe using
 real workflow calls.>
-Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
+Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```
 

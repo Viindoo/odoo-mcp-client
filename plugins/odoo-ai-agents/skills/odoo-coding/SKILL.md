@@ -139,7 +139,7 @@ plan is the SSOT for the inter-node layer (`odoo-planner` is the canonical autho
 see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`; `odoo-coding` runs the
 module-graph algorithm itself, then partitions into nodes, ONLY when standalone OR when the plan
 carries no dependency diagram to consume). You STILL run the intra-skill steps this skill owns at
-runtime - **step 5** (model tier per node) and **step 6** (test-first per node) - plus the
+runtime - **step 5** (model tier per node) and **step 6** (coverage pre-flight per node) - plus the
 inter-node dependency dispatch ordering (the intra-node WI split + the backend-before-frontend
 order is the `odoo-coder` coordinator's, not this skill's); the plan binds WHICH nodes build in
 WHAT order, never how many agents or which model (the plan's `est_agents` / `effort` is ADVISORY -
@@ -177,7 +177,7 @@ dispatch loop (one node per iteration, forked from that repo's run-integration b
 COORDINATOR `cd`s there, its hard-leaf coders author + RETURN their file list (no git, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), then - once the integrated node test is green -
 the COORDINATOR itself COMMITS the node by invoking `git-toolkit:git-ops` and returns the SHA.
-THIS skill no longer re-commits: it COLLECTS the coordinator's returned SHA and passes it up (for
+THIS skill does not re-commit: it COLLECTS the coordinator's returned SHA and passes it up (for
 `run-harness` to cherry-pick into the run-integration branch, or reports it). If invoked standalone
 with NO `WORKTREE_PATH`, this skill FIRST invokes `git-toolkit:git-ops` to provision a
 worktree/branch (never the principal checkout, resolving the fork point per
@@ -187,6 +187,19 @@ FALLBACK only, deliberately NOT a member of `git-delegation.md` § Self-provisio
 an orchestrator dispatching `odoo-coding` SHOULD still provision the worktree first per
 `run-harness` Hard rule 6. S9: every git op is delegated to `git-toolkit:git-ops` and runs ONLY
 inside the worktree. See `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+
+**`COMMIT: caller` pass-through - the caller owns the commit.** A caller that holds an open merge
+window (forward-port) sends `COMMIT: caller` with its `WORKTREE_PATH`: forward `COMMIT: caller` to
+every `odoo-coder` you dispatch, provision no worktree of your own, and collect and return each
+node's aggregated FILE LIST where this skill otherwise returns a SHA - the caller commits those files
+inside its own window. Never set `COMMIT: caller` on your own initiative.
+
+**Adapt fields pass-through.** A caller that ports a change sends `MODE: adapt` with `INTENT` and
+`BUCKET` (one record per source commit), `SOURCE TESTS`, `BROKEN TEST-SYMBOLS` and
+`TARGET TEST EXAMPLES`, and may send `BASE CLASS` and `INSTANCE_HANDLE`: forward every one verbatim
+in the node's brief (§ Per-node briefs) so they reach the node's coders and test leg - a
+caller-sent `BASE CLASS` or `INSTANCE_HANDLE` takes the place of your own value; never reinterpret
+them here.
 
 **No plan provided (bare standalone invocation) - self-derive and proceed.** `odoo-coding` is a
 pipeline stage, not an admission point: the mandatory-planning gate is enforced UPSTREAM at the
@@ -328,14 +341,13 @@ Constraints on the table:
   of the approved plan, not a runtime improvisation, and plan.md is what a later
   review / fix / resume step re-dispatches from.
 
-**6. Coverage pre-flight per node (red before green - authoring is universal).** The test protects
-the business behavior and is written BEFORE the code
-(`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`). Test authoring is UNIVERSAL and
-context-isolated: the `odoo-coder` coordinator launches the `odoo-test-writer` agent FIRST per WI to
-author the RED test, then the coder makes it green - so the test author is never the code author
-(independence keeps the test honest). This skill does NOT launch `odoo-test-writer` and does NOT
-choose a per-node test mode - it grounds the coverage scope here and forwards it to the
-coordinator, which forwards it to `odoo-test-writer`.
+**6. Coverage pre-flight per node (feeds the node's test leg).** A node's tests protect its
+business behavior and are written AFTER its code, by the ONE `odoo-test-writer` agent the
+`odoo-coder` coordinator launches for the node, each proven by an executed break-check
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Code first, then the test leg) -
+so the test author is never the code author (independence keeps the test honest). This skill does
+NOT launch `odoo-test-writer` and does NOT choose a per-node test mode - it grounds the coverage
+scope here and forwards it to the coordinator, which forwards it to `odoo-test-writer`.
 
 **Coverage pre-flight (run before assigning test mode).** For each non-trivial node, query OSM per
 module it touches to ground the test scope - only write what is NOT already covered:
@@ -358,18 +370,12 @@ would run before that module exists.
 Skip the coverage pre-flight only when OSM is unreachable (standalone/disk fallback, same flag
 as step 4); in that case `odoo-test-writer` works from disk context alone.
 
-**A node whose change cannot go red at all.** Some in-scope work has no RED test by nature - a
-comment-only edit, a rename confined to prose, pure formatting, a docs file, a translation-text
-change. That node still gets a coder; what it does not get is a test it cannot have. DECLARE the
-exemption in its brief (`TEST_EXEMPTION`, below) naming the category and what specifically is
-untestable, and skip the coverage pre-flight for it. Silence is not a declaration: a brief that
-simply omits the field means test-first, and the coder will refuse a behavior change with no test
-exactly as before. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
+Whether a node needs a test leg at all is decided by its coordinator from the node's ACTUAL diff
+(that contract's § No test leg), never declared here.
 
 Carry the coverage pre-flight results (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`) into
 the coder brief so the coordinator seeds the `odoo-test-writer` brief with them (additive tests
-only, never a duplicate). There is no per-node `test-author` vs `self` choice anymore - every
-node's RED test is authored by the `odoo-test-writer` agent the coordinator launches first.
+only, never a duplicate).
 
 Then emit the gate and wait. Write the gate message in the USER'S language (translate
 labels and prose; keep module names, paths, and the reply keywords verbatim - SSOT:
@@ -441,9 +447,9 @@ coordinator that needs a database (a `--test-enable` run or an `-i`/`-u` build) 
 `INSTANCE_HANDLE` self-provisions an ISOLATED instance by invoking
 `Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD RULES), never a bare
 `mcp__plugin_odoo-ai-agents_odoo-local__lease_acquire` call outside that skill, which would bypass them - so the brief never passes a shared
-db/port. `odoo-test-writer` NEVER self-provisions: when confirming RED needs a live run, it relays
-`NEEDS_NEXT: odoo-instance` up to its launcher (`odoo-coder`), which provisions the instance and
-re-launches it. A provided handle always wins
+db/port. `odoo-test-writer` NEVER self-provisions: it runs its break-checks on the instance its
+coordinator hands it, and without one it relays `NEEDS_NEXT: odoo-instance` up to its launcher
+(`odoo-coder`), which provisions the instance and re-launches it. A provided handle always wins
 (consume, never re-provision) - unless the brief carries `SELF_PROVISION: worktree-addons`
 (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
 
@@ -459,7 +465,7 @@ the release is per-node and non-negotiable. Full rule:
 
 The Phase 0 plan carries, per node: id, its module set (name + path on disk, in dependency order),
 stack, model (and `frontendModel` when split), the `depends_on` edges (the "(after ...)" in the
-gate table), which of its modules are new, the coverage pre-flight (universal test-first via
+gate table), which of its modules are new, the coverage pre-flight (feeding the node's
 `odoo-test-writer`), and the node's request (+ a frontendRequest for the UI leg). The run's ONE
 concrete Odoo series is the value Phase 0 step 4 already resolved (via
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`) - forward it verbatim; never
@@ -532,15 +538,14 @@ what carries that id across the invocation boundary.
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
    subagent error), retry that node ONCE at `model: opus` and record the downgrade in plan.md
    (`opus (fable unavailable)`).
-7. Test-first (red before green): pass each node's coverage pre-flight results (including which
+7. Code, then the node's test leg: pass each node's coverage pre-flight results (including which
    assertions cross a module boundary, step 6) to its `odoo-coder` coordinator. The coordinator
-   owns the per-WI test-first for EVERY node: it launches the `odoo-test-writer` agent FIRST per WI
-   (the dedicated context-isolated test author - never the code author, independence keeps the test
-   honest) and hands the returned RED test paths to that WI's coder, which implements to green.
+   runs every node in the order `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`
+   § Code first, then the test leg sets: its coder WIs write the code -> ONE `odoo-test-writer` per
+   node writes or adjusts the tests after the code (the dedicated context-isolated test author -
+   never the code author) -> a break-check proves each behavior test -> the integrated verify.
    THIS skill does NOT launch `odoo-test-writer`; the coordinator does, and it is the ONLY test
-   author. The sole exception is a node you DECLARED `TEST_EXEMPTION` for (step 6) - there the
-   coordinator skips the test-writer for the exempt WI and the coder works under the declaration,
-   refusing the moment the work turns behavioral.
+   author.
 
 ### Dependency-BLOCKED handling + the module-coordination ledger
 
@@ -594,7 +599,7 @@ BLOCKED, never a false "in progress"; absence is always the honest fallback.
 
 Each agent launch carries the brief below as its `prompt`. It is **run-specific inputs only** -
 every procedure (OSM grounding, coding guidelines, worklog, ORM + static gates, demo data, output
-format, test-first) already lives in the launched agent's system prompt. Rule and dispositions:
+format, the node's test leg) already lives in the launched agent's system prompt. Rule and dispositions:
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § "A brief carries WHAT and WHY, never HOW".
 Keep identifiers verbatim. The brief goes to the `odoo-coder` COORDINATOR for EVERY node; the
 coordinator forwards the module-scoped fields to whichever worker(s) each of its INTERNAL WIs needs
@@ -628,8 +633,13 @@ SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact groun
   opted-in deep survey (`inputs.survey` on the run-dag node, `phase-p-run-dag.md` § Survey
   pointer); read it once for grounding before authoring if present. ALWAYS state a value - `none`
   when no deep survey ran this session, never omit the field.
-TEST: test-first (universal) - RED test before code, per WI.
-TEST_EXEMPTION: none | <category> - <specifics> - declared by THIS caller, never inferred downstream. Never declare one to move a stuck node along: a behavior change with no test stays refused. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-exemption-contract.md`.
+COMMIT: caller - ONLY when your own caller sent `COMMIT: caller`; omit otherwise (the coordinator then commits).
+MODE: adapt - ONLY when your caller ports a change; omit otherwise, together with the five fields below.
+INTENT: <forwarded verbatim from your caller - one record per source commit>
+BUCKET: <forwarded verbatim from your caller - one per source commit>
+SOURCE TESTS: <forwarded verbatim from your caller>
+BROKEN TEST-SYMBOLS: <forwarded verbatim from your caller>
+TARGET TEST EXAMPLES: <forwarded verbatim from your caller>
 EXISTING COVERAGE: <tests_covering(model='<primary_model>', odoo_version='<version>') output - TestMethods already covering this model; author ADDITIVE tests only>
 COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>') output per module in this node - fields with zero/partial static-reference coverage (field-level only); prioritise these gaps>
 BASE CLASS: <base class from test_base_classes(odoo_version='<version>'), e.g. TransactionCase>
@@ -663,14 +673,15 @@ Follow the Rounds in your system prompt - it owns every procedure; do not re-der
   assume system `python3`. Tests and `-i`/`-u` builds never run as a raw `odoo-bin` call: they go
   through `Skill(odoo-instance)`.
 
-The `odoo-coder` coordinator (not this skill) launches the `odoo-test-writer` agent per WI FIRST -
-its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S), plus the coverage pre-flight
-fields above) is the coordinator's to assemble; this skill never pre-dispatches a test author and
-the coders never author tests. That FIRST launch is skipped only for a WI covered by a declared
-`TEST_EXEMPTION` - never because a test looked hard to write. `odoo-test-writer` carries its own
-authoring contracts: `snippets/test-first-contract.md` (red-before-green),
-`snippets/test-behavior-contract.md` (behavior over internals) and
-`snippets/red-evidence-contract.md` (a RED is MEASURED or CONSTRUCTED, never asserted).
+The `odoo-coder` coordinator (not this skill) launches ONE `odoo-test-writer` agent per node AFTER
+the node's code is written - its authoring brief (MODE, MODULE SCOPE, TARGET BEHAVIOR, TEST TYPE(S),
+plus the coverage pre-flight and adapt fields above) is the coordinator's to assemble; this skill
+never pre-dispatches a test author and the coders never author tests. The coordinator skips that
+launch only for a diff in the closed set of
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § No test leg - never because a test
+looked hard to write. `odoo-test-writer` carries its own authoring contracts:
+`snippets/test-sensitivity-contract.md` (the executed break-check) and
+`snippets/test-behavior-contract.md` (behavior over internals).
 
 Each hard-leaf coder locates files via Read/Grep, writes its output, and reports the files written
 plus `__manifest__.py` changes - it does NOT run git. The node's `odoo-coder` coordinator
@@ -680,7 +691,7 @@ commit; git-ops owns the message convention + DCO + mechanics) and captures the 
 the node's branch. **THIS skill then COLLECTS the coordinator's returned SHA and passes it up so
 `run-harness` can cherry-pick it into the run-integration branch (or so any caller can integrate) -
 it does NOT re-commit; a DONE with no returned file list, no integrated-test verdict, no SHA from
-the coordinator, no stated WI count + terminal-status accounting for that node (D2 - the private WI
+the coordinator (under `COMMIT: caller`, the file list stands in its place), no stated WI count + terminal-status accounting for that node (D2 - the private WI
 list is the coordinator's, but the ACCOUNTING statement is not), or no explicit mapping of every
 item in that node's `REQUEST`/`frontendRequest` to the WI(s) that implemented it (D7 - a node that
 silently covers only PART of what was asked is not a green node even when every file it DID touch
@@ -723,8 +734,8 @@ only the grounding degrades. Never ask a human to paste code, field lists, or ma
 
 This skill is part of an agent+skill bundle. Launch `odoo-coder` as the per-node coordinator - it
 owns the internal WI split and launches three teammates: `odoo-test-writer` (the hard-leaf test
-author launched FIRST per WI - authors the RED test by invoking the `odoo-test-writing` skill
-inline), `odoo-backend-coder` (the backend hard-leaf writer + its ORM-validation gate - the
+author launched once per node after the code - writes or adjusts the tests by invoking the
+`odoo-test-writing` skill inline and proves each with a break-check), `odoo-backend-coder` (the backend hard-leaf writer + its ORM-validation gate - the
 lint-class gate moved to `run-harness`'s pre-PR tail, see
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail), and
 `odoo-frontend-coder` (the frontend hard-leaf writer + its zero-toolchain static gate). Agents
@@ -732,10 +743,10 @@ inherit the full tool surface.
 
 ## The code -> review+test -> code loop (bounded)
 
-Coding is not one-shot. After this skill writes code (each non-trivial node implemented to a
-separately-authored failing test), the **code -> review+test -> code** round-trip runs:
+Coding is not one-shot. After this skill writes code (each non-trivial node's code followed by a
+separately-authored, break-checked test leg), the **code -> review+test -> code** round-trip runs:
 `odoo-code-review` reviews AND checks the tests cover the behavior, looping back on a CRITICAL/HIGH
-issue or a red/missing test.
+issue or a failing/missing test.
 
 **Drive it yourself in the default case (mandatory).** The Skill tool is available here. After
 writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** and fix within the
@@ -754,7 +765,7 @@ driving review here would double-dispatch. The two branches, precisely:
 
 Emit the Continuation Contract either way.
 
-Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; still
+Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The loop, bounded; still
 not green-and-clean after 3 -> STOP and escalate (bad work is worse than no work). Each iteration's
 outcome goes in the worklog.
 

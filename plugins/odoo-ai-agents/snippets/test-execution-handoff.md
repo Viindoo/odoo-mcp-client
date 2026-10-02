@@ -5,7 +5,8 @@
      the odoo-coder node coordinator owns the INTEGRATED whole-node instance test;
      odoo-backend-coder and odoo-frontend-coder are BOTH instance-free (static gate only -
      ORM-validation / verify-frontend.sh; their live checks go to the coordinator or a delegated
-     odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail).
+     odoo-instance run; the lint-class gate runs once at run-harness's pre-PR tail); odoo-test-writer
+     runs only its break-check / absorption-probe single-test runs, inline, on the forwarded handle.
      Canonical NEEDS_NEXT example lives in odoo-test-writing Round 5.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
@@ -21,6 +22,11 @@ caller.
 - **Author** - writes the test or the oracle: the `odoo-test-writer` agent authors the test (it
   invokes the `odoo-test-writing` skill inline, in its own context), and `odoo-qa-planner` authors
   the oracle. Does NOT decide PASS from a run it controls.
+  **Carve-out - the break-check.** `odoo-test-writer` runs its own break-check and absorption-probe
+  single-test runs (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The
+  break-check, § Absorption probe) itself, by
+  invoking `Skill(odoo-instance)` INLINE on the forwarded `INSTANCE_HANDLE`: it never launches
+  `odoo-instance-ops`, never acquires or releases a lease, and never self-provisions.
 - **Execute** - provisions/operates the live instance and runs the suite (`odoo-instance` skill ->
   `odoo-instance-ops` agent). Returns structured results, not raw firehose.
 - **Adjudicate** - compares observed-vs-oracle and rules PASS/FAIL/UNVERIFIED (`odoo-qa-tester`,

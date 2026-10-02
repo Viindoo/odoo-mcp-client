@@ -559,7 +559,7 @@ is the norm: a design that ran BEFORE the plan is simply the plan's input pointe
 
 The concrete brief `run-harness` composes when it dispatches a coding node to `odoo-coding`. Pass
 **inputs only** - `odoo-coding`'s own body owns every procedure (design-doc resolution, model-tier
-choice, test-first dispatch); never restate `odoo-coding`'s internals here, only the fields it needs
+choice, the node's code-then-test order); never restate `odoo-coding`'s internals here, only the fields it needs
 to CONSUME the plan's already-computed slice for one node (SSOT for the full field-by-field
 contract: `odoo-coding`'s own Plan-provided fast-path).
 
@@ -924,7 +924,7 @@ it replaces:
   as well. A green lint suite over a tree whose behavior suite predates the fix is exactly the
   PR-on-unverified-tree the readiness predicate exists to refuse.
 - **Bound the fix-loop to 3 iterations** (the SAME bounded-iteration convention as every other chain
-  in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; one
+  in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § The loop, bounded; one
   iteration = the three bullets above: dispatch fix -> cherry-pick onto run-integration -> re-verify
   against run-integration). Still red OR still `tests-inconclusive` after 3 -> BLOCKED with the
   failure/coverage evidence - one of the ENUMERATED, legitimate stop conditions (`SKILL.md` Hard

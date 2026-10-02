@@ -77,11 +77,11 @@ does and what the business needs. That gap is the bug. These rules make the orac
 - **Decision table.** When several conditions combine into several outcomes, tabulate so no
   combination is missed.
 
-Each scenario must be capable of FAILING for the right reason (red-before-green) - a scenario that
-cannot fail protects nothing - and one that fails because the screen or record it names does not
-exist yet never ran at all (`${CLAUDE_PLUGIN_ROOT}/snippets/red-evidence-contract.md`). Drive the real workflow when realizing
-a scenario as an executable test: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`
-(reference, do not duplicate).
+Each scenario must be capable of FAILING for the right reason - a scenario that cannot fail
+protects nothing - and one that fails because the screen or record it names does not exist never
+ran at all (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md` § Broken measurement is
+not a red). Drive the real workflow when realizing a scenario as an executable test:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md` (reference, do not duplicate).
 
 **An expected result is never a piece of DISPLAY TEXT.** Write it as the state, the record produced,
 the exception TYPE, or the permission refused - never as the wording of a label, button, help

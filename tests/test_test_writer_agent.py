@@ -8,8 +8,10 @@ Protects the BEHAVIOR of the reconciled test-authoring topology (not a wording s
 - It is a HARD LEAF: it spawns no further agent (invokes the skill inline, +0 depth).
 - Every named caller that needs a test authored LAUNCHES the odoo-test-writer agent (context
   isolation) - not the odoo-test-writing skill inline, and not a coder in a bespoke test-author mode.
-- The `odoo-coder` COORDINATOR launches odoo-test-writer (test-first); the `odoo-coding` SKILL does
-  NOT (the coordinator owns it), avoiding a skill<->agent cycle.
+- The `odoo-coder` COORDINATOR launches odoo-test-writer (ONE per node, after the coders); the
+  `odoo-coding` SKILL does NOT (the coordinator owns it), avoiding a skill<->agent cycle.
+- The port pipelines (forward-port, git-rebase) do NOT launch it: their adapt goes
+  odoo-coding -> odoo-coder -> the node's test leg, so a second per-module agent cannot appear.
 - The coder agents no longer author tests; the bespoke TEST-AUTHOR MODE wiring is gone.
 
 Red-before-green: each assertion fails if its wiring is dropped or inverted.
@@ -37,6 +39,10 @@ DEPS = PLUGIN / "generator" / "skill_tool_deps.json"
 CALLERS = {
     "odoo-acceptance": SKILLS / "odoo-acceptance" / "SKILL.md",
     "odoo-code-review": SKILLS / "odoo-code-review" / "SKILL.md",
+}
+
+# Port pipelines: adapt runs through odoo-coding, whose coordinator owns the test leg.
+PORT_PIPELINES = {
     "odoo-forward-port": SKILLS / "odoo-forward-port" / "SKILL.md",
     "odoo-git-rebase": SKILLS / "odoo-git-rebase" / "SKILL.md",
 }
@@ -99,6 +105,22 @@ def test_named_callers_launch_the_test_writer_agent():
         )
 
 
+def test_port_pipelines_do_not_launch_the_test_writer_directly():
+    """Forward-port / rebase adapt tests inside the odoo-coding node (MODE: adapt), so the code is
+    adapted first and the same node's test leg break-checks the forwarded tests. A direct launch
+    from the pipeline would reopen a second, unordered test author per module."""
+    for name, path in PORT_PIPELINES.items():
+        assert "odoo-test-writer" not in _text(path), (
+            f"{name} must not launch odoo-test-writer itself - its adapt test leg runs inside "
+            "odoo-coding's odoo-coder node"
+        )
+    orch = json.loads(_text(DEPS))["orchestration"]
+    for name in PORT_PIPELINES:
+        assert "odoo-test-writer" not in orch[name]["spawns_agents"], (
+            f"orchestration.{name}.spawns_agents must not list odoo-test-writer"
+        )
+
+
 def test_qa_suite_does_not_launch_the_test_writer_agent():
     """Regression guard for V-05: odoo-qa-suite Phase 1 is a STATIC, non-executing release
     TEST-PLAN table - it must never launch odoo-test-writer (that launch contradicted its own
@@ -110,8 +132,8 @@ def test_qa_suite_does_not_launch_the_test_writer_agent():
 
 
 def test_coder_launches_writer_but_coding_skill_does_not():
-    """The odoo-coder COORDINATOR launches odoo-test-writer (test-first); the odoo-coding SKILL does
-    NOT - the coordinator owns it (no skill<->agent cycle)."""
+    """The odoo-coder COORDINATOR launches odoo-test-writer (the node's test leg); the odoo-coding
+    SKILL does NOT - the coordinator owns it (no skill<->agent cycle)."""
     coder = _text(AGENTS / "odoo-coder.md")
     assert "odoo-test-writer" in coder, "the odoo-coder coordinator must launch odoo-test-writer"
 

@@ -23,10 +23,10 @@ working shape. It is what this file pins:
   direct-to-worker path.
 - `odoo-coder` is the per-node COORDINATOR that OWNS the node's INTERNAL work-item (WI) split:
   it divides its ONE node into 1..N disjoint-file-set WIs, schedules INDEPENDENT WIs in PARALLEL
-  and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and per WI launches
-  THREE teammates - `odoo-test-writer` FIRST (authors the RED test, test-first), then
-  `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests),
-  ending its turn after each dispatch so the harness can hand it the result. It never authors that
+  and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), launches
+  `odoo-backend-coder` / `odoo-frontend-coder` per WI (code only - the coders never author tests),
+  then ONE `odoo-test-writer` for the whole node AFTER the code (writes or adjusts the tests and
+  break-checks them), ending its turn after each dispatch so the harness can hand it the result. It never authors that
   source itself. It tests
   the integrated node via `Skill(odoo-instance)` (inline in its own context, or by launching
   `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its node by
@@ -128,54 +128,49 @@ def test_coordinator_assigns_wis_to_the_three_teammates_backend_first():
     parameter: no such parameter exists (measured). The coordinator dispatches, ends its turn, and
     is woken with the result (R0 move 3).
 
-    RESTORED assertion: the odoo-coder COORDINATOR launches THREE teammates - odoo-test-writer
-    (test-first) + odoo-backend-coder + odoo-frontend-coder per WI - and sequences the backend WI
-    before a frontend WI that binds it."""
+    RESTORED assertion: the odoo-coder COORDINATOR launches THREE teammate types -
+    odoo-backend-coder + odoo-frontend-coder per WI and the node's odoo-test-writer - and sequences
+    the backend WI before a frontend WI that binds it."""
     body = _norm(LEAD)
     assert "odoo-test-writer" in body, (
-        "the coordinator must launch odoo-test-writer (the test-first teammate)"
+        "the coordinator must launch odoo-test-writer (the node's test leg)"
     )
     assert "odoo-backend-coder" in body and "odoo-frontend-coder" in body, (
         "the coordinator must assign WIs to BOTH odoo-backend-coder and odoo-frontend-coder"
     )
     low = body.lower()
     # A bare `"backend" in low and "first" in low` is satisfied vacuously - both words appear
-    # dozens of times elsewhere in the doc (e.g. "author the RED test FIRST") regardless of
+    # dozens of times elsewhere in the doc (e.g. "code first") regardless of
     # whether backend-before-frontend sequencing is stated anywhere. Require the actual phrase.
     assert "backend before" in low, (
         "the coordinator must sequence a backend WI before a frontend WI that binds it"
     )
 
 
-def test_coordinator_launches_test_writer_first_and_coders_do_not_author():
-    """RESTORE of the topology this file originally pinned.
+def test_coordinator_launches_one_test_writer_after_the_coders_and_coders_do_not_author():
+    """Code first, then the test leg (snippets/test-sensitivity-contract.md § Code first, then the
+    test leg): the coordinator launches the coders per WI, then ONE odoo-test-writer for the whole
+    node - never one per WI, never before the code. The coders themselves never author tests, so
+    the code author is never the test author.
 
-    A prior pass replaced this with "test_coordinator_authors_red_test_first_inline_and_leaves_do_not_author",
-    asserting the coordinator authors the RED test itself via Skill(odoo-test-writing) inline. The
-    owner restored test-first delegation: the coordinator DISPATCHES odoo-test-writer and never
-    authors the test itself.
-
-    RESTORED assertion (test-first): the coordinator launches odoo-test-writer FIRST (the RED
-    test), then the coder; the coders themselves still never author tests."""
-    body = _norm(LEAD)
-    low = body.lower()
-    # A bare `"odoo-test-writer" in low and "first" in low` is satisfied vacuously - "first"
-    # appears 15+ times elsewhere in the doc (e.g. the backend-before-frontend sequencing prose,
-    # and the compound "test-first" methodology name that legitimately sits near almost every
-    # odoo-test-writer mention). Require the LAUNCH VERB tightly bound to both odoo-test-writer
-    # and "first" (e.g. "launch `odoo-test-writer` FIRST"), not incidental co-occurrence.
-    assert re.search(
-        r"(?i)launch(?:es|ing)?\s*`?odoo-test-writer`?\s+first\b", body
-    ), (
-        "the coordinator must launch odoo-test-writer FIRST per WI (test-first) - a launch verb "
-        "must sit directly against 'odoo-test-writer ... first', not merely co-occur anywhere"
+    Ordering is checked on the procedure itself: the coder-assignment step precedes the test-leg
+    section, and the test-leg launch is stated as ONE per node."""
+    text = _text(LEAD)
+    assign = text.find("Assign each WI to its coder")
+    test_leg = text.find("## The node's test leg")
+    assert assign != -1 and test_leg != -1, (
+        "odoo-coder.md must carry both the coder-assignment step and the node's test-leg section"
     )
-    # The coder agents must explicitly disclaim test authoring (write code only).
+    assert assign < test_leg, "the test leg must come AFTER the coders in the coordinator's procedure"
+    leg = text[test_leg:]
+    assert re.search(r"(?i)launch ONE `odoo-test-writer` for the node", leg), (
+        "the test leg must launch exactly ONE odoo-test-writer per node"
+    )
     for path in (BACKEND, FRONTEND):
         cbody = _norm(path).lower()
-        assert "do not author tests" in cbody or "does not author tests" in cbody or (
-            "not author" in cbody and "test" in cbody
-        ), f"{path.name} must state it does NOT author tests (the odoo-test-writer teammate does)"
+        assert "do not author tests" in cbody or "does not author tests" in cbody, (
+            f"{path.name} must state it does NOT author tests (the odoo-test-writer teammate does)"
+        )
 
 
 def test_coordinator_owns_the_internal_wi_breakdown():
@@ -211,9 +206,11 @@ def test_coordinator_tests_integrated_module_via_instance_skill():
 
 def test_coordinator_is_bounded_fix_loop():
     """On failure the coordinator re-launches the relevant worker in a bounded loop (reusing the
-    3-iteration bound from test-first-contract.md)."""
+    3-iteration bound from test-sensitivity-contract.md § The loop, bounded)."""
     body = _norm(LEAD)
-    assert "test-first-contract.md" in body, "the coordinator must cite the test-first-contract bound"
+    assert "test-sensitivity-contract.md` § The loop, bounded" in body, (
+        "the coordinator must cite the bound's SSOT (test-sensitivity-contract.md § The loop, bounded)"
+    )
     assert "3 iteration" in body.lower() or "3 iterations" in body.lower(), (
         "the coordinator's fix loop must reuse the 3-iteration bound"
     )
@@ -221,7 +218,7 @@ def test_coordinator_is_bounded_fix_loop():
 
 def test_coordinator_reacts_to_wi_level_blocked_excluding_manifest_dependency():
     """A WI worker (odoo-test-writer / odoo-backend-coder / odoo-frontend-coder) can BLOCK on its OWN
-    before the integrated test ever runs (e.g. no RED test handed in, or the worker exhausted its own
+    before the integrated test ever runs (e.g. the test-writer could not restore a production file it broke, or the worker exhausted its own
     attempts on an ambiguous WI). The coordinator must react within its bounded loop - never idle and
     never silently drop the WI - EXCLUDING the manifest-dependency case, which still relays UP to
     odoo-coding unchanged (ledger-unaware), per module-coordination-ledger.md."""
@@ -445,10 +442,10 @@ def test_survey_field_closes_the_whole_forwarding_chain():
     """RESTORE of the topology this file originally pinned.
 
     A prior pass required odoo-coder to state it "reads SURVEY itself before authoring" and "never
-    a separate agent" - built on the false premise that odoo-coder authors the RED test inline
+    a separate agent" - built on the false premise that odoo-coder authors the tests inline
     instead of dispatching odoo-test-writer. Restored: SURVEY reaches odoo-coder AND every brief it
     hands a teammate AND odoo-test-writer's own brief-carries section - closing the whole chain to
-    the teammate that actually authors the RED test and most needs the grounding.
+    the teammate that actually authors the tests and most needs the grounding.
 
     INVERTED (forward-list half): this previously matched one frozen contiguous literal -
     `forward `WORKTREE_PATH`, `INSTANCE_HANDLE`, `DESIGN_DOC`, `MASTER_DESIGN_DOC`, `SURVEY`,
@@ -471,7 +468,7 @@ def test_survey_field_closes_the_whole_forwarding_chain():
         )
     test_writer = _text(TEST_WRITER)
     assert "SURVEY" in test_writer, (
-        "odoo-test-writer.md must name SURVEY - the agent that authors the RED test and most "
+        "odoo-test-writer.md must name SURVEY - the agent that authors the tests and most "
         "needs the grounding"
     )
 
@@ -493,29 +490,20 @@ def test_wi_worker_dependency_gate_defines_green_against_status_enum():
     ), "the gate must state BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT are never green"
 
 
-def test_coordinator_verifies_red_test_path_before_forwarding():
-    """RESTORE of the topology this file originally pinned.
-
-    A prior pass moved this gate to sit between the coordinator's OWN test-authoring and OWN
-    code-writing steps - built on the false premise that there is no separate coder to forward the
-    path TO. Restored: a RED_TEST_PATH present but pointing at a nonexistent file must be caught
-    BEFORE FORWARDING it to a separate coder agent, treated exactly like "no test handed in" (the
-    same bounded re-dispatch path), never forwarded unverified."""
+def test_coordinator_verifies_the_test_writer_return_before_the_integrated_run():
+    """The test-writer temporarily alters production code for each break-check. The coordinator
+    must not trust its word that the code was restored: before the integrated run it checks that
+    every behavior test carries a BREAK_CHECK record and that production is untouched - by git
+    porcelain against the checkpoint, and by sha256 when there is no checkpoint commit
+    (COMMIT: caller). Drop either check and a broken rule can be committed."""
     low = _norm(LEAD).lower()
-    assert "verify it resolves to a real file" in low, (
-        "odoo-coder.md must state the RED_TEST_PATH is verified to resolve to a real file before "
-        "being forwarded to a coder"
+    assert "break_check:" in low, "the coordinator must require one BREAK_CHECK record per behavior test"
+    assert "production untouched" in low, (
+        "the coordinator must verify production code is untouched after the test leg"
     )
-    assert "treat this exactly as" in low and "no test handed in" in low, (
-        "an unresolved RED_TEST_PATH must be treated exactly like the 'no test handed in' case"
+    assert "git status --porcelain" in low and "sha256sum" in low, (
+        "the production-untouched check must use porcelain (checkpoint) and sha256 (COMMIT: caller)"
     )
-    # Both coder leaves must also treat a present-but-invalid path the same as an absent one.
-    for path in (BACKEND, FRONTEND):
-        cbody = _norm(path).lower()
-        assert "does not resolve to a real file" in cbody or "does not resolve to a real" in cbody, (
-            f"{path.name} must treat a RED_TEST_PATH that does not resolve to a real file the "
-            "same as a brief that carries no test at all"
-        )
 
 
 def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():

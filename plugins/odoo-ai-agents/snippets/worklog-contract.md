@@ -39,9 +39,9 @@ top-level dir (no `<module>` subpath): `<ISOLATE_DIR>/worklog/<run-or-slug>/NNN-
 Log only **decisions that change the outcome or that a later phase must not re-litigate** - not
 routine narration: an approach chosen AND the alternatives rejected; scope added or dropped; a
 model-tier pick or downgrade; a cross-module impact found + its mitigation; a deliberate deviation
-from a platform design principle + its justification; a test confirmed RED before code; a
-BLOCKED/escalation - what was tried, what was ruled out and WHY, and the reasoning behind the
-refusal itself.
+from a platform design principle + its justification; a break-check record, or the no-test-leg
+category + file list; a BLOCKED/escalation - what was tried, what was ruled out and WHY, and the
+reasoning behind the refusal itself.
 
 **Every terminal status is an exit that owes an entry** - `DONE`, `BLOCKED`, `NEEDS_CONTEXT` and
 `NEEDS_NEXT` alike; a step that ends before reaching its normal write point still writes at that

@@ -542,7 +542,8 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      directs it - do NOT auto-detect from module name or depends structure. (This breadcrumb is a
      distinct, narrower convention from the general version-anchored deferred-work reconciliation
      in step 0b above - it is auto_install/application-specific, not a due-vs-deferred marker.)
-  5. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
+  5. Tests: none here - the node's test leg adapts them after the code
+     (${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md § Code first, then the test leg).
   The coders run NO git; after they write their files the orchestrating skill (odoo-coding) commits
   via the git-toolkit:git-ops skill (DCO -s sign-off; per snippets/git-delegation.md).
   Commit request: files touched + business outcome (<module> <source_version>-><target_version> -

@@ -63,7 +63,7 @@
       "prompt": "What tests should I write for the custom_inventory_forecasting module?",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Skill fires (test-generation intent matches). Phase 1 produces test cases with a Pass/Fail column. Every test case must have an identifiable WRONG answer scenario - if a test cannot fail for a specific reason, it is excluded from the output.",
-      "must_not": "Include a test case that always passes regardless of the system state (ETHOS#11: test that cannot be red is useless).",
+      "must_not": "Include a test case that always passes regardless of the system state (ETHOS#11: a test that cannot fail is useless).",
       "tags": ["test-generation", "ethos-11", "must-be-falsifiable"]
     },
     {
