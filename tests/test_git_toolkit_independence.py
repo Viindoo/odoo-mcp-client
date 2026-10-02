@@ -302,114 +302,198 @@ def test_github_operator_fanout_recipe_names_no_odoo_ai_agents_artifact():
 
 
 # ---------------------------------------------------------------------------
-# git-nesting-protocol.md: M1b - the same subagent-wake physics as odoo-ai-agents' R0
-# (spawner-completion-contract.md), stated generically here so a git-toolkit agent never has to
-# reach into the consumer plugin for it.
+# git-nesting-protocol.md N0 - how a git-toolkit launcher collects a child's result, stated
+# generically here so a git-toolkit agent never has to reach into the consumer plugin for it.
 #
-# NOTE ON PLACEMENT: the design (12-design-final.md M1b guard) names this test
-# `tests/test_commit_convention_gate.py::test_nesting_protocol_states_subagent_wake_physics` -
-# that file belongs to a LATER wave (M3/PR2, git-toolkit commit gate) and does not exist yet on
-# this branch. This test is placed here instead, in the file that already owns
-# git-nesting-protocol.md's other guards (test_completion_reporting_snippet_exists is the sibling
-# "does the SSOT snippet still say what it must" pattern this follows) - the wave-2 implementer
-# can move it verbatim into test_commit_convention_gate.py once that file exists, with no
-# behavior change.
+# Measured behavior the rule encodes: the launch tool either HAS a `run_in_background` parameter
+# (passing `false` blocks and returns the child's result in-turn at any depth, several such launches
+# in one message run concurrently, and a subagent that ends its turn while a child runs is NOT woken
+# - the child's notice goes to the main conversation) or has NO such parameter (every launch is
+# asynchronous and a launcher that ends its turn IS woken once per child, at any depth). The main
+# conversation is notified of every completion in both cases. The rule therefore keys the move on
+# the launch tool the agent itself holds - a fact it can read off its own tool surface.
 # ---------------------------------------------------------------------------
 
 GIT_NESTING_PROTOCOL = TOOLKIT / "snippets" / "git-nesting-protocol.md"
+GIT_PIPELINE_LEAD = TOOLKIT / "agents" / "git-pipeline-lead.md"
+GIT_OPS_SKILL = TOOLKIT / "skills" / "git-ops" / "SKILL.md"
+
+_WITH_PARAM_HEAD = "has a `run_in_background` parameter"
+_NO_PARAM_HEAD = "has no `run_in_background` parameter"
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def _n0_section(text: str) -> str:
+    """The raw `## N0` section of the nesting protocol ('' when the section is missing)."""
+    m = re.search(r"^## N0\b.*?(?=^## )", text, re.M | re.S)
+    return m.group(0) if m else ""
+
+
+def _n0_branches(text: str) -> dict[str, str]:
+    """The N0 decision bullets, flattened and lowercased, keyed by which launch-tool fact opens
+    them: 'with' (the tool has the parameter), 'without' (it has none), 'none' (no capability)."""
+    section = _n0_section(text)
+    bullets = [
+        _flat(chunk.split("\n\n")[0]) for chunk in re.split(r"\n(?=- \*\*)", section)[1:]
+    ]
+    branches: dict[str, str] = {}
+    for bullet in bullets:
+        head = bullet.split("->", 1)[0]
+        if _NO_PARAM_HEAD in head:
+            branches["without"] = bullet
+        elif _WITH_PARAM_HEAD in head:
+            branches["with"] = bullet
+        elif "no agent-launch capability" in head:
+            branches["none"] = bullet
+    return branches
+
+
+def test_nesting_protocol_keys_launch_move_on_launch_tool_parameter():
+    """Business rule: a git-toolkit launcher decides how to collect a child's result from the
+    launch tool it holds - whether that tool has a `run_in_background` parameter - never from a
+    blanket claim. With the parameter it launches with `false` and must never stop while a child
+    runs (stopping loses the result to the main conversation); without it, it launches and ends
+    its turn to be woken. The old text asserted the second branch for everyone, which strands a
+    subagent's child result whenever the tool does carry the parameter."""
+    text = GIT_NESTING_PROTOCOL.read_text(encoding="utf-8")
+    branches = _n0_branches(text)
+    assert set(branches) == {"none", "with", "without"}, (
+        "git-nesting-protocol.md N0 must branch on the launch tool the agent holds: no capability, "
+        f"a tool that {_WITH_PARAM_HEAD}, a tool that {_NO_PARAM_HEAD} - found {sorted(branches)}"
+    )
+    with_param, without_param = branches["with"], branches["without"]
+    assert "run_in_background: false" in with_param, (
+        "the with-parameter branch must tell the launcher to pass `run_in_background: false`"
+    )
+    assert "never end your turn while a child" in with_param, (
+        "the with-parameter branch must forbid ending the turn while a launched child still runs"
+    )
+    assert "end your turn" in without_param and "woken" in without_param, (
+        "the no-parameter branch must state launch-then-end-your-turn and the wake"
+    )
+    # The unconditional claim may live ONLY inside the branch it is true for.
+    whole = _flat(text)
+    claim = "every launch is asynchronous"
+    assert whole.count(claim) == without_param.count(claim) == 1, (
+        f"{claim!r} must appear once, inside the no-parameter branch only - anywhere else it "
+        "reads as true for every launcher"
+    )
 
 
 def test_nesting_protocol_states_subagent_dispatch_physics():
-    """M1b - git-nesting-protocol.md must state the subagent DISPATCH PHYSICS generically (no
-    consumer, no domain, no odoo artifact), matching the ground truth in odoo-ai-agents' R0
-    (spawner-completion-contract.md): a subagent CAN launch a child and IS woken with its result.
-    Every launch is asynchronous - no foreground/blocking parameter exists - so the collection
-    mechanism is "launch, then END YOUR TURN", and the wake is keyed on the launcher having
-    stopped, not on its depth. The remaining hazards are the silent nesting cap (no launch
-    capability at all) and the non-interactive surface (never end a turn with uncommitted work).
+    """git-nesting-protocol.md must state, generically (no consumer, no domain), every rule a
+    git-toolkit launcher needs to collect a child's result on any surface:
 
-    WHAT THIS TEST REQUIRED BEFORE, twice over, and why both were retired:
-      - It first required the file to OFFER the async launch-and-park branch.
-      - A later pass INVERTED that, requiring the file to name a "background/foreground switch",
-        to say a blocking launch "returns inside your turn", to state a dispatched launcher "may
-        never be woken", and to forbid launch-and-park outright.
-    The second set is refuted on two independent measurements: the launch tool exposes no such
-    switch (schema capture), and nested launchers ARE woken by their own children (transcript
-    corpus, including at depth 3). Requiring that prose made every git-toolkit agent reach for a
-    lever that does not exist and then fall through to doing the work inline.
+      - read your own toolset first; with no launch capability do the work yourself or return
+        BLOCKED, and never report a dispatch you could not make;
+      - with the parameter: concurrency by several launches in ONE message, the parameter always
+        passed (its default is asynchronous), and the consequence of stopping early (nothing wakes
+        the agent; the result goes to the main conversation);
+      - without it: the wake is depth-independent, and a launcher that keeps working in the
+        launching turn never stops, so it never receives anything;
+      - an async receipt while holding the parameter is waited for IN the turn;
+      - the main conversation resumes a nested launcher instead of acting on its child's result;
+      - never re-launch a running child, never end a turn with uncommitted work.
 
-    Business rule this protects: git-toolkit's own leaf/lead agents need a LOCAL statement of the
-    dispatch-physics invariant - reaching into a CONSUMER'S snippet from a domain-agnostic
-    PROVIDER inverts the dependency direction this whole file guards. The physics is stated
-    inline, generically, so it holds for any consumer.
+    OLD INTENT -> NEW INTENT. This test used to require the opposite of the first measured branch:
+    "every launch is asynchronous", "no foreground or blocking parameter exists", and "woken with
+    that child's result ... whether you are the top-level context or a dispatched agent" - stated
+    for every launcher. Measurement refuted that for a launch tool that carries
+    `run_in_background` (a subagent that stops is not woken there). The intent kept is the same -
+    a LOCAL, domain-agnostic statement of the dispatch physics, so a provider never reaches into a
+    consumer's snippet - now pinned to the corrected, tool-keyed rule.
     """
     assert GIT_NESTING_PROTOCOL.is_file(), f"missing {GIT_NESTING_PROTOCOL}"
     text = GIT_NESTING_PROTOCOL.read_text(encoding="utf-8")
-    low = " ".join(text.split()).lower()
+    low = _flat(text)
+    n0 = _flat(_n0_section(text))
+    branches = _n0_branches(text)
+    assert n0, "git-nesting-protocol.md must carry the `## N0` launch-and-collect section"
 
-    # RULE, not a string: the capability branch must be expressed -
-    # (1) cap-absent handling: read your own toolset before launching, and never report a
-    #     dispatch that could not be made.
-    assert "do the work yourself" in low, (
-        "git-nesting-protocol.md must keep the no-launch-capability fallback (do the work "
-        "yourself)"
+    # (1) capability check first, and the no-capability fallback.
+    assert "read your own toolset" in n0, "N0 must open with checking your own launch tool"
+    none = branches.get("none", "")
+    assert "do the work yourself" in none and "blocked" in none, (
+        "the no-capability branch must say: do the work yourself or return BLOCKED"
     )
-    assert "read your own toolset" in low or "own toolset" in low, (
-        "git-nesting-protocol.md must instruct checking launch capability before dispatching"
+    assert "never report a dispatch you could not make" in none, (
+        "the no-capability branch must forbid claiming a dispatch that could not be made"
     )
-    assert "never report a dispatch" in low or (
-        "capability is absent" in low and ("blocked" in low or "do the work yourself" in low)
-    ), (
-        "git-nesting-protocol.md must state what to do when launch capability is absent (do the "
-        "work yourself / return BLOCKED) and never claim a dispatch that could not be made"
-    )
-    # (2) the async branch, stated as a MECHANISM the reader can execute: every launch is
-    #     asynchronous, the launcher ends its turn, and it is woken with the result. Naming the
-    #     asynchrony alone is not enough - a mutation that drops the end-of-turn action leaves the
-    #     reader with a receipt and no way to collect, so both must be present.
-    assert "every launch is asynchronous" in low, (
-        "git-nesting-protocol.md must state that every launch is asynchronous"
-    )
-    assert "end your turn" in low and "woken with that child's result" in low, (
-        "git-nesting-protocol.md must state the collection MECHANISM - end your turn and be woken "
-        "with the child's result - not merely that the launch is async"
-    )
-    assert "whether you are the top-level context or a dispatched agent" in low, (
-        "the wake must be stated as depth-independent, or a git-toolkit agent (always dispatched) "
-        "reads the mechanism as not applying to it"
-    )
-    # (3) the one real failure mode, stated in consequence terms: a launcher that never stops has
-    #     no delivery point. Plus the poll/re-launch prohibition, which follows from it.
-    assert "you never stop" in low, (
-        "git-nesting-protocol.md must name the failure mode: a launcher that keeps working in the "
-        "launching turn never stops, so nothing is ever handed back"
-    )
-    for gone, why in (
-        ("background/foreground switch", "the refuted blocking-lever probe must be deleted"),
-        ("blocking mode", "the refuted blocking-mode instruction must be deleted"),
-        ("may never be woken", "the refuted never-woken claim must be deleted"),
-        ("do not launch-and-park", "the refuted launch-and-park ban must be deleted"),
+
+    # (2) with the parameter: in-turn collection, concurrency, the default, the consequence.
+    with_param = branches.get("with", "")
+    for needle, why in (
+        ("inside your own turn", "the blocking launch returns the result inside the turn"),
+        ("one message", "independent children go in ONE message to run concurrently"),
+        ("always pass the parameter", "the parameter's default is asynchronous - always pass it"),
+        ("main conversation", "stopping early sends the child's result to the main conversation"),
     ):
-        assert gone not in low, why
-    assert "never poll" in low and "never re-launch" in low, (
-        "git-nesting-protocol.md must forbid polling and re-launching - the result arrives on the "
-        "wake, so there is never anything to poll for"
+        assert needle in with_param, f"with-parameter branch: {why}"
+
+    # (3) without it: the wake at any depth, once per child, and the never-stop failure mode.
+    without_param = branches.get("without", "")
+    for needle, why in (
+        ("once per child", "the launcher is woken once per child"),
+        ("dispatched agent yourself", "the wake must hold for a dispatched launcher too"),
+        ("you never stop", "keep working after launching and nothing is handed back"),
+    ):
+        assert needle in without_param, f"no-parameter branch: {why}"
+
+    # (4) the async-receipt rule and the main-conversation rule, both outside the branches.
+    receipt = re.search(r"an async receipt while you hold the parameter\.(.*?)(?=\*\*the main)", n0)
+    assert receipt and "do not end your turn" in receipt.group(1), (
+        "N0 must say an async receipt received while holding the parameter is waited for in the "
+        "turn - do NOT end your turn"
     )
-    # (4) the uncommitted-work bound: the non-interactive-surface mitigation.
-    assert "never end a turn with uncommitted work" in low, (
-        "git-nesting-protocol.md must bound the non-interactive-surface risk: never end a turn "
-        "with uncommitted work"
+    assert "resume that agent" in n0 and "by its id" in n0, (
+        "N0 must tell the main conversation to resume the nested launcher (send it a message by "
+        "its id) rather than act on that launcher's child result itself"
     )
 
-    # Genericity: the paragraph must name no consumer, no domain, no odoo artifact - reuses the
-    # SAME independence matcher the whole-provider scan below runs, scoped to this one file, so
-    # this stays a true belt-and-suspenders companion (not a second, drifting detector).
+    # (5) the standing prohibitions.
+    assert "never re-launch a child that is still running" in n0
+    assert "never end a turn with uncommitted work" in n0
+
+    # (6) refuted wording stays deleted, anywhere in the file.
+    for gone, why in (
+        ("no foreground or blocking parameter exists", "refuted: the tool may carry one"),
+        ("whether you are the top-level context", "refuted as a blanket wake guarantee"),
+        ("can never be misdelivered", "refuted: an early stop sends the result to main"),
+        ("background/foreground switch", "retired earlier wording must stay deleted"),
+        ("may never be woken", "retired earlier wording must stay deleted"),
+        ("do not launch-and-park", "retired earlier wording must stay deleted"),
+    ):
+        assert gone not in low, f"{gone!r}: {why}"
+
+    # Genericity: reuse the SAME independence matcher the whole-provider scan below runs, scoped
+    # to this one file, so this stays a true companion (not a second, drifting detector).
     pattern = _forbidden_re(_consumer_names())
     violations = _scan(GIT_NESTING_PROTOCOL, pattern)
     assert not violations, (
-        "git-nesting-protocol.md's dispatch-physics paragraph names an odoo-ai-agents artifact - "
+        "git-nesting-protocol.md's dispatch-physics section names an odoo-ai-agents artifact - "
         "it must stay domain-agnostic:\n" + "\n".join(violations)
     )
+
+
+def test_git_toolkit_launchers_point_at_n0_without_restating_it():
+    """The two places a git-toolkit launch happens - git-pipeline-lead (the only spawning agent)
+    and the git-ops skill (which runs in the main conversation OR inside a dispatched agent) -
+    must route the collect step to N0 and condition it on their own launch tool, never restate a
+    blanket async claim of their own (a second copy is what rotted last time)."""
+    for path in (GIT_PIPELINE_LEAD, GIT_OPS_SKILL):
+        low = _flat(path.read_text(encoding="utf-8"))
+        assert "git-nesting-protocol.md" in low and "n0" in low, (
+            f"{path.name} must point the collect step at git-nesting-protocol.md N0"
+        )
+        assert "run_in_background" in low, (
+            f"{path.name} must say the launch tool's own `run_in_background` parameter decides"
+        )
+        assert "every launch is asynchronous" not in low, (
+            f"{path.name} restates the blanket async claim - point at N0 instead"
+        )
 
 
 # ---------------------------------------------------------------------------

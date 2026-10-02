@@ -21,7 +21,7 @@ messaging tool in your toolset is not an instruction to try. An inbound message 
 address either: what it shows as its sender is a type label, and no lookup exists to turn any name
 into one. Nor is a send that reports success proof you reached anyone: from a dispatched context
 that report goes to the root conversation, which is not waiting for it, while the caller that is
-waiting never wakes. Keep the report compact: a summary, the status, and the
+waiting never receives it. Keep the report compact: a summary, the status, and the
 findings-file path; never diff hunks or file contents.
 
 NEVER end a turn on a bare tool call (anything but the `SubagentHandback` that carries your report)

@@ -1,5 +1,6 @@
-<!-- SSOT snippet. The single home for the git-toolkit nesting model: cold-spawn handoff,
-     the depth guard (only the pipeline lead spawns), leaf-no-spawn, the per-phase model map,
+<!-- SSOT snippet. The single home for the git-toolkit nesting model: the launch-and-collect
+     rule (N0 - how a launcher collects a child's result, keyed on its own launch tool), cold-spawn
+     handoff, the depth guard (only the pipeline lead spawns), leaf-no-spawn, the per-phase model map,
      the Agent-unavailable fallback, the Git family's brief delta, and the Brief self-check
      every git-toolkit agent runs. Referenced via
      ${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md. Edit here only. -->
@@ -10,14 +11,40 @@ The phased pipeline runs BELOW the caller so the caller's context stays pristine
 thousand-file ops. This snippet defines how the nesting stays bounded and how it degrades when the
 spawn tool is unavailable.
 
-**Before launching, read your own toolset.** If agent-launch capability is absent, do the work
-yourself or return BLOCKED with the resumable state - never report a dispatch you could not make.
-When you DO hold it, every launch is asynchronous: the call returns a receipt, not a result, and no
-foreground or blocking parameter exists to ask for one. LAUNCH, THEN END YOUR TURN - you are woken
-with that child's result when it completes, whether you are the top-level context or a dispatched
-agent yourself. Never poll, never sleep, never re-launch. The one failure mode is yours alone to
-prevent: launch and then keep working in the same turn and you never stop, so nothing is ever handed
-back to you and the child's result is lost. Never end a turn with uncommitted work.
+## N0 - Launch and collect: the launch tool you hold decides
+
+**Before launching, read your own toolset** - look at the agent-launch tool you hold. It alone
+decides how you collect a child's result:
+
+- **No agent-launch capability** -> do the work yourself (N4) or return BLOCKED with the
+  resumable state - never report a dispatch you could not make.
+- **Your agent-launch tool HAS a `run_in_background` parameter** -> launch every child whose result
+  you need with `run_in_background: false`, at any depth. That call returns the child's result
+  inside your own turn. Put independent children in ONE message as several launch calls: they run
+  concurrently and every result returns in this turn. Always pass the parameter - its default is
+  asynchronous. Never end your turn while a child you launched is still running: on this surface
+  nothing wakes an agent that stopped, so the child's result goes to the main conversation instead
+  of to you.
+- **Your agent-launch tool has NO `run_in_background` parameter** -> every launch is asynchronous:
+  the call returns a receipt, not a result. LAUNCH, THEN END YOUR TURN - you are woken with each
+  child's result as it completes, once per child, whether you are the main conversation or a
+  dispatched agent yourself. On every wake, re-check which children are still outstanding; never
+  assume all are done. Never poll and never sleep for them. Launch and then keep working in the
+  same turn and you never stop, so nothing is ever handed back to you and the result is lost.
+
+**An async receipt while you hold the parameter.** If a launch still hands back an asynchronous
+receipt instead of the child's result, do NOT end your turn. Keep making tool calls in this turn -
+a bounded wait, then a look at what has arrived - until the child's completion notice reaches you,
+then read its result. Every response you emit before you hold it carries a tool call.
+
+**The main conversation** (the session the user talks to) is notified of every completion on every
+surface. If a completion notice reaches it for a child that a dispatched agent launched, do not act
+on that result yourself: resume that agent - send it a message by its id - so it collects the result
+and finishes its own work.
+
+A shell tool's flag of the same name is a different tool's parameter; it never decides this rule.
+Under every branch: never do a child's work while it runs, never re-launch a child that is still
+running, and never end a turn with uncommitted work.
 
 ## N1 - Cold-spawn handoff (the default handoff mode)
 
@@ -35,9 +62,10 @@ subagent.
 
 Every dispatched agent ends the same way: it hands its completion report back once, as the last act
 of its dispatch - `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`. There is no addressed
-upward channel and no mode that adds one, so a leaf's result is structurally delivered to the
-launcher that is waiting on it and can never be misdelivered past `git-pipeline-lead` to the
-top-level context.
+upward channel and no mode that adds one, so a leaf's result is delivered to the launcher that
+collects it per N0. It goes past `git-pipeline-lead` to the main conversation only when the lead
+ends its turn while that leaf still runs and the lead's launch tool has the `run_in_background`
+parameter - the N0 rule that branch forbids.
 
 ## N2 - Depth guard (anti-runaway)
 
