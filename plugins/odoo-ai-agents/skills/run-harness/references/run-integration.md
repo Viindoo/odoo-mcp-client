@@ -977,7 +977,7 @@ returns the SHA). The three carry no `depends_on` edges between one another and 
 disjoint, so they are BATCH-ADMISSIBLE
 (§ Batch admission): size the batch to MEASURED
 machine headroom - each node self-provisions its own ephemeral instance - then launch the admitted
-members in ONE message and END THE TURN. Cherry-picking each returned SHA back onto run-integration
+members in ONE message and collect their results per R0 of spawner-completion-contract.md. Cherry-picking each returned SHA back onto run-integration
 stays STRICTLY one at a time, with per-node verify and checkpoint.
 Then the verification node runs the suites GREEN, the review node reviews the aggregate
 diff, and the terminal `integrate` node runs the pre-PR tail, its existence precheck, squashes

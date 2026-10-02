@@ -20,18 +20,20 @@ Where a marker IS asserted verbatim it is a deliberate load-bearing TOKEN - a ru
 guards count to prove a single home - never a stylistic sentence. Rewording those tokens IS the
 change the assertion is meant to catch.
 
-TWO CORRECTIONS this file carries, and why each assertion was REPLACED rather than reworded:
+MEASURED PHYSICS this file pins (R0), per surface, because each surface was once generalized onto
+the other:
 
-1. MEASURED - the Agent tool exposes NO foreground/blocking parameter. Its schema is
-   {description, isolation, model, prompt, subagent_type}, and an undeclared key is stripped before
-   the call is evaluated, so a call passing `run_in_background: false` behaves identically to one
-   that omits it. This file once REQUIRED the contract to name that parameter (R1) and to frame
-   every occurrence of it as "the Agent tool's own blocking-launch lever" (rule 16). Both demanded
-   a capability that does not exist. R0 move 2 is DELETED and its number retired.
-2. OBSERVED - nested dispatch works, and a nested launcher IS woken by its own child. A later pass
-   inferred from (1) that a subagent could never collect a child's result and scoped the R1 barrier
-   to the root; that inference is falsified. The barrier holds at every depth, and the only thing
-   that loses a result is a launcher that never ends its turn.
+1. Interactive surface - the launch tool carries {description, isolation, model, prompt,
+   subagent_type} and no `run_in_background`; every launch is asynchronous, and a launcher at ANY
+   depth that ends its turn is woken once per child (R0 move 3).
+2. Unattended print surface - the launch tool DOES carry `run_in_background`. A subagent that
+   launches asynchronously and ends its turn is NOT woken: the harness marks it completed and the
+   child's result goes to the main session. `run_in_background: false` returns the result inside
+   the launcher's turn, at depth 2 too, and several such launches in one message run concurrently
+   (R0 move 2).
+An earlier version of R0 declared "there is no move 2" from a measurement taken on surface 1 only;
+a live print-mode run then lost a coordinator's results three times. The barrier holds at every
+depth under both moves; what loses a result is collecting it by the wrong move.
 
 Run: python -m pytest tests/test_spawner_completion_contract.py -v
 """
@@ -411,38 +413,53 @@ def test_worker_brief_states_a_leaf_holds_no_send_target():
 
 
 # ---------------------------------------------------------------------------
-# 16. The contract states the ABSENCE of a blocking launch, and role-conditions the fallback
+# 16. R0 decides the collection move by the reader's OWN launch tool, and role-conditions the
+#     no-capability fallback
 # ---------------------------------------------------------------------------
 
-# Replaces `test_run_in_background_named_only_as_the_agent_tools_own_blocking_launch_lever`, which
-# required every occurrence of `run_in_background` to sit in a window framing it as "the Agent
-# tool's own blocking-launch lever" - and required at least one occurrence to exist. Measurement:
-# the Agent tool's schema here is {description, isolation, model, prompt, subagent_type}; an
-# undeclared key is stripped before the call is evaluated, so a call carrying
-# `run_in_background: false` behaves identically to one that omits it. The old assertion pinned a
-# capability into the SSOT that no agent can use, and the "launch it blocking" rung it protected
-# was dead on arrival.
 
+def test_r0_selects_the_move_by_the_launch_tools_own_parameter():
+    """R0 must decide by the one signal an agent can read from its own toolset - whether its launch
+    tool carries `run_in_background` - and give each answer its collection move.
 
-def test_contract_states_the_agent_tool_has_no_blocking_launch():
-    """The absence must be stated positively, not merely left unmentioned: a reader who is told
-    nothing will try the parameter they half-remember, get the same refusal, and fall through."""
-    text = _norm(CONTRACT_MD)
-    low = text.lower()
-    assert "run_in_background" not in low, (
-        "the contract must not name a parameter the Agent tool does not expose - naming it is what "
-        "produced an unexecutable first rung"
+    WHAT IT REQUIRED BEFORE (as `test_contract_states_the_agent_tool_has_no_blocking_launch`): that
+    R0 deny the parameter outright ("no foreground or blocking parameter", "there is no move 2").
+    That was measured on the interactive surface only and is false on the unattended print surface,
+    where a subagent following "launch, then end your turn" lost every child result."""
+    low = _norm(CONTRACT_MD).lower()
+    assert "has a `run_in_background` parameter" in low, (
+        "R0 move 2 must be selected by the reader's own launch tool carrying the parameter"
     )
-    assert "no foreground or blocking parameter" in low, (
-        "R0 must state outright that the Agent tool exposes no foreground/blocking parameter"
+    assert "`run_in_background: false`" in low, (
+        "move 2 must name the value that returns the result inside the launcher's turn"
     )
-    assert "there is no move 2" in low, (
-        "the retired branch must be named as retired. A silently renumbered ladder leaves every "
-        "surviving 'R0 move 2' citation elsewhere pointing at whatever now sits in that slot"
+    assert "has no `run_in_background` parameter" in low, (
+        "R0 move 3 must be selected by the parameter's absence"
     )
-    assert "names a lever that does not exist" in low, (
-        "the contract must tell a reader what to DO with a stale 'launch it blocking' instruction "
-        "it meets in some other file - ignore it - not merely avoid emitting one itself"
+    assert "never end your turn while a teammate you" in low, (
+        "move 2 must forbid ending the turn while a launched teammate runs - a subagent that stops "
+        "there is never woken"
+    )
+    assert "one message as several launch calls" in low and "run in parallel" in low, (
+        "move 2 must keep independent teammates parallel: several launches in ONE message"
+    )
+    assert "concurrency-guard.md" in low, "parallel launches must stay under the batch cap"
+    assert "its default is asynchronous" in low, (
+        "move 2 must forbid relying on the default - omitting the parameter launches async"
+    )
+    assert "woken once per" in low and "never assume every" in low, (
+        "move 3 must say a launcher is woken once per child, so it re-checks the barrier on every "
+        "wake instead of assuming the batch is done"
+    )
+    assert "async receipt under move 2" in low and "do not end your turn" in low, (
+        "R0 must cover the launcher that holds the parameter yet gets an async receipt: wait in turn"
+    )
+    assert "the main conversation" in low and "resume the launcher" in low, (
+        "R0 must tell the main conversation to resume a nested launcher whose child's notification "
+        "reached it, never to act on that result itself"
+    )
+    assert "there is no move 2" not in low and "no foreground or blocking parameter" not in low, (
+        "the refuted single-surface denial must be deleted, not softened"
     )
 
 

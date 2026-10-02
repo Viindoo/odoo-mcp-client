@@ -352,7 +352,7 @@ GROUNDING you were not handed is yours to source: when a fact the design turns o
 (no gap matrix for an uncosted requirement list, an unknown current behavior, a bounded
 external question), invoke the skill that owns it or launch a read-only research worker per
 your system prompt's § Delegating for grounding, rather than designing against a guess or
-bouncing back for it. Dispatch is asynchronous: save the doc, dispatch, end your turn.
+bouncing back for it.
 ```
 
 The agent inherits the FULL tool surface (it carries no `tools:` allowlist) and stays read-only

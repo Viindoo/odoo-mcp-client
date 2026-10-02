@@ -1,5 +1,5 @@
-"""Behavior gate for the unwakeable background-shell wait (hooks/enforce-background-wait.sh plus
-the one prose home that declares the rule).
+"""Behavior gate for the unwakeable waits (hooks/enforce-background-wait.sh plus the one prose home
+that declares the rules).
 
 ## The behavior protected
 
@@ -10,9 +10,14 @@ the end of that dispatch - nothing resumes a dispatched agent for a background s
 the caller receives whatever text the subagent wrote before stopping, and the command finishes with
 nobody waiting.
 
-The contrast that makes the narrow scope load-bearing: an AGENT child DOES wake the launcher that
-stopped for it. So the gate must fire on a live `type: "shell"` background task and never on a
-`type: "subagent"` one (which includes the stopping subagent's own entry), and never on the root.
+The second shape is surface-dependent. On the unattended print surface (hook env
+`CLAUDE_CODE_SESSION_ATTENDED=0` / `CLAUDE_CODE_ENTRYPOINT=sdk-cli`) a subagent that launches a child
+ASYNCHRONOUSLY and then ends its turn is not woken either - the child's result goes to the main
+session (measured, and reproduced live against this very hook). On the interactive surface the
+same subagent IS woken once per child, so ending its turn is correct there. So a live
+`type: "subagent"` entry gates only when the surface is positively unattended AND the stopping
+subagent's own transcript holds the async launch receipt naming it - never its own entry, never an
+entry someone else launched, never on an interactive or unknown surface, and never on the root.
 
 Equally load-bearing: backgrounding itself is a WORKING pattern here. A subagent may start a long
 command and drive it to a result with foreground calls INSIDE THE SAME TURN (that is how
@@ -36,9 +41,10 @@ the array outright, so "still listed with status running" is the liveness test.
 `test_the_other_subagentstop_hooks_do_not_catch_this_shape` is the committed form of the pre-fix
 measurement: the same defect payload is fed to every OTHER SubagentStop hook and none of them
 returns a block. That was the tree's state before this gate existed, and it is what made the stall
-silent. Every behavior test below then goes red for a real reason: delete the type filter and
-`test_a_live_agent_child_is_never_gated` fails; delete the ownership correlation and
-`test_a_live_shell_task_this_subagent_did_not_start_is_not_its_problem` fails; delete the
+silent. Every behavior test below then goes red for a real reason: drop the surface condition and
+`test_an_interactive_surface_never_gates_an_agent_child` fails; delete the shell type filter and
+`test_the_type_filter_is_load_bearing_independently_of_the_ownership_check` fails; delete either
+ownership correlation and the matching "did not start / did not launch" test fails; delete the
 root guard and `test_a_root_shaped_stop_is_never_gated` fails.
 
 ## STATED RESIDUAL FALSE NEGATIVES
@@ -50,7 +56,10 @@ root guard and `test_a_root_shaped_stop_is_never_gated` fails.
 3. Ownership is proved from the subagent's own transcript text. A task the ROOT started and this
    subagent merely QUOTED would correlate; the refusal is still actionable, but the ownership claim
    would be wrong.
-4. The prose half is a LEXICAL whole-tree scan over normalized whitespace. A promise phrased in
+4. The agent arm correlates on the async launch receipt. A child resumed by a send, or one whose
+   receipt text the harness rewords, is not correlated; and an unattended surface that exports
+   neither signal is treated as interactive.
+5. The prose half is a LEXICAL whole-tree scan over normalized whitespace. A promise phrased in
    wording neither vocabulary anticipates escapes it. It proves the harmful INSTRUCTION is absent
    from the prose an agent is handed; it can never prove an agent obeys the rule.
 
@@ -153,13 +162,18 @@ def _root_payload(tasks: list[dict], **over) -> dict:
     return payload
 
 
-def _run(payload, script: Path = GATE) -> tuple[int, str]:
+# The two surfaces, as the hook environment reports them (measured).
+PRINT_ENV = {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "CLAUDE_CODE_SESSION_ATTENDED": "0"}
+INTERACTIVE_ENV = {"CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SESSION_ATTENDED": "1"}
+
+
+def _run(payload, script: Path = GATE, env: dict | None = None) -> tuple[int, str]:
     raw = payload if isinstance(payload, str) else json.dumps(payload)
     proc = subprocess.run(
         ["bash", str(script)],
         input=raw, capture_output=True, text=True, timeout=30,
         cwd=str(REPO_ROOT), env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": "/tmp",
-                                 "CLAUDE_PLUGIN_ROOT": str(ODOO_PLUGIN)},
+                                 "CLAUDE_PLUGIN_ROOT": str(ODOO_PLUGIN), **(env or {})},
     )
     return proc.returncode, proc.stdout
 
@@ -268,9 +282,9 @@ def test_a_subagentstop_payload_without_agent_identity_passes(tmp_path):
     assert rc == 0 and out.strip() == ""
 
 
-def test_a_live_agent_child_is_never_gated(tmp_path):
-    """An agent child DOES deliver to a launcher that stopped for it - that is the sanctioned
-    nested-dispatch shape. Only `type: shell` entries lose their result."""
+def test_a_live_agent_child_is_not_gated_on_an_unknown_surface(tmp_path):
+    """With no surface signal the hook cannot know whether a stopped subagent will be woken, so it
+    fails open on agent children. (This payload carries no async receipt either.)"""
     t = _transcript(tmp_path, ["bq1"])
     rc, out = _run(_subagent_payload(t, [_agent_task("a-child-1"), _agent_task("a-grandchild")]))
     assert rc == 0 and out.strip() == "", (
@@ -280,20 +294,18 @@ def test_a_live_agent_child_is_never_gated(tmp_path):
 
 
 def test_the_type_filter_is_load_bearing_independently_of_the_ownership_check(tmp_path):
-    """Two independent guards keep an agent child out: `type != "shell"`, and the ownership
-    correlation (an agent launch never produces a Bash background receipt, so a child's id is
-    never in the transcript). Defense in depth hides a deletion - remove the type filter and the
-    realistic test above still passes, because ownership catches it.
-
-    So this probe isolates the filter: it SYNTHESIZES an id collision, putting the agent child's
-    id into the subagent's transcript as though it had been handed back as a background task.
-    Nothing but the type filter can refuse to gate this payload."""
+    """The SHELL arm must never count an agent child: a `type: subagent` entry is the agent arm's
+    business, decided by the surface and the async receipt. Defense in depth hides a deletion, so
+    this probe isolates the shell arm's type filter: it SYNTHESIZES an id collision, putting the
+    agent child's id into the subagent's transcript as a BASH background receipt, on the
+    unattended surface. The agent arm finds no async receipt, so nothing but the shell arm's type
+    filter can refuse to gate this payload."""
     child = "a-grandchild"
     t = _transcript(tmp_path, [child])
-    rc, out = _run(_subagent_payload(t, [_agent_task(child)]))
+    rc, out = _run(_subagent_payload(t, [_agent_task(child)]), env=PRINT_ENV)
     assert rc == 0 and out.strip() == "", (
-        "a `type: subagent` entry must be skipped on its type alone - an agent child DOES wake "
-        "the launcher that stopped for it, at any depth"
+        "a `type: subagent` entry must never be gated by the shell arm - only an async launch "
+        "receipt makes an agent child this subagent's own"
     )
 
 
@@ -322,6 +334,149 @@ def test_a_shell_task_with_a_non_running_status_passes(tmp_path):
     t = _transcript(tmp_path, ["bq1"])
     rc, out = _run(_subagent_payload(t, [_shell_task("bq1", status="completed")]))
     assert rc == 0 and out.strip() == ""
+
+
+# --------------------------------------------------------------------------- #
+# 2b. The agent arm - an unattended stop over a teammate this subagent launched async
+# --------------------------------------------------------------------------- #
+_ASYNC_RECEIPT = (
+    "Async agent launched successfully. (This tool result is internal metadata - never quote it.)\n"
+    "agentId: {aid} (internal ID - do not mention to user. Use SendMessage with to: '{aid}' to "
+    "continue this agent.)\nThe agent is working in the background. You will be notified "
+    "automatically when it completes."
+)
+
+
+def _agent_transcript(tmp_path: Path, launched: list[str], name: str = "agent-p.jsonl") -> Path:
+    """A launcher's own transcript whose Agent-launch tool_results are async receipts naming each
+    child it launched - the shape measured in a real print-mode subagent transcript."""
+    path = tmp_path / name
+    lines = []
+    for i, aid in enumerate(launched):
+        lines.append(json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [
+            {"type": "tool_use", "id": f"L{i}", "name": "Agent",
+             "input": {"subagent_type": "odoo-ai-agents:odoo-backend-coder", "prompt": "WI-1",
+                       "run_in_background": True}}]}}))
+        lines.append(json.dumps({"type": "user", "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": f"L{i}",
+             "content": [{"type": "text", "text": _ASYNC_RECEIPT.format(aid=aid)}]}]}}))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
+def _launcher_payload(transcript: Path, tasks: list[dict]) -> dict:
+    """The launcher `a-coord` stopping; the session lists its own entry plus `tasks`."""
+    return _subagent_payload(transcript, [_agent_task("a-coord")] + tasks, agent_id="a-coord",
+                             last_assistant_message="Launched the WI worker; waiting for it.")
+
+
+def test_print_mode_stop_over_an_own_running_teammate_is_refused(tmp_path):
+    """The measured print-mode defect: the launcher ends its turn after an async launch, nothing
+    wakes it, and the child's result goes to the main session. The stop must be refused, and the
+    refusal must tell it to wait in-turn per R0."""
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    rc, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=PRINT_ENV)
+    assert rc == 0, "a hook must never exit non-zero - it speaks through stdout JSON"
+    assert _decision(out) == "block", (
+        "an unattended subagent stopping with a teammate it launched asynchronously still running "
+        "must be refused - nothing wakes it there, so the teammate's result never reaches it"
+    )
+    reason = _reason(out)
+    low = reason.lower()
+    assert "a-wi-1" in reason, "the refusal must name the still-running teammate"
+    assert "do not end your turn" in low and "r0 move 2" in low, (
+        "the refusal must give the R0 move: wait for the teammate inside this turn"
+    )
+    assert "run_in_background: false" in low, (
+        "the refusal must name the launch that returns in-turn, for every later teammate"
+    )
+    assert "blocked" in low, "the refusal must name the reporting exit when the wait cannot finish"
+
+
+@pytest.mark.parametrize("env", [
+    {"CLAUDE_CODE_SESSION_ATTENDED": "0"},
+    {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli"},
+], ids=["attended-0-only", "sdk-cli-only"])
+def test_either_unattended_signal_alone_arms_the_agent_arm(tmp_path, env):
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    _, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=env)
+    assert _decision(out) == "block", f"{env}: a positive unattended signal must arm the gate"
+
+
+def test_an_interactive_surface_never_gates_an_agent_child(tmp_path):
+    """Interactive: a subagent that ends its turn after an async launch IS woken once per child,
+    so ending the turn is the correct move there (R0 move 3) and must never be refused."""
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    rc, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=INTERACTIVE_ENV)
+    assert rc == 0 and out.strip() == "", (
+        "an interactive-surface stop over an own async teammate must pass - that subagent is woken"
+    )
+
+
+def test_an_explicit_attended_signal_wins_over_an_sdk_entrypoint(tmp_path):
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    env = {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "CLAUDE_CODE_SESSION_ATTENDED": "1"}
+    rc, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=env)
+    assert rc == 0 and out.strip() == "", "ATTENDED=1 means interactive: fail open"
+
+
+def test_an_unknown_surface_never_gates_an_agent_child(tmp_path):
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    rc, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]))
+    assert rc == 0 and out.strip() == "", (
+        "with neither surface signal the hook cannot know the stop loses anything: fail open"
+    )
+
+
+def test_a_teammate_someone_else_launched_is_not_this_subagents_problem(tmp_path):
+    """`background_tasks` is session-wide: a sibling's or the root's async child is listed here
+    too. Without this subagent's own async receipt naming it, it must not gate this stop."""
+    t = _agent_transcript(tmp_path, ["a-mine-done"])
+    rc, out = _run(_launcher_payload(t, [_agent_task("a-siblings-child")]), env=PRINT_ENV)
+    assert rc == 0 and out.strip() == "", (
+        "a running subagent entry absent from this subagent's own async receipts must not gate it"
+    )
+
+
+def test_the_stopping_subagents_own_entry_never_gates_it(tmp_path):
+    """The payload always lists the stopping subagent itself as a running `subagent` task. Even if
+    its own id appeared in an async receipt it holds, it must never gate its own stop."""
+    t = _agent_transcript(tmp_path, ["a-coord"])
+    rc, out = _run(_launcher_payload(t, []), env=PRINT_ENV)
+    assert rc == 0 and out.strip() == "", "the subagent's own entry must never gate its stop"
+
+
+def test_an_agentid_mentioned_outside_an_async_receipt_does_not_correlate(tmp_path):
+    """Ownership is proved by the async LAUNCH receipt only - an id quoted in ordinary text (a
+    worklog line, a brief) is not a launch this subagent made."""
+    path = tmp_path / "agent-q.jsonl"
+    path.write_text(json.dumps({"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "r1",
+         "content": "Worklog: coordinator agentId: a-wi-1 started the backend WI."}]}}) + "\n",
+        encoding="utf-8")
+    rc, out = _run(_launcher_payload(path, [_agent_task("a-wi-1")]), env=PRINT_ENV)
+    assert rc == 0 and out.strip() == "", "an agentId outside an async receipt must not correlate"
+
+
+def test_a_finished_teammate_passes(tmp_path):
+    """A finished task is removed from `background_tasks`: the launcher that waited in-turn for
+    its teammate stops with nothing listed and must pass."""
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    rc, out = _run(_launcher_payload(t, []), env=PRINT_ENV)
+    assert rc == 0 and out.strip() == ""
+
+
+def test_a_shell_and_an_agent_wait_are_both_named_in_one_refusal(tmp_path):
+    """One stop holding both kinds of live work gets one block naming both, never two blocks."""
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    shell = _transcript(tmp_path, ["bq9"], name="shell.jsonl")
+    t.write_text(t.read_text(encoding="utf-8") + shell.read_text(encoding="utf-8"),
+                 encoding="utf-8")
+    _, out = _run(_launcher_payload(t, [_agent_task("a-wi-1"), _shell_task("bq9")]),
+                  env=PRINT_ENV)
+    assert _decision(out) == "block"
+    reason = _reason(out)
+    assert "bq9" in reason and "a-wi-1" in reason, "both live waits must be named"
 
 
 # --------------------------------------------------------------------------- #
@@ -531,9 +686,12 @@ def test_the_ssot_declares_the_rule_positively():
         "the SSOT must name the legal shape - drive it to a result with foreground calls in the "
         "same turn - or an agent reads the rule as 'never background anything'"
     )
-    assert "an agent child does deliver to a launcher that stopped" in low, (
-        "the SSOT must state the contrast with an agent child, which DOES wake its launcher - "
-        "collapsing the two rules is how one gets generalized onto the other"
+    assert "under move 3 an agent child delivers to a launcher that stopped" in low, (
+        "the SSOT must state the contrast with an agent child, which wakes its launcher under move "
+        "3 - collapsing the two rules is how one gets generalized onto the other"
+    )
+    assert "a teammate you launched that is still running" in low, (
+        "the SSOT must say the gate also refuses an unattended-surface stop over a live teammate"
     )
     assert "enforce-background-wait.sh" in low, (
         "the SSOT must name the gate that enforces it, so the refusal an agent meets at runtime "

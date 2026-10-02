@@ -55,13 +55,11 @@ doc. Ladder, bound, and the corroboration rule (SSOT - do not restate them here)
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deep-survey/references/web-research.md` § Source-credibility
 ladder and § Bound.
 
-**Dispatch physics - the one way this shape fails.** Your launch capability exposes NO blocking or
-foreground parameter, so every launch is ASYNCHRONOUS and returns a receipt, not a result. So:
-write out the design doc you have so far, issue every launch this turn needs (independent children
-in ONE message), and then END YOUR TURN. Stopping IS the delivery point - you are woken with each
-child's result. Keep working in the turn that launched a child and no delivery point ever exists,
-so its result reaches nobody. Never poll, never sleep, never re-launch. Full contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0.
+**Dispatch physics - the one way this shape fails.** Write out the design doc you have so far
+before you launch, issue every launch this turn needs (independent children in ONE message), and
+collect each child's result exactly as R0 assigns to the agent-launch tool you hold:
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0. A result collected any other
+way reaches nobody. Never re-launch a child that is still running.
 
 **Cap.** Your workers are read-only and share no worktree, so your fan-out is Mode A of
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - obey its concurrency cap and batch a

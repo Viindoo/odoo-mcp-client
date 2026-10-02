@@ -291,8 +291,8 @@ the sub-graph restricted to the target set, topologically order it, and return O
 the edges it rests on. The disk fallback (a reader of each module descriptor's `depends` - BOTH
 names - plus a `static/src` scan, labelled "graph from disk (OSM unavailable)") lives in that SSOT
 and is the same delegate's job when OSM is unreachable. This launch is a dispatch like any other
-(R0, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`): issue it, END YOUR TURN,
-and fold the returned order up when you are woken with the result. If you hold no agent-launch
+(R0, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`): issue it, collect its
+result as R0 assigns to the agent-launch tool you hold, and fold the returned order up. If you hold no agent-launch
 capability at all, take R0 move 1 - `NEEDS_NEXT` naming this lookup - never absorb it inline.
 
 Folding UP to the NODE level is yours, and needs no source read - it is a set comparison over the
@@ -524,13 +524,13 @@ what carries that id across the invocation boundary.
    Record the id each launch returns in plan.md as you go. A node whose brief carries
    `WORKER_AGENT_ID` resumes that id when it still resolves and cold-spawns otherwise - it still
    counts as this batch's ONE coordinator for that node either way.
-4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
-   in step 3, END YOUR TURN - write nothing further this turn beyond a one-line note of what you
-   are waiting for - and hold until every coordinator in the batch has returned one of the four
-   terminal Continuation Contract statuses - `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` -
-   before packing the next batch. You are woken with each coordinator's result; mark that
-   coordinator's task-list item terminal the instant it returns any of the four. Keeping the turn
-   alive to wait is the one move from which no result ever comes back. The barrier is mechanical per
+4. Wait for the batch (a batch barrier each round): collect the results of the parallel
+   `odoo-coder` launches of step 3 as R0 assigns to the agent-launch tool you hold, and hold until every
+   coordinator in the batch has returned one of the four terminal Continuation Contract statuses -
+   `DONE`, `BLOCKED`, `NEEDS_NEXT`, or `NEEDS_CONTEXT` - before packing the next batch. Results may
+   arrive one coordinator at a time; mark that coordinator's task-list item terminal the instant it
+   returns any of the four, and never assume the batch is done. Collecting any other way than R0
+   assigns is the one move from which no result ever comes back. The barrier is mechanical per
    `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 (the release-vocabulary SSOT -
    do not gate this on a task-list tool's own native label, which is runtime-dependent and may not
    even expose a dedicated `blocked` state), not an assumption. A batch is done only when every

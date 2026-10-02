@@ -580,10 +580,10 @@ context (earlier intent records, bucket history, the tests its test leg forwarde
 unaffected: resuming the AGENT is a context-economy decision with NO effect on git topology - the
 batch's range is already absorbed by P5's single merge, so every adapt lands inside that ONE open
 window and closes as ONE merge commit.
-A resume is reachable at ANY depth, and it is reachable on exactly one condition: you STOP after
-sending (CHP § Async park-and-be-resumed semantics). Send the P9 failure output (or the next batch's
-brief), END YOUR TURN, and consume the coordinator's result when you are woken with it. Emitting
-anything after the send, or carrying on with the next module in the same turn, strands it. On resume
+Send the P9 failure output (or the next batch's brief) and collect the coordinator's result per CHP
+§ Async park-and-be-resumed semantics - R0 of
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` decides whether you end your turn or
+wait inside it. Never carry on with the next module before that result is in hand. On resume
 the coordinator MUST immediately `cd` to the integration worktree path before any Bash command (the
 shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
 a git worktree - cd on resume").

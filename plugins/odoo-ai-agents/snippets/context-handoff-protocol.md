@@ -21,9 +21,8 @@ true. Decide it locally, per child, per turn - there is no run-wide probe and no
 1. you hold the id that child's own launch call returned to you, and
 2. a messaging tool is in your current toolset.
 
-Your own depth is NOT a condition. A resume send has no synchronous return, so the only way to see
-the result is to be woken with it - and you are woken whether you are the root or a dispatched
-agent, provided you END YOUR TURN after sending (§ Async park-and-be-resumed semantics).
+Your own depth is NOT a condition. A resume send has no synchronous return: collect its result by
+the R0 move your own agent-launch tool selects (§ Async park-and-be-resumed semantics).
 
 Send the new instructions to that id. Record the id per work-item in the skill's plan artifact
 (plan.md / plan.json) as you capture it, so the plan is the id registry. The resumed child keeps its
@@ -57,18 +56,17 @@ correct and always available; Tier A and Tier B only ever replace it as a speed 
 
 ## Async park-and-be-resumed semantics
 
-A resume send is fire-and-forget: it returns immediately and the child runs in the background. NEVER
-write call-and-await-a-return-value logic around it - there is no synchronous return to read. Being
-resumed is therefore the only way the result reaches you, so structure a Tier-A exchange as
-park-and-be-resumed: send, stop, resume on completion. Scoped to a resume SEND: a blocking tool call
-that RETURNS a verdict inside the one call is not a park.
+A resume send is fire-and-forget: it returns immediately and the child runs on its own. NEVER
+write call-and-await-a-return-value logic around it - there is no synchronous return to read.
+Collect the result by the move R0 assigns to the agent-launch tool you hold
+(`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R0): under move 3, send, END YOUR
+TURN, and you are woken with the result whatever your depth; under move 2 the send is an async
+receipt - stay in your turn per R0 § An async receipt under move 2. Scoped to a resume SEND: a
+blocking tool call that RETURNS a verdict inside the one call is not a park.
 
-**The wake is keyed on YOU having stopped, never on your depth.** You are woken with the child's
-result once it completes and you hold no other live child of your own - the root and a dispatched
-launcher alike (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1 § Boundary).
-What breaks the exchange is sending and then continuing to work in the same turn: that leaves no
-point at which anything can be handed to you, and the result is never delivered. Send, then END
-YOUR TURN.
+What breaks the exchange is collecting any other way: under move 3, sending and then working on in
+the same turn leaves no point at which the result can be handed to you; under move 2, ending the
+turn sends the result to the main conversation instead of to you.
 
 ## The launcher holds the only address
 
@@ -99,8 +97,8 @@ is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own three
 (`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits well
 within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`, 2 levels deep against a
 default cap of 3; R0 move 1, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). It
-must not launch anything deeper than those three. Every one of those launches is asynchronous: it
-dispatches its workers, ENDS ITS TURN, and is woken with each worker's result (R0 move 3).
+must not launch anything deeper than those three, and it collects each worker's result by the move
+R0 assigns to the agent-launch tool it holds.
 
 ## Confidentiality guard
 

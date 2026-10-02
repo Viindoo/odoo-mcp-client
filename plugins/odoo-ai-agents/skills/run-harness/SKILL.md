@@ -48,9 +48,9 @@ the operating procedure, that is the contract.
    Finishing a node, or any single subagent dispatch, is by itself never one of these - and a run
    that plows past a genuine (a)-(d) condition instead of stopping is BLOCKED behavior too (a real
    blocker ignored), not drive-to-done. **(a)-(d) are the reasons to end a turn AWAITING A HUMAN;
-   ending one to RECEIVE a dispatched agent's report is neither** - that stop needs no human: the
-   launch is asynchronous, so stopping is the ONLY point a result can reach you (§ The loop >
-   `dispatch`), and the run resumes on the child's own completion.
+   ending one to RECEIVE a dispatched agent's report is neither** - that stop needs no human: it is
+   R0's collection move for an asynchronous launch (§ The loop > `dispatch`), and the run resumes
+   on the child's own completion.
 3. **Writes to `run-<id>.json` after creation are run-harness's alone.** Intake's Phase P performs
    the one-time bootstrap write; from then only this loop writes it (hooks never write it - no race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
@@ -184,12 +184,10 @@ loop:
                         # ARRIVES carrying a WORKTREE_PATH is skipped here, so this guard alone
                         # cannot see a collision: check 6 of Plan agreement is what enforces it.
     write(RUN)
-    dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN END YOUR TURN. A Skill call
-                        # runs INLINE here, but every AGENT launch - yours, or a spawner skill's
-                        # running inline here - is ASYNCHRONOUS and returns a receipt, not a result:
-                        # no blocking/foreground launch exists at any depth, and stopping IS the
-                        # delivery point (keep working and the report is never handed back). SSOT,
-                        # read by path, never restate:
+    dispatch(batch):        # LAUNCH EVERY MEMBER IN ONE MESSAGE, THEN COLLECT EVERY RESULT. A Skill
+                        # call runs INLINE here; every AGENT launch - yours, or a spawner skill's
+                        # running inline here - is collected by the move R0 assigns to the Agent
+                        # tool you hold. SSOT, read by path, never restate:
                         # ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md R0/R1.
                         # Compose EVERY brief from the caller-side skeleton in
                         # ${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md (read it by path) plus
@@ -203,8 +201,9 @@ loop:
         - integrate         -> the land tail, ONCE PER REPO: § `integrate` node dispatch (the land tail)
                                below - lint gate, THEN Existence precheck, THEN squash/push/open ONE PR
         - inline            -> do the small synth step yourself
-    # END THE TURN here for any agent dispatch; the SubagentStop hook nudges resume. You are woken
-    # with each member's report, and the R1 barrier clears only when EVERY member is terminal.
+    # Collect every agent dispatch's report per R0 (under move 3: END THE TURN here; the SubagentStop
+    # hook nudges resume). Reports may arrive one member at a time, and the R1 barrier clears only
+    # when EVERY member is terminal.
 
     for n in batch:         # STRICTLY ONE MEMBER AT A TIME, in the batch's topo order, and only
                         # once the R1 barrier has cleared. Concurrency ENDS at dispatch: everything

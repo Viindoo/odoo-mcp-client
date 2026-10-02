@@ -3,13 +3,15 @@ states why a worker's apparent ways back up are not ways back up.
 
 Behavior protected - two halves of one stall:
 
-  COORDINATOR SIDE. Every launch is asynchronous, and the launcher is woken with the child's result
-  when the child completes AND the launcher has ENDED ITS TURN. That wake is keyed on the launcher
-  having stopped, not on its depth - a nested launcher is woken by its own child exactly as the
-  root is. The one way the exchange breaks is the launcher never stopping: a turn that launches and
-  then carries on working offers no delivery point, so the child's report is never handed back.
-  Prose that tells a dispatcher to continue working, poll, sleep, or busy-wait in the launching
-  turn is therefore the defect, and this file is its whole-tree detector.
+  COORDINATOR SIDE. How a launcher collects a child's result depends on its own launch tool
+  (snippets/spawner-completion-contract.md R0). Without a `run_in_background` parameter (move 3)
+  every launch is asynchronous and the launcher is woken with the result once it has ENDED ITS
+  TURN, at any depth - so a turn that launches and carries on working offers no delivery point.
+  With that parameter (move 2) the launcher passes it false and the result returns in-turn; it must
+  NOT end its turn while a child runs, and an async receipt it still gets is waited for in-turn.
+  Prose that tells a dispatcher to keep working, poll, sleep, or stay in its turn after a launch is
+  therefore correct ONLY when attributed to R0; unattributed, it is the defect, and this file is
+  its whole-tree detector.
 
   WORKER SIDE. A worker that goes looking for its launcher finds only traps: an inbound message
   shows a TYPE label where an address would be, no lookup turns any name into one, and the literal
@@ -106,8 +108,8 @@ _KEEP_WORKING_RE = re.compile(
     r"(?:do not|don't) end (?:your|the|its) turn|without ending (?:your|the|its) turn)",
     re.I,
 )
-# What makes the pairing legal: the same window either instructs the stop, or negates the harmful
-# shape outright. Both spellings matter - a rule stated as a prohibition is as good as one stated
+# What makes the pairing legal: the same window either instructs the stop, negates the harmful
+# shape outright, or attributes the in-turn wait to R0 (move 2 - the only sanctioned one). Both spellings matter - a rule stated as a prohibition is as good as one stated
 # as an instruction, and this guard must not force one house style onto the other.
 _END_TURN_RE = re.compile(
     r"(end(?:s|ing)? (?:your|its|his|her|their|the) turn|END YOUR TURN|END ITS TURN|END THE TURN|"
@@ -122,6 +124,7 @@ _NEGATED_RE = re.compile(
     r"never correct|must not keep working|do not keep working)",
     re.I,
 )
+_R0_ATTRIBUTED_RE = re.compile(r"\bR0\b|move 2\b|spawner-completion-contract\.md", re.I)
 # A negation sitting immediately in front of an end-turn phrase INVERTS it: "do not end your turn"
 # is the defect, not the remedy. Without this the exemption regex would launder the very
 # instruction it exists to catch.
@@ -154,6 +157,8 @@ def _keep_working_offenders(text: str) -> list[str]:
         window = text[max(0, m.start() - _EXEMPT_WINDOW): m.end() + _EXEMPT_WINDOW]
         if _end_turn_instructed(window) or _NEGATED_RE.search(window):
             continue
+        if _R0_ATTRIBUTED_RE.search(window):
+            continue  # an in-turn wait R0 move 2 sanctions, and says so
         found.append(window.strip()[:280])
     return found
 
@@ -165,11 +170,10 @@ def test_no_file_tells_a_dispatcher_to_keep_working_after_it_launches():
         for w in _keep_working_offenders(text)
     ]
     assert not offenders, (
-        "a dispatcher is told to keep working, poll, or busy-wait in the same turn as its launch. "
-        "The wake that delivers a child's result fires only when the LAUNCHER has stopped, so a "
-        "turn that launches and carries on has no delivery point at all and the result is never "
-        "handed back (snippets/spawner-completion-contract.md R0 § END YOUR TURN after "
-        "dispatching / R1 Boundary):\n" + "\n".join(offenders)
+        "a dispatcher is told to keep working, poll, or busy-wait in the same turn as its launch, "
+        "with no R0 attribution. Under R0 move 3 the result reaches a launcher only after it "
+        "stops; the in-turn wait is legal only under move 2, and prose that applies it must say so "
+        "(snippets/spawner-completion-contract.md R0 / R1 Boundary):\n" + "\n".join(offenders)
     )
 
 
@@ -185,6 +189,9 @@ _MUST_NOT_CATCH = (
     # The corrected rule, in each of its legal spellings.
     "Launch the whole batch in ONE message, END YOUR TURN, and consume each result when you are "
     "woken with it.",
+    # The in-turn wait R0 move 2 sanctions, attributed.
+    "You received an async receipt for the teammate you launched: per R0 move 2 do not end your "
+    "turn - keep polling until its notification arrives.",
     "After you dispatch, END YOUR TURN. Never poll, never sleep, never re-launch.",
     "Keep working in the launching turn instead and no delivery point ever exists - that is the "
     "one failure mode of nested dispatch.",
@@ -214,56 +221,52 @@ def test_guard_allows_the_end_the_turn_and_human_gated_shapes(phrasing):
 # ---------------------------------------------------------------------------
 
 
-def test_r0_states_there_is_no_blocking_launch_to_reach_for():
-    """WHAT IT REQUIRED BEFORE: that R0 declare a subagent's launch REFUSED at the call, so a
-    subagent may never dispatch at all. That premise is retired - nested dispatch works, and a
-    nested launcher is woken by its own child.
+def test_r0_conditions_the_in_turn_launch_on_the_readers_own_launch_tool():
+    """WHAT IT REQUIRED BEFORE (as `test_r0_states_there_is_no_blocking_launch_to_reach_for`): that
+    R0 deny any foreground launch ("there is no move 2", "names a lever that does not exist").
+    Measured on the unattended print surface, that is false: the launch tool there carries
+    `run_in_background`, and a subagent that followed "launch, then end your turn" was never woken.
 
-    WHAT IT REQUIRES NOW: the one measured absence stays stated - there is no foreground/blocking
-    launch parameter - because a reader who is told nothing tries the parameter they half-remember
-    and falls through to whatever the next rung says. The retired branch must still be named as
-    retired, and a stale "launch it blocking" instruction met in another file must be explicitly
-    overridden."""
+    WHAT IT REQUIRES NOW: R0 selects move 2 or move 3 by the reader's own launch tool, so neither
+    surface is generalized onto the other, and the refuted denial is gone."""
     low = _norm(R0R1R3_SSOT).lower()
-    assert re.search(r"no foreground or blocking parameter", low), (
-        "R0 must state outright that no foreground/blocking launch parameter exists"
+    assert re.search(r"move 2 - your agent-launch tool has a `run_in_background` parameter", low), (
+        "R0 must condition the in-turn launch on the reader's own launch tool carrying the parameter"
     )
-    assert re.search(r"there is no move 2", low), (
-        "the retired branch must be named as retired, or every surviving 'R0 move 2' citation "
-        "elsewhere silently re-points at whatever now occupies that slot"
+    assert re.search(r"move 3 - your agent-launch tool has no `run_in_background` parameter", low), (
+        "R0 must condition the launch-then-end-turn move on the parameter's absence"
     )
-    assert re.search(r"names a lever that does not exist", low), (
-        "R0 must tell a reader what to DO with a stale 'launch it blocking' instruction it meets "
-        "in another file - ignore it - not merely avoid emitting one itself"
+    assert re.search(r"nothing wakes a subagent that stopped", low), (
+        "move 2 must state why ending the turn there loses the result"
     )
+    for gone in (r"there is no move 2", r"names a lever that does not exist",
+                 r"no foreground or blocking parameter"):
+        assert not re.search(gone, low), f"the refuted single-surface denial survives: {gone!r}"
 
 
-def test_r0_makes_ending_the_turn_the_delivery_point_at_every_depth():
+def test_r0_makes_ending_the_turn_the_delivery_point_under_move_3_at_every_depth():
     """WHAT IT REQUIRED BEFORE (as `test_r0_scopes_the_async_park_to_the_root`): that R0 scope
-    resumption to the ROOT conversation and tell a subagent "nothing resumes you". Both are
-    falsified - the wake is keyed on the LAUNCHER having stopped, not on its depth.
+    resumption to the ROOT conversation and tell a subagent "nothing resumes you". On the surface
+    without the parameter that is falsified - the wake is keyed on the LAUNCHER having stopped, not
+    on its depth.
 
-    WHAT IT REQUIRES NOW: R0 states the depth-independence, names ending the turn as the delivery
-    point, and states the consequence of not stopping - because the launcher that keeps working is
-    the only shape that actually loses a result."""
+    WHAT IT REQUIRES NOW: under move 3, R0 states the depth-independence, names ending the turn as
+    the delivery point, and states the consequence of not stopping."""
     low = _norm(R0R1R3_SSOT).lower()
     assert re.search(r"this holds at every depth", low), (
-        "R0 move 3 must state that the launch-and-be-woken shape holds at EVERY depth - a scoping "
-        "to the root is the refuted claim"
+        "R0 move 3 must state that the launch-and-be-woken shape holds at EVERY depth"
     )
     assert re.search(r"a nested launcher is woken by its own child", low), (
-        "R0 must say plainly that a nested launcher IS woken by its own child"
+        "R0 must say plainly that under move 3 a nested launcher IS woken by its own child"
     )
     assert re.search(r"stopping is the delivery point", low), (
-        "R0 must name what actually delivers the result: the launcher stopping"
+        "R0 must name what delivers the result under move 3: the launcher stopping"
     )
     assert re.search(r"no delivery point ever exists", low), (
-        "R0 must state the consequence of carrying on in the launching turn - without it the rule "
-        "reads as a style preference"
+        "R0 must state the consequence of carrying on in the launching turn under move 3"
     )
     assert not re.search(r"only the root conversation is resumed", low), (
-        "the refuted scoping must be gone, not softened - a surviving copy is what produced the "
-        "incident this rewrite reverses"
+        "the refuted root-only scoping must be gone, not softened"
     )
 
 
@@ -365,11 +368,14 @@ def test_r3_states_that_a_send_to_main_succeeds_and_misroutes():
 def test_chp_tier_a_is_gated_on_holding_the_id_not_on_depth():
     """WHAT IT REQUIRED BEFORE (as `test_chp_tier_a_is_gated_on_being_the_root`): a THIRD Tier-A
     precondition - "you are the ROOT conversation" - plus the sentence "only the root conversation
-    is ever resumed". Both encode the refuted claim that a nested launcher cannot be woken.
+    is ever resumed". Both encode the refuted claim that a nested launcher cannot be woken. A later
+    version required Tier A to name "end your turn" as the one condition for the result to reach
+    the sender - false under R0 move 2, where ending the turn loses it.
 
     WHAT IT REQUIRES NOW: Tier A is gated on the two things that are actually true - you hold the
-    id your own launch returned, and you have a messaging tool - and the section states plainly
-    that depth is NOT a condition while ending the turn IS."""
+    id your own launch returned, and you have a messaging tool - states that depth is NOT a
+    condition, and hands collection of the resumed child's result to R0 (via the CHP's own
+    send-semantics section) instead of restating one move."""
     low = _norm(CHP_MD).lower()
     idx = low.find("## tier a")
     assert idx != -1, "context-handoff-protocol.md must still carry the Tier A section"
@@ -381,9 +387,13 @@ def test_chp_tier_a_is_gated_on_holding_the_id_not_on_depth():
     assert "your own depth is not a condition" in window, (
         "Tier A must say outright that depth does not gate it, or the deleted condition grows back"
     )
-    assert "end your turn" in window, (
-        "Tier A must name the one thing that IS required for the result to reach you: ending the "
-        "turn after the send"
+    assert "r0" in window and "async park-and-be-resumed semantics" in window, (
+        "Tier A must hand collection of the resumed child's result to R0, through the CHP's "
+        "send-semantics section - never restate a single move"
+    )
+    sem = low[low.find("## async park-and-be-resumed semantics"):]
+    assert "under move 3" in sem and "under move 2" in sem, (
+        "the CHP send semantics must give the collection under BOTH R0 moves"
     )
     assert "only the root conversation is ever resumed" not in low, (
         "the refuted scoping sentence must be deleted from the CHP, not merely unreferenced"

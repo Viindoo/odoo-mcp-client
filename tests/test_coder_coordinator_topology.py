@@ -4,14 +4,14 @@ Protects the BEHAVIOR of the two-tier decomposition (not a wording snapshot).
 
 Ground truth, on two independent measurements:
 
-  SCHEMA (live capture): no blocking or foreground launch parameter exists here. The launch
-  capability carries only {description, isolation, model, prompt, subagent_type}, and an undeclared
-  key is stripped before the call is evaluated. Every launch is asynchronous.
+  SCHEMA (live capture, per surface): on the interactive surface the launch tool carries only
+  {description, isolation, model, prompt, subagent_type} and every launch is asynchronous; on the
+  unattended print surface it also carries `run_in_background`, and `false` returns the child's
+  result inside the launcher's turn (snippets/spawner-completion-contract.md R0 moves 2 and 3).
 
-  RETURN PATH (historical transcript corpus): a nested launcher IS woken with its own child's
-  result - repeatedly, including a depth-2 agent woken by a depth-3 child. The wake is keyed on the
-  launcher having ENDED ITS TURN, not on its depth. The one shape that loses a result is a launcher
-  that keeps working in the turn that launched.
+  RETURN PATH: without the parameter a nested launcher IS woken with its own child's result once it
+  has ENDED ITS TURN, at any depth; with it, a subagent that ends its turn after an async launch is
+  never woken. The shape that loses a result is collecting it by the wrong R0 move.
 
 The three-teammate TOPOLOGY below is therefore both the repo owner's decision and an observed,
 working shape. It is what this file pins:
@@ -26,7 +26,7 @@ working shape. It is what this file pins:
   and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), launches
   `odoo-backend-coder` / `odoo-frontend-coder` per WI (code only - the coders never author tests),
   then ONE `odoo-test-writer` for the whole node AFTER the code (writes or adjusts the tests and
-  break-checks them), ending its turn after each dispatch so the harness can hand it the result. It never authors that
+  break-checks them), collecting each result by its R0 move. It never authors that
   source itself. It tests
   the integrated node via `Skill(odoo-instance)` (inline in its own context, or by launching
   `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its node by
@@ -125,8 +125,8 @@ def test_coordinator_assigns_wis_to_the_three_teammates_backend_first():
     asserting the coordinator authors every WI inline and launches no agent. The repo owner restored
     the three-teammate topology, and this assertion pins THAT decision - the coordinator delegates,
     and never becomes the author of what it delegates. It rests on no claim about a blocking-launch
-    parameter: no such parameter exists (measured). The coordinator dispatches, ends its turn, and
-    is woken with the result (R0 move 3).
+    parameter: the coordinator dispatches and collects each result by the R0 move its own launch
+    tool selects.
 
     RESTORED assertion: the odoo-coder COORDINATOR launches THREE teammate types -
     odoo-backend-coder + odoo-frontend-coder per WI and the node's odoo-test-writer - and sequences
@@ -248,12 +248,14 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
     and therefore IS a module lead that tracks them.
 
     RESTORED assertion: the coordinator tracks its own dispatched WI workers on a live task list,
-    and is WOKEN with each result once it has ended the turn that launched - it has no other
-    channel to them and they have none to it.
+    and collects each result only as R0 delivers it - it has no other channel to them and they have
+    none to it.
 
-    A later pass required the coordinator to "read each result from its own launch call's return
-    value". That was a blocking-launch return value, and no such thing exists here; the assertion
-    below pins the mechanism that does."""
+    WHAT IT REQUIRED BEFORE: that the coordinator be "woken with each teammate's result" after it
+    "END[S] ITS TURN". On the unattended print surface that instruction lost every teammate result
+    in a live run (the coordinator was marked complete, the results went to main). The collection
+    move is R0's to decide by the coordinator's own launch tool, so the coordinator must defer to
+    R0 instead of restating one move."""
     body = _norm(LEAD)
     assert "spawner-completion-contract.md" in body, (
         "the coordinator launches agents, so R1/R2/R3 bind it - it must cite the SSOT"
@@ -263,14 +265,19 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
     )
     assert "task list" in body.lower(), "the coordinator must monitor WI workers on a live task list"
     low = body.lower()
-    assert re.search(r"woken with each teammate's result", low), (
-        "the coordinator must state the ONE channel it has to a teammate: being woken with that "
-        "teammate's result"
+    assert re.search(r"result reaches you only as r0 delivers it", low), (
+        "the coordinator must state the ONE channel it has to a teammate: the result R0 delivers"
     )
-    assert re.search(r"end your turn", low), (
-        "the coordinator must be told to END ITS TURN after dispatching - the wake only fires for "
-        "a launcher that stopped, so a coordinator that keeps working never collects anything"
+    assert re.search(r"collect (?:every teammate's result|their results) (?:the way r0 assigns|per r0)",
+                     low), (
+        "the coordinator must collect its teammates' results by its R0 move"
     )
+    for stale in (r"woken with each teammate's result", r"dispatch, then end your turn",
+                  r"after launching your wi workers, end your turn"):
+        assert not re.search(stale, low), (
+            f"the single-surface collection instruction survives: {stale!r} - it loses every result "
+            "on the unattended surface"
+        )
     assert re.search(r"no teammate (?:messages|can message|ever messages) you", low), (
         "the coordinator must state that no teammate can message it - otherwise it waits for a "
         "push that never arrives"
@@ -538,8 +545,8 @@ def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
 def test_coordinator_commits_before_a_stop_never_while_it_waits():
     """Work written by a coordinator that STOPS (DONE, NEEDS_NEXT, BLOCKED, NEEDS_CONTEXT, or a
     budget about to run out) with nothing committed is lost - a stall would cost the whole node.
-    So every stop commits what was written, via Skill(git-toolkit:git-ops). But ending a turn to
-    be woken with a dispatched teammate's result is NOT a stop: the node's code stays uncommitted
+    So every stop commits what was written, via Skill(git-toolkit:git-ops). But waiting on a
+    dispatched teammate - in-turn or across a turn end, per R0 - is NOT a stop: the node's code stays uncommitted
     while the test-writer works on that same tree (its restore proof is a hash manifest), and the
     node lands as ONE plain commit - never squashed or amended into shape afterwards.
 
@@ -550,7 +557,7 @@ def test_coordinator_commits_before_a_stop_never_while_it_waits():
         "odoo-coder.md must state when it commits: before a STOP, never while waiting on a teammate"
     )
     assert "is not a stop" in low, (
-        "ending the turn after a dispatch (to be woken with the result) must be defined as NOT a stop"
+        "waiting on a dispatched teammate (per R0) must be defined as NOT a stop"
     )
     assert "done, needs_next, blocked, needs_context" in low, (
         "the commit-before-stop rule must cover every terminal status, not only the happy-path DONE"

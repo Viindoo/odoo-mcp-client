@@ -166,24 +166,25 @@ def test_r3_enumerates_the_targets_that_do_not_resolve():
 # ---------------------------------------------------------------------------
 
 
-def test_there_is_no_synchronous_launch_return_to_read():
-    """WHAT IT REQUIRED BEFORE (as `test_synchronous_launch_return_is_the_default_no_send_needed`):
-    that the contract call a synchronous/blocking launch "the default, preferred shape ... including
-    when you yourself are a subagent".
+def test_the_in_turn_launch_return_is_conditioned_on_the_launch_tool():
+    """WHAT IT REQUIRED FIRST (as `test_synchronous_launch_return_is_the_default_no_send_needed`):
+    that the contract call a synchronous launch "the default, preferred shape" unconditionally.
+    WHAT IT REQUIRED NEXT (as `test_there_is_no_synchronous_launch_return_to_read`): that R0 deny
+    any synchronous return ("no foreground or blocking parameter"). Each was measured on ONE
+    surface: the interactive launch tool has no `run_in_background`, the unattended print one has
+    it and `false` returns the result in-turn.
 
-    Measurement that retired it: the launch capability carries only {description, isolation, model,
-    prompt, subagent_type}; an undeclared key is stripped before the call is evaluated. There is no
-    synchronous return value for ANY launcher to read, so the old assertion forced the SSOT to
-    promise one.
-
-    WHAT IT REQUIRES NOW: R0 still exists, the absence is stated, and the no-launch-available
-    fallback is selected by the caller's declared role."""
+    WHAT IT REQUIRES NOW: R0 conditions the in-turn return on the reader's own launch tool, and the
+    no-launch-available fallback is selected by the caller's declared role."""
     text = _read(SPAWNER_CONTRACT_MD)
     assert "R0 - Dispatch physics" in text, "sanity: R0 heading must still exist"
     low = _norm(SPAWNER_CONTRACT_MD).lower()
-    assert "no foreground or blocking parameter" in low, (
-        "R0 must state that no blocking/foreground launch parameter exists, or a reader keeps "
-        "looking for the synchronous return value this contract used to promise"
+    assert "has a `run_in_background` parameter" in low and "has no `run_in_background` parameter" in low, (
+        "R0 must condition the in-turn return on the reader's own launch tool carrying the "
+        "parameter, and give the asynchronous move when it does not"
+    )
+    assert "no foreground or blocking parameter" not in low, (
+        "the refuted single-surface denial must be deleted"
     )
     assert "which fallback is yours" in low, (
         "R0 must name the section that selects, by declared role, the move of a caller that holds "
@@ -207,13 +208,14 @@ def test_there_is_no_synchronous_launch_return_to_read():
 def test_the_wake_boundary_is_stopping_not_depth():
     """WHAT IT REQUIRED BEFORE (as `test_background_grandchild_boundary_documented`): that the
     contract state "a background child outlives a non-`main` launcher", that its completion is
-    "re-addressed to `main`", and that it is "never resumed on you". Measured over the historical
-    transcript corpus, that is false - a nested launcher is woken by its own child, repeatedly and
-    at depth 3.
+    "re-addressed to `main`", and that it is "never resumed on you", for every launcher. Measured on
+    the interactive surface that is false - a nested launcher is woken by its own child, repeatedly
+    and at depth 3. Measured on the unattended print surface it is TRUE for a subagent that ends its
+    turn after an async launch.
 
-    WHAT IT REQUIRES NOW: the boundary is stated as the true one. The wake fires when the launcher
-    has stopped; a launcher that keeps working in its launching turn is the shape that loses the
-    result, and no depth rule is involved."""
+    WHAT IT REQUIRES NOW: the boundary is stated per R0 move, never per depth. Under move 3 the wake
+    fires when the launcher has stopped; under move 2 a subagent that stops is never woken and the
+    result goes to the main conversation."""
     low = _norm(SPAWNER_CONTRACT_MD).lower()
     assert "keyed on you having stopped" in low, (
         "the boundary must name the real condition - the launcher having stopped"
@@ -225,6 +227,9 @@ def test_the_wake_boundary_is_stopping_not_depth():
     assert "a nested launcher is woken" in low, (
         "the contract must state the positive fact a dispatching agent needs: a nested launcher IS "
         "woken by its own child"
+    )
+    assert "under move 2 a subagent that stops is never woken" in low, (
+        "the boundary must state the move-2 half: on that surface stopping loses the result"
     )
     for gone, why in (
         ("re-addressed to `main`", "the refuted re-addressing claim must be deleted"),
