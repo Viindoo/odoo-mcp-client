@@ -443,11 +443,11 @@ def test_lead_coder_owns_integrated_instance_test_via_odoo_instance_skill():
 
 
 def test_frontend_coder_is_instance_free_no_self_provision():
-    """RETARGETED (coder-coordinator restructure): odoo-frontend-coder is now INSTANCE-FREE - it must
-    NOT self-provision an Odoo instance at all. Its only gate is the static verify-frontend.sh; any
-    live/instance-backed check is owned by the odoo-coder lead's integrated test (full-stack) or a
-    delegated NEEDS_NEXT: odoo-instance run (frontend-only). It still consumes a handed-in
-    INSTANCE_HANDLE and delegates full suites, but never acquires its own lease/server."""
+    """odoo-frontend-coder is INSTANCE-FREE - it must NOT self-provision an Odoo instance at all.
+    Its only gate is the static verify-frontend.sh. The node's JS tests are written after its code
+    by odoo-test-writer and run in the odoo-coder coordinator's integrated node verification, so
+    the coder never starts a server or requests a suite run of its own. It may still use a
+    handed-in INSTANCE_HANDLE for a bounded smoke, but never acquires its own lease/server."""
     text = _norm(FRONTEND_CODER_MD)
     # Instance-free: no self-provision route via the odoo-instance skill, no bare allocator acquire.
     assert "Skill(odoo-instance)" not in text, (
@@ -459,10 +459,14 @@ def test_frontend_coder_is_instance_free_no_self_provision():
     assert "instance-free" in text.lower(), (
         "frontend-coder must state it is INSTANCE-FREE"
     )
-    # Preserved: consume a handed-in handle, delegate full suites, and the static gate is the only gate.
+    # Preserved: consume a handed-in handle, leave full suites to the coordinator, static gate only.
     assert "INSTANCE_HANDLE precedence" in text, "INSTANCE_HANDLE precedence rule must survive"
-    assert "A full JS suite delegates" in text and "NEEDS_NEXT: odoo-instance" in text, (
-        "the full-JS-suite-delegates-via-NEEDS_NEXT rule must survive"
+    assert "A full JS suite delegates to your coordinator" in text, (
+        "a full JS suite must be left to the coordinator, never run by the frontend coder"
+    )
+    assert "integrated node verification" in text and "never start a server or request a suite run" in text, (
+        "the JS suite must run in the coordinator's integrated node verification - the frontend "
+        "coder neither starts a server nor requests a suite run"
     )
     assert "verify-frontend.sh" in text, "the static verify-frontend.sh gate must remain the mandatory gate"
 

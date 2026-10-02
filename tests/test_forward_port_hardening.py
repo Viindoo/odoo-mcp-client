@@ -753,29 +753,32 @@ class TestGateDeConflated:
 # ---------------------------------------------------------------------------
 
 class TestProducerWiring:
-    """Both SKILL.md 8b and fp-phase-detail.md P8b must carry the
-    MANIFEST/MIGRATION/PROVENANCE -> [[fp-merge-absorption]] brief field."""
+    """The forward-port 8b brief must hand the coder the C1/C2/C3 boundaries and the
+    [[fp-merge-absorption]] pointer in its `CONSTRAINTS:` field - the one field odoo-coding
+    forwards verbatim to every coder, where the backend coder reads it. Drop a rule or the
+    pointer and the coder adapts a descriptor/migration/source bug blind."""
 
-    def test_skill_md_8b_brief_carries_c1c2c3_field(self):
-        """SKILL.md 8b FP-ENRICHED brief must contain MANIFEST/MIGRATION/PROVENANCE field.
+    @staticmethod
+    def _constraints_value(text: str) -> str:
+        """The `CONSTRAINTS` field and its continuation lines, whitespace-normalized."""
+        m = re.search(r"`?CONSTRAINTS`?:?\s.*?(?=\n\S|\n\s*\n|\Z)", text, re.S)
+        assert m, "no CONSTRAINTS field found"
+        return " ".join(m.group(0).split())
 
-        Base commit: absent. RED if the brief field is removed.
-        """
-        text = SKILL_MD.read_text(encoding="utf-8")
-        assert "MANIFEST/MIGRATION/PROVENANCE" in text, (
-            "SKILL.md 8b FP-ENRICHED brief must include the MANIFEST/MIGRATION/PROVENANCE "
-            "field so the dispatched coder receives the C1/C2/C3 rules via the brief"
+    def test_skill_md_8b_brief_carries_c1c2c3_in_constraints(self):
+        value = self._constraints_value(SKILL_MD.read_text(encoding="utf-8"))
+        for rule in ("C1", "C2", "C3"):
+            assert rule in value, f"SKILL.md 8b CONSTRAINTS must carry {rule}: {value!r}"
+        assert "fp-merge-absorption" in value, (
+            "SKILL.md 8b CONSTRAINTS must point the coder at fp-merge-absorption"
         )
 
-    def test_phase_detail_p8b_template_carries_c1c2c3_field(self):
-        """fp-phase-detail.md P8b coder brief template must reference [[fp-merge-absorption]].
-
-        Base commit: absent. RED if the brief template field is removed.
-        """
-        text = PHASE_DETAIL.read_text(encoding="utf-8")
-        assert "MANIFEST/MIGRATION/PROVENANCE" in text, (
-            "fp-phase-detail.md P8b coder brief template must include the "
-            "MANIFEST/MIGRATION/PROVENANCE -> [[fp-merge-absorption]] field"
+    def test_phase_detail_p8b_template_carries_c1c2c3_in_constraints(self):
+        value = self._constraints_value(PHASE_DETAIL.read_text(encoding="utf-8"))
+        for rule in ("C1", "C2", "C3"):
+            assert rule in value, f"fp-phase-detail.md P8b CONSTRAINTS must carry {rule}: {value!r}"
+        assert "fp-merge-absorption.md" in value, (
+            "fp-phase-detail.md P8b CONSTRAINTS must point the coder at fp-merge-absorption.md"
         )
 
 

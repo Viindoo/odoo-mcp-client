@@ -379,7 +379,7 @@ Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
 literal `none yet` - and this family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `DESIGN_DOC`, `SURVEY` or the explicit value `none` (key must be present, same rule as `INPUTS`),
-`WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+`WORKTREE_PATH`). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
 - Missing `INPUTS` (the key entirely absent, not even the literal

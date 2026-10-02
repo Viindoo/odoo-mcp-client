@@ -205,6 +205,11 @@ phase): forward every one verbatim in the node's brief (§ Per-node briefs) so t
 coders and test leg - a caller-sent `BASE CLASS` or `INSTANCE_HANDLE` takes the place of your own
 value; never reinterpret them here, and never set `TEST LEG` on your own initiative.
 
+**`SERVER_WIDE` pass-through.** A caller whose task needs a different server-wide set on its
+database sends `SERVER_WIDE: {exclude, include}`: forward it verbatim to every `odoo-coder`, which
+passes it to every build and serve it runs or delegates on the node's database. Never compose one
+here.
+
 **`RUN_ID` - forwarded, never invented.** Every lease the node's coordinator acquires is owned by
 the run id it was handed (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton
 field 11). Forward your caller's `RUN_ID` unchanged to every `odoo-coder`. Standalone (no caller
@@ -651,6 +656,7 @@ SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact groun
 COMMIT: caller - ONLY when your own caller sent `COMMIT: caller`; omit otherwise (the coordinator then commits).
 RUN_ID: <your caller's RUN_ID, or this run's worklog run-or-slug when standalone - never omitted, never minted by the coordinator>
 CONSTRAINTS: <forwarded verbatim from your caller | omit when it sent none>
+SERVER_WIDE: <{exclude: [...], include: [...]} forwarded verbatim from your caller | omit when it sent none>
 MODE: adapt - ONLY when your caller ports a change; omit otherwise, together with the five fields below.
 INTENT: <forwarded verbatim from your caller - one record per source commit>
 BUCKET: <forwarded verbatim from your caller - one per source commit>

@@ -493,16 +493,21 @@ def test_wi_worker_dependency_gate_defines_green_against_status_enum():
 def test_coordinator_verifies_the_test_writer_return_before_the_integrated_run():
     """The test-writer temporarily alters production code for each break-check. The coordinator
     must not trust its word that the code was restored: before the integrated run it checks that
-    every behavior test carries a BREAK_CHECK record and that production is untouched - by git
-    porcelain against the checkpoint, and by sha256 when there is no checkpoint commit
-    (COMMIT: caller). Drop either check and a broken rule can be committed."""
+    every behavior test carries a BREAK_CHECK record and that production is untouched - by
+    re-running the contract's production hash manifest (recorded before the test-writer launched)
+    and diffing the two. No commit separates the coders from the test leg, so that hash diff is
+    the only restore proof. Drop either check and a broken rule can be committed."""
     low = _norm(LEAD).lower()
     assert "break_check:" in low, "the coordinator must require one BREAK_CHECK record per behavior test"
     assert "production untouched" in low, (
         "the coordinator must verify production code is untouched after the test leg"
     )
-    assert "git status --porcelain" in low and "sha256sum" in low, (
-        "the production-untouched check must use porcelain (checkpoint) and sha256 (COMMIT: caller)"
+    assert "prod-hashes.txt" in low and "prod-hashes.after.txt" in low, (
+        "the production-untouched check must diff the hash manifest recorded before the test leg "
+        "against one re-recorded after it"
+    )
+    assert "test-sensitivity-contract.md` § code first, then the test leg" in low, (
+        "the coordinator must run the hash-manifest command of the contract (its SSOT), not a copy"
     )
 
 
@@ -530,37 +535,34 @@ def test_coordinator_reassigns_sibling_contradiction_not_just_the_complainer():
     )
 
 
-def test_wi_checkpoint_rule_present():
-    """M1c (12-design-final.md) - uncommitted work must not survive a turn boundary.
-
-    Root cause this protects: odoo-coder authors 1..N work-items per node inside ONE turn; if
-    that turn ends early (context limit, an interrupt, a crash) with no commit yet, every WI
-    written so far is lost - a stall costs the WHOLE NODE, not just the WI in flight (D4: the
-    coordinator's unit is the node, which may span several modules). The fix: before ending its
-    turn for ANY reason (DONE, NEEDS_NEXT, BLOCKED, or a budget cutoff), the coordinator must
-    request a checkpoint commit of everything written so far via Skill(git-toolkit:git-ops), so a
-    stall costs at most one work-item.
+def test_coordinator_commits_before_a_stop_never_while_it_waits():
+    """Work written by a coordinator that STOPS (DONE, NEEDS_NEXT, BLOCKED, NEEDS_CONTEXT, or a
+    budget about to run out) with nothing committed is lost - a stall would cost the whole node.
+    So every stop commits what was written, via Skill(git-toolkit:git-ops). But ending a turn to
+    be woken with a dispatched teammate's result is NOT a stop: the node's code stays uncommitted
+    while the test-writer works on that same tree (its restore proof is a hash manifest), and the
+    node lands as ONE plain commit - never squashed or amended into shape afterwards.
 
     What this proves: the rule is stated in the prose an executing agent reads. What it does NOT
-    prove: that a commit actually happens at runtime - the only evidence for that is on disk
-    (`git log <base>..HEAD` / `git status --short`), exactly as 12-design-final.md's own M1c guard
-    note says."""
+    prove: that a commit actually happens at runtime - the only evidence for that is on disk."""
     low = _norm(LEAD).lower()
-    assert "uncommitted work must not survive a turn boundary" in low, (
-        "odoo-coder.md must state the M1c checkpoint rule: uncommitted work must not survive a "
-        "turn boundary"
+    assert "commit before you stop, never while you wait" in low, (
+        "odoo-coder.md must state when it commits: before a STOP, never while waiting on a teammate"
     )
-    assert "done, needs_next, blocked" in low, (
-        "the checkpoint rule must cover ALL terminal-status exits (DONE, NEEDS_NEXT, BLOCKED, or "
-        "a budget cutoff), not only the happy-path DONE"
+    assert "is not a stop" in low, (
+        "ending the turn after a dispatch (to be woken with the result) must be defined as NOT a stop"
+    )
+    assert "done, needs_next, blocked, needs_context" in low, (
+        "the commit-before-stop rule must cover every terminal status, not only the happy-path DONE"
     )
     assert "skill(git-toolkit:git-ops)" in low, (
-        "the checkpoint commit must be requested via Skill(git-toolkit:git-ops), same as the "
-        "final integrated-green commit"
+        "the stop commit must be requested via Skill(git-toolkit:git-ops), same as the node commit"
     )
     assert "a stall must cost one work-item, never the node" in low, (
-        "the rule must state the bound explicitly: a stall costs at most one work-item, never "
-        "the whole node"
+        "the rule must state the bound: a stall costs at most one work-item, never the whole node"
+    )
+    assert "never squash or amend" in low, (
+        "the node is committed once as a plain commit - no squash or amend rewrites its history"
     )
 
 

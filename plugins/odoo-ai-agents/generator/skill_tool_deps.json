@@ -439,7 +439,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); test_class_inspect resolves an extended test-helper's base chain + cursor contract (Round 2); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline (Round 2.5); model_inspect/resolve_orm_chain/validate_relation/validate_depends ground field names + relational chains + @api.depends paths (Rounds 2/5); api_version_diff grounds the adapt-mode (forward-port) renamed/removed-API mapping; cli_help confirms the -i/-u/--test-enable/--skip-auto-install flag set for the series under test before the run. min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit/test_class_inspect)."
+      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); test_class_inspect resolves an extended test-helper's base chain + cursor contract (the test-framework round); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline (the existing-tests round); model_inspect/resolve_orm_chain/validate_relation/validate_depends ground field names + relational chains + @api.depends paths (the model/field/form-view grounding and static-validation rounds); api_version_diff grounds the adapt-mode (forward-port) renamed/removed-API mapping; cli_help confirms whether the series under test has a test-tag filter before the break-check run. min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit/test_class_inspect)."
     },
     "odoo-security-audit": {
       "mcp_tools": [
@@ -675,9 +675,14 @@
         "optional": [
           "INSTANCE_HANDLE",
           "SELF_PROVISION",
+          "ADDONS_PATH",
+          "SERVER_WIDE",
           "MASTER_DESIGN_DOC",
-          "BASE",
+          "RUN_ID",
+          "CONSTRAINTS",
           "COMMIT",
+          "TEST LEG",
+          "CHANGE KIND",
           "MODE",
           "INTENT",
           "BUCKET",
@@ -704,23 +709,31 @@
         "api_version_diff",
         "resolve_orm_chain",
         "validate_relation",
-        "validate_depends"
+        "validate_depends",
+        "cli_help"
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (ONE per node, AFTER the coders - writes or adjusts the node's tests, adapt mode included, and break-checks each on the forwarded INSTANCE_HANDLE), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate). Returns the test file paths plus one BREAK_CHECK record per behavior test. min_server 0.15.0 for the test-surface tools.",
+      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping; cli_help confirms the series' test-tag filter for the break-check run. Launched by odoo-coder (ONE per node, AFTER the coders - writes or adjusts the node's tests, adapt mode included, and break-checks each on the forwarded INSTANCE_HANDLE), odoo-acceptance (P2a durable tour/HttpCase), odoo-code-review (coverage gate). Returns the test file paths plus one BREAK_CHECK record per behavior test. min_server 0.15.0 for the test-surface tools.",
       "brief": {
         "required": [
           "MODE",
           "TARGET BEHAVIOR",
           "TEST TYPE",
-          "SURVEY",
-          "INSTANCE_HANDLE"
+          "SURVEY"
         ],
         "optional": [
+          "INSTANCE_HANDLE",
+          "SERVER_WIDE",
+          "RUN_ID",
+          "MODULE SCOPE",
+          "CROSS-MODULE ASSERTIONS",
           "CHANGED CODE",
           "CHANGE KIND",
           "OBSOLETE CANDIDATES",
+          "EXISTING COVERAGE",
+          "COVERAGE GAPS",
+          "BASE CLASS",
           "SOURCE TESTS",
           "BROKEN TEST-SYMBOLS",
           "BUCKET",
@@ -728,6 +741,9 @@
           "USER LANGUAGE",
           "SHARE_DIR",
           "ISOLATE_DIR",
+          "WORKTREE_PATH",
+          "DESIGN_DOC",
+          "MASTER_DESIGN_DOC",
           "PRIOR ATTEMPT"
         ]
       }
@@ -744,8 +760,11 @@
         ],
         "optional": [
           "INSTANCE_HANDLE",
+          "SERVER_WIDE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
+          "RUN_ID",
+          "CONSTRAINTS",
           "PRIOR ATTEMPT"
         ]
       }
@@ -870,8 +889,11 @@
         ],
         "optional": [
           "INSTANCE_HANDLE",
+          "SERVER_WIDE",
           "MASTER_DESIGN_DOC",
           "SELF_PROVISION",
+          "RUN_ID",
+          "CONSTRAINTS",
           "PRIOR ATTEMPT"
         ]
       }

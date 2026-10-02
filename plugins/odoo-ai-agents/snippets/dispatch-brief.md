@@ -104,7 +104,8 @@ grounding workers only, too).
 - `INTENT` - adapt mode: the intent record per source commit (same key from every caller).
 - `RUN_ID` - forwarded unchanged to the coordinator and every leaf (skeleton field 11).
 - The module/disjoint file-set boundary.
-- `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
+- `INSTANCE_HANDLE`, or the explicit value `none provisioned`; with it, the caller's `SERVER_WIDE`
+  (`{exclude, include}`) passes verbatim to every build on that database (`odoo-instance`).
 - `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only, never a field on
   the leaf coders' own briefs (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`
   § Worktree-addons carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is
@@ -112,8 +113,7 @@ grounding workers only, too).
 - `DESIGN_DOC` to follow STRUCTURALLY - never inlined pseudocode.
 - `SURVEY` - the opted-in deep-survey findings path from this session, or the explicit value
   `none` when no deep survey ran. Same key-must-be-present rule as field 4 `INPUTS`.
-- `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
-  rebase/adapt mode). `SHARE_DIR` + `ISOLATE_DIR` come with it (skeleton field 5).
+- `WORKTREE_PATH` mandatory, with `SHARE_DIR` + `ISOLATE_DIR` (skeleton field 5).
 - `PRIOR ATTEMPT` - COND, on a re-dispatch that SUPERSEDES a failed pass ONLY (omit on a first
   dispatch): what the failed pass returned or omitted, plus the path of the worklog entry it left.
 
@@ -285,7 +285,7 @@ Validate your OWN inbound dispatch brief carries the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `SURVEY` or the explicit value `none`
 (the key itself must be present - not even the literal `none` may be omitted, same rule as skeleton
-field 4 `INPUTS`), `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `OBJECTIVE`/`ACCEPTANCE` are
+field 4 `INPUTS`), `WORKTREE_PATH`). `OBJECTIVE`/`ACCEPTANCE` are
 NOT literal dispatch-brief keys - no real dispatch site emits either; the Coder family's own
 required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do
 not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`.
