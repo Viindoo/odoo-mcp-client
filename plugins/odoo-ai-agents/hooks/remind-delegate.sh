@@ -22,9 +22,9 @@
 #     NEVER "allow", "deny", or "ask". "defer" attaches `additionalContext` as a reminder and
 #     lets the tool call fall through to normal permission-rule evaluation, so the user still
 #     sees any prompt/deny they would otherwise see.
-#   - Self-gates: (1) requires an active run (no ISOLATE run-*.json with status NEEDS_NEXT;
-#     resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md) -> silent pass
-#     otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
+#   - Self-gates: (1) requires an active run OF THIS SESSION (an ISOLATE run-*.json with status
+#     NEEDS_NEXT, resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md, that this
+#     session acts on - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
 #     agent-role SSOT, no jq, unresolved agent_type = stay silent, never guess).
 #   - (1) is best-effort MAIN-agent-only (skip when we can tell we are in a subagent - V-52:
 #     ANY populated agent_id/agent_type means "in a subagent", no `!= general-purpose`
@@ -126,18 +126,27 @@ CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
 [[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
-active_run=""
+needs_next=()
 shopt -s nullglob
 for rf in "$RUN_DIR"/run-*.json; do
   st="$(jq -r '.status // empty' "$rf" 2>/dev/null || true)"
-  if [[ "$st" == "NEEDS_NEXT" ]]; then active_run="$rf"; break; fi
+  [[ "$st" == "NEEDS_NEXT" ]] && needs_next+=("$rf")
 done
 shopt -u nullglob
-[[ -n "$active_run" ]] || _pass    # no active run -> not in drive-to-done mode -> silent
+[[ ${#needs_next[@]} -gt 0 ]] || _pass    # no active run -> not in drive-to-done mode -> silent
+
+# Only a run THIS session drives makes it mid-run (hooks/run-ownership.sh): a NEEDS_NEXT record
+# another session - live or long dead - left in the same state dir does not. Unreadable helper or
+# transcript -> not this session's run -> silent.
+TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+[[ -r "$_HOOK_DIR/run-ownership.sh" ]] || _pass
+# shellcheck source=/dev/null
+. "$_HOOK_DIR/run-ownership.sh"
+[[ -n "$(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")" ]] || _pass
 
 # One text for every heavy tool, so Bash, Edit and Write share one reminder.
 CTX="You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating Bash/Edit/Write work to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right."
-_seen "$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)" "$CTX" && _pass
+_seen "$TRANSCRIPT" "$CTX" && _pass
 jq -cn --arg ctx "$CTX" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
 exit 0

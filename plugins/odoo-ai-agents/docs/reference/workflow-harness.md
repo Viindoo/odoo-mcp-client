@@ -932,7 +932,8 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │   stop ⇒ DONE | BLOCKED | NEEDS_CONTEXT  → report + evidence (Completion #8)           │
 └────────────────────────────────────────────────────────────────────────────────────────┘
   HOOKS (self-gate to pass when no active run; NONE hard-blocks MAIN):
-   • PreToolUse  remind-delegate  → main Write/Edit/Bash during active run ⇒ additionalContext
+   • PreToolUse  remind-delegate  → main Write/Edit/Bash during an active run THIS session drives
+                 (it acted on the run record and nobody wrote it since) ⇒ additionalContext
                  nudge "consider delegating" (permissionDecision=defer, never allow/deny/ask),
                  once per context window (not again while the same text is in the transcript)
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
@@ -940,7 +941,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                  SubagentStop array's hard blocks live in its enforce-grounding, enforce-teardown
                  and enforce-background-wait siblings, quality gates that apply ONLY to
                  subagents, never main)
-   • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
+   • Stop        drive-continuation → main ends turn while ITS run==NEEDS_NEXT ⇒ systemMessage
                  advisory (continue=true, never block) - main keeps the right to stop; said once
                  per run node per context window
   blackboard <ISOLATE_DIR>/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒

@@ -59,6 +59,7 @@ import os
 import re
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -634,6 +635,18 @@ def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
         json.dumps({"status": "NEEDS_NEXT"}), encoding="utf-8"
     )
 
+    # The nudge is for a run THIS session drives (hooks/run-ownership.sh): its transcript shows it
+    # acting on the run record, after the record was written.
+    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    transcript = tmp_path / "session.jsonl"
+    transcript.write_text("\n".join([
+        json.dumps({"type": "assistant", "timestamp": now, "message": {"role": "assistant",
+                    "content": [{"type": "tool_use", "id": "toolu_run", "name": "Read",
+                                 "input": {"file_path": str(isolate_dir / "run-test123.json")}}]}}),
+        json.dumps({"type": "user", "timestamp": now, "message": {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "toolu_run", "content": "{}"}]}}),
+    ]) + "\n", encoding="utf-8")
+
     payload = {
         "hook_event_name": "PreToolUse",
         "tool_name": "Write",
@@ -641,6 +654,7 @@ def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
         # No agent_id/agent_type: this is the MAIN agent (not a subagent) - the branch the
         # test_remind_delegate_never_allows_risky_git_mutation test above cannot reach.
         "cwd": str(REPO_ROOT),
+        "transcript_path": str(transcript),
     }
 
     env = dict(os.environ)
