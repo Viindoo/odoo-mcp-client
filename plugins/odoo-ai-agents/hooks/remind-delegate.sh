@@ -18,14 +18,16 @@
 #   the agent / deadlock) - but silently auto-approving is equally dangerous: it would bypass
 #   normal permission-rule evaluation (incl. the user's own deny/ask rules) for the exact git
 #   mutation / risky tool call this hook exists to discourage. So:
-#   - permissionDecision is ALWAYS "defer" (the documented no-opinion value for PreToolUse) -
-#     NEVER "allow", "deny", or "ask". "defer" attaches `additionalContext` as a reminder and
-#     lets the tool call fall through to normal permission-rule evaluation, so the user still
-#     sees any prompt/deny they would otherwise see.
+#   - The output carries `additionalContext` ONLY - NO permissionDecision at all. Without one the
+#     call goes through normal permission evaluation untouched, so the user still sees any
+#     prompt/deny they would otherwise see. No decision value is neutral: "allow"/"ask"/"deny"
+#     decide the call, and "defer" is not a no-op either - in a `claude -p` / SDK run it stops the
+#     session at that tool call (stop_reason tool_deferred) for the calling process to resume.
 #   - Self-gates: (1) requires an active run OF THIS SESSION (an ISOLATE run-*.json with status
 #     NEEDS_NEXT, resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md, that this
-#     session wrote last - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
-#     agent-role SSOT, no jq, unresolved agent_type = stay silent, never guess).
+#     session wrote last - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a
+#     resolvable role=leaf match -> silent pass otherwise (no agent-role SSOT, no jq, unresolved
+#     agent_type = stay silent, never guess).
 #   - (1) is best-effort MAIN-agent-only (skip when we can tell we are in a subagent - V-52:
 #     ANY populated agent_id/agent_type means "in a subagent", no `!= general-purpose`
 #     special-case, honoring this hook's own "stay silent when unsure" contract). (2) is the
@@ -100,7 +102,7 @@ if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
       CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the coordinator/orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
       _seen "$(_lease_agent_transcript "$INPUT")" "$CTX" && _pass
       jq -cn --arg ctx "$CTX" \
-        '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
+        '{hookSpecificOutput:{hookEventName:"PreToolUse", additionalContext:$ctx}}'
       exit 0
     fi
   fi
@@ -136,5 +138,5 @@ owned="$(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")"
 CTX="You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating Bash/Edit/Write work to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right."
 _seen "$TRANSCRIPT" "$CTX" && _pass
 jq -cn --arg ctx "$CTX" \
-  '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
+  '{hookSpecificOutput:{hookEventName:"PreToolUse", additionalContext:$ctx}}'
 exit 0
