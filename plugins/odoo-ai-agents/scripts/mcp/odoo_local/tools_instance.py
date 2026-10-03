@@ -39,9 +39,10 @@ Build facts the TOOL applies (instance_build), never the agent:
                        acquire). --load REPLACES Odoo's default, so when modules are declared but the
                        core default cannot be read the build is refused (SERVER_WIDE_CORE_UNKNOWN)
                        rather than guessed; nothing declared -> no --load at all. instance_serve
-                       gets the same set from 50-instance-spinup.sh, which reads the same lease row.
-                       The `server_wide` argument (instance_build, and instance_serve on a lease of
-                       its own) adjusts that set for ONE call - core + (declared - exclude) +
+                       gets the same set from 50-instance-spinup.sh, which reads the same lease row,
+                       and instance_i18n_export through server_wide_for (tools_i18n).
+                       The `server_wide` argument (instance_build, instance_i18n_export, and
+                       instance_serve on a lease of its own) adjusts that set for ONE call - core + (declared - exclude) +
                        include, refused per instances_io's rules (INVALID_ARGUMENTS naming
                        arguments.server_wide.<exclude|include>; SERVER_WIDE_MODULE_NOT_FOUND) - and is then passed as --load (serve: the
                        complete set as 50-instance-spinup.sh --load). The lease and the catalog
@@ -1238,7 +1239,7 @@ SERVER_WIDE_PROP = {
                    "checkout + the server_wide_modules the lease recorded from its catalog row. "
                    "The set loaded is core default + (declared - exclude) + include, core first; "
                    "the lease and the catalog stay unchanged, so pass the same server_wide to "
-                   "every build and serve that must run with it. Use it when the task needs a "
+                   "every build, serve and export that must run with it. Use it when the task needs a "
                    "different set, e.g. a database without the deployment's branding modules "
                    "(exclude them) or a new module that must load server-wide (include it). "
                    "Refused: excluding a core-default module or one not declared, naming a "
@@ -1280,8 +1281,8 @@ JOB_WAIT_OUTPUT = _obj({
     "output_tail": {"type": "array", "items": {"type": "string"}},
     "detail": {"type": "string"},
     "server_wide_modules": {"type": "array", "items": {"type": "string"},
-                            "description": "The complete --load set the build ran with (empty = "
-                                           "none passed: Odoo's own default)."},
+                            "description": "The complete --load set the build or export ran "
+                                           "with (empty = none passed: Odoo's own default)."},
     "server_wide_adjustment": SERVER_WIDE_ADJUSTMENT_OUT,
     "demo": {"type": ["string", "null"], "enum": ["on", "off", None],
              "description": "The demo value the build ran with (op test: the series default the "

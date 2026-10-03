@@ -283,6 +283,82 @@ def test_an_i18n_export_from_a_worktree_only_addons_path_finds_the_declared_odoo
     assert any(l.startswith("LOG_PATH=") for l in res.stdout.splitlines()), res.stdout + res.stderr
 
 
+def _i18n_export_run(tmp_path, *extra, checkout="17.0"):
+    """Run a whole `i18n-export` of x_cap (template only) against a fake odoo-bin whose directory
+    is a fixture checkout of `checkout`, and a fake venv python whose `odoo_db.py` says x_cap is
+    installed with its demo data. Returns (result, [argv of each export call], [the config file
+    each export call was handed, as text])."""
+    conf_copy = tmp_path / "export-confs.log"
+    fake_bin = _make_fake_odoo_bin(tmp_path, series=checkout, extra_output=textwrap.dedent(f"""\
+        conf=""; out=""
+        prev=""
+        for a in "$@"; do
+            case "$a" in
+                --i18n-export=*|--output=*) out="${{a#*=}}" ;;
+                --config=*) conf="${{a#*=}}" ;;
+            esac
+            [[ "$prev" == "-c" ]] && conf="$a"
+            prev="$a"
+        done
+        [[ -n "$conf" ]] && {{ cat "$conf"; echo "=="; }} >> "{conf_copy}"
+        [[ -n "$out" ]] && printf 'msgid ""\\nmsgstr ""\\n' > "$out"
+        """))
+    fake_dir = tmp_path / "fake-py-bin"
+    fake_dir.mkdir(exist_ok=True)
+    fake_py = fake_dir / "python"
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "${{2:-}}" == "--version" ]]; then echo "Odoo Server"; exit 0; fi
+        case "${{1:-}}" in
+            *odoo_db.py)
+                [[ "${{2:-}}" == i18n-state ]] && echo "MODULE=x_cap STATE=installed DEMO=1"
+                exit 0 ;;
+            "{fake_bin}") shift; exec bash "{fake_bin}" "$@" ;;
+        esac
+        exec {real_python3()} "$@"
+        """))
+    addons = tmp_path / "addons"
+    (addons / "x_cap").mkdir(parents=True)
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+    res = _run("i18n-export", "--db", "i18ndb", "--python", str(fake_py), "--addons", str(addons),
+               "--modules", "x_cap", "--target", "x_cap=%s" % (tmp_path / "out"), *extra, env=env)
+    calls = tmp_path / "odoo-bin-calls.log"
+    argvs = [line.split()[1:] for line in calls.read_text(encoding="utf-8").splitlines()
+             ] if calls.exists() else []
+    confs = conf_copy.read_text(encoding="utf-8").split("==\n")[:-1] if conf_copy.exists() else []
+    return res, argvs, confs
+
+
+@requires_bash
+def test_an_i18n_export_hands_the_server_its_server_wide_set_as_load(tmp_path):
+    """The export runs on the set the database's builds load, spelled as the build verbs spell it."""
+    res, argvs, _confs = _i18n_export_run(tmp_path, "--load", "base,web,to_base")
+    assert res.returncode == 0 and "STATUS=ok" in res.stdout, res.stdout + res.stderr
+    (argv,) = argvs
+    assert [a for a in argv if a.startswith("--load=")] == ["--load=base,web,to_base"], argv
+
+
+@requires_bash
+def test_the_i18n_export_subcommand_reads_its_server_wide_set_from_its_config_file(tmp_path):
+    """`odoo-bin i18n export` has no --load option and takes every server option from its config
+    file: the set goes there, under the option's own key."""
+    res, argvs, confs = _i18n_export_run(tmp_path, "--load", "base,rpc,web,to_base", checkout="19.0")
+    assert res.returncode == 0 and "STATUS=ok" in res.stdout, res.stdout + res.stderr
+    (argv,) = argvs
+    assert argv[:2] == ["i18n", "export"] and not [a for a in argv if a.startswith("--load")], argv
+    (conf,) = confs
+    assert "server_wide_modules = base,rpc,web,to_base" in conf.splitlines(), conf
+
+
+@requires_bash
+@pytest.mark.parametrize("bad", ["base, web", ""])
+def test_an_i18n_export_refuses_a_malformed_server_wide_set(tmp_path, bad):
+    res, argvs, _confs = _i18n_export_run(tmp_path, "--load", bad)
+    assert res.returncode == 2, res.stderr
+    assert "--load must be a comma-separated module list" in res.stderr, res.stderr
+    assert argvs == [], "nothing is launched"
+
+
 # ---------------------------------------------------------------------------
 # Contract 2a: test - passing run -> TEST_RESULT=passed
 # ---------------------------------------------------------------------------

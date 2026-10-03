@@ -49,9 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `odoo-ai-agents` - a build did not reliably find `odoo-bin`; it now looks in the lease's `odoo_root`.
 - `odoo-ai-agents` - an `addons_path` override that drops the Odoo checkout's core addons is refused
   at lease acquire and by `instance_serve`.
+- `odoo-ai-agents` - `instance_i18n_export` ran Odoo without the server-wide set its database was
+  built with. It now applies the same `--load` as `instance_build` (core default + the lease's
+  `server_wide_modules`) and takes the same `server_wide` adjustment; the `i18n export`
+  subcommand gets the set in its config file.
 - `odoo-ai-agents` - allocator receipts survive a trimmed pipe, and `--help` passes the lease gate.
 - `odoo-ai-agents` - `ensure-ethos-import` no longer lets a `--plugin-dir` checkout replace a valid
   marketplace import.
+- `odoo-ai-agents` - `docs/setup.md` and `05-prereq-check.sh` said the platform nesting cap is 5.
+  Claude Code 2.1.288 defaults `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` to 3, counts the main
+  conversation as depth 0, and drops the launch tool from an agent at depth 3. R0 move 1 now states
+  the cap and how depth is counted, every other mention points there, and a test keeps it that way.
 - `git-toolkit` - **a launcher collects a child's result by the launch tool it holds.**
   `snippets/git-nesting-protocol.md` said every launch is asynchronous and a dispatched launcher is
   always woken with its child's result. That is untrue where the launch tool has a

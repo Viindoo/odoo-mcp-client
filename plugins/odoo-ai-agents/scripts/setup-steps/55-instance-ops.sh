@@ -158,7 +158,9 @@
 #   i18n-export --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--languages <code,...>] --target <module>=<dir> (one per module)
 #             [--i18n-dir <module>=<dir>] [--db-host H] [--db-user U] [--db-port P]
-#             [--version <X.Y>] [--odoo-root <dir>]
+#             [--version <X.Y>] [--odoo-root <dir>] [--load <a,b>]
+#             --load: the COMPLETE server-wide set, as for the build verbs (see
+#             "Build facts"); see cmd_i18n_export for where each form takes it.
 #             Per module: the `.pot` template FIRST, then one `.po` per language
 #             (named as the module already names it, else by the language's ISO
 #             code as Odoo names it - see cmd_i18n_export), all from this one
@@ -2568,16 +2570,18 @@ cmd_test() {
 #
 #   The command line is READ from the launcher's checkout (odoo_i18n_facts):
 #     server form     odoo-bin -c <conf> -d <db> --addons-path <p> <db conn>
-#                       --log-level=info --modules=<m> [--language=<code>]
-#                       --i18n-export=<tmp> --stop-after-init
+#                       --log-level=info [--load=<a,b>] --modules=<m>
+#                       [--language=<code>] --i18n-export=<tmp> --stop-after-init
 #                     (the server exports and exits before it would listen)
 #     subcommand form odoo-bin i18n export --config=<conf> --database=<db>
 #                       --output=<tmp> [--languages=<code>] <m>
-#                     (that parser takes its connection and addons path from a
-#                     config file only)
+#                     (that parser takes its connection, addons path and
+#                     server-wide set from a config file only)
 #   <conf> is written beside the log with addons_path / db_host / db_port /
-#   db_user (_write_run_conf - never a password: libpq reads PGPASSWORD, exported
-#   for the launch exactly as the build verbs do) and removed on exit; with it
+#   db_user, and - subcommand form, given --load - server_wide_modules (the
+#   option --load sets; the key the served conf states too) (_write_run_conf -
+#   never a password: libpq reads PGPASSWORD, exported for the launch exactly
+#   as the build verbs do) and removed on exit; with it
 #   the operator's own config file is never read by either form.
 #   No --language / --languages = the template (every series' default).
 #
@@ -2596,6 +2600,7 @@ cmd_test() {
 #         [--i18n-dir <module>=<absolute dir>] (the module's own i18n/ directory,
 #         whose files decide each .po name; default: its --target)
 #         [--db-host H] [--db-user U] [--db-port P] [--version <X.Y>]
+#         [--load <a,b>] (the server-wide set the database's builds load)
 #   Output: LOG_PATH=, then one EXPORTED=<module>|<language code, empty for the
 #   template>|<file> line per file in export order, EXPORT_COUNT=<n>,
 #   STATUS=ok|error. Exit 0 only when every file was written.
@@ -2667,7 +2672,9 @@ _i18n_export_one() {
     local -a argv
     if [[ "$ODOO_I18N_FORM" == "server" ]]; then
         argv=("$arg_python" "$odoo_bin" -c "$i18n_conf" -d "$arg_db" --addons-path "$addons_csv"
-              "${DB_CONN_ARGS[@]}" --log-level=info "${ODOO_I18N_MODULES_FLAG}=${module}")
+              "${DB_CONN_ARGS[@]}" --log-level=info)
+        [[ -n "$arg_load" ]] && argv+=("--load=${arg_load}")
+        argv+=("${ODOO_I18N_MODULES_FLAG}=${module}")
         [[ -n "$code" ]] && argv+=("${ODOO_I18N_LANGUAGE_FLAG}=${code}")
         argv+=("${ODOO_I18N_EXPORT_FLAG}=${tmp}" --stop-after-init)
     else
@@ -2703,11 +2710,11 @@ _i18n_export_one() {
 
 cmd_i18n_export() {
     local arg_db="" arg_python="" arg_addons="" arg_modules="" arg_languages="" arg_version=""
-    local arg_db_host="" arg_db_user="" arg_db_port="" arg_odoo_root=""
+    local arg_db_host="" arg_db_user="" arg_db_port="" arg_odoo_root="" arg_load="" load_given=""
     local -a arg_targets=() arg_i18n_dirs=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --db|--python|--addons|--modules|--languages|--version|--db-host|--db-user|--db-port|--odoo-root|--target|--i18n-dir)
+            --db|--python|--addons|--modules|--languages|--version|--db-host|--db-user|--db-port|--odoo-root|--target|--i18n-dir|--load)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): $1 requires a value" >&2; exit 2; }
                 case "$1" in
                     --db) arg_db="$2" ;;
@@ -2722,6 +2729,7 @@ cmd_i18n_export() {
                     --odoo-root) arg_odoo_root="$2" ;;
                     --target) arg_targets+=("$2") ;;
                     --i18n-dir) arg_i18n_dirs+=("$2") ;;
+                    --load) arg_load="$2"; load_given=1 ;;
                 esac
                 shift 2 ;;
             *) echo "$(basename "$0"): unknown argument: $1" >&2; exit 2 ;;
@@ -2733,6 +2741,9 @@ cmd_i18n_export() {
         echo "$(basename "$0"): --modules must be a comma-separated module list (got '$arg_modules')" >&2; exit 2; }
     [[ -z "$arg_languages" || "$arg_languages" =~ ^[A-Za-z0-9_@]+(,[A-Za-z0-9_@]+)*$ ]] || {
         echo "$(basename "$0"): --languages must be a comma-separated language-code list (got '$arg_languages')" >&2; exit 2; }
+    # The build verbs' rule (_parse_common_args): given at all, a non-empty module list.
+    [[ -z "$load_given" || "$arg_load" =~ ^[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*$ ]] || {
+        echo "$(basename "$0"): --load must be a comma-separated module list (got '$arg_load')" >&2; exit 2; }
     local -a modules=() languages=()
     IFS=, read -r -a modules <<<"$arg_modules"
     [[ -n "$arg_languages" ]] && IFS=, read -r -a languages <<<"$arg_languages"
@@ -2845,10 +2856,17 @@ cmd_i18n_export() {
     trap '_i18n_cleanup; exit 130' INT
     local i18n_conf="${logf%.log}.i18n.conf"
     _I18N_CONF="$i18n_conf"
+    # The server form is handed --load on its command line (_i18n_export_one); the
+    # subcommand's parser has no such option and reads the set from the conf.
+    local load_line=""
+    if [[ "$ODOO_I18N_FORM" != "server" && -n "$arg_load" ]]; then
+        load_line="server_wide_modules = ${arg_load}"
+    fi
     _write_run_conf "$i18n_conf" "addons_path = ${addons_csv}" \
         "${arg_db_host:+db_host = ${arg_db_host}}" \
         "${arg_db_user:+db_user = ${arg_db_user}}" \
-        "${arg_db_port:+db_port = ${arg_db_port}}"
+        "${arg_db_port:+db_port = ${arg_db_port}}" \
+        "$load_line"
 
     local export_count=0 n=0
     for module in "${modules[@]}"; do
