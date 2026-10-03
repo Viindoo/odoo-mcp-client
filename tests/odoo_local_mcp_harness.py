@@ -44,10 +44,12 @@ def hermetic_env(home: Path, **extra) -> dict:
 
 
 class McpClient:
-    def __init__(self, env: dict, cwd: Path, timeout: float = 30.0):
+    def __init__(self, env: dict, cwd: Path, timeout: float = 30.0, launcher=()):
+        """`launcher` prefixes the server command line - a staged parent process tree the server
+        is started through (its stdio must pass through to the server untouched)."""
         self.timeout = timeout
         self.proc = subprocess.Popen(
-            [sys.executable, str(SERVER)],
+            [str(a) for a in launcher] + [sys.executable, str(SERVER)],
             cwd=str(cwd),
             env=env,
             stdin=subprocess.PIPE,

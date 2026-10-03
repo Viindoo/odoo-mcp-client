@@ -224,15 +224,67 @@ def _session_anchor():
     return mod
 
 
-def test_server_anchors_on_the_nearest_agent_cli_ancestor_else_its_parent(ready):
-    anchor = structured(ready.call("server_info"))["anchor"]
-    # The test process is the server's parent. When the suite itself runs inside an agent session,
-    # the nearest agent-CLI ancestor is the session; otherwise the parent is.
+# A staged parent for the server: records its own pid in a file (stdout is the MCP wire), then runs
+# argv as its child with stdio passed through. "orphan" first forks and lets the original exit, so
+# the recording process is re-parented away from pytest and its tree holds no agent CLI.
+_LAUNCHER = """
+import os, subprocess, sys, time
+pidfile, mode, argv = sys.argv[1], sys.argv[2], sys.argv[3:]
+if mode == "orphan":
+    original = os.getpid()
+    if os.fork():
+        os._exit(0)
+    deadline = time.time() + 30
+    while os.getppid() == original and time.time() < deadline:
+        time.sleep(0.02)
+with open(pidfile + ".tmp", "w") as f:
+    f.write(str(os.getpid()))
+os.rename(pidfile + ".tmp", pidfile)
+time.sleep(0.05)  # a fingerprint counts clock ticks: keep the child's start in a later tick than ours
+sys.exit(subprocess.call(argv))
+"""
+
+# The `claude` -> `sh -c` -> server shape is
+# test_a_server_started_through_a_wrapper_shell_anchors_on_the_agent_cli_not_the_wrapper.
+_SERVER_SHAPES = {
+    # shape: (staged process name, launcher mode, anchor source)
+    "agent-cli-parent": ("claude", "stay", "mcp-ppid"),
+    "no-agent-ancestor": ("launcher", "orphan", "mcp-ppid"),
+}
+
+
+@pytest.mark.parametrize("shape", list(_SERVER_SHAPES))
+def test_server_anchors_on_the_nearest_agent_cli_ancestor_else_its_parent(tmp_path, shape):
+    """The server anchors on the nearest agent-CLI ancestor, else on its parent - judged on a
+    process tree this test stages, never on pytest's own ancestry (which can change mid-run)."""
     sa = _session_anchor()
-    expected = sa._ancestor_anchor(os.getpid()) or os.getpid()
-    assert anchor["pid"] == expected
-    assert anchor["fingerprint"] == (sa.fingerprint(expected) or "")
-    assert anchor["exported"] is bool(anchor["fingerprint"])
+    name, mode, source = _SERVER_SHAPES[shape]
+    fake = tmp_path / name
+    try:
+        os.symlink(os.path.realpath(sys.executable), fake)
+    except OSError:
+        pytest.skip("cannot stage a process named %s" % name)
+    pidfile = tmp_path / "staged.pid"
+    launcher = [fake, "-c", _LAUNCHER, pidfile, mode]
+    with McpClient(hermetic_env(tmp_path / "home"), tmp_path, launcher=launcher) as client:
+        client.initialize()
+        anchor = structured(client.call("server_info"))["anchor"]
+        staged = int(pidfile.read_text())
+        fingerprint = sa.fingerprint(staged)
+        if not fingerprint or name not in sa._comm_and_exe(staged):
+            pytest.skip("this host cannot fingerprint or name the staged process")
+        if shape == "no-agent-ancestor":
+            pid = sa._parent(staged)
+            for _level in range(sa.MAX_ANCESTOR_LEVELS):
+                if pid is None or pid <= 1:
+                    break
+                if set(sa._comm_and_exe(pid)) & set(sa.ANCHOR_COMMS):
+                    pytest.skip("the re-parented launcher still has an agent CLI ancestor here")
+                pid = sa._parent(pid)
+        assert anchor["pid"] == staged, anchor
+        assert anchor["fingerprint"] == fingerprint
+        assert anchor["exported"] is True
+        assert anchor["source"] == source
 
 
 def test_server_reports_the_session_id_it_was_started_with(tmp_path):
@@ -242,20 +294,68 @@ def test_server_reports_the_session_id_it_was_started_with(tmp_path):
         assert structured(client.call("server_info"))["anchor"]["session_id"] == "sess-123"
 
 
-def test_children_inherit_anchor_and_via(tmp_path, monkeypatch):
-    monkeypatch.delenv("ODOO_AI_SESSION_ANCHOR", raising=False)
-    rc, out, _ = cli.run([sys.executable, "-c",
-                          "import os, json; print(json.dumps({k: os.environ.get(k) for k in "
-                          "('ODOO_AI_SESSION_ANCHOR', 'ODOO_AI_VIA')}))"], tmp_path, 30)
-    assert rc == 0
-    seen = json.loads(out)
-    assert seen["ODOO_AI_VIA"] == "mcp"
-    anchor = cli.anchor()
-    expected = _session_anchor().format_anchor(anchor.pid, anchor.fingerprint) if anchor.fingerprint else None
-    assert seen["ODOO_AI_SESSION_ANCHOR"] == expected
-    if expected:
-        sa = _session_anchor()
-        assert sa.parse_anchor(expected) == (sa._ancestor_anchor(os.getppid()) or os.getppid(), anchor.fingerprint)
+# The server side of the inheritance check, run as a FRESH process so its anchor is computed from
+# the process tree the test staged - never one cached in this pytest process by an earlier test,
+# and never the tree of whoever launched pytest (which can change mid-run: a backgrounded
+# `make test` is reparented when its launching shell exits).
+_INHERIT_PROBE = """
+import json, os, sys
+sys.path.insert(0, sys.argv[1])
+from odoo_local import cli
+rc, out, _ = cli.run([sys.executable, "-c", "import os, json; print(json.dumps({k: os.environ.get(k) "
+                      "for k in ('ODOO_AI_SESSION_ANCHOR', 'ODOO_AI_VIA')}))"], os.getcwd(), 30)
+print(json.dumps({"rc": rc, "seen": json.loads(out), "anchor": cli.anchor().as_dict(), "ppid": os.getppid()}))
+"""
+
+# A stand-in agent session: reports its pid, waits until the test has fingerprinted it, then runs
+# the launch command (argv) as its child and relays the child's stdout.
+_FAKE_SESSION = """
+import os, subprocess, sys, time
+sys.stdout.write("%d\\n" % os.getpid())
+sys.stdout.flush()
+sys.stdin.readline()
+time.sleep(0.05)  # a fingerprint counts clock ticks: keep the child's start in a later tick than ours
+child = subprocess.run(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, universal_newlines=True)
+sys.stdout.write(child.stdout)
+sys.exit(child.returncode)
+"""
+
+
+@pytest.mark.parametrize("launch", ["direct-child", "through-wrapper"])
+def test_children_inherit_anchor_and_via(tmp_path, launch):
+    """A process the server runs inherits ODOO_AI_SESSION_ANCHOR naming the agent session that
+    started the server - also when a wrapper (`sh -c`) sits between them - plus ODOO_AI_VIA=mcp."""
+    sa = _session_anchor()
+    fake = tmp_path / "claude"
+    try:
+        os.symlink(os.path.realpath(sys.executable), fake)
+    except OSError:
+        pytest.skip("cannot stage a process named claude")
+    probe = [sys.executable, "-c", _INHERIT_PROBE, str(MCP_DIR)]
+    if launch == "through-wrapper":
+        probe = ["/bin/sh", "-c", '"$@"; exit $?', "sh"] + probe  # `; exit` keeps sh from exec-ing
+    proc = subprocess.Popen([str(fake), "-c", _FAKE_SESSION] + probe, cwd=str(tmp_path),
+                            env=hermetic_env(tmp_path / "home"), stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    try:
+        session = int(proc.stdout.readline())
+        fingerprint = sa.fingerprint(session)
+        comm, exe = sa._comm_and_exe(session)
+        if not fingerprint or "claude" not in (comm, exe):
+            pytest.skip("this host cannot fingerprint or name the staged session process")
+        out, err = proc.communicate("go\n", timeout=60)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+    assert proc.returncode == 0, err
+    result = json.loads(out)
+    assert (result["ppid"] == session) is (launch == "direct-child"), "the staged process tree is not the intended one"
+    assert result["rc"] == 0
+    assert result["seen"]["ODOO_AI_VIA"] == "mcp"
+    assert result["seen"]["ODOO_AI_SESSION_ANCHOR"] == sa.format_anchor(session, fingerprint), (
+        "the child must inherit the anchor of the agent session, not of a wrapper in between")
+    assert result["anchor"]["source"] == ("mcp-ppid" if launch == "direct-child" else "mcp-ancestor")
 
 
 def test_operator_anchor_opt_out_is_propagated_untouched(tmp_path, monkeypatch):
