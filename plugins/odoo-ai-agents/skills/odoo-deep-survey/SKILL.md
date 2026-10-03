@@ -2,7 +2,7 @@
 name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
-  Deep codebase survey, run only by odoo-intake after the user opts in
+  Deep codebase survey; only odoo-intake runs it, on user opt-in
 model: opus
 ---
 

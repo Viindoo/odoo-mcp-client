@@ -161,7 +161,12 @@ A skill's or command's `description` frontmatter is what makes it trigger, and e
 model-invocable one is shown to the model on every turn in ONE skill listing that Claude Code caps
 at a share of the context window, shared with Claude Code's bundled skills, every other installed
 plugin and the user's own skills. Over the cap the harness keeps the names but drops descriptions,
-so the binding limit is the AGGREGATE, not any one entry.
+so the binding limit is the AGGREGATE, not any one entry. At the default budget on a 200k-token
+window, Claude Code's bundled skills plus this repo's skill names already fill the listing, so most
+plugin skills reach the model by name only; `/odoo-ai-agents:odoo-setup` (step
+`35-skill-listing-budget`) measures the session and offers to raise `skillListingBudgetFraction`.
+On large-context models the default budget holds everything. The counting and Claude Code's
+defaults live in `plugins/odoo-ai-agents/scripts/lib/skill_listing.py`; the shares in the test.
 Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 
 - **English only, ASCII.** No trigger lists in other languages; the model maps a user's language
@@ -169,9 +174,9 @@ Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 - **Meaning first, length follows.** State what the skill does, its core trigger intent, and a
   route-out only where a neighbour is genuinely confusable. No paraphrase lists, examples, process
   detail or marketing wording - those belong in the body.
-- **Each plugin in this repo stays inside its share** (`PLUGIN_LISTING_BUDGETS` in the test; the
-  shares together leave a stated reserve of the cap for bundled and user skills). A new skill pays
-  for itself by tightening others, never by raising a share. A command that is purely a user shortcut for a still-visible skill may set
+- **Each plugin in this repo stays inside its share** (`PLUGIN_LISTING_BUDGETS` in the test,
+  sized for a raised budget with room left for the user's own skills). A new skill pays for itself
+  by tightening others, never by raising a share. A command that is purely a user shortcut for a still-visible skill may set
   `disable-model-invocation: true` (it leaves the listing), unless an orchestrator skill or workflow
   names it.
 

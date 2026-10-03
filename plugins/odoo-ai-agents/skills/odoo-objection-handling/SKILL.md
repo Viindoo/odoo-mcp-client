@@ -2,7 +2,7 @@
 name: odoo-objection-handling
 argument-hint: "[objection / concern]"
 description: >-
-  Evidence-backed reply to a prospect objection about Odoo
+  Evidence-backed reply to a prospect objection or a competitor's claim about Odoo
 ---
 
 ## Role

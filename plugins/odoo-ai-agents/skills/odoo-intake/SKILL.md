@@ -2,7 +2,7 @@
 name: odoo-intake
 argument-hint: "[your goal in plain words]"
 description: >-
-  Front door for vague or multi-step Odoo/ERP requests: clarifies intent and plans. Skip it when one skill clearly fits
+  Front door for vague or multi-step Odoo/ERP requests: clarifies intent and plans. Skip it if one skill fits
 model: inherit
 ---
 
