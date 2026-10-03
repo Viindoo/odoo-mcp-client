@@ -24,8 +24,8 @@ debug log holds a "Skill listing over budget" line that describes the CURRENT st
 is the measurement of the WHOLE listing (bundled included) and wins. A line describes the current
 state only when it was written after every input that shapes the listing last changed (the
 settings files, the installed-plugin record, each enabled plugin's install, the user's and the
-project's skill dirs) and in a session of THIS project (its "Loading skills from" line names this
-project's skills dir). Such a line was logged under the fraction in force now, so the window it
+project's skill dirs) and in a session of THIS project (the log names this project's skills dir
+or its project settings paths - see `_same_project`). Such a line was logged under the fraction in force now, so the window it
 implies is sound. Anything else - a line from before a raise, before a plugin update, or from
 another project - is ignored, and the bundled part is the observation below.
 
@@ -250,8 +250,8 @@ def _mtime(path):
 
 
 def listing_inputs(config_dir, cwd):
-    """Every file or dir whose change can change the listing; their newest mtime is the moment
-    the listing last changed shape."""
+    """The files (and plugin install dirs) whose change can change the listing; their newest
+    mtime is the moment the listing last changed shape."""
     paths = [path for _scope, path in settings_files(config_dir, cwd)]
     paths.append(os.path.join(config_dir, "plugins", "installed_plugins.json"))
     registry = _read_json(os.path.join(config_dir, "plugins", "installed_plugins.json"))
@@ -259,8 +259,14 @@ def listing_inputs(config_dir, cwd):
         root = _install_path(registry, key, cwd)
         if root:
             paths.append(root)
+    # The skill and command FILES, followed through symlinks - not their directories: a hook or
+    # sync that re-creates an unchanged symlink touches the directory but not the listing. A
+    # skill removed since the log is not noticed; that only shrinks the listing, so the logged
+    # size errs high.
     for base in (config_dir, os.path.join(cwd, ".claude")):
-        paths += [os.path.join(base, "skills"), os.path.join(base, "commands")]
+        paths += glob.glob(os.path.join(base, "skills", "*", "SKILL.md"))
+        paths += glob.glob(os.path.join(base, "skills", "synced", "*", "SKILL.md"))
+        paths += glob.glob(os.path.join(base, "commands", "*.md"))
     return paths
 
 
@@ -277,12 +283,24 @@ def _line_time(line, fallback):
 
 
 def _same_project(text, cwd):
-    want = os.path.realpath(os.path.join(cwd, ".claude", "skills"))
+    """Whether a CLI debug log was written by a session whose working dir is `cwd`.
+
+    CLI 2.1.288 names the session's own project paths in two places: the "Loading skills from"
+    line lists `<dir>/.claude/skills` only when that dir exists (else `project=[]`), and every
+    session reads `<dir>/.claude/settings.json` and `settings.local.json`, logging each path
+    either as missing or in its "Watching for changes in setting files" line. A path must match
+    whole - bounded on both sides - so a project nested under another path does not pass."""
+    root = os.path.realpath(cwd)
     for listed in LOADING_SKILLS_RE.findall(text):
         for path in listed.split(","):
             path = path.strip()
-            if path and os.path.realpath(path) == want:
+            if path and os.path.realpath(path) == os.path.join(root, ".claude", "skills"):
                 return True
+    for base in {root, os.path.abspath(cwd)}:
+        own = re.compile(r"(?:^|[\s,=:\[])" + re.escape(base)
+                         + r"/\.claude/settings(?:\.local)?\.json(?=$|[\s,.\]])", re.M)
+        if own.search(text):
+            return True
     return False
 
 

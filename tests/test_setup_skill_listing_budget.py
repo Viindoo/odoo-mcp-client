@@ -287,3 +287,62 @@ def test_window_is_never_derived_from_a_budget_logged_under_another_fraction(tmp
     r = sl.measure(cwd=str(tmp_path), config_dir=str(cfg), environ={})
     assert r["source"] != "cli-debug-log"
     assert r["window_tokens"] == WINDOW
+
+
+def _real_shaped_log(cfg, settings_dir, name="real.txt"):
+    """A log shaped like CLI 2.1.288's for a project WITHOUT .claude/skills: the skills line
+    lists no project dir, and the session's working dir shows only in the project settings paths
+    it reads (logged as missing here)."""
+    (cfg / "debug").mkdir(exist_ok=True)
+    stamp = "2099-01-01T00:00:00.000Z"
+    path = cfg / "debug" / name
+    path.write_text("\n".join([
+        f"{stamp} [DEBUG] Broken symlink or missing file encountered for settings.json at path: "
+        f"{settings_dir}/.claude/settings.json",
+        f"{stamp} [DEBUG] Broken symlink or missing file encountered for settings.json at path: "
+        f"{settings_dir}/.claude/settings.local.json",
+        f"{stamp} [DEBUG] Loading skills from: managed=/etc/claude-code/.claude/skills, "
+        f"user={cfg}/skills, project=[]",
+        f"{stamp} [DEBUG] Watching for changes in setting files {cfg}/settings.json...",
+        f"{stamp} [WARN] Skill listing over budget: 98 skills, 13137 chars > 8000 budget - x",
+    ]) + "\n")
+    return path
+
+
+@requires_bash
+def test_step_trusts_a_fresh_log_of_this_project_without_project_skills(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    _age_inputs(cfg)
+    _real_shaped_log(cfg, proj)
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" in out and "LISTING_CHARS=13137" in out, out
+
+
+@requires_bash
+def test_step_rejects_a_log_whose_settings_path_only_contains_this_project_path(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    _age_inputs(cfg)
+    nested = tmp_path / "outer" / str(proj).lstrip("/")
+    _real_shaped_log(cfg, nested)
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" not in out, out
+
+
+@requires_bash
+def test_step_keeps_trusting_a_log_when_only_a_skills_dir_was_touched(tmp_path):
+    """A SessionStart hook or sync that re-creates an unchanged skill symlink touches the skills
+    directory, not the listing - the log still describes the current state."""
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    target = tmp_path / "vault" / "note-skill"
+    target.mkdir(parents=True)
+    target.joinpath("SKILL.md").write_text("---\nname: note-skill\ndescription: notes\n---\n")
+    (cfg / "skills").mkdir()
+    (cfg / "skills" / "note-skill").symlink_to(target)
+    old = __import__("time").time() - 3_600
+    os.utime(target / "SKILL.md", (old, old))
+    _age_inputs(cfg)
+    _real_shaped_log(cfg, proj)
+    later = __import__("time").time() + 5
+    os.utime(cfg / "skills", (later, later))
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" in out, out
