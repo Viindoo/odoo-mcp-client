@@ -6,24 +6,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.4.1] - 2026-10-03
+
+### Added
+
+- `odoo-ai-agents` - **`/odoo-ai-agents:odoo-setup` offers to raise the skill listing budget
+  (step `35-skill-listing-budget`).** Claude Code shows the model every skill's description in one
+  listing capped at a share of the context window (1% by default) and drops the descriptions of
+  whatever does not fit; at the default on a 200k-token window its bundled skills plus the installed
+  plugins' skills overflow it, so most skills reach the model by name only. The step measures the
+  session's listing and, only when it overflows, asks before writing `skillListingBudgetFraction`
+  to the user settings file, stating the tokens the raise adds per turn. It never writes project or
+  local settings, never lowers a value, and is skipped with `ODOO_AI_NO_LISTING_BUDGET=1`. It uses
+  the CLI's own debug-log measurement only when that line is newer than every settings file, plugin
+  and skill file it depends on and was written by a session of this project; otherwise it counts the
+  installed skill files plus the bundled skills' observed cost, so a re-run after a raise finds
+  nothing to do.
+
+### Changed
+
+- `odoo-ai-agents` - **skill and command descriptions are rewritten by meaning, in English only, to
+  fit the shared skill listing.** Each states what it does, its core trigger and a route-out only
+  where a neighbour is genuinely confusable; trigger lists in other languages, paraphrases and
+  examples are gone (the model maps the user's language to the English description). Each plugin of
+  this repo has a fixed share of the listing, sized to leave room for the user's own skills and
+  enforced by `test_skill_description_budget.py`.
+- `odoo-ai-agents` - `/odoo-run-brl` is a user shortcut only (`disable-model-invocation`): it leaves
+  the model's skill listing, and the model routes to the `odoo-brl` skill.
+- `git-toolkit` - the `git-ops` description is English-only and fits the plugin's share of the
+  listing: any git or GitHub task however casually asked, or a pasted PR/issue URL, and it defers to
+  a domain front door (code review, rebase, forward-port) when one is installed.
+- `odoo-semantic-mcp` - the `/odoo-semantic-mcp:connect` description is shortened to fit the
+  plugin's share of the listing. (`odoo-semantic-mcp` 1.0.1 -> 1.0.2.)
+
 ### Fixed
 
-- `odoo-ai-agents` - **the advisory hooks say each thing once per context window.** `detect-intent`,
-  `remind-delegate`, `drive-continuation` and the browser advisory of `enforce-teardown` re-injected
-  the same text on every prompt, tool call or turn end, and every copy stayed in the context. Each
-  now checks the session transcript (since the last compaction) through the new shared
-  `hooks/advice-once.sh` and emits only what is not already there; after a compaction, or when the
-  text changes (another run node, another page left open), it is said again.
+- `odoo-ai-agents` - **the advisory hooks say each thing once per context window.** `detect-intent`
+  and `remind-delegate` added the same text to the model's context on every prompt or tool call, and
+  every copy stayed there; the Stop and SubagentStop advisories (`drive-continuation`, the browser
+  advisory of `enforce-teardown`, the `enforce-grounding` notes and the `parse-continuation` nudge)
+  repeated the same warning at every turn end or subagent stop. Each now checks the transcript
+  since the last compaction (shared `hooks/advice-once.sh`) and emits only what is not already
+  there; after a compaction, or when the text changes (another run node, another page left open),
+  it is said again. Hard blocks are never deduplicated.
 - `odoo-ai-agents` - `detect-intent` no longer classifies prompts the harness submits on its own (a
   background task's `<task-notification>`, another agent's peer message): they carry a subagent's
   report, not the user's intent or language, and earned the Odoo hints on most turns of any session
   that dispatched agents.
-- `odoo-ai-agents` - the Stop teardown hook outran its 8 s timeout on long sessions, so the harness
-  cancelled it and the turn end stalled. On Stop it now reads only the transcript's browser lines
-  (the lease and report checks it skipped are SubagentStop-only), and the shared lease correlation
-  pairs each call with its result by lookup instead of a quadratic scan.
-- `odoo-ai-agents` - `drive-continuation` named a run record without `run_id` as `'?'`; it is named by
-  its `run-<id>.json` file.
+- `odoo-ai-agents` - **the lease gates finish well inside their timeouts on long transcripts.** The
+  Stop/SubagentStop teardown hook, the unowned-lease-mutation deny and the live-lease handback deny
+  parsed the whole transcript several times, once with a quadratic call/result join; on a long
+  session or a dispatch of tens of MB they ran out their 8 s / 5 s timeouts, and a hook the harness
+  cancels decides nothing, so a subagent could stop, or a lease it did not own could be released,
+  without the gate. Each scan now reads only the lines that can hold its calls and their results
+  (shared `hooks/transcript-lines.sh`), the Stop event reads only the browser lines (the lease and
+  report checks run on SubagentStop only), and calls are paired with results by id lookup. The
+  answers are unchanged.
+- `odoo-ai-agents` - **run reminders follow the run this session last wrote.** The mid-run delegate
+  reminder and the unfinished-run reminder fired for any `NEEDS_NEXT` run record in the state dir,
+  so a run abandoned by another or long-dead session kept every later session "mid-run". A run is
+  now this session's when the last write to its record came from one of the session's calls naming
+  it (of several, the one written last is named); a stale record of another session stays silent,
+  and when ownership cannot be told (no readable transcript) the reminders keep their earlier rule.
+- `odoo-ai-agents` - **the delegate reminder makes no permission decision.** `remind-delegate`
+  answered every reminder with `permissionDecision: "defer"`; interactive sessions ignore it, but a
+  `claude -p` or SDK run stops at that tool call, so a headless run ended at its first heavy tool
+  call mid-run. The reminder now carries context only and leaves the call to normal permission
+  evaluation.
+- `odoo-ai-agents` - `drive-continuation` named a run record without `run_id` as `'?'`; it is named
+  by its `run-<id>.json` file.
+- `odoo-ai-agents` - **agents hand their report back alone, after every other result is read.** The
+  completion rule named `SubagentHandback` as the one tool call a turn may end on, which led agents
+  to send it in the same message as their last command; a handback is written before that command's
+  result exists, so callers received a placeholder or a verification claimed before its output was
+  seen. The spawner completion contract and the worker brief now say the handback goes alone in its
+  own message after every other result (teardown included) is read, and a test checks that every
+  agent points at its plugin's return-path rule.
+- `git-toolkit` - the same fix for the toolkit's agents: `snippets/completion-reporting.md` says the
+  handback goes alone in its own message after every other result is read (a report sent beside its
+  last command could not contain that command's result), and each agent's pointer to it says "alone"
+  instead of the ambiguous "last". (`git-toolkit` 0.6.7 -> 0.6.8.)
 
 ## [7.4.0] - 2026-10-02
 
