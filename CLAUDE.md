@@ -165,8 +165,7 @@ so the binding limit is the AGGREGATE, not any one entry. At the default budget 
 window, Claude Code's bundled skills plus this repo's skill names already fill the listing, so most
 plugin skills reach the model by name only; `/odoo-ai-agents:odoo-setup` (step
 `35-skill-listing-budget`) measures the session and offers to raise `skillListingBudgetFraction`.
-On large-context models the default budget holds everything. The counting and Claude Code's
-defaults live in `plugins/odoo-ai-agents/scripts/lib/skill_listing.py`; the shares in the test.
+On large-context models the default budget holds everything.
 Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 
 - **English only, ASCII.** No trigger lists in other languages; the model maps a user's language
@@ -174,8 +173,8 @@ Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 - **Meaning first, length follows.** State what the skill does, its core trigger intent, and a
   route-out only where a neighbour is genuinely confusable. No paraphrase lists, examples, process
   detail or marketing wording - those belong in the body.
-- **Each plugin in this repo stays inside its share** (`PLUGIN_LISTING_BUDGETS` in the test,
-  sized for a raised budget with room left for the user's own skills). A new skill pays for itself
+- **Each plugin in this repo has a fixed share of the listing**, enforced by the test suite and
+  sized for a raised budget with room left for the user's own skills. A new skill pays for itself
   by tightening others, never by raising a share. A command that is purely a user shortcut for a still-visible skill may set
   `disable-model-invocation: true` (it leaves the listing), unless an orchestrator skill or workflow
   names it.

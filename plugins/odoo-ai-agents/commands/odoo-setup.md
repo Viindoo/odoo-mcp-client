@@ -534,8 +534,8 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   run).
 - **35-skill-listing-budget** - measures the session's skill listing (installed plugins enabled
   in the settings files, the user's and the project's skills, `skillOverrides`; Claude Code's
-  bundled skills from the CLI's own debug log when it holds a measurement, else from the observed
-  value `scripts/lib/skill_listing.py` records with its CLI version) and decides. Run
+  bundled skills from the CLI's own debug log when it holds a measurement, else from a cost
+  observed on a named CLI version, which the output reports as its `SOURCE`) and decides. Run
   `"$STEPS_DIR/35-skill-listing-budget.sh" propose` and read `ACTION`:
   `fits` / `env-override` / `scope-override` -> report the `NOTE` and move on, nothing to ask.
   `propose` -> put the `QUESTION` line to the user with AskUserQuestion, as given (it states the
