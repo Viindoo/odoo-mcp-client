@@ -28,8 +28,8 @@ that report goes to the root conversation, which is not waiting for it, while th
 waiting never receives it. Keep the report compact: a summary, the status, and the
 findings-file path; never diff hunks or file contents.
 
-NEVER end a turn on a bare tool call (one that carries no report) or on plain text with no report -
-that leaves your caller with nothing to read.
+The only tool call a turn may end on is `SubagentHandback`, alone in its own message;
+NEVER end on plain text without the report - either way your caller would have nothing to read.
 
 Ending your turn this way never relaxes any other contract: same safety, scale, and read-only
 boundaries, same one scoped job, and the leaves still cannot fan out.
