@@ -2,19 +2,7 @@
 name: odoo-forward-port
 argument-hint: "[from-series] [to-series] [module/range]"
 description: >-
-  This skill orchestrates an Odoo forward-port - porting fixes
-  and features from a lower-series source repo or branch up to a higher-series target -
-  as an ordered agentic pipeline that forwards INTENT, not code text. It runs a parallel
-  read-only intent sweep, a 4-outcome classification, an installable probe, a conditional
-  design route-out, a Plan Mode gate, an SHA-preserving git merge, a symbol-survival check
-  that catches autosilent field breaks, code-first adapt, per-batch verify-by-behavior, a
-  human-confirm gate, and a PR. Invoked when asked to
-  "forward-port", "port commits to a
-  newer Odoo version", "merge a fix forward", "continuous forward-port", "one-shot
-  forward-port" (which means ONE RUN, never a cherry-pick), or in Vietnamese "forward-port Odoo", "port fix lên phiên bản mới",
-  "đẩy commit lên series cao", "forward-port liên tục". Do NOT use to write one isolated
-  change (use odoo-coding), to diff two versions only (use odoo-version-diff), or to
-  review a PR (use odoo-code-review)
+  Forward-port commits from a lower Odoo series branch to a higher one, preserving intent and SHAs, in one run
 model: opus
 ---
 

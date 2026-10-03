@@ -1,8 +1,8 @@
 ---
 name: odoo-draft-followup
 argument-hint: "[deal/customer]"
-description: |
-  Draft a follow-up email for a stalled or at-risk deal. Wraps the odoo-deal-followup skill with explicit save-to-disk step. Type this slash command when you have a specific deal needing a follow-up email today
+description: >-
+  Draft a deal follow-up email and save it to disk
 ---
 # /odoo-draft-followup
 

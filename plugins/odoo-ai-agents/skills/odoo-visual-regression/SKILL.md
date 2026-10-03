@@ -1,17 +1,8 @@
 ---
 name: odoo-visual-regression
 argument-hint: "[baseline] [candidate]"
-description: >
-  Catch visual regressions by capturing a screenshot baseline of one Odoo state/build and
-  diffing it against another - before vs after an upgrade, module install, theme change, or
-  code edit. Use when two states must be compared visually and the user wants to know what
-  drifted and how wide the blast radius is. Determinism rule: same login/data/breakpoint/scroll
-  or the diff is noise. Pushy trigger: fire on "compare before and after the upgrade",
-  "screenshot baseline for Odoo", "pixel diff two Odoo builds", "so sánh giao diện trước và
-  sau", "ảnh chụp baseline Odoo". Routing: one-time aesthetic verdict on a single working
-  screen → odoo-ui-review; broken screen needing root cause → odoo-debug; demo/marketing
-  video → odoo-demo-recording; fix the defect in source → odoo-coding; static code audit
-  → odoo-code-review
+description: >-
+  Screenshot-diff an Odoo screen between two states or builds
 ---
 
 ## Role

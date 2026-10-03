@@ -1,17 +1,8 @@
 ---
 name: odoo-intake
 argument-hint: "[your goal in plain words]"
-description: >
-  Universal front door for ALL Odoo/ERP work across 9 personas (strategy, consulting, sales, pre-sales,
-  marketing, dev, QA, customer-success). Brainstorms WHEN intent is vague or open-ended, fast-paths (one-line
-  gate) WHEN it is already clear, and always gates a plan before execution. Trigger AGGRESSIVELY on any of:
-  open-ended "what can Odoo / you help me with", "I have an idea but not sure where to start", a short
-  Odoo/ERP prompt with no concrete verb, any business outcome stated without a named skill ("I need to win
-  this deal", "make our upgrade safe"), "not sure which skill", implicit ambiguity (one mapping to >=2
-  skills). Also fires on Vietnamese: "Odoo giúp được gì cho tôi", "chưa biết nên dùng skill nào", "tôi nên bắt
-  đầu từ đâu", "giúp tôi lên kế hoạch tổng thể". DO NOT trigger (defer to that specialist, which fast-fires)
-  when: an explicit /slash command; intent matches exactly ONE specialist and is single-step, incl. a lone
-  yes/no capability question; the user is already mid-workflow this session
+description: >-
+  Front door for vague, open-ended or multi-step Odoo/ERP requests from any role: clarifies intent, picks the skills and gates a plan. Skip it when one specialist clearly fits
 model: inherit
 ---
 

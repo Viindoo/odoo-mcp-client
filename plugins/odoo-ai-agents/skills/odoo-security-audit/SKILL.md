@@ -1,18 +1,8 @@
 ---
 name: odoo-security-audit
 argument-hint: "[module/path scope]"
-description: >
-  Audit Odoo Python, JavaScript, XML, and QWeb code for security vulnerabilities - severity-graded
-  findings report with file/line, exploit path, and concrete fix. Reporting only - does NOT write
-  fixes. Covers: SQL injection (cr.execute with f-string/% concat), XSS (t-raw / Markup misuse),
-  access control gaps (missing ir.model.access.csv, sudo() ACL bypass, unsafe auth='public'),
-  CSRF, unsafe deserialization (eval/pickle/safe_eval), hardcoded secrets. Trigger on: "audit
-  security", "is this code safe", "SQL injection risk", "XSS in QWeb", "check access control",
-  "sudo bypass", "hardcoded secret", "CSRF in controller". Vietnamese triggers: "kiểm tra bảo
-  mật code Odoo", "có bị SQL injection không", "review bảo mật trước khi deploy", "t-raw có an
-  toàn không". Also fires when user shares controller/model/view code and asks "okay to ship?" or
-  "anything to worry about". For fixes route to odoo-coding; for
-  a runtime symptom needing root-cause route to odoo-debug
+description: >-
+  Static security audit of Odoo code: SQL injection, XSS, access gaps, sudo misuse, secrets
 model: inherit
 ---
 

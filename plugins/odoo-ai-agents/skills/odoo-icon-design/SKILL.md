@@ -1,17 +1,8 @@
 ---
 name: odoo-icon-design
 argument-hint: "[module] [version]"
-description: >
-  Design and generate the module identity icon (static/description/icon.png, plus the icon.svg
-  source) - a version-correct SVG composed and rasterized to PNG 256x256. Dispatches
-  odoo-icon-designer. Standalone-first; no browser or instance required; OSM optional for
-  module category and version grounding. Trigger on: 'design an app icon', 'make an icon for
-  this module', 'create icon for addon', 'tạo icon module', 'thiết kế biểu tượng module',
-  'icon.png cho module', 'vẽ icon cho addon', 'thiết kế icon cho module'. route a 128px
-  live-screen CROP -> odoo-doc-illustration; in-UI FA glyphs in views or buttons -> odoo-coding
-  or odoo-frontend-design; website favicon -> odoo-coding; rendered icon review -> odoo-ui-review.
-  DO NOT trigger for editing existing screenshots, rating live screens, or authoring in-app
-  widget glyphs
+description: >-
+  Design a module's app icon (static/description/icon.png)
 ---
 
 ## Role

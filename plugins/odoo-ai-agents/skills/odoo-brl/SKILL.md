@@ -1,17 +1,8 @@
 ---
 name: odoo-brl
 argument-hint: "[requirements list / RFP]"
-description: >
-  Process a business requirement list (BRL) of any size - tens to thousands of items - into a classified,
-  costed, dependency-ordered implementation plan. For each requirement: 4-way classification
-  (Available-in-Odoo-CE / Available-in-Odoo-EE / Available-in-Viindoo / Custom) via double-profile
-  odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup table, no fabrication), and a
-  requirements traceability matrix (RTM) for consultant export. Runs as a chunked sequential-outer /
-  parallel-inner pipeline with checkpoint/resume after interruption. Fire ANY time someone pastes or points
-  to a multi-item requirement list to scope end-to-end: "classify these 400 requirements". Also fires on
-  Vietnamese: "biến RFP thành kế hoạch chi phí + công". For a SINGLE feature use odoo-feature-check;
-  odoo-brl is for when the list needs cost + dependency DAG (typically tens+ items) - a shorter
-  coverage/classification matrix with no costing routes to odoo-gap-analysis
+description: >-
+  Classify, cost and dependency-order a requirement list (tens to thousands of items) into a plan with RTM export
 model: opus
 ---
 

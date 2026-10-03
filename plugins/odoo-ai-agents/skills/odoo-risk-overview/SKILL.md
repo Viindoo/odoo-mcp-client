@@ -1,19 +1,8 @@
 ---
 name: odoo-risk-overview
 argument-hint: "[module/upgrade scope]"
-description: >
-  Produce an executive-level Odoo risk dashboard - quantifying upgrade risk (deprecated API
-  counts), change blast radius (how widely a field/method is depended on), and dependency
-  health - into a one-page summary a CEO or CTO can act on, scoped to the active tenant
-  profile + target version (confirm both if unstated). Use ANY time a manager, sponsor, or
-  executive asks about Odoo system health, upgrade readiness, or "how risky is it to change
-  X?". Pushy trigger: "give me a risk overview", "what's the upgrade risk", "is it safe to
-  upgrade", "blast radius if we deprecate field X", "technical debt - give me numbers".
-  Also fires on Vietnamese: "rủi ro nâng cấp", "nâng cấp có an toàn không".
-  Trigger especially on a deadline or decision context ("board meeting", "before we commit
-  budget", "RFP due"). When the user wants a per-line technical audit of deprecated APIs (not
-  an executive summary), route to odoo-deprecation-audit. When they want module-by-module
-  business inventory, route to odoo-customization-inventory
+description: >-
+  One-page executive risk dashboard: upgrade risk, change blast radius, dependency health
 ---
 
 ## Role

@@ -1,19 +1,8 @@
 ---
 name: odoo-coding
 argument-hint: "[what to build or change]"
-description: >
-  Use when someone wants to build or change Odoo behavior and needs the code written - the
-  single front door for ALL Odoo coding and the sole dispatcher of the odoo-coder work-node
-  coordinator, scoping and ordering nodes by dependency. Fire on ANY request to add or change
-  something in an Odoo module, even with no technical words (e.g. "discount can never exceed 20%
-  of unit price", "ticking urgent sets the deadline to tomorrow"): new model/field,
-  computed/related field, constraint, onchange/auto-fill, create/write/unlink override, access
-  rights, migration script, OWL/JS/QWeb/SCSS widget or form/list/kanban UI. Also Vietnamese:
-  "thêm trường / model", "override create/write", "ràng buộc", "onchange tự điền", "phân quyền
-  đọc ghi", "widget OWL / sửa form". DO NOT trigger for non-Odoo code. Review existing code →
-  odoo-code-review. Hook point → odoo-override-finding. Design first → odoo-solution-design.
-  Runtime/render bug → odoo-debug. Rate a screen → odoo-ui-review. Planning/estimate →
-  odoo-planning
+description: >-
+  Write or change Odoo module code for any behavior request, even non-technical: models, fields, constraints, onchange, overrides, access rights, OWL/JS/QWeb/SCSS views
 ---
 
 ## Role

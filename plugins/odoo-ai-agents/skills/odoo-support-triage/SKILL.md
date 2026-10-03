@@ -1,21 +1,8 @@
 ---
 name: odoo-support-triage
 argument-hint: "[ticket / issue]"
-description: >
-  Parse an Odoo support ticket and produce a structured triage: (1) classify it as
-  config / bug / feature-request / training, (2) generate a root-cause hint from runtime
-  symptoms or feature-gap evidence, (3) draft a resolution note or escalation memo ready
-  to send to the customer. NL-dispatches to odoo-debug for runtime bug symptoms, to
-  odoo-feature-check for feature-gap questions, and borrows odoo-deal-followup tone for
-  customer-facing replies. Outputs land in the run's isolated state dir (gitignored), never in
-  tracked files. Trigger on: "customer issue", "bug report",
-  "user complaint", "triage this ticket", "classify this issue", "draft response to
-  customer complaint", "config issue reported by customer".
-  Also fires on Vietnamese: "ticket hỗ trợ", "phân loại sự cố", "soạn phản hồi khiếu nại
-  khách hàng", "escalate vấn đề".
-  Do NOT trigger for: pre-release test authoring
-  (use odoo-qa-suite); a live render/UI bug with no customer-facing triage output
-  (use odoo-debug)
+description: >-
+  Triage a customer support ticket: classify it, hint the root cause, draft the reply
 ---
 
 ## Role

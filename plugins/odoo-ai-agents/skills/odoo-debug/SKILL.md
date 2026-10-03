@@ -1,18 +1,8 @@
 ---
 name: odoo-debug
 argument-hint: "[error / symptom / traceback]"
-description: >
-  Front-door for ALL Odoo debugging - the moment something is broken, erroring, or behaving wrong,
-  use this BEFORE writing any fix. Runs the scientific method (reproduce -> falsifiable hypothesis
-  -> bisect -> confirm-by-toggle -> regression test) and dispatches specialist debug agents per
-  phase, each at an explicitly chosen model. Fire AGGRESSIVELY on any debug/troubleshoot/diagnose
-  intent even without "debug": a traceback or exception (Expected singleton, AccessError, KeyError,
-  ParseError), "why is X broken/blank/wrong", "not updating", "wrong value", a failed module
-  install/upgrade, a broken screen/widget/console error, or acute "slow right now in production".
-  Vietnamese: "tại sao ... lỗi", "không cập nhật", "view trống", "widget không hiện", "lỗi console".
-  Routing: write the fix via odoo-coding; proactive scans (incl.
-  "audit my code for N+1") go to odoo-perf-audit / odoo-security-audit / odoo-deprecation-audit;
-  static review of a diff or PR goes to odoo-code-review
+description: >-
+  Diagnose broken Odoo behavior to a proven root cause before any fix: traceback, wrong value, blank view, console error, failed install, slow in production
 ---
 
 ## Role

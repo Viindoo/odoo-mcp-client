@@ -1,17 +1,8 @@
 ---
 name: odoo-ui-review
 argument-hint: "[screen/view to review]"
-description: >
-  Review a rendered Odoo UI in a live browser across six lenses - aesthetics (layout, spacing, brand),
-  functional correctness (buttons, forms, nav), runtime stability (no console errors), accessibility
-  (ARIA, contrast, keyboard), performance (Lighthouse), design-system/theme fidelity (off-theme
-  detection). Dispatched as a read-only agent (odoo-semantic-mcp + chrome-devtools) when an instance is
-  running and the user wants a verdict on how a working screen looks and behaves, not its source. Pushy
-  trigger: fire on "review this Odoo screen", "is this page accessible", "run a Lighthouse audit on Odoo",
-  "is it off-theme / sai theme Odoo", "đánh giá giao diện Odoo". Routing: investigate WHY a screen is
-  broken not rate a working one → odoo-debug; compare two states for drift → odoo-visual-regression; run a
-  full workflow / cluster with a PASS/FAIL verdict → odoo-acceptance; record a video →
-  odoo-demo-recording; change frontend source → odoo-coding; source-level review → odoo-code-review
+description: >-
+  Rate how a rendered Odoo screen looks and behaves in a live browser: UX, console, accessibility, theme
 ---
 
 ## Role

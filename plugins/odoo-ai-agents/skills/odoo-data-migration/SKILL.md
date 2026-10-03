@@ -1,18 +1,8 @@
 ---
 name: odoo-data-migration
 argument-hint: "[source] [target] [model/data]"
-description: >
-  Write Odoo migration scripts (`migrations/<version>/pre-migrate.py` and/or `post-migrate.py`)
-  for schema or data changes - field rename, type change, model split/merge, data backfill, or
-  module data transform - using parameterized SQL and/or ORM, following openupgradelib helpers
-  where available, plus a VERIFICATION checklist (row counts, spot-checks, rollback note). The
-  deliverable is the written script file; executing it is a separate human-gated deploy step.
-  Trigger on: "write a migration script", "rename this field in the database", "backfill data
-  after a column change", "split a model", "merge two models", "generate pre/post migrate".
-  Vietnamese triggers: "viết migration script", "đổi tên cột trong CSDL", "backfill dữ liệu
-  sau khi đổi field", "tách model", "gộp model", "sinh file pre_migrate / post_migrate". DO NOT
-  trigger for: WHAT changed between versions (odoo-version-diff); deploy readiness gate
-  (odoo-deploy-checklist); full upgrade plan (/odoo-plan-upgrade, command)
+description: >-
+  Write Odoo pre/post-migrate scripts for schema or data changes: field rename, type change, model split/merge, backfill
 model: inherit
 ---
 

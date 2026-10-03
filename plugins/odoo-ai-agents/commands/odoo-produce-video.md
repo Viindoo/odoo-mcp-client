@@ -1,8 +1,8 @@
 ---
 name: odoo-produce-video
 argument-hint: "[project-label]"
-description: |
-  Produce a multi-scene Odoo demo video: author a storyboard (scene list with click paths), record each scene via odoo-demo-recording, then assemble all clips into a single MP4 or GIF deliverable. Invoke when you need a structured multi-scene walkthrough - e.g. "make a 3-scene product demo", "record storyboard and assemble into one video", "multi-scene Odoo marketing video", "quay nhiều scene ghép thành một video demo"
+description: >-
+  Multi-scene demo video: storyboard, record scenes, assemble one file
 ---
 # /odoo-produce-video
 

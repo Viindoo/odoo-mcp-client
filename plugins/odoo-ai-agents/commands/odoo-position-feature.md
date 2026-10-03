@@ -1,10 +1,8 @@
 ---
 name: odoo-position-feature
 argument-hint: "[feature] [competitor/segment]"
-description: |
-  Generate positioning copy for a specific Odoo feature or capability. Chains feature-check
-  (does it exist?) -> addon-diff (which edition?) -> competitive-brief (vs competitor, optional)
-  -> positioning copy block. Use for marketing assets, sales decks, or RFP positioning
+description: >-
+  Positioning copy for one Odoo feature, incl. edition and competitor angle
 ---
 # /odoo-position-feature
 

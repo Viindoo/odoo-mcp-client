@@ -1,18 +1,8 @@
 ---
 name: odoo-acceptance
 argument-hint: "[module/cluster to accept]"
-description: >
-  Run end-to-end Odoo acceptance on a change AND its blast-radius: map the affected cluster, plan an
-  INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with
-  evidence. Fire on: acceptance test, QA the affected cluster, verify on the real UI, "write scenarios
-  then run them", verify blast-radius, "works end-to-end before release". Also Vietnamese: "nghiệm thu
-  cụm module", "chạy thật trên UI", "kịch bản test rồi chạy", "kiểm thử chấp nhận". Sole dispatcher of
-  odoo-qa-planner (oracle) + odoo-qa-tester (live run); chains tours/HttpCase via odoo-instance.
-  Routing: a STATIC release test-plan doc / deploy checklist -> route to odoo-qa-suite; rating ONE
-  rendered screen -> route to odoo-ui-review; static code or PR review with no run -> route to
-  odoo-code-review; writing the fix -> route to odoo-coding. EXECUTION needs a live instance + browser
-  MCP (Odoo Semantic is static, no live data); with none up it still scopes + plans the oracle, then
-  emits NEEDS_NEXT to provision one
+description: >-
+  End-to-end acceptance of a change and its blast radius: write independent scenarios, run them on a live instance/UI, rule PASS/FAIL with evidence
 ---
 
 ## Role

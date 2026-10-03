@@ -2,19 +2,7 @@
 name: odoo-git-rebase
 argument-hint: "[branch] [onto base]"
 description: >-
-  Orchestrates a same-series Odoo git rebase - replaying a feature or fix branch onto an
-  updated base of the SAME Odoo major version - forwarding INTENT, not diff text. Pipeline:
-  NL-intake, intent sweep, behavior comparison, outcome classification, design
-  route-out, Plan Mode gate, rebase-onto replay, conflict-resolution loop,
-  range-diff + dup-guard verify, human-confirm gate, and PR. Use when asked to
-  "rebase my branch onto the updated 17.0" or "rebase PR #N onto the new base";
-  "rebase nhánh lên base mới cùng phiên bản" hoặc "cập nhật base cho nhánh feature".
-  Do NOT use to port ACROSS major Odoo versions (use odoo-forward-port), to upgrade a
-  cluster to a new major (use odoo-modules-upgrade), to write one isolated change
-  (use odoo-coding), to diff only (use odoo-version-diff), to review a PR without rebasing
-  (use odoo-code-review), or to parallelize N disjoint work-items with cherry-pick + squash
-  (use odoo-planning - it plans the node execution; rebase replays one branch range
-  without squashing)
+  Rebase a feature/fix branch onto an updated base of the SAME Odoo series, preserving intent
 model: opus
 ---
 

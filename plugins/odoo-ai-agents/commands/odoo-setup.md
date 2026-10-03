@@ -1,7 +1,8 @@
 ---
 name: odoo-setup
 argument-hint: "[all|browser|runtime|permissions|instance|refresh] [--version X.Y] [--profile P]"
-description: One-shot, idempotent setup for the Odoo visual workflow - wire the browser MCP families (one eager chrome-devtools + five opt-in) across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare, refresh + spin up local Odoo instances
+description: >-
+  Set up browser MCP, permissions and local Odoo instances
 ---
 # /odoo-ai-agents:odoo-setup
 

@@ -1,19 +1,8 @@
 ---
 name: odoo-capability-proof
 argument-hint: "[capability/feature to prove]"
-description: >
-  Assemble an evidence-backed proof package that Odoo can fulfill a specific client
-  requirement - citing real module names, model fields, and code snippets from the indexed
-  codebase, not marketing claims. Use this skill ANY time a sales engineer, consultant, or
-  account manager needs to convince a skeptical client/prospect that "yes, Odoo really does
-  this - here's the proof". Fire on "prove Odoo can do X", "feature evidence for customer
-  requirement Y", "customer asks does Odoo support X - I need to show the code", "client
-  doesn't believe Odoo handles Z - build the evidence", "RFP response - back up every yes
-  with module + code". Trigger especially on deadline signals ("for the demo", "before
-  Friday", "in the RFP") - user needs real artifacts fast. Also fires on Vietnamese:
-  "chứng minh Odoo làm được X cho khách". When the user only wants a yes/no
-  answer on availability (no proof package needed), route to odoo-feature-check. When they're
-  scoping MANY requirements at once for a quote, route to odoo-gap-analysis
+description: >-
+  Evidence package proving Odoo meets a specific client requirement (modules, fields, code) for a skeptical prospect
 ---
 
 ## Role

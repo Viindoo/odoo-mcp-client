@@ -1,19 +1,8 @@
 ---
 name: odoo-discovery-summary
 argument-hint: "[discovery notes/source]"
-description: >
-  Transform raw discovery meeting notes (pasted or free-form) into a structured customer
-  profile for proposal drafting - industry, current ERP, verbatim pain quotes, budget signal,
-  timeline urgency, fit-score (1-5). Use ANY time a Sales AE or Pre-Sales Consultant finishes
-  a discovery call and needs to synthesize notes. Fire on "synthesize discovery notes",
-  "extract customer profile", "discovery call recap", "meeting notes to customer profile",
-  "we had a discovery call - analyze", "tóm tắt notes cuộc họp tìm hiểu khách hàng",
-  "vừa họp khách xong giúp tóm tắt thành hồ sơ". Trigger even on a business name +
-  "we had a meeting". Also fires when given a file path to the notes/transcript.
-  DO NOT trigger for internal team retrospectives, sprint planning, or
-  developer standups with no customer prospect. When user wants to WRITE a follow-up email
-  route to `odoo-deal-followup`; for a full effort matrix (Standard/Custom/days) route to
-  `odoo-gap-analysis`; to handle an objection route to `odoo-objection-handling`
+description: >-
+  Turn discovery-meeting notes into a structured prospect profile: pains, budget, timeline, fit
 ---
 
 ## Role

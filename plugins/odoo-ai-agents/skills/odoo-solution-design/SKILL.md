@@ -1,17 +1,8 @@
 ---
 name: odoo-solution-design
 argument-hint: "[feature/requirement to design]"
-description: >
-  Design the technical solution for a non-trivial Odoo change BEFORE code is written - the design step
-  between requirement analysis (odoo-brl / odoo-gap-analysis) and coding (odoo-coding). Dispatches the
-  odoo-solution-architect agent to produce a gate-able Technical Design Document grounded in OSM. Use it
-  to decide HOW to build (inheritance axis, stored vs computed, new module vs extend) - not just WHAT to
-  build or to immediately WRITE code. Fire on: "how should I architect/structure this", "design the
-  solution / data model", "which approach", "plan the refactor", "technical design". Vietnamese: "thiết kế
-  giải pháp", "phân tích thiết kế", "chọn cách tiếp cận nào", "lên kế hoạch refactor". For ONE method's
-  hook use odoo-override-finding; to WRITE code use odoo-coding; to REVIEW use odoo-code-review; to
-  classify a requirement LIST use odoo-brl / odoo-gap-analysis; for the build ORDER of an approved design
-  use odoo-planning; for usage/walkthrough scenarios use odoo-doc-walkthrough
+description: >-
+  Design HOW to build a non-trivial Odoo change before coding: data model, inheritance, override strategy, module split. Build order of an approved design -> odoo-planning
 ---
 
 ## Where this sits in the flow (design precedes the code Plan Mode)

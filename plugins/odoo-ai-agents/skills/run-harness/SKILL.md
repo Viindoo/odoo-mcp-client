@@ -2,14 +2,8 @@
 name: run-harness
 argument-hint: "[run-id]"
 user-invocable: false
-description: >
-  Runs an approved multi-step plan through to the end so the user does not have to push it along
-  step by step: takes the next step whose prerequisites are met, stops for the human's approval
-  where the plan says a human must approve, hands the step to the skill that owns it, records what
-  came back, and keeps going until the work is finished, blocked, or missing something it needs.
-  Also picks a paused or interrupted run back up where it left off, checking what actually
-  happened before repeating anything. Started by odoo-intake once a plan is approved; never
-  invoked directly by the user
+description: >-
+  Internal: drives an approved run plan to completion and resumes it; started by odoo-intake
 model: inherit
 ---
 

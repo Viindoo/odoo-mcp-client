@@ -1,20 +1,8 @@
 ---
 name: odoo-campaign-plan
 argument-hint: "[campaign goal / product]"
-description: >
-  Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or geography push
-  - blueprint with timeline, channel mix matrix, asset inventory, KPIs, and owner map
-  (AI-doable vs human-required). ORCHESTRATES campaigns; does NOT draft individual content.
-  Trigger on: "plan a campaign for", "campaign brief", "multi-channel plan for vertical X",
-  "build a campaign blueprint", "marketing push plan for", "campaign roadmap for",
-  "go-to-market blueprint".
-  Also fires on Vietnamese: "lập kế hoạch chiến dịch", "kế hoạch marketing đa kênh",
-  "chiến dịch go-to-market cho ngành X", "lộ trình truyền thông".
-  DO NOT trigger for: individual content draft (→ odoo-content-draft),
-  competitive positioning analysis (→ odoo-competitive-brief),
-  feature-highlight slides for a sales deck (→ odoo-feature-highlights),
-  capability proof for a prospect (→ odoo-capability-proof).
-  STANDALONE-FIRST: works without MCP; OSM optional for feature-claim verification only
+description: >-
+  Plan a multi-week, multi-channel marketing campaign: timeline, channels, assets, KPIs, owners
 ---
 
 ## Role

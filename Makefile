@@ -53,7 +53,7 @@ validate: $(VENV_STAMP)
 		claude plugin validate plugins/git-toolkit; \
 	} || \
 		echo "(claude CLI not found - skipping 'claude plugin validate'; running pytest checks)"
-	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
+	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py tests/test_skill_description_budget.py -q
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py --strict
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py --strict
 

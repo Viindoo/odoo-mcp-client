@@ -25,7 +25,8 @@ the latest Anthropic structure and run evals for you:
 
 These produce a generic, Anthropic-shaped artifact. You then conform it to the repo rules in
 sections 3-7 below and run the gates in section 8. The tooling does not know this repo's stricter
-caps (1024-char description, required body sections, naming morphology, the generated tools block),
+caps (the aggregate skill-listing budget, English-only descriptions, required body sections, naming
+morphology, the generated tools block),
 so the gates are non-optional.
 
 ## 2. Official Anthropic references
@@ -47,17 +48,32 @@ disclosure).
 
 - `name` is **required here** (generic docs make it optional/defaulted) and **must equal the
   directory name** - `tests/test_skill_format.py`.
-- `description` is required and is what drives auto-triggering - write it trigger-rich ("what it
-  does + when to use", best use case first), with explicit `route to ...` / `DO NOT trigger`
-  disambiguation clauses.
-- **Description cap = 1024 chars** (`tests/test_skill_description_budget.py`, skills only). This is
-  Anthropic's documented maximum length for a skill `description` field (Agent Skills best-practices)
-  - a real authoring limit, not an arbitrary buffer. A SEPARATE, larger mechanism also exists: Claude
-  Code truncates the skill-listing text - the combined `description` + `when_to_use` - at 1536 chars
-  (`skillListingMaxDescChars`, see the skills doc below); keeping the field under 1024 clears that too.
-  The CLI does not hard-reject at 1024 (the field-max is enforced at skill upload), so the test is
-  what guarantees it here. When trimming, cut duplicate trigger phrases and examples first; preserve
-  the routing/disambiguation clauses.
+- `description` is required and is what drives auto-triggering. Every model-invocable skill's and
+  command's description is shown to the model on EVERY turn, in one skill listing that all installed
+  plugins and the user's own skills share - so write it for that listing:
+  - **English only, ASCII.** Users write in many languages; the model maps their request onto an
+    English description, so per-language trigger lists add cost without adding routing.
+  - **Meaning first, length follows.** Say what the skill does and its core trigger intent, best
+    use case first. Add a route-out (`Not X -> other-skill`) only where a neighbour is genuinely
+    confusable (e.g. a static test plan vs runnable tests vs a live acceptance run). Paraphrase
+    lists, examples, process steps, agent names and marketing wording belong in the body, which
+    loads only when the skill runs.
+  - No uniform character target: a front door that must be told apart from three neighbours needs
+    more words than a single-purpose skill whose name already says what it does.
+- **Aggregate listing budget** (`tests/test_skill_description_budget.py`). Claude Code caps the
+  listing at `skillListingBudgetFraction` (default 1%) of the context window, counted as 4 chars per
+  token: 8000 chars on a 200k window. Each entry costs `len("<plugin>:<name>") + 4 +
+  min(len(description [+ " - " + when_to_use]), 1536)`, plus one newline between entries. Over the
+  cap, Claude Code keeps every name but drops the descriptions of the least-used entries - this
+  plugin's, other plugins' and the user's - so routing degrades for everything installed. The test
+  holds this plugin's skills + commands inside that budget; a new skill pays for itself by tightening
+  other descriptions, never by raising the budget. A command that is purely a user shortcut for a
+  skill that stays visible may set `disable-model-invocation: true`, which takes it out of the
+  listing - but then the model cannot invoke it, so the test refuses it for anything `odoo-intake`,
+  `run-harness`, `workflow-chaining` or a workflow YAML routes to.
+- **Field maximum = 1024 chars** for a skill `description` (Anthropic's documented maximum, enforced
+  at skill upload, not by the CLI), also asserted by the test. The aggregate budget is far tighter in
+  practice.
 - The description must **not end in `.`, `!`, or `?`** (`tests/test_skill_format.py`,
   marketplace style).
 - `argument-hint` is **required here** (repo convention, `tests/test_skill_format.py`) - a short,
@@ -308,7 +324,7 @@ left above the real size quietly hands the reclaimed bytes back.
 Run the full local gate (same as CI) before pushing:
 
 ```bash
-make validate          # plugin schema + skill frontmatter + description cap + workflow + orchestration check, both STRICT/enforced
+make validate          # plugin schema + skill frontmatter + skill-listing budget + workflow + orchestration check, both STRICT/enforced
 make test              # full pytest suite (naming, format, body convention, CHP, disambiguation, ...)
 make gen-check         # regenerate SSOT artifacts, fail on any diff (idempotency)
 make deps-check        # every skill->tool reference points at a live tool
@@ -341,8 +357,9 @@ fields.
 ## 10. Checklist: adding or editing a skill
 
 1. Scaffold/iterate with the `skill-creator` plugin / `skill-development` skill.
-2. `name` = directory name; `description` trigger-rich and **<= 1024 chars**, no trailing
-   `.`/`!`/`?`, with `route to ...` / `DO NOT trigger` clauses; `argument-hint` = a double-quoted
+2. `name` = directory name; `description` English-only, written by meaning (what + core trigger +
+   a route-out only for a confusable neighbour) and inside the aggregate listing budget, no trailing
+   `.`/`!`/`?`; `argument-hint` = a double-quoted
    `[token]` hint of the args (e.g. `"[module] [target-series]"`).
 3. Body has `## Role` (operating role/audience/scope, **no** identity/persona - see above),
    `## Out of Scope`, and `## Standalone-first fallback`. Keep `SKILL.md`
