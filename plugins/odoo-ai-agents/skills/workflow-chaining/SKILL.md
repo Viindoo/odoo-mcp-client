@@ -2,14 +2,8 @@
 name: workflow-chaining
 argument-hint: "[workflow name/file]"
 user-invocable: false
-description: >
-  Generic declarative workflow runner - reads one `workflows/<name>.workflow.yaml` file and
-  executes its gated phase sequence according to the declared `team_pattern` (Pipeline,
-  Fan-out/Fan-in, Expert-Pool, Producer-Reviewer, Supervisor, or Hierarchical). Dispatches
-  each phase to a specialist skill via the Skill tool (preferred) or NL description-match as a fallback. Writes
-  phase artifacts to the `output_dir` declared in the YAML and checkpoints state for resume.
-  Invoked by the intake skill via NL-dispatch after a workflow is chosen at the
-  soft-plan-gate - never called directly by the user
+description: >-
+  Internal: runs a declarative workflow YAML phase by phase; started by intake or a command
 model: inherit
 ---
 

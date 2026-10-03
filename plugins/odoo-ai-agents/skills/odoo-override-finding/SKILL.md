@@ -1,18 +1,8 @@
 ---
 name: odoo-override-finding
 argument-hint: "[model.method to hook]"
-description: >
-  Find the correct override point and pattern to extend Odoo behavior safely - exact method
-  name, module/file location, ready-to-apply `super()` template, existing override chain, and
-  version-specific compatibility notes. Use this skill ANY time someone wants to inject
-  custom behavior into an existing Odoo flow, even describing only the BEHAVIOR without naming
-  a method. Fire on "I want to do X when Y happens in Odoo" - even informal descriptions.
-  Trigger on: "where to hook into sale order confirmation", "run my code when an invoice is
-  posted", "is there already someone overriding this method?". Also fires on Vietnamese:
-  "chèn xử lý khi xác nhận đơn bán", "chạy code khi hoá đơn được vào sổ", "nên override hàm
-  nào cho an toàn". Version-aware: pins target
-  version when unspecified and applies era-correct pattern. Check existing code → odoo-code-review.
-  API diff between versions → odoo-version-diff or odoo-deprecation-audit
+description: >-
+  Find the method to override to hook custom logic into an Odoo flow, with a super() template
 ---
 
 ## Role

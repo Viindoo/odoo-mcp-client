@@ -1,17 +1,8 @@
 ---
 name: odoo-code-review
 argument-hint: "[PR#|local|worktree:<path>]"
-description: >
-  Review Odoo code (Python, JavaScript, XML, OWL) for bugs, convention violations, security, and performance -
-  severity-graded findings, suggested fixes, corrected version. Dispatches to the odoo-code-reviewer agent.
-  Fire whenever code is shared with feedback intent, even without the word "review". Trigger on: "does this
-  look correct?", "audit this PR", "should I worry about N+1?", "before I merge", "review PR #123". Also fires
-  on Vietnamese: "review giúp đoạn này", "kiểm tra code Odoo", "code này có bug không", "soát trước khi
-  merge", "đánh giá PR". Trigger on model overrides, write/create overrides, computed fields, OWL components,
-  or XML view overrides - Odoo-specific failure modes a generic reviewer misses. Static analysis only - a live
-  render/console error -> odoo-debug, rating a rendered screen's look/UX -> odoo-ui-review. Write new code ->
-  odoo-coding. Pre-upgrade audit -> odoo-deprecation-audit. A dedicated performance-only deep scan ->
-  odoo-perf-audit; a security-only scan -> odoo-security-audit
+description: >-
+  Static review of Odoo code, a diff or a PR (Python/JS/XML/OWL): severity-graded bugs, conventions, security, N+1. Nothing is run; a live error goes to odoo-debug
 ---
 
 ## Role

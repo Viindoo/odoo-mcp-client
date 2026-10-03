@@ -2,18 +2,7 @@
 name: odoo-modules-upgrade
 argument-hint: "[module-cluster] [target-series]"
 description: >-
-  Full-delegation orchestrator that upgrades a custom module cluster from a LOWER Odoo
-  major series to a HIGHER one in ONE PR - makes modules installable + working on the
-  target series, deletes modules wholly absorbed by core, and rewrites/merges/splits the
-  rest in dependency order. This is CODE-LEVEL upgrade (no data migration assumed). Fire
-  when asked to "upgrade my modules to v17", "migrate custom module from v16 to v17",
-  "upgrade this cluster to Odoo 18", "bring the cluster up to the next major",
-  "make this module installable on the new version", "nâng cấp module custom lên Odoo
-  17", "chuyển module từ v16 lên v17", "đưa cluster lên series cao hơn".
-  Do NOT use to transport ONE commit across majors (use odoo-forward-port), to rebase a
-  branch on the SAME series (use odoo-git-rebase), to produce a risk + deprecation plan
-  WITHOUT writing code (use /odoo-plan-upgrade), to scan deprecated symbols only (use
-  odoo-deprecation-audit), or to diff two versions APIs only (use odoo-version-diff)
+  Upgrade a custom module cluster to a higher Odoo major so it installs and works there (code-level, one PR)
 model: opus
 ---
 

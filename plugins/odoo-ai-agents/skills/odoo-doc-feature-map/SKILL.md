@@ -1,18 +1,8 @@
 ---
 name: odoo-doc-feature-map
 argument-hint: "[module-name]"
-description: >
-  Enumerate ALL features, menus, views, and models a module ships - output is a machine-readable
-  `feature-catalog.jsonl` (one entry per capability: name, type, menu path, model, business purpose,
-  key fields) as the shared SSOT for the landing Key Features grid, the Usage guide, and walkthrough
-  scripts. Dispatches `odoo-feature-cataloger`. Trigger on: "liệt kê tính năng module cho tài liệu",
-  "feature inventory for doc", "bản đồ tính năng module X", "list all features of module",
-  "catalog module screens for documentation", "danh sách màn hình / menu của module",
-  "module capability map". Standalone-first (OSM + disk; no browser or live instance needed).
-  route a single feature yes/no -> odoo-feature-check; route marketing highlights for a version
-  release -> odoo-feature-highlights; route an executive audit of CUSTOM code in a client instance
-  -> odoo-customization-inventory. DO NOT trigger for a one-feature availability check, a version
-  release marketing brief, or a custom-code engagement audit
+description: >-
+  Catalog every feature, menu, view and model a module ships, as input for its docs
 ---
 
 ## Role

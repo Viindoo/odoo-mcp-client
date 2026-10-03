@@ -82,7 +82,7 @@ What each gate enforces:
 
 | Command | What it catches |
 |---|---|
-| `make validate` | Malformed plugin.json, bad skill frontmatter, description over 1024 chars, workflow schema violations |
+| `make validate` | Malformed plugin.json, bad skill frontmatter, a skill listing over its budget or a non-English description, workflow schema violations |
 | `make test` | All pytest tests including `test_version_consistency.py` (VERSION == plugin.json), naming rules, routing-sync checks, disambiguation contract |
 | `make gen-check` | Generated artifacts (gemini-extension.json, skill `## MCP tools` sections, IDE snippets, orchestration map) not committed after a change to their SSOT |
 
@@ -194,14 +194,13 @@ SSOT in [Viindoo/odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-
 ### Skill format
 
 Each `plugins/odoo-ai-agents/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
-`name` and a `description`. The description is what drives routing - keep it specific and
-trigger-rich, but **under 1024 characters** - Anthropic's documented max length for a skill
-`description` field (a real authoring limit, enforced here by tests). A separate mechanism truncates
-the skill listing - combined description + when_to_use - at 1536 chars, so staying under 1024 clears
-that too. Trim duplicate trigger phrases and
-illustrative examples before cutting any `route to …` / `DO NOT trigger → …` disambiguation
-clause. `make test` enforces all of this via `tests/test_skill_format.py` (frontmatter
-shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and
+`name` and a `description`. The description is what drives routing, and every skill's and
+command's description shares ONE skill listing that Claude Code caps per session, so the plugin's
+aggregate is the real limit: write descriptions in English only, by meaning (what it does, its core
+trigger, a route-out only where a neighbour is confusable), with no paraphrase lists or examples.
+The rule and the budget arithmetic: `docs/authoring-skills-and-agents.md` § 3. `make test` enforces
+all of this via `tests/test_skill_format.py` (frontmatter shape),
+`tests/test_skill_description_budget.py` (aggregate listing budget, English-only, field maximum), and
 `tests/test_odoo_intake_quote_sync.py` (every skill/workflow the `odoo-intake` router points at must
 exist).
 

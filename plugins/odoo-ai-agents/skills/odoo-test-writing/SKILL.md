@@ -1,18 +1,8 @@
 ---
 name: odoo-test-writing
 argument-hint: "[model/module to test]"
-description: >
-  Write executable Odoo test files that protect business behavior - not just cover code - once the
-  code exists: new or adjusted tests, each proven by breaking the rule it guards.
-  Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) and JS Hoot / QUnit
-  suites, selecting the correct framework per version. Also translates existing tests across major
-  Odoo versions (adapt mode): strips implementation-coupled assertions, maps renamed APIs via OSM.
-  Grounds every test via OSM MCP calls. Fire on: test coverage, CI protection, forward-port test
-  translation, or tour/HttpCase. Vietnamese: "viết test cho model", "bao phủ ràng buộc bằng test",
-  "test hành vi nghiệp vụ Odoo", "dịch test sang version mới", "viết test JS Hoot", "viết tour
-  Odoo", "viết HttpCase". Writes RUNNABLE files: a non-executing prose test-PLAN or test-case table
-  -> odoo-qa-suite; write scenarios then run live and adjudicate PASS/FAIL -> odoo-acceptance;
-  static code review -> odoo-code-review; runtime errors -> odoo-debug
+description: >-
+  Write runnable Odoo tests that guard business behavior: Python TransactionCase/HttpCase/tours, JS Hoot/QUnit; also adapts tests to a newer series
 model: inherit
 ---
 

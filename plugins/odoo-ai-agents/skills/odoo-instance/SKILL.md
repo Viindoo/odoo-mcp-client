@@ -2,17 +2,7 @@
 name: odoo-instance
 argument-hint: "[create|drop|park|resume|init|update|test|load-language] [version|db]"
 description: >-
-  Build, drop, or drive a live Odoo instance for any indexed series - create a database
-  through Odoo, init or update modules, run tests, ensure an instance is up, or report status.
-  Front door for ALL Odoo instance lifecycle operations and the ONLY dispatcher of the odoo-instance-ops agent.
-  Fire on "create an Odoo instance", "spin up an instance", "init these modules", "drop the test DB",
-  "run tests on this instance", "is the instance up", "rebuild from scratch",
-  "suspend this instance", "resume the parked instance",
-  "activate a language", or any ask that needs a live Odoo process to be provisioned, updated,
-  suspended, or destroyed. Also fires on Vietnamese: "dựng instance Odoo", "cài module chạy test",
-  "tạo DB Odoo mới", "xoá instance", "khởi động lại server Odoo", "nạp ngôn ngữ". Route code authoring to odoo-coding, code review to odoo-code-review,
-  runtime diagnosis to odoo-debug, solution design to odoo-solution-design - this skill only
-  provisions and operates the instance those skills run against
+  Create, update, test, suspend, drop or check a live local Odoo instance and its database
 ---
 
 ## Role

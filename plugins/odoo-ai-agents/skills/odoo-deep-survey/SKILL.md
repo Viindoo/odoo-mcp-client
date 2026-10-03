@@ -2,18 +2,7 @@
 name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
-  Multi-phase opt-in deep survey of an Odoo codebase or scope for the next execute agent:
-  a broad quick sweep, then narrow standard-depth dives, then an optional deep pass,
-  spending depth and cost only where the scope earns it, writing reusable findings to the
-  project's shared survey cache. Invoked ONLY by odoo-intake AFTER the user explicitly asks
-  for a deep survey at the plan gate (`refine: deep-survey`) - it is NOT a front door and
-  NEVER auto-triggers on a bare prompt. DO NOT trigger when: the user has not opted into a
-  deep survey; the intent is a single-file or single-symbol lookup intake's light recon
-  already covers; it must be invoked via the Skill tool from the main context (not from
-  inside a subagent). Read-only: it discovers scope, ranks hot-spots against the stated
-  intent, maps impact both ways, and hands odoo-intake a synthesis to re-propose a sharper
-  plan. Applies a zero-trust code stance (descriptions are claims, source is truth), plus a
-  bounded web-research pass when a sub-question is external
+  Deep multi-phase codebase survey, run only by odoo-intake after the user opts in; never on a bare prompt
 model: opus
 ---
 

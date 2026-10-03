@@ -1,18 +1,8 @@
 ---
 name: odoo-frontend-design
 argument-hint: "[UI/screen to design]"
-description: >
-  Design-quality expertise for ANY Odoo UI/UX work - the senior-frontend-designer brain other
-  skills and agents LOAD to make Odoo interfaces look and feel RIGHT. Knowledge-only: teaches
-  HOW to design well in Odoo; does not write code or spawn agents. Apply whenever Odoo UI quality
-  matters: form views, list/tree, kanban, pivot/graph/calendar/activity, search views, OWL
-  components, QWeb, field widgets, statusbar/notebook/button-box/chatter layout, smart buttons,
-  decorations, empty states, density, responsive web client, accessibility, SCSS/design tokens;
-  plus website/portal/eCommerce theme, snippets, builder. Core idea: great Odoo UI feels NATIVE
-  within Odoo's design system - the twin failure modes are generic-AI ugliness AND off-theme
-  clashing. Vietnamese: "thiết kế giao diện Odoo", "làm UI Odoo đẹp đúng chuẩn", "đúng
-  design-system Odoo". Routing: DESIGN QUALITY, not the code writer (odoo-coding), not
-  the runtime reviewer (odoo-ui-review)
+description: >-
+  Design knowledge for native-looking Odoo UI (views, OWL, website themes); loaded by other skills, writes no code
 ---
 
 ## Role

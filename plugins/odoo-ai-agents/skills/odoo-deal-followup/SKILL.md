@@ -1,20 +1,8 @@
 ---
 name: odoo-deal-followup
 argument-hint: "[deal/customer]"
-description: >
-  Analyze deal health for Odoo or a custom distribution and generate next actions for a Sales
-  AE or small-team founder running go-to-market solo. Accepts deal context (label, last
-  contact, stage, prior commitments) + an optional email/note thread; produces (a) a risk
-  score (red/yellow/green), (b) a next-best action, (c) a draft follow-up email in English or
-  the thread's language.
-  Trigger on: "deal stalled", "customer hasn't replied", "draft follow-up email", time
-  signals ("it's been 3 weeks", "deadline this month"), ambiguous-status signals ("not sure
-  what the customer is thinking"). Also fires on Vietnamese: "deal đang đứng im", "khách
-  chưa trả lời", "soạn email follow-up", "cần hâm nóng lại deal". DO NOT trigger for: (1) Discovery/demo session summary
-  -> use odoo-discovery-summary. (2) Responding to technical objections -> use
-  odoo-objection-handling. (3) Verifying or proving Odoo features -> use
-  odoo-capability-proof or odoo-feature-check. (4) Gap analysis or scope estimation -> use
-  odoo-gap-analysis
+description: >-
+  Stalled or at-risk deal: risk score, next best action, draft follow-up email
 ---
 
 ## Role

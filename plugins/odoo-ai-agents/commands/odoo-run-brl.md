@@ -1,8 +1,9 @@
 ---
 name: odoo-run-brl
 argument-hint: "[customer-label] [brl-file]"
-description: |
-  Process a business requirement list (BRL) of any size into a classified, costed, dependency-ordered implementation plan with full RTM export. Chains INGEST + GATE 0 + chunked 4-way classify + deterministic cost + dependency DAG + GATE E + deliverables (rtm.csv, cost.json, dag.mermaid, report.md). Invoke when you have a multi-item requirement list and want end-to-end scoping
+description: >-
+  Slash shortcut: run odoo-brl on a requirement list for a named customer
+disable-model-invocation: true
 ---
 # /odoo-run-brl
 

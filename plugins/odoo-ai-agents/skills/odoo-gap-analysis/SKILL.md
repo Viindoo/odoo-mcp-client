@@ -1,17 +1,8 @@
 ---
 name: odoo-gap-analysis
 argument-hint: "[requirement list / RFP scope]"
-description: >
-  Gap analysis turning a list of client requirements into an effort-tiered coverage/classification
-  matrix (Standard / Configuration / Extension / Custom + S/M/L/XL). Now an ORCHESTRATOR - it clusters
-  requirements by functional area, delegates each cluster to the odoo-gap-analyzer subagent (main context
-  stays clean), then emits a reusable file artifact under the project's shared state dir. Use ANY time
-  someone is about to quote, scope, or estimate an Odoo project - even if they don't say "gap". Fire on a
-  list of requirements + "is this standard Odoo or do we build it?". Vietnamese: "cái này Odoo có sẵn
-  hay phải build thêm", "ma trận effort cho báo giá". For ONE specific feature route to
-  odoo-feature-check; for marketing highlights route to odoo-feature-highlights; use odoo-brl when the
-  list needs cost + dependency DAG (typically tens+ items) - this stays a shorter
-  coverage/classification matrix with no costing
+description: >-
+  Classify a list of client requirements (standard/config/extension/custom) with effort tiers, for quoting or scoping
 ---
 
 ## Role

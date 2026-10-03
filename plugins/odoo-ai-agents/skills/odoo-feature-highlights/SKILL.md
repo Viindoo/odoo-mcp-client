@@ -1,19 +1,8 @@
 ---
 name: odoo-feature-highlights
 argument-hint: "[version/distribution]"
-description: >
-  Generate marketing-friendly feature highlights for a specific Odoo version or distribution
-  - for sales decks, blog posts, announcements, or release notes. Output: business-language
-  (+ technical-notes appendix). Version-aware: uses MCP api_version_diff; confirm version
-  when unspecified. Use this ANY time someone needs "what's new" for an audience not reading
-  source code. Trigger on: "highlight new features in version X", "write highlight copy for
-  the new features", "marketing highlights for the new modules", "what's exciting in this
-  release?", "feature comparison for sales deck", "release notes for non-developers".
-  Trigger even when the user says "just summarize what's new" without mentioning marketing.
-  Also fires on Vietnamese: "điểm nổi bật bản mới", "tính năng mới cho slide bán hàng", "có gì hay ở bản này".
-  When the user asks for source-level developer diff (signatures, removed APIs), route to
-  odoo-version-diff. When they want proof a platform can do a SPECIFIC capability, route to
-  odoo-capability-proof
+description: >-
+  Business-language highlights of what is new in an Odoo version, for sales decks or release notes
 ---
 
 ## Role

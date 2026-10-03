@@ -2,16 +2,7 @@
 name: odoo-i18n
 argument-hint: "[module(s)] [target-lang e.g. vi_VN]"
 description: >-
-  This skill should be used when the user asks to translate one or more Odoo modules into any
-  target language (no built-in default), export .pot/.po, update translations, sync terminology,
-  or audit cross-module term consistency. Fire on "translate this module", "export .pot / .po",
-  "update the translation", "sync terminology", "đồng bộ thuật ngữ", "dịch module Odoo",
-  "xuất .pot/.po", "cập nhật bản dịch", or any i18n / terminology-consistency ask for Odoo.
-  Front door for ALL Odoo translation work and the ONLY dispatcher of the odoo-translator agent;
-  also the i18n step other workflows dispatch into (forward-port, new module, bugfix). Non-destructive contract is load-bearing: re-exporting a
-  .po from a fresh DB destroys 40-90% of existing msgstr, so translation MEMORY is always
-  forwarded by merge, never regenerated. Requires a running Odoo instance; missing instance is a
-  BLOCK. Route a one-line UI label fix to odoo-coding; a rendered-UI language check to odoo-ui-review
+  Translate Odoo modules into any language: export/update .pot/.po, sync terminology, keep existing translations
 ---
 
 ## Role

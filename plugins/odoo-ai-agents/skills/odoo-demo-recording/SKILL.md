@@ -1,18 +1,8 @@
 ---
 name: odoo-demo-recording
 argument-hint: "[flow/feature to record] [--label before|after]"
-description: >
-  Record a screen-capture video (MP4/GIF) of one Odoo workflow for a demo, sales walkthrough,
-  marketing clip, or narrated before/after bug-evidence pair - driving the live instance through
-  a scripted click path and saving the result. Capture runs via pagecast/Playwright-video MCP
-  (the recorder drives the path; chrome-devtools screenshot frames when no recorder is wired).
-  Use when the deliverable is a video of a live flow, not a static review. Pushy trigger: fire on
-  "record a demo of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture
-  a short MP4 for the website", "record narrated before/after evidence", "quay video demo Odoo",
-  "tạo video hướng dẫn quy trình". Routing: stitch many scenes / multi-scene walkthrough into one
-  video → /odoo-produce-video (command); RATE how a screen looks → odoo-ui-review; diagnose a
-  broken screen's root cause → odoo-debug; compare two builds → odoo-visual-regression; write
-  frontend code → odoo-coding; code audit → odoo-code-review
+description: >-
+  Record a video (MP4/GIF) of one Odoo workflow on a live instance, for a demo or bug evidence
 ---
 
 ## Role

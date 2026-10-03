@@ -1,18 +1,8 @@
 ---
 name: odoo-feature-check
 argument-hint: "[feature/requirement]"
-description: >
-  Answer "does standard Odoo already do this?" with evidence - module name, edition (CE / EE),
-  key fields/models, and a one-line verdict ready for a client email. Version-aware: uses MCP
-  check_module_exists/find_examples; confirm version when unspecified. Fire before answering
-  from memory - training data about Odoo modules drifts fast.
-  Trigger on: "does Odoo have…", "is X available out of the box?", "do we need to build this
-  or is it already there?", "what edition do I need for Z?".
-  Also fires on Vietnamese: "Odoo có sẵn tính năng này không", "cần code thêm hay đã có sẵn",
-  "cần bản CE hay EE cho Z".
-  Use this when the user is asking about ONE feature/module; when they list MANY requirements
-  at once route to odoo-gap-analysis instead. When they want to see real source-code examples
-  of X being used, route to odoo-feature-highlights or odoo-capability-proof
+description: >-
+  Does standard Odoo already do X? Yes/no for ONE feature, with module, edition and evidence
 ---
 
 ## Role

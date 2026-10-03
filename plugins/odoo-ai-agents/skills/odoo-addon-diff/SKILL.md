@@ -1,20 +1,8 @@
 ---
 name: odoo-addon-diff
 argument-hint: "[business domain] [version]"
-description: >
-  Produce a CE vs EE vs custom-distribution comparison for a business domain - feature table,
-  EE-only business-value notes, and an upgrade recommendation ready for a proposal.
-  Version-aware: uses MCP check_module_exists/model_inspect; confirm version when unspecified.
-  Trigger when edition differences come up, even in passing.
-  Trigger on: "CE vs EE feature table", "edition comparison", "which modules are EE-only?",
-  "is X a CE or EE feature?", "upsell argument for EE", "PLM / Studio / Maintenance - which
-  edition?", "which edition is module X in?".
-  Also fires on Vietnamese: "so sánh CE và EE", "tính năng nào chỉ có ở Enterprise",
-  "module X thuộc bản nào", "cần bản Community hay Enterprise".
-  Trigger even when the user names a specific feature/module and asks "what edition do I need?".
-  When the user asks about ONE feature's availability (not a comparison), route to
-  odoo-feature-check. When they want marketing copy for the Enterprise features themselves,
-  route to odoo-feature-highlights
+description: >-
+  Compare Odoo editions (CE vs EE) for a domain or module: feature table, EE-only value, edition advice
 ---
 
 ## Role

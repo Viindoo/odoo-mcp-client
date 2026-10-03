@@ -1,18 +1,8 @@
 ---
 name: odoo-planning
 argument-hint: "[approved design / scope]"
-description: >
-  Single planning front-door for the FULL product lifecycle - turns an APPROVED Odoo technical
-  design into one gate-able plan spanning code AND doc. Dispatches TWO planners: odoo-planner
-  (dependency-ordered node graph + landing sequence) AND odoo-doc-planner (dependency-cluster doc
-  schedule + instance allocation for user-guide + marketing landing). One plan covers the full
-  lifecycle from code to merge, in run-harness's Terminal stage order. Code executes first; doc
-  executes after code/review/QA lands. Estimates only (ADVISORY). Fire on:
-  "plan the implementation", "execution plan", "what order do we build", "sequence this rollout".
-  Vietnamese: "lập kế hoạch thực hiện", "thứ tự build module", "lên kế hoạch triển khai".
-  Route the technical DESIGN (data model / override strategy) to odoo-solution-design; WRITING
-  code to odoo-coding; costing requirements to odoo-gap-analysis. DO NOT trigger for pure design
-  (no execution sequencing)
+description: >-
+  Turn an approved Odoo design into a dependency-ordered execution plan for code and docs: build order, parallel work, landing as one PR, estimates
 user-invocable: true
 ---
 

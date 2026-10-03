@@ -1,18 +1,8 @@
 ---
 name: odoo-customer-health
 argument-hint: "[customer/account]"
-description: >
-  Assess an existing Odoo customer's health for customer-success and retention decisions. Given
-  a customer profile (industry, modules in use, go-live date, team size) plus optional usage
-  signals (login frequency, open ticket count, adoption breadth), produces a Green/Amber/Red
-  health score, churn signals, upsell/expansion opportunities, and a recommended next-touch
-  action with a named owner. Use whenever a CSM, Account Manager, or CEO needs to triage the
-  portfolio, run a periodic health review, or decide whether to escalate before renewal. Trigger
-  on: "customer health check", "churn risk", "is this customer at risk", "upsell opportunities",
-  "account review", "renewal coming up - should I be worried", "adoption is low - what to do".
-  Vietnamese triggers: "sức khỏe khách hàng", "nguy cơ rời bỏ", "khách hàng có đang dùng tốt
-  không", "cơ hội upsell cho khách này". DO NOT trigger for: new prospect (odoo-discovery-summary),
-  single support ticket (odoo-support-triage), follow-up email after review (odoo-deal-followup)
+description: >-
+  Health score for an existing customer: churn risk, upsell chances, next action before renewal
 model: inherit
 ---
 

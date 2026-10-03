@@ -1,19 +1,8 @@
 ---
 name: odoo-objection-handling
 argument-hint: "[objection / concern]"
-description: >
-  Craft evidence-based responses to client objections about Odoo's capabilities - using the
-  ACA framework (Acknowledge / Counter / Affirm) backed by indexed-codebase evidence rather
-  than marketing claims. Output includes a ready-to-paste verbatim response paragraph. Use
-  this skill ANY time a sales engineer, account executive, or pre-sales consultant needs to
-  push back on a doubt or competitive claim about Odoo. Fire on "handle the objection that
-  Odoo can't do X", "respond to 'Odoo doesn't support Z'", "competitor said SAP/Microsoft
-  does X better", "RFP scoring tool gave Odoo low on X - defend". Also fires on Vietnamese:
-  "xử lý phản đối của khách về Odoo", "khách nói Odoo không làm được X". Trigger especially on
-  URGENCY signals ("for the meeting today", "client is on the call", "RFP due tomorrow").
-  When the objection requires proof artifacts (code + modules + demo steps), route to
-  odoo-capability-proof. When user simply wants to know if a feature exists (not defend it),
-  route to odoo-feature-check
+description: >-
+  Evidence-backed reply to a prospect's objection or a competitor's claim about Odoo
 ---
 
 ## Role

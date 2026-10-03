@@ -1,19 +1,8 @@
 ---
 name: odoo-pricing-proposal
 argument-hint: "[customer/deal context]"
-description: >
-  Build a customer-facing pricing proposal for an Odoo deal - license tier recommendation
-  (CE vs EE), implementation cost breakdown, support/maintenance tier, payment terms, optional
-  volume and multi-year discounts, and a clear total with next steps. Accepts customer segment
-  (SME / mid / enterprise), module scope, implementation effort in days (ideally from
-  odoo-gap-analysis output), support SLA tier, and region. Outputs a structured sales document
-  the AE can send or use as a conversation anchor. Trigger on: "draft a pricing proposal",
-  "build a quote", "how much should we charge", "put together a commercial offer", "price
-  breakdown". Vietnamese triggers: "báo giá", "đề xuất giá", "soạn báo giá cho khách", "lập
-  bảng giá cho deal này", "ước tính chi phí cho khách hàng", "đề xuất thương mại". DO NOT
-  trigger for: gap analysis/effort estimation (odoo-gap-analysis), feature check
-  (odoo-feature-check), deal follow-up email (odoo-deal-followup), technical objections
-  (odoo-objection-handling)
+description: >-
+  Customer-facing price proposal for an Odoo deal: license, implementation, support, total
 model: inherit
 ---
 

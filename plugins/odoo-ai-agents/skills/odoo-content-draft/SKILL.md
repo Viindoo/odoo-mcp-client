@@ -1,21 +1,8 @@
 ---
 name: odoo-content-draft
 argument-hint: "[content topic / asset type]"
-description: >
-  Draft ready-to-publish marketing content for Odoo or your distribution - LinkedIn post,
-  blog article, YouTube script, email sequence, landing page copy, or social caption.
-  Language: English default; Vietnamese and other locales on request.
-  Trigger on: "draft a blog post", "write a LinkedIn post", "YouTube script for",
-  "draft email sequence", "landing page copy", "social caption for".
-  Trigger when user asks to CREATE any of these formats - even without the word "marketing".
-  Also fires on Vietnamese: "viết bài blog", "soạn bài LinkedIn", "kịch bản YouTube",
-  "chuỗi email", "nội dung landing page", "caption mạng xã hội".
-  DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
-  objection-handling rebuttals (-> odoo-objection-handling),
-  feature-highlight decks (-> odoo-feature-highlights),
-  competitive positioning briefs (-> odoo-competitive-brief),
-  multi-channel campaign orchestration (-> odoo-campaign-plan).
-  STANDALONE-FIRST: works without MCP; OSM optional for grounding claims
+description: >-
+  Draft marketing content: blog article, LinkedIn post, YouTube script, email sequence, landing page or social copy
 ---
 
 ## Role

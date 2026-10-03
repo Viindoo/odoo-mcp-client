@@ -155,14 +155,27 @@ the in-repo authoring guide (frontmatter, required body sections, naming morphol
 tools block, model-tier selection, and the pre-commit gates), grounded in Anthropic's official
 docs and this repo's stricter, test-enforced conventions.
 
-### Skill descriptions drive routing - and are budget-capped
+### Skill descriptions drive routing - and share one listing budget
 
-A skill's `description` frontmatter is what makes it trigger. Keep it **under 1024 characters** -
-Anthropic's documented max length for a skill `description` field, enforced here by tests. (A
-separate mechanism truncates the skill listing - combined description + when_to_use - at 1536 chars,
-so staying under 1024 clears that too.) When trimming, cut
-duplicate trigger phrases and examples first; preserve the `route to ...` / `DO NOT trigger` clauses.
-Enforced by `test_skill_format.py` + `test_skill_description_budget.py`. Every skill/workflow the
+A skill's or command's `description` frontmatter is what makes it trigger, and every
+model-invocable one is shown to the model on every turn in ONE skill listing that Claude Code caps
+at 1% of the context window (as it counts it: 4 chars per token, so 8000 chars on a 200k window).
+Over the cap the harness keeps the names but drops descriptions - of this plugin's skills, other
+plugins' and the user's own - so the binding limit is the plugin's AGGREGATE, not any one entry.
+Rules (full guidance: `docs/authoring-skills-and-agents.md`):
+
+- **English only, ASCII.** No trigger lists in other languages; the model maps a user's language
+  to an English description.
+- **Meaning first, length follows.** State what the skill does, its core trigger intent, and a
+  route-out only where a neighbour is genuinely confusable. No paraphrase lists, examples, process
+  detail or marketing wording - those belong in the body.
+- **The aggregate stays inside the budget.** A new skill pays for itself by tightening others, never
+  by raising the budget. A command that is purely a user shortcut for a still-visible skill may set
+  `disable-model-invocation: true` (it leaves the listing), unless an orchestrator skill or workflow
+  names it.
+
+Enforced by `test_skill_description_budget.py` (aggregate budget, English-only, the 1024-char field
+maximum, hidden entries never routed to) and `test_skill_format.py`. Every skill/workflow the
 `odoo-intake` router references must exist (`test_odoo_intake_quote_sync.py`).
 
 ### Workflows are declarative YAML
