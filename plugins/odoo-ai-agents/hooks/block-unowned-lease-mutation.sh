@@ -204,15 +204,20 @@ _a4_reason() {
     echo "block-unowned-lease-mutation: no readable agent transcript; lease-ownership arm skipped (fail open)" >&2
     return 0
   fi
+  # _lease_owned_tokens reads only the lines of obtaining calls itself; every text question below
+  # is about THIS token, so each reads only the transcript lines that can answer it
+  # (lease-correlation.sh _lease_token_view), held in memory - never the whole of a long transcript.
   _lease_owned_tokens "$tr" | grep -qxF -- "$tok" && return 0
-  _lease_handed_up_text "$tr" | grep -qF -- "$tok" && return 0
+  local view
+  view="$(_lease_token_view "$tr" "$tok")"
+  _lease_handed_up_text <(printf '%s\n' "$view") | grep -qF -- "$tok" && return 0
   if [[ "$kind" == "adopt" ]]; then
-    _lease_found_text "$tr" | grep -qF -- "$tok" && return 0
+    _lease_found_text <(printf '%s\n' "$view") | grep -qF -- "$tok" && return 0
   fi
   local how
-  if [[ "$kind" != "adopt" ]] && _lease_found_text "$tr" | grep -qF -- "$tok"; then
+  if [[ "$kind" != "adopt" ]] && _lease_found_text <(printf '%s\n' "$view") | grep -qF -- "$tok"; then
     how="your own lease_find returned this parked lease, and finding it is not holding it. To resume it, TAKE IT OVER first: lease_adopt {lease_token, run_id} (the explicit take-over), then instance_serve {lease_token} to bring it back. After the adopt it is yours - this $verb then passes, and the teardown gate holds you to releasing, parking or handing it off before your terminal status."
-  elif _lease_brief_text "$tr" | grep -qF -- "$tok"; then
+  elif _lease_brief_text <(printf '%s\n' "$view") | grep -qF -- "$tok"; then
     how="this lease was forwarded to you - it arrived in your brief or a message from your caller, so you are its CONSUMER. Leave it for the agent that provisioned it; if you are done with it, hand it back UP in your continuation instead (forward INSTANCE_HANDLE in next.inputs to your caller)."
   else
     how="nothing in your own transcript shows you obtaining this lease - no lease_acquire / lease_adopt result, no series-mode instance_serve that LAUNCHED its server (attaching to a server another run started is not obtaining it), no Bash allocator acquire receipt - and no child you dispatched handed it back up to you. Holding or finding a token (lease_list, lease_find, a log) is not ownership. Leave it alone and report it in your terminal status for its owner or the allocator's gc."

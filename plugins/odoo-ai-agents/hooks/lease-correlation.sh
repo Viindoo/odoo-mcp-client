@@ -237,6 +237,20 @@ _lease_found_text() {
   ' "$transcript" 2>/dev/null || true
 }
 
+# The lines of a transcript enough to judge ONE token $2 with every function above: the lines that
+# name the token (the only records whose text can contain it), every call that can obtain a lease
+# and its result (_LEASE_OBTAIN_KEYS - a receipt need not repeat the command), every Agent/Task call
+# and its result (which children this agent launched - a hand-up must come from one of them), and
+# every lease_find call and its result. The functions read it in place of the whole transcript - a PreToolUse gate
+# that parses tens of MB several times outruns its timeout, and a cancelled gate lets the call
+# through. Their answer for that token is unchanged: grep it in their output, as the gate does.
+_lease_token_view() {
+  local transcript="$1" tok="$2"
+  [[ -n "$transcript" && -r "$transcript" && -n "$tok" ]] || return 0
+  _tool_call_lines "$transcript" "$tok" "${_LEASE_OBTAIN_KEYS[@]}" '"Agent"' '"Task"' \
+    odoo-local__lease_find
+}
+
 # The transcript of the agent a PreToolUse payload comes from. `agent_transcript_path` when the
 # harness supplies it; otherwise the harness's on-disk layout, `<session transcript minus .jsonl>/
 # subagents/agent-<agent_id>.jsonl`. Prints nothing when neither resolves to a readable file.
