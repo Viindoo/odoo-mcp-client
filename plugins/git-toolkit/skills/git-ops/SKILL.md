@@ -2,19 +2,7 @@
 name: git-ops
 argument-hint: "[git/github task]"
 description: >-
-  Universal front door for ALL git and GitHub work: it ROUTES the request and DISPATCHES a
-  specialist agent to execute it in a delegated context; it never runs the churn itself, so the
-  caller stays clean and code is never lost. Trigger whenever a request touches git or GitHub in
-  ANY way, even casual phrasing: commit/stage/push/pull/clone,
-  status/log/diff/blame/bisect, branch/tag/worktree/stash, fetch/merge/cherry-pick, rebase,
-  forward-port/backport, conflict resolution, history rewrite
-  (rebase -i/squash/split/amend/reset/filter-repo), force-push, recovery (reflog/ORIG_HEAD/stash),
-  large-diff analysis at scale, AND GitHub PR/issue/review/release/CI/fork, OR a pasted GitHub
-  PR/issue URL. Vietnamese: "commit/đẩy code", "tạo nhánh", "rebase nhánh",
-  "gộp commit", "sửa lịch sử", "giải quyết xung đột",
-  "mở/review/merge PR", "dán link PR/issue". For a domain-specific flow (a
-  framework's rebase/forward-port/cluster-upgrade orchestrator) a domain front-door may wrap this
-  toolkit -> defer to it when installed
+  Front door for any git or GitHub task, however casually asked: commit, push, branch, rebase, merge, cherry-pick, conflicts, history rewrite, recovery, PRs, issues, reviews, CI, or a pasted PR/issue URL. Runs it in a delegated agent so no code is lost. Defer to a domain front door (a framework's rebase or forward-port skill) when installed
 ---
 
 # git-ops - the universal git/github front door

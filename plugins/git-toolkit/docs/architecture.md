@@ -8,7 +8,7 @@ frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue 
 ## Components
 
 - **1 skill - `git-ops`.** The universal front door. Auto-triggers on all git + GitHub intent
-  (EN + VI). Classifies the op, picks an execution mode, points at the safety/scale/convention
+  (the user may write in any language; the description is English). Classifies the op, picks an execution mode, points at the safety/scale/convention
   snippets and the detailed recipes in `references/`.
 - **4 agents.**
   - `git-surveyor` - READ-ONLY cognition (map / evaluate / verify). Tool grant excludes write and

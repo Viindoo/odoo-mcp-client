@@ -169,8 +169,9 @@ Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 - **Meaning first, length follows.** State what the skill does, its core trigger intent, and a
   route-out only where a neighbour is genuinely confusable. No paraphrase lists, examples, process
   detail or marketing wording - those belong in the body.
-- **The aggregate stays inside the budget.** A new skill pays for itself by tightening others, never
-  by raising the budget. A command that is purely a user shortcut for a still-visible skill may set
+- **Each plugin's aggregate stays inside its budget** - `odoo-ai-agents` the 8000 chars, `git-toolkit`
+  400 (table in the test). A new skill pays for itself by tightening others, never by raising the
+  budget. A command that is purely a user shortcut for a still-visible skill may set
   `disable-model-invocation: true` (it leaves the listing), unless an orchestrator skill or workflow
   names it.
 

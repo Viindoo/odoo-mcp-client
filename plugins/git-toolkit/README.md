@@ -12,7 +12,7 @@ monorepo, but domain-agnostic: it has no Odoo dependency.
 - **One skill, `git-ops`** - the universal front door. Fires on git intent (status/log/diff/blame/
   bisect, branch/tag/worktree, fetch/pull/merge/cherry-pick, rebase, forward-port/backport,
   conflict resolution, history rewrite, recovery, large-diff analysis) and GitHub intent (PR/issue/
-  review/release/CI/fork). EN + VI triggers.
+  review/release/CI/fork), in whatever language the user writes.
 - **Three execution modes**, chosen by output size and risk:
   - **INLINE** - bounded, low-risk reads (`git status`, `git log -n`) run directly.
   - **SINGLE-DELEGATE** - one medium op cold-spawns one leaf agent.
