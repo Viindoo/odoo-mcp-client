@@ -79,8 +79,8 @@ Custom distributions track Odoo versions - distinguish CE base from distribution
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-1. **Tier 2:** `WebFetch` `https://www.odoo.com/odoo-<version>/release-notes`; if that fails, `WebFetch` GitHub CHANGELOG (`https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst`) or releases page. Label artifact `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 (both fail):** Generate from training knowledge; prepend `OSM unavailable - ungrounded`; add caveat. Never ask caller to paste release notes.
+1. **Tier 2:** `WebFetch` `https://www.odoo.com/odoo-<version>/release-notes`; if that fails, `WebFetch` GitHub CHANGELOG (`https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst`) or releases page. Label artifact `grounded: local-source - not OSM-indexed`.
+2. **Tier 3 (both fail):** Generate from training knowledge; prepend `grounded: ungrounded - OSM unavailable`; add caveat. Never ask caller to paste release notes.
 
 ## Output format
 

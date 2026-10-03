@@ -56,7 +56,7 @@ Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`. Call sequ
 
 Use OSM to learn menu paths, field labels, and state machine values - never for actual record data
 (OSM has no live records). Reading source (Read/Grep) is the FALLBACK when OSM is incomplete or
-unreachable; label results `grounding: local-source`.
+unreachable; label results `grounded: local-source`.
 
 ## Feature catalog (optional, preferred input)
 
@@ -112,7 +112,7 @@ Write `<OUTPUT_DIR>/walkthrough.md`:
 
 module: <MODULE>
 odoo_version: <version>
-grounding: osm | hybrid | local-source
+grounded: osm | hybrid | local-source
 catalog: <CATALOG_PATH | none>
 generated: <ISO date>
 
@@ -150,7 +150,7 @@ Return a compact summary to the orchestrator:
 - `walkthrough_path`: absolute path to `walkthrough.md`
 - `jsonl_path`: absolute path to `walkthrough.jsonl`
 - `scenario_count`: number of scenarios authored
-- `grounding`: `osm | hybrid | local-source`
+- `grounded`: `osm | hybrid | local-source` - your grounding claim, on a line of its own
 - `catalog`: `used | none`
 
 Then append a Continuation Contract per

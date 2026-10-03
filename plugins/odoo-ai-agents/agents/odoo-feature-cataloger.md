@@ -219,13 +219,13 @@ and `unknown` entries, plus a one-line note if any entries are `unknown`.
 
 ## Output and return
 
-After writing both files, return a compact block:
+After writing both files, return a compact block as plain lines, outside any code fence (its `grounded:` line is your grounding claim, per `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5):
 
 ```
 odoo-feature-cataloger result
 MODULE: <name>  ODOO_VERSION: <version>
 features: <total count>  types: model=N view=N menu=N action=N component=N
-grounding: osm=N hybrid=N local-source=N unknown=N
+grounded: osm=N hybrid=N local-source=N unknown=N
 catalog: <OUTPUT_DIR>/feature-catalog.jsonl
 report:  <OUTPUT_DIR>/feature-catalog.md
 status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT

@@ -70,8 +70,8 @@ Never claim EE-only without tool verification. Write for non-technical decision-
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-1. **Tier 2:** `WebFetch` raw manifests (CE: `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`; EE: `.../odoo/enterprise/<version>/...`) and official release notes. Use local `Read`/`Grep` if a source tree is present. Label artifact `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 (both fail):** Generate from training knowledge; prepend `OSM unavailable - ungrounded`; note "field-level details unverified". Never ask caller to paste manifests.
+1. **Tier 2:** `WebFetch` raw manifests (CE: `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`; EE: `.../odoo/enterprise/<version>/...`) and official release notes. Use local `Read`/`Grep` if a source tree is present. Label artifact `grounded: local-source - not OSM-indexed`.
+2. **Tier 3 (both fail):** Generate from training knowledge; prepend `grounded: ungrounded - OSM unavailable`; note "field-level details unverified". Never ask caller to paste manifests.
 
 ## Output format
 

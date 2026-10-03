@@ -95,9 +95,9 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the doc; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the v8.0-v9.0 descriptor is `__openerp__.py`; `grep -rn "class .*models.Model\|_inherit"`; `Read models/*.py` + `__manifest__.py` (or `__openerp__.py` on v8.0-v9.0)) in place of `model_inspect`/`entity_lookup`/`impact_analysis`, labelled `grounded: local-source (not OSM-indexed)` (note override-conflict blast radius is approximate); only when the repo itself is inaccessible, design from memory labelled `OSM unavailable - ungrounded` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the doc; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the descriptor is `__openerp__.py` on the series `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6 names; `grep -rn "class .*models.Model\|_inherit"`; `Read models/*.py` + `__manifest__.py` (or `__openerp__.py` on the series that row names)) in place of `model_inspect`/`entity_lookup`/`impact_analysis`, labelled `grounded: local-source - not OSM-indexed` (note override-conflict blast radius is approximate); only when the repo itself is inaccessible, design from memory labelled `grounded: ungrounded - OSM unavailable` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
 
-**Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`.
+**Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: hybrid`.
 
 ---
 
@@ -279,7 +279,8 @@ Write ONE markdown file to `<SHARE_DIR>/designs/<slug>-<YYYY-MM-DD>.md` (create 
 ```
 # Technical Design - <change name>
 
-- Odoo version: <version>   ·   Grounding: osm | local-source | ungrounded
+- Odoo version: <version>
+- grounded: osm | hybrid | local-source | ungrounded
 - Source requirement / tier: <REQ-id + Extension-L/Custom-XL, or the upgrade/refactor goal>
 - Target module(s): <module>   ·   Stack: backend | frontend | full-stack
 - Dispatch: <opus | fable | opus (fable declined/unavailable)>

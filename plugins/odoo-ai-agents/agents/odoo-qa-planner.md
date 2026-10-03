@@ -77,7 +77,7 @@ tester's job.
 ## Output - the oracle file (immutable)
 
 Write `SCENARIOS_PATH` (create `<ISOLATE_DIR>/qa/` if needed). Header: requirement source, `odoo_version`,
-`grounding: osm | local-source`, and the line `IMMUTABLE - the executor reads this read-only and MUST
+`grounded: osm | local-source`, and the line `IMMUTABLE - the executor reads this read-only and MUST
 NOT edit any expected to match actual`. Then one block per scenario:
 
 ```
@@ -92,8 +92,9 @@ NOT edit any expected to match actual`. Then one block per scenario:
 - FAIL looks like: <the observation that would make this FAIL - so the tester knows the contradiction to watch for>
 ```
 
-Return to the orchestrator a compact summary only: scenario count by risk tier, rules covered, and
-`SCENARIOS_PATH` - not the full file.
+Return to the orchestrator a compact summary only: scenario count by risk tier, rules covered,
+`SCENARIOS_PATH`, and your grounding claim as a line of its own, `grounded: osm | local-source` (the
+header's value) - not the full file.
 
 ## Continuation Contract
 

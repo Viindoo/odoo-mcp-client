@@ -35,6 +35,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   unchecked. They now check every stop, a continued one included: a block is given on every fresh
   stop - a first stop or a caller's resume - and at most once inside one hook-continued chain, so a
   block the subagent ignores cannot loop.
+- `odoo-ai-agents` - **the grounding label has one form, and the gate reads only its value.**
+  `enforce-grounding` took `grounded: osm` anywhere in any text the subagent ever wrote, in any
+  case, as a claim, so a reviewer citing a test, an agent saying it made no such claim, a corrected
+  earlier report and even the honest `grounded: OSM unavailable - ungrounded` were blocked as a lie,
+  while labels spelled `Grounding:`, `grounding:` or `osm-indexed` were never checked.
+  `osm-first-contract.md` now defines the label once: the one line of the report the caller
+  receives, outside any code fence, `grounded: <value> - <explanation>`, where the value is the
+  first word and one of `osm`, `hybrid`, `local-source`, `ungrounded`, `unknown`, or a
+  `<key>=<n>` tally over them in any order. The gate blocks, with no OSM call, only `osm`,
+  `hybrid` or a tally with an osm or hybrid count above zero; it never reads the explanation, so
+  an honest value passes whatever its explanation says. A value outside the set claims nothing and
+  earns a note with the exact form; the label quoted whole, mid-sentence, in a table, JSON or a
+  fence is a mention. Every agent, skill, report and artifact template uses this form - honest
+  labels read `grounded: ungrounded - OSM unavailable` or `grounded: local-source - not
+  OSM-indexed` - and return blocks that carry it are sent as plain lines; `odoo-qa-planner` also
+  states its label in its return.
 - `odoo-ai-agents` - `permission-denied-teardown` also wrote its refused give-back advice to
   `additionalContext`, a field the harness does not read from a `PermissionDenied` hook. The advice
   is now a line for the user only; the dispatch gets it in the reason of the teardown gates, which

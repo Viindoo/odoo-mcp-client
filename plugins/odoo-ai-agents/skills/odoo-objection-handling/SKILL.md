@@ -78,8 +78,8 @@ The objection text is already in the invocation - do not ask the caller to re-pr
    when the variable is unset or nothing matches - never block, never ask the human to paste it.
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-- **Tier 2:** `WebFetch` relevant Odoo source or docs to ground capability claims; use local `Read`/`Grep` when a source tree is available. Label artifacts `grounded: local-source (not OSM-indexed)`.
-- **Tier 3:** Generate ACA response from training knowledge, prepend `OSM unavailable - ungrounded`, add caveat "not yet verified against the codebase; fact-check when OSM is back online".
+- **Tier 2:** `WebFetch` relevant Odoo source or docs to ground capability claims; use local `Read`/`Grep` when a source tree is available. Label artifacts `grounded: local-source - not OSM-indexed`.
+- **Tier 3:** Generate ACA response from training knowledge, prepend `grounded: ungrounded - OSM unavailable`, add caveat "not yet verified against the codebase; fact-check when OSM is back online".
 
 ## Output format
 

@@ -34,7 +34,7 @@ OSM call OR a direct source read - never asserted from memory:
 - When OSM is reachable but the SPECIFIC entity is not in the index (a customer-local
   custom module/model), `Read`/`Grep` the local source for that entity instead - a
   Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does
-  cover (`grounded: osm + local-source (hybrid)`). An index miss is not proof of
+  cover (`grounded: hybrid`). An index miss is not proof of
   absence when a local repo is available to check - and, per the next rule, an index
   HIT is not proof that what you read is what the tree under review contains.
 - **Presence in the index is not currency with the TREE UNDER REVIEW.** OSM indexes repos at a
@@ -101,11 +101,11 @@ calling OSM for the rest of the session. Follow the three-tier order in
 1. **Tier 2 - disk first.** `Read`/`Grep`/`Bash` the local addons, or `WebFetch` the official
    Odoo source for the target version (and, only if this environment happens to expose a live
    ERP MCP, enrich from it as a bonus - never assume one exists). Output built this way is
-   **grounded against real source** (label `grounded: local-source (not OSM-indexed)`), one
+   **grounded against real source** (label `grounded: local-source - not OSM-indexed`), one
    notch below OSM - it is NOT `ungrounded`.
 2. **Tier 3 - training-memory only as a last resort**, when no index, no readable repo, no live
-   instance, and no network are available. Then do not generate silently: state
-   `OSM unavailable - ungrounded` in your output, lower confidence, and make that caveat survive
+   instance, and no network are available. Then do not generate silently: label it
+   `grounded: ungrounded - OSM unavailable`, lower confidence, and make that caveat survive
    into the final artifact your orchestrator returns.
 
 Grounded-by-default (Tier 1 or Tier 2); ungrounded-but-flagged (Tier 3) only as a true last
@@ -114,14 +114,34 @@ source encodes - never to re-supply code, fields, manifests, changelogs, or CRM 
 
 ## 5. This contract is enforced (not just advisory)
 
+**Your grounding claim is the label line of your report:** one line of its own, outside any code
+fence, in the report your caller receives (a return block that carries it is sent as plain lines):
+
+    grounded: <value> - <explanation>
+
+- The `grounded:` key may follow a list or blockquote marker; bold or backticks may wrap the key.
+- `<value>` is the FIRST word after the key - words split at every character other than a
+  letter, digit, `_`, `-` or `=`, so `(osm)` and `osm+local-source` read `osm` - one of: `osm` (checked through OSM), `hybrid` (OSM
+  plus local source), `local-source` (read from the source, not OSM-indexed), `ungrounded`
+  (nothing checked), `unknown`; or a tally of `<key>=<n>` words over those keys, in any order
+  (`osm=3 local-source=1`).
+- Everything after the value is explanation for people - the gate never reads it.
+- `osm`, `hybrid`, or a tally with an osm or hybrid count above zero claims OSM grounding; every
+  other value is honest. A value outside the set is malformed and states nothing.
+
+Your report carries one label line, for its own work - describe an earlier label in prose. Every
+artifact you write uses the same key and values. The label anywhere else - quoted whole,
+mid-sentence, in a table or JSON, in a code fence, describing another agent's output - is a
+mention, not a claim.
+
 For **spawned workers** (odoo-coder's WI workers, workflow-chaining fan-out, code/UI agents), a
 `SubagentStop` hook (`hooks/enforce-grounding.sh`) reads the worker's own transcript and makes
-§1/§4 a checkable invariant: if your artifact claims `grounded: osm` but you made **zero**
+§1/§4 a checkable invariant: if your label line claims OSM but you made **zero**
 `mcp__odoo-semantic__*` calls, the stop is **blocked** and you are asked to either actually
-verify or relabel honestly (`grounded: local-source` / `OSM unavailable - ungrounded`). The
-label must be *earned* from real calls, not asserted. Two softer gaps raise a **non-blocking
-note** (not a block): backend code written with OSM reachable but the ORM validators skipped;
-and backend `.py` written with zero OSM calls and no grounding label at all (the silent case) -
-the note asks you to ground it, or to state plainly it is pure-Python/standalone so the gate is
-satisfied. Only the provable lie (`grounded: osm` with zero calls) is blocked. Honest grounding
-is cheaper than a blocked stop - make the calls.
+verify or relabel honestly (`grounded: local-source - <why>` or `grounded: ungrounded - <why>`).
+The label must be *earned* from real calls, not asserted. A malformed label line, and two softer
+gaps, raise a **non-blocking note** (not a block): backend code written with OSM reachable but
+the ORM validators skipped; and backend `.py` written with zero OSM calls and no grounding label at
+all (the silent case) - the note asks you to ground it, or to label it honestly (pure Python with
+no ORM is `grounded: ungrounded - pure Python, no ORM`). Only the provable lie (an OSM label line
+with zero calls) is blocked. Honest grounding is cheaper than a blocked stop - make the calls.

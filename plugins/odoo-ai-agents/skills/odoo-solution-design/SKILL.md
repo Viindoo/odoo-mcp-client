@@ -368,11 +368,11 @@ change only on `adopted`; an unanswered proposal silently becomes "never happens
 ## Standalone-first fallback
 
 When OSM is unreachable: architect `Read`/`Grep`s module source (field lists, method signatures,
-manifest `depends`), labels doc `grounded: local-source (not OSM-indexed)`. When OSM is
+manifest `depends`), labels doc `grounded: local-source - not OSM-indexed`. When OSM is
 reachable but a specific module is not in the index (customer-local addon): OSM for what it
-covers, local source for missed entities, doc labeled `grounded: osm + local-source (hybrid)`.
-Only when the repo itself is inaccessible: fall back to memory, label `OSM unavailable -
-ungrounded`. Three-tier grounding SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
+covers, local source for missed entities, doc labeled `grounded: hybrid`.
+Only when the repo itself is inaccessible: fall back to memory, label
+`grounded: ungrounded - OSM unavailable`. Three-tier grounding SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never to ask a human
 to paste code or manifests.
 

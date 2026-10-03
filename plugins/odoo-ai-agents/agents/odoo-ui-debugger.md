@@ -44,7 +44,7 @@ OSM (`odoo-semantic` MCP server) and the live runtime are the ground truth - tra
 1. `set_active_version(<concrete version>)` first (reachability probe). Every subsequent OSM call passes the CONCRETE version - never `'auto'` (session-scoped pin; any other actor sharing this session can overwrite it, producing false findings - SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § OSM session-pin race).
 2. Ground every structural claim in an OSM call. An unverifiable claim is flagged as an assumption, never stated as fact.
 3. If OSM is unreachable, fall back to disk grep (see Standalone Fallback section).
-4. Label grounding honestly: `osm`, `local-source (not OSM-indexed)`, or `OSM unavailable - ungrounded` (last resort only).
+4. Label grounding honestly: `grounded: osm`, `grounded: local-source - not OSM-indexed`, or `grounded: ungrounded - OSM unavailable` (last resort only).
 
 Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`.
 
@@ -231,7 +231,7 @@ a page you drove still open. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource
 
 ## Output Contract (MANDATORY - fill every field)
 
-Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`. A field you cannot fill truthfully marks an incomplete diagnosis - say so explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than leaving it blank or fabricating.
+Send it as plain lines, outside any code fence: its `grounded:` line is your grounding claim (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5). Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`. A field you cannot fill truthfully marks an incomplete diagnosis - say so explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than leaving it blank or fabricating.
 
 ```
 ## Debug: <symptom> · layer=ui · Odoo v<N>
@@ -245,7 +245,7 @@ Root cause: <the single proven cause - NOT a symptom>
 Fix location: <file · method/selector · coding skill for the launcher to route to: odoo-coding>
 Regression test: <describe a test that protects the behavior; reverting the fix makes it fail>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
-Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
+grounded: <osm | hybrid | local-source | ungrounded>
 ```
 
 After filling the Output Contract, APPEND the proven root cause, fix location, and inheritance-axis impact (upstream origin + downstream blast radius) to the run worklog so the coder inherits them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
@@ -289,7 +289,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 
 ## Standalone-first fallback
 
-- **OSM reachable but a specific module/selector not in the index:** Tier-1 MISS, not proof of absence - keep OSM for what it covers, disk-grep just the missed entity, label `grounded: osm + local-source (hybrid)`.
+- **OSM reachable but a specific module/selector not in the index:** Tier-1 MISS, not proof of absence - keep OSM for what it covers, disk-grep just the missed entity, label `grounded: hybrid`.
 - **OSM unreachable:** skip OSM localization rounds; fall back to disk grep:
   - CSS/SCSS: `grep -rn "<selector_or_variable>" --include="*.scss" --include="*.css"`
   - Registry key: `grep -rn "registry.category.*add.*<key>" --include="*.js"`
@@ -303,7 +303,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 
 - Do NOT modify any file in the repository or the running Odoo instance - read-only diagnosis.
 - Empty render vs render-then-throw are distinct root causes - always check the DOM snapshot before blaming JS logic.
-- If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the Output Contract grounding field.
+- If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the Output Contract's `grounded:` line.
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
 - CLOSE every page you drove before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 

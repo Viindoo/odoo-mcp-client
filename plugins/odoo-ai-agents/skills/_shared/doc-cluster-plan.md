@@ -144,7 +144,7 @@ own Documentation axes) applies to that module only.
 run: doc-run-<timestamp>
 plan_kind: doc-package                    # distinguishes this from a code-build 3-block plan
 plan_source: design-dag | scope           # full-lifecycle reuses the design DAG; standalone resolves from scope
-grounding: osm | local-source             # module_inspect vs disk depends fallback
+grounded: osm | local-source              # module_inspect vs disk depends fallback
 scope_ref: <ISOLATE_DIR>/packaging/<run>/scope.yaml
 clusters:
   # --- cluster c1: LINEAR chain mod_c <- mod_b <- mod_a (each extends the previous) => ONE instance ---

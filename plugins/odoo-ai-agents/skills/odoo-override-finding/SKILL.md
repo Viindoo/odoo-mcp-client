@@ -94,7 +94,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Tier 2 - Codebase scan:** `grep -rn "class .*<ModelClass>\|_inherit.*=.*'<model.name>'" --include="*.py" .` to find all override sites; then `Read` relevant Python files to extract existing method signatures and decorator usage. This grep stands in for `find_override_point` / `entity_lookup` in this tier.
 - **Tier 2 - Project facts:** series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
 - Still recommend an override point and apply a code template grounded on actual source.
-- Label `grounded: local-source (not OSM-indexed)`. Override chain conflict count is approximate (static grep only); confirm once OSM is online.
+- Label `grounded: local-source - not OSM-indexed`. Override chain conflict count is approximate (static grep only); confirm once OSM is online.
 
 ## Output format and examples
 

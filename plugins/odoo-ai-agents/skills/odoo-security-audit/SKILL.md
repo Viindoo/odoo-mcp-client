@@ -117,7 +117,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Tier 2 - Disk scan:** Run the grep commands from the Method section against the local source tree - surfaces SQL injection candidates, XSS candidates, sudo() calls, eval/pickle, public routes, and hardcoded secrets without MCP.
 - **Tier 2 - Access CSV check:** Run the `find` command to detect models missing `ir.model.access.csv`.
 - **Tier 2 - Project facts:** series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-- Label output `grounded: local-source (not OSM-indexed)`. OSM-enriched exploitability context (inheritance chain, exact API signature for `safe_eval`/`Markup`) unavailable - note findings as "requires OSM verification for full exploit path".
+- Label output `grounded: local-source - not OSM-indexed`. OSM-enriched exploitability context (inheritance chain, exact API signature for `safe_eval`/`Markup`) unavailable - note findings as "requires OSM verification for full exploit path".
 - Escalate (`NEEDS_CONTEXT`) only if target version is genuinely unresolvable and severity grading would materially change between versions - never ask the caller to supply code or file lists that a disk scan can retrieve.
 
 ## Continuation Contract

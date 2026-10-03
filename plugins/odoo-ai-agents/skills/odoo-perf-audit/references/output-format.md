@@ -1,11 +1,13 @@
 # odoo-perf-audit - Output Format
 
+Send it as plain lines, outside any code fence: its `grounded:` line is your grounding claim (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5).
+
 ```
 ## Performance Audit Report
 
 **Module / file scope:** <module or file list>
 **Odoo version:** <version>
-**Grounding:** osm-indexed | local-source (not OSM-indexed) | OSM unavailable - ungrounded
+**grounded:** osm | hybrid | local-source | ungrounded
 **Issues found:** <N total> (<N> HIGH / <N> MEDIUM / <N> LOW)
 
 ### Findings

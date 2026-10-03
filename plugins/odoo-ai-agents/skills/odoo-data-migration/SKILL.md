@@ -144,7 +144,7 @@ When OSM is unreachable, follow the three-tier grounding in
   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, never from a raw manifest read.
 - **Tier 2 - Column check fallback:** When OSM cannot confirm a column name, add a comment
   in the script: `# VERIFY: confirm column name against live schema with \`\d <table>\` before running`.
-- **Caveat:** Label output `grounded: local-source (not OSM-indexed)`. Confirm openupgradelib
+- **Caveat:** Label output `grounded: local-source - not OSM-indexed`. Confirm openupgradelib
   helper availability once OSM is back online.
 - Escalate to the caller (`NEEDS_CONTEXT`) only for business decisions (e.g. what the
   default backfill value should be) that no source file encodes.

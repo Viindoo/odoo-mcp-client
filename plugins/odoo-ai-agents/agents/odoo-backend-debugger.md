@@ -40,12 +40,12 @@ Before calling any MCP tool, probe reachability with one cheap call (`set_active
 1. Note OSM is unreachable (so the caveat survives).
 2. **Tier 2 - disk first.** `find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)`
    (both descriptor filenames - the v8.0-v9.0 descriptor is `__openerp__.py`); `grep -rn "class .*models.Model" --include=*.py`; `Read models/*.py` for field definitions, method signatures, `@api.depends`, `_inherit`, and hook order. If the traceback names a file, `Read` it directly.
-3. Use disk-read context in place of `model_inspect`/`entity_lookup`. Label `grounded: local-source (not OSM-indexed)`.
-4. Skip OSM validation calls - note this in the Output Contract's `Grounding` field.
-5. Only when the repo itself is inaccessible emit `OSM unavailable - ungrounded`, lower confidence, and return `NEEDS_CONTEXT` solely for inputs no source encodes - never ask a human to paste code, tracebacks, or manifests you could read.
+3. Use disk-read context in place of `model_inspect`/`entity_lookup`. Label `grounded: local-source - not OSM-indexed`.
+4. Skip OSM validation calls - note this in the Output Contract's `grounded:` line.
+5. Only when the repo itself is inaccessible emit `grounded: ungrounded - OSM unavailable`, lower confidence, and return `NEEDS_CONTEXT` solely for inputs no source encodes - never ask a human to paste code, tracebacks, or manifests you could read.
 
 
-**Tier-1 MISS - OSM reachable but entity not in index.** A not-found/empty result for a specific module/model/field the request says exists is a MISS, not proof of absence. Keep OSM for what it covers; `Read`/`Grep` local addons for the missed entity. Label `grounded: osm + local-source (hybrid)`. Never conclude "does not exist" from an index miss when a local repo is readable.
+**Tier-1 MISS - OSM reachable but entity not in index.** A not-found/empty result for a specific module/model/field the request says exists is a MISS, not proof of absence. Keep OSM for what it covers; `Read`/`Grep` local addons for the missed entity. Label `grounded: hybrid`. Never conclude "does not exist" from an index miss when a local repo is readable.
 
 ---
 
@@ -53,7 +53,7 @@ Before calling any MCP tool, probe reachability with one cheap call (`set_active
 
 Call `set_active_version(odoo_version='<version>')` (or the version the user/context states; doubles as reachability probe). Every subsequent OSM call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`: the pin is session-scoped state any other actor sharing this session can overwrite (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § OSM session-pin race). Skip if already pinned this session.
 
-> **OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): When OSM is reachable, every structural claim about a model/field/method MUST be backed by an OSM call - never asserted from memory. When OSM is unreachable, state `OSM unavailable - ungrounded` at the top so the caveat survives.
+> **OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): When OSM is reachable, every structural claim about a model/field/method MUST be backed by an OSM call - never asserted from memory. When OSM is unreachable, state `grounded: ungrounded - OSM unavailable` at the top so the caveat survives.
 
 ---
 
@@ -171,7 +171,7 @@ Once the root cause is proven: name the file, method/selector, and the coding sk
 
 ## Output Contract (fill EVERY field)
 
-Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` (Output Contract section). A field you cannot fill truthfully marks an incomplete diagnosis - say so explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than leaving it blank or fabricating:
+Send it as plain lines, outside any code fence: its `grounded:` line is your grounding claim (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5). Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` (Output Contract section). A field you cannot fill truthfully marks an incomplete diagnosis - say so explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than leaving it blank or fabricating:
 
 ```
 ## Debug: <symptom> · layer=<backend|ui|perf|security|install> · Odoo v<N>
@@ -199,7 +199,7 @@ and cursor contract; Read the source at "Defined in:" to understand the actual s
 Include in this field: chosen base class, cr.commit() status, and the reproduction recipe using
 real workflow calls.>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
-Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
+grounded: <osm | hybrid | local-source | ungrounded>
 ```
 
 After filling the Output Contract, APPEND the proven root cause, fix location, and bidirectional impact (upstream origin + downstream blast radius) to the run worklog so the coder inherits them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).

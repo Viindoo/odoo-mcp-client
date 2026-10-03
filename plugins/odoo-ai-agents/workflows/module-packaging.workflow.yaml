@@ -108,7 +108,7 @@ phases:
     # OSM-verify the disk edges opportunistically (trust-but-verify) with the CONCRETE version.
     # Write ONE doc-plan.yaml conforming to the doc-cluster-plan.md schema to
     # .odoo-ai/packaging/<run>/doc-plan.yaml (header: plan_kind: doc-package, plan_source: scope,
-    # grounding: osm|local-source, scope_ref). Standalone-first: the whole algorithm is
+    # grounded: osm|local-source, scope_ref). Standalone-first: the whole algorithm is
     # disk-resolvable - no instance and no browser needed to plan.
     # GATE: present the WHOLE plan - all clusters + branch-aware instance allocation + install/doc
     # order + dedup (doc:true/false) + the parallelism schedule (W) - for ONE approval

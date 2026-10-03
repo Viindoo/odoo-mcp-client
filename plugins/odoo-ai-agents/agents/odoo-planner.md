@@ -53,7 +53,7 @@ skill names, and tool names stay English. Without it, report in English (SSOT:
 
 If `set_active_version` errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 note OSM unreachable in the plan header, verify module names against the design doc + on-disk
-manifests, label `grounded: local-source (not OSM-indexed)`. Escalate (`NEEDS_CONTEXT`) only for a
+manifests, label `grounded: local-source - not OSM-indexed`. Escalate (`NEEDS_CONTEXT`) only for a
 sequencing decision no artifact encodes - never to ask a human to paste the design.
 
 ## Round 0 - Read the inputs BY POINTER (do not re-derive)

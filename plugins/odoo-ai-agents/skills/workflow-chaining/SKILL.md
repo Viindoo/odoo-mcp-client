@@ -218,7 +218,7 @@ Tier 3, and training memory IS Tier 3 - a last resort, never a co-equal option.
 - Continue the workflow; each specialist declares its own standalone fallback.
 - If a phase's `fallback` field is `standalone`, apply this automatically.
 - Caveat the final artifact PER PHASE: a Tier-2-grounded phase is NOT `ungrounded`; only a
-  memory-only phase carries `OSM unavailable - ungrounded`.
+  memory-only phase carries `grounded: ungrounded - OSM unavailable`.
 
 ## Continuation Contract
 

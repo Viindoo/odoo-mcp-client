@@ -76,7 +76,7 @@ Focus `impact_analysis` on fields with high `used_by` counts. Count BREAKING vs 
 When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
 - **Tier 2 (disk):** `find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` to discover modules (glob BOTH descriptor names or the v8-v9 series are silently missed), `Read` each manifest for classification clues, and `grep` for deprecated patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source. Build the risk overview without asking the user.
-- **Tier 3 (training):** If no readable source available, produce a heuristic estimate and label `OSM unavailable - ungrounded` with caveat "deprecated API + blast radius not yet scanned - verify with detailed audit when OSM is online".
+- **Tier 3 (training):** If no readable source available, produce a heuristic estimate and label `grounded: ungrounded - OSM unavailable` with caveat "deprecated API + blast radius not yet scanned - verify with detailed audit when OSM is online".
 
 ## Output format
 

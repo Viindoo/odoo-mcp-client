@@ -407,7 +407,7 @@ Never reuse one tier as the other.
 
 When Odoo Semantic (odoo-semantic-mcp) is unreachable: P2 intent extractors fall back to
 local-source reads (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`), labelling each
-record `grounded: local-source (not OSM-indexed)`; P3 diff-comparator falls back to disk
+record `grounded: local-source - not OSM-indexed`; P3 diff-comparator falls back to disk
 reads of the target checkout per `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 The range-diff + dup-guard + verify-by-behavior contracts are unchanged.
 

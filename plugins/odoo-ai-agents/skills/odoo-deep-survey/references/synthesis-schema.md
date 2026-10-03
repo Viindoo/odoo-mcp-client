@@ -16,7 +16,7 @@ human architecture document. Every finding carries a `file:line` or an OSM citat
 - `grounded: local-source` - disk read only (OSM unreachable, or the fact is not OSM-indexed -
   e.g. the framework-validation test classes).
 
-(Maps to the upg P1d labels `osm` / `osm + local-source (hybrid)` / `local-source (not OSM-indexed)`.)
+(Maps to the upg P1d labels `osm` / `hybrid` / `local-source`.)
 
 ## Sections (in order)
 

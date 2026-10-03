@@ -104,9 +104,9 @@ When OSM is unreachable, follow the three-tier grounding order from
    - `WebFetch` official release notes at
      `https://www.odoo.com/odoo-<version>/release-notes` for business-language content.
    - Use local `Read`/`Grep` on a local source tree when present.
-   - Label artifacts `grounded: local-source (not OSM-indexed)`.
+   - Label artifacts `grounded: local-source - not OSM-indexed`.
 2. **Tier 3 - only if both version fetches fail:** produce the diff from training
-   knowledge of era-level changes and prepend `OSM unavailable - ungrounded`; add caveat
+   knowledge of era-level changes and prepend `grounded: ungrounded - OSM unavailable`; add caveat
    "not yet verified against the API index; double-check signature details when OSM is back online".
    Never ask the caller to paste or supply release notes - those are Tier-2 fetches.
 
