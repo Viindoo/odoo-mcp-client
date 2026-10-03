@@ -6,7 +6,7 @@
 # OSM call, and nothing notices. This hook turns the EXISTING contracts into a checkable
 # invariant by reading the subagent's own transcript: if the artifact CLAIMS OSM grounding
 # but the transcript shows ZERO `mcp__odoo-semantic__*` calls, that is a self-reported lie -
-# block once with corrective feedback. Softer gaps are surfaced as NON-blocking notes:
+# block with corrective feedback (when, and how often: CONTRACT below). Softer gaps are surfaced as NON-blocking notes:
 # (a) backend .py written while OSM was reachable but the ORM validators never ran; and
 # (b) the silent-skipper - backend .py written with ZERO OSM calls and no grounding label
 # at all. Neither is a provable lie (so never blocked, per the agent-consumer debate: a block
@@ -19,8 +19,16 @@
 #
 # CONTRACT (Claude Code SubagentStop): stdin JSON has agent_transcript_path (the subagent's own
 # transcript - the one read here), transcript_path (the whole session's) + stop_hook_active.
-#   - Loop-safe: when stop_hook_active=true we already forced one continue - never re-block.
-#   - Block form: {"decision":"block","reason":"..."} on stdout (forces the subagent to fix).
+#   - Checks EVERY stop, a continued one included (stop_hook_active=true): a note or a block buys
+#     the subagent one more turn, and the report it writes there is the one its caller receives, so
+#     that report is checked like the first. Loop-safe instead: a note is said at most once per
+#     context window (hooks/advice-once.sh _stop_text_due), and a block is given on every stop no
+#     hook continued - a caller's resume is a new report - but at most once inside one
+#     hook-continued chain (_stop_block_due; the harness records a block reason in the transcript).
+#   - Block form: {"decision":"block","reason":"..."} on stdout (forces the subagent to fix); the
+#     reason ends on the sentence that tells it what its caller receives after that extra turn.
+#   - Note form: SubagentStop additionalContext to the subagent (it reads it and runs one more
+#     turn); nothing once the report was handed back - see _note.
 #   - Self-gating: acts ONLY on Odoo-shaped subagents (OSM usage / .py writes / grounding
 #     vocabulary in the transcript); silently approves anything else - it must never disrupt
 #     unrelated subagents from other plugins.
@@ -35,13 +43,19 @@ INPUT="$(cat 2>/dev/null || true)"
 [[ -n "$INPUT" ]] || _pass
 
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
-[[ "$STOP_ACTIVE" == "true" ]] && _pass   # already continuing from a prior block - no loop
 
-# Shared helper: hooks/final-report.sh (which transcript, and the agent's own signals).
+# Shared helpers: hooks/final-report.sh (which transcript, and the agent's own signals) and
+# hooks/advice-once.sh (is this text already in the context - the loop guard). Unreadable -> pass.
 _FR_LIB="${BASH_SOURCE[0]%/*}/final-report.sh"
-[[ -r "$_FR_LIB" ]] || _pass
+[[ -r "$_FR_LIB" && -r "${BASH_SOURCE[0]%/*}/advice-once.sh" ]] || _pass
 # shellcheck source=/dev/null
 . "$_FR_LIB"
+# shellcheck source=/dev/null
+. "${BASH_SOURCE[0]%/*}/advice-once.sh"
+# Optional: hooks/teammate-wait.sh tells a stop that only WAITS for a teammate apart from a final
+# report, so the closing sentence of a note or block fits it. Unreadable -> every stop is a report.
+# shellcheck source=/dev/null
+[[ -r "${BASH_SOURCE[0]%/*}/teammate-wait.sh" ]] && . "${BASH_SOURCE[0]%/*}/teammate-wait.sh"
 
 # The subagent's OWN transcript (agent_transcript_path on SubagentStop - never the session-wide
 # transcript_path, which would credit the parent's or a sibling's OSM calls to this subagent).
@@ -82,21 +96,29 @@ fi
 
 # --- Invariant 1 (BLOCK): claims OSM grounding but made zero OSM calls ----------------------
 if [[ "$CLAIMS_OSM" -gt 0 && "$OSM_CALLS" -eq 0 ]]; then
-    jq -cn --arg r "Grounding invariant violated: the artifact claims \`grounded: osm\` but this subagent's transcript shows ZERO mcp__odoo-semantic__* calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly as \`grounded: local-source (not OSM-indexed)\` / \`OSM unavailable - ungrounded\` per osm-first-contract.md section 4. Do not assert OSM grounding you did not perform." \
-        '{decision:"block", reason:$r}'
+    # The block buys the subagent one more turn whose last message replaces its report for the
+    # caller, so the reason ends on the sentence that says so (final-report.sh _subagent_note_tail).
+    # A fresh stop is always checked; inside a hook-continued chain this exact refusal is given once
+    # (hooks/advice-once.sh _stop_block_due), so a block the subagent ignores cannot loop.
+    REASON="Grounding invariant violated: the artifact claims \`grounded: osm\` but this subagent's transcript shows ZERO mcp__odoo-semantic__* calls. Either actually verify the claim against OSM (set_active_version + model_inspect/entity_lookup/etc.), or relabel honestly as \`grounded: local-source (not OSM-indexed)\` / \`OSM unavailable - ungrounded\` per osm-first-contract.md section 4. Do not assert OSM grounding you did not perform. $(_subagent_note_tail "$TRANSCRIPT" "$INPUT")"
+    _stop_block_due "$TRANSCRIPT" "$STOP_ACTIVE" "$REASON" || _pass
+    jq -cn --arg r "$REASON" '{decision:"block", reason:$r}'
     exit 0
 fi
 
-# A NON-BLOCKING note is said once per context window (hooks/advice-once.sh, against the
-# subagent's own transcript, where the harness records it): a subagent woken again after a stop
-# would otherwise get the same note at every later stop. The block above is never deduplicated.
+# A NON-BLOCKING note goes to the subagent, the one agent that can still act on it before its report
+# reaches the caller: SubagentStop additionalContext, which the subagent reads and answers in ONE
+# more turn (a SubagentStop systemMessage reaches neither the subagent nor its caller). The note then
+# says that the caller receives the message that turn ends on (final-report.sh _subagent_note_tail).
+# A report already delivered through SubagentHandback cannot change any more, and no SubagentStop
+# channel reaches anyone else, so there the note is not emitted at all. Said once per context window
+# (hooks/advice-once.sh _stop_text_due): a subagent woken again after a stop would otherwise get the
+# same note at every later stop.
 _note() {
-  if [[ -r "${BASH_SOURCE[0]%/*}/advice-once.sh" ]]; then
-    # shellcheck source=/dev/null
-    . "${BASH_SOURCE[0]%/*}/advice-once.sh"
-    _advice_seen "$TRANSCRIPT" "$1" && _pass
-  fi
-  jq -cn --arg m "$1" '{continue:true, systemMessage:$m}'
+  _handback_delivered "$TRANSCRIPT" && _pass
+  _stop_text_due "$TRANSCRIPT" "$STOP_ACTIVE" "$1" || _pass
+  jq -cn --arg m "$1 $(_subagent_note_tail "$TRANSCRIPT" "$INPUT")" \
+    '{hookSpecificOutput: {hookEventName: "SubagentStop", additionalContext: $m}}'
   exit 0
 }
 

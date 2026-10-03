@@ -13,7 +13,14 @@ The NAMED DESIGN RULE under test (a future contributor must not invert it):
   exception). The gate is STATUS-BLIND: DONE, NEEDS_NEXT, BLOCKED, NEEDS_CONTEXT, an out-of-enum
   value, and a turn carrying no machine-readable status at all are gated alike. SubagentStop only.
 - BROWSERS (pages/recordings that die WITH the session's MCP server) = ADVISORY ONLY, keyed on the
-  fuzzy transcript open/close count, on BOTH SubagentStop and Stop. NEVER `decision: block`.
+  fuzzy transcript open/close count, on BOTH SubagentStop and Stop. NEVER `decision: block`. On
+  SubagentStop the finding rides additionalContext - the channel the subagent that drove the pages
+  reads (a systemMessage reaches no model); on the main session's Stop it is a systemMessage for
+  the user, because the main session often keeps a page open on purpose for the user.
+- Every SubagentStop text addressed to the subagent - a block reason as much as a note - ends by
+  telling it what its caller receives: the extra turn's last message replaces its report, so it
+  repeats its complete report; a coordinator that only waits for its teammate keeps waiting; after
+  a SubagentHandback nothing more reaches the caller.
 
 Everything degrades to a silent pass on uncertainty (this is the one hard gate; a false block halts
 real work, so it prefers a false-negative over a false-positive).
@@ -31,6 +38,8 @@ import tokenize
 from pathlib import Path
 
 import pytest
+
+from conftest import block_feedback_record, brief_record, model_context, resume_record
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
@@ -181,6 +190,14 @@ def _lease(run_id="run-abc", mode="exclusive", pid=None, host=None, fresh=True, 
     }
 
 
+def _advisory(out) -> str:
+    """The SubagentStop browser advisory's text: it must reach the subagent that drove the pages."""
+    assert out is not None, "expected a browser advisory"
+    ctx = model_context(out, "SubagentStop")
+    assert ctx, out
+    return ctx
+
+
 def _run(tmp_path, lines, stop_hook_active=False, event="SubagentStop", leases=None,
          session_lines=None, home=None, with_agent_path=True, extra_env=None, payload_extra=None):
     """Invoke enforce-teardown.sh with a crafted transcript + a ledger; return (rc, parsed).
@@ -257,8 +274,7 @@ def test_a_reused_page_left_on_a_url_is_nudged_to_about_blank(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out
-    msg = out["systemMessage"]
+    msg = _advisory(out)
     assert "about:blank" in msg and "http://127.0.0.1:8069/odoo" in msg, msg
 
 
@@ -271,7 +287,7 @@ def test_driving_again_after_blanking_is_nudged(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and "about:blank" in out["systemMessage"], out
+    assert "about:blank" in _advisory(out), out
 
 
 def test_a_navigation_without_url_is_not_a_blank(tmp_path):
@@ -282,7 +298,7 @@ def test_a_navigation_without_url_is_not_a_blank(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and "about:blank" in out["systemMessage"], out
+    assert "about:blank" in _advisory(out), out
 
 
 def _page(op, page_id=None, url=None):
@@ -307,8 +323,7 @@ def test_every_page_left_on_a_url_is_named_even_when_the_last_navigation_was_bla
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out, out
-    msg = out["systemMessage"]
+    msg = _advisory(out)
     assert "page(s) 2 (http://127.0.0.1:8069/odoo/sales)" in msg, msg
     assert "1 (" not in msg, "page 1 ended on about:blank and must not be named"
 
@@ -333,7 +348,7 @@ def test_a_keyed_reload_is_not_a_blank(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and "page(s) 3 (back/forward/reload)" in out["systemMessage"], out
+    assert "page(s) 3 (back/forward/reload)" in _advisory(out), out
 
 
 def test_every_keyed_page_on_about_blank_or_closed_passes_clean(tmp_path):
@@ -358,9 +373,7 @@ def test_two_new_pages_one_close_is_advisory_never_block(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "systemMessage" in out
-    assert "decision" not in out, "a browser finding must NEVER hard-block"
-    assert "2 new_page vs 1 close_page" in out["systemMessage"], (
+    assert "2 new_page vs 1 close_page" in _advisory(out), (
         "the advisory must name the concrete unmatched counts"
     )
 
@@ -374,8 +387,7 @@ def test_suffix_matching_across_headed_and_plugin_prefixes(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out
-    assert "2 new_page vs 1 close_page" in out["systemMessage"], (
+    assert "2 new_page vs 1 close_page" in _advisory(out), (
         "headed + plugin_* prefixed names must count the same as the bare prefix (suffix match)"
     )
 
@@ -396,8 +408,7 @@ def test_pagecast_record_without_stop_is_advisory(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out
-    assert "record_page" in out["systemMessage"] and "stop_recording" in out["systemMessage"]
+    assert "record_page" in _advisory(out) and "stop_recording" in _advisory(out)
 
 
 def test_playwright_drive_with_close_is_no_finding(tmp_path):
@@ -419,8 +430,7 @@ def test_playwright_drive_without_close_is_advisory(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out
-    assert "browser_close" in out["systemMessage"], "the nudge must name browser_close"
+    assert "browser_close" in _advisory(out), "the nudge must name browser_close"
 
 
 def test_playwright_video_pair_unbalanced_is_advisory(tmp_path):
@@ -431,8 +441,7 @@ def test_playwright_video_pair_unbalanced_is_advisory(tmp_path):
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines)
-    assert out is not None and out.get("continue") is True and "decision" not in out
-    assert "browser_start_video" in out["systemMessage"], (
+    assert "browser_start_video" in _advisory(out), (
         "an unbalanced start_video/stop_video pair must be nudged even when the page was closed"
     )
 
@@ -450,13 +459,32 @@ def test_browser_tabs_is_credited_as_a_close_signal(tmp_path):
 
 
 def test_browser_advisory_fires_on_stop_event_too(tmp_path):
-    """Browser findings are advisory on BOTH SubagentStop and Stop."""
+    """Browser findings are advisory on BOTH SubagentStop and Stop - on Stop for the user only."""
     lines = [
         _line(content=[_tu("mcp__chrome-devtools__new_page")]),
         _line(content=[_cont("DONE")]),
     ]
     _, out = _run(tmp_path, lines, event="Stop")
-    assert out is not None and out.get("continue") is True and "decision" not in out
+    # On the main session's Stop the finding is for the USER: the main session often keeps a page
+    # open on purpose for the user, so it is not handed to the model as a reason for another turn.
+    assert out is not None and "decision" not in out, out
+    assert "hookSpecificOutput" not in out, f"the main-session advisory reached the model: {out!r}"
+    assert "new_page" in out.get("systemMessage", ""), out
+
+
+def test_a_subagent_browser_advisory_says_what_its_caller_receives(tmp_path):
+    """The advisory buys the subagent one more turn. Its caller then receives the message that turn
+    ends on in place of the report, so the advisory says so - unless the report was already
+    delivered through SubagentHandback, when it says that nothing written now reaches the caller."""
+    page = _line(content=[_tu("mcp__chrome-devtools__new_page")])
+    _, out = _run(tmp_path, [page, _line(content=[_cont("DONE")])])
+    assert out["hookSpecificOutput"]["hookEventName"] == "SubagentStop", out
+    assert "repeating your complete report" in _advisory(out), out
+    use, tid = _tool_use_line("SubagentHandback", {"message": "DONE"})
+    _, out = _run(tmp_path, [page, use, _tool_result_line(tid, "Delivered to your caller.")])
+    msg = _advisory(out)
+    assert "already delivered through SubagentHandback" in msg, msg
+    assert "repeating your complete report" not in msg, msg
 
 
 # --------------------------------------------------------------------------- #
@@ -546,6 +574,44 @@ def test_a_delivered_handback_is_final_even_with_a_teammate_running(tmp_path):
     _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[_teammate_task()],
                            extra_lines=[use, _tool_result_line(tid, "Delivered to your caller.")])
     assert out is not None and out.get("decision") == "block", out
+
+
+REPEAT_REPORT = "repeating your complete report, its continuation block included"
+
+
+def test_the_instance_block_tells_the_subagent_to_repeat_its_whole_report(tmp_path):
+    """The block buys the subagent one more turn, and its caller receives the message that turn
+    ends on in place of the report - so the reason says to repeat the complete report."""
+    lines = [*_acquired("run-abc", "ab" * 16), _line(content=[_cont("DONE")])]
+    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="ab" * 16)])
+    assert out is not None and out.get("decision") == "block", out
+    assert REPEAT_REPORT in out["reason"], out["reason"]
+
+
+def test_an_instance_block_after_a_handback_does_not_ask_for_a_new_report(tmp_path):
+    """A report delivered through SubagentHandback is final: the reason must not send the agent
+    after a report its caller will never receive."""
+    use, tid = _tool_use_line("SubagentHandback", {"message": "DONE"})
+    lines = [*_acquired("run-abc", "ab" * 16), use, _tool_result_line(tid, "Delivered.")]
+    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="ab" * 16)])
+    assert out is not None and out.get("decision") == "block", out
+    assert REPEAT_REPORT not in out["reason"], out["reason"]
+
+
+def test_a_coordinator_waiting_for_its_teammate_is_told_to_keep_waiting(tmp_path):
+    """A coordinator that stopped only to WAIT for the teammate it launched has not written its
+    report yet: a browser note at that stop tells it to keep waiting and put the outcome in its
+    report - never to repeat a report it has not written (which would end its dispatch early)."""
+    page = _line(content=[_tu("mcp__chrome-devtools__new_page")])
+    _, out = _waiting_stop(tmp_path, env=_INTERACTIVE, tasks=[_teammate_task()],
+                           extra_lines=[page])
+    msg = _advisory(out)
+    assert "keep waiting" in msg and REPEAT_REPORT not in msg, msg
+    # The same stop on the unattended surface is not a wait (nothing wakes the subagent there).
+    _, out = _waiting_stop(tmp_path, env=_UNATTENDED, tasks=[_teammate_task()],
+                           extra_lines=[page])
+    assert out is not None and out.get("decision") == "block", out
+    assert "keep waiting" not in out["reason"], out["reason"]
 
 
 def test_acquire_with_addons_override_still_correlates_its_token(tmp_path):
@@ -895,11 +961,54 @@ def test_no_status_without_a_live_lease_is_not_a_block(tmp_path):
     assert out is None, "no live owned lease means there is nothing to gate on"
 
 
-def test_stop_hook_active_never_re_blocks(tmp_path):
-    """stop_hook_active=true means we already forced one continue -> loop-safe silent pass."""
+def test_a_note_continued_stop_that_drops_the_handle_is_still_blocked(tmp_path):
+    """A browser advisory buys the subagent one more turn; the report it ends that turn on is the
+    one its caller receives. If that repeated report drops the INSTANCE_HANDLE the first one forwarded,
+    the lease is unowned - the continued stop (stop_hook_active=true) must still be gated."""
+    page = _line(content=[_tu("mcp__chrome-devtools__new_page")])
+    first = [*_acquired("run-abc"), page, _line(content=[_cont("DONE", forward_handle=True)])]
+    _, out = _run(tmp_path, first, leases=[_lease(run_id="run-abc")])
+    note = _advisory(out)
+    continued = first + [
+        json.dumps({"type": "attachment", "attachment": {
+            "type": "hook_additional_context", "content": [note], "hookName": "SubagentStop",
+            "hookEvent": "SubagentStop", "toolUseID": "x"}}),
+        _line(content=[_cont("DONE")])]
+    _, out = _run(tmp_path, continued, stop_hook_active=True, leases=[_lease(run_id="run-abc")])
+    assert out is not None and out.get("decision") == "block", (
+        "a report rewritten in a hook-continued turn dropped the handle and nobody gated it"
+    )
+
+
+def test_the_same_teardown_block_is_given_once_per_continued_chain(tmp_path):
+    """The loop guard: once refused with this exact reason, the continued stop of that chain with
+    the same live lease passes (the SessionEnd backstop reclaims it) - a block that repeats forever
+    traps the dispatch."""
+    lines = [brief_record(), *_acquired("run-abc"), _line(content=[_cont("DONE")])]
+    _, first = _run(tmp_path, lines, leases=[_lease(run_id="run-abc")])
+    assert first is not None and first.get("decision") == "block", first
+    _, again = _run(tmp_path, lines + [block_feedback_record(first["reason"]),
+                                       _line(content=[_cont("DONE")])],
+                    stop_hook_active=True, leases=[_lease(run_id="run-abc")])
+    assert again is None, f"the same block was given twice: {again!r}"
+
+
+def test_a_resumed_dispatch_that_drops_the_handle_is_blocked_again(tmp_path):
+    """Round 1: refused for not forwarding the lease, then forwarded it and passed. The caller later
+    resumes the subagent, and its new final report drops the INSTANCE_HANDLE: that fresh stop must be
+    gated again, or the lease stays unowned until the SessionEnd backstop."""
+    lease = [_lease(run_id="run-abc")]
     lines = [*_acquired("run-abc"), _line(content=[_cont("DONE")])]
-    _, out = _run(tmp_path, lines, stop_hook_active=True, leases=[_lease(run_id="run-abc")])
-    assert out is None, "with stop_hook_active=true the hook must stay out of the way (no loop)"
+    _, first = _run(tmp_path, lines, leases=lease)
+    assert first is not None and first.get("decision") == "block", first
+    round_two = lines + [block_feedback_record(first["reason"]),
+                         _line(content=[_cont("DONE", forward_handle=True)]),
+                         resume_record("Re-run the check and report."),
+                         _line(content=[_cont("DONE")])]
+    _, out = _run(tmp_path, round_two, leases=lease)
+    assert out is not None and out.get("decision") == "block", (
+        "a resumed dispatch dropped the handle and passed on an earlier round's refusal"
+    )
 
 
 def test_non_teardown_subagent_self_gates_to_pass(tmp_path):
@@ -1825,7 +1934,6 @@ def test_hooks_json_still_wires_enforce_grounding_alongside_teardown():
     """The new hook is ADDITIVE - it must not displace the existing SubagentStop grounding gate."""
     subagent = _commands_for("SubagentStop")
     assert any("enforce-grounding.sh" in c for c in subagent)
-    assert any("parse-continuation.sh" in c for c in subagent)
 
 
 # --------------------------------------------------------------------------- #

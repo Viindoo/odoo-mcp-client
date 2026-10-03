@@ -17,8 +17,8 @@ transport can change independently without either copy drifting.
 
 Before the fix, four agents (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`,
 `odoo-instance-ops`) emitted a bare `SUGGESTED_NEXT:` line for a conditional follow-up (a
-UI-review suggestion, a code-agent handoff) ALONGSIDE the fenced `continuation` block. Because
-`parse-continuation.sh`'s back-compat branch only reads `SUGGESTED_NEXT` when the fenced block's
-own `status` is empty, the suggestion was silently dropped every time - the fenced block always set
-a status, so the bare line never actually reached the driver. Moving the suggestion into the fenced
+UI-review suggestion, a code-agent handoff) ALONGSIDE the fenced `continuation` block. Because the
+driver reads `SUGGESTED_NEXT` only while the fenced block's own `status` is empty, the suggestion
+was silently dropped every time - the fenced block always set a status, so the bare line never
+actually reached the driver. Moving the suggestion into the fenced
 block's `next:` array closed that silent drop.

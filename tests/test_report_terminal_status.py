@@ -17,8 +17,8 @@ Business rules protected, NOT the implementation:
     appended, tagged `signature=S2` (or `signature=S1,S2` when both fire together).
   - **A clean stop (terminal status present, every tool_use resolved) writes NOTHING.**
   - **Never blocks, never emits stdout JSON.** This hook is an observer only - unlike its
-    SubagentStop siblings (enforce-grounding.sh, parse-continuation.sh) it never returns
-    `{decision: ...}` or `{continue: ...}`; stdout is always empty and the exit code is
+    SubagentStop sibling enforce-grounding.sh it never returns `{decision: ...}` or
+    `{continue: ...}`; stdout is always empty and the exit code is
     always 0.
   - **Fails open on every uncertainty**: missing jq, an unresolvable state root (no
     CLAUDE_PLUGIN_ROOT, or the resolved root is not writable), or a loop re-entry
@@ -328,7 +328,7 @@ def test_missing_jq_degrades_silently_without_writing(tmp_path):
 
 def test_missing_plugin_root_degrades_without_writing(tmp_path):
     """CLAUDE_PLUGIN_ROOT unset means the resolver script can't be located - the hook must not
-    fall back to a guessed path (unlike the read-only parse-continuation.sh advisory-glob
+    fall back to a guessed path (unlike the read-only advisory-glob
     exception, this is a WRITE call site: snippets/state-root-resolution.md forbids a silent
     wrong-location write) - it must simply skip the write."""
     home = tmp_path / "home"
@@ -391,10 +391,8 @@ def test_hooks_json_registers_report_terminal_status_on_subagent_stop():
     )
 
 
-def test_hooks_json_still_wires_the_other_three_subagent_stop_hooks():
-    """Additive sibling - must not displace enforce-grounding.sh / enforce-teardown.sh /
-    parse-continuation.sh."""
+def test_hooks_json_still_wires_the_other_subagent_stop_hooks():
+    """Additive sibling - must not displace enforce-grounding.sh / enforce-teardown.sh."""
     subagent = _commands_for("SubagentStop")
     assert any("enforce-grounding.sh" in c for c in subagent)
     assert any("enforce-teardown.sh" in c for c in subagent)
-    assert any("parse-continuation.sh" in c for c in subagent)
