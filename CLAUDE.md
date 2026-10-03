@@ -106,11 +106,13 @@ translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_
   checkout does not state is refused (`ODOO_SOURCE_FACT_UNKNOWN`), never guessed. Which addons a
   site loads server-wide is a deployment fact: the catalog row's `server_wide_modules`, proposed and
   operator-confirmed by `/odoo-ai-agents:odoo-setup` (step `46-server-wide`, or `refresh`).
-- **The tools apply the build facts; agents never compose them.** `instance_build` / `instance_serve`
-  pass `--load` (core default + the row's list), `--load-language` (`en_US` + `languages`) and the
-  series' demo flag (from `demo`, on `init` only); `extra_args` refuses those flags.
-  `instance_i18n_export` runs Odoo's own exporter (`.pot` first, then one `.po` per language, from
-  one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
+- **The tools apply the build facts; agents never compose them.** `instance_build`,
+  `instance_serve` and `instance_i18n_export` pass `--load` (core default + the row's list; an agent
+  adjusts it per call only through `server_wide` {exclude, include}, never through `extra_args`, and
+  the lease and catalog stay unchanged); `instance_build` / `instance_serve` also pass
+  `--load-language` (`en_US` + `languages`) and the series' demo flag (from `demo`, on `init` only),
+  and `extra_args` refuses those flags. `instance_i18n_export` runs Odoo's own exporter (`.pot`
+  first, then one `.po` per language, from one database). One build or export runs on a database at a time (`DATABASE_BUSY`).
 - **Tool-launched Odoo never reads `~/.odoorc`.** Every `odoo-bin` the scripts launch reads a
   generated config file, named by `-c` and by `$ODOO_RC` (`scripts/lib/odoo_cli_facts.sh`
   `odoo_isolated_rc_env` - where Odoo loads its default rc file at import time, `-c` alone does not

@@ -28,7 +28,11 @@ Contracts protected:
     data, or a language not active in the database itself fails the job before any file is
     written;
   - a job already running on the database answers DATABASE_BUSY before any gate reads the
-    database (test_odoo_local_mcp_db_busy.py).
+    database (test_odoo_local_mcp_db_busy.py);
+  - Odoo exports on the server-wide set a build on the lease loads: core default + the declared
+    server_wide_modules (--load on the server form, the config file's server_wide_modules on the
+    subcommand form, which takes no --load), adjusted for the call by `server_wide` with the
+    build's refusals; nothing declared passes no set at all, as for a build.
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ import odoo_tree_fixtures as trees  # noqa: E402
 from odoo_local_mcp_harness import McpClient  # noqa: E402
 from test_odoo_local_mcp_instance import (RUN, SERIES, _build, _declare_series, _err, _lease,  # noqa: E402,F401
                                           _ok, _stub, _wait, client, world)
+from test_odoo_local_mcp_build_facts import _declare_server_wide  # noqa: E402
 
 LONG_MSGID = "A " + "very " * 40 + "long source string"
 STATE_DEFAULT = ("LANG=vi_VN ISO=vi ACTIVE=1\nLANG=fr_BE ISO=fr_BE ACTIVE=1\n"
@@ -528,3 +533,73 @@ def test_the_export_hands_the_script_the_declared_odoo_root(i18n, tmp_path):
     argv = json.loads(record.read_text())["argv"]
     assert argv[0] == "i18n-export"
     assert dict(zip(argv[1::2], argv[2::2])).get("--odoo-root") == str(core), argv
+
+
+# --------------------------------------------------------------------------- #
+# the server-wide set: the one the database's builds load
+# --------------------------------------------------------------------------- #
+DECLARED_WIDE = ["to_base", "viin_brand"]
+
+
+def _loads(world):
+    """The --load value of every export call (None where the call carries none)."""
+    return [_flag(argv, "--load") for argv in _export_calls(world)]
+
+
+@pytest.mark.parametrize("series", ["17.0", "19.0"])
+def test_an_export_runs_on_the_core_default_plus_the_declared_server_wide_modules(i18n, series):
+    """The database was built with the deployment's server-wide set; exporting from it without
+    that set runs Odoo differently from every build and serve of the deployment."""
+    _declare_series(i18n, series)
+    _declare_server_wide(i18n, DECLARED_WIDE)
+    expected = ",".join(trees.CORE_LOAD[series] + DECLARED_WIDE)
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n, series=series)
+        job = _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))
+        done = _wait(c, job["job_id"])
+    assert done["result"] == "success", done
+    assert ",".join(job["server_wide_modules"]) == ",".join(done["server_wide_modules"]) == expected
+    assert job["server_wide_adjustment"] is None
+    if series == "17.0":
+        assert _loads(i18n) == [expected, expected], "the template and the .po alike"
+    else:
+        assert _loads(i18n) == [None, None], "the i18n export subcommand takes no --load"
+        conf = i18n["conf_copy"].read_text()
+        assert conf.count("server_wide_modules = %s\n" % expected) == 2, conf
+
+
+def test_an_export_honours_an_exclude_of_a_declared_module(i18n):
+    _declare_server_wide(i18n, DECLARED_WIDE)
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        job = _ok(_export(c, i18n, lease["token"], languages=[],
+                          server_wide={"exclude": ["viin_brand"]}))
+        done = _wait(c, job["job_id"])
+    assert done["result"] == "success", done
+    assert _loads(i18n) == ["base,web,to_base"]
+    assert done["server_wide_adjustment"] == {"exclude": ["viin_brand"], "include": []}
+
+
+def test_an_export_excluding_a_core_default_module_is_refused_before_anything_starts(i18n):
+    _declare_server_wide(i18n, DECLARED_WIDE)
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        err = _err(_export(c, i18n, lease["token"], server_wide={"exclude": ["web"]}))
+    assert err["code"] == "INVALID_ARGUMENTS", err
+    assert "arguments.server_wide.exclude" in err["message"] and "core" in err["message"], err
+    assert _export_calls(i18n) == []
+
+
+def test_an_export_with_nothing_declared_passes_no_server_wide_set(i18n):
+    """As for a build: with nothing declared Odoo's own default applies, so no --load is passed."""
+    with McpClient(i18n["env"](), i18n["work"]) as c:
+        c.initialize()
+        lease = _ready_lease(c, i18n)
+        job = _ok(_export(c, i18n, lease["token"], languages=["vi_VN"]))
+        done = _wait(c, job["job_id"])
+    assert done["result"] == "success", done
+    assert _loads(i18n) == [None, None]
+    assert job["server_wide_modules"] == done["server_wide_modules"] == []

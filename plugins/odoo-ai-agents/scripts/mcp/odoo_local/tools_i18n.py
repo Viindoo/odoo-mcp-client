@@ -10,6 +10,10 @@
                         lease's checkout declares (the server's --i18n-export, or the `i18n
                         export` subcommand - odoo_source_facts.i18n_export_cli; the script spells
                         it). The files are never edited afterwards (cmd_i18n_export).
+                        Odoo runs on the server-wide set a build on the lease loads
+                        (tools_instance.server_wide_for: core default + the lease's declared
+                        server_wide_modules, adjusted for the call by `server_wide`, with the
+                        same refusals), handed to the script as --load.
 
 Gates, checked here before anything starts - FIRST whether another job runs on the database
 (DATABASE_BUSY, tools_instance.refuse_if_busy: while a build runs, the database is a moment of that
@@ -166,12 +170,15 @@ def _export(args, ctx):
     if output_dir is not None and not os.path.isabs(output_dir):
         raise ToolError("INVALID_ARGUMENTS",
                         "arguments.output_dir: must be an absolute path, got %r" % output_dir)
+    adjustment = tools_instance.server_wide_adjustment(args)
     row = tools_instance._require_row(token)
     lease = tools_lease.lease_from_row(row)
     db = tools_instance._lease_field(lease, "db_name", token)
     python = tools_instance._lease_field(lease, "venv_python", token)
     addons = tools_instance._lease_field(lease, "addons_path", token)
     tools_instance.refuse_if_busy(lease)  # before any gate reads the database
+    # The set the database's builds load (instance_build's rule, its refusals included).
+    load = tools_instance.server_wide_for(row, lease, cwd, token, adjustment)
     # The database itself (per exported module too), else the lease records.
     facts = tools_lease.database_facts(row, cwd=cwd, modules=modules)
     _require_fit_database(facts, lease, token, languages, modules)
@@ -185,6 +192,8 @@ def _export(args, ctx):
             "--modules", tools_instance.MODULE_LIST_SEP.join(modules)]
     if languages:
         argv += ["--languages", tools_instance.MODULE_LIST_SEP.join(languages)]
+    if load:
+        argv += ["--load", tools_instance.MODULE_LIST_SEP.join(load)]
     for module, directory, own in destinations:
         argv += ["--target", "%s=%s" % (module, directory), "--i18n-dir", "%s=%s" % (module, own)]
     for flag, key in (("--db-host", "db_host"), ("--db-user", "db_user"), ("--db-port", "db_port")):
@@ -202,6 +211,7 @@ def _export(args, ctx):
             "kind": tools_instance.EXPORT_JOB_KIND, "op": I18N_OP, "lease_token": token,
             "log_path": log_path, "output_path": output_path, "series": lease.get("series") or "",
             "modules": modules, "export_languages": languages,
+            "server_wide_modules": load, "server_wide_adjustment": adjustment,
             "destinations": [{"module": m, "directory": d} for m, d, _own in destinations]})
     with tools_instance.database_job_slot(lease):
         try:
@@ -213,6 +223,7 @@ def _export(args, ctx):
                             {"op": I18N_OP})
     return {"job_id": rec["job_id"], "pid": rec["pid"], "op": I18N_OP, "log_path": log_path,
             "output_path": output_path, "lease_token": token, "destinations": meta["destinations"],
+            "server_wide_modules": load, "server_wide_adjustment": adjustment,
             "instance_handle": tools_lease.database_handle(row, lease, facts=facts,
                                                           log_path=log_path)}
 
@@ -229,7 +240,9 @@ def register(registry, ctx):
         "--i18n-export or `odoo-bin i18n export` command yourself: the tool reads which command "
         "line the lease's Odoo checkout declares (the server's --i18n-export up to the series that "
         "moved export to the `i18n export` subcommand) and passes the lease's database, venv, "
-        "addons path and Postgres coordinates itself. Files land in each module's own i18n/ "
+        "addons path and Postgres coordinates itself, and runs Odoo with the server-wide set "
+        "(--load) instance_build applies on the lease - adjust it for this call with server_wide, "
+        "as for the build that filled the database. Files land in each module's own i18n/ "
         "directory (where Odoo reads them) as <module>.pot and one .po per language named as the "
         "module already names it: <code>.po (e.g. vi_VN.po) when the module ships that and no "
         "<iso_code>.po, else <iso_code>.po (e.g. vi.po for vi_VN, Odoo's own export name) - or "
@@ -274,6 +287,7 @@ def register(registry, ctx):
                                           "module's own i18n/ directory; files go to "
                                           "<output_dir>/<module>/. Omit to write where Odoo reads "
                                           "translations from."},
+            "server_wide": tools_instance.SERVER_WIDE_PROP,
             "cwd": tools_instance._CWD_PROP,
         }, ["lease_token", "modules"]),
         _obj({
@@ -288,8 +302,12 @@ def register(registry, ctx):
                              "items": _obj({"module": {"type": "string"},
                                             "directory": {"type": "string"}},
                                            ["module", "directory"])},
+            "server_wide_modules": {"type": "array", "items": {"type": "string"},
+                                    "description": "The complete --load set this export runs with "
+                                                   "(empty = none passed: Odoo's own default)."},
+            "server_wide_adjustment": tools_instance.SERVER_WIDE_ADJUSTMENT_OUT,
             "instance_handle": HANDLE_SCHEMA,
         }, ["job_id", "pid", "op", "log_path", "output_path", "lease_token", "destinations",
-            "instance_handle"]),
+            "server_wide_modules", "server_wide_adjustment", "instance_handle"]),
         _export, title="Export Odoo translation files", destructive=True,
     )
