@@ -71,7 +71,9 @@
 #   - Self-gates (clone of enforce-grounding.sh): missing jq / missing transcript
 #     / stop_hook_active=true / a non-teardown-shaped subagent -> silent exit 0.
 #   - Block form (instances, SubagentStop only): {"decision":"block","reason":...}.
-#   - Advisory form (browsers): {"continue":true,"systemMessage":...}.
+#   - Advisory form (browsers): {"continue":true,"systemMessage":...} - once per context window: a
+#     finding whose exact text is already in the transcript since the last compaction is not
+#     repeated (hooks/advice-once.sh). The block form above is never deduplicated.
 #   - Degrades to exit 0 on ANY uncertainty (no jq/python3/allocator, parse error,
 #     no verdict, no correlated token, an unreadable shared helper). A hard-block gate: a false
 #     block halts real work, so every branch prefers a FALSE-NEGATIVE over a
@@ -90,11 +92,12 @@ STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/
 
 EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 
-# Shared helpers: hooks/final-report.sh (which transcript, what the agent REPORTED, its fence) and
-# hooks/teardown-check.sh (the allocator-verdict check and its refusal). Resolved relative to THIS
-# script. Either unreadable -> fail open, the convention every hook in this plugin follows.
+# Shared helpers: hooks/final-report.sh (which transcript, what the agent REPORTED, its fence),
+# hooks/teardown-check.sh (the allocator-verdict check and its refusal) and hooks/advice-once.sh
+# (whether an advisory is already in the context). Resolved relative to THIS
+# script. Any one unreadable -> fail open, the convention every hook in this plugin follows.
 _HOOK_DIR="${BASH_SOURCE[0]%/*}"
-for _lib in final-report.sh teardown-check.sh lease-correlation.sh teammate-wait.sh; do
+for _lib in final-report.sh teardown-check.sh lease-correlation.sh teammate-wait.sh advice-once.sh; do
   [[ -r "$_HOOK_DIR/$_lib" ]] || _pass
   # shellcheck source=/dev/null
   . "$_HOOK_DIR/$_lib"
@@ -106,12 +109,20 @@ done
 TRANSCRIPT="$(_hook_transcript "$INPUT")"
 [[ -n "$TRANSCRIPT" ]] || _pass
 
-# --- The subagent's own activity (ASSISTANT-authored only) -----------------------------------
+# --- The agent's own browser calls (ASSISTANT-authored only) ---------------------------------
 # Tool CALLS are counted from real `tool_use` blocks - never from an injected brief/tool_result
 # that quotes a tool name. One "CALL\t<name>\t<command-or-path>" line per call (final-report.sh
-# _assistant_signals).
-LAST_MESSAGE="$(_hook_last_message "$INPUT")"
-NORM="$(_assistant_signals "$TRANSCRIPT" "$LAST_MESSAGE")"
+# _assistant_signals), and the chrome-devtools page calls (_chrome_page_calls).
+#
+# Both are read from the transcript's BROWSER LINES only: a record can carry a browser tool_use
+# only if its raw line names the tool, so this line prefilter drops nothing the counts below
+# match, and the JSON parse runs over those few lines instead of the whole transcript - on Stop
+# the whole session, tens of MB on a long one, where a full parse outruns the hook's timeout and
+# the harness cancels the hook before its advisory runs. Case-insensitive, as the counts below are.
+_browser_lines() {
+  grep -i -E '__(new_page|close_page|navigate_page|browser_|record_page|stop_recording)' -- "$TRANSCRIPT" 2>/dev/null || true
+}
+NORM="$(_assistant_signals <(_browser_lines))"
 
 _cnt() { printf '%s\n' "$NORM" | grep -ciE "$1" 2>/dev/null | tr -d '[:space:]' || true; }
 
@@ -131,7 +142,7 @@ NEW_PAGE=$(_cnt $'^CALL\t[^\t]*__new_page\t')
 CLOSE_PAGE=$(_cnt $'^CALL\t[^\t]*__close_page\t')
 CD_NAVIGATE=$(_cnt $'^CALL\t[^\t]*__navigate_page\t')
 CD_DRIVE=$(( NEW_PAGE + CD_NAVIGATE ))
-CD_PAGE_CALLS="$(_chrome_page_calls "$TRANSCRIPT")"
+CD_PAGE_CALLS="$(_chrome_page_calls <(_browser_lines))"
 # The LAST new_page / navigate_page call: "<pageId>\t<url>". When it carries no pageId, its url is
 # the one fallback signal for the page it left behind.
 CD_LAST_DRIVE="$(printf '%s\n' "$CD_PAGE_CALLS" | awk -F'\t' '$1 == "new_page" || $1 == "navigate_page" { last = $2 "\t" $3 } END { printf "%s", last }' 2>/dev/null || true)"
@@ -196,37 +207,46 @@ _add_note() { if [[ -n "$BROWSER_MSG" ]]; then BROWSER_MSG="$BROWSER_MSG; $1"; e
 [[ "$RECORD" -gt "$STOP_REC" ]] && \
   _add_note "$RECORD record_page vs $STOP_REC stop_recording - stop the pagecast recording before your terminal status"
 
-# --- Continuation status + INSTANCE_HANDLE forwarding (the REPORT only) ----------------------
-# Read from the report the caller actually received (final-report.sh _final_report_text): the
-# delivered SubagentHandback message, else the final message
-# (the payload's last_assistant_message - the transcript file may not hold it yet).
-# Then the body of its LAST CLOSED ```continuation block, and status + the per-lease handle
-# forwarding (next.inputs) from that body. A single captured block means an INSTANCE_HANDLE mentioned in prose OUTSIDE the block, or
-# in an earlier turn the caller never received, never counts as a forward.
-REPORT="$(_final_report_text "$TRANSCRIPT" "$LAST_MESSAGE")"
-CONT_BLOCK="$(_continuation_block "$REPORT")"
-STATUS="$(_continuation_status "$CONT_BLOCK")"
-# The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic spelling must never be
-# what turns a declared status into a hard block: compare the normalized KEY. Empty = no status.
-STATUS_KEY="$(_continuation_status_key "$STATUS")"
-# The stopping subagent's own id - its own `background_tasks` entry is never one of its teammates.
-AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
-# Was the report already DELIVERED through the SubagentHandback tool? Then a second handback is
-# refused by the harness, and the block below must not send the agent to hand back again.
-HANDED_BACK=0
-_handback_delivered "$TRANSCRIPT" && HANDED_BACK=1
-
 # --- Token correlation (ONLY leases THIS subagent itself obtained) ----------------------------
 # "Which leases did THIS dispatch obtain?" is answered by hooks/lease-correlation.sh, the ONE
 # implementation this gate shares with block-unowned-lease-mutation.sh (read its header for exactly
 # which calls count, and why serving or resuming a forwarded token and a time window never do). A
 # shared copy is what keeps the two gates from disagreeing: this gate orders a release that the
 # mutation gate must then allow. Helper unreadable -> no correlated token -> fail open.
-OWN_TOKENS=""
-declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
-# The handoff is PER LEASE: each obtained token the report's fence forwards in its OWN
-# INSTANCE_HANDLE (next.inputs) has a named catcher; every other one is still this dispatch's.
-UNFWD_TOKENS="$(_continuation_unforwarded_tokens "$CONT_BLOCK" "$OWN_TOKENS")"
+#
+# Everything from here to the instance check feeds ONLY that check, which is SubagentStop-only, and
+# only when the dispatch obtained a lease. So it is not computed on Stop (the session transcript -
+# the largest file this hook ever reads) nor for a subagent that obtained nothing: each of these
+# reads parses the whole transcript, and on a long session they alone outrun the hook timeout.
+OWN_TOKENS=""; REPORT=""; CONT_BLOCK=""; STATUS=""; STATUS_KEY=""; AGENT_ID=""; HANDED_BACK=0
+UNFWD_TOKENS=""
+if [[ "$EVENT" == "SubagentStop" ]]; then
+  declare -F _lease_owned_tokens >/dev/null 2>&1 && OWN_TOKENS="$(_lease_owned_tokens "$TRANSCRIPT")"
+fi
+if [[ -n "$OWN_TOKENS" ]]; then
+  # --- Continuation status + INSTANCE_HANDLE forwarding (the REPORT only) --------------------
+  # Read from the report the caller actually received (final-report.sh _final_report_text): the
+  # delivered SubagentHandback message, else the final message
+  # (the payload's last_assistant_message - the transcript file may not hold it yet).
+  # Then the body of its LAST CLOSED ```continuation block, and status + the per-lease handle
+  # forwarding (next.inputs) from that body. A single captured block means an INSTANCE_HANDLE
+  # mentioned in prose OUTSIDE the block, or in an earlier turn the caller never received, never
+  # counts as a forward.
+  REPORT="$(_final_report_text "$TRANSCRIPT" "$(_hook_last_message "$INPUT")")"
+  CONT_BLOCK="$(_continuation_block "$REPORT")"
+  STATUS="$(_continuation_status "$CONT_BLOCK")"
+  # The gate below blocks the COMPLEMENT of a small allowed set, so a cosmetic spelling must never
+  # be what turns a declared status into a hard block: compare the normalized KEY. Empty = no status.
+  STATUS_KEY="$(_continuation_status_key "$STATUS")"
+  # The stopping subagent's own id - its own `background_tasks` entry is never one of its teammates.
+  AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
+  # Was the report already DELIVERED through the SubagentHandback tool? Then a second handback is
+  # refused by the harness, and the block below must not send the agent to hand back again.
+  _handback_delivered "$TRANSCRIPT" && HANDED_BACK=1
+  # The handoff is PER LEASE: each obtained token the report's fence forwards in its OWN
+  # INSTANCE_HANDLE (next.inputs) has a named catcher; every other one is still this dispatch's.
+  UNFWD_TOKENS="$(_continuation_unforwarded_tokens "$CONT_BLOCK" "$OWN_TOKENS")"
+fi
 
 # Self-gate (clone of enforce-grounding.sh's "non-Odoo subagent" gate): no browser activity AND
 # no lease this subagent obtained -> not a teardown-shaped subagent -> stay out of the way. A pure
@@ -306,9 +326,13 @@ if REASON="$(_instance_block_reason)"; then
 fi
 
 # --- Browser advisory (both events, never blocks) --------------------------------------------
+# Said once per context window (hooks/advice-once.sh): the same finding on every later turn end -
+# the main agent may keep a page open on purpose across turns - repeats nothing new. A finding that
+# changes (another page opened, one closed) is a new text and is said again.
 if [[ -n "$BROWSER_MSG" ]]; then
-  jq -cn --arg m "Resource-teardown advisory (browser pages/recordings die with the session, so this is a nudge, not a block): $BROWSER_MSG." \
-    '{continue:true, systemMessage:$m}'
+  BROWSER_ADVICE="Resource-teardown advisory (browser pages/recordings die with the session, so this is a nudge, not a block): $BROWSER_MSG."
+  _advice_seen "$TRANSCRIPT" "$BROWSER_ADVICE" && _pass
+  jq -cn --arg m "$BROWSER_ADVICE" '{continue:true, systemMessage:$m}'
   exit 0
 fi
 

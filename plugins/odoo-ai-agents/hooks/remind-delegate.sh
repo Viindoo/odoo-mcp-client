@@ -31,6 +31,11 @@
 #     special-case, honoring this hook's own "stay silent when unsure" contract). (2) is the
 #     mirror: it fires ONLY when we can tell we ARE in a subagent.
 #   - Degrades to exit 0 on any uncertainty (no jq, parse error, no run file, no SSOT file).
+#   - Said ONCE per context window: each advisory text is emitted only when it is not already in
+#     the calling agent's transcript since the last compaction (hooks/advice-once.sh) - the main
+#     agent's session transcript for (1), the subagent's own transcript for (2). A repeat on every
+#     later Bash/Edit/Write call of the run would tell the agent nothing new and stay in its
+#     context each time. An unreadable transcript or helper -> emit (the advisory is never lost).
 
 set -uo pipefail
 _pass() { exit 0; }
@@ -38,6 +43,19 @@ _pass() { exit 0; }
 command -v jq >/dev/null 2>&1 || _pass
 INPUT="$(cat 2>/dev/null || true)"
 [[ -n "$INPUT" ]] || _pass
+
+# Shared helpers, resolved relative to THIS script: hooks/advice-once.sh (is this advisory already
+# in the context) and hooks/lease-correlation.sh (_lease_agent_transcript - which transcript is a
+# subagent's own). Unreadable -> every advisory counts as unseen.
+_HOOK_DIR="${BASH_SOURCE[0]%/*}"
+_seen() { return 1; }
+if [[ -r "$_HOOK_DIR/advice-once.sh" && -r "$_HOOK_DIR/lease-correlation.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$_HOOK_DIR/advice-once.sh"
+  # shellcheck source=/dev/null
+  . "$_HOOK_DIR/lease-correlation.sh"
+  _seen() { _advice_seen "$1" "$2"; }
+fi
 
 TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
 
@@ -79,8 +97,9 @@ if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
         ;;
     esac
     if [[ "$RISKY" == true ]]; then
-      jq -cn --arg agent "$AGENT_NAME" \
-        --arg ctx "You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the coordinator/orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch." \
+      CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the coordinator/orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
+      _seen "$(_lease_agent_transcript "$INPUT")" "$CTX" && _pass
+      jq -cn --arg ctx "$CTX" \
         '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
       exit 0
     fi
@@ -116,6 +135,9 @@ done
 shopt -u nullglob
 [[ -n "$active_run" ]] || _pass    # no active run -> not in drive-to-done mode -> silent
 
-jq -cn --arg ctx "You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
+# One text for every heavy tool, so Bash, Edit and Write share one reminder.
+CTX="You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating Bash/Edit/Write work to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right."
+_seen "$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)" "$CTX" && _pass
+jq -cn --arg ctx "$CTX" \
   '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
 exit 0

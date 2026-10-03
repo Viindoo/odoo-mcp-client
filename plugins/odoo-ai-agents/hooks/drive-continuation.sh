@@ -9,6 +9,9 @@
 #   {continue:true, systemMessage:...} only - an advisory line. (Using {decision:"block"} here
 #   would trap the main agent, which is forbidden.) The human + main agent keep the right to
 #   stop at any time. Self-gates to silence when no run is active; loop-safe via stop_hook_active.
+#   Said ONCE per run state per context window: while the same run sits on the same node, the
+#   reminder already in the transcript since the last compaction is not repeated on every later
+#   turn end (hooks/advice-once.sh); a run that moves to another node is a new reminder.
 
 set -uo pipefail
 _pass() { exit 0; }
@@ -39,7 +42,10 @@ for rf in "$RUN_DIR"/run-*.json; do
   st="$(jq -r '.status // empty' "$rf" 2>/dev/null || true)"
   if [[ "$st" == "NEEDS_NEXT" ]]; then
     active_run="$rf"; cnt=$((cnt+1))
-    run_id="$(jq -r '.run_id // "?"' "$rf" 2>/dev/null || echo '?')"
+    # A run record without run_id is still named: by its file, run-<id>.json (the run-harness
+    # naming), never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
+    _file_id="${rf##*/run-}"; _file_id="${_file_id%.json}"
+    run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$rf" 2>/dev/null || printf '%s' "$_file_id")"
     cursor="$(jq -r '.cursor // "?"' "$rf" 2>/dev/null || echo '?')"
   fi
 done
@@ -47,6 +53,16 @@ shopt -u nullglob
 # 0 -> no active run; >1 -> ambiguous which to name, stay silent (degrade-safe). Only nudge on exactly one.
 [[ "$cnt" -eq 1 ]] || _pass
 
-jq -cn --arg m "Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read $RUN_DIR/run-*.json). To stop, say so - this is only a reminder, not a block." \
-  '{continue:true, systemMessage:$m}'
+MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read $RUN_DIR/run-*.json). To stop, say so - this is only a reminder, not a block."
+
+# Already in the context (the same run on the same node) -> stay quiet. Helper unreadable -> emit.
+_HOOK_DIR="${BASH_SOURCE[0]%/*}"
+if [[ -r "$_HOOK_DIR/advice-once.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "$_HOOK_DIR/advice-once.sh"
+  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+  _advice_seen "$TRANSCRIPT" "$MSG" && _pass
+fi
+
+jq -cn --arg m "$MSG" '{continue:true, systemMessage:$m}'
 exit 0

@@ -127,8 +127,13 @@ _lease_owned_tokens() {
        | {id: (.tool_use_id // ""), err: (.is_error == true),
           strs: ((. | texts) + (($r.toolUseResult // null) | texts)),
           objs: [($r.toolUseResult // null) | objects]} ]) as $results
+  # Each tool_use_id -> its FIRST result, built in one pass, so pairing a call with its result is
+  # a lookup: scanning every result per call is quadratic, and on a transcript with thousands of
+  # calls that alone outruns the timeout of a hook.
+  | (reduce $results[] as $x ({};
+       if ($x.id != "" and (has($x.id) | not)) then .[$x.id] = $x else . end)) as $by_id
   | $uses[] as $u
-  | ($results | map(select(.id == $u.id and $u.id != "")) | .[0]) as $res
+  | (if $u.id != "" then $by_id[$u.id] else null end) as $res
   | select($res != null and ($res.err | not))
   | ($u.input.command // "" | tostring) as $cmd
   | if $u.name == "Bash" then
