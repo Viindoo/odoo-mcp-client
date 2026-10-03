@@ -9,6 +9,9 @@
 #   {continue:true, systemMessage:...} only - an advisory line. (Using {decision:"block"} here
 #   would trap the main agent, which is forbidden.) The human + main agent keep the right to
 #   stop at any time. Self-gates to silence when no run is active; loop-safe via stop_hook_active.
+#   Only THIS session's run counts (hooks/run-ownership.sh): a NEEDS_NEXT record that another
+#   session - live or long dead - left in the same state dir is not this session's unfinished run,
+#   and a record this session never acted on stays silent.
 #   Said ONCE per run state per context window: while the same run sits on the same node, the
 #   reminder already in the transcript since the last compaction is not repeated on every later
 #   turn end (hooks/advice-once.sh); a run that moves to another node is a new reminder.
@@ -36,31 +39,39 @@ PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 # to silence, never a write; do not copy this pattern into a call site that writes.
 RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
 [[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
-active_run=""; run_id=""; cursor=""; cnt=0
+TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+_HOOK_DIR="${BASH_SOURCE[0]%/*}"
+[[ -r "$_HOOK_DIR/run-ownership.sh" ]] || _pass    # cannot tell whose run it is -> not ours
+# shellcheck source=/dev/null
+. "$_HOOK_DIR/run-ownership.sh"
+needs_next=()
 shopt -s nullglob
 for rf in "$RUN_DIR"/run-*.json; do
   st="$(jq -r '.status // empty' "$rf" 2>/dev/null || true)"
-  if [[ "$st" == "NEEDS_NEXT" ]]; then
-    active_run="$rf"; cnt=$((cnt+1))
-    # A run record without run_id is still named: by its file, run-<id>.json (the run-harness
-    # naming), never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
-    _file_id="${rf##*/run-}"; _file_id="${_file_id%.json}"
-    run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$rf" 2>/dev/null || printf '%s' "$_file_id")"
-    cursor="$(jq -r '.cursor // "?"' "$rf" 2>/dev/null || echo '?')"
-  fi
+  [[ "$st" == "NEEDS_NEXT" ]] && needs_next+=("$rf")
 done
 shopt -u nullglob
-# 0 -> no active run; >1 -> ambiguous which to name, stay silent (degrade-safe). Only nudge on exactly one.
+[[ ${#needs_next[@]} -gt 0 ]] || _pass
+active_run=""; run_id=""; cursor=""; cnt=0
+while IFS= read -r rf; do
+  [[ -n "$rf" ]] || continue
+  active_run="$rf"; cnt=$((cnt+1))
+  # A run record without run_id is still named: by its file, run-<id>.json (the run-harness
+  # naming), never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
+  _file_id="${rf##*/run-}"; _file_id="${_file_id%.json}"
+  run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$rf" 2>/dev/null || printf '%s' "$_file_id")"
+  cursor="$(jq -r '.cursor // "?"' "$rf" 2>/dev/null || echo '?')"
+done < <(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")
+# 0 -> no run of this session; >1 -> ambiguous which to name, stay silent (degrade-safe). Only nudge
+# on exactly one.
 [[ "$cnt" -eq 1 ]] || _pass
 
-MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read $RUN_DIR/run-*.json). To stop, say so - this is only a reminder, not a block."
+MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read $active_run). To stop, say so - this is only a reminder, not a block."
 
 # Already in the context (the same run on the same node) -> stay quiet. Helper unreadable -> emit.
-_HOOK_DIR="${BASH_SOURCE[0]%/*}"
 if [[ -r "$_HOOK_DIR/advice-once.sh" ]]; then
   # shellcheck source=/dev/null
   . "$_HOOK_DIR/advice-once.sh"
-  TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
   _advice_seen "$TRANSCRIPT" "$MSG" && _pass
 fi
 

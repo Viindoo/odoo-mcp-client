@@ -32,6 +32,7 @@ import json
 import os
 import shutil
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,23 @@ def _needs_next(run_id: str, cursor: str = "nodeA") -> dict:
     return {"run_id": run_id, "status": "NEEDS_NEXT", "cursor": cursor}
 
 
+def _drove(*run_files: Path) -> list:
+    """Transcript lines of a session that acted on these run records - run-harness reads and writes
+    a record by its path - stamped after the records were written. drive-continuation reminds a
+    session only of a run it drives (hooks/run-ownership.sh)."""
+    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    lines = []
+    for i, rf in enumerate(run_files):
+        tid = f"toolu_drive_{i}"
+        lines.append(json.dumps({"type": "assistant", "timestamp": now, "message": {
+            "role": "assistant", "content": [{"type": "tool_use", "id": tid, "name": "Read",
+                                              "input": {"file_path": str(rf)}}]}}))
+        lines.append(json.dumps({"type": "user", "timestamp": now, "message": {
+            "role": "user", "content": [{"type": "tool_result", "tool_use_id": tid,
+                                         "content": "{}"}]}}))
+    return lines
+
+
 def _cont_needs_next_text() -> str:
     body = "done.\n```continuation\nstatus: NEEDS_NEXT\nproduced: []\nnext: []\n```"
     return json.dumps({"role": "assistant", "content": [{"type": "text", "text": body}]})
@@ -161,8 +179,8 @@ def test_two_worktrees_each_yield_cnt_one_independently(tmp_path):
     (isolate1 / "run-a.json").write_text(json.dumps(_needs_next("run-a")), encoding="utf-8")
     (isolate2 / "run-b.json").write_text(json.dumps(_needs_next("run-b")), encoding="utf-8")
 
-    rc1, out1 = _run_hook(DRIVE_HOOK, repo, env)
-    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, env)
+    rc1, out1 = _run_hook(DRIVE_HOOK, repo, env, transcript_lines=_drove(isolate1 / "run-a.json"))
+    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, env, transcript_lines=_drove(isolate2 / "run-b.json"))
 
     assert rc1 == 0 and rc2 == 0
     assert out1 is not None and out1.get("continue") is True
@@ -202,8 +220,9 @@ def test_naive_shared_design_would_go_silent_ambiguous(tmp_path):
     # shared root" implementation would produce, without touching the (locked) resolver itself.
     naive_env = _env(home, ODOO_AI_WORKTREE_DIR=str(shared_dir))
 
-    rc1, out1 = _run_hook(DRIVE_HOOK, repo, naive_env)
-    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, naive_env)
+    both = _drove(shared_dir / "run-a.json", shared_dir / "run-b.json")
+    rc1, out1 = _run_hook(DRIVE_HOOK, repo, naive_env, transcript_lines=both)
+    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, naive_env, transcript_lines=both)
 
     assert rc1 == 0 and rc2 == 0, "ambiguity must degrade to a silent pass, never crash"
     assert out1 is None, "cnt==2 in a naively-shared dir must go silent, not nudge either run"
@@ -234,7 +253,7 @@ def test_resolver_refusal_falls_back_to_legacy_path_without_crashing(tmp_path):
     legacy_dir.mkdir(parents=True)
     (legacy_dir / "run-x.json").write_text(json.dumps(_needs_next("run-x")), encoding="utf-8")
 
-    rc, out = _run_hook(DRIVE_HOOK, proj, env)
+    rc, out = _run_hook(DRIVE_HOOK, proj, env, transcript_lines=_drove(legacy_dir / "run-x.json"))
     assert rc == 0, "a resolver refusal must never crash or non-zero-exit the hook"
     assert out is not None and out.get("continue") is True
     assert "run-x" in out["systemMessage"]
@@ -253,7 +272,7 @@ def test_missing_plugin_root_falls_back_without_crashing(tmp_path):
     legacy_dir.mkdir(parents=True)
     (legacy_dir / "run-y.json").write_text(json.dumps(_needs_next("run-y")), encoding="utf-8")
 
-    rc, out = _run_hook(DRIVE_HOOK, proj, env)
+    rc, out = _run_hook(DRIVE_HOOK, proj, env, transcript_lines=_drove(legacy_dir / "run-y.json"))
     assert rc == 0
     assert out is not None and "run-y" in out["systemMessage"]
 

@@ -12,6 +12,12 @@ Business rules locked in here (each test fails for exactly one of them):
 - detect-intent.sh classifies the USER's prompt only. A prompt the harness submits on its own - a
   background task's <task-notification>, another agent's peer message - is a subagent's report,
   not user intent, and gets no hint at all.
+- The run-scoped advisories (the mid-run delegate nudge, the unfinished-run reminder) are about a
+  run THIS session drives: one whose record it acted on (a tool call naming the record - how
+  intake writes it and run-harness reads and writes it, also when resuming it here) and that nobody
+  has written since. A NEEDS_NEXT record another session left behind, live or dead, or an old record
+  this session never touched, triggers nothing; a run another session took over is no longer this
+  session's.
 - The Stop hooks finish well inside the timeout hooks.json declares for them on a session with
   thousands of tool calls. A Stop hook that outruns it is cancelled by the harness: the turn end
   stalls for the whole timeout and the hook's own advisory never runs.
@@ -28,6 +34,7 @@ import os
 import shutil
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -89,6 +96,26 @@ def _tool_use(tid: str, name: str, inp: dict) -> str:
 def _tool_result(tid: str, text: str) -> str:
     return _dump({"type": "user", "message": {"role": "user", "content": [
         {"type": "tool_result", "tool_use_id": tid, "content": text}]}})
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+_ACT_SEQ = iter(range(1, 10**9))
+
+
+def _acted_on(run_file: Path, name: str = "Read") -> list[str]:
+    """A tool call of this session naming the run record, and its result, stamped now - what
+    run-harness's read-at-the-top-of-the-loop (Read) or record write (a Bash script) leaves."""
+    tid = f"toolu_run_{next(_ACT_SEQ)}"
+    inp = {"file_path": str(run_file)} if name == "Read" else {
+        "command": f"python3 - <<'PY'\np='{run_file}'\nPY"}
+    use = {"type": "assistant", "timestamp": _now(), "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "id": tid, "name": name, "input": inp}]}}
+    res = {"type": "user", "timestamp": _now(), "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": tid, "content": "ok"}]}}
+    return [_dump(use), _dump(res)]
 
 
 def _write(path: Path, lines: list[str]) -> Path:
@@ -196,12 +223,17 @@ def test_a_hint_said_before_a_compaction_is_said_again(tmp_path):
 # --------------------------------------------------------------------------- #
 # remind-delegate.sh (PreToolUse)
 # --------------------------------------------------------------------------- #
-def _active_run_env(tmp_path: Path) -> dict:
-    isolate = tmp_path / "isolate"
+def _run_record(isolate: Path, name: str = "run-r1.json", cursor: str = "n1", **fields) -> Path:
     isolate.mkdir(exist_ok=True)
-    (isolate / "run-r1.json").write_text(json.dumps(
-        {"run_id": "r1", "status": "NEEDS_NEXT", "cursor": "n1"}), encoding="utf-8")
-    return _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    rf = isolate / name
+    rf.write_text(json.dumps({"status": "NEEDS_NEXT", "cursor": cursor, **fields}),
+                  encoding="utf-8")
+    return rf
+
+
+def _active_run_env(tmp_path: Path) -> dict:
+    _run_record(tmp_path / "isolate", run_id="r1")
+    return _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(tmp_path / "isolate"))
 
 
 def _delegate(tool: str, transcript: Path, env: dict, **extra) -> str:
@@ -218,13 +250,14 @@ def test_the_mid_run_delegate_reminder_is_said_once_per_context(tmp_path):
     """The main agent's next Bash/Edit/Write calls of the same run add nothing once the reminder is
     in context - whichever heavy tool it is."""
     env = _active_run_env(tmp_path)
-    t = _write(tmp_path / "t.jsonl", [_user("go")])
+    drove = [_user("go")] + _acted_on(tmp_path / "isolate" / "run-r1.json", "Bash")
+    t = _write(tmp_path / "t.jsonl", drove)
     first = _delegate("Bash", t, env)
     assert "mid-run" in first, "the reminder must still fire on the first heavy call of a run"
-    _write(t, [_user("go"), _context_attachment("PreToolUse", first)])
+    _write(t, drove + [_context_attachment("PreToolUse", first)])
     for tool in ("Bash", "Edit", "Write"):
         assert _delegate(tool, t, env) == "", f"the reminder was repeated on {tool}"
-    _write(t, [_user("go"), _context_attachment("PreToolUse", first), _compact_boundary()])
+    _write(t, drove + [_context_attachment("PreToolUse", first), _compact_boundary()])
     assert _delegate("Edit", t, env) == first, "after a compaction the reminder returns once"
 
 
@@ -258,18 +291,17 @@ def test_the_unfinished_run_reminder_is_said_once_per_run_state(tmp_path):
     """Every later turn end with the run on the same node repeats nothing; the run moving to
     another node is news and is said."""
     isolate = tmp_path / "isolate"
-    isolate.mkdir()
-    run = isolate / "run-r1.json"
-    run.write_text(json.dumps({"run_id": "r1", "status": "NEEDS_NEXT", "cursor": "n1"}),
-                   encoding="utf-8")
+    run = _run_record(isolate, run_id="r1")
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
-    t = _write(tmp_path / "t.jsonl", [_user("go")])
+    drove = [_user("go")] + _acted_on(run)
+    t = _write(tmp_path / "t.jsonl", drove)
     first = _drive(t, env)
     assert "'r1'" in first and "n1" in first
-    _write(t, [_user("go"), _system_message_attachment("Stop", first), _user("more")])
+    said = drove + [_system_message_attachment("Stop", first), _user("more")]
+    _write(t, said)
     assert _drive(t, env) == "", "the same reminder was repeated at the next turn end"
-    run.write_text(json.dumps({"run_id": "r1", "status": "NEEDS_NEXT", "cursor": "n2"}),
-                   encoding="utf-8")
+    _run_record(isolate, run_id="r1", cursor="n2")     # this session's run-harness advances it
+    _write(t, said + _acted_on(run, "Bash"))
     moved = _drive(t, env)
     assert "n2" in moved, f"a run that moved on must be reminded again: {moved!r}"
 
@@ -278,12 +310,63 @@ def test_a_run_record_without_run_id_is_named_by_its_file(tmp_path):
     """The reminder names WHICH run is unfinished; a record without run_id is named by its file
     (run-<id>.json), never as '?'."""
     isolate = tmp_path / "isolate"
-    isolate.mkdir()
-    (isolate / "run-shopfloor-20260901-e822.json").write_text(
-        json.dumps({"status": "NEEDS_NEXT", "cursor": "n1"}), encoding="utf-8")
+    run = _run_record(isolate, "run-shopfloor-20260901-e822.json")
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
-    msg = _drive(_write(tmp_path / "t.jsonl", []), env)
+    msg = _drive(_write(tmp_path / "t.jsonl", _acted_on(run)), env)
     assert "'shopfloor-20260901-e822'" in msg, msg
+
+
+# --------------------------------------------------------------------------- #
+# Run-scoped advisories follow the run THIS session drives
+# --------------------------------------------------------------------------- #
+def test_a_run_another_session_left_does_not_make_this_session_mid_run(tmp_path):
+    """A NEEDS_NEXT record in the state dir that this session never acted on - another session's,
+    or an old one with no session identity at all - neither nudges this session's tool calls nor
+    reminds it at turn end."""
+    isolate = tmp_path / "isolate"
+    _run_record(isolate, run_id="old")                 # an old record: no session field, nothing
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    t = _write(tmp_path / "t.jsonl", [_user("fix the README typo")])
+    assert _delegate("Bash", t, env) == "", "another session's run made this one 'mid-run'"
+    assert _drive(t, env) == "", "this session was reminded of a run it does not drive"
+
+
+def test_a_run_resumed_in_this_session_becomes_its_run(tmp_path):
+    """run-harness resuming a paused run here re-enters by reading its record - from then on the
+    run is this session's, and its advisories apply."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="paused")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    t = _write(tmp_path / "t.jsonl", [_user("resume the paused run")])
+    assert _drive(t, env) == ""
+    _write(t, [_user("resume the paused run")] + _acted_on(run))
+    assert "'paused'" in _drive(t, env), "a run resumed here was not treated as this session's"
+    assert "mid-run" in _delegate("Edit", t, env)
+
+
+def test_a_run_another_session_took_over_is_no_longer_this_sessions(tmp_path):
+    """This session drove the run, then another session resumed it and wrote the record: the
+    reminders follow the run to that session and stop here."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="moved")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    t = _write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run, "Bash"))
+    assert "'moved'" in _drive(t, env)
+    later = time.time() + 600                          # the other session's write, after ours
+    os.utime(run, (later, later))
+    assert _drive(t, env) == "", "a run another session took over still reminded this one"
+    assert _delegate("Bash", t, env) == ""
+
+
+def test_the_reminder_names_this_sessions_run_beside_a_stale_one(tmp_path):
+    """One run driven here, one left NEEDS_NEXT by another session: the reminder names this
+    session's run instead of going silent on two candidates."""
+    isolate = tmp_path / "isolate"
+    _run_record(isolate, "run-stale.json", run_id="stale")
+    mine = _run_record(isolate, "run-mine.json", run_id="mine")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    msg = _drive(_write(tmp_path / "t.jsonl", _acted_on(mine)), env)
+    assert "'mine'" in msg and "stale" not in msg, msg
 
 
 # --------------------------------------------------------------------------- #
