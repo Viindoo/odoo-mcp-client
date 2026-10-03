@@ -48,10 +48,11 @@ _tw_live_agent_rows() {
 # whose nesting is not ours to assume.
 _tw_async_launched_ids() {
   [[ -n "${1:-}" && -f "$1" ]] || return 0
-  run_bounded 5 jq -rR '
+  # Only a line holding the receipt text can hold a receipt: parse those, not the whole transcript.
+  grep -F 'Async agent launched successfully' -- "$1" 2>/dev/null | run_bounded 5 jq -rR '
     fromjson? | .. | strings
     | select(test("Async agent launched successfully"))
-    | scan("agentId: ([A-Za-z0-9_-]+)")[]' "$1" 2>/dev/null \
+    | scan("agentId: ([A-Za-z0-9_-]+)")[]' 2>/dev/null \
     | grep -vE '^$' | sort -u || true
 }
 
