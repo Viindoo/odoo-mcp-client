@@ -3,6 +3,17 @@
 # READ-ONLY: no LLM, no writes, no blocking. Emits hookSpecificOutput.additionalContext
 # when a vague/multi-fragment Odoo or business prompt is detected; stays silent otherwise.
 # Always exits 0 - invisible to user even when it emits context.
+#
+# Only the USER's prompt is classified. UserPromptSubmit also fires on text the HARNESS submits as
+# a prompt - a background task's <task-notification>, another agent's peer message - and that text
+# is a subagent's report: full of Odoo vocabulary, in whatever language the subagent wrote, and
+# carrying no user intent - classified, it would earn the Odoo hints on most turns of any session
+# that dispatches agents, Odoo work or not. Those prompts get nothing.
+#
+# Each hint block is injected ONCE per context window: a block whose exact text is already in the
+# session transcript since the last compaction is not repeated (hooks/advice-once.sh) - it is still
+# in the context, and every repeat was a few hundred tokens that stayed there too. Compaction drops
+# it, so it is said again once after one.
 set -uo pipefail
 
 # --- Read stdin JSON ---
@@ -12,12 +23,15 @@ _input=$(cat)
 if command -v jq >/dev/null 2>&1; then
   _prompt=$(printf '%s' "${_input}" | jq -r '.prompt // ""' 2>/dev/null || echo "")
   _mode=$(printf '%s' "${_input}" | jq -r '.permission_mode // ""' 2>/dev/null || echo "")
+  _transcript=$(printf '%s' "${_input}" | jq -r '.transcript_path // ""' 2>/dev/null || echo "")
 else
   # Minimal grep/sed fallback - handles simple single-line JSON values
   _prompt=$(printf '%s' "${_input}" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' \
     | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//;s/"$//' || echo "")
   _mode=$(printf '%s' "${_input}" | grep -o '"permission_mode"[[:space:]]*:[[:space:]]*"[^"]*"' \
     | sed 's/"permission_mode"[[:space:]]*:[[:space:]]*"//;s/"$//' || echo "")
+  _transcript=$(printf '%s' "${_input}" | grep -o '"transcript_path"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed 's/"transcript_path"[[:space:]]*:[[:space:]]*"//;s/"$//' || echo "")
 fi
 
 # --- Guard: slash command -> emit nothing, let it run ---
@@ -31,6 +45,16 @@ esac
 if [ -z "${_prompt}" ]; then
   exit 0
 fi
+
+# --- Guard: a prompt the HARNESS submitted, not the user (see header) -> emit nothing ---
+# The two shapes it submits: a background task's completion notice, and a message from another
+# agent ("Another Claude session sent a message: <agent-message from=...>").
+_lead="${_prompt#"${_prompt%%[![:space:]]*}"}"
+case "${_lead}" in
+  '<task-notification>'*|'Another Claude session sent a message:'*|'<agent-message '*)
+    exit 0
+    ;;
+esac
 
 # --- Domain classification via 9-bucket keyword scan (no LLM, ~0ms) ---
 # Internal buckets stay finer-grained than the emitted vocabulary (upgrade vs engineering,
@@ -225,7 +249,9 @@ fi
 # --- OSM reminder block (emitted BEFORE any early-exit) ---
 # Emitted when odoo-semantic MCP is wired AND domain is engineering/upgrade/visual-UI.
 # Fires regardless of vague/specific - specific prompts need it most.
-_osm_context=""
+# Every hint is one BLOCK (one line, except the 3-line vague-dispatch hint), collected in
+# emission order; the once-per-context-window filter at the end works per block.
+_blocks=()
 case "${_domain}" in
   engineering|upgrade|visual-UI)
     # V-11: an Odoo-specific tool-calling hint must never fire without a real Odoo/Viindoo
@@ -234,7 +260,7 @@ case "${_domain}" in
     if [ "${_odoo_anchor}" = "true" ] && [ "${_osm_wired}" = "true" ]; then
       _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
       _osm_r2="[Tip] For an engineering task, planning enters Plan Mode for you before any file is changed."
-      _osm_context="${_osm_r1}\n${_osm_r2}"
+      _blocks+=("${_osm_r1}" "${_osm_r2}")
     fi
     ;;
 esac
@@ -247,7 +273,7 @@ esac
 # in-context pointer that survives deferral.
 if [ "${_osm_wired}" = "true" ] && [ "${_odoo_anchor}" = "true" ] && [ "${_is_lookup}" = "true" ]; then
   _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / odoo_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
-  _osm_context="${_osm_context:+${_osm_context}\n}${_osm_lk}"
+  _blocks+=("${_osm_lk}")
 fi
 
 # --- i18n doctrine hint ---
@@ -259,7 +285,7 @@ fi
 # request is exactly where the wrong instruction gets issued.
 if [ "${_odoo_anchor}" = "true" ] && [ "${_is_i18n}" = "true" ]; then
   _i18n_hint="[i18n] Odoo translation work routes to the odoo-i18n skill, which owns the method - do not direct it. Three facts so you do not instruct against its contract: (1) the export instance MUST be built WITH DEMO DATA and with en_US + every target language active, and the .pot and every .po of a run come from that ONE build - a demo-less or reused test instance silently truncates the catalog; (2) an EMPTY msgstr is not necessarily untranslated - Odoo exports a translation equal to its source as empty: odoo-i18n translates every empty msgstr, leaves it empty when the correct translation equals the msgid (e.g. 'ID') and writes it otherwise ('Identification' is translated), so never set 'zero empty msgstr' or 'get untranslated to zero' as the goal; (3) never ask for tests asserting translated content, labels, help text or catalog completeness - that wording changes daily and the catalog is gated by odoo-i18n's own validation. SSOT: plugin snippets/i18n-mandate-contract.md (orchestrator obligations), snippets/po-entry-semantics.md, skills/odoo-i18n/references/i18n-recipe.md."
-  _osm_context="${_osm_context:+${_osm_context}\n}${_i18n_hint}"
+  _blocks+=("${_i18n_hint}")
 fi
 
 # --- Stack-aware routing hints (named specialists, so a JS/OWL or full-stack task never
@@ -271,7 +297,7 @@ case "${_domain}" in
     # Odoo/Viindoo anchor in the prompt (e.g. a non-Odoo "review this contract" false match).
     if [ "${_odoo_anchor}" = "true" ]; then
       _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work -> odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity -> see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
-      _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
+      _blocks+=("${_fe_hint}")
     fi
     ;;
   setup)
@@ -281,7 +307,7 @@ case "${_domain}" in
     # an action instead of stopping at a domain label.
     if [ "${_odoo_anchor}" = "true" ]; then
       _setup_hint="[Setup targets] Declaring or spinning up a local Odoo instance (series, profile, addons path, port, db) -> /odoo-ai-agents:odoo-setup, which writes the instance entry every skill then resolves its project facts from. Registering the Odoo Semantic MCP server URL + API key -> /odoo-semantic-mcp:connect. Neither is needed just to answer a question - skills derive the series from the checkout when no instance is declared."
-      _osm_context="${_osm_context:+${_osm_context}\n}${_setup_hint}"
+      _blocks+=("${_setup_hint}")
     fi
     ;;
   engineering)
@@ -289,41 +315,24 @@ case "${_domain}" in
     # prompt; the anchor check here is redundant with the OSM block above but kept explicit so
     # this branch's own invariant (never fire without an anchor) does not depend on reading
     # the block above.
-    if [ "${_odoo_anchor}" = "true" ] && [ -n "${_osm_context}" ]; then
+    if [ "${_odoo_anchor}" = "true" ] && [ "${#_blocks[@]}" -gt 0 ]; then
       _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, odoo-coding covers it (its frontend leg) alongside the backend in the same pass - full-stack is one skill, no separate frontend step needed."
-      _osm_context="${_osm_context}\n${_fe_hint}"
+      _blocks+=("${_fe_hint}")
     fi
     ;;
 esac
 
 # If intent is specific (long + has action verb) AND no OSM context to emit -> exit early
-if [ "${_is_vague}" = "false" ] && [ -z "${_osm_context}" ]; then
+if [ "${_is_vague}" = "false" ] && [ "${#_blocks[@]}" -eq 0 ]; then
   exit 0
 fi
 
-# --- Emit additionalContext (hookSpecificOutput JSON) ---
-# The hint is NL-dispatch friendly: names outcomes/domains, NOT tool names.
-# Newlines inside the JSON string MUST be the escaped sequence \n (two chars),
-# not a literal control character - a raw newline inside a JSON string is invalid
-# JSON and Claude Code silently drops the hook. Build the message with literal
-# "\n" separators and emit valid JSON (prefer jq; safe printf fallback).
-
-# Build context: OSM block (if any) + vague-dispatch hint (if vague)
-_context=""
-if [ -n "${_osm_context}" ]; then
-  _context="${_osm_context}"
-fi
-
+# Vague-dispatch hint (if vague) - names outcomes/domains, NOT tool names.
 if [ "${_is_vague}" = "true" ]; then
   _hint="Business/Odoo intent detected (domain: ${_domain_enum})."
   _line2="If the goal is still broad or you want to explore options first, the odoo-intake front door can brainstorm approaches and route to the right specialist."
   _line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
-  _nl_hint="${_hint}\n${_line2}\n${_line3}"
-  if [ -n "${_context}" ]; then
-    _context="${_context}\n${_nl_hint}"
-  else
-    _context="${_nl_hint}"
-  fi
+  _blocks+=("${_hint}"$'\n'"${_line2}"$'\n'"${_line3}")
 fi
 
 # --- Language-mirroring reminder (SSOT: snippets/language-mirroring.md) ---
@@ -331,22 +340,42 @@ fi
 # Remind the main agent to mirror that language in ALL chat-facing output
 # (gates, proposals, questions, summaries, relays of subagent results).
 if printf '%s' "${_prompt}" | LC_ALL=C grep -q '[^ -~]'; then
-  _lang_line="[Language] The user's prompt is not plain English. Mirror the USER'S language in every chat output - gates, proposals, plans, clarifying questions, summaries, and relays of subagent results. Keep code, identifiers, file paths, tool/skill names, URLs, and the literal reply keywords (approve / refine / cancel / yes) verbatim; explain unavoidable technical terms in plain words in the user's language on first use. SSOT: plugin snippets/language-mirroring.md"
-  if [ -n "${_context}" ]; then
-    _context="${_context}\n${_lang_line}"
-  else
-    _context="${_lang_line}"
-  fi
+  _blocks+=("[Language] The user's prompt is not plain English. Mirror the USER'S language in every chat output - gates, proposals, plans, clarifying questions, summaries, and relays of subagent results. Keep code, identifiers, file paths, tool/skill names, URLs, and the literal reply keywords (approve / refine / cancel / yes) verbatim; explain unavoidable technical terms in plain words in the user's language on first use. SSOT: plugin snippets/language-mirroring.md")
 fi
 
+# --- Once per context window: drop every block already in the transcript (see header) ---
+# Helper unreadable -> every block is emitted (the old behaviour).
+_emit=("${_blocks[@]}")
+_hook_dir="${BASH_SOURCE[0]%/*}"
+if [ "${#_blocks[@]}" -gt 0 ] && [ -r "${_hook_dir}/advice-once.sh" ]; then
+  # shellcheck source=/dev/null
+  . "${_hook_dir}/advice-once.sh"
+  _emit=()
+  while IFS= read -r _i; do
+    [ -n "${_i}" ] && _emit+=("${_blocks[${_i}]}")
+  done < <(_advice_unseen "${_transcript}" "${_blocks[@]}")
+fi
+if [ "${#_emit[@]}" -eq 0 ]; then
+  exit 0
+fi
+
+# --- Emit additionalContext (hookSpecificOutput JSON) ---
+# Newlines inside the JSON string MUST be the escaped sequence \n (two chars), not a literal
+# control character - a raw newline inside a JSON string is invalid JSON and Claude Code silently
+# drops the hook. jq escapes for us; the printf fallback joins the blocks with the two-character
+# sequence instead.
 if command -v jq >/dev/null 2>&1; then
-  # jq emits a properly escaped JSON string (handles the \n + any quoting).
-  jq -cn --arg ctx "$(printf '%b' "${_context}")" \
+  _context="$(printf '%s\n' "${_emit[@]}")"
+  jq -cn --arg ctx "${_context}" \
     '{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $ctx}}'
 else
-  # Fallback: the \n stay as the two-character escape sequence inside the JSON
-  # string (valid JSON). No user-controlled text is interpolated, so no escaping
-  # of the static hint is required.
+  # No user-controlled text is interpolated, so no escaping of the static hints is required
+  # beyond their own newlines.
+  _context=""
+  for _b in "${_emit[@]}"; do
+    _b="$(printf '%s\n' "${_b}" | awk 'BEGIN { ORS = "" } { print (NR > 1 ? "\\n" : "") $0 }')"
+    _context="${_context:+${_context}\\n}${_b}"
+  done
   printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"%s"}}\n' \
     "${_context}"
 fi

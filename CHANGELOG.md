@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **the advisory hooks say each thing once per context window.** `detect-intent`,
+  `remind-delegate`, `drive-continuation` and the browser advisory of `enforce-teardown` re-injected
+  the same text on every prompt, tool call or turn end, and every copy stayed in the context. Each
+  now checks the session transcript (since the last compaction) through the new shared
+  `hooks/advice-once.sh` and emits only what is not already there; after a compaction, or when the
+  text changes (another run node, another page left open), it is said again.
+- `odoo-ai-agents` - `detect-intent` no longer classifies prompts the harness submits on its own (a
+  background task's `<task-notification>`, another agent's peer message): they carry a subagent's
+  report, not the user's intent or language, and earned the Odoo hints on most turns of any session
+  that dispatched agents.
+- `odoo-ai-agents` - the Stop teardown hook outran its 8 s timeout on long sessions, so the harness
+  cancelled it and the turn end stalled. On Stop it now reads only the transcript's browser lines
+  (the lease and report checks it skipped are SubagentStop-only), and the shared lease correlation
+  pairs each call with its result by lookup instead of a quadratic scan.
+- `odoo-ai-agents` - `drive-continuation` named a run record without `run_id` as `'?'`; it is named by
+  its `run-<id>.json` file.
+
 ## [7.4.0] - 2026-10-02
 
 ### Added
