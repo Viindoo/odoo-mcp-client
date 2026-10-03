@@ -552,15 +552,11 @@ def test_remind_delegate_never_allows_risky_git_mutation():
     exists to stop. An advisory hook that auto-approves what it exists to discourage is a
     machine-level bypass of the repo's own git-delegation contract.
 
-    Red-before-green: prior to this fix, both PreToolUse emit sites in remind-delegate.sh hard-
-    coded `permissionDecision:"allow"` (unconditionally, regardless of TOOL/RISKY), so this
-    exact assertion (decision must equal "defer") would have FAILED against the pre-fix
-    script - it asserts the opposite of what the script used to always emit, so it is not a
-    snapshot of current behavior; it protects the advisory-never-decides contract this whole
-    module guards. Asserting `== "defer"` (not merely `!= "allow"`) pins the exact documented
-    no-opinion value (HARD CONTRACT header: "permissionDecision is ALWAYS 'defer' ... NEVER
-    'allow', 'deny', or 'ask'") so a future regression to "ask" or "deny" - a lesser but still
-    real bug, silently swallowed by a looser `!= "allow"` check - is caught here too.
+    The reminder carries NO permissionDecision at all: every value decides something. "allow"
+    skips the user's own rules, "ask"/"deny" impose a prompt or a refusal, and "defer" stops a
+    `claude -p` / SDK run at that tool call (Claude Code honors it only non-interactively, as a
+    pause for the calling process). Asserting the key is absent - not merely `!= "allow"` - is
+    what catches any of those coming back.
     """
     assert REMIND_DELEGATE_HOOK.exists(), f"hook script not found: {REMIND_DELEGATE_HOOK}"
 
@@ -596,12 +592,12 @@ def test_remind_delegate_never_allows_risky_git_mutation():
         "role=leaf subagent - expected a hookSpecificOutput reminder JSON on stdout"
     )
     output = json.loads(result.stdout)
-    decision = output.get("hookSpecificOutput", {}).get("permissionDecision")
-    assert decision == "defer", (
-        f"remind-delegate.sh emitted permissionDecision={decision!r} for a git-mutating Bash "
-        f"command dispatched from a role=leaf subagent - an ADVISORY hook must never itself "
-        f"decide the tool call; it must always emit the documented no-opinion value 'defer'. "
-        f"Full output: {output!r}"
+    hso = output.get("hookSpecificOutput", {})
+    assert hso.get("additionalContext"), f"the reminder text is missing: {output!r}"
+    assert "permissionDecision" not in hso and "decision" not in output, (
+        f"remind-delegate.sh made a permission decision for a git-mutating Bash command from a "
+        f"role=leaf subagent - an ADVISORY hook must leave the call to normal permission "
+        f"evaluation (no decision field at all; 'defer' stops a -p/SDK run). Output: {output!r}"
     )
 
 
@@ -619,11 +615,8 @@ def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
     `"allow"` would NOT be caught by `test_remind_delegate_never_allows_risky_git_mutation`
     above - that test never populates agent_id/agent_type, so it can never reach this code path.
 
-    Red-before-green: prior to this fix, this emit site (like the sibling one) hard-coded
-    `permissionDecision:"allow"` unconditionally for any Write/Edit/MultiEdit/Bash call from the
-    main agent during an active run - so this exact assertion (decision must equal "defer")
-    would have FAILED against the pre-fix script for the same reason as the sibling test, but by
-    exercising a structurally independent code path (no leaf-role resolution involved at all).
+    Same contract as the sibling test - no permission decision at all - exercised through a
+    structurally independent code path (no leaf-role resolution involved at all).
     """
     assert REMIND_DELEGATE_HOOK.exists(), f"hook script not found: {REMIND_DELEGATE_HOOK}"
 
@@ -635,8 +628,8 @@ def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
         json.dumps({"status": "NEEDS_NEXT"}), encoding="utf-8"
     )
 
-    # The nudge is for a run THIS session drives (hooks/run-ownership.sh): its transcript shows it
-    # acting on the run record, after the record was written.
+    # The nudge is for a run THIS session drives (hooks/run-ownership.sh): its transcript shows the
+    # call that wrote the run record.
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     transcript = tmp_path / "session.jsonl"
     transcript.write_text("\n".join([
@@ -680,10 +673,10 @@ def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
         "active NEEDS_NEXT run - expected a hookSpecificOutput reminder JSON on stdout"
     )
     output = json.loads(result.stdout)
-    decision = output.get("hookSpecificOutput", {}).get("permissionDecision")
-    assert decision == "defer", (
-        f"remind-delegate.sh emitted permissionDecision={decision!r} for a mid-run Write from "
-        f"the main agent (active drive-to-done run) - an ADVISORY hook must never itself decide "
-        f"the tool call; it must always emit the documented no-opinion value 'defer'. "
-        f"Full output: {output!r}"
+    hso = output.get("hookSpecificOutput", {})
+    assert hso.get("additionalContext"), f"the reminder text is missing: {output!r}"
+    assert "permissionDecision" not in hso and "decision" not in output, (
+        f"remind-delegate.sh made a permission decision for a mid-run Write from the main "
+        f"agent - an ADVISORY hook must leave the call to normal permission evaluation (no "
+        f"decision field at all; 'defer' stops a -p/SDK run). Output: {output!r}"
     )

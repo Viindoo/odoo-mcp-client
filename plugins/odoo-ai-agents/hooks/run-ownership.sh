@@ -15,6 +15,11 @@
 # this session: the run is that session's now. A RESUMED run becomes this session's at run-harness's
 # first write here (it persists RUNNING before it dispatches anything). Run records are only read.
 #
+# Accepted residuals: a write whose call names the record by neither its file name nor its run id
+# (a pure glob prefix such as `run-<slug>-*.json`) is not seen, so that run is not adopted until a
+# write that names it; and a call naming the record that is still running when ANOTHER session
+# writes the record adopts that write - two sessions writing one run within the same seconds.
+#
 # THREE ANSWERS, never a guess: _session_owned_runs returns 0 with this session's runs (none is a
 # real answer: another session's run, or an old record no session here wrote); it returns 2 when it
 # cannot tell - no transcript, an unreadable one, a jq that cannot run the scan. A caller keeps the
@@ -58,25 +63,28 @@ _session_owned_runs() {
   [[ $# -gt 0 ]] || return 0
   [[ -n "$transcript" && -r "$transcript" ]] || return 2
   command -v jq >/dev/null 2>&1 || return 2
-  local -a names=()
-  local rf
-  for rf in "$@"; do names+=("${rf##*/}"); done
-  local list rc calls results ids
-  list="$(printf '%s\n' "${names[@]}")"
+  # A call names a record by its file name (run-<id>.json) or by its bare run id (<id>), the form a
+  # script composes the path from. One "<file name>\t<run id>" pair per record.
+  local -a pairs=()
+  local rf base
+  for rf in "$@"; do base="${rf##*/}"; base="${base#run-}"; pairs+=("${rf##*/}"$'\t'"${base%.json}"); done
+  local list needles rc calls results ids
+  list="$(printf '%s\n' "${pairs[@]}")"
+  needles="$(printf '%s\n' "$list" | tr '\t' '\n' | grep -v '^$')"
   # Only the lines naming a record can hold a call that wrote it; their tool_use ids then find the
   # result lines (which need not name the record). One "<name>\t<id>\t<call time>" row per call.
-  calls="$({ grep -F -e "$list" -- "$transcript" 2>/dev/null || true; } \
+  calls="$({ grep -F -e "$needles" -- "$transcript" 2>/dev/null || true; } \
     | jq -Rr --arg names "$list" '
         def ts: (.timestamp // "") | tostring | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0);
-        ($names | split("\n") | map(select(length > 0))) as $ns
+        ($names | split("\n") | map(select(length > 0) | split("\t"))) as $ns
         | fromjson? // empty | objects
         | . as $r | (((.message // .).role // .type) // "") as $role
         | select($role == "assistant") | ($r | ts) as $t
         | ((.message // .).content // []) | (if type == "array" then .[] else empty end)
         | select(type == "object" and .type == "tool_use")
         | (.input // {} | tojson) as $in | (.id // "" | tostring) as $id
-        | $ns[] | select(. as $n | $in | contains($n))
-        | [., $id, ($t | tostring)] | @tsv')"
+        | $ns[] | select(any(.[]; . as $n | ($n | length) > 0 and ($in | contains($n))))
+        | [.[0], $id, ($t | tostring)] | @tsv')"
   rc=$?
   (( rc == 0 )) || return 2
   results=""

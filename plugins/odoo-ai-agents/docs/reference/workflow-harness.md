@@ -934,7 +934,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
   HOOKS (self-gate to pass when no active run; NONE hard-blocks MAIN):
    • PreToolUse  remind-delegate  → main Write/Edit/Bash during an active run THIS session drives
                  (the last write to its run record came from this session) ⇒ additionalContext
-                 nudge "consider delegating" (permissionDecision=defer, never allow/deny/ask),
+                 nudge "consider delegating" (additionalContext only, no permission decision),
                  once per context window (not again while the same text is in the transcript)
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
                  (HARD CONTRACT: never blocks, purely advisory - see the script's own header; the

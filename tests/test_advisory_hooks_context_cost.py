@@ -246,7 +246,9 @@ def _delegate(tool: str, transcript: Path, env: dict, **extra) -> str:
                "transcript_path": str(transcript), **extra}
     out, _ = _run(DELEGATE_HOOK, payload, env)
     if out is not None:
-        assert out["hookSpecificOutput"]["permissionDecision"] == "defer"
+        # Advisory only: no decision field at all ("defer" stops a -p / SDK run at the call).
+        assert "permissionDecision" not in out["hookSpecificOutput"], out
+        assert "decision" not in out, out
     return _ctx(out)
 
 
@@ -407,6 +409,27 @@ def test_of_two_runs_this_session_drives_the_one_written_last_is_named(tmp_path)
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
     msg = _drive(_write(tmp_path / "t.jsonl", lines + _acted_on(second)), env)
     assert "'second'" in msg and "'first'" not in msg, msg
+
+
+def test_a_run_written_through_a_composed_path_is_adopted(tmp_path):
+    """run-harness often composes the record's path from the run id in a script
+    (`p = f"{iso}/run-{rid}.json"`), so the call names the run id, never the file name. That write
+    makes the run this session's all the same."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, "run-indep-20260919-b7k2.json", run_id="indep-20260919-b7k2")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    tid = "toolu_composed"
+    cmd = (f"python3 - <<'PY'\nrid='indep-20260919-b7k2'\np=f'{isolate}/run-{{rid}}.json'\n"
+           "PY")
+    lines = [_dump({"type": "assistant", "timestamp": _now(), "message": {
+                 "role": "assistant", "content": [{"type": "tool_use", "id": tid,
+                                                   "name": "Bash", "input": {"command": cmd}}]}}),
+             _dump({"type": "user", "timestamp": _now(), "message": {"role": "user", "content": [
+                 {"type": "tool_result", "tool_use_id": tid, "content": "ok"}]}})]
+    assert "run-indep-20260919-b7k2.json" not in cmd
+    msg = _drive(_write(tmp_path / "t.jsonl", lines), env)
+    assert "'indep-20260919-b7k2'" in msg, f"a write through a composed path was not adopted: {msg!r}"
+    assert run.exists()
 
 
 @pytest.mark.parametrize("transcript", ["missing", "unreadable"])
