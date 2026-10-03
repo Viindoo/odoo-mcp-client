@@ -40,6 +40,17 @@ refused, so there is no way to correct the report afterwards. The PreToolUse gat
 live and unforwarded; a refused call delivers nothing, which is why the rule says to take a
 teardown exit and call again rather than to send a follow-up.
 
+## Why SubagentHandback goes in a message of its own
+
+"Last" alone was read as "the last block of the final message": an agent finishing with a command
+put the command and the handback side by side, and the rule against ending a turn on a bare tool
+call pushed the same way, since adding the handback was what kept the message from ending on the
+command. The handback then carried a report written before that command's result existed - a
+placeholder, or a verification called passed whose output the agent never saw - and a second
+handback is refused, so it could not be corrected. R3 therefore says the handback is sent alone,
+after every other result is read, and its end-of-turn rule no longer names the handback as the one
+tool call a turn may end on.
+
 ## Why R3 (a) rests on the ABSENCE of an envelope
 
 R3's "nothing inbound to answer" is stated as the absence of an envelope - a launch hands over a

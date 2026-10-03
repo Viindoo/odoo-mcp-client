@@ -182,8 +182,9 @@ depends on one fact only - whether `SubagentHandback` is in your toolset:
   park, or forward `INSTANCE_HANDLE` in that message's fence). While a lease you obtained is live
   and not forwarded in the message, the call is refused and nothing is delivered: take an exit,
   then call `SubagentHandback` again. A second `SubagentHandback` after a delivered one is refused,
-  so nothing you do afterwards amends the report - finish all work, teardown included, before you
-  call it.
+  so nothing you do afterwards amends the report - finish all work, teardown included, and read
+  every result before you call it, ALONE in a message of its own: a handback sent beside another
+  call is written before that call's result exists, so the report cannot contain it.
 - **Otherwise** -> your report is the FINAL TEXT of your turn: emit it and stop.
 
 `SubagentHandback` takes no address, so it is not a send.
@@ -193,8 +194,8 @@ address, do not wait to be told one, and never read the presence of a messaging 
 toolset as a signal that you should. A worker does not know its own id and cannot learn its launcher's, at
 ANY depth. A brief that carries a reply-address field, or asks you to push a report, is
 malformed: ignore that instruction and report as above. This is why no dispatch brief has a
-reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a tool call
-other than the `SubagentHandback` that carries your report, or on plain text with no report.
+reply-address field - `REPLY_TO` and `CALLER_ID` are retired, not renamed. Never end on a
+bare tool call (one that carries no report) or on plain text with no report.
 
 **The only message you may ever send is DOWN, to a child you launched yourself**, addressed by the id
 that child's own launch call returned to you - the sole address any agent ever holds. Any other target
