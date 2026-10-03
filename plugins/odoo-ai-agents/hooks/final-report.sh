@@ -14,6 +14,12 @@
 # Every function prints to stdout and prints nothing on any failure (no jq, unreadable file, parse
 # error). Callers treat "nothing" as uncertainty, never as proof.
 
+# A delivered report is found from the SubagentHandback calls and their results alone
+# (hooks/transcript-lines.sh), never by parsing a whole transcript that can be tens of MB.
+# shellcheck source=/dev/null
+. "${BASH_SOURCE[0]%/*}/transcript-lines.sh" 2>/dev/null || true
+declare -F _tool_call_lines >/dev/null 2>&1 || _tool_call_lines() { cat -- "$1" 2>/dev/null; }
+
 # The transcript a Stop / SubagentStop / PreToolUse payload is about. On SubagentStop that is
 # `agent_transcript_path` - the subagent's OWN transcript; the payload's `transcript_path` is the
 # WHOLE session's (parent plus every sibling), and reading it attributes other agents' calls and
@@ -88,18 +94,37 @@ _FR_JQ_DELIVERED='
 #   - Otherwise the agent's final message - what the caller receives when no handback was
 #     delivered: $2 (the payload's last_assistant_message, _hook_last_message) when given, since
 #     the file may not hold that record yet; else the text blocks of the FINAL TURN in the file
-#     (see $tail above).
+#     (see $tail above), read from the end of the file (_fr_final_turn_text).
 _final_report_text() {
-  local transcript="$1" last="${2:-}"
+  local transcript="$1" last="${2:-}" delivered
   command -v jq >/dev/null 2>&1 || return 0
   [[ -n "$transcript" && -r "$transcript" ]] || { printf '%s' "$last"; return 0; }
-  jq -rRs --arg last "$last" "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
-  | if ($delivered | length) > 0 then
-      $delivered[0].msg
-    elif ($last | length) > 0 then $last
-    else
-      [ $tail[] | .content | blocktext | select(length > 0) ] | join("\n")
-    end
+  delivered="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"'
+    | if ($delivered | length) > 0 then "1" + $delivered[0].msg + "." else "" end
+  ' < <(_tool_call_lines "$transcript" SubagentHandback) 2>/dev/null || true)"
+  # "1" marks a delivered report (an empty message included); "." keeps its trailing newlines.
+  if [[ -n "$delivered" ]]; then delivered="${delivered#1}"; printf '%s\n' "${delivered%.}"; return 0; fi
+  if [[ -n "$last" ]]; then printf '%s\n' "$last"; return 0; fi
+  _fr_final_turn_text "$transcript"
+}
+
+# The text blocks of the FINAL TURN ($tail above). The turn begins after the last non-meta user
+# record, so the file is read backwards (tac) only as far as that record; the window is used only
+# when its first record really is a non-meta user record, else the whole file is parsed.
+_fr_final_turn_text() {
+  local transcript="$1" out=""
+  if command -v tac >/dev/null 2>&1; then
+    out="$(tac -- "$transcript" 2>/dev/null | awk '
+        { print }
+        /"(type|role)"[[:space:]]*:[[:space:]]*"user"/ && !/"isMeta"[[:space:]]*:[[:space:]]*true/ { exit }
+      ' | tac | jq -rRs "$_FR_JQ_RECORDS"'
+      | if ($R | length) > 0 and $R[0].role == "user" and ($R[0].meta | not) then
+          "1" + ([ $tail[] | .content | blocktext | select(length > 0) ] | join("\n")) + "."
+        else "" end' 2>/dev/null || true)"
+  fi
+  if [[ -n "$out" ]]; then out="${out#1}"; printf '%s\n' "${out%.}"; return 0; fi
+  jq -rRs "$_FR_JQ_RECORDS"'
+  | [ $tail[] | .content | blocktext | select(length > 0) ] | join("\n")
   ' "$transcript" 2>/dev/null || true
 }
 
@@ -246,6 +271,7 @@ _handback_delivered() {
   local transcript="$1" n
   command -v jq >/dev/null 2>&1 || return 1
   [[ -n "$transcript" && -r "$transcript" ]] || return 1
-  n="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"' | $delivered | length' "$transcript" 2>/dev/null || true)"
+  n="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"' | $delivered | length' \
+    < <(_tool_call_lines "$transcript" SubagentHandback) 2>/dev/null || true)"
   [[ "$n" =~ ^[0-9]+$ && "$n" -gt 0 ]]
 }

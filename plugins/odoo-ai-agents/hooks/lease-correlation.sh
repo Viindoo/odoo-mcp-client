@@ -79,6 +79,15 @@
 # notification, never a child's hand-up). Used only to word a refusal; being named there is never
 # ownership.
 
+# The lines a scan for obtained leases reads (hooks/transcript-lines.sh): the calls that can obtain
+# one, by the strings their name or command must contain, and those calls' results - not the whole
+# transcript, which on a long dispatch is tens of MB and outruns a gate's timeout parsed in full. A
+# gate the harness cancels decides nothing, so for the teardown gate a slow scan fails toward allow.
+# shellcheck source=/dev/null
+. "${BASH_SOURCE[0]%/*}/transcript-lines.sh" 2>/dev/null || true
+declare -F _tool_call_lines >/dev/null 2>&1 || _tool_call_lines() { cat -- "$1" 2>/dev/null; }
+_LEASE_OBTAIN_KEYS=(allocator.py odoo-local__lease_acquire odoo-local__lease_adopt odoo-local__instance_serve)
+
 # Shared jq prelude for the two functions above: $L = every record, $ids = this agent's own
 # Agent/Task tool_use ids, $kids = the agentIds of the children those calls launched, and
 # `peer_envelope` = a record's peer-message envelope ({from, text}) in either on-disk shape, or null.
@@ -127,9 +136,8 @@ _lease_owned_tokens() {
        | {id: (.tool_use_id // ""), err: (.is_error == true),
           strs: ((. | texts) + (($r.toolUseResult // null) | texts)),
           objs: [($r.toolUseResult // null) | objects]} ]) as $results
-  # Each tool_use_id -> its FIRST result, built in one pass, so pairing a call with its result is
-  # a lookup: scanning every result per call is quadratic, and on a transcript with thousands of
-  # calls that alone outruns the timeout of a hook.
+  # Each tool_use_id -> its FIRST result, indexed once, so pairing a call with its result is a
+  # lookup.
   | (reduce $results[] as $x ({};
        if ($x.id != "" and (has($x.id) | not)) then .[$x.id] = $x else . end)) as $by_id
   | $uses[] as $u
@@ -162,7 +170,7 @@ _lease_owned_tokens() {
          | (.lease_token // empty) ]
        | map(strings | select(test(tok_re))) | unique[])
     else empty end
-  ' "$transcript" 2>/dev/null | sort -u || true
+  ' < <(_tool_call_lines "$transcript" "${_LEASE_OBTAIN_KEYS[@]}") 2>/dev/null | sort -u || true
 }
 
 _lease_handed_up_text() {

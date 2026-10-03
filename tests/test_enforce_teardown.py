@@ -2042,3 +2042,37 @@ def test_the_authoritative_artifacts_state_the_real_trigger():
         ), (
             f"{label}: still advertises the retired unconditional stop-report pass"
         )
+
+
+# --------------------------------------------------------------------------- #
+# The gate decides inside its timeout on a long dispatch
+# --------------------------------------------------------------------------- #
+def _declared_subagentstop_timeout() -> float:
+    manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+    for group in manifest["hooks"]["SubagentStop"]:
+        for h in group["hooks"]:
+            if h["command"].endswith('/hooks/enforce-teardown.sh"'):
+                return float(h["timeout"])
+    raise AssertionError("enforce-teardown.sh is not registered under SubagentStop")
+
+
+def test_a_live_lease_on_a_long_transcript_is_blocked_well_inside_the_timeout(tmp_path):
+    """A long dispatch (thousands of calls, tens of MB of transcript) that holds a live lease at
+    DONE is still blocked - and in a fraction of the timeout hooks.json gives the gate. A gate the
+    harness cancels for running too long decides nothing, so the lease leaks unblocked: this gate
+    must never fail toward allow by being slow."""
+    filler = []
+    for i in range(12000):            # ~75 MB: the size of a real long dispatch's transcript
+        use, tid = _tool_use_line("Bash", {"command": f"echo step {i}"})
+        filler += [use, _tool_result_line(tid, f"step {i} " + "x" * 6000)]
+    tok = "f1" * 16
+    lines = [*filler, *_acquired("run-long", tok), _line(content=[_cont("DONE")])]
+    budget = _declared_subagentstop_timeout()
+    t0 = time.monotonic()
+    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-long", token=tok)])
+    elapsed = time.monotonic() - t0
+    assert out is not None and out.get("decision") == "block", out
+    assert tok in out.get("reason", "")
+    assert elapsed < budget / 4, (
+        f"the teardown gate took {elapsed:.1f}s on a long dispatch; hooks.json gives it "
+        f"{budget:.0f}s and a cancelled gate never blocks")
