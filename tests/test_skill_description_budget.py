@@ -46,15 +46,24 @@ PER_ENTRY_TEXT_CAP = 1536
 # Anthropic's documented maximum length of a skill `description` field.
 DESCRIPTION_FIELD_MAX = 1024
 
-# Each plugin's share of the listing, in chars. odoo-ai-agents ships ~58 entries and may use the
-# whole default budget on its own; git-toolkit ships one front-door skill whose description must
-# cover casual git/GitHub phrasing, pasted PR/issue URLs and deferral to a domain front door - 400
-# chars is that one entry plus headroom, and keeps the toolkit cheap for users who install it
-# beside other plugins.
+# Each plugin's share of the listing, in chars. The cap is ONE listing for the whole session:
+# installing odoo-ai-agents also installs odoo-semantic-mcp and git-toolkit (its plugin.json
+# dependencies), and Claude Code's bundled skills (never truncated) plus the user's own and other
+# plugins' skills draw on the same cap. So every plugin in this repo has a share, and the shares
+# together must leave LISTING_RESERVE_CHARS free for everything else.
+# - odoo-ai-agents: ~58 skills + commands; its names alone cost ~2200 chars, leaving ~66 chars of
+#   description per entry - enough for what a skill does plus a route-out where a neighbour is
+#   confusable.
+# - git-toolkit: one front-door skill covering casual git/GitHub phrasing, pasted PR/issue URLs and
+#   deferral to a domain front door.
+# - odoo-semantic-mcp: one setup command.
 PLUGIN_LISTING_BUDGETS = {
-    "odoo-ai-agents": LISTING_BUDGET_CHARS,
+    "odoo-ai-agents": 6_100,
     "git-toolkit": 400,
+    "odoo-semantic-mcp": 200,
 }
+# What the shares must leave for bundled, user and third-party skills.
+LISTING_RESERVE_CHARS = 1_200
 BUDGETED_PLUGINS = [PLUGINS_DIR / name for name in PLUGIN_LISTING_BUDGETS]
 
 # The skills and workflows that invoke other entries through the Skill tool. Anything they name
@@ -127,12 +136,30 @@ def listing_chars(plugin):
     return sum(chars for _, chars in entries) + max(0, len(entries) - 1)
 
 
+def test_budgeted_plugins_are_every_plugin_in_the_repo():
+    shipped = sorted(p.name for p in PLUGINS_DIR.iterdir() if (p / ".claude-plugin" / "plugin.json").is_file())
+    assert shipped == sorted(PLUGIN_LISTING_BUDGETS), (
+        f"every plugin in plugins/ needs a share of the skill listing: shipped {shipped}, "
+        f"budgeted {sorted(PLUGIN_LISTING_BUDGETS)}"
+    )
+
+
+def test_shares_leave_the_reserve_free():
+    total = sum(PLUGIN_LISTING_BUDGETS.values()) + len(PLUGIN_LISTING_BUDGETS) - 1
+    assert total + LISTING_RESERVE_CHARS <= LISTING_BUDGET_CHARS, (
+        f"plugin shares sum to {total} chars; with the {LISTING_RESERVE_CHARS}-char reserve for "
+        f"bundled and user skills that exceeds the {LISTING_BUDGET_CHARS}-char listing cap. "
+        f"Shrink a share by tightening descriptions, not by shrinking the reserve."
+    )
+
+
 def test_entries_discovered():
     # Floors below the real counts so a dropped directory or a broken glob trips CI, while adding
     # entries never does.
     assert len(_skill_files(AGENTS_PLUGIN)) >= 41
     assert len(_entry_files(AGENTS_PLUGIN)) - len(_skill_files(AGENTS_PLUGIN)) >= 5
     assert len(_skill_files(PLUGINS_DIR / "git-toolkit")) >= 1
+    assert len(_entry_files(PLUGINS_DIR / "odoo-semantic-mcp")) >= 1
 
 
 @pytest.mark.parametrize("plugin", BUDGETED_PLUGINS, ids=lambda p: p.name)
@@ -143,12 +170,13 @@ def test_listing_fits_the_plugin_budget(plugin):
         f"{n}={c}" for n, c in sorted(listing_entries(plugin), key=lambda e: -e[1])[:8]
     )
     assert total <= budget, (
-        f"{plugin.name} adds {total} chars to the skill listing; its budget is {budget} (Claude "
-        f"Code's default for the WHOLE listing on a 200k window is {LISTING_BUDGET_CHARS}). Over "
-        f"the shared cap, descriptions of other skills (this plugin's, other plugins', the "
-        f"user's) are dropped to name-only. Shorten descriptions by meaning "
-        f"(docs/authoring-skills-and-agents.md) - do not raise the budget. "
-        f"Largest entries: {biggest}"
+        f"{plugin.name} adds {total} chars to the skill listing, over its {budget}-char share. "
+        f"Every turn the model sees one listing for all installed skills, capped at "
+        f"{LISTING_BUDGET_CHARS} chars on a 200k window; over the cap Claude Code drops the "
+        f"descriptions of the least-used skills, this plugin's and everyone else's. Shorten "
+        f"descriptions by meaning: what the skill does, its core trigger, and a route-out only "
+        f"where a neighbour is confusable; English only, no paraphrase lists or examples. Do "
+        f"not raise the share. Largest entries: {biggest}"
     )
 
 

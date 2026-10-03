@@ -2,7 +2,7 @@
 name: odoo-frontend-design
 argument-hint: "[UI/screen to design]"
 description: >-
-  Design knowledge for native-looking Odoo UI (views, OWL, website themes); loaded by other skills, writes no code
+  Native-looking Odoo UI design guidance for other skills; writes no code
 ---
 
 ## Role

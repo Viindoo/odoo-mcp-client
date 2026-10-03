@@ -2,7 +2,7 @@
 name: odoo-deprecation-audit
 argument-hint: "[module] [target-series]"
 description: >-
-  Scan a codebase for deprecated Odoo APIs that break on a target version, with replacements
+  Scan code for deprecated Odoo APIs that break on a target version
 ---
 
 ## Role

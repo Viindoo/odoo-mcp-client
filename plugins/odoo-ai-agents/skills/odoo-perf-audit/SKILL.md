@@ -2,7 +2,7 @@
 name: odoo-perf-audit
 argument-hint: "[module/path scope]"
 description: >-
-  Performance-only static audit of Odoo code: N+1, ORM in loops, missing indexes, heavy computes
+  Performance-only static audit of Odoo code: N+1, ORM in loops, indexes
 model: inherit
 ---
 

@@ -2,7 +2,7 @@
 name: odoo-draft-followup
 argument-hint: "[deal/customer]"
 description: >-
-  Draft a deal follow-up email and save it to disk
+  Draft a deal follow-up email and save it
 ---
 # /odoo-draft-followup
 

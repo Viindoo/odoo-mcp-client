@@ -2,7 +2,7 @@
 name: odoo-deploy-checklist
 argument-hint: "[module/release scope]"
 description: >-
-  Go-live readiness checklist for an Odoo upgrade or new module: blockers, backup, rollback
+  Go-live readiness checklist for an Odoo upgrade or new module
 ---
 
 ## Role

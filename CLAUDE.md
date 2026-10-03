@@ -159,9 +159,9 @@ docs and this repo's stricter, test-enforced conventions.
 
 A skill's or command's `description` frontmatter is what makes it trigger, and every
 model-invocable one is shown to the model on every turn in ONE skill listing that Claude Code caps
-at 1% of the context window (as it counts it: 4 chars per token, so 8000 chars on a 200k window).
-Over the cap the harness keeps the names but drops descriptions - of this plugin's skills, other
-plugins' and the user's own - so the binding limit is the plugin's AGGREGATE, not any one entry.
+at a share of the context window, shared with Claude Code's bundled skills, every other installed
+plugin and the user's own skills. Over the cap the harness keeps the names but drops descriptions,
+so the binding limit is the AGGREGATE, not any one entry.
 Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 
 - **English only, ASCII.** No trigger lists in other languages; the model maps a user's language
@@ -169,9 +169,9 @@ Rules (full guidance: `docs/authoring-skills-and-agents.md`):
 - **Meaning first, length follows.** State what the skill does, its core trigger intent, and a
   route-out only where a neighbour is genuinely confusable. No paraphrase lists, examples, process
   detail or marketing wording - those belong in the body.
-- **Each plugin's aggregate stays inside its budget** - `odoo-ai-agents` the 8000 chars, `git-toolkit`
-  400 (table in the test). A new skill pays for itself by tightening others, never by raising the
-  budget. A command that is purely a user shortcut for a still-visible skill may set
+- **Each plugin in this repo stays inside its share** (`PLUGIN_LISTING_BUDGETS` in the test; the
+  shares together leave a stated reserve of the cap for bundled and user skills). A new skill pays
+  for itself by tightening others, never by raising a share. A command that is purely a user shortcut for a still-visible skill may set
   `disable-model-invocation: true` (it leaves the listing), unless an orchestrator skill or workflow
   names it.
 

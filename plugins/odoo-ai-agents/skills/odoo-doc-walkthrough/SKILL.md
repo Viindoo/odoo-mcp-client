@@ -2,7 +2,7 @@
 name: odoo-doc-walkthrough
 argument-hint: "[module] [slug]"
 description: >-
-  Text-only happy-path usage scenarios for an Odoo module (role, steps, expected result), no screenshots
+  Text-only step-by-step usage scenarios for an Odoo module
 ---
 
 ## Role

@@ -198,7 +198,7 @@ Each `plugins/odoo-ai-agents/skills/<name>/SKILL.md` must start with YAML frontm
 command's description shares ONE skill listing that Claude Code caps per session, so the plugin's
 aggregate is the real limit: write descriptions in English only, by meaning (what it does, its core
 trigger, a route-out only where a neighbour is confusable), with no paraphrase lists or examples.
-The rule and the budget arithmetic: `docs/authoring-skills-and-agents.md` § 3. `make test` enforces
+The rule: `docs/authoring-skills-and-agents.md` § 3 (the arithmetic lives in the test). `make test` enforces
 all of this via `tests/test_skill_format.py` (frontmatter shape),
 `tests/test_skill_description_budget.py` (aggregate listing budget, English-only, field maximum), and
 `tests/test_odoo_intake_quote_sync.py` (every skill/workflow the `odoo-intake` router points at must

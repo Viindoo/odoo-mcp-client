@@ -2,7 +2,7 @@
 name: odoo-solution-design
 argument-hint: "[feature/requirement to design]"
 description: >-
-  Design HOW to build a non-trivial Odoo change before coding: data model, inheritance, override strategy, module split. Build order of an approved design -> odoo-planning
+  Design how to build a non-trivial Odoo change before coding. Build order -> odoo-planning
 ---
 
 ## Where this sits in the flow (design precedes the code Plan Mode)

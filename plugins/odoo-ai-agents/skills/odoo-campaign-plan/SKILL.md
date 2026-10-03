@@ -2,7 +2,7 @@
 name: odoo-campaign-plan
 argument-hint: "[campaign goal / product]"
 description: >-
-  Plan a multi-week, multi-channel marketing campaign: timeline, channels, assets, KPIs, owners
+  Plan a multi-week, multi-channel marketing campaign
 ---
 
 ## Role

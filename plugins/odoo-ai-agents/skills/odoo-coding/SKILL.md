@@ -2,7 +2,7 @@
 name: odoo-coding
 argument-hint: "[what to build or change]"
 description: >-
-  Write or change Odoo module code for any behavior request, even non-technical: models, fields, constraints, onchange, overrides, access rights, OWL/JS/QWeb/SCSS views
+  Write or change Odoo module code for any behavior request, even non-technical: fields, rules, overrides, views
 ---
 
 ## Role

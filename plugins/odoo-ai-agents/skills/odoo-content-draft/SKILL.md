@@ -2,7 +2,7 @@
 name: odoo-content-draft
 argument-hint: "[content topic / asset type]"
 description: >-
-  Draft marketing content: blog article, LinkedIn post, YouTube script, email sequence, landing page or social copy
+  Draft marketing content: blog, LinkedIn post, video script, email, landing copy
 ---
 
 ## Role

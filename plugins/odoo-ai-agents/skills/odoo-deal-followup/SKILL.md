@@ -2,7 +2,7 @@
 name: odoo-deal-followup
 argument-hint: "[deal/customer]"
 description: >-
-  Stalled or at-risk deal: risk score, next best action, draft follow-up email
+  Stalled deal: risk, next action, follow-up email draft
 ---
 
 ## Role

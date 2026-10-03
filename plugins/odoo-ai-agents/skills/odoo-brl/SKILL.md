@@ -2,7 +2,7 @@
 name: odoo-brl
 argument-hint: "[requirements list / RFP]"
 description: >-
-  Classify, cost and dependency-order a requirement list (tens to thousands of items) into a plan with RTM export
+  Turn a requirement list of any size into a costed, dependency-ordered plan with RTM export
 model: opus
 ---
 

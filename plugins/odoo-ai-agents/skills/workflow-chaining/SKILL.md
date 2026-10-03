@@ -3,7 +3,7 @@ name: workflow-chaining
 argument-hint: "[workflow name/file]"
 user-invocable: false
 description: >-
-  Internal: runs a declarative workflow YAML phase by phase; started by intake or a command
+  Internal: runs a workflow YAML phase by phase
 model: inherit
 ---
 

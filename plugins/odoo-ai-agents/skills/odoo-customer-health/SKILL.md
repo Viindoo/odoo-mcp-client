@@ -2,7 +2,7 @@
 name: odoo-customer-health
 argument-hint: "[customer/account]"
 description: >-
-  Health score for an existing customer: churn risk, upsell chances, next action before renewal
+  Existing customer health: churn risk, upsell, next action
 model: inherit
 ---
 

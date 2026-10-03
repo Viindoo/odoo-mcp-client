@@ -2,7 +2,7 @@
 name: odoo-qa-suite
 argument-hint: "[module/cluster to test]"
 description: >-
-  Static release QA package: test plan / test-case table (not executed), pre-release checklist, bug triage. Runnable tests -> odoo-test-writing; live run -> odoo-acceptance
+  Static release QA: test cases (not run), checklist, bug triage. Runnable tests -> odoo-test-writing
 ---
 
 ## Role

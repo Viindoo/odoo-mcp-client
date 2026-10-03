@@ -2,7 +2,7 @@
 name: odoo-produce-video
 argument-hint: "[project-label]"
 description: >-
-  Multi-scene demo video: storyboard, record scenes, assemble one file
+  Multi-scene demo video assembled into one file
 ---
 # /odoo-produce-video
 

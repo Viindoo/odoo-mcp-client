@@ -2,7 +2,7 @@
 name: odoo-planning
 argument-hint: "[approved design / scope]"
 description: >-
-  Turn an approved Odoo design into a dependency-ordered execution plan for code and docs: build order, parallel work, landing as one PR, estimates
+  Execution plan for an approved Odoo design: build order, parallel work, landing, estimates
 user-invocable: true
 ---
 
