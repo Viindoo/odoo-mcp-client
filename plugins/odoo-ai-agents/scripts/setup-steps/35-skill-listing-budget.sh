@@ -63,12 +63,13 @@ cmd_check() {
 
 _question() {
     # $1 = measure output
-    local out="$1" fraction tokens share window
+    local out="$1" fraction extra tokens share window
     fraction="$(_get FRACTION <<<"$out")"
+    extra="$(_get EXTRA_TOKENS <<<"$out")"
     tokens="$(_get LISTING_TOKENS <<<"$out")"
     share="$(_get WINDOW_SHARE_PCT <<<"$out")"
     window="$(_get WINDOW_TOKENS <<<"$out")"
-    echo "Your skill list is larger than Claude Code shows by default, so most skills are shown to the model without their descriptions and it rarely picks them on its own; set skillListingBudgetFraction to ${fraction} in your user settings so every description is shown, at about ${tokens} tokens of context per turn (${share}% of a ${window}-token window)?"
+    echo "Your skill list is larger than Claude Code shows by default, so most skills are shown to the model without their descriptions and it rarely picks them on its own; set skillListingBudgetFraction to ${fraction} in your user settings so every description is shown, adding about ${extra} tokens of context per turn (the whole list then takes about ${tokens} tokens, ${share}% of a ${window}-token window)?"
 }
 
 cmd_propose() {

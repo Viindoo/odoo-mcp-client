@@ -669,7 +669,7 @@ flowchart TD
 | `/odoo-plan-upgrade` | Comprehensive upgrade plan, saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
 | `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
-| `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, with the per-turn cost shown first | - |
+| `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance, and - when your skill list is too long for Claude Code to show every description (the default budget on a 200k-token window) - offers to raise the listing budget, showing first how many tokens per turn that adds | - |
 
 ## Use cases - day in the life
 

@@ -19,10 +19,15 @@ Counting (read from Claude Code's listing builder, CLI v2.1.x):
 An entry with ``disable-model-invocation: true`` is not listed; a ``skillOverrides`` value of
 ``"off"`` or ``"user-invocable-only"`` hides it, ``"name-only"`` lists the name only.
 
-Bundled skills live inside the CLI binary, so their cost cannot be read from disk. When the CLI's
-own debug log holds a "Skill listing over budget" line, that line is the measurement of the WHOLE
-listing (bundled included) and wins. Otherwise the bundled part is the observation below, taken
-from a live session on the CLI version it names - it changes between CLI versions.
+Bundled skills live inside the CLI binary, so their cost cannot be read from disk. When a CLI
+debug log holds a "Skill listing over budget" line that describes the CURRENT state, that line
+is the measurement of the WHOLE listing (bundled included) and wins. A line describes the current
+state only when it was written after every input that shapes the listing last changed (the
+settings files, the installed-plugin record, each enabled plugin's install, the user's and the
+project's skill dirs) and in a session of THIS project (its "Loading skills from" line names this
+project's skills dir). Such a line was logged under the fraction in force now, so the window it
+implies is sound. Anything else - a line from before a raise, before a plugin update, or from
+another project - is ignored, and the bundled part is the observation below.
 
 Subcommands (all read-only except ``set``):
   measure [--window TOKENS] [--cwd DIR]   KEY=VALUE facts about the listing and the decision
@@ -43,8 +48,10 @@ CHARS_PER_TOKEN = 4
 PER_ENTRY_TEXT_CAP = 1536
 DEFAULT_WINDOW_TOKENS = 200_000
 
-# Observation, not a rule: the bundled skills' share of the listing, measured from the CLI's
-# debug output in a live session (CLI 2.1.288, 2026-10). Re-measure when the CLI changes.
+# Observation, not a rule: the bundled skills' share of the listing, counted from the skill
+# listing a live session sent the model (CLI 2.1.288, 2026-10). It depends on the account's
+# enabled features (5,318 and 5,549 chars were seen on the same CLI version) and changes between
+# CLI versions; the larger value is kept so the estimate errs towards "overflows".
 BUNDLED_OBSERVED_CHARS = 5_549
 BUNDLED_OBSERVED_CLI = "2.1.288"
 
@@ -56,6 +63,8 @@ FRACTION_STEP = 0.005
 OVER_BUDGET_RE = re.compile(
     r"Skill listing over budget: (\d+) skills, (\d+) chars > (\d+) budget"
 )
+LOADING_SKILLS_RE = re.compile(r"Loading skills from: .*?project=\[([^\]]*)\]")
+LINE_TIME_RE = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?)(Z|[+-]\d\d:?\d\d)?")
 
 
 # --------------------------------------------------------------------------- #
@@ -233,19 +242,73 @@ def measure_on_disk(config_dir, cwd):
     }
 
 
-def latest_debug_measurement(config_dir):
-    """(skills, chars, budget) from the newest CLI debug log that logged an over-budget listing."""
-    logs = sorted(glob.glob(os.path.join(config_dir, "debug", "*.txt")), key=os.path.getmtime,
-                  reverse=True)
-    for path in logs:
+def _mtime(path):
+    try:
+        return os.path.getmtime(path)
+    except OSError:
+        return None
+
+
+def listing_inputs(config_dir, cwd):
+    """Every file or dir whose change can change the listing; their newest mtime is the moment
+    the listing last changed shape."""
+    paths = [path for _scope, path in settings_files(config_dir, cwd)]
+    paths.append(os.path.join(config_dir, "plugins", "installed_plugins.json"))
+    registry = _read_json(os.path.join(config_dir, "plugins", "installed_plugins.json"))
+    for key in _enabled_plugins(config_dir, cwd):
+        root = _install_path(registry, key, cwd)
+        if root:
+            paths.append(root)
+    for base in (config_dir, os.path.join(cwd, ".claude")):
+        paths += [os.path.join(base, "skills"), os.path.join(base, "commands")]
+    return paths
+
+
+def _line_time(line, fallback):
+    m = LINE_TIME_RE.match(line)
+    if not m:
+        return fallback
+    stamp = m.group(1) + (m.group(2) or "Z").replace("Z", "+00:00")
+    try:
+        from datetime import datetime
+        return datetime.fromisoformat(stamp).timestamp()
+    except ValueError:
+        return fallback
+
+
+def _same_project(text, cwd):
+    want = os.path.realpath(os.path.join(cwd, ".claude", "skills"))
+    for listed in LOADING_SKILLS_RE.findall(text):
+        for path in listed.split(","):
+            path = path.strip()
+            if path and os.path.realpath(path) == want:
+                return True
+    return False
+
+
+def latest_debug_measurement(config_dir, cwd, not_before):
+    """(skills, chars, budget) from the newest over-budget line that describes the current state:
+    written after `not_before` (the newest listing input) by a session of project `cwd`.
+    None when no line qualifies."""
+    best = None
+    for path in glob.glob(os.path.join(config_dir, "debug", "*.txt")):
+        file_time = _mtime(path)
+        if file_time is None or file_time <= not_before:
+            continue
         try:
             text = open(path, encoding="utf-8", errors="replace").read()
         except OSError:
             continue
-        hits = OVER_BUDGET_RE.findall(text)
-        if hits:
-            return tuple(int(x) for x in hits[-1])
-    return None
+        if not _same_project(text, cwd):
+            continue
+        for line in text.splitlines():
+            m = OVER_BUDGET_RE.search(line)
+            if not m:
+                continue
+            when = _line_time(line, file_time)
+            if when > not_before and (best is None or when >= best[0]):
+                best = (when, tuple(int(x) for x in m.groups()))
+    return best[1] if best else None
 
 
 # --------------------------------------------------------------------------- #
@@ -304,11 +367,13 @@ def measure(window_tokens=None, cwd=None, config_dir=None, environ=None):
     cwd = cwd or os.getcwd()
     current, scope = _merged_setting(config_dir, cwd, "skillListingBudgetFraction")
     env_budget = environ.get("SLASH_COMMAND_TOOL_CHAR_BUDGET") or None
-    debug = latest_debug_measurement(config_dir)
+    newest_input = max((m for m in map(_mtime, listing_inputs(config_dir, cwd)) if m), default=0)
+    debug = latest_debug_measurement(config_dir, cwd, newest_input)
     disk = measure_on_disk(config_dir, cwd)
     if debug:
         _skills, chars, logged_budget = debug
         source = "cli-debug-log"
+        # The line postdates every settings file, so it was logged under the fraction in force now.
         fraction_then = DEFAULT_FRACTION if current is None else float(current)
         if window_tokens is None and not env_budget:
             window_tokens = int(round(logged_budget / (CHARS_PER_TOKEN * fraction_then)))

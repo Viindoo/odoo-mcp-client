@@ -45,7 +45,7 @@ What it sets up:
    the session's skill listing fits a budget sized to the context window; at the default budget
    on a 200k-token window most plugin skills are listed without their descriptions. Step `35` measures
    the session's listing and, only when it overflows, offers to raise `skillListingBudgetFraction`
-   in your USER settings, showing the per-turn context cost first. On large-context models the
+   in your USER settings, showing first how many tokens of context per turn that adds. On large-context models the
    default budget holds everything and the step does nothing.
 
 ## Argument filter
@@ -534,12 +534,14 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   run).
 - **35-skill-listing-budget** - measures the session's skill listing (installed plugins enabled
   in the settings files, the user's and the project's skills, `skillOverrides`; Claude Code's
-  bundled skills from the CLI's own debug log when it holds a measurement, else from a cost
-  observed on a named CLI version, which the output reports as its `SOURCE`) and decides. Run
+  bundled skills from the CLI's own debug log when a session of this project measured the listing
+  after the settings and plugins last changed, else from a cost observed on a named CLI version,
+  which the output reports as its `SOURCE`) and decides. Once a raise is written, re-running finds
+  nothing to do until the installed skills change. Run
   `"$STEPS_DIR/35-skill-listing-budget.sh" propose` and read `ACTION`:
   `fits` / `env-override` / `scope-override` -> report the `NOTE` and move on, nothing to ask.
   `propose` -> put the `QUESTION` line to the user with AskUserQuestion, as given (it states the
-  effect and the per-turn context cost); add `--window <tokens>` to `propose` and `apply` when the
+  effect and the tokens of context it adds per turn); add `--window <tokens>` to `propose` and `apply` when the
   user runs a model whose context window differs. Only on a yes run
   `"$STEPS_DIR/35-skill-listing-budget.sh" apply --yes`; on a no, run nothing. It writes only
   the USER settings file (`$CLAUDE_SETTINGS`), never a project or local one, never lowers a
