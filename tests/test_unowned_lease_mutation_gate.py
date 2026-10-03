@@ -1061,3 +1061,39 @@ def test_the_owner_with_interpreter_options_still_passes(tmp_path, opts):
 ])
 def test_code_or_module_instead_of_the_script_is_not_an_invocation(command):
     _passed(_run(command))
+
+
+# --------------------------------------------------------------------------- #
+# The gate decides inside its timeout on a long dispatch
+# --------------------------------------------------------------------------- #
+def _declared_pretooluse_timeout() -> float:
+    manifest = json.loads(HOOKS_JSON.read_text(encoding="utf-8"))
+    for group in manifest["hooks"]["PreToolUse"]:
+        for h in group["hooks"]:
+            if h["command"].endswith('/hooks/block-unowned-lease-mutation.sh"'):
+                return float(h["timeout"])
+    raise AssertionError("block-unowned-lease-mutation.sh is not registered under PreToolUse")
+
+
+def test_a_forwarded_lease_release_is_refused_well_inside_the_timeout_on_a_long_dispatch(
+        tmp_path):
+    """A consumer deep into a long dispatch (thousands of calls, tens of MB of transcript) tries to
+    release the lease it was handed. The refusal still comes - and in a fraction of the timeout
+    hooks.json gives the gate: a gate the harness cancels lets the release through, and the
+    provider's database is dropped under it."""
+    import time
+    filler = []
+    for i in range(12000):            # ~75 MB: the size of a real long dispatch's transcript
+        tid, use = _use("Bash", {"command": f"echo step {i}"})
+        filler += [use, _result(tid, f"step {i} " + "x" * 6000)]
+    lines = [_forwarded_brief(), *_serve_forwarded(), *filler]
+    budget = _declared_pretooluse_timeout()
+    t0 = time.monotonic()
+    proc = _run_a4(tmp_path, lines, tool=MCP + "lease_release",
+                   tool_input={"lease_token": P_TOK, "run_id": "run-R"})
+    elapsed = time.monotonic() - t0
+    assert "forwarded to you" in _denied(proc)
+    assert not proc.stderr.strip(), proc.stderr
+    assert elapsed < budget / 4, (
+        f"the lease-mutation gate took {elapsed:.1f}s on a long dispatch; hooks.json gives it "
+        f"{budget:.0f}s and a cancelled gate lets the release through")
