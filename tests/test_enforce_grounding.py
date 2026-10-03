@@ -152,3 +152,23 @@ def test_loop_guard_never_re_blocks(tmp_path):
     ]
     _, out = _run(tmp_path, lines, stop_hook_active=True)
     assert out is None, "with stop_hook_active=true the hook must stay out of the way (no loop)"
+
+
+def _note_attachment(text):
+    """How the harness records a SubagentStop systemMessage in the subagent's own transcript."""
+    return json.dumps({"type": "attachment", "attachment": {
+        "type": "hook_system_message", "content": text, "hookName": "SubagentStop",
+        "hookEvent": "SubagentStop", "toolUseID": "x"}}, ensure_ascii=False)
+
+
+def test_a_grounding_note_already_in_the_context_is_not_repeated(tmp_path):
+    """A subagent woken again after a stop already holds the note it got at the first stop: the
+    same note is not injected again at the next stop - but the lie block is never skipped."""
+    work = [_line(content=[_tool_use("Write", "models/sale.py")])]
+    _, first = _run(tmp_path, work)
+    note = first["systemMessage"]
+    _, again = _run(tmp_path, work + [_note_attachment(note), _line("user", [_text("go on")])])
+    assert again is None, f"the same grounding note was repeated: {again!r}"
+    lie = work + [_note_attachment(note), _line(content=[_text("Done. grounded: osm")])]
+    _, out = _run(tmp_path, lie)
+    assert out is not None and out.get("decision") == "block"

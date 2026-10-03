@@ -24,7 +24,7 @@
 #     sees any prompt/deny they would otherwise see.
 #   - Self-gates: (1) requires an active run OF THIS SESSION (an ISOLATE run-*.json with status
 #     NEEDS_NEXT, resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md, that this
-#     session acts on - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
+#     session wrote last - hooks/run-ownership.sh) -> silent pass otherwise. (2) requires a resolvable role=leaf match -> silent pass otherwise (no
 #     agent-role SSOT, no jq, unresolved agent_type = stay silent, never guess).
 #   - (1) is best-effort MAIN-agent-only (skip when we can tell we are in a subagent - V-52:
 #     ANY populated agent_id/agent_type means "in a subagent", no `!= general-purpose`
@@ -114,35 +114,23 @@ esac
 
 [[ "$IN_SUBAGENT" == false ]] || _pass    # inside a subagent - it is supposed to do the work; do not nag
 
-# Active-run self-gate: only nudge when a run is mid-flight (status NEEDS_NEXT). ISOLATE
-# state dir (Problem 3 - snippets/state-root-resolution.md), resolved FROM the hook's own
-# project cwd. CRITICAL RESILIENCE: this hook must NEVER hard-fail or block a tool call - a
-# resolver refusal (non-git, no marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT)
-# silently falls back to the legacy project-relative path (previously this was ALWAYS
-# CWD-relative, a bug: it ignored the resolver entirely). This fallback is the SANCTIONED
-# "Advisory-glob exception" (V-50, state-root-resolution.md) - a read-only glob that only ever
-# degrades to silence, never a write; do not copy this pattern into a call site that writes.
-CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
-PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
-RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
-[[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
-needs_next=()
-shopt -s nullglob
-for rf in "$RUN_DIR"/run-*.json; do
-  st="$(jq -r '.status // empty' "$rf" 2>/dev/null || true)"
-  [[ "$st" == "NEEDS_NEXT" ]] && needs_next+=("$rf")
-done
-shopt -u nullglob
-[[ ${#needs_next[@]} -gt 0 ]] || _pass    # no active run -> not in drive-to-done mode -> silent
-
-# Only a run THIS session drives makes it mid-run (hooks/run-ownership.sh): a NEEDS_NEXT record
-# another session - live or long dead - left in the same state dir does not. Unreadable helper or
-# transcript -> not this session's run -> silent.
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+# Active-run self-gate: only nudge while THIS session drives a run - a NEEDS_NEXT record in this
+# project's state dir that this session wrote last (hooks/run-ownership.sh, which also resolves the
+# state dir from the hook's own project cwd and owns its read-only fallback). A record another
+# session - live or long dead - left there does not make this session mid-run. When ownership cannot
+# be told (no readable transcript, a jq that cannot run the scan) the nudge keeps its older rule:
+# any NEEDS_NEXT record. Unreadable shared helper -> pass, the plugin-wide convention.
 [[ -r "$_HOOK_DIR/run-ownership.sh" ]] || _pass
 # shellcheck source=/dev/null
 . "$_HOOK_DIR/run-ownership.sh"
-[[ -n "$(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")" ]] || _pass
+CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
+needs_next=()
+while IFS= read -r rf; do [[ -n "$rf" ]] && needs_next+=("$rf"); done \
+  < <(_needs_next_runs "$(_run_state_dir "$CWD")")
+[[ ${#needs_next[@]} -gt 0 ]] || _pass    # no active run -> not in drive-to-done mode -> silent
+TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+owned="$(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")"
+[[ $? -eq 2 || -n "$owned" ]] || _pass
 
 # One text for every heavy tool, so Bash, Edit and Write share one reminder.
 CTX="You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating Bash/Edit/Write work to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right."

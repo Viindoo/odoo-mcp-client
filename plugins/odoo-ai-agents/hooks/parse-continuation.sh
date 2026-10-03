@@ -50,19 +50,25 @@ fi
 
 [[ "$STATUS" == "NEEDS_NEXT" ]] || _pass    # only nudge when more work is signalled
 
-# ISOLATE state dir (Problem 3 - snippets/state-root-resolution.md), resolved FROM the
-# hook's own project cwd so the nudge names the correct per-worktree run-*.json instead
-# of the legacy project-relative convention. CRITICAL RESILIENCE: this hook must NEVER
-# hard-fail or block - a resolver refusal (non-git, no marker) or any error (missing
-# script, no CLAUDE_PLUGIN_ROOT) silently falls back to the legacy project-relative path.
-# This fallback is the SANCTIONED "Advisory-glob exception" (V-50, state-root-resolution.md) -
-# a read-only glob that only ever degrades to silence, never a write; do not copy this
-# pattern into a call site that writes.
+# The ISOLATE state dir, resolved FROM the hook's own project cwd (hooks/run-ownership.sh - the
+# same resolution, with the same read-only fallback, as the other run-scoped advisories), so the
+# nudge names this worktree's run-*.json. Unreadable shared helper -> the legacy project path.
 CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
-PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
-RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
-[[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
+if [[ -r "${BASH_SOURCE[0]%/*}/run-ownership.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "${BASH_SOURCE[0]%/*}/run-ownership.sh"
+  RUN_DIR="$(_run_state_dir "$CWD")"
+else
+  RUN_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/.odoo-ai"
+fi
 
-jq -cn --arg m "A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-harness: read the active $RUN_DIR/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)" \
-  '{continue:true, systemMessage:$m}'
+MSG="A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-harness: read the active $RUN_DIR/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)"
+# Said once per context window (hooks/advice-once.sh, against the transcript the harness records it
+# in): a subagent woken again after a stop does not get the same nudge at every later stop.
+if [[ -r "${BASH_SOURCE[0]%/*}/advice-once.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "${BASH_SOURCE[0]%/*}/advice-once.sh"
+  _advice_seen "$TRANSCRIPT" "$MSG" && _pass
+fi
+jq -cn --arg m "$MSG" '{continue:true, systemMessage:$m}'
 exit 0
