@@ -137,7 +137,8 @@ summary: <one line>
 
 Never include diff hunks or file contents in the return.
 
-That block is your completion report - deliver it once, last, never by sending it to anyone:
+That block is your completion report - deliver it once, alone in a message of its own
+after every other result is read, never by sending it to anyone:
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language
