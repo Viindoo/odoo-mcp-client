@@ -17,6 +17,11 @@
 #
 # Fails OPEN to "not seen" (the advice is emitted, the old behaviour) on any uncertainty: no
 # transcript, an unreadable one, an empty text.
+#
+# Accepted residual: the harness runs the PreToolUse hooks of several tool calls issued in ONE
+# message before it records any of their output, so each of them can still emit the same advisory
+# once - a few copies once per context window, not one per call. Closing it would need state kept
+# outside the transcript, which compaction does not reset.
 
 # The records of the current context window, in ANY order: from the end of the transcript back to
 # the last compact_boundary record (tac reads backwards and stops there), else - no tac - forward

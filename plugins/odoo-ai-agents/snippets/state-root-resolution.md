@@ -147,10 +147,10 @@ the FULL subpath, never by the top-level directory name alone - `visual/` itself
 
 The general rule above (never a project-relative `./.odoo-ai/`) has exactly ONE sanctioned
 exception, and it is narrow: `hooks/parse-continuation.sh`, `hooks/drive-continuation.sh`, and
-`hooks/remind-delegate.sh` each resolve `RUN_DIR` via `resolve_project_dir.sh isolate` and, only
-when that resolution itself fails (the resolver's own documented REFUSAL case), fall back to
-`RUN_DIR="${PROJ_DIR}/.odoo-ai"` before globbing `run-*.json`. Tolerated for these three call
-sites and no others, because all three hold simultaneously: (1) **read-only glob, never a
+`hooks/remind-delegate.sh` each resolve `RUN_DIR` via the shared `hooks/run-ownership.sh`
+(`resolve_project_dir.sh isolate`) and, only on the resolver's own documented REFUSAL case,
+fall back to legacy `<project>/.odoo-ai` before globbing `run-*.json`. Tolerated for these three
+call sites and no others, because all three hold simultaneously: (1) **read-only glob, never a
 write** - `run-<id>.json` is written ONLY by `run-harness` (§8.3), which always resolves through
 the real two-axis root, so a degraded glob at the wrong location cannot corrupt or fork the lease
 registry; (2) **fail-closed** - `shopt -s nullglob` makes a wrong-location fallback match zero

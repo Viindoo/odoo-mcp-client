@@ -9,9 +9,9 @@
 #   {continue:true, systemMessage:...} only - an advisory line. (Using {decision:"block"} here
 #   would trap the main agent, which is forbidden.) The human + main agent keep the right to
 #   stop at any time. Self-gates to silence when no run is active; loop-safe via stop_hook_active.
-#   Only THIS session's run counts (hooks/run-ownership.sh): a NEEDS_NEXT record that another
-#   session - live or long dead - left in the same state dir is not this session's unfinished run,
-#   and a record this session never acted on stays silent.
+#   Only THIS session's run counts (hooks/run-ownership.sh): the record this session wrote last. A
+#   NEEDS_NEXT record that another session - live or long dead - left in the same state dir is not
+#   this session's unfinished run; when this session drives several, the one it wrote last is named.
 #   Said ONCE per run state per context window: while the same run sits on the same node, the
 #   reminder already in the transcript since the last compaction is not repeated on every later
 #   turn end (hooks/advice-once.sh); a run that moves to another node is a new reminder.
@@ -27,44 +27,37 @@ INPUT="$(cat 2>/dev/null || true)"
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
 [[ "$STOP_ACTIVE" == "true" ]] && _pass
 
-CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
-PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
-# ISOLATE state dir (Problem 3 - snippets/state-root-resolution.md), resolved FROM the
-# hook's own project cwd so the run-*.json glob below is scoped per worktree (cnt==1
-# holds independently in each worktree - the C-1 regression fix). CRITICAL RESILIENCE:
-# this hook must NEVER hard-fail or block a session - a resolver refusal (non-git, no
-# marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT) silently falls back to
-# the legacy project-relative path. This fallback is the SANCTIONED "Advisory-glob
-# exception" (V-50, state-root-resolution.md) - a read-only glob that only ever degrades
-# to silence, never a write; do not copy this pattern into a call site that writes.
-RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
-[[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
-TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+# The state dir and its NEEDS_NEXT records, and whose run each is: hooks/run-ownership.sh (the ONE
+# copy remind-delegate.sh and parse-continuation.sh share). The dir is resolved FROM this hook's own
+# project cwd, so each worktree sees only its own records. Unreadable shared helper -> pass, the
+# plugin-wide convention.
 _HOOK_DIR="${BASH_SOURCE[0]%/*}"
-[[ -r "$_HOOK_DIR/run-ownership.sh" ]] || _pass    # cannot tell whose run it is -> not ours
+[[ -r "$_HOOK_DIR/run-ownership.sh" ]] || _pass
 # shellcheck source=/dev/null
 . "$_HOOK_DIR/run-ownership.sh"
+CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
+RUN_DIR="$(_run_state_dir "$CWD")"
 needs_next=()
-shopt -s nullglob
-for rf in "$RUN_DIR"/run-*.json; do
-  st="$(jq -r '.status // empty' "$rf" 2>/dev/null || true)"
-  [[ "$st" == "NEEDS_NEXT" ]] && needs_next+=("$rf")
-done
-shopt -u nullglob
+while IFS= read -r rf; do [[ -n "$rf" ]] && needs_next+=("$rf"); done < <(_needs_next_runs "$RUN_DIR")
 [[ ${#needs_next[@]} -gt 0 ]] || _pass
-active_run=""; run_id=""; cursor=""; cnt=0
-while IFS= read -r rf; do
-  [[ -n "$rf" ]] || continue
-  active_run="$rf"; cnt=$((cnt+1))
-  # A run record without run_id is still named: by its file, run-<id>.json (the run-harness
-  # naming), never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
-  _file_id="${rf##*/run-}"; _file_id="${_file_id%.json}"
-  run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$rf" 2>/dev/null || printf '%s' "$_file_id")"
-  cursor="$(jq -r '.cursor // "?"' "$rf" 2>/dev/null || echo '?')"
-done < <(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")
-# 0 -> no run of this session; >1 -> ambiguous which to name, stay silent (degrade-safe). Only nudge
-# on exactly one.
-[[ "$cnt" -eq 1 ]] || _pass
+
+# Which one is THIS session's unfinished run: the one it wrote last. When ownership cannot be told
+# (no readable transcript, a jq that cannot run the scan) the reminder keeps its older rule - exactly
+# one NEEDS_NEXT record is the run; more is ambiguous and stays silent.
+TRANSCRIPT="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+owned="$(_session_owned_runs "$TRANSCRIPT" "${needs_next[@]}")"
+if [[ $? -eq 2 ]]; then
+  [[ ${#needs_next[@]} -eq 1 ]] || _pass
+  active_run="${needs_next[0]}"
+else
+  [[ -n "$owned" ]] || _pass
+  active_run="${owned%%$'\n'*}"
+fi
+# A run record without run_id is still named: by its file, run-<id>.json (the run-harness naming),
+# never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
+_file_id="${active_run##*/run-}"; _file_id="${_file_id%.json}"
+run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$active_run" 2>/dev/null || printf '%s' "$_file_id")"
+cursor="$(jq -r '.cursor // "?"' "$active_run" 2>/dev/null || echo '?')"
 
 MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read $active_run). To stop, say so - this is only a reminder, not a block."
 

@@ -220,9 +220,10 @@ def test_naive_shared_design_would_go_silent_ambiguous(tmp_path):
     # shared root" implementation would produce, without touching the (locked) resolver itself.
     naive_env = _env(home, ODOO_AI_WORKTREE_DIR=str(shared_dir))
 
-    both = _drove(shared_dir / "run-a.json", shared_dir / "run-b.json")
-    rc1, out1 = _run_hook(DRIVE_HOOK, repo, naive_env, transcript_lines=both)
-    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, naive_env, transcript_lines=both)
+    # No transcript: which run is this session's cannot be told, so the hook keeps the plain
+    # "exactly one NEEDS_NEXT record" rule this test is about.
+    rc1, out1 = _run_hook(DRIVE_HOOK, repo, naive_env)
+    rc2, out2 = _run_hook(DRIVE_HOOK, wt2, naive_env)
 
     assert rc1 == 0 and rc2 == 0, "ambiguity must degrade to a silent pass, never crash"
     assert out1 is None, "cnt==2 in a naively-shared dir must go silent, not nudge either run"
@@ -291,6 +292,22 @@ def test_parse_continuation_names_the_resolved_isolate_dir(tmp_path):
     assert rc == 0
     assert out is not None and out.get("continue") is True
     assert str(isolate) in out["systemMessage"]
+
+
+def test_parse_continuation_nudge_already_in_the_context_is_not_repeated(tmp_path):
+    """A subagent woken again after a NEEDS_NEXT stop already holds the nudge: the next stop with
+    the same report adds nothing."""
+    home = tmp_path / "home"
+    env = _env(home)
+    repo = tmp_path / "repo"
+    _init_repo(repo, env)
+    _, first = _run_hook(PARSE_HOOK, repo, env, transcript_lines=[_cont_needs_next_text()])
+    note = json.dumps({"type": "attachment", "attachment": {
+        "type": "hook_system_message", "content": first["systemMessage"],
+        "hookName": "SubagentStop", "hookEvent": "SubagentStop", "toolUseID": "x"}})
+    _, again = _run_hook(PARSE_HOOK, repo, env,
+                         transcript_lines=[_cont_needs_next_text(), note, _cont_needs_next_text()])
+    assert again is None, f"the same nudge was repeated: {again!r}"
 
 
 def test_parse_continuation_resolver_refusal_falls_back_without_crashing(tmp_path):

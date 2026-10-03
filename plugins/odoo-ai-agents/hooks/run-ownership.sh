@@ -1,80 +1,109 @@
-# run-ownership.sh - SOURCED helper (not a hook): the ONE implementation of "which of these run
-# records is THIS session's run". The run-scoped advisories - remind-delegate.sh's mid-run nudge and
-# drive-continuation.sh's unfinished-run reminder - ask it, so a NEEDS_NEXT run that another session
-# (live or long dead) left in the same state dir never makes this session "mid-run".
+# run-ownership.sh - SOURCED helper (not a hook): the ONE implementation of "where are this project's
+# run records, which of them are NEEDS_NEXT, and which of those is THIS session's run". The
+# run-scoped advisories - remind-delegate.sh's mid-run nudge and drive-continuation.sh's
+# unfinished-run reminder - read it (parse-continuation.sh reads only the state dir), so a NEEDS_NEXT
+# run that another session (live or long dead) left in the same state dir never makes this session
+# "mid-run".
 #
-# WHAT MAKES A RUN THIS SESSION'S: the session acted on it, and nobody has written it since.
-#   - ACTED ON: an ASSISTANT tool call in this session's transcript names the run's file
-#     (`run-<id>.json`) in its input - a Bash command (run-harness writes the record from a script),
-#     a Read / Write / Edit file_path. That is how a run is driven: intake's Phase P writes it,
-#     run-harness reads it at the top of every loop iteration and writes it after every node. A run
-#     this session only SAW (a directory listing, a tool result, a hook message) was not acted on.
-#   - NOBODY SINCE: the record's modification time is not later than this session's last call on
-#     it (that call's result time). A later write came from another session that took the run over
-#     - run-harness resuming it there - so it is that session's now, and this one's no longer.
-# A RESUMED run is therefore this session's as soon as run-harness, resuming it here, reads its
-# record - no field has to be stamped into the run record, and the record on disk is only read,
-# never written.
+# WHAT MAKES A RUN THIS SESSION'S: the LAST write to its record came from this session. A record is
+# written by a tool call that names it - intake's Phase P creates it, run-harness writes it after
+# every node and before every dispatch, from a script or the Write/Edit tools - so the record's
+# modification time falls inside the run time of one of this session's calls naming it (from the
+# call record's time to its result record's time). Reading a record (intake's active-run check,
+# a status look) writes nothing and so makes nothing this session's. A later write by another
+# session - run-harness resuming the run there - moves the record's time outside every window of
+# this session: the run is that session's now. A RESUMED run becomes this session's at run-harness's
+# first write here (it persists RUNNING before it dispatches anything). Run records are only read.
 #
-# Fails SAFE to "not this session's run": no transcript, an unreadable one, no jq, a record this
-# session never named. An advisory then stays silent; nothing is ever blocked on this answer.
+# THREE ANSWERS, never a guess: _session_owned_runs returns 0 with this session's runs (none is a
+# real answer: another session's run, or an old record no session here wrote); it returns 2 when it
+# cannot tell - no transcript, an unreadable one, a jq that cannot run the scan. A caller keeps the
+# behaviour it had before ownership existed for "cannot tell", and never blocks on any answer.
 
-# Seconds of slack between a record's mtime and the result time of the call that wrote it (the
-# result record is written after the write; the slack only absorbs clock rounding).
+# Seconds of slack around a call's run window: timestamps are compared in whole seconds.
 _RUN_OWNER_SLACK=2
 
 _run_file_mtime() {
   stat -c %Y -- "$1" 2>/dev/null || stat -f %m -- "$1" 2>/dev/null || true
 }
 
-# $1 = this session's transcript, $2.. = run record paths. Prints each record that is this
-# session's run, one per line, in argument order.
+# The ISOLATE state dir holding this project's run records, resolved FROM the hook's own project cwd
+# ($1, else $CLAUDE_PROJECT_DIR, else .) per snippets/state-root-resolution.md. When the resolver
+# refuses (non-git, no marker) or cannot run (no CLAUDE_PLUGIN_ROOT) it falls back to the legacy
+# <proj>/.odoo-ai - the sanctioned "Advisory-glob exception" of that snippet: callers only glob it,
+# read-only, and a wrong location matches nothing. Never copy this fallback into a call site that
+# writes.
+_run_state_dir() {
+  local proj="${1:-${CLAUDE_PROJECT_DIR:-.}}" dir
+  dir="$(cd "$proj" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
+  printf '%s\n' "${dir:-${proj}/.odoo-ai}"
+}
+
+# The run records in state dir $1 whose status is NEEDS_NEXT, one path per line.
+_needs_next_runs() {
+  local rf
+  [[ -d "${1:-}" ]] || return 0
+  for rf in "$1"/run-*.json; do
+    [[ -f "$rf" ]] || continue
+    [[ "$(jq -r '.status // empty' "$rf" 2>/dev/null || true)" == "NEEDS_NEXT" ]] && printf '%s\n' "$rf"
+  done
+  return 0
+}
+
+# $1 = this session's transcript, $2.. = run record paths. Prints each record that is this session's
+# run, newest write first, one per line. Returns 0 when it could tell (even with nothing printed), 2
+# when it could not.
 _session_owned_runs() {
   local transcript="$1"; shift
-  [[ $# -gt 0 && -n "$transcript" && -r "$transcript" ]] || return 0
-  command -v jq >/dev/null 2>&1 || return 0
+  [[ $# -gt 0 ]] || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 2
+  command -v jq >/dev/null 2>&1 || return 2
   local -a names=()
   local rf
   for rf in "$@"; do names+=("${rf##*/}"); done
-  # Only the lines naming one of the records can hold a call that acted on it; their tool_use ids
-  # then find the result lines (which need not name the record).
-  local calls
-  calls="$(grep -F -e "$(printf '%s\n' "${names[@]}")" -- "$transcript" 2>/dev/null \
-    | jq -Rr --args '
-        fromjson? // empty | objects
-        | def ts: (.timestamp // "") | tostring | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0);
-        . as $r | ((.message // .) as $m | (($m.role // .type) // "")) as $role
+  local list rc calls results ids
+  list="$(printf '%s\n' "${names[@]}")"
+  # Only the lines naming a record can hold a call that wrote it; their tool_use ids then find the
+  # result lines (which need not name the record). One "<name>\t<id>\t<call time>" row per call.
+  calls="$({ grep -F -e "$list" -- "$transcript" 2>/dev/null || true; } \
+    | jq -Rr --arg names "$list" '
+        def ts: (.timestamp // "") | tostring | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0);
+        ($names | split("\n") | map(select(length > 0))) as $ns
+        | fromjson? // empty | objects
+        | . as $r | (((.message // .).role // .type) // "") as $role
         | select($role == "assistant") | ($r | ts) as $t
         | ((.message // .).content // []) | (if type == "array" then .[] else empty end)
         | select(type == "object" and .type == "tool_use")
-        | (.input // {} | tojson) as $in | (.id // "") as $id
-        | $ARGS.positional[] | select(. as $n | $in | contains($n))
-        | [., $id, $t] | @tsv' "${names[@]}" 2>/dev/null)"
-  [[ -n "$calls" ]] || return 0
-  local ids results
-  ids="$(printf '%s\n' "$calls" | cut -f2 | grep -v '^$' | sort -u)"
+        | (.input // {} | tojson) as $in | (.id // "" | tostring) as $id
+        | $ns[] | select(. as $n | $in | contains($n))
+        | [., $id, ($t | tostring)] | @tsv')"
+  rc=$?
+  (( rc == 0 )) || return 2
   results=""
+  ids="$(printf '%s\n' "$calls" | cut -f2 | grep -v '^$' | sort -u)"
   if [[ -n "$ids" ]]; then
-    results="$(grep -F -e "$ids" -- "$transcript" 2>/dev/null \
+    results="$({ grep -F -e "$ids" -- "$transcript" 2>/dev/null || true; } \
       | jq -Rr '
+          def ts: (.timestamp // "") | tostring | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0);
           fromjson? // empty | objects
-          | def ts: (.timestamp // "") | tostring | sub("\\.[0-9]+"; "") | (fromdateiso8601? // 0);
-          . as $r | ((.message // .).content // []) | (if type == "array" then .[] else empty end)
+          | . as $r | ((.message // .).content // []) | (if type == "array" then .[] else empty end)
           | select(type == "object" and .type == "tool_result")
-          | [(.tool_use_id // ""), ($r | ts)] | @tsv' 2>/dev/null)"
+          | [(.tool_use_id // "" | tostring), ($r | ts | tostring)] | @tsv')" || return 2
   fi
-  local name last mtime
+  local name mtime
   for rf in "$@"; do
     name="${rf##*/}"
-    # The latest time this session acted on it: each call's result time, else the call's own.
-    last="$(awk -F'\t' -v n="$name" '
-      NR == FNR { if ($1 != "") rt[$1] = $2; next }
-      $1 == n { t = ($2 in rt) ? rt[$2] : $3; if (t + 0 > best + 0) best = t }
-      END { if (best != "") print best }' <(printf '%s\n' "$results") <(printf '%s\n' "$calls") 2>/dev/null)"
-    [[ "$last" =~ ^[0-9]+$ && "$last" -gt 0 ]] || continue
     mtime="$(_run_file_mtime "$rf")"
     [[ "$mtime" =~ ^[0-9]+$ ]] || continue
-    (( mtime <= last + _RUN_OWNER_SLACK )) && printf '%s\n' "$rf"
-  done
+    # Did one of this session's calls naming the record run while it was last written?
+    awk -F'\t' -v n="$name" -v m="$mtime" -v s="$_RUN_OWNER_SLACK" '
+      NR == FNR { if ($1 != "") rt[$1] = $2; next }
+      $1 == n && $3 > 0 {
+        end = ($2 in rt) ? rt[$2] : $3
+        if (m + 0 >= $3 - s && m + 0 <= end + s) { found = 1 }
+      }
+      END { exit(found ? 0 : 1) }' <(printf '%s\n' "$results") <(printf '%s\n' "$calls") 2>/dev/null \
+      && printf '%s\t%s\n' "$mtime" "$rf"
+  done | sort -rn -k1,1 | cut -f2-
   return 0
 }

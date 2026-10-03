@@ -13,11 +13,12 @@ Business rules locked in here (each test fails for exactly one of them):
   background task's <task-notification>, another agent's peer message - is a subagent's report,
   not user intent, and gets no hint at all.
 - The run-scoped advisories (the mid-run delegate nudge, the unfinished-run reminder) are about a
-  run THIS session drives: one whose record it acted on (a tool call naming the record - how
-  intake writes it and run-harness reads and writes it, also when resuming it here) and that nobody
-  has written since. A NEEDS_NEXT record another session left behind, live or dead, or an old record
-  this session never touched, triggers nothing; a run another session took over is no longer this
-  session's.
+  run THIS session drives: one whose record this session wrote last (a tool call naming the record
+  ran while it was written - intake creates it, run-harness writes it, also when resuming it here).
+  A NEEDS_NEXT record another session left behind, live or dead, an old record, or one this session
+  only read, triggers nothing; a run another session took over is no longer this session's; of
+  several runs this session drives, the reminder names the one it wrote last. When ownership cannot
+  be told (no readable transcript) the advisories keep their rule from before ownership.
 - The Stop hooks finish well inside the timeout hooks.json declares for them on a session with
   thousands of tool calls. A Stop hook that outruns it is cancelled by the harness: the turn end
   stalls for the whole timeout and the hook's own advisory never runs.
@@ -38,6 +39,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+
+from conftest import farm_path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
@@ -105,9 +108,10 @@ def _now() -> str:
 _ACT_SEQ = iter(range(1, 10**9))
 
 
-def _acted_on(run_file: Path, name: str = "Read") -> list[str]:
-    """A tool call of this session naming the run record, and its result, stamped now - what
-    run-harness's read-at-the-top-of-the-loop (Read) or record write (a Bash script) leaves."""
+def _acted_on(run_file: Path, name: str = "Bash") -> list[str]:
+    """A tool call of this session naming the run record, and its result, stamped now. Right after
+    the record is (re)written that is the call that wrote it (run-harness writes from a script);
+    on a record written long ago it is only a read."""
     tid = f"toolu_run_{next(_ACT_SEQ)}"
     inp = {"file_path": str(run_file)} if name == "Read" else {
         "command": f"python3 - <<'PY'\np='{run_file}'\nPY"}
@@ -331,15 +335,24 @@ def test_a_run_another_session_left_does_not_make_this_session_mid_run(tmp_path)
     assert _drive(t, env) == "", "this session was reminded of a run it does not drive"
 
 
+def _age(path: Path, seconds: int) -> Path:
+    t = time.time() - seconds
+    os.utime(path, (t, t))
+    return path
+
+
 def test_a_run_resumed_in_this_session_becomes_its_run(tmp_path):
-    """run-harness resuming a paused run here re-enters by reading its record - from then on the
-    run is this session's, and its advisories apply."""
+    """A run paused yesterday: reading its record here (intake's active-run check, run-harness
+    re-entering) does not adopt it; run-harness's first write here does."""
     isolate = tmp_path / "isolate"
-    run = _run_record(isolate, run_id="paused")
+    run = _age(_run_record(isolate, run_id="paused"), 86400)
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
-    t = _write(tmp_path / "t.jsonl", [_user("resume the paused run")])
-    assert _drive(t, env) == ""
-    _write(t, [_user("resume the paused run")] + _acted_on(run))
+    read = [_user("resume the paused run")] + _acted_on(run, "Read")
+    t = _write(tmp_path / "t.jsonl", read)
+    assert _drive(t, env) == "", "reading another session's record made it this session's run"
+    assert _delegate("Edit", t, env) == ""
+    _run_record(isolate, run_id="paused", cursor="n2")  # run-harness persists RUNNING here
+    _write(t, read + _acted_on(run))
     assert "'paused'" in _drive(t, env), "a run resumed here was not treated as this session's"
     assert "mid-run" in _delegate("Edit", t, env)
 
@@ -350,7 +363,7 @@ def test_a_run_another_session_took_over_is_no_longer_this_sessions(tmp_path):
     isolate = tmp_path / "isolate"
     run = _run_record(isolate, run_id="moved")
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
-    t = _write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run, "Bash"))
+    t = _write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run))
     assert "'moved'" in _drive(t, env)
     later = time.time() + 600                          # the other session's write, after ours
     os.utime(run, (later, later))
@@ -362,11 +375,56 @@ def test_the_reminder_names_this_sessions_run_beside_a_stale_one(tmp_path):
     """One run driven here, one left NEEDS_NEXT by another session: the reminder names this
     session's run instead of going silent on two candidates."""
     isolate = tmp_path / "isolate"
-    _run_record(isolate, "run-stale.json", run_id="stale")
+    _age(_run_record(isolate, "run-stale.json", run_id="stale"), 86400)
     mine = _run_record(isolate, "run-mine.json", run_id="mine")
     env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
     msg = _drive(_write(tmp_path / "t.jsonl", _acted_on(mine)), env)
-    assert "'mine'" in msg and "stale" not in msg, msg
+    assert "'mine'" in msg and "'stale'" not in msg, msg
+
+
+def test_a_stale_run_this_session_only_read_does_not_hide_the_one_it_drives(tmp_path):
+    """odoo-intake's active-run check reads the stale record, the user starts a fresh run: the
+    reminder names the fresh run - the read neither adopts the stale one nor makes it ambiguous."""
+    isolate = tmp_path / "isolate"
+    stale = _age(_run_record(isolate, "run-stale.json", run_id="stale"), 86400)
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    lines = [_user("plan the feature")] + _acted_on(stale, "Read")
+    fresh = _run_record(isolate, "run-fresh.json", run_id="fresh")
+    msg = _drive(_write(tmp_path / "t.jsonl", lines + _acted_on(fresh)), env)
+    assert "'fresh'" in msg and "'stale'" not in msg, msg
+
+
+def test_of_two_runs_this_session_drives_the_one_written_last_is_named(tmp_path):
+    """Two runs driven here: the reminder names the one this session wrote last instead of going
+    silent on two candidates."""
+    isolate = tmp_path / "isolate"
+    first = _run_record(isolate, "run-first.json", run_id="first")
+    lines = _acted_on(first)
+    _age(first, 120)
+    lines = [_dump({**json.loads(l), "timestamp": datetime.fromtimestamp(
+        os.stat(first).st_mtime, timezone.utc).isoformat().replace("+00:00", "Z")}) for l in lines]
+    second = _run_record(isolate, "run-second.json", run_id="second")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    msg = _drive(_write(tmp_path / "t.jsonl", lines + _acted_on(second)), env)
+    assert "'second'" in msg and "'first'" not in msg, msg
+
+
+@pytest.mark.parametrize("transcript", ["missing", "unreadable"])
+def test_when_ownership_cannot_be_told_the_advisories_keep_their_older_rule(tmp_path, transcript):
+    """No readable transcript means it cannot be told whose run a record is. The advisories then
+    behave as before ownership existed - one NEEDS_NEXT record is the run - instead of going
+    silent on a run the session may well be driving."""
+    isolate = tmp_path / "isolate"
+    _run_record(isolate, run_id="only")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    t = tmp_path / "t.jsonl"
+    if transcript == "unreadable":
+        _write(t, [_user("go")])
+        t.chmod(0)
+        if os.access(t, os.R_OK):
+            pytest.skip("running as a user that reads any file")
+    assert "'only'" in _drive(t, env)
+    assert "mid-run" in _delegate("Bash", t, env)
 
 
 # --------------------------------------------------------------------------- #
@@ -434,3 +492,53 @@ def test_teardown_finishes_well_inside_its_timeout_on_a_long_session(tmp_path, e
     assert elapsed < budget / 2, (
         f"enforce-teardown.sh took {elapsed:.1f}s on {event} with 6000 tool calls; hooks.json "
         f"gives it {budget:.0f}s, and it must finish well inside that")
+
+
+# --------------------------------------------------------------------------- #
+# advice-once.sh on a host without tac (stock macOS) or without jq
+# --------------------------------------------------------------------------- #
+ADVICE_LIB = HOOKS / "advice-once.sh"
+
+
+def _lib(call: str, *args: str, path: str | None = None) -> str:
+    env = dict(os.environ)
+    if path:
+        env["PATH"] = path
+    proc = subprocess.run(["bash", "-c", f'. "$0"; {call}', str(ADVICE_LIB), *args],
+                          capture_output=True, text=True, env=env, timeout=30)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout
+
+
+@pytest.mark.parametrize("tac", ["with-tac", "without-tac"])
+def test_the_context_window_starts_at_the_last_compaction_with_or_without_tac(tmp_path, tac,
+                                                                              path_farm):
+    """Advice said before the last compaction is out of the context; advice said after it is in -
+    on a host with tac (read backwards) and on one without it (read forwards)."""
+    if tac == "with-tac" and shutil.which("tac") is None:
+        pytest.skip("no tac on this host")
+    path = farm_path(path_farm(drop=("tac",))) if tac == "without-tac" else None
+    t = _write(tmp_path / "t.jsonl", [
+        _context_attachment("UserPromptSubmit", "[A] said before the first compaction"),
+        _compact_boundary(),
+        _context_attachment("UserPromptSubmit", "[B] said between the compactions"),
+        _compact_boundary(),
+        _context_attachment("UserPromptSubmit", "[C] said after the last compaction"),
+    ])
+    out = _lib('_advice_unseen "$1" "$2" "$3" "$4"', str(t), "[A] said before the first compaction",
+               "[B] said between the compactions", "[C] said after the last compaction", path=path)
+    assert out.split() == ["0", "1"], f"only [C] is in the current context window: {out!r}"
+
+
+@pytest.mark.parametrize("jq", ["with-jq", "without-jq"])
+def test_advice_text_is_matched_as_the_harness_stores_it_with_or_without_jq(tmp_path, jq,
+                                                                             path_farm):
+    """An advisory with quotes, a backslash, a line break and non-ASCII text is found in the
+    transcript exactly as the harness stores it (JSON-escaped once, raw UTF-8) - jq or not."""
+    path = farm_path(path_farm(drop=("jq",))) if jq == "without-jq" else None
+    text = 'You are "leaf" - a\\b path\nsecond line: tiếng Việt'
+    t = _write(tmp_path / "t.jsonl", [_context_attachment("PreToolUse", text)])
+    assert _lib('_advice_json_escape "$1"', text, path=path).rstrip("\n") == json.dumps(
+        text, ensure_ascii=False)[1:-1]
+    assert _lib('_advice_unseen "$1" "$2"', str(t), text, path=path) == "", (
+        "advice already in the transcript was reported unseen")
