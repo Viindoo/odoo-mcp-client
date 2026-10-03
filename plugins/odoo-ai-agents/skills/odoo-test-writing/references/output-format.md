@@ -1,10 +1,11 @@
 # odoo-test-writing - Output Format
 
-After writing or adjusting tests, report briefly - free form, no fixed grammar:
+After writing or adjusting tests, report briefly - free form, no fixed grammar, as plain lines outside any
+code fence (its `grounded:` line is your grounding claim, `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5):
 
 ```
 Written: <addon>/tests/test_<feature>.py (<N> test methods), registered in tests/__init__.py
-Grounded: osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded
+grounded: osm | hybrid | local-source | ungrounded
 Framework: <Python base class> | <the JS mix js_test_inspect reports for this module - never a series-only guess>
 Baseline: <the targeted tests, all passing on the unbroken code>
 Per behavior test, one line - for example:

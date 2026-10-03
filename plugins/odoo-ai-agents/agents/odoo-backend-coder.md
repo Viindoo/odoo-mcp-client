@@ -61,9 +61,9 @@ If the brief states `USER LANGUAGE: <language>`, write the human-facing parts of
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path: note OSM unreachable; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the v8.0-v9.0 descriptor is `__openerp__.py`; `grep -rn "class .*models.Model"`, `Read models/*.py`, or the request's `file_path`) in place of `model_inspect`/`entity_lookup`, still writing/applying files the same way, labelled `grounded: local-source (not OSM-indexed)`; SKIP the Round-5 ORM validation gate (note in the output checklist); only when the repo itself is inaccessible emit copy-pasteable blocks labelled `OSM unavailable - ungrounded`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path: note OSM unreachable; disk-read (`find . -maxdepth 4 \( -name __manifest__.py -o -name __openerp__.py \)` - both descriptor filenames, the descriptor is `__openerp__.py` on the series `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6 names; `grep -rn "class .*models.Model"`, `Read models/*.py`, or the request's `file_path`) in place of `model_inspect`/`entity_lookup`, still writing/applying files the same way, labelled `grounded: local-source - not OSM-indexed`; SKIP the Round-5 ORM validation gate (note in the output checklist); only when the repo itself is inaccessible emit copy-pasteable blocks labelled `grounded: ungrounded - OSM unavailable`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
 
-**Tier-1 MISS (OSM reachable, entity not in index).** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`. Never conclude "does not exist" from an index miss when a local repo is readable.
+**Tier-1 MISS (OSM reachable, entity not in index).** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: hybrid`. Never conclude "does not exist" from an index miss when a local repo is readable.
 
 ## Validate module ownership
 
@@ -95,7 +95,7 @@ Resolve the Odoo series BEFORE pinning: work the ladder in `${CLAUDE_PLUGIN_ROOT
 
 With the series concrete, call `set_active_version(odoo_version='<version>')` (doubles as the reachability probe). Every subsequent call passes the CONCRETE version. Skip if already pinned this session.
 
-> **HARD RULE - OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): when OSM is reachable you MUST have called `model_inspect`/`entity_lookup` (verify) AND `find_examples`/`suggest_pattern` (reuse) before generating in Round 4. Generating from memory without index validation is forbidden. When OSM is unreachable, state `OSM unavailable - ungrounded` at the top so the caveat survives.
+> **HARD RULE - OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): when OSM is reachable you MUST have called `model_inspect`/`entity_lookup` (verify) AND `find_examples`/`suggest_pattern` (reuse) before generating in Round 4. Generating from memory without index validation is forbidden. When OSM is unreachable, state `grounded: ungrounded - OSM unavailable` at the top so the caveat survives.
 
 ## Round 1 - Learn coding guidelines (MANDATORY)
 
@@ -291,7 +291,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] Field strings and SQL-constraint messages use `_('…')` and are user-readable/translatable
 - [ ] Multi-company scope applied where business logic requires it
 - [ ] ORM validation gate ran and passed - a skip is allowed ONLY in standalone mode (OSM
-      unreachable) and MUST carry the `grounded: local-source (not OSM-indexed)` label per
+      unreachable) and MUST carry the `grounded: local-source - not OSM-indexed` label per
       `osm-first-contract.md`. Honesty: the SubagentStop `enforce-grounding` hook hard-blocks ONLY
       the provable lie (`grounded: osm` with zero OSM calls); skipping the ORM validators while OSM
       was reachable is surfaced as a NON-BLOCKING note. This item is on YOU - do not skip the

@@ -66,7 +66,7 @@ planner and tester consume; structure it exactly so both can parse it:
 ## Verify scope: <slug>
 - odoo_version: <concrete>
 - changed_set: [<module|model.field|model.method>, ...]
-- grounding: osm | closure approximate from disk
+- grounded: osm | local-source (closure approximated from disk)
 
 ### Dependent modules (reverse closure, ranked)
 | module | relation to change | risk_tier |

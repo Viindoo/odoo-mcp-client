@@ -197,7 +197,7 @@ SLUG: <slug>
 TASK: Extract this commit's business intent and behavioral contract. GROUNDING MODE above
       selects this agent's own rebase-mode grounding, write path, and scope boundary -
       no further instruction needed.
-OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounding
+OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounded
 USER LANGUAGE: <lang | omit when English>
 ```
 
@@ -244,12 +244,12 @@ TASK: For EACH commit in commit_dump_paths (in order), extract its business inte
       behavioral contract. GROUNDING MODE + the per-module SLUG above select this agent's own
       rebase-mode grounding and write path per commit; the agent already notes any
       same-bundle overlap/revert on its own.
-OUTPUT FIELDS: sha, intent_file, intent_one_liner, symbols[], outcome_hint, grounding
+OUTPUT FIELDS: sha, intent_file, intent_one_liner, symbols[], outcome_hint, grounded
 USER LANGUAGE: <lang | omit when English>
 ```
 
 Aggregate every returned summary (`sha` / `intent_file` / `intent_one_liner` / `symbols` /
-`outcome_hint` / `grounding` - one per commit, across every module's single dispatch;
+`outcome_hint` / `grounded` - one per commit, across every module's single dispatch;
 `intent_file` is that module's own module-scoped path per the `SLUG` substitution above) - this
 is the input to the P2 consolidation fan-in below.
 

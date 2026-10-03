@@ -146,7 +146,7 @@ the two cliffs) hold whether or not OSM is reachable. What needs grounding is th
 reality for the target version. When OSM is unreachable, follow the disk-grounded tier in
 `skills/_shared/odoo-frontend-fidelity.md`: `Read`/`Grep` the theme SCSS and asset bundles in the
 addons source to confirm the real variables, Bootstrap major, and emitted palette for the target
-version; label any design relying on them `grounded: local-source (not OSM-indexed)`. Only when
+version; label any design relying on them `grounded: local-source - not OSM-indexed`. Only when
 neither OSM nor source is available do you reason from memory - say so and lower confidence. Never
 invent a token or class name as if it were verified.
 

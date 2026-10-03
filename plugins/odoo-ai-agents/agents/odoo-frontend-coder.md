@@ -70,10 +70,10 @@ Probe reachability with one cheap call (`set_active_version`). If it errors, fol
 - **Version:** resolve the series per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` rung 2 (declared instance) or rung 3 (checkout derivation) - never the first-two-components of a manifest `version`.
 - **Tier 2 - existing source:** `grep -rn "odoo.define\|@odoo-module\|patch(" --include=*.js <module>/static/src/`; `find <module>/static -name "*.xml"` for QWeb templates.
 - Still write output files to their correct locations; emit copy-pasteable blocks only when the repo itself is inaccessible.
-- Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available. State the caveat at the top, lower confidence, never invent token names.
+- Label `grounded: local-source - not OSM-indexed` when built from disk; `grounded: ungrounded - OSM unavailable` only when neither OSM nor local source is available. State the caveat at the top, lower confidence, never invent token names.
 - Escalate (`NEEDS_CONTEXT`) only for secrets/credentials or genuine business decisions - never ask a human to paste code or confirm a version readable from disk.
 
-**Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`.
+**Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: hybrid`.
 
 ---
 

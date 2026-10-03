@@ -535,7 +535,7 @@ reads each descriptor's `depends` from disk (BOTH names) for the DAG; `odoo-depr
 `odoo-version-diff` each have their own standalone fallback (disk-fallback-protocol).
 P2 comparator falls back to disk reads of the source module + the target checkout per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Label all artifacts
-`grounded: local-source (not OSM-indexed)`. The install+test gate (P5) is unaffected.
+`grounded: local-source - not OSM-indexed`. The install+test gate (P5) is unaffected.
 
 ## Continuation Contract
 

@@ -73,8 +73,8 @@ Use parallel MCP calls to build the evidence package quickly.
 The requirement is already in the invocation - do not ask the caller to re-provide it. If the caller mentioned a document path, `Read` it directly.
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-- **Tier 2:** `WebFetch` the relevant GitHub source for the target version (e.g. `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/<file>.py`) to pull real field lists and method signatures. Use local `Read`/`Grep` on a local source tree when present. Label artifacts `grounded: local-source (not OSM-indexed)`.
-- **Tier 3:** Produce the evidence package from training knowledge, prepend `OSM unavailable - ungrounded`, add caveat "not yet verified against the codebase index; double-check code details when OSM is back online".
+- **Tier 2:** `WebFetch` the relevant GitHub source for the target version (e.g. `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/<file>.py`) to pull real field lists and method signatures. Use local `Read`/`Grep` on a local source tree when present. Label artifacts `grounded: local-source - not OSM-indexed`.
+- **Tier 3:** Produce the evidence package from training knowledge, prepend `grounded: ungrounded - OSM unavailable`, add caveat "not yet verified against the codebase index; double-check code details when OSM is back online".
 
 ## Output format
 

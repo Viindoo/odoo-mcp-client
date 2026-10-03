@@ -152,7 +152,7 @@ Write to `<ISOLATE_DIR>/git-rebase/<slug>/comparison.md`:
 
 **Mode:** rebase
 **Diff scope:** <new-base>...<feature-ref>
-**Grounding:** <osm | local-source | ungrounded>
+**grounded:** <osm | local-source | ungrounded>
 **Generated:** <ISO date>
 
 ## Per-commit comparison
@@ -178,7 +178,7 @@ Write to `<ISOLATE_DIR>/git-rebase/<slug>/verify.md`:
 # Range-diff + dup-guard verify - <slug>
 
 **Mode:** rebase-verify
-**Grounding:** <osm | local-source | ungrounded>
+**grounded:** <osm | local-source | ungrounded>
 **Generated:** <ISO date>
 
 ## Range-diff verdict
@@ -264,7 +264,7 @@ Write to `<ISOLATE_DIR>/modules-upgrade/<slug>/absorption/<module>.md`:
 **Verdict:** KEEP | REWRITE(api) | REWRITE(model) | MERGE | SPLIT | RECONCILE | DELETE-absorbed | OBSOLETE | MIXED
 **Whole module absorbed:** true | false
 **Absorbing core feature:** <core_module>/<feature> | null
-**Grounding:** <osm | local-source | ungrounded>
+**grounded:** <osm | local-source | ungrounded>
 **Generated:** <ISO date>
 
 ## Feature comparison
@@ -332,7 +332,7 @@ absorbed into DUE nor silently dropped. -->
 
 ## Step 4 - Return compact block to the orchestrator
 
-Return BOTH outputs (no extra prose before or after):
+Return BOTH outputs (no extra prose before or after), the result block as plain lines, outside any code fence (its `grounded:` line is your grounding claim, per `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5):
 
 **Rebase mode P3:**
 
@@ -348,7 +348,7 @@ proposed_outcomes:
   (c): <count>  # upgrade-scale / redesign
   (d): <count>  # drop
 dup_risk_count: <N>  # commits where already-present creates a duplicate
-grounding: <osm | local-source | ungrounded>
+grounded: <osm | local-source | ungrounded>
 ```
 
 **Rebase mode P10 (verify):**
@@ -360,7 +360,7 @@ slug: <slug>
 verify_file: <ISOLATE_DIR>/git-rebase/<slug>/verify.md
 range_diff_verdict: PASS | FAIL
 duplicate_blockers: <N>  # >0 means the orchestrator must NOT proceed
-grounding: <osm | local-source | ungrounded>
+grounded: <osm | local-source | ungrounded>
 ```
 
 **Upgrade mode:**
@@ -395,7 +395,7 @@ breaking_change_flags: <N>
 data_at_risk: true | false  # true if module is installable:True AND has stored non-computed fields or noupdate records
 deferred_work_due: <count>         # version-anchored TODO/FIXME/XXX/HACK markers DUE at target - feed P4 as real work-items
 deferred_work_unanchored: <count>  # markers with no parseable version anchor - flagged for human at P3/P6, never silently absorbed or dropped
-grounding: <osm | local-source | ungrounded>
+grounded: <osm | local-source | ungrounded>
 ```
 
 Do NOT include diff excerpts, file contents, or stack traces in the return block. The findings file carries the detail; the return block is the gate-able summary only.

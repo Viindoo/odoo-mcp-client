@@ -125,7 +125,7 @@ Write into `OUTPUT_DIR`. Create it if it does not exist.
 
 ## Return to the caller (COMPACT only)
 
-Return a compact block - do NOT dump the full table into the reply:
+Return a compact block as plain lines, outside any code fence (its `grounded:` line is your grounding claim, per `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5) - do NOT dump the full table into the reply:
 
 ```
 odoo-gap-analyzer result

@@ -258,7 +258,7 @@ the Phase 2 tier; do not silently fall back to the inherited default.
 ## Standalone-first fallback
 
 - **OSM unreachable:** the agents fall back to disk Read/Grep (their own fallback protocol); they
-  still diagnose, labeling `grounded: local-source (not OSM-indexed)`. Do not stop.
+  still diagnose, labeling `grounded: local-source - not OSM-indexed`. Do not stop.
 - **Browser/instance unreachable:** if pre-captured console/network/screenshot evidence exists in
   context, the `odoo-ui-debugger` uses it (prefix `⚠ Instance unreachable - diagnosis from
   pre-captured evidence only`); otherwise emit `status: NEEDS_NEXT` with:

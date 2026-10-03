@@ -212,15 +212,16 @@ MODULE PATHS: <comma-separated absolute paths from intake.md candidate_modules[]
 4. Classify each symbol: SURVIVED | RENAMED | REMOVED | TYPE_CHANGED.
    Emit ONLY the non-SURVIVED ones as `blockers[]` (RENAMED/REMOVED/TYPE_CHANGED) - these gate P3/P4.
    For a CUSTOM `_inherit`/symbol OSM cannot resolve, that is an OSM MISS (custom code is not
-   indexed), NOT absence at target: confirm against module source and label `grounded: osm + local-source (hybrid)`.
+   indexed), NOT absence at target: confirm against module source and label `grounded: hybrid`.
 
 FALLBACK: if OSM is unreachable, run the grep-only enumeration from § 2/§ 2.5 and label the
-whole survey `grounded: local-source (not OSM-indexed)`; still emit best-effort blockers[].
+whole survey `grounded: local-source - not OSM-indexed`; still emit best-effort blockers[].
 
 OUTPUT: transitive-symbol-survey.md
-FORMAT:
+FORMAT (return it as plain YAML lines, outside any code fence - its `grounded:` line is your
+grounding claim, per ${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md §5):
   cluster: <cluster>
-  grounded: "osm" | "osm + local-source (hybrid)" | "local-source (not OSM-indexed)"
+  grounded: "osm" | "hybrid" | "local-source"
   blockers:
     - module: <module>          # the cluster module that references the symbol
       symbol: <symbol>

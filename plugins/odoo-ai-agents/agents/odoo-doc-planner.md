@@ -53,9 +53,10 @@ Without the field, report in English (SSOT:
 Probe reachability with `set_active_version`. If it errors, follow
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the plan header,
 read each module's `depends` from its on-disk descriptor to build the graph - open whichever
-filename that module actually has (`__manifest__.py`, or `__openerp__.py` on v8.0-v9.0), since the
+filename that module actually has (`__manifest__.py`, or `__openerp__.py` on the series
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6 names), since the
 scope block you consume discovers both - and label
-`grounding: local-source`. The whole algorithm is disk-resolvable - it needs NO live instance and NO
+`grounded: local-source`. The whole algorithm is disk-resolvable - it needs NO live instance and NO
 browser. Escalate (`NEEDS_CONTEXT`) only for a scheduling decision no input encodes.
 
 ## Round 0 - Resolve inputs by the dispatch path (do not re-derive the graph)
@@ -106,7 +107,7 @@ format). Path by dispatch path:
 - **standalone `odoo-doc-illustration`:** `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`
   (co-located with the scoper's `_scope.md`).
 
-Set the header: `plan_kind: doc-package`, `plan_source` (design-dag | scope), `grounding` (osm |
+Set the header: `plan_kind: doc-package`, `plan_source` (design-dag | scope), `grounded` (osm |
 local-source), `scope_ref`. Cover BOTH the user-guide and the marketing landing for every `doc:true`
 module. Every in-scope module appears exactly once as a doc owner or is explicitly `doc:false` with
 a `dedup_reason`. Carry each module's `doc_layer` (from the scope block, `plan_source: scope` only)
@@ -116,11 +117,12 @@ falls back to the run-level DOC LAYER axis default for that module).
 
 ## Output (to the calling skill / workflow)
 
-After writing the file, return:
+After writing the file, return as plain lines, outside any code fence (its `grounded:` line is your grounding claim, per `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5):
 
 ```
 ## Doc plan: <run>
-- plan_source: <design-dag|scope>   ·   grounding: <osm|local-source>
+- plan_source: <design-dag|scope>
+- grounded: <osm|local-source>
 - Clusters: <n>   ·   Instances: <n>   ·   Modules doc'd: <n> (deduped: <n>)
 - Allocation: <one line, e.g. "c1 linear (1 inst); c2 branch A->{B,C} (2 inst, converge A on inst-1)">
 - Schedule: batch-1 [<instances>] ... (inter_instance_max W=<W>; within-path sequential)

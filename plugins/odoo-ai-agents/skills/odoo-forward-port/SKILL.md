@@ -950,7 +950,7 @@ Three more cross-cutting checks apply per batch:
 When Odoo Semantic (the odoo-semantic-mcp server) is unreachable, the pipeline degrades but
 does not stop. P1 intent extractors fall back to local-source reads
 (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`), labelling each record
-`grounded: local-source (not OSM-indexed)`. P2 classify and P6 symbol-survival
+`grounded: local-source - not OSM-indexed`. P2 classify and P6 symbol-survival
 fall back to disk reads of the target checkout per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` (read each `<tgt-descriptor>`
 `depends` and the model/field source) - the symbol-survival guarantee still holds via grep on

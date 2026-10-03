@@ -78,7 +78,8 @@ fix) for the edit, and to the relevant audit skill when a broader scan is warran
 
 ## Output Contract (MANDATORY - every debug run fills ALL fields)
 
-Emit this block. A field you cannot fill truthfully marks an incomplete diagnosis - say so
+Emit this block as plain lines, outside any code fence: its `grounded:` line is your grounding
+claim (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5). A field you cannot fill truthfully marks an incomplete diagnosis - say so
 explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than
 leaving it blank or fabricating.
 
@@ -94,5 +95,5 @@ Root cause: <the single proven cause - NOT a symptom>
 Fix location: <file · method/selector · which coding skill to hand off to>
 Regression test: <test that protects the behavior; reverting the fix hunk makes it fail>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test's break-check actually executed - fails with the fix reverted) and the cause is OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
-Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
+grounded: <osm | hybrid | local-source | ungrounded>
 ```

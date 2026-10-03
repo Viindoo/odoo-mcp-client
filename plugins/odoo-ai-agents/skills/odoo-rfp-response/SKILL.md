@@ -109,7 +109,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 The requirement list is already in the invocation context - proceed immediately without asking the user to re-provide it.
 
-- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` then `Read` relevant manifests and model files. Alternatively, `WebFetch` raw manifests from `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`. Label artifacts `grounded: local-source (not OSM-indexed)`.
+- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` then `Read` relevant manifests and model files. Alternatively, `WebFetch` raw manifests from `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`. Label artifacts `grounded: local-source - not OSM-indexed`.
 - **Tier 3 - training memory only:** Classify from training knowledge, prepend each verdict with `(OSM unavailable - unverified)`. Include caveat in executive summary: "Compliance verdicts are unverified against the code index; double-check once OSM is back online."
 
 ## Output format

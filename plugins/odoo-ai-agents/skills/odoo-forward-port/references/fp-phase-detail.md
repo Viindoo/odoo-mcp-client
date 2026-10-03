@@ -114,7 +114,7 @@ USER LANGUAGE: <lang | omit when English>
 ```
 
 Aggregate every returned summary (`sha / intent_file / intent_one_liner / symbols /
-4_outcome_hint / grounding` - one per commit, all returned from the module's single dispatch;
+4_outcome_hint / grounded` - one per commit, all returned from the module's single dispatch;
 `intent_file` is that module's own module-scoped path per the SLUG substitution above, so
 P2/P3/8b read THAT returned path rather than reconstructing one from the bare run `<slug>`) into
 the P2 classify queue. Mark each commit `status=extracted` in `checkpoint.json`.

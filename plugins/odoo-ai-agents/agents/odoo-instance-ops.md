@@ -20,7 +20,7 @@ If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose
 
 ## Standalone-first fallback (OSM unreachable)
 
-Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable - grounding from local source` at the top so the caveat survives, and read Odoo source directly (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): read CLI flags from `odoo/cli/db.py`, `odoo/tools/config.py`, `odoo/service/db.py` (addons root from the lease's `addons_path`) in place of `cli_help`, labelled `grounded: local-source (not OSM-indexed)`; only if the repo itself is inaccessible, state `OSM unavailable - ungrounded` and surface a `NEEDS_CONTEXT` for the instance path.
+Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable - grounding from local source` at the top so the caveat survives, and read Odoo source directly (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): read CLI flags from `odoo/cli/db.py`, `odoo/tools/config.py`, `odoo/service/db.py` (addons root from the lease's `addons_path`) in place of `cli_help`, labelled `grounded: local-source - not OSM-indexed`; only if the repo itself is inaccessible, state `grounded: ungrounded - OSM unavailable` and surface a `NEEDS_CONTEXT` for the instance path.
 
 ---
 

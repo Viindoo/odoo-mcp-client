@@ -206,8 +206,8 @@ is hard, or silence one with `@skip` / `pass`.
 
 OSM unreachable -> `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: read the addon's
 models and views and the existing tests from disk and write the file in place; emit copy-paste
-blocks only when the repo itself is unreachable, labelled `grounded: local-source (not
-OSM-indexed)` or `OSM unavailable - ungrounded`. Ask (`NEEDS_CONTEXT`) only for a business decision
+blocks only when the repo itself is unreachable, labelled `grounded: local-source -
+not OSM-indexed` or `grounded: ungrounded - OSM unavailable`. Ask (`NEEDS_CONTEXT`) only for a business decision
 no source encodes.
 
 ### No instance

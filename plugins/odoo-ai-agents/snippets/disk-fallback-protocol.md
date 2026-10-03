@@ -43,7 +43,7 @@ reachable but returns not-found/empty for a SPECIFIC module, model, or field tha
 request says exists (typically a customer-local custom module), that is a MISS, not proof
 of absence: keep using Tier 1 for everything it does cover, and drop to Tier 2 ONLY for the
 missed entities - `Read`/`Grep` the local addons to get their fields, methods, manifest
-`depends`, and views. Label the artifact `grounded: osm + local-source (hybrid)`. Never
+`depends`, and views. Label the artifact `grounded: hybrid`. Never
 conclude "module does not exist" from an index miss alone when a local repo is available to
 check.
 
@@ -68,14 +68,14 @@ self-serve from real sources you already have access to:
   source entirely (never block, never ask a human) when the variable is unset or the search finds
   nothing - it degrades gracefully, the same way an absent optional live-ERP/CRM integration does.
 
-Label any artifact built this way `grounded: local-source (not OSM-indexed)` and lower
+Label any artifact built this way `grounded: local-source - not OSM-indexed` and lower
 confidence one notch versus Tier 1 - it is **verified against real source**, just not the
 index. This is NOT `ungrounded`.
 
 ## Tier 3 - Training-memory (last resort, must be flagged)
 
 Only if Tiers 1 and 2 both fail (no index, no readable repo, no live instance, no network).
-State `OSM unavailable - ungrounded` at the top of your output, lower confidence, and make the
+State `grounded: ungrounded - OSM unavailable` at the top of your output, lower confidence, and make the
 caveat survive into the final artifact your orchestrator returns (per `osm-first-contract.md` §4).
 
 ## Asking a human

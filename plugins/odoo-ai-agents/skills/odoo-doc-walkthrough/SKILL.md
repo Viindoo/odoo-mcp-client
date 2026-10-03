@@ -80,6 +80,6 @@ Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.
 
 ## Standalone-first fallback
 
-OSM unreachable -> agent falls back to disk, labels `grounding: local-source`, and emits its own
+OSM unreachable -> agent falls back to disk, labels `grounded: local-source`, and emits its own
 warning text; full fallback chain and the `CATALOG_PATH`-absent behavior are owned by
 `odoo-doc-scenarist`'s own Step 1 and Feature catalog sections - not restated here.

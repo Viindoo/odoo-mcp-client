@@ -151,7 +151,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Tier 2 - Module discovery:** `find . -maxdepth 4 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8-v9 series are silently missed
 - **Tier 2 - Deprecated pattern scan:** `grep -rn "@api.multi\|@api.one\|_columns\|osv\.osv\|orm\.TransientModel\|web\.Widget\|fields\.function\|ir\.values" --include="*.py" <module_dirs>` and `grep -rn "odoo\.define\|AbstractField\|FieldWidget" --include="*.js" <module_dirs>`
 - **Tier 2 - Project facts:** source series, profile, and module scope per `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`.
-- Label output `grounded: local-source (not OSM-indexed)`. Confirm exact removal vs. deprecation status once OSM is online.
+- Label output `grounded: local-source - not OSM-indexed`. Confirm exact removal vs. deprecation status once OSM is online.
 - Escalate (`NEEDS_CONTEXT`) only if the target upgrade version is genuinely unresolvable from context.
 
 ## Output format and examples

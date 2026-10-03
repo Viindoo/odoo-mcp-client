@@ -73,7 +73,7 @@ Flag upgrade risk grounded in `find_deprecated_usage(odoo_version='<version>', p
 When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
 - **Tier 2 (disk):** `find . -maxdepth 3 \( -name "__manifest__.py" -o -name "__openerp__.py" \)` - glob BOTH descriptor names or the v8/v9 series are silently missed - then `Read` each descriptor path the find returned (never a re-guessed filename) for `name`, `summary`, `depends`, `version`. Build the inventory directly. Only ask the user if the working directory is not an Odoo repo and no descriptors are found within 3 levels.
-- **Tier 3 (training):** If no readable manifests exist, classify from training knowledge with caveat `OSM unavailable - ungrounded` and "detailed code & inheritance not yet scanned - verify when OSM is back online".
+- **Tier 3 (training):** If no readable manifests exist, classify from training knowledge with caveat `grounded: ungrounded - OSM unavailable` and "detailed code & inheritance not yet scanned - verify when OSM is back online".
 
 ## Output format
 

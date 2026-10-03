@@ -50,7 +50,7 @@ Read(file_path=<commit_dump_paths[sha]>)       # module-bundle shape, once per s
 
 ```
 sha: <sha, or the module name when no single sha applies>
-grounding: ungrounded
+grounded: ungrounded
 status: BLOCKED - neither commit_dump_path nor commit_dump_paths provided in brief; the orchestrator invokes the git-toolkit:git-ops skill to write the commit dump(s) and pass the absolute path(s) before dispatching this agent.
 ```
 
@@ -93,7 +93,7 @@ self-check pattern for a load-bearing field with no safe default, and return
 
 ```
 sha: <sha>
-grounding: ungrounded
+grounded: ungrounded
 status: NEEDS_CONTEXT(SLUG) - rebase mode requires a concrete SLUG (the bare run slug for a
   per-commit dispatch, or <run-slug>/<module> for a module-batched dispatch) in the dispatch
   brief; the caller must set it before re-dispatching. Do NOT derive one - a derived slug cannot
@@ -179,7 +179,7 @@ target) makes the adapt MANDATORY, not optional - the import fails outright.
 which production behaviors the commit's tests already guard, making the coverage picture concrete
 rather than inferred from the diff alone.
 
-If OSM is unreachable, follow the Standalone fallback in `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`: read the local source tree with `Read`/`Grep` and label the record `grounded: local-source (not OSM-indexed)`.
+If OSM is unreachable, follow the Standalone fallback in `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`: read the local source tree with `Read`/`Grep` and label the record `grounded: local-source - not OSM-indexed`.
 
 The output of Step 2 is a **confirmed symbol list**: `model.field`, `model.method`, module name - each with its OSM citation (or local-source citation if OSM is down). When test changes were grounded, include the test class and its base chain in the list.
 
@@ -207,7 +207,7 @@ safe default, and return
 
 ```
 sha: <the module name - no single sha applies to the whole bundle>
-grounding: ungrounded
+grounded: ungrounded
 status: NEEDS_CONTEXT(SLUG) - forward-port mode requires a per-module SLUG (<run-slug>/<module>) in
   the dispatch brief; the caller must set it before re-dispatching. Do NOT derive one - a derived,
   non-module-scoped slug would reopen the shared-commit intents/<sha>.md write race.
@@ -264,7 +264,7 @@ section entirely for a single-SHA dispatch or a bundle with no overlap.>
 
 ## Grounding
 
-<osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
+<osm | hybrid | local-source | ungrounded>
 ```
 
 Do NOT include:
@@ -282,7 +282,7 @@ The hint in Step 3 is OPTIONAL and only filled when the evidence is unambiguous.
 
 ## Continuation
 
-After writing the intent record(s), return ONE summary block PER COMMIT in the bundle (an array of
+After writing the intent record(s), return ONE summary block PER COMMIT in the bundle, each as plain lines outside any code fence (its `grounded:` line is that commit's grounding claim, per `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §5) (an array of
 length 1 for the single-SHA case, length N for a module bundle of N commits) - this single
 invocation's return covers the WHOLE bundle, never a separate agent turn per commit:
 
@@ -292,7 +292,7 @@ intent_file: <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md  # rebase mode: 
 intent_one_liner: <the "why" in one sentence>
 symbols: [list]
 4_outcome_hint: (a)/(b)/(c)/(d)/deferred
-grounding: osm | local-source | ungrounded
+grounded: osm | local-source | ungrounded
 source_series: <e.g. 16.0>
 ---  # repeat the block above for the next sha in the bundle, in commit order
 ```

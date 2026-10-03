@@ -100,7 +100,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Tier 2 - Field index scan:** `grep -rn "index=True\|index = True" --include="*.py" <module_dirs>`; then grep domain strings and ORDER BY patterns to check overlap
 - **Tier 2 - N+1 detection:** `grep -n "\.browse\|\.search\|\.read\b\|\.mapped" --include="*.py" -A2 <module_dirs>`; inspect whether calls appear inside a `for` loop body
 - **Tier 2 - Depends breadth scan:** `grep -n "@api.depends" --include="*.py" -rn <module_dirs>`; flag any depends path ending at Many2many or One2many without drilling to a specific subfield
-- Label output `grounded: local-source (not OSM-indexed)`. Re-verify index flags and computed-field storage once OSM is online.
+- Label output `grounded: local-source - not OSM-indexed`. Re-verify index flags and computed-field storage once OSM is online.
 - Return `NEEDS_CONTEXT` only if target file/module is genuinely inaccessible.
 
 ## Continuation Contract
