@@ -93,8 +93,9 @@ Everything runs through the **main agent**, which acts as an **orchestrator + de
 only** - it routes, decides at gates, and delegates the heavy work to specialists so its own
 context stays clean across a long session. Roles: orchestrating context (main agent) ->
 dispatched specialist (skill/workflow) -> named-agent interior worker (e.g. `odoo-coder`) or
-fan-out leaf-worker. Multi-level nesting is supported up to a depth cap
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3) - at the cap the agent-launch tool is silently
+fan-out leaf-worker. Multi-level nesting is supported up to the platform depth cap
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; its default and how depth is counted: SSOT
+`snippets/spawner-completion-contract.md` §R0 move 1) - at the cap the agent-launch tool is silently
 removed from the toolset, no error raised; `context: fork` fan-out workers additionally carry a
 hard-rules line banning them from dispatching further spawner skills or subagents, on top of that
 platform limit. Dispatch is capability-branching, not role-based - read your own toolset before

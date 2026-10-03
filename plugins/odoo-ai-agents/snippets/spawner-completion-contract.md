@@ -11,9 +11,12 @@
 Before launching any agent, look at the agent-launch tool you hold. It alone decides your move:
 
 - **Move 1 - NO agent-launch capability** -> you are at the nesting cap
-  (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3; the tool is removed silently at the cap).
-  Take the fallback § Which fallback is yours assigns you - never report a dispatch you could not
-  make.
+  (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3 when unset; the platform may change that
+  default, so your toolset, not the number, is the truth). The main conversation is depth 0, every
+  launched agent is one deeper than its launcher (an inline skill adds none), and an agent holds the
+  launch tool only while its depth is below the cap - at the default, a depth-3 agent holds none.
+  The tool is removed silently. Take the fallback § Which fallback is yours assigns you - never
+  report a dispatch you could not make.
 - **Move 2 - your agent-launch tool HAS a `run_in_background` parameter** -> launch every teammate
   whose result you need with `run_in_background: false`, at any depth. That call returns the
   teammate's result inside your own turn. Put independent teammates in ONE message as several launch

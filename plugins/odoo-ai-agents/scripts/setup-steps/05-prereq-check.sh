@@ -60,7 +60,8 @@ _node_major() {
 
 # Minimum Claude Code version for nested subagent dispatch (the odoo-coder per-node coordinator,
 # launched for EVERY work node, launches odoo-backend-coder and/or odoo-frontend-coder one agent level
-# below odoo-coding; the platform enforces a depth cap of 5).
+# below itself). Only the version is checked here; the platform nesting cap and how depth is counted
+# are stated once, in snippets/spawner-completion-contract.md R0 move 1.
 CC_MIN_VERSION="2.1.172"
 
 # Claude Code version (e.g. "2.1.172"), or empty if the CLI is absent.

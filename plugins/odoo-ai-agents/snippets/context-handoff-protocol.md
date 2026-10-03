@@ -94,9 +94,10 @@ own launches return.
 Being a subagent never bars you from launching your own subagents. `odoo-coder` (the node
 COORDINATOR launched by `odoo-coding` once per work node) is the sanctioned nested spawner: although it
 is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own three workers
-(`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits well
-within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`, 2 levels deep against a
-default cap of 3; R0 move 1, `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). It
+(`odoo-test-writer`, `odoo-backend-coder`, `odoo-frontend-coder`). This is legal because it sits
+within the nesting cap (`main -> odoo-coding -> odoo-coder -> worker`: the inline `odoo-coding` skill
+adds no depth, so `odoo-coder` is depth 1 and its workers depth 2; how depth is counted: R0 move 1,
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`). It
 must not launch anything deeper than those three, and it collects each worker's result by the move
 R0 assigns to the agent-launch tool it holds.
 
