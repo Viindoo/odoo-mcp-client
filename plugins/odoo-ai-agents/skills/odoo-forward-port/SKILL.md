@@ -2,7 +2,7 @@
 name: odoo-forward-port
 argument-hint: "[from-series] [to-series] [module/range]"
 description: >-
-  Forward-port commits from a lower Odoo series branch to a higher one, preserving intent and SHAs, in one run
+  Forward-port commits from a lower Odoo series branch to a higher one
 model: opus
 ---
 

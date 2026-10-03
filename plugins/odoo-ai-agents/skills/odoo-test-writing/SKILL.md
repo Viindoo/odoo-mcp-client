@@ -2,7 +2,7 @@
 name: odoo-test-writing
 argument-hint: "[model/module to test]"
 description: >-
-  Write runnable Odoo tests that guard business behavior: Python TransactionCase/HttpCase/tours, JS Hoot/QUnit; also adapts tests to a newer series
+  Write runnable Odoo tests (Python, JS Hoot/QUnit, tours) that guard business behavior
 model: inherit
 ---
 

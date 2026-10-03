@@ -1,7 +1,7 @@
 ---
 name: connect
 argument-hint: "[optional: server-url] [api-key]"
-description: Connect Claude Code to the Odoo Semantic MCP server by registering the server URL and API key, probing reachability, and optionally auto-allowing its tools
+description: Connect Claude Code to the Odoo Semantic MCP server - set its URL and API key and check it responds
 ---
 # /odoo-semantic-mcp:connect
 

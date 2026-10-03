@@ -2,7 +2,7 @@
 name: odoo-competitive-brief
 argument-hint: "[competitor name]"
 description: >-
-  Strategic competitor brief for leadership: capability matrix vs Odoo, threats, recommended response
+  Competitor brief for leadership vs Odoo: threats and response
 ---
 
 ## Role

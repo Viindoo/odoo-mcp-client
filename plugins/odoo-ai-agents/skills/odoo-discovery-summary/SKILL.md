@@ -2,7 +2,7 @@
 name: odoo-discovery-summary
 argument-hint: "[discovery notes/source]"
 description: >-
-  Turn discovery-meeting notes into a structured prospect profile: pains, budget, timeline, fit
+  Discovery-meeting notes -> structured prospect profile
 ---
 
 ## Role

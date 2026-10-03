@@ -2,7 +2,7 @@
 name: odoo-ui-review
 argument-hint: "[screen/view to review]"
 description: >-
-  Rate how a rendered Odoo screen looks and behaves in a live browser: UX, console, accessibility, theme
+  Rate how a rendered Odoo screen looks and behaves in a live browser
 ---
 
 ## Role

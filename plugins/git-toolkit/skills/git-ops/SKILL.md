@@ -2,7 +2,7 @@
 name: git-ops
 argument-hint: "[git/github task]"
 description: >-
-  Front door for any git or GitHub task, however casually asked: commit, push, branch, rebase, merge, cherry-pick, conflicts, history rewrite, recovery, PRs, issues, reviews, CI, or a pasted PR/issue URL. Runs it in a delegated agent so no code is lost. Defer to a domain front door (a framework's rebase or forward-port skill) when installed
+  Front door for any git or GitHub task, however casually asked: commit, push, branch, rebase, merge, cherry-pick, conflicts, history rewrite, recovery, PRs, issues, CI, or a pasted PR/issue URL. Runs it in a delegated agent so no code is lost. Defer to a domain skill for code review, rebase or forward-port when one is installed
 ---
 
 # git-ops - the universal git/github front door

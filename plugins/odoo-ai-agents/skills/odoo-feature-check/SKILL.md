@@ -2,7 +2,7 @@
 name: odoo-feature-check
 argument-hint: "[feature/requirement]"
 description: >-
-  Does standard Odoo already do X? Yes/no for ONE feature, with module, edition and evidence
+  Does standard Odoo already do X? Yes/no for ONE feature, with evidence
 ---
 
 ## Role

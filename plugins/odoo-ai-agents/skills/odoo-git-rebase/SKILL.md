@@ -2,7 +2,7 @@
 name: odoo-git-rebase
 argument-hint: "[branch] [onto base]"
 description: >-
-  Rebase a feature/fix branch onto an updated base of the SAME Odoo series, preserving intent
+  Rebase a branch onto an updated base of the SAME Odoo series
 model: opus
 ---
 

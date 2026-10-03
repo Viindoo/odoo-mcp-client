@@ -3,7 +3,7 @@ name: run-harness
 argument-hint: "[run-id]"
 user-invocable: false
 description: >-
-  Internal: drives an approved run plan to completion and resumes it; started by odoo-intake
+  Internal: drives an approved run plan; started by odoo-intake
 model: inherit
 ---
 

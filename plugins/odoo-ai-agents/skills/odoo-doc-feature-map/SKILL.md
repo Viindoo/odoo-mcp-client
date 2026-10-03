@@ -2,7 +2,7 @@
 name: odoo-doc-feature-map
 argument-hint: "[module-name]"
 description: >-
-  Catalog every feature, menu, view and model a module ships, as input for its docs
+  Catalog every feature, menu and view a module ships, for its docs
 ---
 
 ## Role

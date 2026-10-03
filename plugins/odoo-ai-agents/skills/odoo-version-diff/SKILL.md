@@ -2,7 +2,7 @@
 name: odoo-version-diff
 argument-hint: "[from-version] [to-version] [model/api]"
 description: >-
-  What changed between two Odoo versions: API and feature delta
+  API and feature changes between two Odoo versions. Marketing view -> odoo-feature-highlights
 ---
 
 ## Role

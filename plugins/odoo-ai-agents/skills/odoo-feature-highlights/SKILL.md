@@ -2,7 +2,7 @@
 name: odoo-feature-highlights
 argument-hint: "[version/distribution]"
 description: >-
-  Business-language highlights of what is new in an Odoo version, for sales decks or release notes
+  Marketing highlights of what is new in an Odoo version
 ---
 
 ## Role

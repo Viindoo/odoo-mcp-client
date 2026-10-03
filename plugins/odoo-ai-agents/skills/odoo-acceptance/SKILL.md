@@ -2,7 +2,7 @@
 name: odoo-acceptance
 argument-hint: "[module/cluster to accept]"
 description: >-
-  End-to-end acceptance of a change and its blast radius: write independent scenarios, run them on a live instance/UI, rule PASS/FAIL with evidence
+  Acceptance test of a change and its blast radius: scenarios run on a live instance/UI, PASS/FAIL
 ---
 
 ## Role

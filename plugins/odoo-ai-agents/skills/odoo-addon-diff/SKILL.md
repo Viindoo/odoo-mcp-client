@@ -2,7 +2,7 @@
 name: odoo-addon-diff
 argument-hint: "[business domain] [version]"
 description: >-
-  Compare Odoo editions (CE vs EE) for a domain or module: feature table, EE-only value, edition advice
+  Compare Odoo editions (CE vs EE) for a domain or module
 ---
 
 ## Role

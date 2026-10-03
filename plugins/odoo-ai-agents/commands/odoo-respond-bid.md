@@ -2,7 +2,7 @@
 name: odoo-respond-bid
 argument-hint: "[customer-label]"
 description: >-
-  Full bid package: discovery, gaps, proof, objections, proposal
+  Full bid package: discovery to proposal
 ---
 # /odoo-respond-bid
 

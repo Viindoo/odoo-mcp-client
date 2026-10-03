@@ -2,7 +2,7 @@
 name: odoo-doc-illustration
 argument-hint: "[module] [doc target]"
 description: >-
-  Module docs with live screenshots: App Store landing page and/or end-user RST guide
+  Module docs with live screenshots: App Store page and/or RST user guide
 ---
 
 ## Role

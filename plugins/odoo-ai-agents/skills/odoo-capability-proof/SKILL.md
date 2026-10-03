@@ -2,7 +2,7 @@
 name: odoo-capability-proof
 argument-hint: "[capability/feature to prove]"
 description: >-
-  Evidence package proving Odoo meets a specific client requirement (modules, fields, code) for a skeptical prospect
+  Code-level evidence that Odoo meets one client requirement
 ---
 
 ## Role

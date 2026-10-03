@@ -2,7 +2,7 @@
 name: odoo-risk-overview
 argument-hint: "[module/upgrade scope]"
 description: >-
-  One-page executive risk dashboard: upgrade risk, change blast radius, dependency health
+  One-page executive risk view: upgrade risk, blast radius
 ---
 
 ## Role

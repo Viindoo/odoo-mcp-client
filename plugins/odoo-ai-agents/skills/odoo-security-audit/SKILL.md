@@ -2,7 +2,7 @@
 name: odoo-security-audit
 argument-hint: "[module/path scope]"
 description: >-
-  Static security audit of Odoo code: SQL injection, XSS, access gaps, sudo misuse, secrets
+  Security-only static audit of Odoo code: injection, XSS, access, sudo, secrets
 model: inherit
 ---
 

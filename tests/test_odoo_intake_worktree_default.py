@@ -358,8 +358,8 @@ def test_worktree_mechanics_reference_ssot_snippet_not_restated():
 
 def test_intake_description_frontmatter_unchanged_by_worktree_default():
     """The worktree-isolation addition must be a BODY-only change - odoo-intake's
-    description frontmatter is near the 1024-char routing budget and is guarded
-    separately by test_skill_description_budget; this test asserts the specific
+    description frontmatter is routing metadata whose size is guarded by
+    test_skill_description_budget; this test asserts the specific
     phrases this change introduces do not leak into the frontmatter description."""
     text = _text()
     description = _frontmatter_description(text)

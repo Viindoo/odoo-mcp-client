@@ -2,7 +2,7 @@
 name: odoo-position-feature
 argument-hint: "[feature] [competitor/segment]"
 description: >-
-  Positioning copy for one Odoo feature, incl. edition and competitor angle
+  Positioning copy for one Odoo feature
 ---
 # /odoo-position-feature
 

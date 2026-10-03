@@ -2,7 +2,7 @@
 name: odoo-rfp-response
 argument-hint: "[RFP file/scope]"
 description: >-
-  RFP compliance matrix: rate each requirement Yes/Partial/No against Odoo with evidence
+  RFP compliance matrix: Yes/Partial/No per requirement
 model: inherit
 ---
 

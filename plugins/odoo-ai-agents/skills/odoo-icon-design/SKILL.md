@@ -2,7 +2,7 @@
 name: odoo-icon-design
 argument-hint: "[module] [version]"
 description: >-
-  Design a module's app icon (static/description/icon.png)
+  Design a module's app icon
 ---
 
 ## Role

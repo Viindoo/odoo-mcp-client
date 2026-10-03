@@ -2,7 +2,7 @@
 name: odoo-pricing-proposal
 argument-hint: "[customer/deal context]"
 description: >-
-  Customer-facing price proposal for an Odoo deal: license, implementation, support, total
+  Customer price proposal: license, implementation, support
 model: inherit
 ---
 

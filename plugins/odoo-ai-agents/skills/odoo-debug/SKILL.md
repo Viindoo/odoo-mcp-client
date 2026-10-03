@@ -2,7 +2,7 @@
 name: odoo-debug
 argument-hint: "[error / symptom / traceback]"
 description: >-
-  Diagnose broken Odoo behavior to a proven root cause before any fix: traceback, wrong value, blank view, console error, failed install, slow in production
+  Root-cause broken Odoo behavior: traceback, wrong value, blank view, failed install, slow in production
 ---
 
 ## Role

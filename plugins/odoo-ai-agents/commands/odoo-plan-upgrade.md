@@ -2,7 +2,7 @@
 name: odoo-plan-upgrade
 argument-hint: "[version-range]"
 description: >-
-  Upgrade plan only, no code: risk, deprecations, version diff, effort
+  Upgrade plan only, no code: risks, deprecations, effort
 ---
 # /odoo-plan-upgrade
 

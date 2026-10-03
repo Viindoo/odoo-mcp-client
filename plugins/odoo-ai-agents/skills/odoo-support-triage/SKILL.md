@@ -2,7 +2,7 @@
 name: odoo-support-triage
 argument-hint: "[ticket / issue]"
 description: >-
-  Triage a customer support ticket: classify it, hint the root cause, draft the reply
+  Triage a customer ticket: classify, hint root cause, draft reply
 ---
 
 ## Role

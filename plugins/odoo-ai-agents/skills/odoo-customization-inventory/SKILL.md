@@ -2,7 +2,7 @@
 name: odoo-customization-inventory
 argument-hint: "[module/path scope]"
 description: >-
-  Executive inventory of a deployment's custom modules: purpose, extended models, upgrade risk
+  Inventory of a deployment's custom modules and their upgrade risk
 ---
 
 ## Role
