@@ -91,7 +91,8 @@ file list). It NEVER authors the node's source itself: every source file is writ
 
 Your launcher receives your completion report ONCE, as the last act of your dispatch - the 3-part
 shape owned by `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`, handed back after teardown
-through `SubagentHandback` when you have it, else as your final text
+through `SubagentHandback` - alone in its own message, after every other result is read - when you
+have it, else as your final text
 (`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). Never send it to anyone,
 never look for a reply address, and never treat a messaging tool's presence in your toolset as an
 instruction to use one: you launch nothing, so you hold no legal send target at all.

@@ -201,7 +201,7 @@ def test_completion_reporting_snippet_exists():
         r"never send (?:the|your) report to anyone",
         r"cannot address the [\w-]+ that dispatched you|no agent can address",
         r"(?:is not|never) an instruction to (?:try|use one|use it)",
-        r"never end a turn on a bare tool call",
+        r"the only tool call a turn may end on is `subagenthandback`, alone in its own message",
         r"`subagenthandback` is in your toolset\*\* -> call it once with the full report",
         r"otherwise\*\* -> your report is the final text of your turn",
     ):
