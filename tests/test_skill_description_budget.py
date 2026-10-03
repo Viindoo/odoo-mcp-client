@@ -1,22 +1,24 @@
 """Guard: each plugin's share of Claude Code's skill listing stays inside its budget.
 
-Every turn Claude Code shows the model one line per model-invocable skill or command:
-``- <plugin>:<name>: <description>[ - <when_to_use>]``. The whole listing - shared by every
-installed plugin and the user's own skills - is capped at a fraction of the context window; past
-the cap the harness keeps every NAME but drops the descriptions of the least-used entries, so
-routing degrades for everything installed alongside. A per-skill cap cannot prevent that: 59
-entries that were each "short enough" still overflowed the listing several times over.
+Every turn Claude Code shows the model ONE listing of every model-invocable skill and command:
+its own bundled skills, every installed plugin's and the user's. The listing is capped at a
+fraction of the context window; past the cap Claude Code keeps every NAME but drops the
+descriptions of the least-used entries (bundled skills are never cut), so routing degrades for
+everything installed alongside. The counting formula, Claude Code's defaults and the observed
+cost of the bundled skills live in `scripts/lib/skill_listing.py` - the module setup step 35
+uses to measure a real session - and this test counts with it, so the two cannot drift.
 
-The counting below mirrors Claude Code's listing builder (read from the shipped CLI, v2.1.x):
+What the default budget can hold (observed, see BUNDLED_OBSERVED_CHARS/_CLI in that module): on
+a 200k-token window the bundled skills plus the NAMES of this repo's entries already exceed the
+default budget, so at the default Claude Code shows most plugin skills by name only.
+`/odoo-ai-agents:odoo-setup` (step 35) measures the session and offers to raise
+`skillListingBudgetFraction`; on large-context models the default budget holds everything.
 
-  budget      = floor(context_window_tokens * 4 chars/token * skillListingBudgetFraction)
-              = 200_000 * 4 * 0.01 = 8_000 chars for the default fraction on a 200k window
-  entry chars = len("<plugin>:<name>") + 4 + min(len(text), 1536)
-                where text = description, or "description - when_to_use" when both exist
-  listing     = sum(entry chars) + one newline between consecutive entries
+The shares below are therefore sized for a raised budget: at RAISED_FRACTION on a 200k window,
+the bundled skills plus every share must leave USER_SKILLS_ROOM_CHARS for the user's own and
+third-party skills. RAISED_FRACTION and that room are design choices, not measurements.
 
-Agents are not part of this listing (they are offered through the agent-launch tool), so agent
-descriptions are not counted here.
+Agents are not part of this listing (they are offered through the agent-launch tool).
 
 An entry with ``disable-model-invocation: true`` is not listed at all, so it costs nothing - and
 the model can no longer invoke it, which is why such an entry must never be something an
@@ -27,6 +29,7 @@ languages, and per-language trigger lists cost listing budget for every user.
 """
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -35,35 +38,31 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = ROOT / "plugins"
 AGENTS_PLUGIN = PLUGINS_DIR / "odoo-ai-agents"
+sys.path.insert(0, str(AGENTS_PLUGIN / "scripts" / "lib"))
+import skill_listing as sl  # noqa: E402
 
-# Claude Code defaults (see module docstring): 1% of a 200k-token window at 4 chars/token.
-CONTEXT_WINDOW_TOKENS = 200_000
-CHARS_PER_TOKEN = 4
-LISTING_BUDGET_FRACTION = 0.01
-LISTING_BUDGET_CHARS = int(CONTEXT_WINDOW_TOKENS * CHARS_PER_TOKEN * LISTING_BUDGET_FRACTION)
-# Claude Code's per-entry cap on description + when_to_use (`skillListingMaxDescChars` default).
-PER_ENTRY_TEXT_CAP = 1536
+DEFAULT_BUDGET_CHARS = sl.budget_chars(sl.DEFAULT_WINDOW_TOKENS, sl.DEFAULT_FRACTION)
 # Anthropic's documented maximum length of a skill `description` field.
 DESCRIPTION_FIELD_MAX = 1024
 
-# Each plugin's share of the listing, in chars. The cap is ONE listing for the whole session:
-# installing odoo-ai-agents also installs odoo-semantic-mcp and git-toolkit (its plugin.json
-# dependencies), and Claude Code's bundled skills (never truncated) plus the user's own and other
-# plugins' skills draw on the same cap. So every plugin in this repo has a share, and the shares
-# together must leave LISTING_RESERVE_CHARS free for everything else.
-# - odoo-ai-agents: ~58 skills + commands; its names alone cost ~2200 chars, leaving ~66 chars of
-#   description per entry - enough for what a skill does plus a route-out where a neighbour is
+# Each plugin's share of the listing, in chars. Installing odoo-ai-agents also installs
+# odoo-semantic-mcp and git-toolkit (its plugin.json dependencies), so every plugin in this repo
+# has a share.
+# - odoo-ai-agents: ~58 skills + commands; its names alone cost about a third of the share,
+#   leaving room per entry for what the skill does plus a route-out where a neighbour is
 #   confusable.
 # - git-toolkit: one front-door skill covering casual git/GitHub phrasing, pasted PR/issue URLs and
-#   deferral to a domain front door.
+#   deferral to a domain skill.
 # - odoo-semantic-mcp: one setup command.
 PLUGIN_LISTING_BUDGETS = {
     "odoo-ai-agents": 6_100,
     "git-toolkit": 400,
     "odoo-semantic-mcp": 200,
 }
-# What the shares must leave for bundled, user and third-party skills.
-LISTING_RESERVE_CHARS = 1_200
+# Design choices (see the docstring): the raised fraction the shares are sized for, and the room
+# it must still leave for the user's own and third-party skills (~30 skills of ~100 chars).
+RAISED_FRACTION = 0.02
+USER_SKILLS_ROOM_CHARS = 3_000
 BUDGETED_PLUGINS = [PLUGINS_DIR / name for name in PLUGIN_LISTING_BUDGETS]
 
 # The skills and workflows that invoke other entries through the Skill tool. Anything they name
@@ -108,9 +107,7 @@ def _entry_id(path):
 
 
 def _listing_text(fm):
-    desc = str(fm.get("description") or "").strip()
-    when = str(fm.get("when_to_use") or "").strip()
-    return f"{desc} - {when}" if when else desc
+    return sl.listing_text({k: v for k, v in fm.items() if v is not None})
 
 
 def _hidden(fm):
@@ -118,22 +115,31 @@ def _hidden(fm):
 
 
 def listing_entries(plugin):
-    """(listed name, chars this entry adds to the listing) for every model-visible entry."""
+    """(listed name, chars) per model-visible entry, counted with the runtime module."""
     prefix = _plugin_name(plugin)
     entries = []
     for path in _entry_files(plugin):
-        fm = _frontmatter(path)
-        if _hidden(fm):
-            continue
+        fm = sl.parse_frontmatter(path.read_text(encoding="utf-8"))
         listed = f"{prefix}:{fm.get('name') or _entry_name(path)}"
-        text = _listing_text(fm)
-        entries.append((listed, len(listed) + 4 + min(len(text), PER_ENTRY_TEXT_CAP)))
+        chars = sl.entry_chars(listed, fm)
+        if chars is not None:
+            entries.append((listed, chars))
     return entries
 
 
 def listing_chars(plugin):
-    entries = listing_entries(plugin)
-    return sum(chars for _, chars in entries) + max(0, len(entries) - 1)
+    return sl.listing_total(chars for _, chars in listing_entries(plugin))
+
+
+@pytest.mark.parametrize("path", ALL_ENTRY_FILES, ids=lambda p: _entry_id(p))
+def test_runtime_parser_reads_frontmatter_like_yaml(path):
+    """The stdlib parser setup uses at runtime must read what a YAML parser reads, or the
+    measurement it offers the user is wrong."""
+    mine = sl.parse_frontmatter(path.read_text(encoding="utf-8"))
+    ref = _frontmatter(path)
+    assert sl.listing_text(mine) == _listing_text(ref)
+    assert sl.is_hidden(mine) == _hidden(ref)
+    assert (mine.get("name") or None) == (ref.get("name") or None)
 
 
 def test_budgeted_plugins_are_every_plugin_in_the_repo():
@@ -144,12 +150,16 @@ def test_budgeted_plugins_are_every_plugin_in_the_repo():
     )
 
 
-def test_shares_leave_the_reserve_free():
-    total = sum(PLUGIN_LISTING_BUDGETS.values()) + len(PLUGIN_LISTING_BUDGETS) - 1
-    assert total + LISTING_RESERVE_CHARS <= LISTING_BUDGET_CHARS, (
-        f"plugin shares sum to {total} chars; with the {LISTING_RESERVE_CHARS}-char reserve for "
-        f"bundled and user skills that exceeds the {LISTING_BUDGET_CHARS}-char listing cap. "
-        f"Shrink a share by tightening descriptions, not by shrinking the reserve."
+def test_shares_fit_a_raised_budget_with_room_for_user_skills():
+    shares = sum(PLUGIN_LISTING_BUDGETS.values()) + len(PLUGIN_LISTING_BUDGETS) - 1
+    raised = sl.budget_chars(sl.DEFAULT_WINDOW_TOKENS, RAISED_FRACTION)
+    room = raised - sl.BUNDLED_OBSERVED_CHARS - shares - 1
+    assert room >= USER_SKILLS_ROOM_CHARS, (
+        f"at skillListingBudgetFraction={RAISED_FRACTION} on a {sl.DEFAULT_WINDOW_TOKENS}-token "
+        f"window the listing holds {raised} chars; Claude Code's bundled skills take "
+        f"{sl.BUNDLED_OBSERVED_CHARS} (observed on CLI {sl.BUNDLED_OBSERVED_CLI}) and this repo's "
+        f"shares {shares}, leaving {room} for the user's own skills - less than "
+        f"{USER_SKILLS_ROOM_CHARS}. Shrink a share by tightening descriptions."
     )
 
 
@@ -172,7 +182,7 @@ def test_listing_fits_the_plugin_budget(plugin):
     assert total <= budget, (
         f"{plugin.name} adds {total} chars to the skill listing, over its {budget}-char share. "
         f"Every turn the model sees one listing for all installed skills, capped at "
-        f"{LISTING_BUDGET_CHARS} chars on a 200k window; over the cap Claude Code drops the "
+        f"{DEFAULT_BUDGET_CHARS} chars by default on a 200k window; over the cap Claude Code drops the "
         f"descriptions of the least-used skills, this plugin's and everyone else's. Shorten "
         f"descriptions by meaning: what the skill does, its core trigger, and a route-out only "
         f"where a neighbour is confusable; English only, no paraphrase lists or examples. Do "

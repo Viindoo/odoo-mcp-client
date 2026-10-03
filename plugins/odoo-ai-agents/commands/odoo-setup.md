@@ -1,6 +1,6 @@
 ---
 name: odoo-setup
-argument-hint: "[all|browser|runtime|permissions|instance|refresh] [--version X.Y] [--profile P]"
+argument-hint: "[all|browser|runtime|permissions|listing|instance|refresh] [--version X.Y] [--profile P]"
 description: >-
   Set up browser MCP, permissions and local Odoo instances
 ---
@@ -41,6 +41,12 @@ What it sets up:
    Otherwise the only password sources are `ODOO_PG_PASSWORD` and `~/.pgpass`: a tool-launched Odoo
    never reads the operator's `~/.odoorc`.
 6. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
+7. **Skill listing budget** - Claude Code shows the model every skill's description only while
+   the session's skill listing fits a budget sized to the context window; at the default budget
+   on a 200k-token window most plugin skills are listed without their descriptions. Step `35` measures
+   the session's listing and, only when it overflows, offers to raise `skillListingBudgetFraction`
+   in your USER settings, showing the per-turn context cost first. On large-context models the
+   default budget holds everything and the step does nothing.
 
 ## Argument filter
 
@@ -55,8 +61,9 @@ menu" below).
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
 | `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
+| `listing`      | `35-skill-listing-budget` only (no preflight needed - measures and, with consent, edits the user settings file) |
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-6 + `40-instance-profile` + optional `45-venv` + `46-server-wide` + `48-db-local-auth` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
-| `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`). Declares nothing new. |
+| `refresh`      | Preflight (Gate #1 soft) then **Refresh mode** (below) for the declared rows, narrowed by a trailing `--version X.Y` and/or `--profile P`: `45-venv` `record-env` + `suggest`, then AI-6 (`46-server-wide`), then `35-skill-listing-budget` (installed skills change with updates). Declares nothing new. |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
@@ -81,6 +88,9 @@ Which parts of the Odoo visual workflow would you like to set up?
     flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
     (runs steps AI-1..AI-6 + 40 + optional 45 + 46 + 48 + 50)
 
+[ ] Show every skill description to the model - measure the skill listing and,
+    if it overflows, offer to raise its budget (runs step 35; equivalent to listing)
+
 [ ] Refresh declared instances - re-derive each declared row's venv facts
     and confirm its server-wide modules (equivalent to refresh)
 
@@ -88,7 +98,7 @@ Which parts of the Odoo visual workflow would you like to set up?
     (runs step 47 only; equivalent to --reset)
 ```
 
-Map each ticked option to its filter in the table above (`browser`, `instance`,
+Map each ticked option to its filter in the table above (`browser`, `listing`, `instance`,
 `refresh`, `--reset`); with several ticked, run them in that order. Confirm the plan before
 executing - the per-step [Y/n] gates still apply.
 
@@ -408,6 +418,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `Run <name> now? [Y/n]`. (Step `30-permissions` asks its own [Y/n] inside
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
+      - For `35-skill-listing-budget`, the question in (b) is its `propose` output's
+        `QUESTION`, and the run on `Y` is `apply --yes` (see its step-specific note).
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
         one at CONFIRM #7 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
@@ -439,7 +451,9 @@ build's `warnings` names a module that must be loaded server-wide.
    When the venv is outside the range or `record-env` could not verify it, offer
    `45-venv.sh create-venv` (it builds only on the operator's yes).
 4. For each row, run AI-6 (the same evidence, optional probe and CONFIRM #6 gate).
-5. Summarize per row: the venv facts recorded, and `server_wide_modules` before -> after.
+5. Run step `35-skill-listing-budget` as described in its step-specific note (an update can
+   add skills and tip the listing over its budget).
+6. Summarize per row: the venv facts recorded, and `server_wide_modules` before -> after.
    Remind the operator that leases and served instances acquired earlier keep their old set
    until released and acquired again.
 
@@ -518,6 +532,18 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   Asks [Y/n] itself; after `apply` it prints the exact rules written and
   instructs ONE restart (permissions are finalized before SessionStart hooks
   run).
+- **35-skill-listing-budget** - measures the session's skill listing (installed plugins enabled
+  in the settings files, the user's and the project's skills, `skillOverrides`; Claude Code's
+  bundled skills from the CLI's own debug log when it holds a measurement, else from the observed
+  value `scripts/lib/skill_listing.py` records with its CLI version) and decides. Run
+  `"$STEPS_DIR/35-skill-listing-budget.sh" propose` and read `ACTION`:
+  `fits` / `env-override` / `scope-override` -> report the `NOTE` and move on, nothing to ask.
+  `propose` -> put the `QUESTION` line to the user with AskUserQuestion, as given (it states the
+  effect and the per-turn context cost); add `--window <tokens>` to `propose` and `apply` when the
+  user runs a model whose context window differs. Only on a yes run
+  `"$STEPS_DIR/35-skill-listing-budget.sh" apply --yes`; on a no, run nothing. It writes only
+  the USER settings file (`$CLAUDE_SETTINGS`), never a project or local one, never lowers a
+  value, and asks for a restart. Honours `ODOO_AI_NO_LISTING_BUDGET=1`.
 - **40-instance-profile** - writes `$ODOO_AI_HOME/instances.toml` as
   `[[instance]]` array-of-tables entries from the confirmed spec passed via
   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does

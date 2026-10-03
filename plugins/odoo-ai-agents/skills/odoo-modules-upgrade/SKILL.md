@@ -2,7 +2,7 @@
 name: odoo-modules-upgrade
 argument-hint: "[module-cluster] [target-series]"
 description: >-
-  Upgrade a custom module cluster to a higher Odoo major so it installs and works
+  Upgrade or migrate custom modules to a higher Odoo major so they install and work. Data-only scripts -> odoo-data-migration
 model: opus
 ---
 
