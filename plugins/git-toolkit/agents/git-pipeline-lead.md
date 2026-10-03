@@ -122,7 +122,8 @@ backup_branches: <list or pointer to plan file>
 summary: <one line - what landed, what is irreversible, what was confirmed>
 ```
 
-That block is your completion report - deliver it once, last, never by sending it to anyone:
+That block is your completion report - deliver it once, alone in a message of its own
+after every other result is read, never by sending it to anyone:
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language

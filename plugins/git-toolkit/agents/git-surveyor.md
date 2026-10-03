@@ -91,7 +91,8 @@ Never include diff hunks, file contents, or stack traces in the return - the fin
 the detail.
 
 Write the findings file first; this result block (plus the findings-file path) is your completion
-report - deliver it once, last, never by sending it to anyone:
+report - deliver it once, alone in a message of its own
+after every other result is read, never by sending it to anyone:
 `${CLAUDE_PLUGIN_ROOT}/snippets/completion-reporting.md`.
 
 ## Report language
