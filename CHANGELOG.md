@@ -6,6 +6,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.4.2] - 2026-10-04
+
+### Fixed
+
+- `odoo-ai-agents` - **an unfinished run continues on its own when the main session's turn ends.**
+  `drive-continuation` sent its drive-to-done reminder as a `systemMessage`, which on `Stop` reaches
+  no model (measured on Claude Code 2.1.288), so a run left at `NEEDS_NEXT` waited for the user to
+  type "continue". The reminder now rides `additionalContext`, which the model reads in one more
+  turn. It is given once per run and node, and stays silent while a dispatched agent - or, on an
+  attended surface, a background shell or Monitor - will wake the session. A model that stays
+  stopped on purpose (an L2 gate, a `BLOCKED` or `NEEDS_CONTEXT` run, a pause the user asked for)
+  ends that turn by restating what it waits for, so a caller that reads only the last message still
+  gets the pending question.
+- `odoo-ai-agents` - **SubagentStop notes reach the subagent, and its report survives them.** The
+  `enforce-grounding` notes and the `enforce-teardown` browser advisory were a `systemMessage`,
+  which on `SubagentStop` reaches no model; they now go to the subagent as `additionalContext` (a
+  grounding note is not sent once the report was handed back through `SubagentHandback`). The extra
+  turn a note or a block buys ends on a message that replaces the report the caller receives, so
+  every such note and every SubagentStop hard-block reason now tells the subagent to repeat its
+  complete report, continuation block included - or, when it stopped only to wait for a teammate it
+  launched, to keep waiting. On the main session's `Stop` the browser advisory stays a line for the
+  user, since the main session often keeps a page open on purpose.
+- `odoo-ai-agents` - **the SubagentStop hard gates check every stop.** The grounding-lie,
+  instance-teardown and background-wait gates skipped any stop a hook had continued, so a report
+  rewritten in the turn a note or block bought - claiming OSM grounding with no OSM call, dropping
+  the forwarded `INSTANCE_HANDLE`, or ending on a running background command - reached the caller
+  unchecked. They now check every stop, a continued one included: a block is given on every fresh
+  stop - a first stop or a caller's resume - and at most once inside one hook-continued chain, so a
+  block the subagent ignores cannot loop.
+- `odoo-ai-agents` - `permission-denied-teardown` also wrote its refused give-back advice to
+  `additionalContext`, a field the harness does not read from a `PermissionDenied` hook. The advice
+  is now a line for the user only; the dispatch gets it in the reason of the teardown gates, which
+  fire while the lease is still live.
+
+### Removed
+
+- `odoo-ai-agents` - the `parse-continuation` SubagentStop hook. Its run-continuation notice was a
+  `systemMessage`, which reaches no model, and nothing a SubagentStop hook emits reaches the parent
+  model; the caller reads `NEEDS_NEXT` from the continuation block of the subagent's report.
+
 ## [7.4.1] - 2026-10-03
 
 ### Added
