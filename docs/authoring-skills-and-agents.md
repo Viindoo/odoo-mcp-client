@@ -66,7 +66,8 @@ disclosure).
   min(len(description [+ " - " + when_to_use]), 1536)`, plus one newline between entries. Over the
   cap, Claude Code keeps every name but drops the descriptions of the least-used entries - this
   plugin's, other plugins' and the user's - so routing degrades for everything installed. The test
-  holds this plugin's skills + commands inside that budget; a new skill pays for itself by tightening
+  holds each plugin's skills + commands inside its share (`PLUGIN_LISTING_BUDGETS`: `odoo-ai-agents`
+  the full 8000, `git-toolkit` 400; agents are not in this listing); a new skill pays for itself by tightening
   other descriptions, never by raising the budget. A command that is purely a user shortcut for a
   skill that stays visible may set `disable-model-invocation: true`, which takes it out of the
   listing - but then the model cannot invoke it, so the test refuses it for anything `odoo-intake`,
