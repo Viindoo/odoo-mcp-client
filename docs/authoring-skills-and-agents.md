@@ -67,11 +67,9 @@ disclosure).
   for everything installed. At the default budget on a 200k-token window the bundled skills plus
   this repo's skill names already fill the listing, so most plugin skills show by name only until
   the user raises the budget - `/odoo-ai-agents:odoo-setup` step `35-skill-listing-budget`
-  measures the session and offers that; on large-context models everything fits. The counting
-  formula and Claude Code's defaults live in `plugins/odoo-ai-agents/scripts/lib/skill_listing.py`
-  (shared by setup and the test); the test holds each plugin in this repo inside its share
-  (`PLUGIN_LISTING_BUDGETS`, sized for a raised budget with room for the user's own skills).
-  Agents are not in this listing. A new skill pays for itself by tightening other descriptions,
+  measures the session and offers that; on large-context models everything fits. Each plugin in
+  this repo has a fixed share of the listing, enforced by the test suite and sized for a raised
+  budget with room for the user's own skills. Agents are not in this listing. A new skill pays for itself by tightening other descriptions,
   never by raising a share. A command that is purely a user shortcut for a
   skill that stays visible may set `disable-model-invocation: true`, which takes it out of the
   listing - but then the model cannot invoke it, so the test refuses it for anything `odoo-intake`,
