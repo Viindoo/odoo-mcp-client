@@ -936,14 +936,16 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                  (the last write to its run record came from this session) ⇒ additionalContext
                  nudge "consider delegating" (additionalContext only, no permission decision),
                  once per context window (not again while the same text is in the transcript)
-   • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
-                 (HARD CONTRACT: never blocks, purely advisory - see the script's own header; the
-                 SubagentStop array's hard blocks live in its enforce-grounding, enforce-teardown
-                 and enforce-background-wait siblings, quality gates that apply ONLY to
-                 subagents, never main)
-   • Stop        drive-continuation → main ends turn while ITS run==NEEDS_NEXT ⇒ systemMessage
-                 advisory (continue=true, never block) - main keeps the right to stop; said once
-                 per run node per context window
+   • SubagentStop no hook advances the run: no SubagentStop output reaches the PARENT model,
+                 which reads a subagent's NEEDS_NEXT from the report's own fence (the
+                 SubagentStop hard blocks - enforce-grounding, enforce-teardown,
+                 enforce-background-wait - are quality gates that apply ONLY to subagents,
+                 never main)
+   • Stop        drive-continuation → main ends turn while ITS run==NEEDS_NEXT (and no background
+                 task is still running) ⇒ additionalContext: the model reads it and gets one more
+                 turn to advance the run, or to stay stopped for a legitimate pause (never block).
+                 Said once per run node per context window - the loop guard, since every Stop
+                 that emits additionalContext buys one more turn
   blackboard <ISOLATE_DIR>/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒
   main context does not grow with run length.
 ```
@@ -974,12 +976,11 @@ next:                                       # [] unless status == NEEDS_NEXT
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
 
-- **Parsing** uses the same assistant-text selection idiom already in `hooks/enforce-grounding.sh`
-  (the two hooks' jq filters are structurally different - `enforce-grounding.sh` tags each block
-  `tool_use`/`text`, `parse-continuation.sh` emits text-only - but both select assistant-authored
-  text the same way, guarding against a continuation block quoted in a tool_result/instruction).
+- **Parsing** reads the fence of the report the caller received - a delivered SubagentHandback
+  message, else the final message - never a continuation block quoted in a tool_result/instruction.
 - **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
-  `next: [{skill, reason, confidence: 0.5}]` with `status: NEEDS_NEXT`. This
+  `next: [{skill, reason, confidence: 0.5}]` with `status: NEEDS_NEXT`, only while the fenced
+  block's `status` is EMPTY. This
   lets the rollout be gradual - an un-migrated skill still drives at low confidence.
 - **Nesting safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
   run-harness's job. fanout leaf-workers emit contracts that bubble up to their

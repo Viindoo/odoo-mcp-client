@@ -8,7 +8,9 @@ which the SubagentStop teardown gate let past unconditionally at the time. A liv
 database and its lease outlived the run, and a human reclaimed them by hand.
 
 Nothing in the plugin told that agent the one thing that was still available to it: it could not
-RELEASE, but it could still NAME A CATCHER. This hook says exactly that, at the moment of refusal.
+RELEASE, but it could still NAME A CATCHER. This hook shows the user exactly that, at the moment of
+refusal; nothing a PermissionDenied hook prints reaches the model, so the agent itself is told by
+the teardown gates' block reasons.
 
 Business rules protected, NOT the implementation:
 
@@ -211,6 +213,28 @@ def test_the_advice_never_sets_retry():
     assert "retry" not in hso and "retry" not in doc, (
         "the hook must never advise retrying a refused give-back"
     )
+
+
+#: What Claude Code reads from a PermissionDenied hook's JSON: the universal top-level fields, and
+#: under hookSpecificOutput only `retry` (Claude Code 2.1.288 hook output schema). Nothing a
+#: PermissionDenied hook prints reaches the model, so the advice is a user-display systemMessage.
+_TOP_LEVEL = {"continue", "suppressOutput", "stopReason", "systemMessage", "hookSpecificOutput"}
+
+
+@pytest.mark.parametrize("tool,command", [
+    ("Bash", f"{ALLOC} release {TOKEN} --run-id r1"),
+    ("mcp__plugin_odoo-ai-agents_odoo-local__lease_park", ""),
+])
+def test_the_advice_rides_only_fields_the_harness_reads_for_this_event(tool, command):
+    """A field the harness does not read for PermissionDenied delivers nothing to anyone - a
+    top-level `additionalContext` looked like it reached the model and never did. The advice is a
+    systemMessage for the user; the dispatch's model gets it from the teardown gates' reasons."""
+    doc = _advised(_run(command, tool=tool))
+    assert set(doc) <= _TOP_LEVEL, f"unread field(s) {set(doc) - _TOP_LEVEL}: {doc!r}"
+    hso = doc.get("hookSpecificOutput")
+    if hso is not None:
+        assert hso.get("hookEventName") == "PermissionDenied" and set(hso) <= {
+            "hookEventName", "retry"}, hso
 
 
 def test_the_advice_names_the_always_available_exit():

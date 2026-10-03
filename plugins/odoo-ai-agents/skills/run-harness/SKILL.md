@@ -195,8 +195,8 @@ loop:
         - integrate         -> the land tail, ONCE PER REPO: § `integrate` node dispatch (the land tail)
                                below - lint gate, THEN Existence precheck, THEN squash/push/open ONE PR
         - inline            -> do the small synth step yourself
-    # Collect every agent dispatch's report per R0 (under move 3: END THE TURN here; the SubagentStop
-    # hook nudges resume). Reports may arrive one member at a time, and the R1 barrier clears only
+    # Collect every agent dispatch's report per R0 (under move 3: END THE TURN here; the child's
+    # completion wakes this session - no hook does). Reports may arrive one member at a time, and the R1 barrier clears only
     # when EVERY member is terminal.
 
     for n in batch:         # STRICTLY ONE MEMBER AT A TIME, in the batch's topo order, and only

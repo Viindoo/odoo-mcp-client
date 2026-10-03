@@ -813,7 +813,7 @@ resolved version>, modules: [<the node's modules>]}`, `confidence: 0.4` - adviso
 blocks your own `status`. `next:` is a LIST and a `DONE`/`NEEDS_NEXT` block may carry a
 low-confidence advisory entry alongside the review hand-off
 (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules), so both entries ride the one
-block. A bare `SUGGESTED_NEXT:` line CANNOT carry this: the parser reads that line only while the
+block. A bare `SUGGESTED_NEXT:` line CANNOT carry this: the driver reads that line only while the
 fenced block's `status` is EMPTY, and this block always sets one - so the bare form is silently
 dropped and the recommendation reaches nobody. Never emit both channels.
 

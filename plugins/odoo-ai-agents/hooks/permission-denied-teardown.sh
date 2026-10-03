@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # permission-denied-teardown.sh - PermissionDenied ADVISORY. Fires when the harness refuses a
-# tool call; this hook speaks up only when the refused call was a LEASE GIVE-BACK, and tells the
-# dispatch what to do instead. Two shapes of give-back are recognized, branching on tool_name:
+# tool call; this hook speaks up only when the refused call was a LEASE GIVE-BACK, and shows the
+# user what the dispatch must do instead. Two shapes of give-back are recognized, branching on tool_name:
 #   - Bash: `allocator.py park` / `allocator.py release` (the CLI fallback path), matched against
 #     tool_input.command. The path may be bare or double-quoted
 #     (`"${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py" park <token>`) - both forms match.
@@ -20,8 +20,9 @@
 # token proves neither ephemerality nor provenance. Closing that gap for good is the operator's
 # job, in `autoMode.environment` (user settings or managed settings; the classifier deliberately
 # does NOT read a project's `.claude/settings.json`, so this plugin CANNOT ship it). Until then,
-# and whenever teardown fails for any other reason, this hook stops the denial from becoming a
-# LEAKED LEASE.
+# and whenever teardown fails for any other reason, the advice below - shown here, and given to the
+# dispatch's model by the teardown gates (see CONTRACT) - stops the denial from becoming a LEAKED
+# LEASE.
 #
 # Observed failure this closes: a dispatched `odoo-instance-ops` had `park` refused, then later
 # `release` refused, reported a bare `BLOCKED`, and left a live ephemeral database plus its lease
@@ -39,18 +40,23 @@
 # CONTRACT: stdin JSON carries tool_name, tool_input.command (Bash) / tool_input (MCP, e.g.
 # {lease_token, run_id} - inspected only to confirm it parses; the give-back decision for MCP rests on
 # tool_name alone), denial_reason, has_classifier_verdict, and (in a subagent) agent_id /
-# agent_type. Output is the universal advisory pair `systemMessage` + `additionalContext`. Exit is
-# ALWAYS 0 and stderr is ignored for this event; a hook failure must never be louder than the
-# denial it is annotating.
+# agent_type. Output is `systemMessage` alone: a line on the user's display, the only text a
+# PermissionDenied hook can deliver. The harness reads nothing else from this event's output but
+# hookSpecificOutput.retry (Claude Code 2.1.288 hook output schema), so no field of it reaches the
+# model. The dispatch that must act gets the same advice where its model DOES read it: the reason
+# of the SubagentStop teardown block and of the SubagentHandback gate (hooks/teardown-check.sh),
+# both of which fire while a lease it obtained is still live. Exit is ALWAYS 0 and stderr is
+# ignored for this event; a hook failure must never be louder than the denial it is annotating.
 #
 # RESIDUALS it provably cannot catch:
 # - A give-back issued through an interpreter this matcher never sees (a wrapper script, a
 #   `$PY`-style indirection, `xargs`): the command text will not match and the hook stays silent.
 # - A denial of the SPIN-UP path rather than the give-back: out of scope by design; nothing is
 #   leaked when acquisition itself fails.
-# - The main agent: it is advised too (the event carries no reliable main/subagent split beyond
-#   agent_id, and the advice is harmless there), but the SubagentStop gate that makes the advice
-#   binding is subagent-only, exactly as before.
+# - The main agent: its user sees the line too (the event carries no reliable main/subagent split
+#   beyond agent_id, and the advice is harmless there), but no model-facing gate repeats it to the
+#   main agent - the SubagentStop gate is subagent-only, and a main-session lease is reclaimed by
+#   the SessionEnd backstop.
 set -uo pipefail
 
 _input="$(cat)"
@@ -122,10 +128,7 @@ EOF
 python3 -c '
 import json, sys
 msg = sys.stdin.read().strip()
-print(json.dumps({
-    "systemMessage": msg,
-    "additionalContext": msg,
-}))
+print(json.dumps({"systemMessage": msg}))
 ' <<<"${_MSG}" 2>/dev/null
 
 exit 0

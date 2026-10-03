@@ -45,9 +45,9 @@ and instances are enforced differently" below):
   does. A turn end that WAITS for a still-running teammate you launched
   (`spawner-completion-contract.md` R0 move 3) keeps your lease through that stop; your final
   report (`SubagentHandback`) stays gated.
-- **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
-  on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
-  when it infers an apparently-open page from the transcript. You remain contract-bound to close
+- **(a) Browser-page teardown is ADVISORY.** `enforce-teardown.sh` nudges, never blocks, when it
+  infers an open page from the transcript: as `additionalContext` you read on `SubagentStop`, as a
+  user-only line on `Stop`. You remain contract-bound to close
   every page you drove before DONE; only the ENFORCEMENT tier differs, not the obligation.
 
 ## T1 - Ownership: who tears down what
@@ -164,7 +164,7 @@ leases are reclaimed. That net catches crashes, not laziness - you still release
   release what you cannot, and naming it needs no tool, no permission and no live process - so
   being unable to RELEASE never leaves you unable to hand over. Never re-issue or reword a refused
   give-back: the refusal is your answer, and an obfuscated retry is itself a blocked action.
-  `permission-denied-teardown.sh` says this at refusal time.
+  The teardown gates repeat this to you; the user sees it at refusal time.
 
 ## Why browsers and instances are enforced differently
 

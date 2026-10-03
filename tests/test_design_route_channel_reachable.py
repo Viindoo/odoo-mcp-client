@@ -2,13 +2,9 @@
 
 ## The contract's reachability rule (this file's whole basis)
 
-`snippets/continuation-contract.md` Rules, back-compat bullet, and its implementation at
-`hooks/parse-continuation.sh:46`:
-
-    if [[ -z "$STATUS" ]] && grep -qiE '^[[:space:]]*SUGGESTED_NEXT:' ; then STATUS="NEEDS_NEXT" ; fi
-
-The back-compat branch is guarded on `-z "$STATUS"` - it fires ONLY while the fenced
-`continuation` block's own `status` is EMPTY. So the rule is:
+`snippets/continuation-contract.md` Rules, back-compat bullet: the driver reads a legacy
+`SUGGESTED_NEXT:` line ONLY while the fenced `continuation` block's own `status` is EMPTY. So the
+rule is:
 
     a bare `SUGGESTED_NEXT:` line is REACHABLE  <=>  the emitter sets no `status`
     a bare `SUGGESTED_NEXT:` line is DROPPED    <=>  the emitter sets a `status`
@@ -46,7 +42,6 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 
 CONTRACT = PLUGIN / "snippets" / "continuation-contract.md"
-PARSER = PLUGIN / "hooks" / "parse-continuation.sh"
 
 #: The two design-routing emitters this fix covers. Each recommends `odoo-solution-design` from a
 #: body that also appends a Continuation Contract (hence always sets a status).
@@ -187,26 +182,19 @@ def find_dead_channels(text: str) -> list[tuple[str, str]]:
 
 
 def test_the_back_compat_channel_is_still_gated_on_an_empty_status():
-    """Discovery floor: this whole guard is only meaningful while the parser gate exists.
+    """Discovery floor: this whole guard is only meaningful while the contract keeps the gate.
 
-    If `parse-continuation.sh` ever reads `SUGGESTED_NEXT:` unconditionally, the bare spelling
-    stops being a dead channel and these checks must be re-derived rather than silently kept.
+    If the contract ever lets the driver read `SUGGESTED_NEXT:` beside a status-setting block, the
+    bare spelling stops being a dead channel and these checks must be re-derived rather than
+    silently kept.
     """
-    parser = PARSER.read_text(encoding="utf-8")
-    gate = re.search(
-        r'\[\[\s*-z\s*"\$STATUS"\s*\]\][^\n]*SUGGESTED_NEXT|'
-        r'\[\[\s*-z\s*"\$STATUS"\s*\]\]\s*&&[\s\S]{0,200}?SUGGESTED_NEXT',
-        parser,
-    )
-    assert gate, (
-        "parse-continuation.sh must still gate its SUGGESTED_NEXT back-compat branch on an EMPTY "
-        "$STATUS. That gate IS the reachability rule this file keys every assertion on - if it is "
-        "gone, re-derive the guard instead of leaving it asserting a rule that no longer holds."
-    )
     contract = _flat(_read(CONTRACT))
-    assert "parse-continuation.sh:46" in contract, (
-        "continuation-contract.md must keep citing the parser line that implements the gate, so an "
-        "author can check reachability without reading the hook."
+    assert re.search(r"(?i)SUGGESTED_NEXT.{0,200}only while the fenced block's `status` is EMPTY",
+                     contract), (
+        "continuation-contract.md must keep stating that the driver reads a legacy "
+        "`SUGGESTED_NEXT:` line only while the fenced block's `status` is EMPTY. That gate IS the "
+        "reachability rule this file keys every assertion on - if it is gone, re-derive the guard "
+        "instead of leaving it asserting a rule that no longer holds."
     )
     assert re.search(r"(?i)silently dropped once the fenced block also sets a status", contract), (
         "continuation-contract.md must keep stating the DROP consequence in plain words - it is the "
@@ -240,7 +228,7 @@ def test_the_design_hop_rides_the_channel_the_driver_reads(name):
     offenders = find_dead_channels(text)
     assert not offenders, (
         f"{name} still routes on the dropped `SUGGESTED_NEXT:` channel: {offenders}. Its own "
-        f"fenced block sets a `status`, so parse-continuation.sh:46 never reads that line."
+        f"fenced block sets a `status`, so the driver never reads that line."
     )
 
     # And the design hop exists in the reachable form: a `skill: odoo-solution-design` entry.
@@ -311,7 +299,7 @@ def test_no_design_route_anywhere_rides_the_dead_channel():
             line = text[: text.index(hit)].count("\n") + 1 if hit in text else 0
             offenders.append(f"{path.relative_to(ROOT)}:{line} [{shape}] {hit[:110]!r}")
     assert not offenders, (
-        "These sites route on a channel parse-continuation.sh drops once a status is set:\n  "
+        "These sites route on a channel the driver drops once a status is set:\n  "
         + "\n  ".join(offenders)
     )
 

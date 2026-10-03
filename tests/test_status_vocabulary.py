@@ -153,10 +153,11 @@ def test_no_reserved_token_in_status_position():
 # ---------------------------------------------------------------------------
 # FAILS (for the right reason) if the observability hook that must recognize the FULL
 # four-value enum (report-terminal-status.sh, which classifies a transcript's terminal status
-# against exactly these four values to detect a "strand") stops naming all four, or if
-# parse-continuation.sh's advisory nudge trigger stops naming NEEDS_NEXT. Proves: at least one
-# mechanical consumer recognizes every value in the declared enum (no value is dead weight
-# that no script ever checks for).
+# against exactly these four values to detect a "strand") stops naming all four, or if the
+# run-record reader the unfinished-run reminder relies on (run-ownership.sh, sourced by
+# drive-continuation.sh) stops selecting NEEDS_NEXT. Proves: at least one mechanical consumer
+# recognizes every value in the declared enum (no value is dead weight that no script ever
+# checks for).
 def test_mechanical_consumers_cover_the_enum():
     hooks_dir = PLUGIN / "hooks"
     terminal = (hooks_dir / "report-terminal-status.sh").read_text(encoding="utf-8")
@@ -166,16 +167,18 @@ def test_mechanical_consumers_cover_the_enum():
         f"({EXPECTED_CONTINUATION_STATUS!r}) - a value could silently stop being observed"
     )
 
-    parse_continuation = (hooks_dir / "parse-continuation.sh").read_text(encoding="utf-8")
-    assert "NEEDS_NEXT" in parse_continuation, (
-        "hooks/parse-continuation.sh no longer checks for NEEDS_NEXT - its advisory nudge "
-        "would never fire"
+    run_records = (hooks_dir / "run-ownership.sh").read_text(encoding="utf-8")
+    assert '"NEEDS_NEXT"' in run_records, (
+        "hooks/run-ownership.sh no longer selects NEEDS_NEXT run records - the unfinished-run "
+        "reminder would never fire"
     )
-    # HARD CONTRACT: this hook must never block (workflow-harness.md §8.1 depends on this -
-    # X-29 was exactly a doc claiming otherwise). Guard the contract, not just the value.
-    assert '"decision":"block"' not in parse_continuation.replace(" ", ""), (
-        "hooks/parse-continuation.sh must never emit a block decision (HARD CONTRACT, see its "
-        "own header) - a block here would silently trap a subagent on a mere NEEDS_NEXT nudge"
+    # HARD CONTRACT: the reminder must never block the main agent (workflow-harness.md §8.1
+    # depends on this). Guard the contract, not just the value.
+    drive = (hooks_dir / "drive-continuation.sh").read_text(encoding="utf-8")
+    emitted = re.findall(r"jq -cn[^\n]*'(\{[^']*\})'", drive)
+    assert emitted and not any("decision" in obj for obj in emitted), (
+        "hooks/drive-continuation.sh must never emit a block decision (HARD CONTRACT, see its "
+        "own header) - a block would trap the main agent on a mere NEEDS_NEXT reminder"
     )
 
 

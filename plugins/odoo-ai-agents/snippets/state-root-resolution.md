@@ -146,18 +146,17 @@ the FULL subpath, never by the top-level directory name alone - `visual/` itself
 ## Advisory-glob exception (read-only, never-block hooks)
 
 The general rule above (never a project-relative `./.odoo-ai/`) has exactly ONE sanctioned
-exception, and it is narrow: `hooks/parse-continuation.sh`, `hooks/drive-continuation.sh`, and
-`hooks/remind-delegate.sh` each resolve `RUN_DIR` via the shared `hooks/run-ownership.sh`
-(`resolve_project_dir.sh isolate`) and, only on the resolver's own documented REFUSAL case,
-fall back to legacy `<project>/.odoo-ai` before globbing `run-*.json`. Tolerated for these three
-call sites and no others, because all three hold simultaneously: (1) **read-only glob, never a
+exception, and it is narrow: `hooks/drive-continuation.sh` and `hooks/remind-delegate.sh` each
+resolve `RUN_DIR` via the shared `hooks/run-ownership.sh` (`resolve_project_dir.sh isolate`) and,
+only on the resolver's own documented REFUSAL case, fall back to legacy `<project>/.odoo-ai`
+before globbing `run-*.json`. Tolerated for these two call sites and no others, because all
+three conditions hold simultaneously: (1) **read-only glob, never a
 write** - `run-<id>.json` is written ONLY by `run-harness` (§8.3), which always resolves through
 the real two-axis root, so a degraded glob at the wrong location cannot corrupt or fork the lease
 registry; (2) **fail-closed** - only existing record files count, so a wrong-location
 fallback matches no files - the hook emits NO nudge, never a false one; (3) **hard
 resilience contract** -
-all three hooks are documented NEVER to hard-fail or block a tool call / turn-end / subagent-stop
-on ANY error, and re-deriving a real two-axis key is not possible in the refusal case anyway (the
+both hooks are documented NEVER to hard-fail or block a tool call / turn-end on ANY error, and re-deriving a real two-axis key is not possible in the refusal case anyway (the
 key inputs are exactly what the resolver could not get).
 
 No other skill, agent, or hook may adopt this pattern - every other Tier-2 consumer follows the
