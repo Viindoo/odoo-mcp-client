@@ -169,7 +169,7 @@ odoo-solution-design`, `reason: <which of the three design choices is open>`, `i
 {odoo_version: <the resolved version>, module: <module>}`, `confidence: 0.4` - advisory, so it never
 blocks your own `status`. `next:` is a LIST, so this rides alongside any other entry
 (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules). A bare `SUGGESTED_NEXT:` line
-CANNOT carry it: the parser reads that line only while the fenced block's `status` is EMPTY, and
+CANNOT carry it: the driver reads that line only while the fenced block's `status` is EMPTY, and
 this block always sets one - so the bare form is silently dropped and the design-gate finding
 reaches nobody. Never emit both channels.
 

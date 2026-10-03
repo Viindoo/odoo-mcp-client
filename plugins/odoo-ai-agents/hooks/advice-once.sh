@@ -1,22 +1,30 @@
 # advice-once.sh - SOURCED helper (not a hook): the ONE implementation of "is this advice already
-# in the agent's context". Every ADVISORY hook that injects text into the model's context
-# (additionalContext / systemMessage) asks it before emitting, so a reminder lands once per context
-# window instead of on every prompt, tool call or turn end - detect-intent.sh, remind-delegate.sh,
-# drive-continuation.sh and enforce-teardown.sh's browser advisory.
+# in the agent's context". Every ADVISORY hook asks it before emitting, so a reminder lands once per
+# context window instead of on every prompt, tool call or turn end - detect-intent.sh,
+# remind-delegate.sh, drive-continuation.sh, enforce-teardown.sh's browser advisory and
+# enforce-grounding.sh's notes.
+#
+# On Stop / SubagentStop it is also the LOOP GUARD (_stop_text_due below): the harness runs one more
+# model turn for every Stop / SubagentStop that emits additionalContext or a block (measured on
+# Stop: six emissions in a row, six extra turns), so a text re-emitted on every turn end would never
+# let the agent stop. Said once, the agent that chooses to stay stopped is left alone.
 #
 # WHY IT EXISTS: an advisory that is already in the context costs tokens again every time it is
 # repeated, tells the model nothing new, and every copy stays in the context. A hook has no memory
 # of its own between calls, so it asks the one record that has: the transcript.
 #
 # WHERE "already said" IS READ FROM: the transcript the payload names. The harness records every
-# injected text there (an `attachment` record - hook_additional_context / hook_system_message -
-# carrying the text verbatim, JSON-escaped once). Only the CURRENT CONTEXT WINDOW counts: the
-# records after the last `compact_boundary` record. Compaction drops earlier attachments from the
-# context, so advice said before it is said again once after it - which a marker file kept outside
-# the transcript could not know. A new session (or /clear) is a new transcript, so it starts empty.
+# hook's text there (an `attachment` record - hook_additional_context for additionalContext, which
+# the model reads, hook_system_message for systemMessage, which it does not - carrying the text
+# verbatim, JSON-escaped once). The match is on the text, whatever the record type. Only the
+# CURRENT CONTEXT WINDOW counts: the records after the last `compact_boundary` record. Compaction
+# drops earlier attachments from the context, so advice said before it is said again once after it -
+# which a marker file kept outside the transcript could not know. A new session (or /clear) is a new
+# transcript, so it starts empty.
 #
 # Fails OPEN to "not seen" (the advice is emitted, the old behaviour) on any uncertainty: no
-# transcript, an unreadable one, an empty text.
+# transcript, an unreadable one, an empty text. A Stop / SubagentStop caller therefore needs a second
+# guard for the no-transcript case (stop_hook_active), or a missing transcript becomes a loop.
 #
 # Accepted residual: the harness runs the PreToolUse hooks of several tool calls issued in ONE
 # message before it records any of their output, so each of them can still emit the same advisory
@@ -82,4 +90,52 @@ _advice_unseen() {
 # rc 0 when the one text $2 already sits in the current context window of transcript $1.
 _advice_seen() {
   [[ -z "$(_advice_unseen "$1" "$2")" ]]
+}
+
+# rc 0 when a Stop / SubagentStop ADVISORY $3 is due now: it is not yet in the current context window
+# of transcript $1. With no readable transcript there is no record of what was said, so it is due
+# only on a stop no hook continued ($2 = the payload's stop_hook_active): a missing transcript must
+# never turn into a loop. An advisory said once in the window is not said again - it would tell the
+# agent nothing new.
+_stop_text_due() {
+  local transcript="$1" active="$2" text="$3"
+  if [[ -n "$transcript" && -r "$transcript" ]]; then
+    ! _advice_seen "$transcript" "$text"
+  else
+    [[ "$active" != "true" ]]
+  fi
+}
+
+# The jq test for a record that starts a TURN of the agent from outside the hooks: its first prompt
+# (a plain user string), or a wake recorded as a meta user string with an origin - a caller
+# resuming the stopped agent (`coordinator`, `peer`) or a background completion
+# (`task-notification`). A hook's block ("Stop hook feedback:", a meta user string with no origin)
+# and a hook's additionalContext (an attachment) are not, and neither is a tool_result (a list).
+# Measured on Claude Code 2.1.288.
+_STOP_TURN_START_JQ='(.type == "user") and (((.message // {}).content | type) == "string")
+  and ((.isMeta != true) or ((.origin.kind // "") | IN("coordinator", "peer", "task-notification")))'
+
+# rc 0 when the HARD-BLOCK reason $3 is due now. On a stop no hook continued ($2 = stop_hook_active
+# false) it is ALWAYS due: that report is new - a caller resumed the agent, or it is its first stop -
+# and a reason given in an earlier round says nothing about it. On a hook-continued stop it is due
+# unless it was already given in THIS chain - since the turn began (the last turn-start record) and
+# since the last compaction - so a block the agent ignores is not repeated forever, while a reason
+# first met in a turn a note bought still fires. No readable transcript -> due only on a fresh stop.
+# Unknown shape (no jq, no turn-start record found) -> the whole context window, as for advisories.
+_stop_block_due() {
+  local transcript="$1" active="$2" text="$3" start compact esc
+  [[ "$active" == "true" ]] || return 0
+  [[ -n "$transcript" && -r "$transcript" ]] || return 1
+  start=""
+  if command -v jq >/dev/null 2>&1; then
+    start="$(jq -nRr "reduce (inputs | (fromjson? // null)) as \$r ({n: 0, at: null};
+      .n += 1 | if (\$r | type) == \"object\" and (\$r | $_STOP_TURN_START_JQ) then .at = .n else . end)
+      | .at // empty" < "$transcript" 2>/dev/null || true)"
+  fi
+  [[ "$start" =~ ^[0-9]+$ ]] || { ! _advice_seen "$transcript" "$text"; return; }
+  compact="$(grep -n -e "$_ADVICE_BOUNDARY_RE" -- "$transcript" 2>/dev/null | tail -n 1 | cut -d: -f1)"
+  [[ "$compact" =~ ^[0-9]+$ && "$compact" -gt "$start" ]] && start="$compact"
+  esc="$(_advice_json_escape "$text")"
+  [[ -n "$esc" ]] || return 0
+  ! tail -n +"$start" -- "$transcript" 2>/dev/null | grep -qF -- "$esc"
 }

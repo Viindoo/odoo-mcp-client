@@ -34,6 +34,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import handback_records
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_enforce_teardown import _Ledger, _contract_exit_set  # noqa: E402
 
@@ -42,7 +44,6 @@ PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
 HOOKS = PLUGIN_ROOT / "hooks"
 GATE = HOOKS / "block-handback-with-live-lease.sh"
 TEARDOWN = HOOKS / "enforce-teardown.sh"
-PARSE = HOOKS / "parse-continuation.sh"
 STATUS_HOOK = HOOKS / "report-terminal-status.sh"
 GROUNDING = HOOKS / "enforce-grounding.sh"
 HOOKS_JSON = HOOKS / "hooks.json"
@@ -136,11 +137,8 @@ _ALREADY = {"success": False, "message": (
 def _handback(message, outcome=_DELIVERED, *, denied=False):
     """A SubagentHandback call and its harness answer: delivered, refused as a second call, or
     denied by a PreToolUse hook (an error tool_result - nothing was sent)."""
-    tid, use = _use("SubagentHandback", {"message": message})
-    if denied:
-        return [use, _result(tid, "PreToolUse:SubagentHandback hook error: denied", is_error=True)]
-    return [use, _result(tid, [{"type": "text", "text": json.dumps(outcome)}],
-                         tool_use_result=outcome)]
+    return handback_records(message, tid=f"toolu_hb_{next(_SEQ):06d}", outcome=outcome,
+                            denied=denied)
 
 
 # --------------------------------------------------------------------------- #
@@ -512,22 +510,8 @@ def test_forwarding_one_handle_does_not_clear_a_second_live_lease_at_subagent_st
 
 
 # --------------------------------------------------------------------------- #
-# 3. parse-continuation.sh / report-terminal-status.sh / enforce-grounding.sh
+# 3. report-terminal-status.sh / enforce-grounding.sh
 # --------------------------------------------------------------------------- #
-def test_parse_continuation_nudges_on_a_needs_next_handed_back_through_the_tool(tmp_path):
-    lines = [*_handback(_report("NEEDS_NEXT")), _text("Handed back.")]
-    _, out = _run_stop(tmp_path, PARSE, lines)
-    assert out and "NEEDS_NEXT" in out.get("systemMessage", "")
-
-
-def test_parse_continuation_reads_the_subagents_own_transcript_not_the_sessions(tmp_path):
-    """The session transcript carries the parent's and every sibling's text; a sibling's NEEDS_NEXT
-    there is not this subagent's."""
-    _, out = _run_stop(tmp_path, PARSE, [_text(_report("DONE"))],
-                       session_lines=[_text(_report("NEEDS_NEXT"))])
-    assert out is None
-
-
 def _strand_log(home):
     f = home / "telemetry" / "strand-events.log"
     return f.read_text(encoding="utf-8") if f.exists() else ""
@@ -606,12 +590,6 @@ def test_the_teardown_gate_quotes_the_status_of_a_final_message_the_file_lacks(t
                        last_message=_report("BLOCKED"))
     assert out and out.get("decision") == "block"
     assert "status: BLOCKED" in out["reason"] and "NO `status`" not in out["reason"]
-
-
-def test_parse_continuation_reads_a_final_message_the_file_lacks(tmp_path):
-    _, out = _run_stop(tmp_path, PARSE, [_brief("go"), *_use_and_result("Bash", {"command": "ls"})],
-                       last_message=_report("NEEDS_NEXT"))
-    assert out and "NEEDS_NEXT" in out.get("systemMessage", "")
 
 
 def test_a_final_message_the_file_lacks_is_not_a_strand(tmp_path):

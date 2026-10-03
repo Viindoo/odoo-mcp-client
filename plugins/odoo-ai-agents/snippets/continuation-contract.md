@@ -89,12 +89,11 @@ Rules:
   fails the copy-paste check, or with no `continuation` block at all, is a protocol violation.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
-  the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward. Superseded
-  for `odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, and `odoo-instance-ops`:
-  these four emit their conditional follow-up as an in-block `next:` entry instead - never both
-  channels (the parser's back-compat branch only reads `SUGGESTED_NEXT` when `status` is empty,
-  `parse-continuation.sh:46`, so a bare `SUGGESTED_NEXT:` line is silently dropped once the fenced
-  block also sets a status).
+  the driver as a low-confidence `NEEDS_NEXT`, only while the fenced block's `status` is EMPTY;
+  prefer the fenced block going forward. Superseded for `odoo-backend-coder`,
+  `odoo-frontend-coder`, `odoo-code-reviewer`, and `odoo-instance-ops`: these four emit their
+  conditional follow-up as an in-block `next:` entry instead - never both channels (a bare
+  `SUGGESTED_NEXT:` line is silently dropped once the fenced block also sets a status).
 - **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
   `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
   `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so

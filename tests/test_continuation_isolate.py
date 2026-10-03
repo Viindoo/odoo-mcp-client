@@ -1,8 +1,7 @@
-"""Behavioral guard for hooks/drive-continuation.sh (+ the sibling hooks/parse-continuation.sh
-nudge) after Problem-3 namespacing: the run-state glob must resolve against the per-worktree
-ISOLATE dir (`scripts/lib/resolve_project_dir.sh isolate`), not a bare project-relative
-`./.odoo-ai/`, and a resolver refusal must degrade to the legacy path rather than ever crashing
-or blocking a session.
+"""Behavioral guard for hooks/drive-continuation.sh after Problem-3 namespacing: the run-state glob
+must resolve against the per-worktree ISOLATE dir (`scripts/lib/resolve_project_dir.sh
+isolate`), not a bare project-relative `./.odoo-ai/`, and a resolver refusal must degrade to the
+legacy path rather than ever crashing or blocking a session.
 
 Business rules protected, NOT the implementation:
 
@@ -37,10 +36,11 @@ from pathlib import Path
 
 import pytest
 
+from conftest import model_context
+
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
 DRIVE_HOOK = PLUGIN_ROOT / "hooks" / "drive-continuation.sh"
-PARSE_HOOK = PLUGIN_ROOT / "hooks" / "parse-continuation.sh"
 RESOLVER = PLUGIN_ROOT / "scripts" / "lib" / "resolve_project_dir.sh"
 
 pytestmark = pytest.mark.skipif(
@@ -97,20 +97,12 @@ def _resolve_isolate(cwd: Path, env: dict) -> str:
 
 
 def _run_hook(hook: Path, cwd: Path, env: dict, transcript_lines=None, stop_hook_active=False):
-    """Invoke a Stop/SubagentStop hook with a minimal stdin payload carrying `cwd`."""
+    """Invoke the Stop hook with a minimal stdin payload carrying `cwd`."""
     payload = {"cwd": str(cwd), "stop_hook_active": stop_hook_active}
     if transcript_lines is not None:
         tpath = cwd / "transcript.jsonl"
         tpath.write_text("\n".join(transcript_lines) + "\n", encoding="utf-8")
-        if hook == PARSE_HOOK:
-            # The real SubagentStop payload: the subagent's OWN transcript is
-            # agent_transcript_path; transcript_path is the whole session's (empty here).
-            session = cwd / "session-transcript.jsonl"
-            session.write_text("", encoding="utf-8")
-            payload.update({"hook_event_name": "SubagentStop", "transcript_path": str(session),
-                            "agent_transcript_path": str(tpath)})
-        else:
-            payload["transcript_path"] = str(tpath)
+        payload["transcript_path"] = str(tpath)
     proc = subprocess.run(
         ["bash", str(hook)], input=json.dumps(payload), capture_output=True, text=True,
         timeout=30, env=env,
@@ -118,6 +110,12 @@ def _run_hook(hook: Path, cwd: Path, env: dict, transcript_lines=None, stop_hook
     out = proc.stdout.strip()
     parsed = json.loads(out) if out else None
     return proc.returncode, parsed
+
+
+def _reminder(out) -> str:
+    """drive-continuation's reminder text, read from the one Stop channel the model reads."""
+    assert out is not None, "expected the unfinished-run reminder"
+    return model_context(out, "Stop")
 
 
 def _needs_next(run_id: str, cursor: str = "nodeA") -> dict:
@@ -141,16 +139,11 @@ def _drove(*run_files: Path) -> list:
     return lines
 
 
-def _cont_needs_next_text() -> str:
-    body = "done.\n```continuation\nstatus: NEEDS_NEXT\nproduced: []\nnext: []\n```"
-    return json.dumps({"role": "assistant", "content": [{"type": "text", "text": body}]})
-
-
 # --------------------------------------------------------------------------- #
 # Existence / static sanity
 # --------------------------------------------------------------------------- #
 def test_hooks_exist_and_parse():
-    for h in (DRIVE_HOOK, PARSE_HOOK):
+    for h in (DRIVE_HOOK,):
         assert h.exists(), f"hook not found at {h}"
         r = subprocess.run(["bash", "-n", str(h)], capture_output=True, text=True)
         assert r.returncode == 0, f"{h.name} failed bash -n: {r.stderr}"
@@ -183,17 +176,16 @@ def test_two_worktrees_each_yield_cnt_one_independently(tmp_path):
     rc2, out2 = _run_hook(DRIVE_HOOK, wt2, env, transcript_lines=_drove(isolate2 / "run-b.json"))
 
     assert rc1 == 0 and rc2 == 0
-    assert out1 is not None and out1.get("continue") is True
-    assert out2 is not None and out2.get("continue") is True
-    assert "run-a" in out1["systemMessage"] and "run-b" not in out1["systemMessage"], (
+    msg1, msg2 = _reminder(out1), _reminder(out2)
+    assert "run-a" in msg1 and "run-b" not in msg1, (
         "worktree 1 must nudge about its OWN run only - a naive shared design would see both "
         "run files (cnt==2) and go silent instead"
     )
-    assert "run-b" in out2["systemMessage"] and "run-a" not in out2["systemMessage"], (
+    assert "run-b" in msg2 and "run-a" not in msg2, (
         "worktree 2 must nudge about its OWN run only"
     )
-    assert str(isolate1) in out1["systemMessage"]
-    assert str(isolate2) in out2["systemMessage"]
+    assert str(isolate1) in msg1
+    assert str(isolate2) in msg2
 
 
 def test_naive_shared_design_would_go_silent_ambiguous(tmp_path):
@@ -256,9 +248,8 @@ def test_resolver_refusal_falls_back_to_legacy_path_without_crashing(tmp_path):
 
     rc, out = _run_hook(DRIVE_HOOK, proj, env, transcript_lines=_drove(legacy_dir / "run-x.json"))
     assert rc == 0, "a resolver refusal must never crash or non-zero-exit the hook"
-    assert out is not None and out.get("continue") is True
-    assert "run-x" in out["systemMessage"]
-    assert str(legacy_dir) in out["systemMessage"], "must fall back to the legacy project path"
+    assert "run-x" in _reminder(out)
+    assert str(legacy_dir) in _reminder(out), "must fall back to the legacy project path"
 
 
 def test_missing_plugin_root_falls_back_without_crashing(tmp_path):
@@ -275,51 +266,7 @@ def test_missing_plugin_root_falls_back_without_crashing(tmp_path):
 
     rc, out = _run_hook(DRIVE_HOOK, proj, env, transcript_lines=_drove(legacy_dir / "run-y.json"))
     assert rc == 0
-    assert out is not None and "run-y" in out["systemMessage"]
-
-
-# --------------------------------------------------------------------------- #
-# parse-continuation.sh - same resolve+fallback pattern, sibling hook
-# --------------------------------------------------------------------------- #
-def test_parse_continuation_names_the_resolved_isolate_dir(tmp_path):
-    home = tmp_path / "home"
-    env = _env(home)
-    repo = tmp_path / "repo"
-    _init_repo(repo, env)
-    isolate = Path(_resolve_isolate(repo, env))
-
-    rc, out = _run_hook(PARSE_HOOK, repo, env, transcript_lines=[_cont_needs_next_text()])
-    assert rc == 0
-    assert out is not None and out.get("continue") is True
-    assert str(isolate) in out["systemMessage"]
-
-
-def test_parse_continuation_nudge_already_in_the_context_is_not_repeated(tmp_path):
-    """A subagent woken again after a NEEDS_NEXT stop already holds the nudge: the next stop with
-    the same report adds nothing."""
-    home = tmp_path / "home"
-    env = _env(home)
-    repo = tmp_path / "repo"
-    _init_repo(repo, env)
-    _, first = _run_hook(PARSE_HOOK, repo, env, transcript_lines=[_cont_needs_next_text()])
-    note = json.dumps({"type": "attachment", "attachment": {
-        "type": "hook_system_message", "content": first["systemMessage"],
-        "hookName": "SubagentStop", "hookEvent": "SubagentStop", "toolUseID": "x"}})
-    _, again = _run_hook(PARSE_HOOK, repo, env,
-                         transcript_lines=[_cont_needs_next_text(), note, _cont_needs_next_text()])
-    assert again is None, f"the same nudge was repeated: {again!r}"
-
-
-def test_parse_continuation_resolver_refusal_falls_back_without_crashing(tmp_path):
-    home = tmp_path / "home"
-    env = _env(home)
-    proj = tmp_path / "no-marker-project-parse"
-    proj.mkdir(parents=True)
-
-    rc, out = _run_hook(PARSE_HOOK, proj, env, transcript_lines=[_cont_needs_next_text()])
-    assert rc == 0, "a resolver refusal must never crash or non-zero-exit the hook"
-    assert out is not None and out.get("continue") is True
-    assert str(proj / ".odoo-ai") in out["systemMessage"]
+    assert "run-y" in _reminder(out)
 
 
 # --------------------------------------------------------------------------- #

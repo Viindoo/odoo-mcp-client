@@ -38,7 +38,10 @@
 # returned its result in-turn is never listed) - the stopping subagent's OWN entry included. A task
 # that has finished is REMOVED from the array, so "still listed as running" is the liveness test.
 #   - Block form: {"decision":"block","reason":"..."} on stdout.
-#   - Loop-safe: stop_hook_active=true -> never re-block.
+#   - Checks EVERY stop, a continued one (stop_hook_active=true) included: a note or block from
+#     any SubagentStop hook buys one more turn, and the subagent can end that one on a fresh
+#     background command. Loop-safe because the same reason is given at most once inside one
+#     hook-continued chain (hooks/advice-once.sh _stop_block_due); a fresh stop is always checked.
 #   - ROOT-SAFE: gated on hook_event_name == SubagentStop AND a non-empty agent_id. The root
 #     IS notified of every completion on every surface, so blocking there would be wrong.
 #   - OWNERSHIP: `background_tasks` is SESSION-wide, so a task the ROOT (or a sibling)
@@ -81,8 +84,8 @@ command -v jq >/dev/null 2>&1 || _pass
 INPUT="$(cat 2>/dev/null || true)"
 [[ -n "$INPUT" ]] || _pass
 
+# Every stop is checked, a continued one included (the loop guard is per reason - see the end).
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
-[[ "$STOP_ACTIVE" == "true" ]] && _pass   # already continuing from a prior block - no loop
 
 # --- Root vs subagent -----------------------------------------------------------------------
 # Two independent facts, both required. The event name alone would still fire if the hook were
@@ -207,5 +210,23 @@ if [[ "$NA" -gt 0 ]]; then
 Do NOT end your turn. Wait for them IN THIS TURN (snippets/spawner-completion-contract.md R0 move 2, § An async receipt under move 2): keep making tool calls - the Monitor tool or a short \`until\` loop (the harness refuses a bare \`sleep N\`), then a look at what has arrived - until each teammate's completion notification reaches you at a tool round, then read its result and clear your R1 barrier. Every response you emit before you hold every result MUST carry a tool call. Your agent-launch tool carries run_in_background here, so launch every later teammate with run_in_background: false (R0 move 2) and its result returns inside your turn. If a teammate cannot finish inside this turn, report \`status: BLOCKED\` naming it - never a completion claim over a result you never read."
 fi
 
+# The block buys the subagent one more turn whose last message replaces its report for the caller,
+# so the reason ends on the sentence that says so (final-report.sh _subagent_note_tail, which also
+# knows a report already delivered through SubagentHandback). Unreadable helper -> the reason alone.
+if [[ -r "${BASH_SOURCE[0]%/*}/final-report.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "${BASH_SOURCE[0]%/*}/final-report.sh"
+  REASON="$REASON"$'\n\n'"$(_subagent_note_tail "$AGENT_TRANSCRIPT" "$INPUT")"
+fi
+# The loop guard: a fresh stop is always checked; inside a hook-continued chain the same refusal is
+# given once (hooks/advice-once.sh _stop_block_due - the harness records a block reason in the
+# transcript). Unreadable helper -> the older guard, never a second block in a continued chain.
+if [[ -r "${BASH_SOURCE[0]%/*}/advice-once.sh" ]]; then
+  # shellcheck source=/dev/null
+  . "${BASH_SOURCE[0]%/*}/advice-once.sh"
+  _stop_block_due "$AGENT_TRANSCRIPT" "$STOP_ACTIVE" "$REASON" || _pass
+else
+  [[ "$STOP_ACTIVE" == "true" ]] && _pass
+fi
 jq -cn --arg r "$REASON" '{decision:"block", reason:$r}'
 exit 0

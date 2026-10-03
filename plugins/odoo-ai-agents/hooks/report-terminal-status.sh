@@ -10,26 +10,30 @@
 # proves a rate, not a cause - it never inspects WHY a stop happened, only THAT it
 # matches a documented signature.
 #
-# Additive sibling of enforce-grounding.sh / parse-continuation.sh in the SubagentStop
-# array - it does NOT modify or depend on either hook.
+# Additive sibling of enforce-grounding.sh in the SubagentStop array - it does NOT modify or
+# depend on that hook.
 #
 # CONTRACT (Claude Code SubagentStop): stdin JSON has agent_transcript_path (the subagent's own
 # transcript - the one read here), transcript_path (the whole session's) + stop_hook_active.
 #   - HARD CONTRACT: never blocks, and never emits stdout JSON at all (no
 #     {continue:...}, no {decision:...}) - this hook is a pure side-effecting observer.
-#   - Loop-safe via stop_hook_active, for consistency with its siblings.
+#   - Judges only a stop no hook continued (stop_hook_active=false): the agent's OWN turn end,
+#     before any hook text reached it - one verdict per dispatch round, the rate this counter
+#     compares before and after a prompt fix. A turn a sibling's note or block bought is the hooks'
+#     doing and is judged by the gates themselves (a lease left there is still blocked by the
+#     teardown gate); counting it here would log one round twice whenever its extra turn strands
+#     again. Residual: a strand first introduced in a hook-bought turn is not counted.
 #   - Degrades to a silent no-write (exit 0) on ANY uncertainty: no jq, no transcript,
 #     an unparseable transcript, or an unresolvable state root. A write call site never
-#     falls back to a guessed location (unlike parse-continuation.sh's read-only
-#     advisory-glob exception - snippets/state-root-resolution.md - which is
-#     sanctioned ONLY for read-only globs, never for a hook that writes state).
+#     falls back to a guessed location (unlike the read-only advisory-glob exception of
+#     snippets/state-root-resolution.md, which is sanctioned ONLY for read-only globs,
+#     never for a hook that writes state).
 #
 # Two signatures, either one triggers ONE appended line:
 #   S1 (strand)   - the REPORT the caller received (a delivered SubagentHandback message,
 #                   else the FINAL assistant turn's text) carries no `status:` from
 #                   DONE|NEEDS_NEXT|BLOCKED|NEEDS_CONTEXT inside a closed fenced
-#                   ```continuation block (hooks/final-report.sh, shared with
-#                   parse-continuation.sh).
+#                   ```continuation block (hooks/final-report.sh).
 #   S2 (unexecuted tool_use) - a `tool_use` id in that same final assistant turn that
 #                   never appears as a `tool_use_id` in any tool_result anywhere in the
 #                   transcript.

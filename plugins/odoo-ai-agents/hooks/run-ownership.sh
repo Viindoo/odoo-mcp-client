@@ -1,9 +1,8 @@
 # run-ownership.sh - SOURCED helper (not a hook): the ONE implementation of "where are this project's
 # run records, which of them are NEEDS_NEXT, and which of those is THIS session's run". The
 # run-scoped advisories - remind-delegate.sh's mid-run nudge and drive-continuation.sh's
-# unfinished-run reminder - read it (parse-continuation.sh reads only the state dir), so a NEEDS_NEXT
-# run that another session (live or long dead) left in the same state dir never makes this session
-# "mid-run".
+# unfinished-run reminder - read it, so a NEEDS_NEXT run that another session (live or long dead)
+# left in the same state dir never makes this session "mid-run".
 #
 # WHAT MAKES A RUN THIS SESSION'S: the LAST write to its record came from this session. A record is
 # written by a tool call that names it - intake's Phase P creates it, run-harness writes it after

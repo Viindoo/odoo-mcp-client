@@ -33,8 +33,8 @@
 #     --with-verdict`), never a liveness rule re-derived here.
 #   - BROWSER pages die WITH the session's MCP server process - a bounded, self-
 #     healing leak. Their count is only inferable from the transcript (open/close
-#     calls), which is fuzzy. So browser findings are ADVISORY ONLY (systemMessage,
-#     NEVER decision:block) on both SubagentStop and Stop - prevention + a nudge.
+#     calls), which is fuzzy. So browser findings are ADVISORY ONLY (NEVER decision:block)
+#     on both SubagentStop and Stop - prevention + a nudge.
 #     A chrome-devtools page counts as DRIVEN whether this agent opened it (new_page)
 #     or reused one (navigate_page); the server refuses to close its last page, so
 #     the rule nudged here is "close every page but one, then navigate that one to
@@ -69,11 +69,23 @@
 #     SAME check (hooks/teardown-check.sh) at the handback itself; this gate remains the backstop
 #     for a lease obtained after the handback and for a report delivered as plain text.
 #   - Self-gates (clone of enforce-grounding.sh): missing jq / missing transcript
-#     / stop_hook_active=true / a non-teardown-shaped subagent -> silent exit 0.
+#     / a non-teardown-shaped subagent -> silent exit 0.
+#   - Checks EVERY stop, a continued one (stop_hook_active=true) included: an advisory or a block
+#     buys the subagent one more turn, and the report it ends that turn on is the one its caller
+#     receives - it can drop the INSTANCE_HANDLE the first report forwarded. Loop-safe: an advisory
+#     is said at most once per context window (hooks/advice-once.sh _stop_text_due); a block is
+#     given on every stop no hook continued - a caller's resume is a new report that can drop the
+#     handle again - but at most once inside one hook-continued chain (_stop_block_due; the harness
+#     records a block reason in the transcript).
 #   - Block form (instances, SubagentStop only): {"decision":"block","reason":...}.
-#   - Advisory form (browsers): {"continue":true,"systemMessage":...} - once per context window: a
-#     finding whose exact text is already in the transcript since the last compaction is not
-#     repeated (hooks/advice-once.sh). The block form above is never deduplicated.
+#   - Block form reasons end on the sentence that tells the subagent what its caller receives: the
+#     block buys it one more turn, and that turn's last message replaces its report.
+#   - Advisory form (browsers): on SubagentStop hookSpecificOutput.additionalContext - the channel
+#     the subagent reads (it runs ONE more turn with it), ending on the same sentence; on Stop a
+#     systemMessage, a line for the user's display that no model reads, because the main session
+#     often keeps a page open on purpose for the user. Once per context window: a finding whose
+#     exact text is already in the transcript since the last compaction is not repeated
+#     (hooks/advice-once.sh _stop_text_due).
 #   - Degrades to exit 0 on ANY uncertainty (no jq/python3/allocator, parse error,
 #     no verdict, no correlated token, an unreadable shared helper). A hard-block gate: a false
 #     block halts real work, so every branch prefers a FALSE-NEGATIVE over a
@@ -87,8 +99,10 @@ command -v jq >/dev/null 2>&1 || _pass
 INPUT="$(cat 2>/dev/null || true)"
 [[ -n "$INPUT" ]] || _pass
 
+# Every stop is checked, a continued one included: the turn a note or block bought may have
+# rewritten the report (dropped the forwarded handle, opened a page). The loop guard is per text
+# instead - hooks/advice-once.sh _stop_block_due / _stop_text_due, below.
 STOP_ACTIVE="$(printf '%s' "$INPUT" | jq -r '.stop_hook_active // false' 2>/dev/null || echo false)"
-[[ "$STOP_ACTIVE" == "true" ]] && _pass   # already continuing from a prior block - no loop
 
 EVENT="$(printf '%s' "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null || true)"
 
@@ -321,6 +335,12 @@ _instance_block_reason() {
 if REASON="$(_instance_block_reason)"; then
   # Surface any browser finding inside the same block so the agent fixes both at once.
   [[ -n "$BROWSER_MSG" ]] && REASON="$REASON"$'\n\nAlso (advisory, browser): '"$BROWSER_MSG"
+  # The block buys the subagent one more turn whose last message the caller receives in place of
+  # the report (final-report.sh _subagent_note_tail); a handed-back report's closing says it is final.
+  [[ "$HANDED_BACK" == "1" ]] || REASON="$REASON"$'\n\n'"$(_subagent_note_tail "$TRANSCRIPT" "$INPUT")"
+  # A fresh stop is always gated; inside a hook-continued chain this exact refusal is given once
+  # (hooks/advice-once.sh _stop_block_due), so a block the subagent ignores cannot loop.
+  _stop_block_due "$TRANSCRIPT" "$STOP_ACTIVE" "$REASON" || _pass
   jq -cn --arg r "$REASON" '{decision:"block", reason:$r}'
   exit 0
 fi
@@ -329,10 +349,20 @@ fi
 # Said once per context window (hooks/advice-once.sh): the same finding on every later turn end -
 # the main agent may keep a page open on purpose across turns - repeats nothing new. A finding that
 # changes (another page opened, one closed) is a new text and is said again.
+# On SubagentStop the finding goes to the subagent that drove the pages - the one agent that can
+# still close them before its dispatch ends - and ends on the sentence that says what its caller
+# receives (final-report.sh _subagent_note_tail). On the main session's Stop it is a line for the
+# user's display only: the main session often leaves a page open on purpose for the user, so it is
+# not handed to the model as a reason for another turn.
 if [[ -n "$BROWSER_MSG" ]]; then
   BROWSER_ADVICE="Resource-teardown advisory (browser pages/recordings die with the session, so this is a nudge, not a block): $BROWSER_MSG."
-  _advice_seen "$TRANSCRIPT" "$BROWSER_ADVICE" && _pass
-  jq -cn --arg m "$BROWSER_ADVICE" '{continue:true, systemMessage:$m}'
+  _stop_text_due "$TRANSCRIPT" "$STOP_ACTIVE" "$BROWSER_ADVICE" || _pass
+  if [[ "$EVENT" == "SubagentStop" ]]; then
+    jq -cn --arg m "$BROWSER_ADVICE $(_subagent_note_tail "$TRANSCRIPT" "$INPUT")" \
+      '{hookSpecificOutput: {hookEventName: "SubagentStop", additionalContext: $m}}'
+  else
+    jq -cn --arg m "$BROWSER_ADVICE" '{continue:true, systemMessage:$m}'
+  fi
   exit 0
 fi
 

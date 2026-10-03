@@ -74,6 +74,8 @@ from pathlib import Path
 
 import pytest
 
+from conftest import block_feedback_record, brief_record, resume_record
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLUGINS = REPO_ROOT / "plugins"
 ODOO_PLUGIN = PLUGINS / "odoo-ai-agents"
@@ -445,6 +447,21 @@ def test_print_mode_stop_over_an_own_running_teammate_is_refused(tmp_path):
     assert "blocked" in low, "the refusal must name the reporting exit when the wait cannot finish"
 
 
+REPEAT_REPORT = "repeating your complete report, its continuation block included"
+
+
+def test_every_refusal_tells_the_subagent_to_repeat_its_whole_report(tmp_path):
+    """The block buys the subagent one more turn, and its caller receives the message that turn
+    ends on in place of the report it stopped with - so both arms' reasons say to repeat the
+    complete report, or the caller is left holding a one-line acknowledgement."""
+    t = _transcript(tmp_path, ["bq1"])
+    _, out = _run(_subagent_payload(t, [_shell_task("bq1", command="make test")]), env=PRINT_ENV)
+    assert _decision(out) == "block" and REPEAT_REPORT in _reason(out), _reason(out)
+    t = _agent_transcript(tmp_path, ["a-wi-1"])
+    _, out = _run(_launcher_payload(t, [_agent_task("a-wi-1")]), env=PRINT_ENV)
+    assert _decision(out) == "block" and REPEAT_REPORT in _reason(out), _reason(out)
+
+
 @pytest.mark.parametrize("env", [
     {"CLAUDE_CODE_SESSION_ATTENDED": "0"},
     {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli"},
@@ -531,11 +548,39 @@ def test_a_shell_and_an_agent_wait_are_both_named_in_one_refusal(tmp_path):
     assert "bq9" in reason and "a-wi-1" in reason, "both live waits must be named"
 
 
+def test_a_continued_stop_is_checked_and_the_same_refusal_is_given_once(tmp_path):
+    """A note or block from any SubagentStop hook buys one more turn, and the subagent can end that
+    turn on a fresh background command: the continued stop (stop_hook_active=true) is still
+    checked. The loop guard is per reason and per hook-continued chain - once the subagent was
+    refused with this exact reason in this chain, the same stop passes."""
+    t = _transcript(tmp_path, ["bq1"])
+    t.write_text(brief_record() + "\n" + t.read_text(encoding="utf-8"), encoding="utf-8")
+    payload = _subagent_payload(t, [_shell_task("bq1")], stop_hook_active=True)
+    _, out = _run(payload)
+    assert _decision(out) == "block", "a hook-continued stop over a live command went unchecked"
+    feedback = block_feedback_record(_reason(out))
+    t.write_text(t.read_text(encoding="utf-8") + feedback + "\n", encoding="utf-8")
+    _, again = _run(payload)
+    assert again.strip() == "", f"the same refusal was given twice: {again!r}"
+
+
+def test_a_resumed_dispatch_over_the_same_live_command_is_refused_again(tmp_path):
+    """Refused once, the subagent stopped anyway; later its caller resumes it and it ends that new
+    turn with the same command still running: a fresh stop, so the refusal is given again."""
+    t = _transcript(tmp_path, ["bq1"])
+    payload = _subagent_payload(t, [_shell_task("bq1")])
+    _, out = _run(payload)
+    assert _decision(out) == "block"
+    t.write_text(t.read_text(encoding="utf-8") + block_feedback_record(_reason(out)) + "\n"
+                 + resume_record() + "\n", encoding="utf-8")
+    _, again = _run(payload)
+    assert _decision(again) == "block", "a resumed dispatch passed on an earlier round's refusal"
+
+
 # --------------------------------------------------------------------------- #
 # 3. Fail open on every uncertainty
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("label,mutate", [
-    ("loop-guard", lambda p: p.update({"stop_hook_active": True})),
     ("no background_tasks key", lambda p: p.pop("background_tasks", None)),
     ("background_tasks is null", lambda p: p.update({"background_tasks": None})),
     ("background_tasks is an object", lambda p: p.update({"background_tasks": {"a": 1}})),
@@ -591,8 +636,7 @@ def test_the_other_subagentstop_hooks_do_not_catch_this_shape(tmp_path):
     this test goes red and the duplication must be resolved deliberately - not discovered."""
     t = _transcript(tmp_path, ["bvld2f72c"])
     payload = _subagent_payload(t, [_agent_task("a-child-1"), _shell_task("bvld2f72c")])
-    siblings = ["enforce-grounding.sh", "enforce-teardown.sh", "parse-continuation.sh",
-                "report-terminal-status.sh"]
+    siblings = ["enforce-grounding.sh", "enforce-teardown.sh", "report-terminal-status.sh"]
     blocked = []
     for name in siblings:
         script = HOOKS_DIR / name

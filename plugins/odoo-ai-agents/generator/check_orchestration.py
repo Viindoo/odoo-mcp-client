@@ -1334,7 +1334,7 @@ NO_PROVENANCE_RE = re.compile(
 # THE DISCRIMINATOR every guard below approximates: RESIDUE narrates what THIS PLUGIN used to do
 # (worthless to an executing agent, and free to delete - git already has it). OPERATIVE text tells
 # the agent what to DO about something that still exists (a lease field the allocator still reads,
-# a `SUGGESTED_NEXT:` line the parser still accepts, a prospect's incumbent POS, an Odoo CSS era) -
+# a `SUGGESTED_NEXT:` line the driver still accepts, a prospect's incumbent POS, an Odoo CSS era) -
 # deleting that BREAKS a live consumer. Same vocabulary, opposite value; the guards split them.
 
 # Guard 1 - ODOO DOMAIN version history is legitimate, load-bearing knowledge, never residue.
@@ -1399,7 +1399,7 @@ DOMAIN_ANCHOR_RES = (
 # bare `legacy` token is anaphoric this way - every other alternative still fires in such a file.
 LEGACY_ERA_HEADING_RE = re.compile(r"^#{1,6} +.*\blegacy\b.*$", re.I | re.M)
 # Guard 3 - OPERATIVE BACK-COMPAT. A back-compat instruction has a LIVE consumer (the allocator
-# still reads `owner.session_id`; the continuation parser still accepts `SUGGESTED_NEXT:`), so it
+# still reads `owner.session_id`; the run driver still accepts `SUGGESTED_NEXT:`), so it
 # is a rule, not a memoir - deleting it breaks the reader. Detected by the handling vocabulary such
 # an instruction cannot be phrased without: an explicit back-compat/fallback label, or a verb
 # applied TO the old shape ("is still read", "treats ... as", "skips the stop", "maps to").

@@ -1,8 +1,8 @@
 # final-report.sh - SOURCED helper (not a hook): the ONE implementation of "what did this agent
 # REPORT to its caller, and what does that report's continuation fence say". Every hook that reads a
 # subagent's terminal status or forwarded INSTANCE_HANDLE sources it - enforce-teardown.sh,
-# parse-continuation.sh, report-terminal-status.sh, enforce-grounding.sh and
-# block-handback-with-live-lease.sh - so they can never disagree about which text is the report.
+# report-terminal-status.sh, enforce-grounding.sh and block-handback-with-live-lease.sh - so they
+# can never disagree about which text is the report.
 #
 # WHY IT EXISTS: a subagent's report can travel in a TOOL CALL, `SubagentHandback`
 # ({"message": "<report>"}), instead of as its last assistant text. The report then lives in
@@ -274,4 +274,31 @@ _handback_delivered() {
   n="$(jq -rRs "$_FR_JQ_RECORDS$_FR_JQ_DELIVERED"' | $delivered | length' \
     < <(_tool_call_lines "$transcript" SubagentHandback) 2>/dev/null || true)"
   [[ "$n" =~ ^[0-9]+$ && "$n" -gt 0 ]]
+}
+
+# The sentence every SubagentStop text addressed to the subagent ends with - a note sent through
+# additionalContext AND a decision:block reason alike. Both make the subagent run ONE more turn, and
+# when its report travels as its final message (no SubagentHandback) the caller receives the
+# message that turn ENDS on, not the report it stopped with - so a text that does not say so costs
+# the caller the report. A report already delivered through SubagentHandback is final: nothing the
+# extra turn writes reaches the caller. A coordinator that stopped only to WAIT for a teammate it
+# launched (any surface but the unattended one wakes it for that teammate - hooks/teammate-wait.sh)
+# has not written its report yet, so it is told to keep waiting instead; that branch needs the
+# caller to have sourced teammate-wait.sh and to pass the payload.
+# $1 = the subagent's own transcript, $2 = the SubagentStop payload (optional).
+_subagent_note_tail() {
+  local transcript="$1" payload="${2:-}" agent=""
+  if _handback_delivered "$transcript"; then
+    printf '%s' "Your report was already delivered through SubagentHandback and is final: nothing you write now reaches your caller."
+    return 0
+  fi
+  if [[ -n "$payload" ]] && declare -F _tw_own_live_teammates >/dev/null 2>&1 \
+     && declare -F _tw_unattended >/dev/null 2>&1 && ! _tw_unattended; then
+    agent="$(printf '%s' "$payload" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
+    if [[ -n "$(_tw_own_live_teammates "$payload" "$agent" "$transcript")" ]]; then
+      printf '%s' "You stopped to wait for a teammate you launched, so your report is not written yet: act on this, then keep waiting, and include the outcome in the report you end your dispatch with."
+      return 0
+    fi
+  fi
+  printf '%s' "Your caller receives only the message you end this turn with - it replaces the report you just ended on - so finish by repeating your complete report, its continuation block included, updated with what you changed."
 }

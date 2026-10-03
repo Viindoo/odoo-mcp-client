@@ -3,12 +3,24 @@ its Stop hooks finish inside their declared timeout on a long session.
 
 Business rules locked in here (each test fails for exactly one of them):
 
-- An advisory a hook injects into the model's context (UserPromptSubmit / PreToolUse
-  `additionalContext`, Stop `systemMessage`) is said ONCE per context window. The harness records
+- An advisory a hook injects into the model's context (`additionalContext`, on UserPromptSubmit,
+  PreToolUse, Stop and SubagentStop alike) is said ONCE per context window. The harness records
   every injected text in the session transcript; when the same text already sits there after the
   last compaction, repeating it adds tokens and nothing else. After a compaction it is said again
   once - compaction drops it from the context. A changed text (a run on another node, another page
   left open) is new and is said.
+- A Stop advisory meant for the model rides `additionalContext`: a Stop `systemMessage` never
+  reaches the model. The browser-teardown finding on the main session's Stop is meant for the user
+  (the main session often keeps a page open for the user on purpose), so it stays a systemMessage
+  and buys no extra turn; on SubagentStop it reaches the subagent that drove the pages. The
+  harness grants one more turn to EVERY Stop that emits additionalContext, so the once-per-context
+  rule is also what keeps a reminder from looping: the unfinished-run reminder is said once per
+  run node - also inside a turn a hook already continued, so a run moves node after node - and
+  never twice for the same node; with no transcript to dedupe against, a hook-continued stop gets
+  no second reminder. A turn end that waits for something whose completion wakes the session - a
+  dispatched agent, or a background shell on an attended surface - is not an abandoned run and
+  gets no reminder; in an unattended (`claude -p` / SDK) session a background shell wakes nothing,
+  so it does not mute it.
 - detect-intent.sh classifies the USER's prompt only. A prompt the harness submits on its own - a
   background task's <task-notification>, another agent's peer message - is a subagent's report,
   not user intent, and gets no hint at all.
@@ -40,7 +52,7 @@ from pathlib import Path
 
 import pytest
 
-from conftest import farm_path
+from conftest import farm_path, model_context
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
@@ -80,7 +92,7 @@ def _context_attachment(event: str, text: str) -> str:
 
 
 def _system_message_attachment(event: str, text: str) -> str:
-    """How the harness records a hook's systemMessage."""
+    """How the harness records a hook's systemMessage (shown to the user, read by no model)."""
     return _dump({"type": "attachment", "attachment": {
         "type": "hook_system_message", "content": text, "hookName": event, "hookEvent": event,
         "toolUseID": "x"}})
@@ -287,10 +299,27 @@ def test_the_leaf_reminder_is_said_once_per_subagent_context(tmp_path):
 # --------------------------------------------------------------------------- #
 # drive-continuation.sh (Stop)
 # --------------------------------------------------------------------------- #
-def _drive(transcript: Path, env: dict) -> str:
-    out, _ = _run(DRIVE_HOOK, {"hook_event_name": "Stop", "cwd": str(ROOT),
-                               "stop_hook_active": False, "transcript_path": str(transcript)}, env)
-    return "" if out is None else out.get("systemMessage", "")
+def _model_text(out: dict | None, event: str) -> str:
+    return model_context(out, event)
+
+
+def _user_text(out: dict | None) -> str:
+    """The text of an advisory meant for the USER only: a systemMessage, asserting it is not also
+    handed to the model (no additionalContext, which buys the model another turn) and never
+    blocks."""
+    assert out is not None, "expected an advisory"
+    assert "hookSpecificOutput" not in out, f"a user-only advisory reached the model: {out!r}"
+    assert "decision" not in out and out.get("continue") is not False, f"advisory blocked: {out!r}"
+    return out.get("systemMessage", "")
+
+
+def _drive(transcript: Path | None, env: dict, stop_hook_active: bool = False, **extra) -> str:
+    payload = {"hook_event_name": "Stop", "cwd": str(ROOT), "stop_hook_active": stop_hook_active,
+               **extra}
+    if transcript is not None:
+        payload["transcript_path"] = str(transcript)
+    out, _ = _run(DRIVE_HOOK, payload, env)
+    return _model_text(out, "Stop")
 
 
 def test_the_unfinished_run_reminder_is_said_once_per_run_state(tmp_path):
@@ -303,13 +332,92 @@ def test_the_unfinished_run_reminder_is_said_once_per_run_state(tmp_path):
     t = _write(tmp_path / "t.jsonl", drove)
     first = _drive(t, env)
     assert "'r1'" in first and "n1" in first
-    said = drove + [_system_message_attachment("Stop", first), _user("more")]
+    said = drove + [_context_attachment("Stop", first), _user("more")]
     _write(t, said)
     assert _drive(t, env) == "", "the same reminder was repeated at the next turn end"
     _run_record(isolate, run_id="r1", cursor="n2")     # this session's run-harness advances it
     _write(t, said + _acted_on(run, "Bash"))
     moved = _drive(t, env)
     assert "n2" in moved, f"a run that moved on must be reminded again: {moved!r}"
+
+
+def test_the_unfinished_run_reminder_reaches_the_model_and_names_the_record(tmp_path):
+    """The reminder is for the model that drives the run: it rides Stop additionalContext (a Stop
+    systemMessage never reaches the model, so the run never moved), names the record to read and
+    leaves the model free to stay stopped for a legitimate pause."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="r1")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    msg = _drive(_write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run)), env)
+    assert str(run) in msg and "run-harness" in msg, msg
+    assert "stay stopped" in msg, f"the model must keep the right to stop: {msg!r}"
+
+
+def test_a_run_that_moves_on_inside_a_hook_continued_turn_is_reminded_again(tmp_path):
+    """stop_hook_active is true on every stop of a turn the reminder already continued. The run
+    moving to another node there is still news - the drive goes node after node, not one node per
+    human prompt - while the same node is never reminded twice (no endless continuation)."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="r1")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    drove = [_user("go")] + _acted_on(run)
+    t = _write(tmp_path / "t.jsonl", drove)
+    first = _drive(t, env)
+    assert "n1" in first
+    said = drove + [_context_attachment("Stop", first)]
+    _write(t, said)
+    assert _drive(t, env, stop_hook_active=True) == "", "the same node was reminded twice"
+    _run_record(isolate, run_id="r1", cursor="n2")
+    _write(t, said + _acted_on(run))
+    moved = _drive(t, env, stop_hook_active=True)
+    assert "n2" in moved, f"a run that moved on inside a continued turn was not reminded: {moved!r}"
+
+
+def test_without_a_transcript_a_continued_stop_gets_no_second_reminder(tmp_path):
+    """No transcript means no record of what was already said. The reminder then falls back to
+    stop_hook_active, so the turn it continued is not continued again, and again."""
+    isolate = tmp_path / "isolate"
+    _run_record(isolate, run_id="only")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate))
+    assert "'only'" in _drive(None, env), "the first turn end must still be reminded"
+    assert _drive(None, env, stop_hook_active=True) == "", "a continued stop was reminded again"
+
+
+_ATTENDED = {"CLAUDE_CODE_ENTRYPOINT": "cli", "CLAUDE_CODE_SESSION_ATTENDED": "1"}
+_HEADLESS = {"CLAUDE_CODE_ENTRYPOINT": "sdk-cli", "CLAUDE_CODE_SESSION_ATTENDED": "0"}
+
+
+def _task(kind: str, status: str = "running") -> list[dict]:
+    return [{"id": "t1", "type": kind, "status": status, "description": "node n1"}]
+
+
+@pytest.mark.parametrize("surface", [_ATTENDED, _HEADLESS], ids=["attended", "headless"])
+def test_a_turn_end_that_waits_for_a_dispatched_agent_gets_no_reminder(tmp_path, surface):
+    """The main agent ends its turn to receive a dispatched agent's report: its completion wakes the
+    session on every surface, so the run is not abandoned and the model must not be told to advance
+    it while that node is still in flight. A finished task no longer mutes it."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="r1")
+    env = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate), **surface)
+    t = _write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run))
+    assert _drive(t, env, background_tasks=_task("subagent")) == "", "reminded mid-dispatch"
+    assert "'r1'" in _drive(t, env, background_tasks=_task("subagent", "completed"))
+
+
+def test_a_background_shell_mutes_the_reminder_only_where_it_wakes_the_session(tmp_path):
+    """An attended session is woken when a background shell finishes, so ending a turn on one is a
+    wait. A headless (`claude -p` / SDK) session is woken by nothing a shell does - and a shell that
+    never ends (a dev server, a Monitor watch) would otherwise silence the reminder for the whole
+    session, leaving the run NEEDS_NEXT."""
+    isolate = tmp_path / "isolate"
+    run = _run_record(isolate, run_id="r1")
+    t = _write(tmp_path / "t.jsonl", [_user("go")] + _acted_on(run))
+    attended = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate), **_ATTENDED)
+    assert _drive(t, attended, background_tasks=_task("shell")) == ""
+    headless = _env(tmp_path, ODOO_AI_WORKTREE_DIR=str(isolate), **_HEADLESS)
+    assert "'r1'" in _drive(t, headless, background_tasks=_task("shell")), (
+        "a background shell muted the reminder in a session it can never wake"
+    )
 
 
 def test_a_run_record_without_run_id_is_named_by_its_file(tmp_path):
@@ -477,16 +585,38 @@ def test_the_browser_advisory_is_said_once_per_finding(tmp_path):
     page = _tool_use("t1", "mcp__chrome-devtools__new_page", {"url": "http://x/odoo"})
     t = _write(tmp_path / "t.jsonl", [_user("look"), page, _tool_result("t1", "ok")])
     out, _ = _teardown("Stop", t, env)
-    first = out["systemMessage"]
+    first = _user_text(out)
     assert "new_page" in first
-    base = [_user("look"), page, _tool_result("t1", "ok"), _system_message_attachment("Stop", first)]
+    base = [_user("look"), page, _tool_result("t1", "ok"),
+            _system_message_attachment("Stop", first)]
     _write(t, base + [_user("next")])
     out, _ = _teardown("Stop", t, env)
     assert out is None, f"the same browser finding was repeated: {out!r}"
     page2 = _tool_use("t2", "mcp__chrome-devtools__new_page", {"url": "http://x/b"})
     _write(t, base + [page2, _tool_result("t2", "ok")])
     out, _ = _teardown("Stop", t, env)
-    assert out is not None and "2 new_page" in out["systemMessage"], out
+    assert "2 new_page" in _user_text(out), out
+
+
+def test_the_main_sessions_browser_advisory_is_for_the_user_only(tmp_path):
+    """The main session often leaves a page open on purpose for the user: the finding is a line on
+    the user's display (systemMessage), never handed to the model as a reason for another turn and
+    never a block."""
+    env = _env(tmp_path)
+    page = _tool_use("t1", "mcp__chrome-devtools__new_page", {"url": "http://x/odoo"})
+    t = _write(tmp_path / "t.jsonl", [_user("look"), page, _tool_result("t1", "ok")])
+    assert "new_page" in _user_text(_teardown("Stop", t, env)[0])
+
+
+def test_a_subagents_browser_advisory_reaches_it_with_what_its_caller_receives(tmp_path):
+    """Only the subagent that drove a page can still close it before its dispatch ends, so the
+    finding rides the channel it reads, and says that its caller receives the message its extra
+    turn ends on, in place of the report it stopped with."""
+    env = _env(tmp_path)
+    page = _tool_use("t1", "mcp__chrome-devtools__new_page", {"url": "http://x/odoo"})
+    t = _write(tmp_path / "t.jsonl", [_user("look"), page, _tool_result("t1", "ok")])
+    msg = _model_text(_teardown("SubagentStop", t, env)[0], "SubagentStop")
+    assert "new_page" in msg and "repeating your complete report" in msg, msg
 
 
 def _long_session(path: Path, calls: int) -> Path:
@@ -511,7 +641,8 @@ def test_teardown_finishes_well_inside_its_timeout_on_a_long_session(tmp_path, e
     t = _long_session(tmp_path / "t.jsonl", calls=6000)
     budget = _declared_timeout(event, "enforce-teardown.sh")
     out, elapsed = _teardown(event, t, env, timeout=budget * 10)
-    assert out is not None and "new_page" in out.get("systemMessage", ""), out
+    text = _user_text(out) if event == "Stop" else _model_text(out, event)
+    assert "new_page" in text, out
     assert elapsed < budget / 2, (
         f"enforce-teardown.sh took {elapsed:.1f}s on {event} with 6000 tool calls; hooks.json "
         f"gives it {budget:.0f}s, and it must finish well inside that")

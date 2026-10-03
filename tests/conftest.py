@@ -24,6 +24,12 @@ original helper implemented locally.
 This file intentionally contains the ONLY symlink-farm-building loop in the
 suite; every call site consumes it through `path_farm` / `farm_path` instead
 of re-implementing it.
+
+## Stop / SubagentStop hook output and transcript helpers
+
+`model_context` reads the text a Stop / SubagentStop hook hands the MODEL and
+`handback_records` builds a delivered SubagentHandback, so the hook test files
+share one reading of the channel contract instead of a copy each.
 """
 
 from __future__ import annotations
@@ -346,3 +352,62 @@ def _reap_processes_left_under_basetemp(tmp_path_factory: "pytest.TempPathFactor
             _kill_group(pgid)
         except (ProcessLookupError, PermissionError, OSError, ValueError):
             continue
+
+
+def model_context(out: dict | None, event: str) -> str:
+    """The text a Stop / SubagentStop hook's output hands the MODEL: hookSpecificOutput
+    .additionalContext for `event` - the one channel the stopping agent reads (it runs one more turn
+    with it). Asserts it neither blocks nor rides systemMessage, which reaches no model. "" when the
+    hook was silent."""
+    if out is None:
+        return ""
+    assert "systemMessage" not in out, f"a model-facing text rode systemMessage: {out!r}"
+    assert "decision" not in out and out.get("continue") is not False, f"advisory blocked: {out!r}"
+    hso = out.get("hookSpecificOutput") or {}
+    assert hso.get("hookEventName") == event, out
+    return hso.get("additionalContext", "")
+
+
+def handback_records(message: str, *, tid: str = "toolu_hb",
+                     outcome: dict | None = None, denied: bool = False) -> list[str]:
+    """A SubagentHandback call and the harness's answer as two transcript records: delivered (the
+    default), another outcome (e.g. refused as a second call), or denied by a PreToolUse hook (an
+    error tool_result - nothing was sent)."""
+    import json
+    outcome = outcome or {"success": True, "message": "Report delivered to your caller."}
+    call = {"type": "tool_use", "id": tid, "name": "SubagentHandback", "input": {"message": message}}
+    use = {"type": "assistant", "message": {"role": "assistant", "content": [call]}}
+    if denied:
+        block = {"type": "tool_result", "tool_use_id": tid, "is_error": True,
+                 "content": "PreToolUse:SubagentHandback hook error: denied"}
+        res = {"type": "user", "message": {"role": "user", "content": [block]}}
+    else:
+        block = {"type": "tool_result", "tool_use_id": tid,
+                 "content": [{"type": "text", "text": json.dumps(outcome)}]}
+        res = {"type": "user", "message": {"role": "user", "content": [block]},
+               "toolUseResult": outcome}
+    return [json.dumps(use), json.dumps(res)]
+
+
+def block_feedback_record(reason: str) -> str:
+    """How the harness records a Stop / SubagentStop block reason in the agent's own transcript: a
+    meta "Stop hook feedback:" user record (measured on Claude Code 2.1.288; a hook_blocking_error
+    attachment carries the same reason)."""
+    import json
+    return json.dumps({"type": "user", "isMeta": True,
+                       "message": {"role": "user", "content": "Stop hook feedback:\n" + reason}})
+
+
+def resume_record(text: str = "Take this up again and report.") -> str:
+    """How a caller's SendMessage resume of a stopped subagent lands in its own transcript: a meta
+    user string with origin kind `coordinator` (measured on Claude Code 2.1.288)."""
+    import json
+    return json.dumps({"type": "user", "isMeta": True, "origin": {"kind": "coordinator"},
+                       "message": {"role": "user", "content": "The coordinator sent a message "
+                                   "while you were working:\n" + text}})
+
+
+def brief_record(text: str = "Do the task and report.") -> str:
+    """A dispatched agent's first prompt, the record its first turn starts at."""
+    import json
+    return json.dumps({"type": "user", "message": {"role": "user", "content": text}})
