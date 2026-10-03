@@ -86,9 +86,8 @@ def test_hidden_and_overridden_entries_cost_what_claude_code_charges():
 
 def test_cli_debug_measurement_is_preferred_over_the_bundled_observation(tmp_path):
     cfg = tmp_path / "cfg"
-    (cfg / "debug").mkdir(parents=True)
-    (cfg / "debug" / "s.txt").write_text(
-        "noise\nSkill listing over budget: 74 skills, 13137 chars > 8000 budget - truncated\n")
+    cfg.mkdir()
+    _debug_log(cfg, tmp_path)
     r = sl.measure(cwd=str(tmp_path), config_dir=str(cfg), environ={})
     assert r["source"] == "cli-debug-log"
     assert r["listing_chars"] == 13137 and r["window_tokens"] == WINDOW
@@ -145,7 +144,9 @@ def test_step_overflow_is_proposed_and_written_only_with_consent(tmp_path):
     assert _run(cfg, proj, "check").returncode == 1
     proposal = _run(cfg, proj, "propose").stdout
     assert "ACTION=propose" in proposal and "QUESTION=" in proposal
-    assert "tokens of context per turn" in proposal, "the question must state the cost"
+    extra = int(proposal.split("EXTRA_TOKENS=")[1].split()[0])
+    assert extra > 0 and f"adding about {extra} tokens of context per turn" in proposal, (
+        "the question must state the added per-turn cost")
 
     no_consent = _run(cfg, proj, "apply")
     assert no_consent.returncode == 0 and "Not written" in no_consent.stdout
@@ -192,9 +193,97 @@ def test_step_refuses_a_corrupt_user_settings_file(tmp_path):
     cfg, proj = _fake_install(tmp_path, desc_chars=_ROOM + 4_000)
     (cfg / "settings.json").write_text("{not json")
     # A corrupt file also hides enabledPlugins, so force the overflow through the debug log.
-    (cfg / "debug").mkdir()
-    (cfg / "debug" / "s.txt").write_text(
-        "Skill listing over budget: 74 skills, 13137 chars > 8000 budget\n")
+    _debug_log(cfg, proj, mtime=__import__("time").time() + 60)
     r = _run(cfg, proj, "apply", "--yes")
     assert r.returncode == 2
     assert (cfg / "settings.json").read_text() == "{not json"
+
+
+# --------------------------------------------------------------------------- #
+# a CLI debug-log measurement is used only while it describes the current state
+# --------------------------------------------------------------------------- #
+def _debug_log(cfg, proj, chars=13_137, budget=8_000, name="s.txt", mtime=None, project=True):
+    """A CLI debug log as a session in `proj` writes it (the skills-loading line names the
+    project's skills dir) that logged an over-budget listing."""
+    (cfg / "debug").mkdir(exist_ok=True)
+    path = cfg / "debug" / name
+    lines = []
+    if project:
+        lines.append(f"Loading skills from: managed=/m, user={cfg}/skills, "
+                     f"project=[{proj}/.claude/skills]")
+    lines.append(f"Skill listing over budget: 74 skills, {chars} chars > {budget} budget - x")
+    path.write_text("\n".join(lines) + "\n")
+    if mtime is not None:
+        os.utime(path, (mtime, mtime))
+    return path
+
+
+def _age_inputs(cfg, seconds_ago=3_600):
+    """Make the settings and plugin record older than any log written afterwards."""
+    old = __import__("time").time() - seconds_ago
+    for p in (cfg / "settings.json", cfg / "plugins" / "installed_plugins.json"):
+        os.utime(p, (old, old))
+
+
+@requires_bash
+def test_step_rerun_after_a_raise_is_a_no_op(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    _age_inputs(cfg)
+    _debug_log(cfg, proj)
+    first = _run(cfg, proj, "propose").stdout
+    assert "ACTION=propose" in first and "SOURCE=cli-debug-log" in first
+    assert _run(cfg, proj, "apply", "--yes").returncode == 0
+    raised = _settings(cfg)["skillListingBudgetFraction"]
+    # No new session has run yet: the only over-budget line predates the raise.
+    again = _run(cfg, proj, "propose").stdout
+    assert "ACTION=fits" in again, again
+    assert _run(cfg, proj, "check").returncode == 0
+    _run(cfg, proj, "apply", "--yes")
+    assert _settings(cfg)["skillListingBudgetFraction"] == raised, "no ratchet on re-runs"
+
+
+@requires_bash
+def test_step_ignores_a_log_older_than_the_settings(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    old = __import__("time").time() - 3_600
+    _debug_log(cfg, proj, mtime=old)
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" not in out and "ACTION=fits" in out, out
+
+
+@requires_bash
+def test_step_ignores_a_log_written_before_a_plugin_update(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    old = __import__("time").time() - 3_600
+    os.utime(cfg / "settings.json", (old - 60, old - 60))
+    _debug_log(cfg, proj, mtime=old)
+    # installed_plugins.json is rewritten by the update, after the log.
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" not in out and "ACTION=fits" in out, out
+
+
+@requires_bash
+def test_step_ignores_a_log_from_another_project(tmp_path):
+    cfg, proj = _fake_install(tmp_path, desc_chars=200)
+    _age_inputs(cfg)
+    other = tmp_path / "other"
+    other.mkdir()
+    _debug_log(cfg, other)
+    out = _run(cfg, proj, "propose").stdout
+    assert "SOURCE=cli-debug-log" not in out and "ACTION=fits" in out, out
+
+
+def test_window_is_never_derived_from_a_budget_logged_under_another_fraction(tmp_path):
+    """A trusted log is newer than every settings file, so the fraction in force now is the one
+    it was logged under - but a log under the default fraction and a raised setting must not be
+    combined (the repro: 8000 / (4 * 0.02) = a 100k 'window')."""
+    cfg = tmp_path / "cfg"
+    (cfg / "plugins").mkdir(parents=True)
+    (cfg / "plugins" / "installed_plugins.json").write_text('{"version":2,"plugins":{}}')
+    (cfg / "settings.json").write_text(json.dumps({"skillListingBudgetFraction": 0.02}))
+    _age_inputs(cfg)
+    _debug_log(cfg, tmp_path, budget=8_000)
+    os.utime(cfg / "settings.json")  # the raise lands after the log
+    r = sl.measure(cwd=str(tmp_path), config_dir=str(cfg), environ={})
+    assert r["source"] != "cli-debug-log"
+    assert r["window_tokens"] == WINDOW

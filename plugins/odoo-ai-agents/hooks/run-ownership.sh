@@ -18,7 +18,9 @@
 # Accepted residuals: a write whose call names the record by neither its file name nor its run id
 # (a pure glob prefix such as `run-<slug>-*.json`) is not seen, so that run is not adopted until a
 # write that names it; and a call naming the record that is still running when ANOTHER session
-# writes the record adopts that write - two sessions writing one run within the same seconds.
+# writes the record adopts that write. A call names a run by its bare id too, so that window can be
+# a whole foreground dispatch whose brief names the id, not just seconds - it still takes two
+# sessions writing one run.
 #
 # THREE ANSWERS, never a guess: _session_owned_runs returns 0 with this session's runs (none is a
 # real answer: another session's run, or an old record no session here wrote); it returns 2 when it
