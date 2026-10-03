@@ -15,9 +15,10 @@ which is an outbound dispatch instruction, so it survived both until this guard 
 What the runtime actually provides, read out of the installed Claude Code binary rather than
 recalled:
 
-  - The tool grant for spawning is depth-filtered - `if (an(v,_t)) return agentDepth < uS()`, where
-    `uS()` resolves `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (env, else a remote-config value). So an
-    agent may not even hold the launch tool, and nothing in the prose can assume it does.
+  - The tool grant for spawning is depth-filtered - the launch tool survives only while the agent's
+    depth is below a cap that resolves `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (env, else a
+    remote-config value; counting and default: `tests/test_nesting_cap_ssot.py`). So an agent may
+    not even hold the launch tool, and nothing in the prose can assume it does.
   - There is no agent-to-agent handoff primitive at all. A subagent's base prompt says to "respond
     with a concise report ... the caller will relay this" - one implicit outbound channel, back to
     whoever launched it. The caller is never addressed, never named, and cannot be chosen.

@@ -65,7 +65,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
 │  context: fork subagents - carry hard-rules line, no spawner-  │
-│    skill dispatch (depth-cap-3; non-fork interior agents CAN    │
+│    skill dispatch (cap: §R0 move 1; non-fork interior agents CAN│
 │    spawn their own subagents - see §6 Skill delegation rule)    │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -78,8 +78,8 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 - **Fan-out worker constraint**: `context: fork` fan-out workers carry the hard-rules
   line and do NOT dispatch spawner skills or spawn further subagents. Non-fork interior
   agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents up to the
-  platform depth cap (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3 - the launch tool is
-  silently removed from the toolset at the cap). Dispatch capability is capability-branching,
+  platform depth cap (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; default and depth counting: §R0 move 1 -
+  the launch tool is silently removed from the toolset at the cap). Dispatch capability is capability-branching,
   SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0. Resources are
   platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
@@ -704,7 +704,7 @@ orchestrating context (main agent / run-harness / odoo-intake)
   └── dispatched-specialist (workflow skill / spawner-agent skill)
         └── leaf-worker (context: fork worker)                ← hard-rules line; no spawner-skill dispatch
         └── named interior agent (odoo-coder coordinator, odoo-code-reviewer, …)
-              └── may spawn its own subagents (depth cap 3, capability-branching - §R0)
+              └── may spawn its own subagents (platform depth cap, capability-branching - §R0)
                     └── odoo-coder is the NODE COORDINATOR (launched ONCE PER WORK
                         NODE, whatever module(s) it touches): per work-item it
                         launches odoo-backend-coder and/or odoo-frontend-coder
@@ -737,7 +737,7 @@ never dispatches a worker directly, never splits one node's dispatch module-by-m
 merges two nodes into one dispatch), `odoo-debug`,
 `odoo-solution-design`, `odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` /
 `odoo-qa-tester`). The `odoo-coder` coordinator is the sanctioned NESTED spawner (one AGENT
-level below `odoo-coding`, well under the depth cap - SSOT
+level below `odoo-coding`: depth 1, its workers depth 2, inside the depth cap - SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0); its `odoo-test-writer`,
 `odoo-backend-coder` and `odoo-frontend-coder` workers are HARD LEAVES that launch nothing.
 
@@ -813,7 +813,7 @@ level and breaks fan-out isolation - hence the mandatory hard-rules line. Named 
 (e.g. `odoo-coder`, `odoo-code-reviewer`) ARE allowed to dispatch further agents or use the Skill
 tool; dispatch capability is capability-branching (read your own toolset - SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` §R0), and the platform depth cap
-(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, default 3) is the hard guard. Commands dispatch via the
+(`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`; default and depth counting: §R0 move 1) is the hard guard. Commands dispatch via the
 Skill tool (canonical) or NL description-match (fallback) - either is correct at the command level.
 
 ### Context-Handoff Protocol (CHP)
