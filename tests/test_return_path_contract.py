@@ -405,6 +405,28 @@ def test_return_path_rule_declared_exactly_once_per_plugin():
     )
 
 
+@pytest.mark.parametrize(
+    "agent",
+    sorted((ODOO_PLUGIN / "agents").glob("*.md")) + sorted((GIT_TOOLKIT / "agents").glob("*.md")),
+    ids=lambda p: f"{p.parent.parent.name}/{p.stem}",
+)
+def test_every_agent_reaches_its_plugins_return_path_ssot(agent):
+    """How a dispatched agent ends its turn - the report handed back once, in a message of its own
+    after every other result is read - is declared once per plugin. An agent body that points at
+    none of its plugin's homes never learns it and finishes however the model guesses (a handback
+    bundled beside its last command, written before that command's result existed). Each agent
+    must cite one: git-toolkit agents the completion-reporting snippet, odoo-ai-agents agents the
+    R3 SSOT or the worker brief that defers to it."""
+    homes = (
+        (GIT_TOOLKIT_SSOT,) if agent.is_relative_to(GIT_TOOLKIT) else (R3_SSOT, WORKER_BRIEF)
+    )
+    text = agent.read_text(encoding="utf-8")
+    assert any(home.name in text for home in homes), (
+        f"{_rel(agent)} cites none of {[_rel(h) for h in homes]} - it is never told how to hand "
+        "its report back"
+    )
+
+
 def test_the_toolset_blind_return_rule_is_gone_tree_wide():
     """The old declaring sentence made the final text the ONLY delivery, whatever the toolset. With
     `SubagentHandback` present the harness delivers only the handback message, so an agent obeying
