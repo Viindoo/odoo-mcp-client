@@ -899,7 +899,7 @@ The harness turns a one-shot `/odoo-intake "<NL>"` into a self-advancing run: in
 Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
 for that mechanism. **It is additive** - every existing skill/agent/workflow keeps its current
 semantics; the only required change is appending a Continuation Contract block to each step's
-output (back-compat: a legacy `SUGGESTED_NEXT:` line is read as a low-confidence contract).
+output.
 
 **Load-bearing principle - NEVER hard-block the main agent.** No hook may `deny` a main-agent
 tool call or `block` a main-agent turn-end. The main agent is the top decision-maker alongside
@@ -978,10 +978,6 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 
 - **Parsing** reads the fence of the report the caller received - a delivered SubagentHandback
   message, else the final message - never a continuation block quoted in a tool_result/instruction.
-- **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
-  `next: [{skill, reason, confidence: 0.5}]` with `status: NEEDS_NEXT`, only while the fenced
-  block's `status` is EMPTY. This
-  lets the rollout be gradual - an un-migrated skill still drives at low confidence.
 - **Nesting safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
   run-harness's job. fanout leaf-workers emit contracts that bubble up to their
   dispatching orchestrator, never self-fire.

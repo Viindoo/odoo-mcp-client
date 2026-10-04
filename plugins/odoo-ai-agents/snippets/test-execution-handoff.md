@@ -66,7 +66,7 @@ green result and do NOT block outright. Emit a Continuation Contract
 (`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`) with `status: NEEDS_NEXT` routing to
 the `odoo-instance` skill - canonical shape in `odoo-test-writing` § Standalone-first fallback:
 
-```
+```continuation
 status: NEEDS_NEXT
 next:
   - skill: odoo-instance

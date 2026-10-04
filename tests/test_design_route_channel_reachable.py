@@ -1,34 +1,20 @@
-"""Guard: a design-first recommendation must ride a channel the driver actually READS.
+"""Guard: a next step must ride the one channel the driver reads - the fenced continuation block.
 
-## The contract's reachability rule (this file's whole basis)
+`snippets/continuation-contract.md` makes the fenced `continuation` block the only handoff
+`run-harness` reads: a status or a next step written anywhere else reaches no driver. A
+recommendation an emitter writes outside that block - a bare `SUGGESTED_NEXT:` line, or a `next:`
+hop placed below the block - is lost without a trace, while the skill name it carries makes any
+grep for the skill look satisfied.
 
-`snippets/continuation-contract.md` Rules, back-compat bullet: the driver reads a legacy
-`SUGGESTED_NEXT:` line ONLY while the fenced `continuation` block's own `status` is EMPTY. So the
-rule is:
-
-    a bare `SUGGESTED_NEXT:` line is REACHABLE  <=>  the emitter sets no `status`
-    a bare `SUGGESTED_NEXT:` line is DROPPED    <=>  the emitter sets a `status`
-
-Every skill/agent that appends a Continuation Contract sets a `status` (the four-value enum is
-mandatory in that snippet), so for those files the bare channel is unreachable BY CONSTRUCTION.
-Two design-routing sites were emitting on exactly that dead channel:
-
-* `skills/odoo-coding/SKILL.md` - "recommend `SUGGESTED_NEXT: odoo-solution-design` first" for
-  fable-grade work with no design doc, while its own block always emits `next: odoo-code-review`
-  plus a status.
-* `skills/odoo-data-migration/SKILL.md` - the Round-1 Design-gate, same spelling, same block.
-
-## Why this is not a grep for `next: odoo-solution-design`
-
-That assertion would have passed on the BROKEN `SUGGESTED_NEXT:` spelling too - the skill name is
-present either way. The blindness that let this survive was measuring presence instead of
-reachability. Every check below is therefore keyed on the CHANNEL: which spelling carries the hop,
-and whether the emitter sets a status that kills it.
+The design-first recommendation is the hop this matters most for: `odoo-coding` and
+`odoo-data-migration` both recommend `odoo-solution-design` from a body that also emits its own
+`next:` entry and a status. So every check below is keyed on the CHANNEL - is the hop an in-block
+`next:` entry - not on the presence of the skill name.
 
 A sibling guard, `test_design_precedes_planning.py`, owns the ORDER (design never after planning).
 This file owns the CHANNEL (the design hop is readable at all). The two interact: a reachable
 design hop is correct only on a standalone invocation, so
-`test_the_design_hop_is_suppressed_under_a_plan` asserts the suppression that keeps this fix from
+`test_the_design_hop_is_suppressed_under_a_plan` asserts the suppression that keeps this guard from
 undoing that one.
 """
 from __future__ import annotations
@@ -41,9 +27,7 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 
-CONTRACT = PLUGIN / "snippets" / "continuation-contract.md"
-
-#: The two design-routing emitters this fix covers. Each recommends `odoo-solution-design` from a
+#: The two design-routing emitters. Each recommends `odoo-solution-design` from a
 #: body that also appends a Continuation Contract (hence always sets a status).
 DESIGN_ROUTERS = {
     "odoo-coding": PLUGIN / "skills" / "odoo-coding" / "SKILL.md",
@@ -55,7 +39,7 @@ DESIGN_SKILL = "odoo-solution-design"
 _GENERATED = re.compile(
     r"<!-- BEGIN GENERATED TOOLS -->.*?<!-- END GENERATED TOOLS -->", re.DOTALL
 )
-_TEXT_EXTS = {".md", ".yaml", ".yml", ".json", ".sh"}
+_TEXT_EXTS = {".md", ".yaml", ".yml", ".json", ".sh", ".py", ".toml"}
 
 
 def _read(path: Path) -> str:
@@ -73,133 +57,30 @@ def _tree_texts():
             continue
         for path in sorted(plugin_dir.rglob("*")):
             if path.is_file() and path.suffix in _TEXT_EXTS:
-                yield path, _GENERATED.sub("", path.read_text(encoding="utf-8"))
+                yield path, path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
-# The dead-channel detector. Pure function of text, so the probes below run the
+# The off-channel detector. Pure function of text, so the probes below run the
 # SAME code as the real-tree sweep.
 # ---------------------------------------------------------------------------
 
-#: Talking ABOUT the legacy channel - documenting it, forbidding it, explaining that it drops - is
-#: not emitting on it. Without this the fix's own wording would report itself as the defect.
-_DISCLAIMED = re.compile(
-    r"(?i)do not emit a bare|never a bare|never as a bare|superseded|silently drop"
-    r"|back-?compat|legacy|nothing advances|never both channels|unreachable|never reach"
-    r"|cannot carry|reaches nobody|status.{0,30}is EMPTY|only while.{0,40}status"
-)
-
-def _routable_names() -> frozenset[str]:
-    """Every skill and agent name on disk, resolved from the tree (never hardcoded).
-
-    A `SUGGESTED_NEXT:` line is only a ROUTING payload when what follows it is a real dispatch
-    target. Keying on that (rather than "any lowercase word") is what stops the shape flagging the
-    contract's own sentence "a bare `SUGGESTED_NEXT:` line is silently dropped".
-    """
-    names: set[str] = set()
-    for plugin_dir in (ROOT / "plugins").iterdir():
-        if not plugin_dir.is_dir():
-            continue
-        skills = plugin_dir / "skills"
-        if skills.is_dir():
-            names.update(p.name for p in skills.iterdir() if (p / "SKILL.md").is_file())
-        agents = plugin_dir / "agents"
-        if agents.is_dir():
-            names.update(p.stem for p in agents.glob("*.md"))
-    return frozenset(names)
-
-
-ROUTABLE = _routable_names()
-_ROUTABLE_ALT = "|".join(sorted(map(re.escape, ROUTABLE), key=len, reverse=True))
-
-#: Each entry is (shape, regex, disclaimer_exempt). `disclaimer_exempt=False` means NO nearby
-#: prohibition can excuse the match: that shape is inherently a positive instruction, and the
-#: alternative - exempting it - is how an offender written next to the ban's own wording gets
-#: laundered (this is not hypothetical; mutation R6 slipped through exactly that way before the
-#: flag existed).
-DEAD_CHANNEL_SHAPES: tuple[tuple[str, re.Pattern[str], bool], ...] = (
-    # The original spelling: a bare `SUGGESTED_NEXT:` carrying a real dispatch target. NEVER
-    # disclaimer-exempt - naming an actual skill/agent after the legacy token is the emission
-    # itself, and no prohibition in the neighbourhood changes that. (The contract and the harness
-    # doc document the legacy form with a `<skill>` PLACEHOLDER, which is why they stay silent.)
-    ("bare-suggested-next-payload",
-     re.compile(rf"SUGGESTED_NEXT:\s*`?(?:{_ROUTABLE_ALT})\b"), False),
-    # An instruction verb pointed at the legacy channel.
-    ("instructed-to-emit-suggested-next",
-     re.compile(r"(?i)\b(?:recommend|emit|add|append|output|return|surface|write)\b[^.]{0,120}?"
-                r"`?SUGGESTED_NEXT"), True),
-    # The legacy channel offered as an equal alternative to the in-block form.
-    ("suggested-next-as-alternative",
-     re.compile(r"(?i)`?next`?\s*/\s*`?SUGGESTED_NEXT|`?SUGGESTED_NEXT`?\s*/\s*`?next`?"), True),
-    # A hop placed OUTSIDE the fenced block while a status is set - the same drop, spelled without
-    # the legacy token at all. Never disclaimer-exempt: there is no legitimate reason to describe
-    # putting a `next` hop outside the block the driver parses.
+#: Each entry is (shape, regex). No nearby wording excuses a match: the driver reads the fenced
+#: block only, so prose has no reason to name a line outside it at all.
+OFF_CHANNEL_SHAPES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    # A bare `SUGGESTED_NEXT:` line - a recommendation outside the block, in any wording.
+    ("bare-suggested-next-line", re.compile(r"SUGGESTED_NEXT")),
+    # A hop placed OUTSIDE the fenced block - the same loss, spelled without that token.
     ("hop-outside-the-fenced-block",
      re.compile(r"(?i)(?:outside|below|alongside|separate from) the fenced(?: `?continuation`?)?"
                 r" block[^.]{0,160}?\bnext\b"
-                r"|\bnext:[^.\n]{0,80}?\b(?:outside|not inside) the fenced"), False),
+                r"|\bnext:[^.\n]{0,80}?\b(?:outside|not inside) the fenced")),
 )
 
-#: A sentence ends at a period followed by whitespace OR by closing markdown emphasis/bracket
-#: (`.**`, `.)`, `.` + backtick). Without the markup characters a bold lead-in like
-#: `**... never a bare line.**` stays inside the window and its own prohibition launders the rest
-#: of the paragraph - mutation R6b slipped through exactly that way.
-_SENTENCE_BREAK = re.compile(r"\.[\s)*_`\"']|\n\s*\n")
 
-
-def _sentence_window(text: str, start: int, end: int) -> str:
-    """The SENTENCE containing the match, not a fixed character radius.
-
-    A fixed radius lets a prohibition three sentences away excuse a live instruction. The four
-    correctly-fixed agents all write their disclaimer in the SAME sentence as the token
-    ("... - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form"), so the
-    sentence is the right unit and it cannot be gamed by adjacency.
-    """
-    lo = 0
-    for m in _SENTENCE_BREAK.finditer(text, 0, start):
-        lo = m.end()
-    hi = len(text)
-    m = _SENTENCE_BREAK.search(text, end)
-    if m:
-        hi = m.end()
-    return text[lo:hi]
-
-
-def find_dead_channels(text: str) -> list[tuple[str, str]]:
-    """Every (shape, match) that ROUTES on a channel the driver drops."""
-    out: list[tuple[str, str]] = []
-    for name, rx, disclaimer_exempt in DEAD_CHANNEL_SHAPES:
-        for m in rx.finditer(text):
-            if disclaimer_exempt and _DISCLAIMED.search(_sentence_window(text, m.start(), m.end())):
-                continue
-            out.append((name, m.group(0)))
-    return out
-
-
-# ---------------------------------------------------------------------------
-# The reachability rule itself must stay true, or every check below is vacuous.
-# ---------------------------------------------------------------------------
-
-
-def test_the_back_compat_channel_is_still_gated_on_an_empty_status():
-    """Discovery floor: this whole guard is only meaningful while the contract keeps the gate.
-
-    If the contract ever lets the driver read `SUGGESTED_NEXT:` beside a status-setting block, the
-    bare spelling stops being a dead channel and these checks must be re-derived rather than
-    silently kept.
-    """
-    contract = _flat(_read(CONTRACT))
-    assert re.search(r"(?i)SUGGESTED_NEXT.{0,200}only while the fenced block's `status` is EMPTY",
-                     contract), (
-        "continuation-contract.md must keep stating that the driver reads a legacy "
-        "`SUGGESTED_NEXT:` line only while the fenced block's `status` is EMPTY. That gate IS the "
-        "reachability rule this file keys every assertion on - if it is gone, re-derive the guard "
-        "instead of leaving it asserting a rule that no longer holds."
-    )
-    assert re.search(r"(?i)silently dropped once the fenced block also sets a status", contract), (
-        "continuation-contract.md must keep stating the DROP consequence in plain words - it is the "
-        "rule every emitter has to apply."
-    )
+def find_off_channel(text: str) -> list[tuple[str, str]]:
+    """Every (shape, match) that puts a next step where the driver never reads it."""
+    return [(name, m.group(0)) for name, rx in OFF_CHANNEL_SHAPES for m in rx.finditer(text)]
 
 
 # ---------------------------------------------------------------------------
@@ -211,24 +92,21 @@ def test_the_back_compat_channel_is_still_gated_on_an_empty_status():
 def test_the_design_hop_rides_the_channel_the_driver_reads(name):
     """The design recommendation must be an IN-BLOCK `next:` entry, not the dropped bare line.
 
-    Behaviour protected: a design-first recommendation from a status-setting emitter actually
-    reaches its reader. Fails if the site reverts to `SUGGESTED_NEXT: odoo-solution-design`, or
-    names the design skill with no in-block entry to carry it.
+    Behaviour protected: a design-first recommendation actually reaches its reader. Fails if the
+    site moves the hop outside the fenced block, or names the design skill with no in-block entry
+    to carry it.
     """
     text = _read(DESIGN_ROUTERS[name])
     flat = _flat(text)
 
-    # This file sets a status (it appends a Continuation Contract), so the bare channel is dead.
     assert "snippets/continuation-contract.md" in flat, (
-        f"{name} must append a Continuation Contract - otherwise the reachability rule this test "
-        f"applies does not bind it and the test is asserting the wrong thing."
+        f"{name} must append a Continuation Contract - the block is the channel this test checks."
     )
 
-    # No live emission on the dead channel anywhere in the file.
-    offenders = find_dead_channels(text)
+    offenders = find_off_channel(text)
     assert not offenders, (
-        f"{name} still routes on the dropped `SUGGESTED_NEXT:` channel: {offenders}. Its own "
-        f"fenced block sets a `status`, so the driver never reads that line."
+        f"{name} puts a next step outside the fenced continuation block: {offenders}. The driver "
+        f"reads only the block, so that recommendation reaches nobody."
     )
 
     # And the design hop exists in the reachable form: a `skill: odoo-solution-design` entry.
@@ -283,23 +161,20 @@ def test_the_design_hop_is_suppressed_under_a_plan(name):
 # ---------------------------------------------------------------------------
 
 
-def test_no_design_route_anywhere_rides_the_dead_channel():
-    """Whole-tree sweep: no file may route on the dropped channel.
+def test_no_next_step_anywhere_rides_outside_the_block():
+    """Whole-tree sweep: no file may route a next step outside the fenced block.
 
-    Scope is both plugin trees and EVERY prose/config artifact in them - no pre-filter. The sweep
-    used to skip any file not mentioning `odoo-solution-design`, which made it blind to the same
-    dead-channel defect aimed at any other target (and to a file that reaches the design skill
-    through an alias or a variable). Widening it was measured first, with this file's own detector:
-    the unfiltered sweep reports ZERO offending sites, so the filter was buying nothing and costing
-    the whole rest of the corpus.
+    Scope is every plugin tree and EVERY prose/config/script artifact in them, generated regions
+    included - no pre-filter, so the same loss aimed at any other target (or reached through an
+    alias or a variable) is caught too.
     """
     offenders = []
     for path, text in _tree_texts():
-        for shape, hit in find_dead_channels(text):
+        for shape, hit in find_off_channel(text):
             line = text[: text.index(hit)].count("\n") + 1 if hit in text else 0
             offenders.append(f"{path.relative_to(ROOT)}:{line} [{shape}] {hit[:110]!r}")
     assert not offenders, (
-        "These sites route on a channel the driver drops once a status is set:\n  "
+        "These sites put a next step where the driver never reads it:\n  "
         + "\n  ".join(offenders)
     )
 
@@ -307,8 +182,7 @@ def test_no_design_route_anywhere_rides_the_dead_channel():
 def test_the_sweep_has_a_corpus():
     """Discovery floor - an empty corpus would make the sweep green for the wrong reason.
 
-    Two floors, because the sweep above is no longer filtered to design-routing files: the whole
-    corpus it now walks, and (still) the design-routing subset that motivated it.
+    Two floors: the whole corpus the sweep walks, and the design-routing subset within it.
     """
     corpus = [p for p, _ in _tree_texts()]
     assert len(corpus) >= 200, (
@@ -329,75 +203,38 @@ MUST_CATCH = [
     pytest.param(
         "If the work is fable-grade but NO approved design doc exists, recommend "
         "`SUGGESTED_NEXT: odoo-solution-design` first (Custom-XL work is design-first).",
-        id="the-original-odoo-coding-spelling",
+        id="bare-line-naming-the-design-skill",
     ),
     pytest.param(
-        "recommend `odoo-solution-design` first (`SUGGESTED_NEXT: odoo-solution-design`).",
-        id="the-original-data-migration-spelling",
-    ),
-    pytest.param(
-        "Set `status: DONE`, then add a SUGGESTED_NEXT: odoo-solution-design line under the block.",
-        id="status-set-plus-bare-line",
-    ),
-    pytest.param(
-        "Append `SUGGESTED_NEXT: odoo-solution-design (reason=needs a design, target=sale)`.",
-        id="legacy-full-payload-form",
-    ),
-    pytest.param(
-        "emit `next`/`SUGGESTED_NEXT` naming odoo-solution-design and let the driver advance",
-        id="offered-as-an-equal-alternative",
+        "Set `status: DONE`, then add a SUGGESTED_NEXT: odoo-solution-architect line below.",
+        id="bare-line-beside-a-status",
     ),
     pytest.param(
         "Set status: NEEDS_NEXT in the block, and put the next: odoo-solution-design hop "
         "outside the fenced continuation block so a human sees it.",
         id="hop-outside-the-fenced-block",
     ),
-    pytest.param(
-        "Surface SUGGESTED_NEXT: odoo-solution-architect when the inheritance axis is undecided.",
-        id="same-defect-pointed-at-the-agent",
-    ),
 ]
 
 
 @pytest.mark.parametrize("sample", MUST_CATCH)
-def test_detector_catches_every_dead_channel_shape(sample):
-    assert find_dead_channels(sample), (
-        f"the dead-channel detector must catch {sample!r} - a guard keyed on the skill NAME rather "
+def test_detector_catches_every_off_channel_shape(sample):
+    assert find_off_channel(sample), (
+        f"the off-channel detector must catch {sample!r} - a guard keyed on the skill NAME rather "
         f"than the CHANNEL passes on every one of these"
     )
 
 
 MUST_NOT_CATCH = [
     pytest.param(
-        "surface `odoo-solution-design` first as an in-block `next:` entry per § Continuation "
-        "Contract below - NEVER as a bare `SUGGESTED_NEXT:` line, which this skill's own `status` "
-        "silently drops.",
-        id="the-fix-itself",
-    ),
-    pytest.param(
         "add a SECOND entry to the SAME fenced block's `next:` array: `skill: "
         "odoo-solution-design`, `reason: Custom-XL work is design-first`, `confidence: 0.4`.",
         id="the-in-block-entry",
     ),
     pytest.param(
-        "add a `next:` entry naming `odoo-solution-design` to your Continuation Contract block - "
-        "do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form.",
-        id="the-four-superseded-agents",
-    ),
-    pytest.param(
-        "Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=..., target=...)` line is still "
-        "read by the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block.",
-        id="the-contract-documenting-back-compat",
-    ),
-    pytest.param(
-        "The Skill tool is available here - MUST use it; do not stop at a `SUGGESTED_NEXT` line "
-        "that nothing advances, when the design is what is missing.",
-        id="warning-that-the-line-advances-nothing",
-    ),
-    pytest.param(
-        'if [[ -z "$STATUS" ]] && grep -qiE \'^[[:space:]]*SUGGESTED_NEXT:\'; then '
-        'STATUS="NEEDS_NEXT"; fi  # back-compat for odoo-solution-design hops',
-        id="the-parser-implementation",
+        "add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block "
+        "(see `## Continuation Contract` below).",
+        id="an-agent-follow-up-in-the-block",
     ),
     pytest.param(
         "emit `next: odoo-solution-design` with `inputs: {design_doc: <path>}` inside the fenced "
@@ -408,10 +245,59 @@ MUST_NOT_CATCH = [
 
 
 @pytest.mark.parametrize("sample", MUST_NOT_CATCH)
-def test_detector_leaves_reachable_and_documenting_prose_alone(sample):
-    hits = find_dead_channels(sample)
+def test_detector_leaves_in_block_hops_alone(sample):
+    hits = find_off_channel(sample)
     assert not hits, (
-        f"the dead-channel detector must NOT catch {sample!r} (matched {hits!r}) - firing on the "
-        f"fix's own wording, on the contract's own documentation, or on the parser that implements "
-        f"the rule makes the guard impossible to keep green honestly"
+        f"the off-channel detector must NOT catch {sample!r} (matched {hits!r}) - an in-block hop "
+        f"is the channel the driver reads"
     )
+
+
+# ---------------------------------------------------------------------------
+# A status shown in a template sits in the continuation block, the one place the driver reads it.
+# ---------------------------------------------------------------------------
+
+_FENCE_LINE = re.compile(r"^\s*(`{3,}|~{3,})\s*(\S*)")
+_STATUS_LINE = re.compile(r"^\s*(?:[-*]\s+)?`?status`?\s*:\s*`?(?:DONE|NEEDS_NEXT|BLOCKED|NEEDS_CONTEXT)\b")
+
+
+def find_status_outside_block(text: str) -> list[str]:
+    """Each fenced `status:` line carrying a continuation status that no `continuation` fence
+    encloses - a template that teaches an agent to report its status where no driver reads it."""
+    out, stack = [], []
+    for n, line in enumerate(text.splitlines(), 1):
+        m = _FENCE_LINE.match(line)
+        if m:
+            mark, info = m.group(1), m.group(2)
+            if stack and not info and mark[0] == stack[-1][0][0] and len(mark) >= len(stack[-1][0]):
+                stack.pop()
+            else:
+                stack.append((mark, info))
+            continue
+        if stack and _STATUS_LINE.match(line) and not any(i == "continuation" for _, i in stack):
+            out.append(f"{n}: {line.strip()[:100]}")
+    return out
+
+
+def test_no_template_reports_a_status_outside_the_continuation_block():
+    offenders = []
+    for path in sorted(PLUGIN.rglob("*")):
+        if path.is_file() and path.suffix in {".md", ".yaml", ".yml"}:
+            offenders += [f"{path.relative_to(ROOT)}:{hit}"
+                          for hit in find_status_outside_block(path.read_text(encoding="utf-8"))]
+    assert not offenders, (
+        "These templates put a continuation status outside a ```continuation block:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+@pytest.mark.parametrize("sample, caught", [
+    pytest.param("```\nodoo-x result\nstatus: BLOCKED - input missing\n```", True, id="plain-fence"),
+    pytest.param("```yaml\nstatus: NEEDS_NEXT\nnext: odoo-planning\n```", True, id="yaml-fence"),
+    pytest.param("```continuation\nstatus: BLOCKED\nblocked_reason: x\n```", False, id="in-block"),
+    pytest.param("````\nodoo-x result\n\n```continuation\nstatus: NEEDS_CONTEXT(SLUG)\n```\n````",
+                 False, id="nested-in-a-display-fence"),
+    pytest.param("Emit `status: BLOCKED` with a `blocked_reason`.", False, id="prose"),
+])
+def test_the_status_detector_reads_fences(sample, caught):
+    assert bool(find_status_outside_block(sample)) is caught, sample

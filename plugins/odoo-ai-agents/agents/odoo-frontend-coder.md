@@ -139,7 +139,7 @@ The classic failure: a "shim" custom property whose value references itself - a 
 
 **Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · registration in `<descriptor>` (Round 0 step 8 - this workflow spans v8-v14, so the module's descriptor is `__openerp__.py` on v8.0/v9.0 and `__manifest__.py` from v10.0; edit the one it has, create neither): the manifest `assets` dict key does NOT exist before v15 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §Asset bundles) - for v8-v14 register via the `qweb` list key (template files) plus a bundle-XML `<template inherit_id="web.assets_backend">` in views (JS/CSS files).
 
-**Round 5 - suggest visual verification (forward-wiring).** After presenting, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form; do NOT invoke any skill yourself. The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (console error), or `odoo-visual-regression` (before/after diff) - do not phrase this as advice to a human reader.
+**Round 5 - suggest visual verification (forward-wiring).** After presenting, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below); do NOT invoke any skill yourself. The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (console error), or `odoo-visual-regression` (before/after diff) - do not phrase this as advice to a human reader.
 
 ---
 

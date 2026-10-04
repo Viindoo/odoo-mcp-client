@@ -163,6 +163,19 @@ def test_clean_stop_accepts_every_terminal_status(tmp_path, status):
     assert not _counter_file(home).exists(), f"status={status} is terminal - must not be counted"
 
 
+@pytest.mark.parametrize("status", ["NEEDS_CONTEXT(SLUG)", "`BLOCKED`", "NEEDS_CONTEXT(docutils)"])
+def test_a_terminal_status_with_a_qualifier_or_markup_is_not_a_strand(tmp_path, status):
+    """Agents are told to return `NEEDS_CONTEXT(<field>)`; that is the terminal NEEDS_CONTEXT, so
+    counting it as a strand would report honest refusals as stranded dispatches."""
+    home = tmp_path / "home"
+    transcript = _write_transcript(tmp_path, [_assistant(_text(_continuation(status)))])
+
+    proc = _run_hook(_env(home), transcript)
+
+    assert proc.returncode == 0
+    assert not _counter_file(home).exists(), f"status={status} is terminal - must not be counted"
+
+
 # --------------------------------------------------------------------------- #
 # S1 - strand: final assistant turn carries no terminal status
 # --------------------------------------------------------------------------- #

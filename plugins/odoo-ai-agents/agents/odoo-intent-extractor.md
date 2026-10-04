@@ -48,11 +48,17 @@ Read(file_path=<commit_dump_paths[sha]>)       # module-bundle shape, once per s
 
 **If NEITHER `commit_dump_path` NOR `commit_dump_paths` is present in the dispatch brief, stop immediately and return:**
 
-```
+````
 sha: <sha, or the module name when no single sha applies>
 grounded: ungrounded
-status: BLOCKED - neither commit_dump_path nor commit_dump_paths provided in brief; the orchestrator invokes the git-toolkit:git-ops skill to write the commit dump(s) and pass the absolute path(s) before dispatching this agent.
+
+```continuation
+status: BLOCKED
+produced: []
+next: []
+blocked_reason: neither commit_dump_path nor commit_dump_paths provided in brief; the orchestrator invokes the git-toolkit:git-ops skill to write the commit dump(s) and pass the absolute path(s) before dispatching this agent.
 ```
+````
 
 Do not run any git subcommand (show, log, format-patch, or similar) to compensate - the orchestrator must supply the dump(s) before dispatch. This agent is git-free.
 
@@ -91,15 +97,21 @@ no way to know which dispatch shape the caller used, so a derived value is not a
 `SLUG` is absent from the brief in rebase mode: STOP immediately, per this agent's own Brief
 self-check pattern for a load-bearing field with no safe default, and return
 
-```
+````
 sha: <sha>
 grounded: ungrounded
-status: NEEDS_CONTEXT(SLUG) - rebase mode requires a concrete SLUG (the bare run slug for a
+
+```continuation
+status: NEEDS_CONTEXT(SLUG)
+produced: []
+next: []
+blocked_reason: rebase mode requires a concrete SLUG (the bare run slug for a
   per-commit dispatch, or <run-slug>/<module> for a module-batched dispatch) in the dispatch
   brief; the caller must set it before re-dispatching. Do NOT derive one - a derived slug cannot
   know which dispatch shape the caller used and may reopen the shared-commit intents/<sha>.md
   write race.
 ```
+````
 
 Do NOT write any intent record until a `SLUG` is supplied.
 
@@ -205,13 +217,19 @@ mode's own identical no-fallback SLUG requirement is § Rebase mode above, not t
 STOP immediately, per this agent's own Brief self-check pattern for a load-bearing field with no
 safe default, and return
 
-```
+````
 sha: <the module name - no single sha applies to the whole bundle>
 grounded: ungrounded
-status: NEEDS_CONTEXT(SLUG) - forward-port mode requires a per-module SLUG (<run-slug>/<module>) in
+
+```continuation
+status: NEEDS_CONTEXT(SLUG)
+produced: []
+next: []
+blocked_reason: forward-port mode requires a per-module SLUG (<run-slug>/<module>) in
   the dispatch brief; the caller must set it before re-dispatching. Do NOT derive one - a derived,
   non-module-scoped slug would reopen the shared-commit intents/<sha>.md write race.
 ```
+````
 
 Do NOT write any intent record and do NOT proceed to Step 3's write for ANY commit in the bundle
 until a correctly-shaped `SLUG` is supplied. Write the records in commit order (oldest

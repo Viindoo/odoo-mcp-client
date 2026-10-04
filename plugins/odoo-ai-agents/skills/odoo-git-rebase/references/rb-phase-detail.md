@@ -322,8 +322,11 @@ commit in `recon.md`, delegate a read-only existence + non-empty check on
 `<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md` (invoke git-ops or Explore - never read
 inline). If ANY non-(a) commit's canonical record is missing or empty, STOP and return:
 
-```
-status: BLOCKED - <N> non-(a) commit(s) missing a canonical intents/<sha>.md record: [<sha, ...>].
+```continuation
+status: BLOCKED
+produced: []
+next: []
+blocked_reason: <N> non-(a) commit(s) missing a canonical intents/<sha>.md record: [<sha, ...>].
   Re-run the P2 consolidation fan-in for these commits (idempotent - safe to redo even if a
   prior partial copy already landed) before retrying P3.
 ```

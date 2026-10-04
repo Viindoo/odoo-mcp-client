@@ -42,13 +42,19 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Step 1 - Read the diff range
 
-**Guard: absent `diff_path` (rebase modes only).** Before any Read call, check that `diff_path` is present in the dispatch brief. If it is absent:
+**Guard: absent `diff_path` (rebase modes only).** Before any Read call, check that `diff_path` is present in the dispatch brief. If it is absent, return the result header and its Continuation Contract block:
 
-```
+````
 odoo-diff-comparator result
 mode: <rebase | rebase-verify>
-status: BLOCKED - diff_path not provided in brief; the orchestrator invokes the git-toolkit:git-ops skill to write the diff/range-diff file and pass its absolute path as diff_path before dispatching this agent.
+
+```continuation
+status: BLOCKED
+produced: []
+next: []
+blocked_reason: diff_path not provided in brief; the orchestrator invokes the git-toolkit:git-ops skill to write the diff/range-diff file and pass its absolute path as diff_path before dispatching this agent.
 ```
+````
 
 Return immediately. Do not run any git subcommand (diff, range-diff, or similar) to compensate - the orchestrator must supply the dump before dispatch. This agent is git-free.
 

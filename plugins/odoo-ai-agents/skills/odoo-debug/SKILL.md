@@ -223,7 +223,7 @@ or primary + contributing per the multi-layer merge above), exact fix location, 
 test (authored by odoo-test-writer via odoo-coding after the fix).
 
 **Then drive the fix autonomously (mandatory).** The Skill tool is available here
-- MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause
+- MUST use it; do not stop at a recommendation that nothing advances. When the root cause
 needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven
 root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
 (debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
