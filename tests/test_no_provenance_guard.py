@@ -8,7 +8,7 @@ the SAME vocabulary reads two ways, and only one of them is residue:
   OPERATIVE  tells the agent what to DO about something     -> deleting it BREAKS a live consumer
              that still exists in the wild
 
-`the legacy single-module path` (residue) and `a legacy `SUGGESTED_NEXT:` line is still read by
+`the legacy single-module path` (residue) and `a legacy `NEXT_HINT:` line is still read by
 the driver` (operative) differ by intent, not by grammar, so the rule approximates the cut with
 window-scoped guards: a DOMAIN anchor (Odoo version / era / the prospect's incumbent system / the
 codebase under work), a legacy era the document itself DEFINES in a heading, a quoted example, and
@@ -64,7 +64,7 @@ RESIDUE_CASES = {
     "changelog_replaces": "Replaces `find_override_point` in the disk-fallback tier.",
     "design_tag": "Apply the ledger rule (V-34) before dispatching any worker.",
     "issue_reference": "Rationale lives in PR #123; do not re-litigate it here.",
-    "rename_note": "The contract block was renamed from `SUGGESTED_NEXT` earlier in this file.",
+    "rename_note": "The contract block was renamed from `NEXT_HINT` earlier in this file.",
     # Guard 3 is offered ONLY to vocabulary that can name a still-live old shape. A pure
     # provenance tag can never BE an operative instruction, so back-compat wording beside it
     # must not launder it - otherwise one stray `Back-compat:` disarms the whole rule.
@@ -87,9 +87,9 @@ def test_plugin_self_history_is_flagged(body, tmp_path, monkeypatch):
 GUARD_CASES = {
     # Guard 3 - explicit back-compat label + a verb applied to the old shape.
     "operative_backcompat_label": (
-        "Back-compat: a legacy `SUGGESTED_NEXT:` line is still read by the driver as a "
+        "Back-compat: a legacy `NEXT_HINT:` line is still read by the driver as a "
         "low-confidence NEEDS_NEXT.",
-        "A legacy `SUGGESTED_NEXT:` line is handed to the driver.",
+        "A legacy `NEXT_HINT:` line is handed to the driver.",
     ),
     # Guard 3 - `fallback` as the head of a noun phrase, the shape the allocator docs use.
     "operative_fallback": (

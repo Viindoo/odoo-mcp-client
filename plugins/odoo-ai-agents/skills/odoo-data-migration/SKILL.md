@@ -90,8 +90,7 @@ into every later state-root Read/Write/Edit - never the placeholder or a bare `.
 > than one viable mapping, or a migration where the pre/post split is itself a real decision is a
 > DESIGN choice. When no approved design doc exists (`<SHARE_DIR>/designs/<slug>-*.md` or a
 > `design_doc` input), recommend `odoo-solution-design` first as an **in-block `next:` entry**
-> (§ Continuation Contract below) - NEVER a bare `SUGGESTED_NEXT:` line, which this skill's own
-> `status` silently drops.
+> (§ Continuation Contract below).
 > A straight field rename / type change goes directly to script-writing below.
 >
 > **Master-child mode (index-aware):** If the design lives in a master-child subdir, resolve
@@ -162,16 +161,13 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/examples.md` fo
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (status / produced / next) - additive run-harness output, changes nothing above.
 
-**Design-first entry (STANDALONE invocations only - an in-block entry, never a bare line).** When
+**Design-first entry (STANDALONE invocations only - an in-block entry).** When
 Round 1's Design-gate fired (a non-trivial migration with no approved design doc), carry that
 recommendation as an entry in the SAME fenced block's `next:` array: `skill:
 odoo-solution-design`, `reason: <which of the three design choices is open>`, `inputs:
 {odoo_version: <the resolved version>, module: <module>}`, `confidence: 0.4` - advisory, so it never
 blocks your own `status`. `next:` is a LIST, so this rides alongside any other entry
-(`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules). A bare `SUGGESTED_NEXT:` line
-CANNOT carry it: the driver reads that line only while the fenced block's `status` is EMPTY, and
-this block always sets one - so the bare form is silently dropped and the design-gate finding
-reaches nobody. Never emit both channels.
+(`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` Rules).
 
 **Omit this entry entirely when a plan signal is in scope** - an active `run-<id>`, a
 `WORKTREE_PATH`, or plan-provided `inputs` (the three signals in

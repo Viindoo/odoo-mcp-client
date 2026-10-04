@@ -177,7 +177,7 @@ separate gate. On `approve-all`, write `status: approved` for all modules in `in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); `child_path` under `design_docs` MUST
 be the full absolute path (not relative to subdir):
 
-```yaml
+```continuation
 status: NEEDS_NEXT
 next: <return_to or odoo-planning>
 inputs:

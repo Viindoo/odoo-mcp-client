@@ -12,13 +12,3 @@ alongside a now-retired transport rule - a driftable copy of the same content. T
 declaring SSOT for the shape, and the shape is unconditional. How the report travels is not part of
 the shape: it has exactly one home, spawner-completion-contract.md R3, so the shape and the
 transport can change independently without either copy drifting.
-
-## Why the `SUGGESTED_NEXT:` back-compat superseding matters
-
-Before the fix, four agents (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`,
-`odoo-instance-ops`) emitted a bare `SUGGESTED_NEXT:` line for a conditional follow-up (a
-UI-review suggestion, a code-agent handoff) ALONGSIDE the fenced `continuation` block. Because the
-driver reads `SUGGESTED_NEXT` only while the fenced block's own `status` is empty, the suggestion
-was silently dropped every time - the fenced block always set a status, so the bare line never
-actually reached the driver. Moving the suggestion into the fenced
-block's `next:` array closed that silent drop.

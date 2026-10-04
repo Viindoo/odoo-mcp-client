@@ -184,7 +184,7 @@ design -> planning -> code, so the default `next:` is `odoo-planning` (the plann
 `index.yaml` `dag_layers` and batches the modules into nodes before any code is written). When the skill
 was invoked with `return_to` set, it emits `next: <return_to>` instead and hands back to the caller:
 
-```yaml
+```continuation
 status: NEEDS_NEXT
 next: odoo-planning
 inputs:

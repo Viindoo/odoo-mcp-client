@@ -68,9 +68,11 @@ UNRESOLVED_COUNT="$(_final_turn_unresolved_count "$TRANSCRIPT")"
 
 # S1 - the LAST closed ```continuation block of the REPORT the caller received (a delivered
 # SubagentHandback message, else the final turn's text) must carry a terminal status. Absent
-# block, or a status outside the four terminal values, both count as S1.
+# block, or a status outside the four terminal values, both count as S1. The status is compared by
+# its key (final-report.sh _continuation_status_key), so `NEEDS_CONTEXT(<field>)` or a backticked
+# value is the terminal status it spells, as the teardown gates read it.
 FINAL_TEXT="$(_final_report_text "$TRANSCRIPT" "$(_hook_last_message "$INPUT")")"
-STATUS="$(_continuation_status "$(_continuation_block "$FINAL_TEXT")")"
+STATUS="$(_continuation_status_key "$(_continuation_status "$(_continuation_block "$FINAL_TEXT")")")"
 
 S1=0
 case "$STATUS" in

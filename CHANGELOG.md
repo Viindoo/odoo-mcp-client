@@ -55,12 +55,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `additionalContext`, a field the harness does not read from a `PermissionDenied` hook. The advice
   is now a line for the user only; the dispatch gets it in the reason of the teardown gates, which
   fire while the lease is still live.
+- `odoo-ai-agents` - the strand telemetry of `report-terminal-status` compared the continuation
+  block's raw status, so a `NEEDS_CONTEXT(<field>)` refusal or a backticked status was logged as a
+  stranded dispatch. It now compares the status by its key, as the teardown gates do.
 
 ### Removed
 
 - `odoo-ai-agents` - the `parse-continuation` SubagentStop hook. Its run-continuation notice was a
   `systemMessage`, which reaches no model, and nothing a SubagentStop hook emits reaches the parent
   model; the caller reads `NEEDS_NEXT` from the continuation block of the subagent's report.
+- `odoo-ai-agents` - the legacy bare `SUGGESTED_NEXT:` line. The fenced `continuation` block is the
+  one channel the driver reads: no skill, agent or contract emits, documents or reads the bare
+  line any more, and a status or next step written outside the block reaches no driver. The
+  templates that showed a status outside the block - the early refusals of the diff comparator,
+  the intent extractor and the git-rebase P3 gate, the feature cataloger's result block, and
+  continuation shapes fenced as `yaml` - now show it inside a `continuation` block.
 
 ## [7.4.1] - 2026-10-03
 

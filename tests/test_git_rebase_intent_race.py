@@ -277,8 +277,10 @@ class TestRebaseSlugMandatoryNoFallback:
             "forward-port mode's own SLUG-required statement must remain exactly as "
             "established - this fix only extends the same pattern to rebase mode"
         )
-        assert "NEEDS_CONTEXT(SLUG) - forward-port mode requires a per-module SLUG" in self.text, (
-            "forward-port mode's own NEEDS_CONTEXT(SLUG) refusal must remain unchanged"
+        assert ("status: NEEDS_CONTEXT(SLUG)" in self.text
+                and "blocked_reason: forward-port mode requires a per-module SLUG" in self.text), (
+            "forward-port mode's own NEEDS_CONTEXT(SLUG) refusal must remain, in its "
+            "continuation block"
         )
         # The forward-port paragraph's cross-reference to rebase mode must be corrected
         # (rebase mode no longer "has its own slug derivation rule" - it has its own
