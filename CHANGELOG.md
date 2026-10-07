@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **hooks that add permissions at the same time no longer break the Claude
+  settings file.** At session start the browser and state-root permission hooks both add rules to
+  `settings.json` when they are missing, and Claude Code runs them in parallel. Each rewrote the
+  file in place with no lock, so one could drop the other's rules or leave invalid JSON (a stray `}`
+  at the end); Claude Code then loaded every plugin disabled. This hit every fresh cloud session,
+  which starts without those rules. The settings writers (`config_merge.py` `json-merge`,
+  `json-ensure-allow`, `json-prune-allow`, `mcp-server-set`, and the skill-listing budget step)
+  now take an exclusive lock for the read-modify-write and publish the file atomically.
+
 ## [7.4.2] - 2026-10-04
 
 ### Fixed

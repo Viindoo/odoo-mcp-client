@@ -42,6 +42,11 @@ import shutil
 import sys
 import time
 
+_LIB_DIR = os.path.dirname(os.path.abspath(__file__))
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
+from config_merge import locked_target  # noqa: E402  (sibling lib; one lock for settings writers)
+
 # Claude Code's defaults (see the module docstring).
 DEFAULT_FRACTION = 0.01
 CHARS_PER_TOKEN = 4
@@ -414,6 +419,11 @@ def measure(window_tokens=None, cwd=None, config_dir=None, environ=None):
 # --------------------------------------------------------------------------- #
 def set_fraction(settings_path, fraction):
     """Set skillListingBudgetFraction in one settings file. Exit codes: 0 ok, 2 refused."""
+    with locked_target(settings_path):
+        return _set_fraction_locked(settings_path, fraction)
+
+
+def _set_fraction_locked(settings_path, fraction):
     data = {}
     if os.path.exists(settings_path):
         data = _read_json(settings_path)

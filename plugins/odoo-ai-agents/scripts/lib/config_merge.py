@@ -118,12 +118,18 @@ Usage examples:
 # (3.8/3.9 hosts run the JSON-only setup steps through this file too).
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
 import shutil
 import sys
 import time
+
+try:
+    import fcntl
+except ImportError:  # no flock on this platform
+    fcntl = None
 
 
 # ---------------------------------------------------------------------------
@@ -201,11 +207,33 @@ def _load_json_target(path: str) -> dict:
 
 
 def _write_json(path: str, data: dict) -> None:
-    """Write data as indented JSON, ensuring a trailing newline."""
+    """Publish data as indented JSON with a trailing newline, atomically: a reader
+    never sees a half-written file."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2)
-        fh.write("\n")
+    _atomic_replace(path, json.dumps(data, indent=2) + "\n")
+
+
+@contextlib.contextmanager
+def locked_target(path: str):
+    """Hold an exclusive lock for one read-modify-write of `path`.
+
+    Several hooks edit the same Claude settings file at the same time; without
+    a lock two of them read the same content and the later write drops the
+    other's change. The lock is taken on the directory holding the real file,
+    because each write replaces the file itself and a lock on the old file would
+    no longer guard the new one. Where flock is unavailable this is a no-op."""
+    if fcntl is None:
+        yield
+        return
+    directory = os.path.dirname(os.path.realpath(path))
+    os.makedirs(directory, exist_ok=True)
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 # ---------------------------------------------------------------------------
@@ -1203,6 +1231,15 @@ def cmd_mcp_server_set(args: list[str]) -> int:
 # Entry point / dispatch
 # ---------------------------------------------------------------------------
 
+# Subcommands that read, modify and write back a target file, with the position
+# of that target in their arguments: each one runs under locked_target().
+LOCKED_TARGET_ARG = {
+    "json-merge": 0,
+    "json-ensure-allow": 0,
+    "json-prune-allow": 0,
+    "mcp-server-set": 1,
+}
+
 SUBCOMMANDS = {
     "json-merge": cmd_json_merge,
     "toml-ensure-table": cmd_toml_ensure_table,
@@ -1228,7 +1265,12 @@ def main() -> int:
         print(f"Unknown subcommand: {sub!r}. Choose from: {', '.join(SUBCOMMANDS)}", file=sys.stderr)
         return 1
 
-    return SUBCOMMANDS[sub](argv[1:])
+    args = argv[1:]
+    pos = LOCKED_TARGET_ARG.get(sub)
+    if pos is not None and len(args) > pos and not args[pos].startswith("-"):
+        with locked_target(args[pos]):
+            return SUBCOMMANDS[sub](args)
+    return SUBCOMMANDS[sub](args)
 
 
 if __name__ == "__main__":
