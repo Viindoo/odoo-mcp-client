@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.4.3] - 2026-10-07
+
 ### Fixed
 
 - `odoo-ai-agents` - **hooks that add permissions at the same time no longer break the Claude
