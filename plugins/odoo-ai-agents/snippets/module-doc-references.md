@@ -19,9 +19,9 @@ against its `static/description/`.
   gif or jpeg/jpg; only `A-Za-z0-9._-`. A screen the guide and the landing both show is one file.
   Never a staging or scenario name (`<scenario>-step<NN>`). A localized doc shows
   `<slug>.<locale>.<ext>` when that file exists, else the English `<slug>.<ext>`.
-- An image that is not a module file (e.g. a vendor logo) may be a public `https://` URL pinned to
-  an immutable revision (a commit, a versioned path). Never `http://`, `data:`, `file:`, a leading
-  `/` or `//`, localhost or an instance URL.
+- An image that is not a module file (e.g. a vendor logo) may be a public `https://` URL; pin it
+  to an immutable revision (a commit, a versioned path); the gate does not check pinning. Never
+  `http://`, `data:`, `file:`, a leading `/` or `//`, a local or reserved host, or an instance URL.
 - Whoever writes a doc file owns every image reference in it and brings each off-convention one
   (`assets/x.png`, `../static/description/x.png`, `/assets/x.png`, `img/x.png`,
   `doc/images/x.png`) into this convention: the file moved into `static/description/` under its
@@ -37,7 +37,8 @@ localized page shows its cover per § Images.
 ## Links to another module
 
 - Link a different module with the root-relative store path
-  `/apps/modules/<odoo_version>/<module_technical_name>` - no trailing slash, no language prefix.
+  `/apps/modules/<odoo_version>/<module_technical_name>`, a vendor's module listing with
+  `/apps/modules/browse?author=<vendor>` - no trailing slash, no language prefix.
   `<odoo_version>` is the series you resolved for the module you are documenting; never write a
   literal version.
 - RST form: `` `<module> </apps/modules/<odoo_version>/<module>>`__ `` (anonymous `__`: a named

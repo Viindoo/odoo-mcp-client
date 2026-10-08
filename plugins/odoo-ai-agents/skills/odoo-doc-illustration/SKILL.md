@@ -42,19 +42,22 @@ a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft
 writer dispatch).** First settle `doc_root`, the tree this run writes and commits in: the worktree
 a caller passes (`WORKTREE_PATH`, `TARGET: worktree:<path>`, or the `doc_root` of a scope it
 supplies), else the scope's `doc_root` on the multi-module path, else the top level of the repo
-holding the module. Scoping and planning only read the tree, so the multi-module path settles it
-once the plan gate approves (a cancelled plan leaves nothing behind) and the single-module path
-before provisioning. Tell the kinds of checkout apart with one bounded read
+holding the module. Before the plan gate (step 3) on the multi-module path, before provisioning on
+the single-module path, tell the kinds of checkout apart with one bounded read
 (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read allowlist):
 `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`.
 - Two different paths: `doc_root` is a linked worktree (`run-harness` or the caller made it). Use
   it as is and create nothing.
-- The same path twice: `doc_root` is a principal checkout, which never takes a write. First run the
-  bounded read `git -C <doc_root> status --porcelain -- <each module path>`: a worktree starts at
-  HEAD, so uncommitted changes there would go undocumented. When it lists any, ask the user ONCE -
-  commit them first (the user commits; then continue), or document HEAD without them - and never
-  proceed silently. Then invoke `git-toolkit:git-ops` (Skill tool) to create a new worktree and
-  docs branch starting at that checkout's HEAD commit, named explicitly (`git rev-parse HEAD`).
+- The same path twice: `doc_root` is a principal checkout, which never takes a write. Then run the
+  bounded read `git -C <doc_root> status --porcelain -- <each module path>`, listing also each
+  dependency the instance loads from this same repo (one in another repo is not checked): a
+  worktree starts at HEAD, so uncommitted changes there would go undocumented. When it lists any,
+  ask the user ONCE - commit them first (the user commits; then continue), or document HEAD without
+  them - and never proceed silently; on the multi-module path that question is part of the ONE plan
+  gate. Once the plan gate approves (a cancelled plan leaves nothing behind), or on the
+  single-module path before provisioning, invoke `git-toolkit:git-ops` (Skill tool) to create a new
+  worktree and docs branch starting at that checkout's HEAD commit, named explicitly
+  (`git rev-parse HEAD`).
   That worktree becomes `doc_root`; re-root every module path into it (same path relative to the
   repo top level). The run summary names the worktree path and branch; this skill never merges or
   pushes it.
@@ -117,10 +120,12 @@ provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE against
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md` - do not re-derive it here.
 3. **Gate (ONE whole-plan).** Present the ENTIRE plan (clusters + instance allocation + install/doc
    order + dedup, with the already-documented choice of `skills/_shared/doc-cluster-plan.md` § 5 +
-   schedule + one proposed `TARGET MARKET` row per appstore module) for a SINGLE
+   schedule + one proposed `TARGET MARKET` row per appstore module + the uncommitted-changes
+   question when § State dir resolution's status read lists any) for a SINGLE
    `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
    provisioned.
-4. **Loop** - settle `doc_root` and the state dirs (§ State dir resolution), then run the
+4. **Loop** - create the docs worktree when `doc_root` is principal and resolve the state dirs
+   (§ State dir resolution), then run the
    per-instance incremental loop below over `doc-plan.yaml`.
 
 **Per-instance incremental loop (the loop body).** Per instance-path (SEQUENTIAL within a path;
