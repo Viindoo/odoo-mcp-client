@@ -101,7 +101,7 @@ capture-mechanics.md section 4; when both `INSTANCE_HANDLE` and `ADDONS_PATH` ar
 Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against
 `WORKTREE_PATH` before capturing anything.
 
-### Step 1 - Resolve languages + detect conventions
+### Step 1 - Resolve languages
 
 Resolve the locale set with the shared resolver (SSOT: `odoo-doc-illustration`'s own Language
 resolution): brief `LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
@@ -109,8 +109,7 @@ live `res.lang` (no built-in default beyond these tiers - all four empty returns
 the SSOT), THEN union with existing on-disk `static/description/index*.html`
 locales. **English
 is the mandatory canonical:** final set = `{en_US}` union the resolved set; `index.html` is always
-English (no suffix); every other locale -> `index_<locale>.html`. Detect the on-disk screenshot naming
-convention (capture-mechanics.md section 13).
+English (no suffix); every other locale -> `index_<locale>.html`.
 
 ### Step 2 - Plan placement, then capture hero + feature screenshots
 
@@ -141,10 +140,10 @@ are the SSOT):
   classes); Bootstrap-5 utility classes instead of inline flexbox/`gap`; hex colors only (no `rgba()` /
   gradient); HTML entities (`&rarr;`, `&mdash;`) not raw glyphs; image paths and module links per
   `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
-- **Copy**: take prose from the SUPPLIED `MARKETING COPY`. Resolve each `[Image: <slug>]` marker to
-  the final filename your shot list planned for it (normalize `lowercase, spaces -> -` as a
-  fallback); if a marker has no match, place the image ref immediately after the heading of the
-  feature it illustrates.
+- **Copy**: take prose from the SUPPLIED `MARKETING COPY`. Each `[Image: <slug>]` marker becomes the
+  image `<slug>.<ext>` (its locale variant in `index_<locale>.html`) at the marker's position; the
+  HERO image is always `main_screenshot.<ext>`. File names and references per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
 - **Key Features grid**: titles + one-line `value` come from `feature-catalog.jsonl` ONLY (never the OSM
   summary). Hero tagline = manifest `summary`, outcome-first.
 - **Brand**: pull the palette from `<SHARE_DIR>/brand-tokens.json` when it exists - a JSON map of CSS
@@ -156,9 +155,10 @@ are the SSOT):
   take only Bootstrap-5 classes and the safe inline `font-weight`/`font-size` from the reference
   template. Absent the map and a brief palette -> skip silently and default to the Odoo palette in the
   reference. NEVER hardcode a vendor brand (this repo is public).
-- **On-disk convention wins**: if the module already uses legacy `oe_*` classes, stay consistent;
-  otherwise default to the Bootstrap-5 sanitizer-safe template. Per-locale -> `index_<locale>.html`,
-  each referencing its own locale images.
+- **On-disk CSS convention wins**: if the module already uses legacy `oe_*` classes, stay
+  consistent; otherwise default to the Bootstrap-5 sanitizer-safe template. This covers CSS classes
+  only - image references are always brought into the convention (capture-mechanics.md section 13).
+  Per-locale -> `index_<locale>.html`, each referencing its own locale images.
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
 list, insert one line per base immediately after the hero section, before the features grid:
@@ -169,10 +169,11 @@ where `<link>` is the HTML link form to `<base>` in
 
 ### Step 4 - Wire manifest + audit store keys
 
-Read the module descriptor resolved in Step 0 (read-before-write). Merge `'images': ['<asset-dir>/<primary-shot>']`
-(the captured cover) with a targeted Edit; do NOT rewrite the manifest. Audit the store keys against
-app-store-template.md § Manifest Store Keys: merge values derivable from source (`name`, `summary`,
-`description`, `images`, `license`, `application`, `category`, `maintainer`, `website`, `version`). For
+Read the module descriptor resolved in Step 0 (read-before-write). Merge
+`'images': ['static/description/main_screenshot.<ext>']` (the hero, first entry) with a targeted
+Edit; do NOT rewrite the manifest. Audit the store keys against app-store-template.md § Manifest
+Store Keys: merge values derivable from source (`name`, `summary`, `description`, `images`,
+`license`, `application`, `category`, `maintainer`, `website`, `version`). For
 commercial/instance-specific keys (`price`, `currency`, `support`, `live_test_url`) SUGGEST what is
 missing - NEVER fabricate a value; leave the key absent if the user has not supplied it. Report
 store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing cover; missing
@@ -180,11 +181,13 @@ store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing
 
 ### Step 4.5 - Place finals, then run the doc reference gate
 
-`mv` every final the module ships - each image the landing embeds and each manifest `images` entry
-Step 4 wired - from staging into the directory capture-mechanics.md section 13 resolves, then run
-the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate
-(`--series` = the Step 0 version) on every `index*.html` you wrote plus the module descriptor. Fix
-each finding and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
+Place every final the module ships - each image the landing embeds and each manifest `images` entry
+Step 4 wired - in `static/description/` and bring every off-convention image reference of the
+files you write into the convention, both per capture-mechanics.md section 13, then run the
+reference gate in
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate (`--series` = the Step 0
+version) on every `index*.html` you wrote plus the module descriptor. Fix each finding and re-run
+until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 
 ### Step 4.6 - Tear down your browser pages (before terminal status)
 

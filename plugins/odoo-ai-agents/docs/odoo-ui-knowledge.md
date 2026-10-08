@@ -241,13 +241,6 @@ module visual documentation into `<module>/static/description/`. All paths below
 | App icon | `static/description/icon.png` | PNG 256x256 (App Store de-facto; 100x100 and 128x128 also accepted). Use `odoo-icon-design` to DESIGN/GENERATE a new icon (SVG code-gen + rasterize, brand-aware). Auto-discovery finds this path with no manifest key; any other path or an SVG needs the `icon` key - next row. The `odoo-doc-illustration` skill captures a LIVE 128x128 viewport crop as fallback only - it is NOT a designed icon |
 | Manifest `icon` key (boundary owner) | `__manifest__.py` `'icon': '<module>/static/description/icon.svg'` | Odoo READS it: `ir.module.module._get_icon_image` takes the module's own `icon` value FIRST and only auto-discovers `static/description/icon.png` when that value is empty (`get_values_from_terp` copies the manifest key onto the field). OSM-verified on every series whose compute body is indexed: 11.0-19.0. At 8.0/9.0/10.0 the `icon` field is indexed but the compute body is not, so the effect there is UNVERIFIED - resolve it via `find_examples(query='_get_icon_image module icon manifest key', odoo_version='<series>', chunk_types=['method'])`. Auto-discovery helper name: `get_module_icon(<name>)` up to 14.0, `get_module_icon_path(<record>)` from 15.0. NEVER state the key is ignored or refuse it on a version gate |
 
-Screenshot names and sizes: `skills/odoo-doc-illustration/references/app-store-template.md`
-§ Image Specifications; staging, framing and placing finals:
-`skills/odoo-doc-illustration/references/capture-mechanics.md`.
-
-### UC2 - cluster / docs-repo output
-
-When the request/brief names a cluster documentation output directory (MODE cluster), images go
-to that directory instead of `static/description/`; absent, cluster output defaults to
-`<SHARE_DIR>/visual/doc/`. RST references use `.. image:: <filename>.png` (no path prefix when the
-image is in the same docs dir as the `.rst` file).
+Screenshot location, names and references: `snippets/module-doc-references.md` § Images; sizes:
+`skills/odoo-doc-illustration/references/app-store-template.md` § Image Specifications; staging,
+framing and placing finals: `skills/odoo-doc-illustration/references/capture-mechanics.md`.

@@ -9,16 +9,26 @@ must resolve the same way on disk and on the store.
 
 ## Images
 
-- Write every image reference as a plain path relative to the doc file that holds it: no scheme,
-  no leading `/`, no `file:`, localhost or instance URL, never a path that escapes the module.
-- An `index.html` image must resolve inside `static/description/` (stores rewrite relative `src`
-  against that directory).
-- An RST image must resolve inside the module's `static/`.
-- The referenced file must exist.
+- Every image the module ships lives flat in `static/description/` - no subdirectory, none under
+  `doc/`.
+- Reference it as `.. image:: <file>` in `doc/*.rst` (the bare file name: stores resolve only
+  that, looked up in `static/description/`), `src="./<file>"` in `index*.html`, and
+  `static/description/<file>` in `README.rst`. Never a scheme, a leading `/`, `file:`, localhost or
+  an instance URL. The file must exist.
+- Name a screen `<slug>[.<locale>].<ext>` (the cover: § Manifest images): `<slug>` is kebab-case,
+  describes the screen and is unique in the module; English has no locale suffix; `<ext>` is png,
+  gif or jpeg/jpg. A screen the guide and the landing both show is one file. Never a staging or
+  scenario name (`<scenario>-step<NN>`).
+- Whoever writes a doc file owns every image reference in it and brings each off-convention one
+  (`assets/x.png`, `../static/description/x.png`, `/assets/x.png`, `img/x.png`,
+  `doc/images/x.png`) into this convention: the file into `static/description/` under its
+  convention name, the reference rewritten.
 
 ## Manifest images
 
-Each manifest `images` entry is relative to the module root and names an existing file.
+Each `images` entry is `static/description/<file>`, an existing png, gif or jpeg. The cover is
+`images[0]` = `main_screenshot.<ext>` and is the first local image of the English `index.html`;
+each `index_<locale>.html` opens with its own `main_screenshot.<locale>.<ext>`.
 
 ## Links to another module
 
@@ -37,7 +47,9 @@ Each manifest `images` entry is relative to the module root and names an existin
 
 After you write or edit any of these files, run the gate, passing every doc file you wrote plus the
 module descriptor (`__manifest__.py` / `__openerp__.py`) when you edited its `images`. With no file
-arguments it checks every doc file and the descriptor.
+arguments it checks every doc file and the descriptor, and reports `IMG_ORPHAN` for each image
+under `static/description/` or `doc/` that no other module file names (`icon.png` / `icon.svg`
+exempt); an orphan is fixed by deleting the file.
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/doc_refs_check.py" --module-root <abs module path> --series <resolved series> [files...]
