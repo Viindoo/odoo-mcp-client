@@ -89,7 +89,9 @@ on top = most pure); ties break to the earliest instance in the schedule. Three 
   only the convergence node is doc'd there.
 - **Already-documented on disk / prior run** - `has_ondisk_doc` true, or a prior run's `index.jsonl`
   covered it -> `doc:false, dedup_reason: existing-on-disk`, UNLESS `REDOC: true` is passed
-  (cross-run dedup).
+  (cross-run dedup). The plan gate lists them: their docs may predate
+  `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, and the user picks `REDOC: true` to
+  re-document them into it or keeps them `doc:false`.
 
 ### 6. Parallelism
 

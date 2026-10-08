@@ -4,7 +4,8 @@ A module's docs are published by an app store that serves the module's own files
 pointing at the author's machine or a running instance, a link into a sibling checkout directory
 (../../<other_module>/...), or a link pinned to one store host breaks once published. The stores
 resolve a guide image only by its bare file name, looked up flat in static/description/, so every
-shipped image lives there and the cover is the `*_screenshot` file the English page opens with.
+shipped image lives there and the cover is the `*_screenshot` file the English page shows. An
+image that is not a module file (a vendor logo) is a public https:// URL the stores keep as is.
 Each test builds a small module in a temp dir, writes ONE reference, and runs the real CLI.
 """
 import os
@@ -76,12 +77,50 @@ def _flags(proc, rule):
 # images
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("ref", [
-    "https://cdn.example.com/a.png", "/static/description/banner.png",
-    "file:///home/user/a.png", "http://localhost:8069/web/image/1", "localhost:8069/x.png",
-    "http://127.0.0.1:8069/web/content/2",
+    "http://cdn.example.com/a.png", "//cdn.example.com/a.png", "/static/description/banner.png",
+    "data:image/png;base64,iVBORw0KGgo=", "file:///home/user/a.png",
+    "http://localhost:8069/web/image/1", "localhost:8069/x.png",
+    "http://127.0.0.1:8069/web/content/2", "https://localhost/a.png", "https://127.0.0.2/a.png",
+    "https://0.0.0.0/a.png", "https://[::1]/a.png", "https://192.168.1.5/a.png",
+    "https://intranet/a.png",
 ])
-def test_an_rst_image_that_is_not_relative_is_flagged(module, ref):
+def test_an_image_neither_a_module_path_nor_a_public_https_url_is_flagged(module, ref):
     _flags(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_RELATIVE")
+    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+           "IMG_NOT_RELATIVE")
+
+
+@pytest.mark.parametrize("ref", [
+    "https://raw.githubusercontent.com/acme/branding/0123abc/logo/acme-logo.svg",
+    "https://cdn.example.com/brand/logo%20v2.png",
+])
+def test_a_public_https_image_is_not_a_module_file_and_passes(module, ref):
+    """A vendor logo pinned to a public URL is displayed as is by the stores: no existence,
+    flatness, name or orphan check applies to it."""
+    _clean(_rst(module, f".. image:: {ref}\n"))
+    _clean(_html(module, f'<img src="{ref}"/><img src="./main_screenshot.png"/>\n'))
+    (module / "README.rst").write_text(f".. image:: {ref}\n")
+    _clean(_run(module, "README.rst"))
+
+
+@pytest.mark.parametrize("name", ["caf\u00e9.png", "shot(1).png", "a+b.png", "form,v2.png"])
+def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
+    (module / "static" / "description" / name).write_bytes(PNG)
+    _flags(_rst(module, f".. image:: {name}\n"), "IMG_NAME")
+    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="./{name}"/>\n'), "IMG_NAME")
+    _manifest(module, "static/description/main_screenshot.png", "static/description/" + name)
+    _flags(_run(module, "__manifest__.py"), "IMG_NAME")
+
+
+def test_an_html_image_whose_decoded_name_has_a_space_is_flagged(module):
+    (module / "static" / "description" / "old one.png").write_bytes(PNG)
+    _flags(_html(module, '<img src="./main_screenshot.png"/><img src="./old%20one.png"/>'),
+           "IMG_NAME")
+
+
+def test_a_module_image_name_in_the_safe_set_passes(module):
+    (module / "static" / "description" / "Sales_Order-form.v2.png").write_bytes(PNG)
+    _clean(_rst(module, ".. image:: Sales_Order-form.v2.png\n"))
 
 
 def test_a_guide_image_named_bare_passes_in_every_directive(module):
@@ -93,6 +132,15 @@ def test_a_guide_image_named_bare_passes_in_every_directive(module):
 
         .. |logo| image:: form.png
         """))
+
+
+@pytest.mark.parametrize("directive", [
+    ".. image:: {ref}", ".. figure:: {ref}", ".. |logo| image:: {ref}",
+])
+def test_every_rst_image_directive_is_checked(module, directive):
+    """A figure or a substitution image is as much a published image as a plain one."""
+    proc = _rst(module, directive.format(ref="../static/description/form.png") + "\n")
+    assert _rules(proc) == ["IMG_NOT_BARE"], proc.stdout
 
 
 @pytest.mark.parametrize("ref", [
@@ -215,7 +263,8 @@ def test_the_store_module_scheme_for_this_series_passes(module):
 
         Contact `us <mailto:help@example.com>`_ or jump to `top <#top>`_.
         """))
-    _clean(_html(module, '<a href="/apps/modules/17.0/sale">Sales</a> <a href="#features">x</a>'))
+    _clean(_html(module, '<img src="./main_screenshot.png"/>'
+                         '<a href="/apps/modules/17.0/sale">Sales</a> <a href="#features">x</a>'))
 
 
 def test_anonymous_rst_links_and_targets_are_checked(module):
@@ -284,26 +333,35 @@ def test_a_cover_not_named_screenshot_is_flagged(module, cover):
 
 
 # --------------------------------------------------------------------------- #
-# cover = hero of the English store page
+# cover shown on the English store page
 # --------------------------------------------------------------------------- #
-def test_an_english_page_opening_with_another_image_than_the_cover_is_flagged(module):
-    proc = _html(module, '<p>x</p>\n<img src="./form.png"/>\n<img src="./main_screenshot.png"/>\n')
-    assert proc.stdout == "static/description/index.html:2: IMG_HERO_NOT_COVER: ./form.png\n"
+def test_an_english_page_not_showing_the_cover_is_flagged(module):
+    proc = _html(module, '<p>x</p>\n<img src="./form.png"/>\n')
+    assert proc.stdout == ("static/description/index.html:0: IMG_COVER_NOT_SHOWN: "
+                           "static/description/main_screenshot.png\n")
     assert proc.returncode == 1
 
 
-def test_the_hero_is_the_first_local_image_in_document_order(module):
-    _flags(_html(module, '<div style="background:url(./form.png)"></div>'
-                         '<img src="./main_screenshot.png"/>'), "IMG_HERO_NOT_COVER")
-    _flags(_html(module, '<img srcset="./form.png 1x, ./main_screenshot.png 2x"/>'),
-           "IMG_HERO_NOT_COVER")
+def test_an_english_page_with_no_image_does_not_show_the_cover(module):
+    _flags(_html(module, '<section><h1>Title</h1></section>'), "IMG_COVER_NOT_SHOWN")
 
 
-def test_an_external_logo_before_the_hero_is_not_taken_for_the_hero(module):
-    """The logo is its own IMG_NOT_RELATIVE finding; the hero is the first LOCAL image."""
-    proc = _html(module, '<img src="https://raw.githubusercontent.com/acme/brand/main/logo.png"/>'
-                         '<img src="./main_screenshot.png"/>')
-    assert _rules(proc) == ["IMG_NOT_RELATIVE"], proc.stdout
+@pytest.mark.parametrize("markup", [
+    '<img src="./form.png"/><img src="./main_screenshot.png"/>',
+    '<img src="https://raw.githubusercontent.com/acme/brand/0123abc/logo.png"/>'
+    '<img src="./main_screenshot.png"/>',
+    '<img srcset="./form.png 1x, main_screenshot.png 2x"/>',
+    '<div style="background:url(./main_screenshot.png)"></div>',
+])
+def test_the_cover_may_appear_anywhere_after_a_logo_or_another_image(module, markup):
+    """The template places the cover in the HERO; a vendor logo, external or local, may come
+    first."""
+    _clean(_html(module, markup))
+
+
+def test_a_cover_reference_resolving_elsewhere_does_not_show_the_cover(module):
+    (module / "static" / "description" / "img" / "main_screenshot.png").write_bytes(PNG)
+    _flags(_html(module, '<img src="./img/main_screenshot.png"/>'), "IMG_COVER_NOT_SHOWN")
 
 
 def test_a_localized_page_is_not_held_to_the_english_cover(module):
@@ -312,8 +370,9 @@ def test_a_localized_page_is_not_held_to_the_english_cover(module):
     _clean(_run(module, "static/description/index_vi_VN.html"))
 
 
-def test_a_page_with_no_local_image_is_not_flagged_for_its_cover(module):
-    _clean(_html(module, '<section><h1>Title</h1></section>'))
+def test_a_page_is_not_held_to_a_cover_the_manifest_does_not_declare(module):
+    _manifest(module)
+    _clean(_html(module, '<section><img src="./form.png"/></section>'))
 
 
 # --------------------------------------------------------------------------- #
@@ -359,6 +418,32 @@ def test_the_module_icon_is_never_an_orphan(shipped):
     (shipped / "static" / "description" / "icon.png").write_bytes(PNG)
     (shipped / "static" / "description" / "icon.svg").write_text("<svg/>")
     _clean(_run(shipped))
+
+
+@pytest.mark.parametrize("mention", [
+    "See old.png.", "(old.png)", "old.png, then", '"old.png"', "see old.png;", "old.png:",
+])
+def test_a_mention_followed_by_punctuation_references_the_image(shipped, mention):
+    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / "README.rst").write_text(mention + "\n")
+    assert "IMG_ORPHAN" not in _rules(_run(shipped)), mention
+
+
+@pytest.mark.parametrize("rel", [".git/COMMIT_EDITMSG", "__pycache__/notes.txt"])
+def test_a_mention_in_a_vcs_or_cache_directory_is_not_a_reference(shipped, rel):
+    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / rel).parent.mkdir(parents=True, exist_ok=True)
+    (shipped / rel).write_text("drop old.png from the landing\n")
+    assert "static/description/old.png:0: IMG_ORPHAN: static/description/old.png" in \
+        _run(shipped).stdout
+
+
+def test_a_mention_inside_a_binary_file_is_not_a_reference(shipped):
+    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / "static" / "src" / "fonts").mkdir(parents=True)
+    (shipped / "static" / "src" / "fonts" / "brand.woff").write_bytes(b"wOFF\0\0 old.png \0")
+    assert "static/description/old.png:0: IMG_ORPHAN: static/description/old.png" in \
+        _run(shipped).stdout
 
 
 def test_a_longer_name_containing_the_file_name_does_not_reference_it(shipped):

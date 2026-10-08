@@ -50,7 +50,8 @@ return `NEEDS_CONTEXT(odoo_version)` immediately - do not guess.
 Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`. Call sequence for this agent:
 
 1. `set_active_version(odoo_version=<concrete>)` - pin once at start (also a reachability probe).
-2. `describe_module(name=MODULE, odoo_version=<version>)` - manifest, menus, view/JS inventory.
+2. `describe_module(name=MODULE, odoo_version=<version>)` - manifest summary, model lists,
+   view/JS inventory (no menus - see below).
 3. `module_inspect(name=MODULE, method='views'|'summary', odoo_version=<version>)` -
    rendered surface and view xmlids.
 4. `model_inspect(model=<model>, method='fields'|'summary', odoo_version=<version>)` -
@@ -83,8 +84,10 @@ order, the role acting at each, the button it presses and the role the record pa
 
 If `ROLE_MAP_PATH` is absent, derive the roles yourself: one role per distinct group xmlid in the
 catalog entries' `roles` (from the module's group definitions on disk when there is no catalog
-either), plus the administrator who sets the module up, and order tasks by the main model's states.
-Label the run `roles: derived` in the output header.
+either), the administrator who sets the module up, and - when no group gates the module's main
+menus and models - one user role for the group the access rights grant on those models (the
+module's or the dependency's that defines them), else Internal User. Order tasks by the main
+model's states. Label the run `roles: derived` in the output header.
 
 ## Procedure
 
@@ -105,7 +108,8 @@ process follow its process tasks.
 
 ### Step 3 - scenario design (happy-path only)
 Author ONE happy-path scenario per role task, in stage order: the administrator's setup first,
-then each process stage's task by the role acting there, then each role's remaining tasks.
+then each process stage's task by the role acting there, then each role's remaining tasks, roles in
+role-map order (with no process stages, this order alone).
 Rules:
 - **Positive flows only.** No negative inputs, no boundary probing, no permission-violation paths.
 - **Behavior-grounded.** Every step target (menu, field label, button) must exist in the OSM

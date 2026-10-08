@@ -4,7 +4,7 @@
   "default_cap_bytes": 4096,
   "budgets": {
     "skills/_shared/debug-method.md": 6148,
-    "skills/_shared/doc-cluster-plan.md": 12949,
+    "skills/_shared/doc-cluster-plan.md": 13149,
     "skills/_shared/integration-loop.md": 7787,
     "skills/_shared/odoo-failure-modes.md": 6976,
     "skills/_shared/odoo-frontend-fidelity.md": 21456,
@@ -37,7 +37,7 @@
     "snippets/visual-evidence-lifecycle-contract.md": 27031,
     "snippets/dispatch-brief.md": 20646,
     "snippets/module-coordination-ledger.md": 14131,
-    "snippets/git-delegation.md": 15643,
+    "snippets/git-delegation.md": 15704,
     "snippets/resource-teardown-contract.md": 12940,
     "skills/_shared/concurrency-guard.md": 10121,
     "snippets/worker-brief.md": 8453,

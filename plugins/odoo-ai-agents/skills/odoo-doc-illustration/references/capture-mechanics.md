@@ -1,7 +1,7 @@
 # Capture Mechanics Reference
 
 Shared browser-capture mechanics for the two documentation writer agents -
-`odoo-user-doc-writer` (end-user guide) and `odoo-marketing-writer` (App-Store landing).
+`odoo-user-doc-writer` (role-based user guide) and `odoo-marketing-writer` (App-Store landing).
 Both agents drive a live Odoo instance to shoot screenshots, then hand the images to their
 own assembly step. This file is the SSOT for HOW to capture; each writer body stays short and
 owns only its AUDIENCE and its assembly. It is also the SSOT that `docs/odoo-ui-knowledge.md`
@@ -281,17 +281,14 @@ Every final goes flat into the module's `static/description/`, named per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images (the cover per § Manifest
 images). A screen that already has an image there under a convention name keeps that name: your
 capture replaces it, and every doc showing that screen references the one file. An existing
-off-convention name (e.g. `shot_fbk_form.png`, `ws1-step03.png`) is renamed to the convention
-name, the same way as an off-convention reference below.
+off-convention name (e.g. `shot_form.png`, `ws1-step03.png`) is renamed to the convention name,
+the same way as an off-convention reference below.
 
 `mv` (never `cp`) each final from staging into `static/description/` under its final name,
 renaming it in the same `mv` (`mkdir -p` the directory first).
 
-In every doc file you write, bring each off-convention image reference (`assets/x.png`,
-`../static/description/x.png`, `/assets/x.png`, `img/x.png`, `doc/images/x.png`) into the
-convention: `mv` the module file it points at into `static/description/` under its convention
-name and rewrite the reference. When a file you do not write still references that old path,
-copy the module file instead, so that file keeps resolving.
+In every doc file you write, bring each off-convention image reference into the convention, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
 
 Reference every final per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that
 snippet's reference gate (§ Reference gate) until it exits 0. Every other capture stays where it

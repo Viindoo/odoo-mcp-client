@@ -91,8 +91,11 @@ phases:
     # Propose target_market per module whose doc_layer is appstore or both, from its descriptor,
     # per skills/odoo-content-draft/references/buyer-profile.md § Target market (a value the brief
     # carries is used as is); Phase 0.5's gate confirms it once.
-    # Emits scope block: doc_root, doc_root_kind + modules[] with {name, abs_path, languages,
-    # doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, target_market}.
+    # For a principal doc_root, once the modules are resolved, run the bounded read
+    # `git -C <doc_root> status --porcelain -- <each module abs_path>` and record what it lists as
+    # uncommitted: the docs worktree starts at HEAD, so those changes would go undocumented.
+    # Emits scope block: doc_root, doc_root_kind, uncommitted + modules[] with {name, abs_path,
+    # languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, target_market}.
     # Written to <OUT>/<run>/scope.yaml for all downstream phases.
 
   # ------------------------------------------------------------------
@@ -133,8 +136,11 @@ phases:
     # grounded: osm|local-source, scope_ref). Standalone-first: the whole algorithm is
     # disk-resolvable - no instance and no browser needed to plan.
     # GATE: present the WHOLE plan - all clusters + branch-aware instance allocation + install/doc
-    # order + dedup (doc:true/false) + the parallelism schedule (W) + one proposed target_market
-    # row per appstore module (confirmed here once, then recorded in scope.yaml) - for ONE approval
+    # order + dedup (doc:true/false, with the already-documented choice of doc-cluster-plan.md
+    # § 5) + the parallelism schedule (W) + one proposed target_market row per appstore module
+    # (confirmed here once, then recorded in scope.yaml) + when scope.yaml lists uncommitted
+    # changes, one question: the user commits them first (then the run continues), or the run
+    # documents HEAD without them - never proceed silently - for ONE approval
     # (approve / refine: [feedback] / cancel). This is the SINGLE plan gate - NOT a gate per
     # cluster: the purity/dedup/allocation trade-offs are only legible as a whole picture.
     # `refine` re-runs the plan with the feedback; `cancel` aborts BEFORE any instance is
@@ -244,9 +250,7 @@ phases:
       <DOC><module>/buyer-profile.md, and every language's copy under <DOC><module>/. Copy:
       one HTML-comment block per copy-sourced key of
       skills/odoo-doc-illustration/references/app-store-template.md § Section Map, and
-      [Image: slug] placeholders for screenshots not yet captured. When the module's doc-plan
-      entry has a non-empty extends_in_scope[], add a one-line "Extends <base> - see its
-      documentation" pointer (D13.7 cross-reference hint). Emit status: NEEDS_NEXT ->
+      [Image: slug] placeholders for screenshots not yet captured. Emit status: NEEDS_NEXT ->
       odoo-doc-illustration to fill [Image:] markers with live screenshots. No browser or live
       instance required. Fan out one worker per doc:true module (Mode B); aggregate per-module
       buyer profiles and per-locale copy before gate.
@@ -295,7 +299,7 @@ phases:
     # in doc_root:
     #   REQUIRED (blocking if missing): name, summary, description, license, category
     #   COVER (blocking): run the reference gate of snippets/module-doc-references.md on the module
-    #     (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or IMG_HERO_NOT_COVER finding
+    #     (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or IMG_COVER_NOT_SHOWN finding
     #     is a blocking cover gap - the gate owns the cover rule
     #   RECOMMENDED (warning if missing): support, website, maintainer, application
     #   OPTIONAL (info): live_test_url, price, currency, version

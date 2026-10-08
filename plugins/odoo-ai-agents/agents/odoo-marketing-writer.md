@@ -9,7 +9,7 @@ description: |
   images / store-keys. Pure executor: it receives a self-contained brief and returns file paths - it
   NEVER drafts copy, spawns a subagent, invokes the Skill tool, calls odoo-content-draft/-scoper/
   -planner, or runs an orchestration loop; feature-catalog.jsonl is mandatory (absent -> BLOCKED) and
-  features are NEVER synthesized from OSM. Routing: the end-user how-to guide (doc/index.rst) ->
+  features are NEVER synthesized from OSM. Routing: the role-based user guide (doc/index.rst) ->
   odoo-user-doc-writer; write the marketing COPY itself -> odoo-content-draft; design the module icon
   -> odoo-icon-design
 model: sonnet
@@ -152,9 +152,9 @@ are the SSOT):
   gradient); HTML entities (`&rarr;`, `&mdash;`) not raw glyphs; image paths and module links per
   `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`.
 - **Copy**: take prose from the SUPPLIED `MARKETING COPY`. Each `[Image: <slug>]` marker becomes the
-  image `<slug>.<ext>` (its locale variant in `index_<locale>.html`) at the marker's position; the
-  HERO image is always `main_screenshot.<ext>`. File names and references per
-  `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
+  image of that slug at the marker's position, and the HERO image is the cover - file names, locale
+  variants and references per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images
+  and § Manifest images.
 - **Key Features grid**: titles + one-line `value` come from `feature-catalog.jsonl` ONLY (never the OSM
   summary). Hero tagline = manifest `summary`, outcome-first.
 - **Brand**: pull the palette from `<SHARE_DIR>/brand-tokens.json` when it exists - a JSON map of CSS
@@ -169,7 +169,7 @@ are the SSOT):
 - **On-disk CSS convention wins**: if the module already uses legacy `oe_*` classes, stay
   consistent; otherwise default to the Bootstrap-5 sanitizer-safe template. This covers CSS classes
   only - image references are always brought into the convention (capture-mechanics.md section 13).
-  Per-locale -> `index_<locale>.html`, each referencing its own locale images.
+  Per-locale -> `index_<locale>.html`, its images per `module-doc-references.md` § Images.
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
 list, insert one line per base immediately after the hero section:
@@ -180,9 +180,9 @@ where `<link>` is the HTML link form to `<base>` in
 
 ### Step 4 - Wire manifest + audit store keys
 
-Read the module descriptor resolved in Step 0 (read-before-write). Merge
-`'images': ['static/description/main_screenshot.<ext>']` (the hero, first entry) with a targeted
-Edit; do NOT rewrite the manifest. Audit the store keys against app-store-template.md § Manifest
+Read the module descriptor resolved in Step 0 (read-before-write). Merge the cover as the first
+`images` entry (`module-doc-references.md` § Manifest images) with a targeted Edit; do NOT rewrite
+the manifest. Audit the store keys against app-store-template.md § Manifest
 Store Keys: merge values derivable from source (`name`, `summary`, `description`, `images`,
 `license`, `application`, `category`, `maintainer`, `website`, `version`). For
 commercial/instance-specific keys (`price`, `currency`, `support`, `live_test_url`) SUGGEST what is

@@ -1215,7 +1215,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants) as a user guide for the module's business roles (Overview + process, administrator Setup, one chapter per role) from role-map.json; task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
+      "notes": "User guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants) as a user guide for the module's business roles (Overview + process, administrator Setup, one chapter per role) from role-map.json; task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
       "brief": {
         "required": [
           "MODULE",
@@ -1608,7 +1608,7 @@
       "spawns": [
         "odoo-doc-scoper (pre-flight multi-module scope mapper; dispatched first on multi-module TARGET)",
         "odoo-doc-planner (dependency-aware doc scheduler; dispatched after scoper; emits doc-plan.yaml; one whole-plan gate; branch-aware per-instance incremental loop)",
-        "odoo-user-doc-writer (browser-exclusive leaf; end-user guide doc/index.rst; dispatched per module per DOC LAYER userguide|both)",
+        "odoo-user-doc-writer (browser-exclusive leaf; role-based user guide doc/index.rst; dispatched per module per DOC LAYER userguide|both)",
         "odoo-marketing-writer (browser-exclusive leaf; App-Store landing static/description/index.html; dispatched per module per DOC LAYER appstore|both)",
         "odoo-content-draft (Skill tool - buyer profile + marketing copy pre-fetch on marketing path when copy not supplied)"
       ],

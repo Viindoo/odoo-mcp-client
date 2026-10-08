@@ -15,22 +15,35 @@ Output: one `file:line: RULE: ref` per finding (file relative to the module root
 Exit: 0 clean (and --help), 1 findings, 2 usage error or an interpreter below 3.8.
 
 Every image a module ships lives flat in static/description/; a guide (doc/**/*.rst) names it
-bare, the store page and README.rst by a path resolving to it.
+bare, the store page and README.rst by a path resolving to it. An image that is not a module file
+(e.g. a vendor logo) is a public https:// URL: the stores display it as is, so it is not checked
+further.
 
 Rules
-  IMG_NOT_RELATIVE     image with a scheme, a leading "/", file:, or a localhost/127.0.0.1 host
+  IMG_NOT_RELATIVE     image that is neither a module path nor a public https:// URL: http://
+                       (mixed content on an https store), data:, file: or any other scheme, a
+                       leading "/" or "//" (protocol-relative), or a host that is not public
+                       (localhost, a loopback, private or unspecified address, a name with no dot)
+  IMG_NAME             module image (a reference or a manifest entry) whose file name has a
+                       character outside A-Z a-z 0-9 . _ -
   IMG_NOT_BARE         doc/**/*.rst image that is not a bare file name (contains "/" or "\\")
   IMG_ESCAPES_MODULE   HTML / README.rst image resolving outside the module
   IMG_MISSING          doc/**/*.rst image with no static/description/<name>; HTML / README.rst
                        image whose resolved file does not exist
   IMG_NOT_FLAT         HTML / README.rst image not directly inside static/description/, or an
-                       HTML image not written `./<file>` / `<file>` (Odoo leaves a src holding
-                       `static/` unrewritten, so `../static/description/x.png` breaks there)
-  IMG_HERO_NOT_COVER   first local image of static/description/index.html is not the file
-                       manifest images[0] names (the manifest is read even when not passed)
+                       HTML image written with a directory part (e.g. `img/x.png`,
+                       `../description/x.png`) - `./<file>` / `<file>` is the form Odoo and the
+                       stores rewrite to the module's static/description/
+  IMG_COVER_NOT_SHOWN  static/description/index.html references no image resolving to the file
+                       manifest images[0] names (the manifest is read even when not passed);
+                       reported as `static/description/index.html:0: IMG_COVER_NOT_SHOWN: <entry>`
   IMG_ORPHAN           whole-module mode only: an image under static/description/** or doc/**
                        (icon.png / icon.svg exempt) whose file name no other text file of the
-                       module mentions; reported as `<path>:0: IMG_ORPHAN: <path>`
+                       module mentions; reported as `<path>:0: IMG_ORPHAN: <path>`. A mention is
+                       the name standing alone: not preceded by a word character, "." or "-", not
+                       followed by one of those or by "." + a word character (`see end.png.`
+                       mentions end.png; `myend.png` and `end.png.bak` do not). Files under .git/
+                       or __pycache__/ and binary files (a NUL byte in the first 8 KiB) are not read.
   LINK_LOCAL           link to file:, localhost, 127.0.0.1, an absolute filesystem path, or a
                        root-relative path that is not a store module path
   LINK_SIBLING_PATH    relative link resolving outside the module (e.g. ../../<other>/...)
@@ -40,7 +53,7 @@ Rules
                        png / gif / jpg / jpeg
   MANIFEST_COVER       manifest images[0] whose name without its last extension does not end in
                        `_screenshot` (a locale variant is never the cover)
-Allowed: mailto:, tel:, #anchors, https links to non-store pages.
+Allowed: mailto:, tel:, #anchors, https links to non-store pages, public https:// images.
 
 stdlib only; runs with the plugin interpreter (`python3`), never an Odoo venv. Old syntax (no
 f-strings) so the version check below can report instead of a SyntaxError.
@@ -56,6 +69,7 @@ if sys.version_info < (3, 8):
 import argparse  # noqa: E402
 import ast  # noqa: E402
 import glob  # noqa: E402
+import ipaddress  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
 from html.parser import HTMLParser  # noqa: E402
@@ -82,6 +96,7 @@ _BARE_URL = re.compile(r"(?<![<\w/])(?:https?|file)://[^\s<>`'\"]+")
 
 _DESCRIPTION = ("static", "description")
 _MANIFEST_IMAGE = re.compile(r"^static/description/[^/\\]+\.(?:png|gif|jpe?g)$", re.I)
+_IMAGE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 _ORPHAN_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 _ORPHAN_EXEMPT = ("static/description/icon.png", "static/description/icon.svg")
 _SKIP_DIRS = (".git", "__pycache__")
@@ -120,9 +135,27 @@ def _resolve(ref, doc_file):
     return os.path.normpath(os.path.join(os.path.dirname(doc_file), path))
 
 
-def _is_local_image(ref):
-    return not ((_SCHEME.match(ref) and not _DRIVE.match(ref)) or ref.startswith(("/", "\\"))
-                or _DRIVE.match(ref) or _is_local_host(ref))
+def _is_public_host(ref):
+    host = _host(ref)
+    if not host or _is_local_host(ref):
+        return False
+    try:
+        return ipaddress.ip_address(host).is_global
+    except ValueError:
+        return "." in host.strip(".")
+
+
+def _image_kind(ref):
+    """"local" for a module path, "external" for a public https:// URL, None for anything else."""
+    if _DRIVE.match(ref) or ref.startswith(("/", "\\")):
+        return None
+    if _SCHEME.match(ref):
+        return "external" if ref.lower().startswith("https://") and _is_public_host(ref) else None
+    return "local"
+
+
+def _file_name(ref):
+    return unquote(urlsplit(ref).path).replace("\\", "/").rsplit("/", 1)[-1]
 
 
 def _strip_dot_slash(path):
@@ -183,9 +216,14 @@ class Checker(object):
         ref = ref.strip()
         if not ref:
             return
-        if not _is_local_image(ref):
+        image_kind = _image_kind(ref)
+        if image_kind == "external":
+            return
+        if image_kind is None:
             self._add(doc_file, line, "IMG_NOT_RELATIVE", ref)
             return
+        if not _IMAGE_NAME.match(_file_name(ref)):
+            self._add(doc_file, line, "IMG_NAME", ref)
         if kind == "bare":
             if "/" in ref or "\\" in ref:
                 self._add(doc_file, line, "IMG_NOT_BARE", ref)
@@ -290,22 +328,23 @@ class Checker(object):
         for line, ref in images:
             self.image(doc_file, line, ref, "page")
         if self._rel(doc_file) == _ENGLISH_PAGE:
-            self.hero(doc_file, images)
+            self.cover_shown(doc_file, [ref.strip() for _line, ref in images])
 
-    def hero(self, page, images):
-        local = [(line, ref.strip()) for line, ref in images
-                 if ref.strip() and _is_local_image(ref.strip())]
+    def cover_shown(self, page, refs):
         manifest = self._manifest_file()
         cover = _manifest_images(manifest) if manifest else []
-        if not local or not cover:
+        if not cover:
             return
-        line, ref = local[0]
-        if not _same_file(_resolve(ref, page), os.path.join(self.root, cover[0][1])):
-            self._add(page, line, "IMG_HERO_NOT_COVER", ref)
+        target = os.path.join(self.root, cover[0][1])
+        if not any(_image_kind(ref) == "local" and _same_file(_resolve(ref, page), target)
+                   for ref in refs if ref):
+            self._add(page, 0, "IMG_COVER_NOT_SHOWN", cover[0][1])
 
     # -------------------------------------------------------------- manifest
     def manifest(self, manifest_file):
         for index, (line, ref) in enumerate(_manifest_images(manifest_file)):
+            if not _IMAGE_NAME.match(_file_name(ref)):
+                self._add(manifest_file, line, "IMG_NAME", ref)
             if not (_MANIFEST_IMAGE.match(ref) and os.path.isfile(os.path.join(self.root, ref))):
                 self._add(manifest_file, line, "MANIFEST_IMAGE", ref)
             if index == 0 and not os.path.splitext(os.path.basename(ref))[0].endswith(
@@ -335,7 +374,7 @@ class Checker(object):
         for path in sorted(candidates, key=self._rel):
             name = os.path.basename(path)
             spellings = sorted({re.escape(name), re.escape(quote(name))})
-            pattern = re.compile(r"(?<![\w.-])(?:%s)(?![\w.-])" % "|".join(spellings))
+            pattern = re.compile(r"(?<![\w.-])(?:%s)(?![\w-]|\.\w)" % "|".join(spellings))
             if not any(pattern.search(text) for other, text in texts if other != path):
                 rel = self._rel(path)
                 self.findings.append(Finding(rel, 0, "IMG_ORPHAN", rel))
