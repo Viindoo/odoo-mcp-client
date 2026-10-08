@@ -436,6 +436,6 @@ has NO suffix (`<slug>.<ext>`, `main_screenshot.<ext>`); every non-English local
 `.<locale>` (`<slug>.<locale>.<ext>`, `main_screenshot.<locale>.<ext>`). Each locale's HTML
 references only its own images. Icon is language-neutral (one `icon.png`, no locale suffix).
 
-**Tab split discipline**: keep marketing copy in `index.html` and deep technical steps
-(Install / Config / Usage / Troubleshooting / Changelog / Credits) in `doc/index.rst`. Do not
+**Tab split discipline**: keep marketing copy in `index.html` and the user guide for the business
+roles (Overview, Setup, one chapter per role, Troubleshooting / FAQ) in `doc/index.rst`. Do not
 duplicate content between the two tabs.
