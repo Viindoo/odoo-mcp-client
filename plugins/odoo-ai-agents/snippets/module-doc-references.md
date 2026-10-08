@@ -4,31 +4,35 @@
 
 # Module doc references (images, manifest images, links to other modules)
 
-A module's docs are published to app stores, away from the module tree. Every reference in them
-must resolve the same way on disk and on the store.
+A module's docs are published to app stores, away from the module tree. Each form below is the
+one the stores resolve; the gate (§ Reference gate) checks it against the module, an image
+against its `static/description/`.
 
 ## Images
 
 - Every image the module ships lives flat in `static/description/` - no subdirectory, none under
-  `doc/`.
-- Reference it as `.. image:: <file>` in `doc/*.rst` (the bare file name: stores resolve only
-  that, looked up in `static/description/`), `src="./<file>"` in `index*.html`, and
-  `static/description/<file>` in `README.rst`. Never a scheme, a leading `/`, `file:`, localhost or
-  an instance URL. The file must exist.
-- Name a screen `<slug>[.<locale>].<ext>` (the cover: § Manifest images): `<slug>` is kebab-case,
+  `doc/`. Screenshots always ship this way.
+- Reference it as `.. image:: <file>` in `doc/*.rst` (the bare file name), `src="./<file>"` in
+  `index*.html` and `static/description/<file>` in `README.rst`. The file must exist.
+- Name it `<slug>[.<locale>].<ext>` (the cover: § Manifest images): `<slug>` is kebab-case,
   describes the screen and is unique in the module; English has no locale suffix; `<ext>` is png,
-  gif or jpeg/jpg. A screen the guide and the landing both show is one file. Never a staging or
-  scenario name (`<scenario>-step<NN>`).
+  gif or jpeg/jpg; only `A-Za-z0-9._-`. A screen the guide and the landing both show is one file.
+  Never a staging or scenario name (`<scenario>-step<NN>`). A localized doc shows
+  `<slug>.<locale>.<ext>` when that file exists, else the English `<slug>.<ext>`.
+- An image that is not a module file (e.g. a vendor logo) may be a public `https://` URL pinned to
+  an immutable revision (a commit, a versioned path). Never `http://`, `data:`, `file:`, a leading
+  `/` or `//`, localhost or an instance URL.
 - Whoever writes a doc file owns every image reference in it and brings each off-convention one
   (`assets/x.png`, `../static/description/x.png`, `/assets/x.png`, `img/x.png`,
-  `doc/images/x.png`) into this convention: the file into `static/description/` under its
-  convention name, the reference rewritten.
+  `doc/images/x.png`) into this convention: the file moved into `static/description/` under its
+  convention name, the reference rewritten. While a file you do not write still references the old
+  path, copy the file instead of moving it, so that file keeps resolving.
 
 ## Manifest images
 
 Each `images` entry is `static/description/<file>`, an existing png, gif or jpeg. The cover is
-`images[0]` = `main_screenshot.<ext>` and is the first local image of the English `index.html`;
-each `index_<locale>.html` opens with its own `main_screenshot.<locale>.<ext>`.
+`images[0]` = `main_screenshot.<ext>`; the English `index.html` shows it (in its HERO), and a
+localized page shows its cover per § Images.
 
 ## Links to another module
 

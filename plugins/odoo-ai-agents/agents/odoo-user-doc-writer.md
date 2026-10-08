@@ -1,13 +1,12 @@
 ---
 name: odoo-user-doc-writer
 description: |
-  Use this agent when the odoo-doc-illustration skill needs the user guide (`doc/index.rst`) for a
-  single Odoo module, organized around the business roles that use it - capture the live screens
-  each role actually sees, then write plain, task-oriented steps ("open menu X > Y, click Create,
-  fill ...") grounded in the UI labels reported by OSM, one file per resolved locale. Pure
-  executor: it receives a self-contained brief (module path, INSTANCE_HANDLE, WALKTHROUGH, optional
-  FEATURE CATALOG and ROLE MAP, LANGUAGES, DOC SCOPE, CAPTURE MODE, extends_in_scope) and returns
-  file paths - it NEVER spawns a
+  Use this agent when the odoo-doc-illustration skill needs the role-based user guide
+  (`doc/index.rst`) for a single Odoo module - capture the live screens each role sees, then write
+  plain, task-oriented steps ("open menu X > Y, click Create, fill ...") grounded in the UI labels
+  reported by OSM, one file per resolved locale. Pure executor: it receives a self-contained brief
+  (module path, INSTANCE_HANDLE, WALKTHROUGH, optional FEATURE CATALOG and ROLE MAP, LANGUAGES,
+  DOC SCOPE, CAPTURE MODE, extends_in_scope) and returns file paths - it NEVER spawns a
   subagent, invokes the Skill tool, calls odoo-content-draft/-scoper/-planner, or runs an
   orchestration loop; the skill owns all of that. Routing: the buyer-facing App-Store landing
   (index.html) -> odoo-marketing-writer; rate a rendered screen for aesthetics/a11y -> odoo-ui-review;
@@ -148,7 +147,8 @@ roles (Audience rule). Ground every field/menu reference in the OSM labels from 
    Configuration (settings to set before use, by UI label), and assigning each role its access
    right.
 3. **One chapter per role**, titled "<Business role>: <job>", for every role with tasks beyond
-   setup, in the order the roles first act in the process. It holds that role's tasks in process
+   setup, in the order the roles first act in the process (with `"process": []`, in role-map
+   order). It holds that role's tasks in process
    order, each a sub-section with numbered steps and its image - from the `WALKTHROUGH:` scenarios
    whose `role` is that role when supplied, otherwise derived from OSM. A role that implies another
    covers only what it adds.
@@ -156,9 +156,9 @@ roles (Audience rule). Ground every field/menu reference in the OSM labels from 
    only. Optionally an `Instruction video` link when the brief supplies one.
 
 `screenshot-doc` (default) keeps the same skeleton with one screenshot per task and short steps.
-Without a `ROLE MAP`: the Overview states only the business problem, then Setup, then one chapter
-"Using <module>" holding every task; report `concerns: [no role map - guide not organized by
-role]`.
+Without a `ROLE MAP`, or with one whose only role is `kind: admin`: the Overview states only the
+business problem, then Setup, then one chapter "Using <module>" holding every task; report
+`concerns: [no non-admin role - guide not organized by role]`.
 
 **Image references:** name each image by its bare file name (`.. image:: <file>`), the file
 capture-mechanics.md section 13 places in `static/description/`, per
@@ -174,8 +174,9 @@ a blank line around every block/list, `#.` auto-enumeration to resume a list aft
 double-backtick inline literals, and the vi_VN "ban" second-person convention (no honorifics). Step 4.5
 verifies this mechanically before you may return.
 
-**Per-locale:** write `doc/index.rst` (English) + `doc/index_<locale>.rst` per additional locale, each
-referencing its own locale-suffixed images (English images carry no suffix).
+**Per-locale:** write `doc/index.rst` (English) + `doc/index_<locale>.rst` per additional locale,
+each showing the images `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images names
+for its locale.
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
 list, insert one `.. note::` per base immediately after the top-level RST title: "Extends <base> -
@@ -315,7 +316,7 @@ artifacts:
 <screenshot-doc | full-guide> · <screens | scenarios>
 
 ### Role chapters
-<one line per chapter: <role_id> - <business_role> (<ui_name>) | none - no ROLE MAP>
+<one line per chapter: <role_id> - <business_role> (<ui_name>) | none - no non-admin role>
 
 ### Languages
 <resolved list, English-first>

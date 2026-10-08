@@ -80,7 +80,8 @@ X to support Y" or expose Python class names / field technical names in headings
 ## 3. Bootstrap-5 Fragment Skeleton (brand-agnostic)
 
 Replace `{{PLACEHOLDER}}` values: `{{PRIMARY_HEX}}` from `<SHARE_DIR>/brand-tokens.json` (by VALUE -
-see the header), every other placeholder from the source its Section Map row names (§2).
+see the header), `{{EXT}}` from the cover's captured format, every other placeholder from the
+source its Section Map row names (§2).
 Default palette when that file is absent: primary `#714B67`, accent `#714B67`, bg-light `#F8F4F8`.
 
 ```html
@@ -96,7 +97,8 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
     <div class="row mx-0 p-3 align-items-center"
          style="border-radius:15px;background-color:#f8f8f8;">
       <div class="col-lg-4 text-center text-lg-start p-2">
-        <!-- Replace with vendor logo img or text -->
+        <!-- Vendor logo: a public https image pinned to an immutable URL or a local png / jpeg
+             (both per module-doc-references.md § Images), else the vendor name as text -->
         <strong style="font-size:20px;color:{{PRIMARY_HEX}};">{{VENDOR_NAME}}</strong>
       </div>
       <div class="col-lg-8 p-3 d-flex flex-wrap justify-content-end gap-2">
@@ -129,7 +131,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
     <div class="col-md-10 offset-md-1 text-center"
          style="border-radius:20px;padding:3px;background-color:{{PRIMARY_HEX}};">
       <img alt="{{MODULE_DISPLAY_NAME}}" class="img-fluid" loading="lazy"
-           src="./main_screenshot.gif"
+           src="./main_screenshot.{{EXT}}"
            style="border-radius:15px;display:block;width:100%;height:auto;">
     </div>
   </div>
@@ -426,17 +428,17 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 
 ## 4. Image Specifications
 
-Where each image lives, its file name and how a doc references it:
+Where each image lives, its file name, format and how a doc references it:
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images and § Manifest images. Every
 screenshot size follows from the measured width of the slot it fills
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` § Frame for the
 placement slot); the module icon is the only fixed size.
 
-| Asset | File | Format | Size | Notes |
-|---|---|---|---|---|
-| Module icon | `static/description/icon.png` | PNG only | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
-| Cover / hero | `static/description/main_screenshot.<ext>` | PNG, GIF, or JPEG | from the hero slot | `manifest['images'][0]` and the first image of `index.html`: the cover in store browse/grid views, shown enlarged because its name ends with `_screenshot`. A GIF carries an animated walkthrough. |
-| Screens | `static/description/<slug>.<ext>` | PNG, GIF, or JPEG | from the feature slot | Inline in `index.html`. Extra `manifest['images']` entries feed the store carousel; inline-only images do not appear in grid views. |
+| Asset | Size | Notes |
+|---|---|---|
+| Module icon (`static/description/icon.png`, PNG only) | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
+| Cover | from the hero slot | Shown in the HERO. The store's cover in browse/grid views, shown enlarged because its name ends with `_screenshot`. A GIF carries an animated walkthrough. |
+| Screens | from the feature slot | Inline in `index.html`. Extra `manifest['images']` entries feed the store carousel; inline-only images do not appear in grid views. |
 
 ---
 
@@ -451,7 +453,7 @@ unknown.
 | `name` | str | h1 on listing page + page title + store search | Max 25 chars (vendor guideline). No adjectives or company name prefix. |
 | `summary` | str | Grid/browse teaser text (NOT on the detail page itself). Tagline source for `index.html` hero. | 1-2 sentences, outcome-first. Match to hero tagline in `index.html`. |
 | `description` | str (RST) | Description tab fallback ONLY when `index.html` is absent | Store prefers `index.html`; RST fallback incurs ranking penalty. Keep for text-only fallback. |
-| `images` | list[str] | First entry = cover in browse/grid. Subsequent entries = store carousel. | Must have at least one entry (ranking penalty if absent). Each entry per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images (e.g. `static/description/main_screenshot.gif` for the English cover). |
+| `images` | list[str] | First entry = cover in browse/grid. Subsequent entries = store carousel. | Must have at least one entry (ranking penalty if absent). Each entry per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Manifest images (the English cover first). |
 | `license` | str | License row in sidebar metadata table | Required (ranking penalty if missing). Common values: `LGPL-3`, `OPL-1`, `AGPL-3`. |
 | `price` | float | Price display; determines Add-to-Cart vs Download button | Minimum 9 EUR if set. Absent or `<= 0` = free. DO NOT fabricate; ask user. |
 | `currency` | str | Price display | `EUR` (default) or `USD` only. Audit: only set when `price` is set. |
@@ -482,7 +484,7 @@ even if the registry omits it.
 | File | Role | Notes |
 |---|---|---|
 | `static/description/index.html` | English canonical - Description tab | No locale suffix. Always present. |
-| `static/description/index_<locale>.html` | Localized Description tab | One file per non-English locale (e.g. `index_vi_VN.html`). Each references its own locale-suffixed images. |
+| `static/description/index_<locale>.html` | Localized Description tab | One file per non-English locale (e.g. `index_vi_VN.html`). Its images per `module-doc-references.md` § Images. |
 | `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
@@ -490,10 +492,9 @@ even if the registry omits it.
 disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
 is authoritative and this file cross-references it.
 
-**Screenshot localization**: per-locale screenshots are captured separately. English canonical
-has NO suffix (`<slug>.<ext>`, `main_screenshot.<ext>`); every non-English locale appends
-`.<locale>` (`<slug>.<locale>.<ext>`, `main_screenshot.<locale>.<ext>`). Each locale's HTML
-references only its own images. Icon is language-neutral (one `icon.png`, no locale suffix).
+**Screenshot localization**: per-locale screenshots are captured separately; their names, and
+which one a localized page shows, follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+§ Images. The icon is language-neutral (one `icon.png`, no locale suffix).
 
 **Tab split discipline**: keep marketing copy in `index.html` and the user guide for the business
 roles (Overview, Setup, one chapter per role, Troubleshooting / FAQ) in `doc/index.rst`. Do not

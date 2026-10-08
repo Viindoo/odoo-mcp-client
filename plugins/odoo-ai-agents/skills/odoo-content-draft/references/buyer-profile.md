@@ -50,7 +50,7 @@ inputs: <feature-catalog.jsonl path>, <role-map.json path | none>, <module descr
 |---|---|---|---|---|
 | Economic buyer | <who signs off the purchase> | | | |
 | Champion | <who runs the process day to day and pushes for the module> | | | |
-| End users | <each role-map `business_role`, one row each or grouped> | | | |
+| End users | <the `business_role` of each role-map role of kind `user` or `manager`, one row each or grouped> | | | |
 | Technical evaluator | <who installs and maintains it> | | | <`depends`, license, setup effort> |
 
 ### Status quo

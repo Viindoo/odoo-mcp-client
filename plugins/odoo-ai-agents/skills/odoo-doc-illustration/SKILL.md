@@ -49,11 +49,15 @@ before provisioning. Tell the kinds of checkout apart with one bounded read
 `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`.
 - Two different paths: `doc_root` is a linked worktree (`run-harness` or the caller made it). Use
   it as is and create nothing.
-- The same path twice: `doc_root` is a principal checkout, which never takes a write. Invoke
-  `git-toolkit:git-ops` (Skill tool) to create a new worktree and docs branch starting at that
-  checkout's HEAD commit, named explicitly (`git rev-parse HEAD`). That worktree becomes
-  `doc_root`; re-root every module path into it (same path relative to the repo top level). The
-  run summary names the worktree path and branch; this skill never merges or pushes it.
+- The same path twice: `doc_root` is a principal checkout, which never takes a write. First run the
+  bounded read `git -C <doc_root> status --porcelain -- <each module path>`: a worktree starts at
+  HEAD, so uncommitted changes there would go undocumented. When it lists any, ask the user ONCE -
+  commit them first (the user commits; then continue), or document HEAD without them - and never
+  proceed silently. Then invoke `git-toolkit:git-ops` (Skill tool) to create a new worktree and
+  docs branch starting at that checkout's HEAD commit, named explicitly (`git rev-parse HEAD`).
+  That worktree becomes `doc_root`; re-root every module path into it (same path relative to the
+  repo top level). The run summary names the worktree path and branch; this skill never merges or
+  pushes it.
 - The read fails (not under git): use `doc_root` as is; there is nothing to commit.
 
 Then, as the cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
@@ -112,7 +116,8 @@ provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE against
    `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md` - do not re-derive it here.
 3. **Gate (ONE whole-plan).** Present the ENTIRE plan (clusters + instance allocation + install/doc
-   order + dedup + schedule + one proposed `TARGET MARKET` row per appstore module) for a SINGLE
+   order + dedup, with the already-documented choice of `skills/_shared/doc-cluster-plan.md` § 5 +
+   schedule + one proposed `TARGET MARKET` row per appstore module) for a SINGLE
    `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
    provisioned.
 4. **Loop** - settle `doc_root` and the state dirs (§ State dir resolution), then run the
@@ -169,6 +174,8 @@ PARALLEL across independent instance-paths up to
       after the other on the same `INSTANCE_HANDLE` (two audience-pure capture passes - the marketing
       cover and task shots and the userguide per-step shots are DIFFERENT sets). Fan-out is free
       across MODULES/INSTANCES (each on its own family/instance), never within one instance.
+      **Baseline first.** Before the first writer for M, run the doc reference gate on M exactly as
+      step 5 does and keep its findings as M's baseline - what the module carried before this run.
       **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
       env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
@@ -177,15 +184,20 @@ PARALLEL across independent instance-paths up to
       completion block (files exist at the reported paths), then run the doc reference gate on M
       with no file arguments, so it checks every doc file, the module descriptor and orphan images
       (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
-      resolved series). Exit 2 stops the run `NEEDS_CONTEXT`. Route each exit-1 finding by where
-      it lies:
-      - a file a writer wrote this run, or the descriptor when `odoo-marketing-writer` ran -> back
-        to that writer, then re-run the gate;
+      resolved series). Exit 2 stops the run `NEEDS_CONTEXT`. Compare each exit-1 finding with M's
+      baseline (step 4; a match is the same file, rule and reference - lines may shift) and route
+      it:
       - `IMG_ORPHAN` -> delete the file yourself (a file deletion, not a git command), include the
         deletion in M's commit, and list every deleted file in the run summary;
-      - a doc file outside this run's DOC LAYER for M (left untouched) -> report it under
-        `concerns:`; it does not block the commit.
-      Once a gate run reports no finding beyond the last kind, COMMIT M's docs in `doc_root` via
+      - a finding not in the baseline -> back to the writer that ran, whatever file it is in (with
+        both writers: a `doc/` file to `odoo-user-doc-writer`, any other to
+        `odoo-marketing-writer`), then re-run the gate;
+      - a baseline finding in a file of this run's DOC LAYER for M (`doc/*.rst` for `userguide`;
+        `static/description/index*.html` and the descriptor for `appstore`) -> back to the writer
+        of that layer, which owns every reference in the files it writes;
+      - a baseline finding in any other file (left untouched) -> report it under `concerns:`; it
+        does not block the commit.
+      Once a gate run reports nothing but that last kind, COMMIT M's docs in `doc_root` via
       git-toolkit `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
 3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
@@ -197,7 +209,8 @@ PARALLEL across independent instance-paths up to
    `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
 Order per module: **install -> catalog + role map -> pre-fetch buyer profile + copy (marketing) ->
-pre-fetch walkthrough (scenarios) -> capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
+pre-fetch walkthrough (scenarios) -> baseline gate -> capture + assemble (writer(s), serial) ->
+verify -> commit -> next-delta.**
 
 **End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
 BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
@@ -364,8 +377,9 @@ browser-family pool, ~3 ephemeral instances)` - browser-family pool size is per
 simultaneous.
 
 **Degraded paths (never hard-block the whole run).** Per-locale: if a locale fails to load/switch,
-the writer reuses the English screenshots for that locale's doc with an `[Image: <slug>]` note and
-reports `status: DONE` with `concerns: [locale <x>: English screenshots used]` - other locales proceed.
+the writer reuses the English screenshots for that locale's doc (the fallback
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images allows) with an
+`[Image: <slug>]` note and reports `status: DONE` with `concerns: [locale <x>: English screenshots used]` - other locales proceed.
 Global: with no instance/browser, the writer still assembles the structure + supplied copy with
 `[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
 `BLOCKED`.

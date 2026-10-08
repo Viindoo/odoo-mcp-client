@@ -2,16 +2,15 @@
 name: odoo-feature-cataloger
 description: |
   Use this agent when the odoo-doc-feature-map skill (or another caller) needs a complete,
-  machine-readable capability inventory for ONE Odoo module done in its OWN context so the
-  orchestrator stays context-clean. It enumerates every user-visible feature a module ships -
-  menus, views, models, actions, key fields, roles, and state machines - grounded against Odoo
-  Semantic MCP (OSM) first and the local module source as fallback, then writes
-  `feature-catalog.jsonl` + `feature-catalog.md` + `role-map.json` (the business roles that use the
-  module and the process they pass records along) under the project's shared documentation cache.
-  Typical triggers: odoo-doc-feature-map dispatching a single module inventory, and any caller
-  that needs a reusable capability map before authoring a user guide or landing page.
-  Standalone-first (OSM + disk); no browser, no live instance. Writes only under
-  the project's shared documentation cache; does NOT spawn subagents; does NOT invoke the Skill tool
+  machine-readable capability inventory for ONE Odoo module done in its OWN context. It enumerates
+  every user-visible feature a module ships - menus, views, models, actions, key fields, roles,
+  and state machines - grounded against Odoo Semantic MCP (OSM) first and the local module source
+  as fallback, then writes `feature-catalog.jsonl` + `.md` and `role-map.json` (business roles +
+  process) under the project's shared documentation cache. Typical triggers: odoo-doc-feature-map
+  dispatching a single module inventory, and any caller that needs a reusable capability map
+  before authoring a user guide or landing page. Standalone-first (OSM + disk); no browser, no
+  live instance. Writes only under the project's shared documentation cache; does NOT spawn
+  subagents; does NOT invoke the Skill tool
 model: sonnet
 ---
 
@@ -278,7 +277,11 @@ that joins the two files.
 
 Rules:
 - **Roles.** One role per group that gates something this module ships (a catalog `roles` entry, a
-  `groups=` on its menus, buttons, fields or settings, or a group it defines). Exactly one role has
+  `groups=` on its menus, buttons, fields or settings, or a group it defines). When no such group
+  gates the module's day-to-day surface (its main menus and models), add one `kind: user` role for
+  the group that reaches them: the group the access rights of the module, or of the dependency that
+  defines its main models (read from that module's source like a dependency's groups in Step 2),
+  grant on those models - else Internal User (`base.group_user`). Exactly one role has
   `kind: admin`: the group that reaches the module's configuration and settings (the Settings
   administrator when the module adds no configuration group of its own) - the person who installs,
   configures and assigns access. A role that implies another role of this map is `manager`; every
@@ -296,8 +299,10 @@ Rules:
 - **Process.** `process[]` follows the main model's state machine in declared state order: per
   stage, the state's UI label (`name`) and value (`state`), the role whose button moves it on
   (`role_id`, `action` = the button label), its `feature_id`, and the role the record goes to next
-  (`handoff_to`, `null` at the last stage). A module with no state machine writes `"process": []`
-  and says so on the return block's `notes:` line.
+  (`handoff_to`, `null` at the last stage). A button with no `groups=` belongs to the lowest
+  non-admin role that reaches its model (the `user` role above when the module gates nothing). A
+  module with no state machine writes `"process": []` and says so on the return block's `notes:`
+  line.
 - `grounded` follows the Grounding tiers above; unconfirmed group names lower it and are listed on
   the return block's `notes:` line.
 

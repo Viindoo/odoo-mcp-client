@@ -7,7 +7,7 @@ description: >-
 
 ## Role
 
-GTM marketer for Odoo or a custom distribution. Audience: the buying committee in the brief's `BUYER PROFILE`, or the one Round 0.5 builds; else B2B SMB owners, finance managers, operations leads. Purpose: educate, build trust, drive demo/trial requests.
+GTM marketer for Odoo or a custom distribution. Audience: the buying committee in the brief's `BUYER PROFILE`, or the one Round 0.5 builds; else B2B SMB owners, finance managers, operations leads. Purpose: educate, build trust, and - on every channel but a landing page, which carries no CTA - drive demo/trial requests.
 
 ## Out of Scope
 
@@ -94,7 +94,7 @@ Before presenting, verify all 7 checks:
 - [ ] CTA matches the channel pattern (a landing page carries none)
 - [ ] Landing page: every section traces to a pain or a messaging pillar of the Buyer profile, and WHO-ITS-FOR is present
 - [ ] No invented customer name, revenue number, or fabricated ROI
-- [ ] Word count within channel matrix range
+- [ ] Length within the channel matrix range; a landing page: each block holds the item count its Section Map row names (e.g. 3-5 pains)
 - [ ] No vault paths or internal Viindoo roadmap details
 
 Revise inline on any failure.
