@@ -204,10 +204,11 @@ phases:
       so App-Store landing copy would have nothing to fill), using
       .odoo-ai/packaging/<run>/scope.yaml, draft App-Store landing copy for
       every resolved language (English canonical mandatory; per-locale variants per languages[]
-      from scope.yaml). Channel: landing-page copy. Output: sectioned copy with HTML-comment markers
-      <!-- HERO --> / <!-- KEY-FEATURES --> / <!-- BENEFITS --> / <!-- SCREENSHOTS --> /
-      <!-- TARGET-USERS --> / <!-- CTA --> and [Image: slug] placeholders for screenshots not
-      yet captured. Ground Key-Features copy in the feature catalog at
+      from scope.yaml). Channel: landing-page copy. Output: sectioned copy, one HTML-comment block
+      per copy-sourced key of
+      skills/odoo-doc-illustration/references/app-store-template.md § Section Map, and
+      [Image: slug] placeholders for screenshots not yet captured. Ground Key-Features copy in the
+      feature catalog at
       .odoo-ai/packaging/<run>/<module>/feature-catalog.jsonl. When the module's doc-plan entry has a
       non-empty extends_in_scope[], add a one-line "Extends <base> - see its documentation" pointer
       (D13.7 cross-reference hint). Emit status: NEEDS_NEXT -> odoo-doc-illustration to fill

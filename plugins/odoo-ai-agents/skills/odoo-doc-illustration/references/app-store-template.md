@@ -45,24 +45,34 @@ into every Read - never the placeholder or a bare `.odoo-ai/`.
 
 ## 2. Section Map (marketing, `index.html` = Description tab)
 
-Recommended order. Omit optional sections when content is thin rather than leaving placeholders.
+The SSOT for the landing's sections, their order, and the `<!-- <KEY> -->` marker that labels each
+one - in the copy `odoo-content-draft` returns and in the skeleton below. Source: `copy` = the
+block of that key in the supplied marketing copy, written from the buyer profile; `catalog` =
+`feature-catalog.jsonl`; `captures` = screenshots of the module's tasks; `manifest` = the module
+descriptor; `brief` = a value the caller supplies or the module already states (e.g. the manifest
+`support` key). A `Yes` section is always present; omit a `Recommended` or `Optional` section whose
+source is empty rather than leaving placeholders.
 
-| # | Section | ID | Content | Required |
-|---|---|---|---|---|
-| 1 | Hero | `#overview_block` | Banner (compatibility badges + title + tagline matching manifest `summary`) + main screenshot/GIF | Yes |
-| 2 | Key Features | `#key_features_block` | `row`/`col-md-6 col-lg-4` cards: icon + capability title + user-outcome body (1-2 sentences each). 3-6 features. | Yes |
-| 3 | Benefits | `#benefit_block` | 4-6 bullets starting with action verbs (Streamline / Enhance / Ensure / Empower). Each = one buyer outcome, not a toggle. | Optional |
-| 4 | Screenshots | `#feature` (tab) | Alternating light/alternate-bg sections. Each: `col-xl-4` task title + `col-xl-8` screenshot. Caption = human task name, not a technical path. | Recommended |
-| 5 | Demo | `#demo` (tab) | YouTube embed (16:9) + user-manual link + live-demo link. YouTube only (canonical `youtube.com/embed/` format). | Optional |
-| 6 | Support | `#support` (tab) | Two contact cards: pre-sales email + technical support email. | Recommended |
-| 7 | Technical Requirements | `#requirement` (tab) | Odoo version range, required modules, editions (Community / Enterprise / Cloud), license. | Recommended |
-| 8 | Changelog | `#changelog` (tab) | Chronological list: date + badge (New / Improved / Fixed) + description. | Optional |
-| 9 | Target Users | `#target_users_block` | 3 persona cards by ROLE + PAIN (e.g. Executives, Operations Leaders, Implementers). | Optional |
+| # | Key | ID | Content | Source | Required |
+|---|---|---|---|---|---|
+| 1 | HERO | `#overview_block` | Outcome headline + a "For <segment>" line + tagline matching manifest `summary` + the cover `main_screenshot` | copy | Yes |
+| 2 | PAINS | `#pains_block` | "Is this you?" - 3-5 pains of the buying committee, in its own words | copy | Yes |
+| 3 | OUTCOMES | `#benefit_block` | Each pain -> the outcome the module delivers | copy | Yes |
+| 4 | HOW-IT-WORKS | `#process_block` | The process stages and the role acting at each, from the role map `process` | copy | Recommended |
+| 5 | KEY-FEATURES | `#key_features_block` | `row`/`col-md-6 col-lg-4` cards: icon + capability title + user-outcome body (1-2 sentences). 3-6 features. | catalog | Yes |
+| 6 | WHO-ITS-FOR | `#target_users_block` | One card per buying-committee member (who + pain + gain), then the Best for line | copy | Yes |
+| 7 | SCREENS | `#feature` (tab) | Alternating sections: `col-xl-4` task title + `col-xl-8` task screenshot. Caption = human task name, not a technical path. | captures | Recommended |
+| 8 | DEMO | `#demo` (tab) | YouTube embed (16:9, canonical `youtube.com/embed/` format) + user-manual and live-demo links | brief | Optional |
+| 9 | FAQ | `#faq` (tab) | Answers to the buying committee's top objections | copy | Recommended |
+| 10 | SUPPORT | `#support` (tab) | Two contact cards: pre-sales + technical support | brief | Recommended |
+| 11 | TECH-REQUIREMENTS | `#requirement` (tab) | Series, supported editions, required modules, license | manifest | Recommended |
+| 12 | CHANGELOG | `#changelog` (tab) | Chronological list: date + badge (New / Improved / Fixed) + description | brief | Optional |
 
-Tab navigation (`<ul class="nav nav-tabs">`) wraps sections 4-8 into one tabbed block.
-Sections 1-3 and 9 appear as full-width sections above and below the tab block.
+HERO through WHO-ITS-FOR run as full-width sections in that order; SCREENS through CHANGELOG share
+one tab block (`<ul class="nav nav-tabs">`) after them. There is no call-to-action section - the
+store renders its own install / buy button.
 
-**Tone rule**: hero and features = value-first, buyer-facing. Never open with "This module extends
+**Tone rule**: every section is buyer-facing and value-first. Never open with "This module extends
 X to support Y" or expose Python class names / field technical names in headings.
 
 ---
@@ -70,16 +80,15 @@ X to support Y" or expose Python class names / field technical names in headings
 ## 3. Bootstrap-5 Fragment Skeleton (brand-agnostic)
 
 Replace `{{PLACEHOLDER}}` values: `{{PRIMARY_HEX}}` from `<SHARE_DIR>/brand-tokens.json` (by VALUE -
-see the header), every other placeholder from the supplied copy / feature catalog / brief.
+see the header), every other placeholder from the source its Section Map row names (§2).
 Default palette when that file is absent: primary `#714B67`, accent `#714B67`, bg-light `#F8F4F8`.
 
 ```html
 <!-- static/description/index.html - FRAGMENT ONLY, no html/head/body -->
 <!-- Bootstrap 5 already loaded by the store; do NOT add <link> CDN tags -->
+<!-- Each section opens with its Section Map key (§2) -->
 
-<!-- ================================================================
-  HERO
-================================================================ -->
+<!-- HERO -->
 <section id="overview_block" style="margin-top:1.5rem;margin-bottom:1.5rem;">
   <!-- Banner card -->
   <div class="rounded p-4" style="background-color:{{PRIMARY_HEX}};border-radius:15px;">
@@ -98,12 +107,15 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
         </div>
       </div>
     </div>
-    <!-- Title + tagline -->
+    <!-- Outcome headline + segment + tagline -->
     <div class="row mt-4 text-center">
       <div class="col-md-12">
         <h1 style="color:#fff;font-weight:700;font-size:34px;margin-bottom:10px;">
-          {{MODULE_DISPLAY_NAME}}
+          {{OUTCOME_HEADLINE - the result the buyer gets, not the module name}}
         </h1>
+        <p style="color:#fff;font-size:16px;font-weight:600;margin-bottom:8px;">
+          For {{SEGMENT - from the buyer profile}}
+        </p>
         <p class="mx-auto"
            style="color:#fff;font-size:18px;line-height:26px;max-width:78%;margin-bottom:16px;">
           {{TAGLINE - matches manifest summary, outcome-first, 15 words max}}
@@ -123,9 +135,58 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
   </div>
 </section>
 
-<!-- ================================================================
-  KEY FEATURES GRID
-================================================================ -->
+<!-- PAINS -->
+<section id="pains_block" class="py-4">
+  <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-4" style="font-size:32px;font-weight:bold;">Is this you?</h2>
+    <div class="bg-white rounded" style="padding:24px;border:1px solid #e8e8e8;">
+      <!-- Repeat per pain (3-5 items), in the buying committee's own words -->
+      <div class="d-flex align-items-start p-2 gap-2">
+        <span style="font-size:20px;color:{{PRIMARY_HEX}};margin-top:2px;">&#8227;</span>
+        <p class="mb-0" style="font-size:15px;">{{PAIN}}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OUTCOMES -->
+<section id="benefit_block" class="py-4">
+  <div style="background-color:#f4f4f4;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-4" style="font-size:32px;font-weight:bold;">What changes</h2>
+    <div class="row g-4">
+      <!-- Repeat per pain: the pain, then the outcome the module delivers -->
+      <div class="col-md-6">
+        <div class="bg-white rounded p-4 h-100" style="border:1px solid #e8e8e8;">
+          <p class="mb-2" style="font-size:14px;color:#666;">{{PAIN}}</p>
+          <p class="mb-0" style="font-size:16px;font-weight:600;">
+            &rarr; {{OUTCOME - the buyer's result, action verb first}}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW-IT-WORKS -->
+<section id="process_block" class="py-4">
+  <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
+    <h2 class="text-center mb-4" style="font-size:32px;font-weight:bold;">How it works</h2>
+    <div class="row g-4">
+      <!-- Repeat per process stage, in stage order -->
+      <div class="col-md-6 col-lg-3">
+        <div class="bg-white rounded p-4 h-100" style="border-top:4px solid {{PRIMARY_HEX}};">
+          <div style="font-size:24px;font-weight:700;color:{{PRIMARY_HEX}};">{{STAGE_NUMBER}}</div>
+          <h4 style="font-size:16px;font-weight:700;">{{STAGE_NAME}}</h4>
+          <p class="mb-0" style="font-size:14px;">
+            {{BUSINESS_ROLE}} {{what they do at this stage, and who the record goes to next}}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- KEY-FEATURES -->
 <section id="key_features_block" class="py-4">
   <div style="background-color:#f4f4f4;padding:40px;border-radius:15px;">
     <h2 class="text-center mb-4"
@@ -153,43 +214,46 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
   </div>
 </section>
 
-<!-- ================================================================
-  BENEFITS (optional)
-================================================================ -->
-<section id="benefit_block" class="py-4">
+<!-- WHO-ITS-FOR -->
+<section id="target_users_block" class="py-4">
   <div style="background-color:#f8f8f8;padding:40px;border-radius:15px;">
-    <h2 class="text-center mb-4" style="font-size:32px;font-weight:bold;">
-      Benefits
-    </h2>
-    <div class="bg-white rounded" style="padding:24px;border:1px solid #e8e8e8;">
-      <!-- Repeat per benefit (4-6 items) -->
-      <div class="d-flex align-items-start p-2 gap-2">
-        <span style="font-size:20px;color:{{PRIMARY_HEX}};margin-top:2px;">&#8227;</span>
-        <p class="mb-0" style="font-size:15px;">
-          {{BENEFIT - action verb first, buyer outcome, no feature toggle language}}
-        </p>
+    <h2 class="text-center mb-4"
+        style="font-size:30px;font-weight:bold;">Who it is for</h2>
+    <div class="row g-4">
+      <!-- Repeat per buying-committee member: who they are + their pain + what they gain -->
+      <div class="col-md-6 col-lg-3">
+        <div class="bg-white rounded p-4 h-100"
+             style="border-top:4px solid {{PRIMARY_HEX}};">
+          <h4 style="font-size:16px;font-weight:700;">{{MEMBER_WHO}}</h4>
+          <p class="mb-0" style="font-size:14px;">{{MEMBER_PAIN_AND_GAIN}}</p>
+        </div>
       </div>
     </div>
+    <p class="text-center mt-4 mb-0" style="font-size:16px;">
+      <strong>Best for:</strong> {{BEST_FOR}}
+    </p>
   </div>
 </section>
 
-<!-- ================================================================
-  TABS: Screenshots / Demo / Support / Requirements / Changelog
-  NOTE: nav-tabs rely on Bootstrap 5 JS. `data-bs-toggle="tab"` is a JS-driven behavior, NOT pure
+<!-- Tab block: SCREENS / DEMO / FAQ / SUPPORT / TECH-REQUIREMENTS / CHANGELOG.
+  nav-tabs rely on Bootstrap 5 JS. `data-bs-toggle="tab"` is a JS-driven behavior, NOT pure
   CSS - it does NOT work without Bootstrap JS. It works here only because the store PRELOADS
   Bootstrap JS (verified on live listings); you still ship NO <script> of your own (CSP strips it).
-================================================================ -->
+  Drop the nav item of every tab section you omit. -->
 <div id="tabs" class="container px-0">
   <ul class="nav nav-tabs justify-content-center bg-white py-2"
       id="moduleTab" role="tablist"
       style="border-radius:6px 6px 0 0;">
     <li class="nav-item">
       <a class="nav-link active" data-bs-toggle="tab" href="#feature" role="tab">
-        Features
+        Screenshots
       </a>
     </li>
     <li class="nav-item">
       <a class="nav-link" data-bs-toggle="tab" href="#demo" role="tab">Demo</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#faq" role="tab">FAQ</a>
     </li>
     <li class="nav-item">
       <a class="nav-link" data-bs-toggle="tab" href="#support" role="tab">Support</a>
@@ -208,7 +272,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 </div>
 <div class="tab-content" id="moduleTabContent">
 
-  <!-- FEATURE DEEP-DIVE -->
+  <!-- SCREENS -->
   <div class="tab-pane fade show active" id="feature" role="tabpanel">
     <!-- Repeat per screenshot; alternate background colors for visual rhythm -->
     <section class="py-4">
@@ -259,6 +323,21 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
     </section>
   </div>
 
+  <!-- FAQ -->
+  <div class="tab-pane fade" id="faq" role="tabpanel">
+    <section class="py-4">
+      <div style="background:#f8f8f8;padding:40px;border-radius:15px;">
+        <h2 class="text-center mb-4"
+            style="font-size:30px;font-weight:bold;">Frequently Asked Questions</h2>
+        <!-- Repeat per objection: the question as the buyer asks it, then the answer -->
+        <div class="bg-white rounded mb-3" style="padding:18px 24px;border:1px solid #e8e8e8;">
+          <h4 style="font-size:16px;font-weight:700;">{{QUESTION}}</h4>
+          <p class="mb-0" style="font-size:14px;">{{ANSWER}}</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <!-- SUPPORT -->
   <div class="tab-pane fade" id="support" role="tabpanel">
     <section class="py-4">
@@ -288,7 +367,7 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
     </section>
   </div>
 
-  <!-- TECHNICAL REQUIREMENT -->
+  <!-- TECH-REQUIREMENTS -->
   <div class="tab-pane fade" id="requirement" role="tabpanel">
     <section class="py-4">
       <div style="background:#f8f8f8;padding:40px;border-radius:15px;">
@@ -297,10 +376,10 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
         <div class="p-3 bg-white rounded">
           <ul style="list-style:none;padding-left:0;margin-bottom:0;">
             <li class="py-2">
-              <strong>Odoo version:</strong> {{SERIES}} (e.g. 17.0, 18.0)
+              <strong>Odoo version:</strong> {{SERIES - the module's series}}
             </li>
             <li class="py-2">
-              <strong>Editions:</strong> Community / Enterprise / Cloud (list applicable)
+              <strong>Editions:</strong> {{each edition the module supports}}
             </li>
             <li class="py-2">
               <strong>Required modules:</strong> {{depends list from manifest}}
@@ -341,26 +420,6 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
   </div>
 
 </div><!-- /tab-content -->
-
-<!-- ================================================================
-  TARGET USERS (optional)
-================================================================ -->
-<section id="target_users_block" class="py-4">
-  <div style="background-color:#f4f4f4;padding:40px;border-radius:15px;">
-    <h2 class="text-center mb-4"
-        style="font-size:30px;font-weight:bold;">Who Should Use This Module?</h2>
-    <div class="row g-4">
-      <!-- 3 persona cards: describe by ROLE + PAIN, not by feature -->
-      <div class="col-md-4">
-        <div class="bg-white rounded p-4 h-100"
-             style="border-top:4px solid {{PRIMARY_HEX}};">
-          <h4 style="font-size:16px;font-weight:700;">{{PERSONA_ROLE}}</h4>
-          <p style="font-size:14px;">{{PERSONA_PAIN_AND_GAIN}}</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 ```
 
 ---
