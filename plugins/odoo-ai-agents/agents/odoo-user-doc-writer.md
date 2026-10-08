@@ -362,8 +362,8 @@ checked against your own Inputs table below; the caller-side schema is
 (run before any work)
 Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
-AUDIENCE/persona, locale/language list, grounding source (feature catalog /
+literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files;
+`ROLE MAP` - optional, when absent proceed and state the assumption; locale/language list, grounding source (feature catalog /
 walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the

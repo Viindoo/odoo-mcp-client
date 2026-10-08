@@ -70,9 +70,18 @@ presumed abandoned; a healthy doc run finishes well inside that window). Full ru
 rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 Enforcer: whoever executes `odoo-doc-illustration` next, unconditionally, every run.
 
+**Target market (appstore layer only, confirmed once).** The buyer profile behind every landing
+needs each appstore module's `TARGET MARKET`. A brief or plan that carries one is used as is.
+Otherwise propose one per module from its descriptor, per
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/buyer-profile.md` § Target market, and
+have the user confirm it ONCE: on the multi-module path as one row per appstore module in the
+whole-plan gate (step 3 below); on the single-module path as one question before provisioning.
+Never guess it silently.
+
 **Single module.** A single module dir/name takes the single-module path with no
-scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
-against that module.
+scoper/planner hop: confirm the target market when an appstore layer runs and the brief carries
+none (§ Target market above), provision (or receive an `INSTANCE_HANDLE`), then run the loop body
+ONCE against that module.
 
 **Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
@@ -87,8 +96,8 @@ against that module.
    `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md` - do not re-derive it here.
 3. **Gate (ONE whole-plan).** Present the ENTIRE plan (clusters + instance allocation + install/doc
-   order + dedup + schedule) for a SINGLE `approve / refine: [feedback] / cancel` - NOT a gate per
-   cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
+   order + dedup + schedule + one proposed `TARGET MARKET` row per appstore module) for a SINGLE
+   `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
    provisioned.
 4. **Loop** - run the per-instance incremental loop below over `doc-plan.yaml`.
 
@@ -115,10 +124,13 @@ PARALLEL across independent instance-paths up to
       `role-map.json` exist - use the ones the caller or plan supplies, else invoke
       `odoo-doc-feature-map` (which runs `odoo-feature-cataloger` and writes both). Every pre-fetch
       and writer below reads these two files.
-   2. **Marketing copy pre-fetch (TONE: marketing only).** If copy is not already supplied (the
-      `module-packaging` workflow Phase 4 supplies it; a standalone run does not): dispatch
-      `odoo-content-draft` (landing-page-copy channel, grounded in the step 2.1 catalog) to produce
-      the sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
+   2. **Buyer profile + marketing copy pre-fetch (TONE: marketing only).** If copy is not already
+      supplied (the `module-packaging` workflow Phase 4 supplies it; a standalone run does not):
+      invoke `odoo-content-draft` (landing-page-copy channel) with the step 2.1 catalog and role
+      map, M's module descriptor and M's confirmed `TARGET MARKET`. Save the `## Buyer profile`
+      block it returns as `<catalog dir>/buyer-profile.md` and pass the rest as `MARKETING COPY`.
+      Copy a caller supplies travels with its buyer profile when the caller has one (none -> no
+      `BUYER PROFILE:` line). The writers NEVER call
       content-draft; the skill owns this pre-fetch. `marketing` is the DOC LAYER `appstore` default
       (§ Documentation axes), so a bare appstore dispatch triggers this pre-fetch automatically.
    3. **Walkthrough pre-fetch (CAPTURE MODE: scenarios only).** If a `WALKTHROUGH:` path is not
@@ -138,7 +150,7 @@ PARALLEL across independent instance-paths up to
       (§ Documentation axes below) for that module only - never the other way round. Resolved value:
       `userguide` -> `odoo-user-doc-writer`; `appstore` -> `odoo-marketing-writer`; `both` -> BOTH, one
       after the other on the same `INSTANCE_HANDLE` (two audience-pure capture passes - the marketing
-      hero/feature-grid shots and the userguide per-step shots are DIFFERENT sets). Fan-out is free
+      cover and task shots and the userguide per-step shots are DIFFERENT sets). Fan-out is free
       across MODULES/INSTANCES (each on its own family/instance), never within one instance.
       **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
@@ -167,8 +179,8 @@ PARALLEL across independent instance-paths up to
    between them. Paths running in parallel that meet on ONE database (a convergence fill) follow
    `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
-Order per module: **install -> catalog + role map -> pre-fetch copy (marketing) -> pre-fetch
-walkthrough (scenarios) -> capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
+Order per module: **install -> catalog + role map -> pre-fetch buyer profile + copy (marketing) ->
+pre-fetch walkthrough (scenarios) -> capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
 
 **End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
 BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
@@ -249,6 +261,7 @@ ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do N
 INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>
 ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
+BUYER PROFILE: <abs path to buyer-profile.md saved at step 2.2>                # target market, segment, buying committee the copy addresses
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED (guaranteed by step 2.1) - absent -> writer BLOCKS
 LANGUAGES: <resolved locale list, English-first>
 CAPTURE MODE: screens | scenarios
@@ -288,10 +301,9 @@ duplicate content across the two.
 **TONE (appstore index.html tone).** `marketing` (default when DOC LAYER resolves to `appstore`) =
 `odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
 `references/app-store-template.md` (sanitizer rules + brand-token/palette resolution are owned
-there - do not restate them here). The skill pre-fetches the copy from `odoo-content-draft`; the
-writer resolves `[Image: <slug>]` markers after capture and sources the Key Features grid from the
-feature catalog. `technical` (opt-in via
-`TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
+there - do not restate them here). The skill pre-fetches the buyer profile and the copy from
+`odoo-content-draft`; the writer resolves `[Image: <slug>]` markers after capture and sources the
+Key Features grid from the feature catalog. `technical` (opt-in via `TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
 OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
 of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard
 BLOCK if absent, per its own § Required inputs) - the copy pre-fetch above is

@@ -45,18 +45,18 @@ for the HTML you emit.
 
 ## Audience and tone (load-bearing)
 
-Your reader is the BUYER - an owner, a finance manager, an operations lead - not a developer and not the
-end user of a specific screen. Lead value-first: the business OUTCOME, not a feature dump. Never open
-with "This module extends X to support Y" and never expose Python class names or technical field names
-in headings. The supplied copy carries the message; assemble it faithfully, value-first throughout.
+Your reader is the BUYER - the buying committee in `BUYER PROFILE`, else the one the supplied copy
+implies - deciding whether to install or purchase, not a developer. Lead value-first: the business
+OUTCOME, not a feature dump. Never open with "This module extends X to support Y" and never expose
+Python class names or technical field names in headings. The supplied copy carries the message; assemble it faithfully, value-first throughout.
 
 ## Required inputs - hard BLOCK when missing
 
 Two inputs are MANDATORY (this agent does NOT draft copy and does NOT invent features):
 
-- **`MARKETING COPY`** - the sectioned draft the skill supplies (from `odoo-content-draft`): landing
-  copy with `<!-- HERO -->`, `<!-- VALUE PROPS -->`, ... HTML-comment section labels and `[Image: slug]`
-  markers, copy only. Absent -> stop `BLOCKED/NEEDS_CONTEXT(marketing copy required)`; do NOT write your
+- **`MARKETING COPY`** - the sectioned draft the skill supplies (from `odoo-content-draft`): one
+  `<!-- <KEY> -->` block per copy-sourced key of app-store-template.md § Section Map, with
+  `[Image: slug]` markers, copy only. Absent -> stop `BLOCKED/NEEDS_CONTEXT(marketing copy required)`; do NOT write your
   own copy.
 - **`FEATURE CATALOG`** - `feature-catalog.jsonl` (from `odoo-feature-cataloger`), the source for the
   Key Features grid titles + one-line `value` per feature. Absent -> stop
@@ -79,6 +79,7 @@ tagline) - it does NOT generate features or copy.
 | `ADDONS_PATH` | Comma-joined dirs the provisioned instance resolves against - run the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against `WORKTREE_PATH` before any capture; absent with `INSTANCE_HANDLE` present = skip the assertion and proceed (pre-existing behavior) |
 | `MARKETING COPY` | Path or inline sectioned copy (REQUIRED) |
 | `FEATURE CATALOG` | Path to `feature-catalog.jsonl` (REQUIRED) |
+| `BUYER PROFILE` | Optional path to `buyer-profile.md` (from `odoo-content-draft`) - the target market, segment, buying committee and Best for the copy was written for |
 | `LANGUAGES` | Optional explicit locale override; when absent, resolve from the registry |
 | `CAPTURE MODE` | `screens` (default) or `scenarios` |
 | `extends_in_scope` | List of in-scope base modules this one extends (drives the cross-ref hint) |
@@ -114,11 +115,14 @@ English (no suffix); every other locale -> `index_<locale>.html`.
 ### Step 2 - Plan placement, then capture hero + feature screenshots
 
 1. **Shot list first.** Read the manifest `summary` (hero tagline source) and the feature catalog.
-   Before any capture, list every shot - the hero/cover and one per `[Image: slug]` marker - with
-   its slug, target file (`index.html` or a locale variant), slot, framing and the value it must
-   show (capture-mechanics.md section 7, Marketing). The slot is the app-store-template.md section
-   the marker sits in: a marker under `<!-- HERO -->` fills the hero slot, a marker in a feature
-   section fills the feature slot; measure its width per capture-mechanics.md section 7.
+   Before any capture, list every shot - the cover, one per `[Image: slug]` marker, and the SCREENS
+   task shots - with its slug, target file (`index.html` or a locale variant), slot, framing and the
+   value it must show (capture-mechanics.md section 7, Marketing). Each shot's slot comes from the
+   app-store-template.md § Section Map row of the block it fills: a marker in the HERO block is the
+   cover; a marker in another copy block is an image at that point of its key's section; SCREENS
+   (its Source is captures, not copy) takes one task shot per messaging-pillar proof in
+   `BUYER PROFILE` (a feature or a process stage), else per KEY-FEATURES card. Measure each
+   slot's width per capture-mechanics.md section 7.
 2. **Capture to staging.** Shoot each shot per capture-mechanics.md, honouring `CAPTURE MODE` and
    the per-locale loop, to `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/` under the staging
    name of capture-mechanics.md section 3 (default family `chrome-devtools`,
@@ -135,6 +139,13 @@ English (no suffix); every other locale -> `index_<locale>.html`.
 
 Assemble the landing STRICTLY per app-store-template.md (its skeleton, sanitizer rules, and section map
 are the SSOT):
+- **Sections**: emit the sections in Section Map order, each from the source its row names - every
+  copy block into the section of its key, KEY-FEATURES from the catalog, SCREENS from the Step 2
+  task shots, TECH-REQUIREMENTS from the manifest, and DEMO / SUPPORT / CHANGELOG only from values
+  the brief or the module supplies. Every section the map marks `Yes` is present - WHO-ITS-FOR
+  included; a missing required copy block returns `NEEDS_CONTEXT(marketing copy: <KEY>)`. Omit an
+  optional section with no source. No section addresses who the module is not for, and none is a
+  call to action.
 - **Sanitizer-safe fragment**: start at `<section>` - NO `<!DOCTYPE>/<html>/<head>/<body>`; NO
   `<script>` / inline JS; NO `<link>` / CDN / Google-Fonts (the store pre-loads Bootstrap 5 - use its
   classes); Bootstrap-5 utility classes instead of inline flexbox/`gap`; hex colors only (no `rgba()` /
@@ -161,7 +172,7 @@ are the SSOT):
   Per-locale -> `index_<locale>.html`, each referencing its own locale images.
 
 **Cross-reference hint (`extends_in_scope`).** When the brief carries a non-empty `extends_in_scope`
-list, insert one line per base immediately after the hero section, before the features grid:
+list, insert one line per base immediately after the hero section:
 `<p class="text-muted small">Extends <code>&lt;base&gt;</code> - <a href="&lt;link&gt;">see its documentation</a>.</p>`,
 where `<link>` is the HTML link form to `<base>` in
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Links to another module (`<odoo_version>`
@@ -247,6 +258,9 @@ artifacts:
 ### Languages
 <resolved list, English-first>
 
+### Sections
+<Section Map keys emitted, in order; each omitted key with its reason>
+
 ### Artifacts
 - <abs path to static/description/index.html>
 - <abs path to index_<locale>.html, per locale>
@@ -293,8 +307,8 @@ checked against your own Inputs table below; the caller-side schema is
 (run before any work)
 Confirm the dispatch brief carries `INPUTS` (or the
 family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
-literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
-AUDIENCE/persona, locale/language list, grounding source (feature catalog /
+literal `none yet` - and this family's required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files;
+`BUYER PROFILE` - optional, when absent proceed and state the audience you assumed; locale/language list, grounding source (feature catalog /
 walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). `OBJECTIVE`/`ACCEPTANCE` are not literal dispatch-brief keys - no real dispatch site emits either; this family's own required fields above (and, for `ACCEPTANCE`, its by-pointer target) carry that substance, so do not stop looking for a key literally spelled `OBJECTIVE:`/`ACCEPTANCE:`. Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the

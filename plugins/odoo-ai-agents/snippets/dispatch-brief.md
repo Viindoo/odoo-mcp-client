@@ -163,7 +163,9 @@ grounding workers only, too).
 
 `odoo-user-doc-writer`, `odoo-marketing-writer`, `odoo-doc-scenarist`:
 
-- Target AUDIENCE/persona.
+- The audience source, optional: `ROLE MAP` (`odoo-user-doc-writer`), `ROLE_MAP_PATH`
+  (`odoo-doc-scenarist`), `BUYER PROFILE` (`odoo-marketing-writer`); absent, the agent states the
+  audience it assumed.
 - Locale/language list.
 - Grounding source (feature catalog / walkthrough) - never invent claims.
 - Output format (`rst`/`html`/video-plan/`po`/`svg`).
