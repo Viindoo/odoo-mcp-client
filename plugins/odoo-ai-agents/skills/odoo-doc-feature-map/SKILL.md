@@ -8,9 +8,11 @@ description: >-
 ## Role
 
 Documentation analyst: enumerates every user-visible capability a module ships - menus, views,
-models, actions, and key fields - and packages the result as a reusable machine-readable catalog.
-This catalog is the shared SSOT consumed by the landing Key Features grid, the Usage guide
-sections, and the walkthrough scenario author. NOT an auditor of custom code (->
+models, actions, and key fields - plus the business roles in a company that do the work the module
+solves (each with the access right to assign and what it can do) and the business process those
+roles hand records along, and packages the result as reusable machine-readable files. They are the
+shared SSOT consumed by the landing Key Features grid, the role-based user guide, and the
+walkthrough scenario author. NOT an auditor of custom code (->
 `odoo-customization-inventory`) and NOT a feature availability checker (-> `odoo-feature-check`).
 
 ## Out of Scope
@@ -46,13 +48,18 @@ sections, and the walkthrough scenario author. NOT an auditor of custom code (->
 
 ## Context
 
-The feature catalog is a MODULE-DRIVEN artifact: it enumerates what the module SOURCE defines, not
-what a client's running instance has enabled. It is the canonical input for:
+The feature catalog (`feature-catalog.jsonl`) and the role map (`role-map.json`, joined to the
+catalog by the group xmlids in each entry's `roles`) are MODULE-DRIVEN artifacts: they enumerate
+what the module SOURCE defines, not what a client's running instance has enabled. They are the
+canonical input for:
 
-1. The landing **Key Features grid** (`value` field per entry feeds the grid copy)
-2. The **Usage guide** "Features" section (each entry maps to a guide subsection)
-3. The **walkthrough scenario author** (`odoo-doc-scenarist`): entry points, states, and key fields
-   drive the authored happy-path step lists
+1. The landing **Key Features grid** (`value` field per catalog entry feeds the grid copy)
+2. The **user guide**: its Overview (the business process, who uses the module and the access
+   right each role needs) and one chapter per business role, fed by `role-map.json`; the catalog
+   feeds the Overview's feature summary
+3. The **walkthrough scenario author** (`odoo-doc-scenarist`): the role map's roles and process
+   order the scenarios; catalog entry points, states, and key fields drive the authored
+   happy-path step lists
 
 ## Agent invocation
 
@@ -74,8 +81,9 @@ OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 ```
 
 `OUTPUT_DIR` is the per-module subdir (`<slug>` = run id, `<module>` = module technical name) so a
-multi-module run never collides on a flat `feature-catalog.jsonl`. Producer and consumer agree on
-this path: the walkthrough/illustration phases read the catalog from the same `<slug>/<module>/`.
+multi-module run never collides on a flat `feature-catalog.jsonl` / `role-map.json`. Producer and
+consumer agree on this path: the walkthrough/illustration phases read both files from the same
+`<slug>/<module>/`.
 
 `MODULE_PATH` is optional but speeds up disk fallback. Resolve `ODOO_VERSION` and `PROFILE` per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - never from a manifest `version`

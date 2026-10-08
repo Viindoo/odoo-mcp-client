@@ -1113,11 +1113,12 @@
         "check_module_exists",
         "describe_module",
         "module_inspect",
-        "model_inspect"
+        "model_inspect",
+        "entity_lookup"
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module.",
+      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect + entity_lookup for button visibility); disk for menus, ACL, record rules, groups and groups= attributes OSM does not index. Produces feature-catalog.jsonl + feature-catalog.md + role-map.json (business roles, their access rights and the process they pass records along). min_server 0.13.1 for describe_module.",
       "brief": {
         "required": [
           "MODULE",
@@ -1142,7 +1143,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0.",
+      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation - each business role's tasks in process order plus the administrator's setup, from role-map.json when supplied. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0.",
       "brief": {
         "required": [
           "MODULE",
@@ -1152,6 +1153,7 @@
         "optional": [
           "MODULE_PATH",
           "CATALOG_PATH",
+          "ROLE_MAP_PATH",
           "OUTPUT_DIR",
           "USER LANGUAGE"
         ]
@@ -1213,7 +1215,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
+      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants) as a user guide for the module's business roles (Overview + process, administrator Setup, one chapter per role) from role-map.json; task-guidance tone; never spawns. OSM grounds UI labels via model_inspect.",
       "brief": {
         "required": [
           "MODULE",
@@ -1229,6 +1231,7 @@
           "ISOLATE_DIR",
           "INSTANCE_HANDLE",
           "FEATURE CATALOG",
+          "ROLE MAP",
           "LANGUAGES",
           "DOC SCOPE",
           "CAPTURE MODE",

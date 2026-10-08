@@ -10,8 +10,8 @@ description: >-
 Documentation-run orchestrator for Odoo modules and the SOLE orchestrator of THIS capture/write
 run: scope and plan the modules, gate the plan once, provision the live instance(s), then per
 module launch two INTERNAL browser-driving writer agents that capture fully-rendered screenshots
-and embed them into durable module documentation - `odoo-user-doc-writer` (end-user
-`doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/description/index.html`). "Sole"
+and embed them into durable module documentation - `odoo-user-doc-writer` (the role-based user
+guide `doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/description/index.html`). "Sole"
 scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
 SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
 code+doc product-lifecycle plan.
@@ -111,22 +111,25 @@ PARALLEL across independent instance-paths up to
    `addons_path` as `ADDONS_PATH:` to every writer (§Writer dispatch briefs) so each can run the
    Addons coverage assertion against `WORKTREE_PATH` instead of trusting an unverified handle.
 2. **Walk `install_doc_sequence[]`** (each module M, leaf-dependency-first). For `M.doc == true`:
-   1. **Marketing copy pre-fetch (TONE: marketing only).** If copy is not already supplied (the
-      `module-packaging` workflow Phase 4 supplies it; a standalone run does not): first GUARANTEE
-      `feature-catalog.jsonl` exists - use the caller/plan catalog, else dispatch
-      `odoo-doc-feature-map` (which runs `odoo-feature-cataloger`) - then dispatch
-      `odoo-content-draft` (landing-page-copy channel, grounded in that catalog) to produce the
-      sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
+   1. **Catalog + role map (every DOC LAYER).** GUARANTEE M's `feature-catalog.jsonl` and
+      `role-map.json` exist - use the ones the caller or plan supplies, else invoke
+      `odoo-doc-feature-map` (which runs `odoo-feature-cataloger` and writes both). Every pre-fetch
+      and writer below reads these two files.
+   2. **Marketing copy pre-fetch (TONE: marketing only).** If copy is not already supplied (the
+      `module-packaging` workflow Phase 4 supplies it; a standalone run does not): dispatch
+      `odoo-content-draft` (landing-page-copy channel, grounded in the step 2.1 catalog) to produce
+      the sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
       content-draft; the skill owns this pre-fetch. `marketing` is the DOC LAYER `appstore` default
       (§ Documentation axes), so a bare appstore dispatch triggers this pre-fetch automatically.
-   2. **Walkthrough pre-fetch (CAPTURE MODE: scenarios only).** If a `WALKTHROUGH:` path is not
+   3. **Walkthrough pre-fetch (CAPTURE MODE: scenarios only).** If a `WALKTHROUGH:` path is not
       already supplied (a caller may pass one; a standalone `CAPTURE MODE: scenarios` run does
-      not): dispatch `odoo-doc-walkthrough` (which fans out `odoo-doc-scenarist`) to produce
-      `walkthrough.jsonl` for this module, then pass its path as `WALKTHROUGH:` to the writer(s)
-      below. Conditional on `CAPTURE MODE: scenarios` only - the default `screens` mode does not
-      need this pre-fetch (narrow blast radius). The writers NEVER call `odoo-doc-walkthrough`
+      not): invoke `odoo-doc-walkthrough` (which fans out `odoo-doc-scenarist`) with the step 2.1
+      files as `CATALOG_PATH` / `ROLE_MAP_PATH` to produce `walkthrough.jsonl` for this module, then
+      pass its path as `WALKTHROUGH:` to the writer(s) below. Conditional on
+      `CAPTURE MODE: scenarios` only - the default `screens` mode does not need this pre-fetch
+      (narrow blast radius). The writers NEVER call `odoo-doc-walkthrough`
       themselves; the skill owns this pre-fetch, mirroring the marketing-copy pre-fetch above.
-   3. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive PER FAMILY,
+   4. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive PER FAMILY,
       per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - NEVER two writers
       concurrent on ONE instance OR the SAME browser MCP family; distinct families/instances may run
       in parallel). Read `M.doc_layer` from THIS module's `install_doc_sequence`
@@ -141,7 +144,7 @@ PARALLEL across independent instance-paths up to
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
       env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
       no consumer sets a writer's model - model authority stays with this orchestrator.
-   4. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
+   5. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
       completion block (files exist at the reported paths), then run the doc reference gate on M
       with no file arguments, so it checks every doc file, the module descriptor and orphan images
       (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
@@ -164,8 +167,8 @@ PARALLEL across independent instance-paths up to
    between them. Paths running in parallel that meet on ONE database (a convergence fill) follow
    `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § One build or export per database.
 
-Order per module: **install -> pre-fetch copy (marketing) -> pre-fetch walkthrough (scenarios) ->
-capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
+Order per module: **install -> catalog + role map -> pre-fetch copy (marketing) -> pre-fetch
+walkthrough (scenarios) -> capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
 
 **End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
 BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
@@ -226,8 +229,9 @@ SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>   # absent = writer self-checks install
 ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
-WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.2) when not already supplied
-FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
+WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.3) when not already supplied
+FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # guaranteed by step 2.1; feeds the guide Overview
+ROLE MAP: <abs path to role-map.json>                                  # guaranteed by step 2.1; drives the Overview process + per-role chapters
 LANGUAGES: <resolved locale list, English-first>
 DOC SCOPE: screenshot-doc | full-guide
 CAPTURE MODE: screens | scenarios
@@ -245,7 +249,7 @@ ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do N
 INSTANCE_HANDLE: <the instance-ops block read back at provision-once, verbatim>
 ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
-FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
+FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED (guaranteed by step 2.1) - absent -> writer BLOCKS
 LANGUAGES: <resolved locale list, English-first>
 CAPTURE MODE: screens | scenarios
 extends_in_scope: [<base_module>, ...]
@@ -256,13 +260,13 @@ BROWSER MODE: headless | headed
 
 **Axis defaults.** DOC LAYER `appstore` (writes `static/description/index.html`); TONE
 `marketing` when DOC LAYER resolves to `appstore` (an App-Store `index.html` is inherently
-buyer-facing, so this default also makes the copy/catalog pre-fetch in step 2.1 below FIRE by
-default, supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`/`FEATURE CATALOG` inputs -
-see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only the appstore
-`index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A bare dispatch
+buyer-facing, so this default also makes the copy pre-fetch in step 2.2 FIRE by default,
+supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`; step 2.1 supplies its
+`FEATURE CATALOG` - see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only
+the appstore `index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A bare dispatch
 that omits every axis field produces a marketing-toned App-Store landing page by default: pass
-`TONE: technical` explicitly to keep the plain-technical `index.html` (this leaves the pre-fetch
-un-fired and could BLOCK `odoo-marketing-writer` on its own REQUIRED inputs).
+`TONE: technical` explicitly to keep the plain-technical `index.html` (this leaves the copy
+pre-fetch un-fired and could BLOCK `odoo-marketing-writer` on its REQUIRED `MARKETING COPY`).
 
 **DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
 `install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this
@@ -277,8 +281,9 @@ run-level axis is authoritative there.
   it needs and writes its own file. No single agent writes both.
 
 **Tab roles (App Store).** `static/description/index.html` = the **Description** tab (marketing /
-overview); `doc/index.rst` = the **Documentation** tab (technical guide). Keep marketing out of the
-RST and deep technical steps out of the HTML - do not duplicate content across the two.
+overview); `doc/index.rst` = the **Documentation** tab (the user guide for the business roles that
+use the module). Keep marketing out of the RST and step-by-step tasks out of the HTML - do not
+duplicate content across the two.
 
 **TONE (appstore index.html tone).** `marketing` (default when DOC LAYER resolves to `appstore`) =
 `odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
@@ -294,11 +299,9 @@ gated on `TONE: marketing`, so an explicit `TONE: technical` dispatch does NOT t
 caller must supply `MARKETING COPY` some other way or the writer BLOCKs. Prefer the `marketing`
 default unless a caller has its own copy-supply path for `technical`.
 
-**DOC SCOPE (userguide structure).** `screenshot-doc` (default) = one section per feature with field
-text + a screenshot. `full-guide` = `odoo-user-doc-writer` writes a structured guide with
-`Installation`, `Configuration`, `Usage`, `Troubleshooting`, `FAQ`. With a feature catalog /
-walkthrough supplied, `Usage` is generated from the walkthrough scenarios and a Key-Features summary
-from `feature-catalog.jsonl`; otherwise the writer derives the structure from OSM grounding.
+**DOC SCOPE (userguide depth).** Both scopes write the same role-based guide structure, which
+`odoo-user-doc-writer` owns. `screenshot-doc` (default) = one screenshot per task with short steps.
+`full-guide` = full step-by-step tasks plus troubleshooting and FAQ.
 
 **CAPTURE MODE (how screenshots are taken).** `screens` (default) = navigate to each screen and
 snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait,

@@ -7,9 +7,10 @@ description: >-
 
 ## Role
 
-Documentation authoring for user-facing walkthroughs of an Odoo module - maps the module's
-positive usage flows into readable, structured scenarios a new user can follow, grounded in what
-the module ACTUALLY does, not in requirements or test oracles.
+Documentation authoring for user-facing walkthroughs of an Odoo module - maps the work each
+business role does with the module (in the order of the business process) and the administrator's
+setup into readable, structured happy-path scenarios, grounded in what the module ACTUALLY does,
+not in requirements or test oracles.
 
 Standalone-first: OSM is the primary grounding source; no browser, live instance, or test
 execution is needed to produce the walkthrough.
@@ -53,7 +54,7 @@ delta; never inline that file verbatim into a hard-leaf brief.
 Main dispatches `odoo-doc-scenarist` with (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before filling `CATALOG_PATH`/`OUTPUT_DIR`
 below; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/`
-into a Read/Write/Edit):
+into a Read/Write/Edit; the same applies to `ROLE_MAP_PATH`):
 
 ```
 MODULE: <module technical name>
@@ -61,13 +62,15 @@ MODULE_PATH: <absolute path to module dir, if known>
 ODOO_VERSION: <concrete series, e.g. 17.0>
 SLUG: <short identifier for output paths, e.g. sale_order>
 CATALOG_PATH: <SHARE_DIR>/documentation/<slug>/<module>/feature-catalog.jsonl (written by odoo-doc-feature-map; omit if not run)
+ROLE_MAP_PATH: <SHARE_DIR>/documentation/<slug>/<module>/role-map.json (written by odoo-doc-feature-map; omit if not run)
 OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 USER LANGUAGE: <language for human-facing prose; identifiers stay English>
 ```
 
-`OUTPUT_DIR` and `CATALOG_PATH` share the per-module subdir (`<slug>` = run id, `<module>` = module
-technical name) so a multi-module run never collides on a flat `walkthrough.jsonl`/`feature-catalog.jsonl`,
-and the scenarist reads the catalog from the exact path the feature-map phase wrote it (producer == consumer).
+`OUTPUT_DIR`, `CATALOG_PATH` and `ROLE_MAP_PATH` share the per-module subdir (`<slug>` = run id,
+`<module>` = module technical name) so a multi-module run never collides on a flat
+`walkthrough.jsonl`/`feature-catalog.jsonl`/`role-map.json`, and the scenarist reads the catalog and
+role map from the exact paths the feature-map phase wrote them (producer == consumer).
 
 If `MODULE_PATH` or `ODOO_VERSION` is unknown, the scenarist resolves it per
 `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`; if the series is still unresolved
@@ -81,5 +84,6 @@ Continuation Contract per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.
 ## Standalone-first fallback
 
 OSM unreachable -> agent falls back to disk, labels `grounded: local-source`, and emits its own
-warning text; full fallback chain and the `CATALOG_PATH`-absent behavior are owned by
-`odoo-doc-scenarist`'s own Step 1 and Feature catalog sections - not restated here.
+warning text; full fallback chain and the `CATALOG_PATH`- / `ROLE_MAP_PATH`-absent behavior are
+owned by `odoo-doc-scenarist`'s own Step 1, Feature catalog and Role map sections - not restated
+here.
