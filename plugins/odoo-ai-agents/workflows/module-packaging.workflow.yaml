@@ -8,6 +8,18 @@
 #   to skill odoo-doc-illustration (the branch-aware per-instance incremental loop SSOT):
 #   SEQUENTIAL within a dependency-path, PARALLEL across independent instance-paths up to W.
 #   Browser families are exclusive-serial per family.
+# Paths (resolve each root once and substitute the captured absolute path; never a cwd-relative
+#   .odoo-ai/ path - snippets/state-root-resolution.md):
+#   <OUT>  = output_dir below as workflow-chaining resolves it: under the state root (ISOLATE),
+#            never the cwd. Run artifacts: <OUT>/<run>/ (scope.yaml, doc-plan.yaml, index.jsonl)
+#            and <OUT>/<run>/<module>/manifest-audit.md.
+#   <DOC>  = <SHARE_DIR>/documentation/<run>/ (project_dir, axis share, cwd = doc_root) - the
+#            documentation cache the doc skills share. Per module, <DOC><module>/ holds
+#            feature-catalog.jsonl/.md, role-map.json, walkthrough.jsonl/.md, buyer-profile.md
+#            and the marketing copy.
+#   doc_root = the linked worktree every module-tree write and commit lands in: Phase 0 classifies
+#            the target checkout, and approving the Phase 0.5 gate creates the worktree when that
+#            target is a principal checkout.
 name: module-packaging
 domain: content
 team_pattern: Pipeline
@@ -43,15 +55,22 @@ phases:
   - id: scope
     inline: true
     model_tier: inherit
-    # Establish <run> = doc-run-<timestamp>: the per-run directory under .odoo-ai/packaging/.
-    # ALL artifacts for this run live under .odoo-ai/packaging/<run>/; every PER-MODULE artifact
-    # lives under .odoo-ai/packaging/<run>/<module>/ (per-module subdir avoids flat-path collision
-    # when the run covers more than one module).
-    # Resolve target modules from the `modules` input (module name or absolute path; walk
-    # __manifest__.py files for multi-module repos). Resolve per-module doc_layer, version, and
-    # has_demo by APPLYING the resolver contract defined in agent `odoo-doc-scoper` - that agent's
-    # I/O contract is the SSOT for doc_layer (appstore | userguide | both) detection, version
-    # inference, the has_demo flag, AND the two dependency-planning fields below. Resolve
+    # Establish <run> = doc-run-<timestamp>. Every PER-MODULE artifact gets a <module>/ subdir
+    # under <OUT>/<run>/ or <DOC> (avoids flat-path collision when the run covers several modules).
+    # FIRST classify doc_root - classify only, this phase writes nothing to any module tree.
+    # doc_root = the worktree the run passes (run-harness or the caller made it), else the top
+    # level of the repo holding the modules. One bounded read tells the kinds apart
+    # (snippets/git-delegation.md § Bounded-read allowlist):
+    # `git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir` - two
+    # different paths = doc_root_kind: worktree (used as is for the whole run); the same path
+    # twice = doc_root_kind: principal (scoped and planned read-only here; the docs worktree is
+    # created only once the Phase 0.5 gate approves).
+    # Then resolve target modules from the `modules` input (module name or absolute path; walk
+    # __manifest__.py files for multi-module repos), every abs_path under doc_root. Resolve
+    # per-module doc_layer, version, and has_demo by APPLYING the resolver contract defined in
+    # agent `odoo-doc-scoper` - that agent's I/O contract is the SSOT for doc_layer
+    # (appstore | userguide | both) detection, version inference, the has_demo flag, AND the two
+    # dependency-planning fields below. Resolve
     # per-module LANGUAGES via the single language-resolution SSOT:
     # skills/odoo-doc-illustration/SKILL.md § Language resolution (4-tier + disk-UNION,
     # English-mandatory) - odoo-doc-scoper cross-refs the same SSOT rather than owning it. Do NOT
@@ -69,9 +88,12 @@ phases:
     # the run genuinely shares one doc_layer). `languages` defaults per the language-resolution
     # SSOT above (English always added); collect either interactively only when genuinely
     # unresolvable from the inputs above.
-    # Emits scope block: modules[] with {name, abs_path, languages, doc_layer, has_demo, version,
-    # depends_in_scope, has_ondisk_doc}.
-    # Written to .odoo-ai/packaging/<run>/scope.yaml for all downstream phases.
+    # Propose target_market per module whose doc_layer is appstore or both, from its descriptor,
+    # per skills/odoo-content-draft/references/buyer-profile.md § Target market (a value the brief
+    # carries is used as is); Phase 0.5's gate confirms it once.
+    # Emits scope block: doc_root, doc_root_kind + modules[] with {name, abs_path, languages,
+    # doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc, target_market}.
+    # Written to <OUT>/<run>/scope.yaml for all downstream phases.
 
   # ------------------------------------------------------------------
   # Phase 0.5 - Doc plan: dependency-aware, branch-aware schedule (inline) + SINGLE plan gate
@@ -84,7 +106,7 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
     # Produce the doc-package plan by APPLYING the `odoo-doc-planner` contract with
     # plan_source: scope (doc-only standalone path). Read the scope block at
-    # .odoo-ai/packaging/<run>/scope.yaml - modules[] with depends_in_scope[] and has_ondisk_doc.
+    # <OUT>/<run>/scope.yaml - modules[] with depends_in_scope[] and has_ondisk_doc.
     # Build the in-scope sub-graph and compute, per skills/_shared/doc-cluster-plan.md (the SSOT
     # algorithm - do NOT restate it here):
     #   - CLUSTERS: connected components of the in-scope sub-graph.
@@ -107,15 +129,23 @@ phases:
     # (split threshold, default ~6), purity (strict-branch | fresh-per-module).
     # OSM-verify the disk edges opportunistically (trust-but-verify) with the CONCRETE version.
     # Write ONE doc-plan.yaml conforming to the doc-cluster-plan.md schema to
-    # .odoo-ai/packaging/<run>/doc-plan.yaml (header: plan_kind: doc-package, plan_source: scope,
+    # <OUT>/<run>/doc-plan.yaml (header: plan_kind: doc-package, plan_source: scope,
     # grounded: osm|local-source, scope_ref). Standalone-first: the whole algorithm is
     # disk-resolvable - no instance and no browser needed to plan.
     # GATE: present the WHOLE plan - all clusters + branch-aware instance allocation + install/doc
-    # order + dedup (doc:true/false) + the parallelism schedule (W) - for ONE approval
+    # order + dedup (doc:true/false) + the parallelism schedule (W) + one proposed target_market
+    # row per appstore module (confirmed here once, then recorded in scope.yaml) - for ONE approval
     # (approve / refine: [feedback] / cancel). This is the SINGLE plan gate - NOT a gate per
     # cluster: the purity/dedup/allocation trade-offs are only legible as a whole picture.
     # `refine` re-runs the plan with the feedback; `cancel` aborts BEFORE any instance is
-    # provisioned.
+    # provisioned or any worktree created.
+    # On approve, BEFORE Phase 1 and every later phase: when scope.yaml's doc_root_kind is
+    # principal, invoke git-toolkit:git-ops (Skill tool) for a new worktree + docs branch at that
+    # checkout's HEAD commit, named explicitly. In scope.yaml, record the worktree as doc_root and
+    # its branch, and re-root every modules[].abs_path into it (same path relative to the repo top
+    # level). Every later phase reads doc_root and abs_path from scope.yaml, so no phase writes to
+    # the principal checkout. The run summary (Phase 7) names the worktree and branch; nothing is
+    # merged or pushed.
 
   # ------------------------------------------------------------------
   # Phase 1 - Feature catalog (browser-free, fan-out per doc:true module - Mode B)
@@ -123,18 +153,20 @@ phases:
   - id: feature-map
     skill: odoo-doc-feature-map
     nl_trigger: >
-      Process ONLY modules with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip
+      Process ONLY modules with doc:true in <OUT>/<run>/doc-plan.yaml (skip
       doc:false dedup modules - do NOT catalog a module installed only as a dependency).
-      Using the scope block at .odoo-ai/packaging/<run>/scope.yaml, enumerate every feature,
+      Using the scope block at <OUT>/<run>/scope.yaml, enumerate every feature,
       screen, and capability each in-scope module ships - OSM-first (describe_module, module_inspect,
       model_inspect, check_module_exists; disk fallback for ACL from
-      security/ir.model.access.csv and security/*.xml). Per module produce two files under
-      .odoo-ai/packaging/<run>/<module>/: feature-catalog.jsonl (machine SSOT: feature_id, name,
-      menu_path, entry_point, models, key_fields, roles, states, depends_on, value, grounded) and
-      feature-catalog.md (human report). The feature catalog is the shared SSOT for the landing
-      Key-Features grid and the guide Usage sections consumed in later phases. Standalone-first; no
+      security/ir.model.access.csv and security/*.xml). Per module produce three files under
+      <DOC><module>/: feature-catalog.jsonl (machine SSOT: feature_id, name,
+      menu_path, entry_point, models, key_fields, roles, states, depends_on, value, grounded),
+      feature-catalog.md (human report) and role-map.json (the business roles, what each can do,
+      and the process stages across them). The catalog feeds the landing Key-Features grid; the
+      role map drives the guide's Overview and per-role chapters, the walkthroughs and the buyer
+      profile in later phases. Standalone-first; no
       browser or live instance required. Fan out one worker per doc:true module (Mode B); each worker
-      writes to its own .odoo-ai/packaging/<run>/<module>/ subdir before gate.
+      writes to its own <DOC><module>/ subdir before gate.
     model_tier: sonnet
     fanout: true
     chunk_by: modules
@@ -142,22 +174,22 @@ phases:
 
   # ------------------------------------------------------------------
   # Phase 2 - Usage walkthroughs (browser-free, fan-out per doc:true module - Mode B)
-  # Requires: feature-catalog.jsonl from P1.
+  # Requires: feature-catalog.jsonl + role-map.json from P1.
   # ------------------------------------------------------------------
   - id: walkthrough
     skill: odoo-doc-walkthrough
     nl_trigger: >
-      Process ONLY modules with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip
+      Process ONLY modules with doc:true in <OUT>/<run>/doc-plan.yaml (skip
       doc:false dedup modules). Using the feature catalog at
-      .odoo-ai/packaging/<run>/<module>/feature-catalog.jsonl and the scope block at
-      .odoo-ai/packaging/<run>/scope.yaml, author happy-path usage scenarios for each in-scope
+      <DOC><module>/feature-catalog.jsonl as CATALOG_PATH, the role map at
+      <DOC><module>/role-map.json as ROLE_MAP_PATH, and the scope block at
+      <OUT>/<run>/scope.yaml, author happy-path usage scenarios for each in-scope
       module: narrative + structured steps[] (action, target, value, note per step) grounded
       in the module's actual behavior from source. Per module, produce walkthrough.jsonl (machine
-      SSOT with steps[]) + walkthrough.md (human narrative) under .odoo-ai/packaging/<run>/<module>/,
+      SSOT with steps[]) + walkthrough.md (human narrative) under <DOC><module>/,
       consumed by the provision-capture phase for scenario-driven per-step capture. Positive happy-path
-      journeys only - not a QA oracle, NOT bound by acceptance-oracle-contract.md. Default
-      bounds: MAX_SCENARIOS=5, MAX_STEPS_PER_SCENARIO=12; emit note if scenarios are trimmed
-      to bound. Standalone-first; no browser or live instance required. Fan out one worker
+      journeys only - not a QA oracle, NOT bound by acceptance-oracle-contract.md.
+      Standalone-first; no browser or live instance required. Fan out one worker
       per doc:true module (Mode B); aggregate before gate.
     model_tier: sonnet
     fanout: true
@@ -171,8 +203,9 @@ phases:
   - id: icon
     skill: odoo-icon-design
     nl_trigger: >
-      For each module with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false
-      dedup modules), using .odoo-ai/packaging/<run>/scope.yaml, design a brand-aware,
+      For each module with doc:true in <OUT>/<run>/doc-plan.yaml (skip doc:false
+      dedup modules), using <OUT>/<run>/scope.yaml (WORKTREE_PATH = its doc_root), design a
+      brand-aware,
       version-correct module identity icon. Compose SVG with era-correct style (skeuo for v8-v10;
       flat solid for v11-v16; flat-shadow material for v17-v19); rasterize to icon.png 256x256 via
       the first detected rasterizer in order: rsvg-convert -> inkscape -> magick/convert
@@ -192,29 +225,31 @@ phases:
     gate: "approve / refine: [feedback] / cancel"   # refine: [feedback] re-generates the icon with that feedback
 
   # ------------------------------------------------------------------
-  # Phase 4 - Marketing copy (browser-free, fan-out per doc:true module - Mode B)
-  # Requires: feature-catalog.jsonl from P1.
+  # Phase 4 - Buyer profile + marketing copy (browser-free, fan-out per doc:true module - Mode B)
+  # Requires: feature-catalog.jsonl + role-map.json from P1, target_market from P0/P0.5.
   # ------------------------------------------------------------------
   - id: copy
     skill: odoo-content-draft
     nl_trigger: >
       For each module with doc:true AND doc_layer in {appstore, both} in
-      .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false dedup modules AND skip
+      <OUT>/<run>/doc-plan.yaml (skip doc:false dedup modules AND skip
       doc_layer: userguide-only modules - no static/description/index.html is produced for them,
       so App-Store landing copy would have nothing to fill), using
-      .odoo-ai/packaging/<run>/scope.yaml, draft App-Store landing copy for
+      <OUT>/<run>/scope.yaml, draft App-Store landing copy for
       every resolved language (English canonical mandatory; per-locale variants per languages[]
-      from scope.yaml). Channel: landing-page copy. Output: sectioned copy, one HTML-comment block
-      per copy-sourced key of
+      from scope.yaml). Channel: landing-page copy. Brief: FEATURE CATALOG =
+      <DOC><module>/feature-catalog.jsonl, ROLE MAP = <DOC><module>/role-map.json, the module
+      descriptor, and TARGET MARKET = the module's target_market confirmed at the Phase 0.5 gate.
+      The buyer profile comes first: save the `## Buyer profile` block of the output as
+      <DOC><module>/buyer-profile.md, and every language's copy under <DOC><module>/. Copy:
+      one HTML-comment block per copy-sourced key of
       skills/odoo-doc-illustration/references/app-store-template.md § Section Map, and
-      [Image: slug] placeholders for screenshots not yet captured. Ground Key-Features copy in the
-      feature catalog at
-      .odoo-ai/packaging/<run>/<module>/feature-catalog.jsonl. When the module's doc-plan entry has a
-      non-empty extends_in_scope[], add a one-line "Extends <base> - see its documentation" pointer
-      (D13.7 cross-reference hint). Emit status: NEEDS_NEXT -> odoo-doc-illustration to fill
-      [Image:] markers with live screenshots. No browser or live instance required.
-      Fan out one worker per doc:true module (Mode B); aggregate per-module per-locale copy artifacts
-      before gate.
+      [Image: slug] placeholders for screenshots not yet captured. When the module's doc-plan
+      entry has a non-empty extends_in_scope[], add a one-line "Extends <base> - see its
+      documentation" pointer (D13.7 cross-reference hint). Emit status: NEEDS_NEXT ->
+      odoo-doc-illustration to fill [Image:] markers with live screenshots. No browser or live
+      instance required. Fan out one worker per doc:true module (Mode B); aggregate per-module
+      buyer profiles and per-locale copy before gate.
     model_tier: sonnet
     fanout: true
     chunk_by: modules
@@ -227,21 +262,23 @@ phases:
   # (D14.2/D14.3): provision via odoo-instance, capture via the skill's two writers (one per
   # audience, SEQUENTIAL on the same instance handle), verify, commit via git-ops, advance
   # next-delta. The workflow does NOT restate the loop mechanics here.
-  # Phase 4 pre-fetched per-module per-locale marketing copy; the skill does NOT re-fetch on
-  # this workflow path (Phase 4 copy artifacts are forwarded directly to the skill).
+  # Phases 1, 2 and 4 pre-fetched the catalog, role map, walkthrough, buyer profile and copy; the
+  # skill does NOT re-fetch them on this workflow path (they are forwarded directly).
   # SEQUENTIAL within a dependency-path; PARALLEL across independent instance-paths up to W.
-  # Requires: P1 (feature-catalog.jsonl), P2 (walkthrough.jsonl), P4 (copy) for doc:true
-  # modules, and P0.5 (doc-plan.yaml).
+  # Requires: P1 (feature-catalog.jsonl, role-map.json), P2 (walkthrough.jsonl), P4
+  # (buyer-profile.md, copy) for doc:true modules, and P0.5 (doc-plan.yaml).
   # ------------------------------------------------------------------
   - id: provision-capture
     skill: odoo-doc-illustration
     nl_trigger: >
       Delegate to the odoo-doc-illustration skill, which owns the per-instance incremental
-      provision-capture loop (see SKILL.md). Forward: doc-plan at
-      .odoo-ai/packaging/<run>/doc-plan.yaml, scope at .odoo-ai/packaging/<run>/scope.yaml,
-      and per-module Phase 1-4 artifacts under .odoo-ai/packaging/<run>/<module>/
-      (feature-catalog.jsonl from Phase 1, walkthrough.jsonl from Phase 2, marketing copy
-      per locale from Phase 4 - do NOT re-fetch; pass directly to the skill).
+      provision-capture loop. Forward: WORKTREE_PATH = scope.yaml's doc_root (a linked worktree -
+      the skill uses it as is), doc-plan at <OUT>/<run>/doc-plan.yaml, scope at
+      <OUT>/<run>/scope.yaml, CAPTURE MODE: scenarios, DOC SCOPE: full-guide, and per module from
+      <DOC><module>/: FEATURE CATALOG (feature-catalog.jsonl), ROLE MAP (role-map.json),
+      WALKTHROUGH (walkthrough.jsonl), BUYER PROFILE (buyer-profile.md), MARKETING COPY (the
+      per-locale copy) and TARGET MARKET (the confirmed target_market) - do NOT re-fetch; pass
+      directly to the skill.
     model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 
@@ -253,17 +290,20 @@ phases:
     inline: true
     model_tier: sonnet
     gate: "approve / skip / cancel"   # approve = save the audit; skip = do not save
-    # For each module with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false
-    # dedup modules - they are install-only deps, not documented), audit App-Store manifest keys:
-    #   REQUIRED (blocking if missing): name, summary, description, images[0] (cover),
-    #     license, category
+    # For each module with doc:true in <OUT>/<run>/doc-plan.yaml (skip doc:false
+    # dedup modules - they are install-only deps, not documented), audit App-Store manifest keys
+    # in doc_root:
+    #   REQUIRED (blocking if missing): name, summary, description, license, category
+    #   COVER (blocking): run the reference gate of snippets/module-doc-references.md on the module
+    #     (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or IMG_HERO_NOT_COVER finding
+    #     is a blocking cover gap - the gate owns the cover rule
     #   RECOMMENDED (warning if missing): support, website, maintainer, application
     #   OPTIONAL (info): live_test_url, price, currency, version
     # Suggest values for missing non-commercial fields. NEVER fabricate commercial keys
     # (price / live_test_url / currency - these are instance/commercial-specific and must
     # only be set by the module owner). Score each module: required-missing = blocking,
     # recommended-missing = warning, optional-missing = info. Write per-module results to
-    # .odoo-ai/packaging/<run>/<module>/manifest-audit.md.
+    # <OUT>/<run>/<module>/manifest-audit.md.
 
   # ------------------------------------------------------------------
   # Phase 7 - Aggregate index (inline)
@@ -274,14 +314,16 @@ phases:
     model_tier: inherit
     gate: "approve / skip / cancel"   # approve = write the index; skip = do not write
     # Collect all per-module output paths (icon.png, index.html, doc/index.rst, per-locale
-    # variants, walkthrough.jsonl, walkthrough.md, feature-catalog.md, manifest-audit.md) for each
-    # doc:true module from its .odoo-ai/packaging/<run>/<module>/ subdir and write a combined run
-    # index at .odoo-ai/packaging/<run>/index.jsonl listing every artifact:
+    # variants, feature-catalog.md, role-map.json, walkthrough.jsonl, walkthrough.md,
+    # buyer-profile.md, manifest-audit.md) for each doc:true module from doc_root, <DOC><module>/
+    # and <OUT>/<run>/<module>/, and write a combined run index at <OUT>/<run>/index.jsonl
+    # listing every artifact:
     # {module, locale, artifact_type, path, status: captured|degraded|placeholder}.
-    # Emit a run summary to the user: modules packaged (doc:true), modules skipped as install-only
+    # Emit a run summary to the user: doc_root (and its branch when Phase 0.5 created the worktree),
+    # modules packaged (doc:true), modules skipped as install-only
     # deps (doc:false + dedup_reason), instances allocated, locales covered, total artifacts,
     # any `concerns:` items (capture downgrades, W=1 serialization, missing rasterizer,
-    # locale fallbacks, manifest-audit blocking gaps). Note: final HTML/RST artifacts are written
-    # directly to the module tree (e.g. <module>/static/description/index.html); the
-    # .odoo-ai/packaging/<run>/ directory holds only the run index, audit reports, catalog,
-    # doc-plan.yaml, and scenario working files.
+    # locale fallbacks, manifest-audit blocking gaps). Note: final HTML/RST artifacts and images
+    # are committed in the module tree under doc_root (e.g. <module>/static/description/index.html);
+    # <DOC> holds the catalog, role map, walkthroughs, buyer profile and copy; <OUT>/<run>/ holds
+    # scope.yaml, doc-plan.yaml, the audit reports and the run index.
