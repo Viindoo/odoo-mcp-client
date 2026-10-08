@@ -90,7 +90,7 @@ per capture-mechanics.md section 4; when both `INSTANCE_HANDLE` and `ADDONS_PATH
 the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against
 `WORKTREE_PATH` before capturing anything.
 
-### Step 1 - Resolve languages + detect conventions
+### Step 1 - Resolve languages
 
 Resolve the locale set with the shared resolver (SSOT: `odoo-doc-illustration`'s own Language
 resolution): brief `LANGUAGES:` -> `i18n.json default_languages` -> module `i18n/*.po` ->
@@ -98,8 +98,7 @@ live `res.lang` (no built-in default beyond these tiers - all four empty returns
 the SSOT), THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
 resolved set; `doc/index.rst` is always English (no suffix); every other locale ->
-`doc/index_<locale>.rst`. Detect the on-disk screenshot naming convention (capture-mechanics.md
-section 13).
+`doc/index_<locale>.rst`.
 
 ### Step 2 - Ground UI labels + read the flow
 
@@ -140,10 +139,10 @@ Ground every field/menu reference in the OSM labels from Step 2. Use `.. image::
   otherwise derive from OSM), `Troubleshooting` (common problems + what the user does), `FAQ` (short
   Q/A). Optionally an `Instruction video` link when the brief supplies one.
 
-**Image references:** reference each image at the directory capture-mechanics.md section 13 resolves
-for this doc, with a path relative to the RST file per
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` (e.g. `../static/description/<slug>.png`
-from `doc/`).
+**Image references:** name each image by its bare file name (`.. image:: <file>`), the file
+capture-mechanics.md section 13 places in `static/description/`, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. You own every image reference in
+each `doc/*.rst` you write, off-convention ones included (section 13).
 
 **Every `doc/*.rst` you write MUST conform to the RST-validity contract** (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/rst-validity-contract.md`) - no Sphinx-only roles
@@ -234,8 +233,9 @@ print('OK')
 
 ### Step 4.6 - Place finals, then run the doc reference gate
 
-`mv` every final the guide embeds from staging into the directory capture-mechanics.md section 13
-resolves, then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+Place every final the guide embeds in `static/description/` and bring every off-convention image
+reference of the files you write into the convention, both per capture-mechanics.md section 13,
+then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
 § Reference gate (`--series` = the Step 0 version) on every `doc/*.rst` you wrote. Fix each finding
 and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 

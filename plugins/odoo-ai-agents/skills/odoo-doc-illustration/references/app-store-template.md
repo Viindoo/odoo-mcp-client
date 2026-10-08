@@ -222,9 +222,9 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
           <div class="col-md-12 col-xl-8 mt-3 mt-xl-0 d-flex justify-content-center">
             <!-- Feature slot: measure its rendered width and frame the shot per
                  capture-mechanics.md § Frame for the placement slot -->
-            <!-- NN = 2-digit sequence, slug = kebab-case task name; English canonical = NO suffix (NN-slug.jpg), per-locale = NN-slug.<locale>.jpg (e.g. 01-submit-request.vi_VN.jpg) -->
+            <!-- {{SCREEN_FILE}} = this screen's file, named per module-doc-references.md § Images -->
             <img alt="{{FEATURE_TASK_TITLE}}" class="img-fluid" loading="lazy"
-                 src="./NN-slug.jpg"
+                 src="./{{SCREEN_FILE}}"
                  style="border-radius:15px;width:100%;height:auto;">
           </div>
         </div>
@@ -367,28 +367,17 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
 
 ## 4. Image Specifications
 
-Every screenshot size follows from the measured width of the slot it fills
+Where each image lives, its file name and how a doc references it:
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images and § Manifest images. Every
+screenshot size follows from the measured width of the slot it fills
 (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` § Frame for the
 placement slot); the module icon is the only fixed size.
 
-| Asset | Path | Format | Size | Notes |
+| Asset | File | Format | Size | Notes |
 |---|---|---|---|---|
-| Module icon | `static/description/icon.png` | PNG only | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. |
-| Main screenshot / hero | Declared first in `manifest['images']` | PNG, GIF, or JPEG | from the hero slot | Used as cover in store browse/grid views. |
-| Feature screenshots | Additional entries in `manifest['images']` or inline in `index.html` | PNG, GIF, or JPEG | from the feature slot | Inline-only images (not in `images`) do not appear in grid views. |
-| Banner/enlarged display | Any image whose filename ends with `_screenshot` | PNG, GIF, or JPEG | from the hero slot | First `*_screenshot` file is selected as the main banner display. |
-| Feature screenshot (English canonical) | `static/description/NN-slug.jpg` | JPEG or PNG | from the feature slot | No locale suffix. `index.html` references these. |
-| Per-locale screenshot | `static/description/NN-slug.<locale>.jpg` | JPEG or PNG | from the feature slot | Each locale's `index_<locale>.html` references its own locale-suffixed images. |
-| Animated walkthrough (English canonical) | `static/description/main_screenshot.gif` | GIF | from the hero slot | No locale suffix. Declared in `manifest['images']` for the cover position. |
-| Animated walkthrough (per locale) | `static/description/main_screenshot.<locale>.gif` | GIF | from the hero slot | One per non-English locale. |
-
-**Filename convention** (enforced for new modules): the English canonical has NO locale suffix -
-`NN-slug.<ext>` and `main_screenshot.<ext>`; every non-English locale appends `.<locale>` -
-`NN-slug.<locale>.<ext>` and `main_screenshot.<locale>.<ext>`. `NN` is a 2-digit sequence
-(`01`, `02`, ...), `slug` is a kebab-case task description, and `<locale>` is a full locale code
-(`vi_VN`, `fr_FR`, etc.). This matches the step-capture naming in
-`skills/odoo-doc-illustration/references/capture-mechanics.md`
-(English step files carry no suffix).
+| Module icon | `static/description/icon.png` | PNG only | 256x256 px | No manifest key needed - implicit path. Missing = ranking penalty. Language-neutral. |
+| Cover / hero | `static/description/main_screenshot.<ext>` | PNG, GIF, or JPEG | from the hero slot | `manifest['images'][0]` and the first image of `index.html`: the cover in store browse/grid views, shown enlarged because its name ends with `_screenshot`. A GIF carries an animated walkthrough. |
+| Screens | `static/description/<slug>.<ext>` | PNG, GIF, or JPEG | from the feature slot | Inline in `index.html`. Extra `manifest['images']` entries feed the store carousel; inline-only images do not appear in grid views. |
 
 ---
 
@@ -442,9 +431,9 @@ even if the registry omits it.
 disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
 is authoritative and this file cross-references it.
 
-**Screenshot localization**: per-locale screenshots are captured separately. Filename pattern:
-English canonical has NO suffix (`NN-slug.jpg`, `main_screenshot.gif`); every non-English locale
-appends `.<locale>` (`NN-slug.<locale>.jpg`, `main_screenshot.<locale>.gif`). Each locale's HTML
+**Screenshot localization**: per-locale screenshots are captured separately. English canonical
+has NO suffix (`<slug>.<ext>`, `main_screenshot.<ext>`); every non-English locale appends
+`.<locale>` (`<slug>.<locale>.<ext>`, `main_screenshot.<locale>.<ext>`). Each locale's HTML
 references only its own images. Icon is language-neutral (one `icon.png`, no locale suffix).
 
 **Tab split discipline**: keep marketing copy in `index.html` and deep technical steps

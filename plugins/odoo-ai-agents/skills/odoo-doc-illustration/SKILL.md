@@ -15,7 +15,7 @@ and embed them into durable module documentation - `odoo-user-doc-writer` (end-u
 scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
 SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
 code+doc product-lifecycle plan.
-Captured images land where each target doc resolves them (`references/capture-mechanics.md`
+Finished images land flat in the module's `static/description/` (`references/capture-mechanics.md`
 § Place finals where the target doc resolves them) so they survive across sessions and git commits.
 NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
 to EMBED into docs.
@@ -143,11 +143,18 @@ PARALLEL across independent instance-paths up to
       no consumer sets a writer's model - model authority stays with this orchestrator.
    4. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
       completion block (files exist at the reported paths), then run the doc reference gate on M
-      with no file arguments, so it checks every doc file and the module descriptor
+      with no file arguments, so it checks every doc file, the module descriptor and orphan images
       (`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate; `--series` = M's
-      resolved series) - a finding sends M back to its writer, exit 2 stops the run `NEEDS_CONTEXT`.
-      Only on exit 0 COMMIT M's docs via git-toolkit `git-ops` (per-module commit, one-way git; the
-      skill never runs raw git mutations).
+      resolved series). Exit 2 stops the run `NEEDS_CONTEXT`. Route each exit-1 finding by where
+      it lies:
+      - a file a writer wrote this run, or the descriptor when `odoo-marketing-writer` ran -> back
+        to that writer, then re-run the gate;
+      - `IMG_ORPHAN` -> delete the file yourself (a file deletion, not a git command), include the
+        deletion in M's commit, and list every deleted file in the run summary;
+      - a doc file outside this run's DOC LAYER for M (left untouched) -> report it under
+        `concerns:`; it does not block the commit.
+      Once a gate run reports no finding beyond the last kind, COMMIT M's docs via git-toolkit
+      `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
 3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
    delta (step B, init-delta on the SAME DB) then ensure-up (step C), and repeat step 2 for M+1.

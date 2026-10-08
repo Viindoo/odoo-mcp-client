@@ -276,25 +276,26 @@ with the reading viewport width you measured slots at (section 7).
 
 ## 13. Place finals where the target doc resolves them
 
-Find the destination directory for each final, in this order - the first candidate that satisfies
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images wins; skip one that does not
-(an existing `doc/` image directory fails it for RST):
-1. The directory the target doc's existing image references resolve to.
-2. Sibling locale docs of the same doc, then the manifest `images` entries.
-3. The directory the store serves for that doc type: `static/description/` for `index.html`; for
-   RST, the module `static/` subtree, following the convention already on disk.
+A final is every image the module ships: each image a doc embeds and each manifest `images` entry.
+Every final goes flat into the module's `static/description/`, named per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images (the cover per § Manifest
+images). A screen that already has an image there under a convention name keeps that name: your
+capture replaces it, and every doc showing that screen references the one file. An existing
+off-convention name (e.g. `shot_fbk_form.png`, `ws1-step03.png`) is renamed to the convention
+name, the same way as an off-convention reference below.
 
-Name each final by the convention already on disk in that directory, else by
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` § Image
-Specifications (store page) or the shot slug (user guide). The English canonical carries no locale
-suffix; every other locale appends `.<locale>` before the extension.
+`mv` (never `cp`) each final from staging into `static/description/` under its final name,
+renaming it in the same `mv` (`mkdir -p` the directory first).
 
-A final is every image the module ships: each image a doc embeds and each manifest `images` entry
-(a manifest image lands in `static/description/`). `mv` (never `cp`) each final from staging into
-its directory under its final name, renaming it in the same `mv` (`mkdir -p` the directory first).
-Reference it per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that snippet's
-reference gate (§ Reference gate) until it exits 0. Every other capture stays where it was written,
-cited by that path.
+In every doc file you write, bring each off-convention image reference (`assets/x.png`,
+`../static/description/x.png`, `/assets/x.png`, `img/x.png`, `doc/images/x.png`) into the
+convention: `mv` the module file it points at into `static/description/` under its convention
+name and rewrite the reference. When a file you do not write still references that old path,
+copy the module file instead, so that file keeps resolving.
+
+Reference every final per `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`, then run that
+snippet's reference gate (§ Reference gate) until it exits 0. Every other capture stays where it
+was written, cited by that path.
 
 ## 14. Hard constraints (capture)
 

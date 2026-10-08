@@ -37,7 +37,7 @@ Design notes (why each check is a STRUCTURAL exemption, never a file allowlist):
   site that does NOT.
 - Check 2 exempts a line where the locale code is CLEARLY illustrative: preceded on the same line
   by an explicit example marker (`e.g.`, `example`) BEFORE the locale code, or matching the
-  `<locale>`-suffixed filename-pattern idiom (`NN-slug.<locale>.ext`, `index_<locale>.html`, a
+  `<locale>`-suffixed filename-pattern idiom (`<slug>.<locale>.ext`, `index_<locale>.html`, a
   literal filename with a `.xx_YY.` infix). What is NEVER exempted: a locale code co-occurring with
   the word `default` or `fallback` on the same line, describing an assignment/tier resolution
   outcome rather than a naming pattern - that co-occurrence is exactly what both confirmed defects
@@ -157,7 +157,7 @@ _DEFAULT_WORD_RE = re.compile(r"\b(default|fallback)\w*", re.IGNORECASE)
 # example list, not an assignment/resolution outcome.
 _EXAMPLE_MARKER_RE = re.compile(r"\b(e\.g\.|example)\b", re.IGNORECASE)
 # The `<locale>`-suffixed filename idiom (`index_<locale>.html`,
-# `NN-slug.<locale>.ext`, a literal `.xx_YY.` infix) is a format
+# `<slug>.<locale>.ext`, a literal `.xx_YY.` infix) is a format
 # illustration, not a default assignment.
 _LOCALE_FILENAME_IDIOM_RE = re.compile(r"<locale>|\.\w+_[A-Z]{2}\.\w")
 
