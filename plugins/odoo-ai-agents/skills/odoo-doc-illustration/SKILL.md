@@ -38,12 +38,28 @@ are INTERNAL leaf executors - only this skill launches them; no consumer reaches
 a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft`/`-scoper`/
 `-planner`, or run a loop - ALL orchestration lives here.
 
-**State dir resolution (once per run, before any writer dispatch).** This skill is the
-cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch, resolve
-`<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to the run's target root (`doc_root` from the
-scoper for multi-module; the module's own containing repo root for the single-module path),
-and CAPTURE both absolute paths for the rest of the run: call
+**State dir resolution (once per run, before the first write to the module tree and before any
+writer dispatch).** First settle `doc_root`, the tree this run writes and commits in: the worktree
+a caller passes (`WORKTREE_PATH`, `TARGET: worktree:<path>`, or the `doc_root` of a scope it
+supplies), else the scope's `doc_root` on the multi-module path, else the top level of the repo
+holding the module. Scoping and planning only read the tree, so the multi-module path settles it
+once the plan gate approves (a cancelled plan leaves nothing behind) and the single-module path
+before provisioning. Tell the kinds of checkout apart with one bounded read
+(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Bounded-read allowlist):
+`git -C <doc_root> rev-parse --path-format=absolute --git-dir --git-common-dir`.
+- Two different paths: `doc_root` is a linked worktree (`run-harness` or the caller made it). Use
+  it as is and create nothing.
+- The same path twice: `doc_root` is a principal checkout, which never takes a write. Invoke
+  `git-toolkit:git-ops` (Skill tool) to create a new worktree and docs branch starting at that
+  checkout's HEAD commit, named explicitly (`git rev-parse HEAD`). That worktree becomes
+  `doc_root`; re-root every module path into it (same path relative to the repo top level). The
+  run summary names the worktree path and branch; this skill never merges or pushes it.
+- The read fails (not under git): use `doc_root` as is; there is nothing to commit.
+
+Then, as the cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to that final `doc_root`, and CAPTURE both
+absolute paths for the rest of the run: call
 `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice with `cwd` = `<doc_root>`, once with
 `axis` `share` and once with `axis` `isolate`.
 Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY writer dispatch brief
@@ -80,8 +96,8 @@ Never guess it silently.
 
 **Single module.** A single module dir/name takes the single-module path with no
 scoper/planner hop: confirm the target market when an appstore layer runs and the brief carries
-none (§ Target market above), provision (or receive an `INSTANCE_HANDLE`), then run the loop body
-ONCE against that module.
+none (§ Target market above), settle `doc_root` and the state dirs (§ State dir resolution),
+provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE against that module.
 
 **Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
@@ -99,7 +115,8 @@ ONCE against that module.
    order + dedup + schedule + one proposed `TARGET MARKET` row per appstore module) for a SINGLE
    `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
    provisioned.
-4. **Loop** - run the per-instance incremental loop below over `doc-plan.yaml`.
+4. **Loop** - settle `doc_root` and the state dirs (§ State dir resolution), then run the
+   per-instance incremental loop below over `doc-plan.yaml`.
 
 **Per-instance incremental loop (the loop body).** Per instance-path (SEQUENTIAL within a path;
 PARALLEL across independent instance-paths up to
@@ -111,8 +128,8 @@ PARALLEL across independent instance-paths up to
    (NEVER dispatch the `odoo-instance-ops` agent, for this step or any later one - this skill must
    hold the lease across the whole path, and the `odoo-instance` skill's path-incremental branch
    defines steps A-E), with `CONTEXT: doc` (demo on + skip-auto-install), `MODE_HINT: path-incremental`,
-   `LANGUAGES: <csv>`, this run's `RUN_ID`, and `WORKTREE_PATH: <doc_root>` when `doc_root` is a
-   worktree (else `none`) so the instance loads the tree being documented. Lease mode, ports and
+   `LANGUAGES: <csv>`, this run's `RUN_ID`, and `WORKTREE_PATH: <doc_root>` (`none` only when
+   `doc_root` is not under git) so the instance loads the tree being documented. Lease mode, ports and
    flags are the executor's (`odoo-instance`); never name them here. THIS SKILL (not instance-ops)
    reads back the returned `instance-ops` block VERBATIM as `INSTANCE_HANDLE` (the full descriptor
    per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`, `lease_token` and `run_id`
@@ -168,8 +185,8 @@ PARALLEL across independent instance-paths up to
         deletion in M's commit, and list every deleted file in the run summary;
       - a doc file outside this run's DOC LAYER for M (left untouched) -> report it under
         `concerns:`; it does not block the commit.
-      Once a gate run reports no finding beyond the last kind, COMMIT M's docs via git-toolkit
-      `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
+      Once a gate run reports no finding beyond the last kind, COMMIT M's docs in `doc_root` via
+      git-toolkit `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
 3. **Advance.** Invoke `Skill(odoo-instance)` INLINE again with the HELD `lease_token` for the next
    delta (step B, init-delta on the SAME DB) then ensure-up (step C), and repeat step 2 for M+1.

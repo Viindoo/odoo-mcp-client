@@ -65,7 +65,10 @@ HEAD/current branch happens to be. `git branch --show-current` (allowlisted abov
 for diagnostic reads and source-series INFERENCE (e.g. cross-checking what a human is currently on
 against a manifest-derived series) - it MUST NEVER be the value assigned to a `base` / `work-base` /
 Repo Capability Card `base` field. A `base` resolved from the invoking checkout's ambient branch
-reproduces the exact defect this section exists to close.
+reproduces the exact defect this section exists to close. One exception: the docs worktree
+`odoo-doc-illustration` creates for a principal-checkout target (§ Self-provisioning specialists)
+starts at that checkout's HEAD commit, named explicitly - docs describe the code the user pointed
+at, not a series branch.
 
 **Input.** The run's already-resolved `odoo_version` (the Run-header field required on every
 `writes-files` plan - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md` - resolved
@@ -142,6 +145,12 @@ provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
 `odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (Each source-writing node's worktree
 is provisioned by `run-harness` (Hard rule 6), forked from that repo's `run-integration` branch -
 not by a dispatched specialist - see `run-harness` § Run start.)
+
+`odoo-doc-illustration` self-provisions only when its target is a principal checkout: it moves the
+run into a new docs worktree and branch at that checkout's HEAD commit, so a dispatcher outside a
+run (`odoo-intake` without Phase P, a direct invocation) provisions nothing for it. On a run,
+`run-harness` hands it the run's worktree like any source-writing node - its docs must describe and
+land on the run's code - and a linked worktree it receives is used as is.
 
 ## Invocation contract
 
