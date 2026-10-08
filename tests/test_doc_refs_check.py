@@ -91,12 +91,42 @@ def test_an_image_neither_a_module_path_nor_a_public_https_url_is_flagged(module
 
 
 @pytest.mark.parametrize("ref", [
+    # a reserved or private-use name, equal to it or under it
+    "https://shop.localhost/a.png", "https://odoo.local/a.png", "https://erp.internal/a.png",
+    "https://nas.lan/a.png", "https://router.home.arpa/a.png", "https://docs.test/a.png",
+    "https://logo.invalid/a.png", "https://brand.example/a.png",
+    "https://localhost.localdomain/a.png", "https://odoo.local./a.png",
+    # an Odoo instance route on a public host
+    "https://erp.acme.com/web/image/res.partner/1/image_128",
+    "https://erp.acme.com/web/image?model=res.company&id=1&field=logo",
+    "https://erp.acme.com/web/content/42", "https://erp.acme.com/web/binary/company_logo",
+])
+def test_an_image_on_a_reserved_host_or_an_instance_route_is_not_public(module, ref):
+    """A reserved name never resolves for a store reader, and an instance route points at a
+    running Odoo that the reader cannot reach."""
+    _flags(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_RELATIVE")
+    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+           "IMG_NOT_RELATIVE")
+
+
+@pytest.mark.parametrize("ref", [
+    "https://example.com/logo.png", "https://cdn.testing.com/a.png",
+    "https://cdn.acme.com/web/images/logo.png", "https://cdn.acme.com/brand/odoo/logo.png",
+    # a file in the odoo/odoo repository, not a running instance
+    "https://raw.githubusercontent.com/odoo/odoo/0123abc/addons/web/static/img/logo.png",
+])
+def test_a_public_name_merely_resembling_a_reserved_one_passes(module, ref):
+    _clean(_rst(module, f".. image:: {ref}\n"))
+
+
+@pytest.mark.parametrize("ref", [
     "https://raw.githubusercontent.com/acme/branding/0123abc/logo/acme-logo.svg",
     "https://cdn.example.com/brand/logo%20v2.png",
 ])
-def test_a_public_https_image_is_not_a_module_file_and_passes(module, ref):
-    """A vendor logo pinned to a public URL is displayed as is by the stores: no existence,
-    flatness, name or orphan check applies to it."""
+def test_a_public_https_image_passes_pinned_or_not(module, ref):
+    """A vendor logo at a public URL is displayed as is by the stores: no existence, flatness,
+    name or orphan check applies, and the gate does not check pinning (the second URL is not
+    pinned to a revision)."""
     _clean(_rst(module, f".. image:: {ref}\n"))
     _clean(_html(module, f'<img src="{ref}"/><img src="./main_screenshot.png"/>\n'))
     (module / "README.rst").write_text(f".. image:: {ref}\n")
@@ -217,6 +247,26 @@ def test_a_local_link_is_flagged(module, ref):
     _flags(_rst(module, f"See `the page <{ref}>`_.\n"), "LINK_LOCAL")
 
 
+@pytest.mark.parametrize("ref", [
+    "https://erp.local/odoo/sales", "https://shop.localhost/", "https://erp.internal/web",
+    "https://nas.lan/doc", "https://router.home.arpa/", "https://docs.test/guide",
+    "https://logo.invalid/", "https://brand.example/", "http://localhost.localdomain:8069/odoo",
+    "https://erp.local./odoo",
+])
+def test_a_link_to_a_reserved_or_private_use_name_is_local(module, ref):
+    """A reserved name never resolves for a store reader, exactly as for an image."""
+    _flags(_rst(module, f"See `the page <{ref}>`_.\n"), "LINK_LOCAL")
+    _flags(_rst(module, f"Open {ref} in a browser.\n"), "LINK_LOCAL")
+    _flags(_html(module, f'<img src="./main_screenshot.png"/><a href="{ref}">x</a>'), "LINK_LOCAL")
+
+
+@pytest.mark.parametrize("ref", [
+    "https://example.com/docs", "https://www.testing.com/", "https://shop.localhost.com/",
+])
+def test_a_link_to_a_public_name_resembling_a_reserved_one_passes(module, ref):
+    _clean(_rst(module, f"See `the page <{ref}>`_.\n"))
+
+
 def test_a_bare_local_url_in_text_is_flagged_but_not_inside_a_literal_block(module):
     _flags(_rst(module, "Open http://localhost:8069 in a browser.\n"), "LINK_LOCAL")
     _clean(_rst(module, """\
@@ -265,6 +315,31 @@ def test_the_store_module_scheme_for_this_series_passes(module):
         """))
     _clean(_html(module, '<img src="./main_screenshot.png"/>'
                          '<a href="/apps/modules/17.0/sale">Sales</a> <a href="#features">x</a>'))
+
+
+def test_the_root_relative_vendor_listing_passes(module):
+    """/apps/modules/browse?author=<vendor> resolves on every store that serves the module."""
+    _clean(_rst(module, """\
+        More from `Acme </apps/modules/browse?author=Acme%20Ltd>`__.
+
+        .. __: /apps/modules/browse?author=Acme
+        """))
+    _clean(_html(module, '<img src="./main_screenshot.png"/>'
+                         '<a href="/apps/modules/browse?author=Acme&amp;series=17.0">Acme</a>'))
+
+
+@pytest.mark.parametrize("ref,rule", [
+    ("https://apps.odoo.com/apps/modules/browse?author=Acme", "LINK_STORE_ABSOLUTE"),
+    ("https://store.example.org/vi_VN/apps/modules/browse?author=Acme", "LINK_STORE_ABSOLUTE"),
+    ("/vi_VN/apps/modules/browse?author=Acme", "LINK_STORE_SCHEME"),
+    ("/en/apps/modules/browse?author=Acme", "LINK_STORE_SCHEME"),
+    ("/apps/modules/browse", "LINK_STORE_SCHEME"),
+    ("/apps/modules/browse?author=", "LINK_STORE_SCHEME"),
+    ("/apps/modules/browse?search=Acme", "LINK_STORE_SCHEME"),
+    ("/apps/modules/browse/?author=Acme", "LINK_STORE_SCHEME"),
+])
+def test_a_vendor_listing_not_in_the_root_relative_form_is_flagged(module, ref, rule):
+    _flags(_html(module, f'<img src="./main_screenshot.png"/><a href="{ref}">Acme</a>'), rule)
 
 
 def test_anonymous_rst_links_and_targets_are_checked(module):

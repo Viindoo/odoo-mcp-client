@@ -17,13 +17,17 @@ Exit: 0 clean (and --help), 1 findings, 2 usage error or an interpreter below 3.
 Every image a module ships lives flat in static/description/; a guide (doc/**/*.rst) names it
 bare, the store page and README.rst by a path resolving to it. An image that is not a module file
 (e.g. a vendor logo) is a public https:// URL: the stores display it as is, so it is not checked
-further.
+further - not even for being pinned to an immutable revision.
 
 Rules
   IMG_NOT_RELATIVE     image that is neither a module path nor a public https:// URL: http://
                        (mixed content on an https store), data:, file: or any other scheme, a
-                       leading "/" or "//" (protocol-relative), or a host that is not public
-                       (localhost, a loopback, private or unspecified address, a name with no dot)
+                       leading "/" or "//" (protocol-relative), a host that is not public (a
+                       local host - a loopback or unspecified address, or a reserved or
+                       private-use name: equal to or under localhost, local, internal, lan,
+                       home.arpa, test, invalid, example, localhost.localdomain - a private
+                       address, a name with no dot), or a path that is an Odoo instance route
+                       (/web/image, /web/content, /web/binary)
   IMG_NAME             module image (a reference or a manifest entry) whose file name has a
                        character outside A-Z a-z 0-9 . _ -
   IMG_NOT_BARE         doc/**/*.rst image that is not a bare file name (contains "/" or "\\")
@@ -44,16 +48,19 @@ Rules
                        followed by one of those or by "." + a word character (`see end.png.`
                        mentions end.png; `myend.png` and `end.png.bak` do not). Files under .git/
                        or __pycache__/ and binary files (a NUL byte in the first 8 KiB) are not read.
-  LINK_LOCAL           link to file:, localhost, 127.0.0.1, an absolute filesystem path, or a
-                       root-relative path that is not a store module path
+  LINK_LOCAL           link to file:, a local host (as IMG_NOT_RELATIVE defines it), an absolute
+                       filesystem path, or a root-relative path that is not a store module path
   LINK_SIBLING_PATH    relative link resolving outside the module (e.g. ../../<other>/...)
   LINK_STORE_ABSOLUTE  absolute URL (any host) whose path is (/<lang>)?/apps/modules/...
-  LINK_STORE_SCHEME    store path not exactly /apps/modules/<series>/<technical_name>
+  LINK_STORE_SCHEME    store path that is neither exactly /apps/modules/<series>/<technical_name>
+                       nor the vendor listing /apps/modules/browse?author=<vendor> (path exactly
+                       /apps/modules/browse, a non-empty author parameter, no language prefix)
   MANIFEST_IMAGE       manifest `images` entry that is not an existing static/description/<file>
                        png / gif / jpg / jpeg
   MANIFEST_COVER       manifest images[0] whose name without its last extension does not end in
                        `_screenshot` (a locale variant is never the cover)
-Allowed: mailto:, tel:, #anchors, https links to non-store pages, public https:// images.
+Allowed: mailto:, tel:, #anchors, https links to non-store pages, the root-relative module and
+vendor-listing store paths above, public https:// images.
 
 stdlib only; runs with the plugin interpreter (`python3`), never an Odoo venv. Old syntax (no
 f-strings) so the version check below can report instead of a SyntaxError.
@@ -73,15 +80,21 @@ import ipaddress  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
 from html.parser import HTMLParser  # noqa: E402
-from urllib.parse import quote, unquote, urlsplit  # noqa: E402
+from urllib.parse import parse_qs, quote, unquote, urlsplit  # noqa: E402
 
 _SERIES = re.compile(r"^[0-9]+\.[0-9]+$")
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
 _LOCAL_HOSTS = ("localhost", "127.0.0.1", "0.0.0.0", "[::1]", "::1")
+# Reserved or private-use names: a host equal to one of these or under it never resolves publicly.
+_RESERVED_NAMES = ("localhost", "local", "internal", "lan", "home.arpa", "test", "invalid",
+                   "example", "localhost.localdomain")
+# Routes a running Odoo instance serves; an image there points at that instance.
+_INSTANCE_ROUTE = re.compile(r"^/web/(?:image|content|binary)(?:/|$)")
 _LANG = r"(?:/[A-Za-z]{2,3}(?:[_-][A-Za-z0-9]{2,4})?)?"
 _STORE_PATH = re.compile(r"^" + _LANG + r"/apps/modules(?:/|$)")
 _STORE_EXACT = r"^/apps/modules/%s/[a-z0-9_]+$"
+_VENDOR_LISTING = "/apps/modules/browse"
 
 # RST
 _RST_IMAGE = re.compile(r"^\s*\.\.\s+(?:\|[^|]+\|\s+)?(?:image|figure)::\s*(\S+)")
@@ -120,8 +133,10 @@ def _host(ref):
 
 
 def _is_local_host(ref):
-    host = _host(ref)
-    return host in _LOCAL_HOSTS or host.startswith("127.")
+    """A loopback or unspecified address, or a reserved / private-use name: no reader reaches it."""
+    host = _host(ref).strip(".")
+    return (host in _LOCAL_HOSTS or host.startswith("127.")
+            or any(host == name or host.endswith("." + name) for name in _RESERVED_NAMES))
 
 
 def _inside(path, root):
@@ -136,21 +151,36 @@ def _resolve(ref, doc_file):
 
 
 def _is_public_host(ref):
-    host = _host(ref)
+    host = _host(ref).strip(".")
     if not host or _is_local_host(ref):
         return False
     try:
         return ipaddress.ip_address(host).is_global
     except ValueError:
-        return "." in host.strip(".")
+        return "." in host
+
+
+def _is_instance_route(ref):
+    try:
+        return bool(_INSTANCE_ROUTE.match(urlsplit(ref).path))
+    except ValueError:
+        return False
+
+
+def _is_vendor_listing(ref):
+    """The root-relative store listing of one vendor's modules: /apps/modules/browse?author=<v>."""
+    parts = urlsplit(ref)
+    return parts.path == _VENDOR_LISTING and bool(parse_qs(parts.query).get("author"))
 
 
 def _image_kind(ref):
-    """"local" for a module path, "external" for a public https:// URL, None for anything else."""
+    """"local" for a module path, "external" for a public https:// URL that is not an Odoo
+    instance route, None for anything else."""
     if _DRIVE.match(ref) or ref.startswith(("/", "\\")):
         return None
     if _SCHEME.match(ref):
-        return "external" if ref.lower().startswith("https://") and _is_public_host(ref) else None
+        return "external" if (ref.lower().startswith("https://") and _is_public_host(ref)
+                              and not _is_instance_route(ref)) else None
     return "local"
 
 
@@ -261,6 +291,8 @@ class Checker(object):
         if _SCHEME.match(ref):
             return
         if ref.startswith("/"):
+            if _is_vendor_listing(ref):
+                return
             if _STORE_PATH.match(ref):
                 if not re.match(_STORE_EXACT % re.escape(self.series), ref):
                     self._add(doc_file, line, "LINK_STORE_SCHEME", ref)
