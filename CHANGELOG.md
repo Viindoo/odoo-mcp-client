@@ -29,15 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- `odoo-ai-agents` - **doc images land where both app stores can serve them.** Every image a module
-  ships lives flat in `static/description/` under one naming rule (`<slug>[.<locale>].<ext>`, cover
-  `main_screenshot`, first in the manifest `images` and shown on the English landing). A user guide
-  names an image by its bare file name, which is the only form the stores rewrite; the
-  `../static/description/<file>` form the docs previously required renders as a broken image on the
-  store's Documentation tab. The reference gate enforces the convention, accepts a public `https://`
-  image such as a vendor logo and the vendor listing link `/apps/modules/browse?author=<vendor>`,
-  rejects private host names and instance routes, and, run on a whole module, lists unreferenced
-  images so the skill deletes them in the docs commit. Writers normalize off-convention image
+- `odoo-ai-agents` - **doc images land where both app stores can serve them.** The root of
+  `static/description/` holds only the icon, the store pages and the cover (`main_screenshot`,
+  first in the manifest `images` and shown on the English landing); every other image a module
+  ships lives directly in `static/description/assets/` under one naming rule
+  (`<slug>[.<locale>].<ext>`). A user guide references an image as `assets/<file>` and the store
+  page as `./assets/<file>`, forms the stores and Odoo's Apps view rewrite to the module's
+  `static/description/`; the `../static/description/<file>` form the docs previously required
+  renders as a broken image on the store's Documentation tab. The reference gate enforces the
+  convention, accepts a public `https://` image such as a vendor logo and the vendor listing link
+  `/apps/modules/browse?author=<vendor>`, rejects private host names and instance routes, and, run
+  on a whole module, lists unreferenced images so the skill deletes them in the docs commit. Writers normalize off-convention image
   references in the files they write instead of following whatever layout the module already had.
 - `odoo-ai-agents` - **module docs never land on a principal checkout.** Documenting a module
   straight from its repository checkout used to write and commit on whatever branch was checked out.

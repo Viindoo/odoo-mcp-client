@@ -3,9 +3,12 @@
 A module's docs are published by an app store that serves the module's own files: an image path
 pointing at the author's machine or a running instance, a link into a sibling checkout directory
 (../../<other_module>/...), or a link pinned to one store host breaks once published. The stores
-resolve a guide image only by its bare file name, looked up flat in static/description/, so every
-shipped image lives there and the cover is the `*_screenshot` file the English page shows. An
-image that is not a module file (a vendor logo) is a public https:// URL the stores keep as is.
+and Odoo's own Apps view rewrite a relative image path in a guide or a store page against the
+module's static/description/, subfolders included, and leave `../static/description/<file>`
+unrewritten. So the root of static/description/ holds only the icon, the pages and the cover
+(`main_screenshot`, the file the English page shows), and every other shipped image lives
+directly in static/description/assets/. An image that is not a module file (a vendor logo) is a
+public https:// URL the stores keep as is.
 Each test builds a small module in a temp dir, writes ONE reference, and runs the real CLI.
 """
 import os
@@ -20,14 +23,17 @@ ROOT = Path(__file__).resolve().parent.parent
 GATE = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "doc_refs_check.py"
 SERIES = "17.0"
 PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+# Every off-convention location below holds a real file, so a finding is about the form alone.
+STRAY = ("static/description/form.png", "static/description/assets/sub/form.png",
+         "static/description/img/form.png", "static/src/img/icon.png", "doc/shots/raw.png",
+         "doc/raw.png")
 
 
 @pytest.fixture
 def module(tmp_path):
     mod = tmp_path / "addons" / "sale_delivery_window"
-    for rel in ("static/description/main_screenshot.png", "static/description/form.png",
-                "static/description/img/form.png", "static/src/img/icon.png",
-                "doc/shots/raw.png", "doc/raw.png"):
+    for rel in ("static/description/main_screenshot.png",
+                "static/description/assets/form.png") + STRAY:
         p = mod / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(PNG)
@@ -59,6 +65,11 @@ def _html(module, body):
     return _run(module, "static/description/index.html")
 
 
+def _readme(module, ref):
+    (module / "README.rst").write_text(".. image:: %s\n" % ref)
+    return _run(module, "README.rst")
+
+
 def _rules(proc):
     return [line.split(": ")[1] for line in proc.stdout.splitlines()]
 
@@ -71,6 +82,11 @@ def _clean(proc):
 def _flags(proc, rule):
     assert proc.returncode == 1, proc.stdout + proc.stderr
     assert rule in _rules(proc), proc.stdout
+
+
+def _only(proc, rule):
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert _rules(proc) == [rule], proc.stdout
 
 
 # --------------------------------------------------------------------------- #
@@ -124,43 +140,47 @@ def test_a_public_name_merely_resembling_a_reserved_one_passes(module, ref):
     "https://cdn.example.com/brand/logo%20v2.png",
 ])
 def test_a_public_https_image_passes_pinned_or_not(module, ref):
-    """A vendor logo at a public URL is displayed as is by the stores: no existence, flatness,
+    """A vendor logo at a public URL is displayed as is by the stores: no existence, location,
     name or orphan check applies, and the gate does not check pinning (the second URL is not
     pinned to a revision)."""
     _clean(_rst(module, f".. image:: {ref}\n"))
     _clean(_html(module, f'<img src="{ref}"/><img src="./main_screenshot.png"/>\n'))
-    (module / "README.rst").write_text(f".. image:: {ref}\n")
-    _clean(_run(module, "README.rst"))
+    _clean(_readme(module, ref))
 
 
 @pytest.mark.parametrize("name", ["caf\u00e9.png", "shot(1).png", "a+b.png", "form,v2.png"])
 def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
-    (module / "static" / "description" / name).write_bytes(PNG)
-    _flags(_rst(module, f".. image:: {name}\n"), "IMG_NAME")
-    _flags(_html(module, f'<img src="./main_screenshot.png"/><img src="./{name}"/>\n'), "IMG_NAME")
-    _manifest(module, "static/description/main_screenshot.png", "static/description/" + name)
-    _flags(_run(module, "__manifest__.py"), "IMG_NAME")
+    (module / "static" / "description" / "assets" / name).write_bytes(PNG)
+    _only(_rst(module, f".. image:: assets/{name}\n"), "IMG_NAME")
+    _only(_html(module, f'<img src="./main_screenshot.png"/><img src="./assets/{name}"/>\n'),
+          "IMG_NAME")
+    _manifest(module, "static/description/main_screenshot.png",
+              "static/description/assets/" + name)
+    _only(_run(module, "__manifest__.py"), "IMG_NAME")
 
 
 def test_an_html_image_whose_decoded_name_has_a_space_is_flagged(module):
-    (module / "static" / "description" / "old one.png").write_bytes(PNG)
-    _flags(_html(module, '<img src="./main_screenshot.png"/><img src="./old%20one.png"/>'),
-           "IMG_NAME")
+    (module / "static" / "description" / "assets" / "old one.png").write_bytes(PNG)
+    _only(_html(module, '<img src="./main_screenshot.png"/><img src="./assets/old%20one.png"/>'),
+          "IMG_NAME")
 
 
 def test_a_module_image_name_in_the_safe_set_passes(module):
-    (module / "static" / "description" / "Sales_Order-form.v2.png").write_bytes(PNG)
-    _clean(_rst(module, ".. image:: Sales_Order-form.v2.png\n"))
+    (module / "static" / "description" / "assets" / "Sales_Order-form.v2.png").write_bytes(PNG)
+    _clean(_rst(module, ".. image:: assets/Sales_Order-form.v2.png\n"))
 
 
-def test_a_guide_image_named_bare_passes_in_every_directive(module):
+def test_a_guide_image_in_assets_or_the_root_cover_passes_in_every_directive(module):
+    (module / "static" / "description" / "main_screenshot.vi_VN.png").write_bytes(PNG)
     _clean(_rst(module, """\
-        .. image:: form.png
+        .. image:: assets/form.png
            :width: 600
 
         .. figure:: main_screenshot.png
 
-        .. |logo| image:: form.png
+        .. |logo| image:: assets/form.png
+
+        .. image:: main_screenshot.vi_VN.png
         """))
 
 
@@ -169,58 +189,70 @@ def test_a_guide_image_named_bare_passes_in_every_directive(module):
 ])
 def test_every_rst_image_directive_is_checked(module, directive):
     """A figure or a substitution image is as much a published image as a plain one."""
-    proc = _rst(module, directive.format(ref="../static/description/form.png") + "\n")
-    assert _rules(proc) == ["IMG_NOT_BARE"], proc.stdout
+    proc = _rst(module, directive.format(ref="../static/description/assets/form.png") + "\n")
+    assert _rules(proc) == ["IMG_NOT_IN_ASSETS"], proc.stdout
 
 
 @pytest.mark.parametrize("ref", [
-    "../static/description/form.png", "shots/raw.png", "../../sale/static/x.png",
-    "..\\static\\description\\form.png",
+    "form.png",                                  # a screenshot left at the root
+    "../static/description/assets/form.png",     # the store leaves this unrewritten
+    "../static/description/main_screenshot.png",
+    "assets/sub/form.png", "img/form.png", "shots/raw.png", "doc/raw.png",
+    "./assets/form.png", "static/description/assets/form.png", "../../sale/static/x.png",
+    "..\\static\\description\\assets\\form.png", "assets\\form.png",
 ])
-def test_a_guide_image_that_is_not_a_bare_name_is_flagged(module, ref):
-    _flags(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_BARE")
+def test_a_guide_image_not_in_assets_is_flagged(module, ref):
+    _only(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_IN_ASSETS")
 
 
-def test_a_bare_guide_image_absent_from_static_description_is_missing(module):
-    proc = _rst(module, ".. image:: raw.png\n")
-    assert proc.stdout == "doc/index.rst:1: IMG_MISSING: raw.png\n"
+@pytest.mark.parametrize("ref", ["assets/raw.png", "main_screenshot.vi_VN.png"])
+def test_a_guide_image_in_its_form_but_absent_from_static_description_is_missing(module, ref):
+    proc = _rst(module, f".. image:: {ref}\n")
+    assert proc.stdout == f"doc/index.rst:1: IMG_MISSING: {ref}\n"
     assert proc.returncode == 1
 
 
-@pytest.mark.parametrize("markup", [
-    '<img src="img/form.png"/>', '<img src="../src/img/icon.png"/>',
-])
-def test_an_html_image_outside_static_description_is_not_flat(module, markup):
-    _flags(_html(module, markup + "\n"), "IMG_NOT_FLAT")
-
-
 @pytest.mark.parametrize("ref", [
-    "../../../sale_delivery_window/static/description/form.png", "../description/form.png",
-    "assets/../form.png", "./img/../form.png",
+    "./form.png", "form.png",                    # a screenshot left at the root
+    "img/form.png", "./assets/sub/form.png", "../src/img/icon.png",
+    "../description/assets/form.png", "assets/../assets/form.png", "./img/../assets/form.png",
+    "../../../sale_delivery_window/static/description/assets/form.png",
 ])
-def test_an_html_image_resolving_flat_but_not_written_as_a_bare_file_is_not_flat(module, ref):
-    """Odoo rewrites only a src with no `//` and no `static/`; any directory part breaks there."""
-    proc = _html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n')
-    assert _rules(proc) == ["IMG_NOT_FLAT"], proc.stdout
+def test_an_html_image_not_written_as_assets_or_the_cover_is_flagged(module, ref):
+    """Odoo rewrites only a src with no `//` and no `static/`, and the stores rewrite the same
+    relative form; a path reaching the file another way breaks on one of them."""
+    _only(_html(module, f'<img src="./main_screenshot.png"/><img src="{ref}"/>\n'),
+          "IMG_NOT_IN_ASSETS")
 
 
 def test_an_html_image_escaping_the_module_is_flagged(module):
     _flags(_html(module, '<img src="../../../sale/static/x.png"/>\n'), "IMG_ESCAPES_MODULE")
 
 
-def test_a_readme_image_names_its_static_description_path(module):
-    (module / "README.rst").write_text(".. image:: static/description/form.png\n")
-    _clean(_run(module, "README.rst"))
-    (module / "README.rst").write_text(".. image:: static/description/img/form.png\n")
-    _flags(_run(module, "README.rst"), "IMG_NOT_FLAT")
+@pytest.mark.parametrize("ref", [
+    "static/description/assets/form.png", "./static/description/assets/form.png",
+    "static/description/main_screenshot.png",
+])
+def test_a_readme_image_names_its_static_description_assets_path(module, ref):
+    _clean(_readme(module, ref))
 
 
-def test_html_images_flat_in_static_description_pass(module):
+@pytest.mark.parametrize("ref", [
+    "static/description/form.png", "static/description/img/form.png",
+    "static/description/assets/sub/form.png", "assets/form.png", "static/src/img/icon.png",
+])
+def test_a_readme_image_not_in_assets_is_flagged(module, ref):
+    _only(_readme(module, ref), "IMG_NOT_IN_ASSETS")
+
+
+def test_html_images_in_assets_or_the_cover_pass(module):
     _clean(_html(module, """\
         <section>
           <img src="./main_screenshot.png" class="img-fluid"/>
-          <img srcset="form.png 1x, ./main_screenshot.png 2x"/>
-          <div style="background-image: url('./form.png')"></div>
+          <img src="main_screenshot.png"/>
+          <img src="assets/form.png"/>
+          <img srcset="./assets/form.png 1x, ./main_screenshot.png 2x"/>
+          <div style="background-image: url('./assets/form.png')"></div>
         </section>
         """))
 
@@ -229,7 +261,7 @@ def test_html_images_flat_in_static_description_pass(module):
     ('<img src="http://localhost:8069/web/image/res.partner/1/image_128"/>', "IMG_NOT_RELATIVE"),
     ('<img src="/sale_delivery_window/static/description/banner.png"/>', "IMG_NOT_RELATIVE"),
     ('<div style="background:url(/web/static/img/bg.png)"></div>', "IMG_NOT_RELATIVE"),
-    ('<img srcset="./missing.png 2x"/>', "IMG_MISSING"),
+    ('<img srcset="./assets/missing.png 2x"/>', "IMG_MISSING"),
 ])
 def test_html_image_defects_are_flagged(module, markup, rule):
     _flags(_html(module, markup), rule)
@@ -365,7 +397,7 @@ def test_the_series_comes_from_the_caller(module):
 
 def test_an_rst_image_target_option_is_checked_as_a_link(module):
     _flags(_rst(module, """\
-        .. image:: form.png
+        .. image:: assets/form.png
            :target: http://localhost:8069/odoo
         """), "LINK_LOCAL")
 
@@ -374,44 +406,56 @@ def test_an_rst_image_target_option_is_checked_as_a_link(module):
 # manifest
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("entry", [
-    "/static/description/main_screenshot.png", "static/description/missing_screenshot.png",
-    "../sale/static/x.png", "https://cdn.example.com/main_screenshot.png",
-    "static/description/img/form.png", "static/src/img/icon.png", "doc/raw.png",
-    "static/description/notes_screenshot.txt",
+    "/static/description/assets/form.png", "static/description/assets/missing.png",
+    "static/description/form.png",               # a screenshot left at the root
+    "static/description/assets/sub/form.png", "static/description/img/form.png",
+    "../sale/static/x.png", "https://cdn.example.com/form.png", "static/src/img/icon.png",
+    "doc/raw.png", "static/description/assets/notes.txt",
 ])
-def test_a_manifest_image_not_an_existing_static_description_image_is_flagged(module, entry):
+def test_a_manifest_image_not_an_existing_assets_image_or_the_cover_is_flagged(module, entry):
     if entry.endswith(".txt"):
         (module / entry).write_text("x")
     (module / "__manifest__.py").write_text(
-        "# comment\n{\n    'name': 'X',\n    'images': [\n        %r,\n    ],\n}\n" % entry)
+        "# comment\n{\n    'name': 'X',\n    'images': [\n"
+        "        'static/description/main_screenshot.png',\n        %r,\n    ],\n}\n" % entry)
     proc = _run(module, "__manifest__.py")
-    _flags(proc, "MANIFEST_IMAGE")
-    assert proc.stdout.startswith("__manifest__.py:5: MANIFEST_IMAGE:"), proc.stdout
+    assert proc.stdout == "__manifest__.py:6: MANIFEST_IMAGE: %s\n" % entry
+    assert proc.returncode == 1
 
 
 @pytest.mark.parametrize("cover", [
-    "main_screenshot.png", "banner_screenshot.jpg", "main_screenshot.gif", "hero_screenshot.jpeg",
+    "main_screenshot.png", "main_screenshot.gif", "main_screenshot.jpeg", "main_screenshot.jpg",
 ])
-def test_a_screenshot_named_cover_passes(module, cover):
-    (module / "static" / "description" / cover).write_bytes(PNG)
-    _manifest(module, "static/description/" + cover, "static/description/form.png")
+def test_the_main_screenshot_cover_with_assets_and_locale_covers_after_it_passes(module, cover):
+    for name in (cover, "main_screenshot.vi_VN.png"):
+        (module / "static" / "description" / name).write_bytes(PNG)
+    _manifest(module, "static/description/" + cover, "static/description/assets/form.png",
+              "static/description/main_screenshot.vi_VN.png")
     _clean(_run(module, "__manifest__.py"))
 
 
-@pytest.mark.parametrize("cover", ["form.png", "main_screenshot.vi_VN.png", "screenshot.png"])
-def test_a_cover_not_named_screenshot_is_flagged(module, cover):
-    (module / "static" / "description" / cover).write_bytes(PNG)
-    _manifest(module, "static/description/" + cover, "static/description/main_screenshot.png")
-    proc = _run(module, "__manifest__.py")
-    assert _rules(proc) == ["MANIFEST_COVER"], proc.stdout
-    assert proc.returncode == 1
+@pytest.mark.parametrize("cover", [
+    "static/description/assets/form.png", "static/description/main_screenshot.vi_VN.png",
+    "static/description/assets/main_screenshot.png",
+])
+def test_a_first_image_that_is_not_the_root_main_screenshot_is_not_the_cover(module, cover):
+    for rel in (cover, "static/description/assets/main_screenshot.png"):
+        (module / rel).write_bytes(PNG)
+    _manifest(module, cover, "static/description/main_screenshot.png")
+    _only(_run(module, "__manifest__.py"), "MANIFEST_COVER")
+
+
+def test_another_screenshot_named_image_at_the_root_is_neither_the_cover_nor_in_assets(module):
+    (module / "static" / "description" / "banner_screenshot.jpg").write_bytes(PNG)
+    _manifest(module, "static/description/banner_screenshot.jpg")
+    assert _rules(_run(module, "__manifest__.py")) == ["MANIFEST_IMAGE", "MANIFEST_COVER"]
 
 
 # --------------------------------------------------------------------------- #
 # cover shown on the English store page
 # --------------------------------------------------------------------------- #
 def test_an_english_page_not_showing_the_cover_is_flagged(module):
-    proc = _html(module, '<p>x</p>\n<img src="./form.png"/>\n')
+    proc = _html(module, '<p>x</p>\n<img src="./assets/form.png"/>\n')
     assert proc.stdout == ("static/description/index.html:0: IMG_COVER_NOT_SHOWN: "
                            "static/description/main_screenshot.png\n")
     assert proc.returncode == 1
@@ -422,10 +466,10 @@ def test_an_english_page_with_no_image_does_not_show_the_cover(module):
 
 
 @pytest.mark.parametrize("markup", [
-    '<img src="./form.png"/><img src="./main_screenshot.png"/>',
+    '<img src="./assets/form.png"/><img src="./main_screenshot.png"/>',
     '<img src="https://raw.githubusercontent.com/acme/brand/0123abc/logo.png"/>'
     '<img src="./main_screenshot.png"/>',
-    '<img srcset="./form.png 1x, main_screenshot.png 2x"/>',
+    '<img srcset="./assets/form.png 1x, main_screenshot.png 2x"/>',
     '<div style="background:url(./main_screenshot.png)"></div>',
 ])
 def test_the_cover_may_appear_anywhere_after_a_logo_or_another_image(module, markup):
@@ -434,32 +478,36 @@ def test_the_cover_may_appear_anywhere_after_a_logo_or_another_image(module, mar
     _clean(_html(module, markup))
 
 
-def test_a_cover_reference_resolving_elsewhere_does_not_show_the_cover(module):
-    (module / "static" / "description" / "img" / "main_screenshot.png").write_bytes(PNG)
-    _flags(_html(module, '<img src="./img/main_screenshot.png"/>'), "IMG_COVER_NOT_SHOWN")
+@pytest.mark.parametrize("ref", ["./img/main_screenshot.png", "./assets/main_screenshot.png"])
+def test_a_cover_reference_resolving_elsewhere_does_not_show_the_cover(module, ref):
+    for sub in ("img", "assets"):
+        (module / "static" / "description" / sub / "main_screenshot.png").write_bytes(PNG)
+    _flags(_html(module, f'<img src="{ref}"/>'), "IMG_COVER_NOT_SHOWN")
 
 
 def test_a_localized_page_is_not_held_to_the_english_cover(module):
     page = module / "static" / "description" / "index_vi_VN.html"
-    page.write_text('<img src="./form.png"/>\n', encoding="utf-8")
+    page.write_text('<img src="./assets/form.png"/>\n', encoding="utf-8")
     _clean(_run(module, "static/description/index_vi_VN.html"))
 
 
 def test_a_page_is_not_held_to_a_cover_the_manifest_does_not_declare(module):
     _manifest(module)
-    _clean(_html(module, '<section><img src="./form.png"/></section>'))
+    _clean(_html(module, '<section><img src="./assets/form.png"/></section>'))
 
 
 # --------------------------------------------------------------------------- #
 # orphans (whole-module mode)
 # --------------------------------------------------------------------------- #
+OLD = "static/description/assets/old.png"
+
+
 @pytest.fixture
 def shipped(module):
     """A module whose every image is referenced: the whole-module run is clean."""
-    for rel in ("static/description/img/form.png", "static/src/img/icon.png",
-                "doc/shots/raw.png", "doc/raw.png"):
+    for rel in STRAY:
         (module / rel).unlink()
-    (module / "doc" / "index.rst").write_text(".. image:: form.png\n")
+    (module / "doc" / "index.rst").write_text(".. image:: assets/form.png\n")
     (module / "static" / "description" / "index.html").write_text(
         '<img src="./main_screenshot.png"/>\n')
     _clean(_run(module))
@@ -467,26 +515,60 @@ def shipped(module):
 
 
 def test_an_image_nothing_references_is_an_orphan(shipped):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    """In assets/, left at the root of static/description/, or under doc/ - each is reported."""
+    (shipped / OLD).write_bytes(PNG)
+    (shipped / "static" / "description" / "stray.png").write_bytes(PNG)
     (shipped / "doc" / "images").mkdir()
     (shipped / "doc" / "images" / "stale.gif").write_bytes(PNG)
     proc = _run(shipped)
     assert proc.stdout == ("doc/images/stale.gif:0: IMG_ORPHAN: doc/images/stale.gif\n"
-                           "static/description/old.png:0: IMG_ORPHAN: static/description/old.png\n")
+                           f"{OLD}:0: IMG_ORPHAN: {OLD}\n"
+                           "static/description/stray.png:0: IMG_ORPHAN: "
+                           "static/description/stray.png\n")
     assert proc.returncode == 1
 
 
 @pytest.mark.parametrize("rel,text,name", [
     ("views/res_config_views.xml",
-     '<img src="/sale_delivery_window/static/description/old.png"/>', "old.png"),
+     '<img src="/sale_delivery_window/static/description/assets/old.png"/>', "old.png"),
     ("i18n/vi.po", 'msgid "See old.png"\nmsgstr ""\n', "old.png"),
-    ("static/description/index_vi_VN.html", '<img src="./old%20one.png"/>', "old one.png"),
+    ("static/description/index_vi_VN.html", '<img src="./assets/old%20one.png"/>', "old one.png"),
 ])
 def test_an_image_referenced_by_any_other_text_file_is_not_an_orphan(shipped, rel, text, name):
-    (shipped / "static" / "description" / name).write_bytes(PNG)
+    (shipped / "static" / "description" / "assets" / name).write_bytes(PNG)
     (shipped / rel).parent.mkdir(parents=True, exist_ok=True)
     (shipped / rel).write_text(text)
     assert "IMG_ORPHAN" not in _rules(_run(shipped))
+
+
+def test_a_root_copy_of_an_assets_image_referenced_only_through_assets_is_an_orphan(shipped):
+    """A screenshot copied into assets/ while an old reference still pointed at the root keeps its
+    root copy alive only while something still names that copy."""
+    (shipped / "static" / "description" / "form.png").write_bytes(PNG)
+    proc = _run(shipped)
+    assert proc.stdout == ("static/description/form.png:0: IMG_ORPHAN: "
+                           "static/description/form.png\n")
+    (shipped / "doc" / "index_vi_VN.rst").write_text(
+        ".. image:: assets/form.png\n\n.. image:: ../static/description/form.png\n")
+    assert "IMG_ORPHAN" not in _rules(_run(shipped))
+
+
+@pytest.mark.parametrize("mention", [
+    "./assets/old.png", "../assets/old.png", "assets/old.png", "old.png",
+    "/sale_delivery_window/static/description/assets/old.png",
+])
+def test_a_mention_bare_or_through_the_images_own_directory_references_it(shipped, mention):
+    (shipped / OLD).write_bytes(PNG)
+    (shipped / "views" / "x.xml").parent.mkdir(parents=True, exist_ok=True)
+    (shipped / "views" / "x.xml").write_text(f'<img src="{mention}"/>\n')
+    assert "IMG_ORPHAN" not in _rules(_run(shipped)), mention
+
+
+@pytest.mark.parametrize("mention", ["img/old.png", "static/description/old.png"])
+def test_a_mention_through_another_directory_does_not_reference_the_image(shipped, mention):
+    (shipped / OLD).write_bytes(PNG)
+    (shipped / "README.rst").write_text(mention + "\n")
+    assert f"{OLD}:0: IMG_ORPHAN: {OLD}" in _run(shipped).stdout, mention
 
 
 def test_the_module_icon_is_never_an_orphan(shipped):
@@ -499,36 +581,34 @@ def test_the_module_icon_is_never_an_orphan(shipped):
     "See old.png.", "(old.png)", "old.png, then", '"old.png"', "see old.png;", "old.png:",
 ])
 def test_a_mention_followed_by_punctuation_references_the_image(shipped, mention):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / OLD).write_bytes(PNG)
     (shipped / "README.rst").write_text(mention + "\n")
     assert "IMG_ORPHAN" not in _rules(_run(shipped)), mention
 
 
 @pytest.mark.parametrize("rel", [".git/COMMIT_EDITMSG", "__pycache__/notes.txt"])
 def test_a_mention_in_a_vcs_or_cache_directory_is_not_a_reference(shipped, rel):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / OLD).write_bytes(PNG)
     (shipped / rel).parent.mkdir(parents=True, exist_ok=True)
     (shipped / rel).write_text("drop old.png from the landing\n")
-    assert "static/description/old.png:0: IMG_ORPHAN: static/description/old.png" in \
-        _run(shipped).stdout
+    assert f"{OLD}:0: IMG_ORPHAN: {OLD}" in _run(shipped).stdout
 
 
 def test_a_mention_inside_a_binary_file_is_not_a_reference(shipped):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / OLD).write_bytes(PNG)
     (shipped / "static" / "src" / "fonts").mkdir(parents=True)
     (shipped / "static" / "src" / "fonts" / "brand.woff").write_bytes(b"wOFF\0\0 old.png \0")
-    assert "static/description/old.png:0: IMG_ORPHAN: static/description/old.png" in \
-        _run(shipped).stdout
+    assert f"{OLD}:0: IMG_ORPHAN: {OLD}" in _run(shipped).stdout
 
 
 def test_a_longer_name_containing_the_file_name_does_not_reference_it(shipped):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / OLD).write_bytes(PNG)
     (shipped / "README.rst").write_text("See myold.png and old.png.bak\n")
     assert "IMG_ORPHAN" in _rules(_run(shipped))
 
 
 def test_orphans_are_not_reported_when_files_are_named(shipped):
-    (shipped / "static" / "description" / "old.png").write_bytes(PNG)
+    (shipped / OLD).write_bytes(PNG)
     _clean(_run(shipped, "doc/index.rst"))
 
 

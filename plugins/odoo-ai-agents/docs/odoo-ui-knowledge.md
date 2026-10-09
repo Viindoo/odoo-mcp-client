@@ -232,7 +232,7 @@ and the mockup-first check simply skip silently when their input is absent.
 ## Documentation screenshots (static/description)
 
 Convention for the doc writers when writing
-module visual documentation into `<module>/static/description/`. All paths below are relative to the module root.
+module visual documentation into `<module>/static/description/` (screenshots in its `assets/`). All paths below are relative to the module root.
 
 ### Layout
 
