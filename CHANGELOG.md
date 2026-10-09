@@ -6,6 +6,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.5.0] - 2026-10-09
+
+### Added
+
+- `odoo-ai-agents` - **user guides are organized around the business roles that use the module.**
+  A guide opens with the business process and who acts at each stage, then setup for the
+  administrator (install, configure, assign access rights), then one chapter per role with that
+  role's tasks in process order. The feature cataloger also writes `role-map.json` (each security
+  group the module gates, its UI name, the job title of the person who holds it, what it can do,
+  and the process stages with the role acting at each), scenarios are authored per role task
+  including the administrator's setup, and the doc skill prepares the catalog and role map for every
+  doc layer. A module with no security group of its own still gets a user role.
+- `odoo-ai-agents` - **App Store landing pages are written for the buyer.** Before drafting copy,
+  `odoo-content-draft` builds a buyer profile (target segments grounded in the module, the buying
+  committee with its pains and desired outcomes, status quo, objections, messaging pillars). The
+  target market is proposed from the module and confirmed once by the user, never guessed. The
+  landing opens on the outcome for the segment, then the buyer's pains, outcomes, how the process
+  runs across roles, key features and who it is for; its sections and markers are defined once in
+  the template's Section Map, and a test keeps the skeleton, the copy drafter, the writer and the
+  packaging workflow in agreement. Landings state only what the module supports.
+
+### Fixed
+
+- `odoo-ai-agents` - **doc images land where both app stores can serve them.** Every image a module
+  ships lives flat in `static/description/` under one naming rule (`<slug>[.<locale>].<ext>`, cover
+  `main_screenshot`, first in the manifest `images` and shown on the English landing). A user guide
+  names an image by its bare file name, which is the only form the stores rewrite; the
+  `../static/description/<file>` form the docs previously required renders as a broken image on the
+  store's Documentation tab. The reference gate enforces the convention, accepts a public `https://`
+  image such as a vendor logo and the vendor listing link `/apps/modules/browse?author=<vendor>`,
+  rejects private host names and instance routes, and, run on a whole module, lists unreferenced
+  images so the skill deletes them in the docs commit. Writers normalize off-convention image
+  references in the files they write instead of following whatever layout the module already had.
+- `odoo-ai-agents` - **module docs never land on a principal checkout.** Documenting a module
+  straight from its repository checkout used to write and commit on whatever branch was checked out.
+  The doc skill and the module-packaging workflow now create a docs worktree and branch at that
+  checkout's HEAD once the plan is approved (asking once when the module has uncommitted changes),
+  and use a worktree handed in by a run or a caller as is. The module-packaging workflow keeps its
+  run files under the state root instead of cwd-relative `.odoo-ai/` paths and runs the generated
+  walkthrough scenarios for a full role-based guide.
+
 ## [7.4.3] - 2026-10-07
 
 ### Fixed
