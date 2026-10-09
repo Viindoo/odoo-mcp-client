@@ -288,9 +288,10 @@ Default palette when that file is absent: primary `#714B67`, accent `#714B67`, b
           <div class="col-md-12 col-xl-8 mt-3 mt-xl-0 d-flex justify-content-center">
             <!-- Feature slot: measure its rendered width and frame the shot per
                  capture-mechanics.md § Frame for the placement slot -->
-            <!-- {{SCREEN_FILE}} = this screen's file, named per module-doc-references.md § Images -->
+            <!-- {{SCREEN_FILE}} = this screen's file in static/description/assets/, named per
+                 module-doc-references.md § Images -->
             <img alt="{{FEATURE_TASK_TITLE}}" class="img-fluid" loading="lazy"
-                 src="./{{SCREEN_FILE}}"
+                 src="./assets/{{SCREEN_FILE}}"
                  style="border-radius:15px;width:100%;height:auto;">
           </div>
         </div>
@@ -492,8 +493,8 @@ even if the registry omits it.
 disk-UNION, no default) - do not restate the tier order or the disk-UNION rule here; that section
 is authoritative and this file cross-references it.
 
-**Screenshot localization**: per-locale screenshots are captured separately; their names, and
-which one a localized page shows, follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+**Screenshot localization**: per-locale screenshots are captured separately; their location,
+their names and which one a localized page shows follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
 § Images. The icon is language-neutral (one `icon.png`, no locale suffix).
 
 **Tab split discipline**: keep marketing copy in `index.html` and the user guide for the business

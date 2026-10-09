@@ -298,9 +298,9 @@ phases:
     # dedup modules - they are install-only deps, not documented), audit App-Store manifest keys
     # in doc_root:
     #   REQUIRED (blocking if missing): name, summary, description, license, category
-    #   COVER (blocking): run the reference gate of snippets/module-doc-references.md on the module
-    #     (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or IMG_COVER_NOT_SHOWN finding
-    #     is a blocking cover gap - the gate owns the cover rule
+    #   IMAGES (blocking): run the reference gate of snippets/module-doc-references.md on the
+    #     module (no file arguments); any MANIFEST_IMAGE, MANIFEST_COVER or IMG_COVER_NOT_SHOWN
+    #     finding is a blocking gap in the cover or the manifest images - the gate owns both rules
     #   RECOMMENDED (warning if missing): support, website, maintainer, application
     #   OPTIONAL (info): live_test_url, price, currency, version
     # Suggest values for missing non-commercial fields. NEVER fabricate commercial keys

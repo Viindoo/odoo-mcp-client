@@ -15,8 +15,9 @@ guide `doc/index.rst`) and `odoo-marketing-writer` (App-Store `static/descriptio
 scopes to THIS run's writer dispatch, not to `odoo-doc-planner` globally - that planner has a
 SECOND, separate caller, `odoo-planning`, which dispatches it standalone for the full
 code+doc product-lifecycle plan.
-Finished images land flat in the module's `static/description/` (`references/capture-mechanics.md`
-§ Place finals where the target doc resolves them) so they survive across sessions and git commits.
+Finished images are moved into the module tree - `static/description/assets/`, or
+`static/description/` itself for the cover (`references/capture-mechanics.md` § Place finals
+where the target doc resolves them) - so they survive across sessions and git commits.
 NOT for auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures
 to EMBED into docs.
 

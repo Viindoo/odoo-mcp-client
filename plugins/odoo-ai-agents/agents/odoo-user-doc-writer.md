@@ -160,8 +160,8 @@ Without a `ROLE MAP`, or with one whose only role is `kind: admin`: the Overview
 business problem, then Setup, then one chapter "Using <module>" holding every task; report
 `concerns: [no non-admin role - guide not organized by role]`.
 
-**Image references:** name each image by its bare file name (`.. image:: <file>`), the file
-capture-mechanics.md section 13 places in `static/description/`, per
+**Image references:** name each image as `.. image:: assets/<file>`, the file
+capture-mechanics.md section 13 places in `static/description/assets/`, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. You own every image reference in
 each `doc/*.rst` you write, off-convention ones included (section 13).
 
@@ -255,9 +255,9 @@ print('OK')
 
 ### Step 4.6 - Place finals, then run the doc reference gate
 
-Place every final the guide embeds in `static/description/` and bring every off-convention image
-reference of the files you write into the convention, both per capture-mechanics.md section 13,
-then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
+Place every final the guide embeds in `static/description/assets/` (the cover at the root of
+`static/description/`) and bring every off-convention image reference of the files you write into
+the convention, both per capture-mechanics.md section 13, then run the reference gate in `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`
 § Reference gate (`--series` = the Step 0 version) on every `doc/*.rst` you wrote. Fix each finding
 and re-run until it exits 0; exit 2 returns `NEEDS_CONTEXT` with the printed remedy.
 

@@ -193,8 +193,9 @@ store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing
 ### Step 4.5 - Place finals, then run the doc reference gate
 
 Place every final the module ships - each image the landing embeds and each manifest `images` entry
-Step 4 wired - in `static/description/` and bring every off-convention image reference of the
-files you write into the convention, both per capture-mechanics.md section 13, then run the
+Step 4 wired - the cover at the root of `static/description/`, every other one in its `assets/` -
+and bring every off-convention image reference of the files you write into the convention, both
+per capture-mechanics.md section 13, then run the
 reference gate in
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Reference gate (`--series` = the Step 0
 version) on every `index*.html` you wrote plus the module descriptor. Fix each finding and re-run

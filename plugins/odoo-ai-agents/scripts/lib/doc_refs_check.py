@@ -14,10 +14,14 @@ file arguments = every doc file + the descriptor + IMG_ORPHAN over the whole mod
 Output: one `file:line: RULE: ref` per finding (file relative to the module root).
 Exit: 0 clean (and --help), 1 findings, 2 usage error or an interpreter below 3.8.
 
-Every image a module ships lives flat in static/description/; a guide (doc/**/*.rst) names it
-bare, the store page and README.rst by a path resolving to it. An image that is not a module file
-(e.g. a vendor logo) is a public https:// URL: the stores display it as is, so it is not checked
-further - not even for being pinned to an immutable revision.
+The root of static/description/ holds only the icon, the index*.html pages and the cover
+(main_screenshot[.<locale>].<ext>); every other image a module ships lives directly in
+static/description/assets/. A guide (doc/**/*.rst) writes `assets/<file>` (the cover:
+`<cover>`), the store page `./assets/<file>` or `assets/<file>` (the cover: `./<cover>` or `<cover>`),
+README.rst `static/description/assets/<file>` (the cover: `static/description/<cover>`); each is
+looked up under static/description/. An image that is not a module file (e.g. a vendor logo) is a
+public https:// URL: the stores display it as is, so it is not checked further - not even for
+being pinned to an immutable revision.
 
 Rules
   IMG_NOT_RELATIVE     image that is neither a module path nor a public https:// URL: http://
@@ -30,14 +34,14 @@ Rules
                        (/web/image, /web/content, /web/binary)
   IMG_NAME             module image (a reference or a manifest entry) whose file name has a
                        character outside A-Z a-z 0-9 . _ -
-  IMG_NOT_BARE         doc/**/*.rst image that is not a bare file name (contains "/" or "\\")
   IMG_ESCAPES_MODULE   HTML / README.rst image resolving outside the module
-  IMG_MISSING          doc/**/*.rst image with no static/description/<name>; HTML / README.rst
-                       image whose resolved file does not exist
-  IMG_NOT_FLAT         HTML / README.rst image not directly inside static/description/, or an
-                       HTML image written with a directory part (e.g. `img/x.png`,
-                       `../description/x.png`) - `./<file>` / `<file>` is the form Odoo and the
-                       stores rewrite to the module's static/description/
+  IMG_NOT_IN_ASSETS    module image not written in its doc's form above: a name that is not the
+                       cover at the root of static/description/ (`x.png`, `./x.png`), a deeper
+                       or other directory (`assets/sub/x.png`, `img/x.png`, `doc/x.png`,
+                       `../static/description/x.png`, `../description/assets/x.png`), or `./` in
+                       a guide - the forms Odoo and the stores rewrite to the module's
+                       static/description/
+  IMG_MISSING          image in its doc's form with no file under static/description/
   IMG_COVER_NOT_SHOWN  static/description/index.html references no image resolving to the file
                        manifest images[0] names (the manifest is read even when not passed);
                        reported as `static/description/index.html:0: IMG_COVER_NOT_SHOWN: <entry>`
@@ -46,8 +50,11 @@ Rules
                        module mentions; reported as `<path>:0: IMG_ORPHAN: <path>`. A mention is
                        the name standing alone: not preceded by a word character, "." or "-", not
                        followed by one of those or by "." + a word character (`see end.png.`
-                       mentions end.png; `myend.png` and `end.png.bak` do not). Files under .git/
-                       or __pycache__/ and binary files (a NUL byte in the first 8 KiB) are not read.
+                       mentions end.png; `myend.png` and `end.png.bak` do not), and written after
+                       a directory only when that is the image's own (`assets/end.png` mentions
+                       static/description/assets/end.png, not static/description/end.png; `./`
+                       and `../` match any). Files under .git/ or __pycache__/ and binary files
+                       (a NUL byte in the first 8 KiB) are not read.
   LINK_LOCAL           link to file:, a local host (as IMG_NOT_RELATIVE defines it), an absolute
                        filesystem path, or a root-relative path that is not a store module path
   LINK_SIBLING_PATH    relative link resolving outside the module (e.g. ../../<other>/...)
@@ -55,10 +62,10 @@ Rules
   LINK_STORE_SCHEME    store path that is neither exactly /apps/modules/<series>/<technical_name>
                        nor the vendor listing /apps/modules/browse?author=<vendor> (path exactly
                        /apps/modules/browse, a non-empty author parameter, no language prefix)
-  MANIFEST_IMAGE       manifest `images` entry that is not an existing static/description/<file>
-                       png / gif / jpg / jpeg
-  MANIFEST_COVER       manifest images[0] whose name without its last extension does not end in
-                       `_screenshot` (a locale variant is never the cover)
+  MANIFEST_IMAGE       manifest `images` entry that is not an existing png / gif / jpg / jpeg at
+                       static/description/assets/<file> or static/description/<cover>
+  MANIFEST_COVER       manifest images[0] that is not static/description/main_screenshot.<ext>
+                       (a locale variant is never the cover)
 Allowed: mailto:, tel:, #anchors, https links to non-store pages, the root-relative module and
 vendor-listing store paths above, public https:// images.
 
@@ -108,10 +115,20 @@ _RST_INLINE_LITERAL = re.compile(r"``.+?``")
 _BARE_URL = re.compile(r"(?<![<\w/])(?:https?|file)://[^\s<>`'\"]+")
 
 _DESCRIPTION = ("static", "description")
-_MANIFEST_IMAGE = re.compile(r"^static/description/[^/\\]+\.(?:png|gif|jpe?g)$", re.I)
+_DESCRIPTION_PREFIX = "static/description/"
+_IMAGE_EXT = r"\.(?i:png|gif|jpe?g)"
+# The cover, the only image at the root of static/description/: English, or one locale variant.
+_COVER = r"main_screenshot(?:\.[a-z]{2,3}(?:_[A-Za-z0-9]{2,4})?)?" + _IMAGE_EXT
+# An image path relative to static/description/: directly in assets/, or the cover at the root.
+_IN_DESCRIPTION = re.compile(r"^(?:assets/[^/\\]+|" + _COVER + r")$")
+_MANIFEST_IMAGE = re.compile(
+    r"^static/description/(?:assets/[^/\\]+" + _IMAGE_EXT + r"|" + _COVER + r")$")
+_MANIFEST_COVER = re.compile(r"^static/description/main_screenshot" + _IMAGE_EXT + r"$")
 _IMAGE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 _ORPHAN_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
 _ORPHAN_EXEMPT = ("static/description/icon.png", "static/description/icon.svg")
+# The directory written right before a mentioned file name (`assets/` in `./assets/x.png`).
+_DIR_BEFORE = re.compile(r"([^/\\\s\"'`(<>=]*)/$")
 _SKIP_DIRS = (".git", "__pycache__")
 _MANIFESTS = ("__manifest__.py", "__openerp__.py")
 _ENGLISH_PAGE = "static/description/index.html"
@@ -196,6 +213,16 @@ def _same_file(a, b):
     return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
 
 
+def _mentions(pattern, text, parent):
+    """True when text names the file: bare, after `./` or `../`, or after its own directory
+    `parent` - `assets/x.png` names the x.png in assets/, never another x.png."""
+    for m in pattern.finditer(text):
+        before = _DIR_BEFORE.search(text[max(0, m.start() - 256):m.start()])
+        if not before or before.group(1) in ("", ".", "..", parent):
+            return True
+    return False
+
+
 def _manifest_images(manifest_file):
     """(lineno, value) of each string in the descriptor's `images` list."""
     with open(manifest_file, encoding="utf-8", errors="replace") as fh:
@@ -240,9 +267,10 @@ class Checker(object):
 
     # ---------------------------------------------------------------- images
     def image(self, doc_file, line, ref, kind):
-        """kind "bare": a guide image, named by its file name in static/description/;
-        kind "page": an HTML image, written `./<file>` or `<file>`;
-        kind "path": a README.rst image, a path resolving into static/description/."""
+        """kind "guide": a doc/**/*.rst image, written `assets/<file>` or `<cover>`;
+        kind "page": an HTML image, written as a guide's, optionally after `./`;
+        kind "path": a README.rst image, written as a page's after `static/description/`.
+        Each names static/description/<rest>."""
         ref = ref.strip()
         if not ref:
             return
@@ -254,22 +282,18 @@ class Checker(object):
             return
         if not _IMAGE_NAME.match(_file_name(ref)):
             self._add(doc_file, line, "IMG_NAME", ref)
-        if kind == "bare":
-            if "/" in ref or "\\" in ref:
-                self._add(doc_file, line, "IMG_NOT_BARE", ref)
-            elif not os.path.isfile(os.path.join(self.description, unquote(urlsplit(ref).path))):
-                self._add(doc_file, line, "IMG_MISSING", ref)
-            return
-        target = _resolve(ref, doc_file)
-        if not _inside(target, self.root):
+        if kind != "guide" and not _inside(_resolve(ref, doc_file), self.root):
             self._add(doc_file, line, "IMG_ESCAPES_MODULE", ref)
             return
-        if not os.path.isfile(target):
+        path = unquote(urlsplit(ref).path)
+        if kind != "guide":
+            path = _strip_dot_slash(path)
+        if kind == "path":
+            path = path[len(_DESCRIPTION_PREFIX):] if path.startswith(_DESCRIPTION_PREFIX) else ""
+        if not _IN_DESCRIPTION.match(path):
+            self._add(doc_file, line, "IMG_NOT_IN_ASSETS", ref)
+        elif not os.path.isfile(os.path.join(self.description, path)):
             self._add(doc_file, line, "IMG_MISSING", ref)
-            return
-        if not _same_file(os.path.dirname(target), self.description) or (
-                kind == "page" and re.search(r"[/\\]", _strip_dot_slash(urlsplit(ref).path))):
-            self._add(doc_file, line, "IMG_NOT_FLAT", ref)
 
     # ----------------------------------------------------------------- links
     def link(self, doc_file, line, ref):
@@ -306,7 +330,7 @@ class Checker(object):
     def rst(self, doc_file):
         with open(doc_file, encoding="utf-8", errors="replace") as fh:
             lines = fh.read().splitlines()
-        kind = "bare" if self._rel(doc_file).startswith("doc/") else "path"
+        kind = "guide" if self._rel(doc_file).startswith("doc/") else "path"
         literal_indent = None
         for no, raw in enumerate(lines, 1):
             indent = len(raw) - len(raw.lstrip())
@@ -379,8 +403,7 @@ class Checker(object):
                 self._add(manifest_file, line, "IMG_NAME", ref)
             if not (_MANIFEST_IMAGE.match(ref) and os.path.isfile(os.path.join(self.root, ref))):
                 self._add(manifest_file, line, "MANIFEST_IMAGE", ref)
-            if index == 0 and not os.path.splitext(os.path.basename(ref))[0].endswith(
-                    "_screenshot"):
+            if index == 0 and not _MANIFEST_COVER.match(ref):
                 self._add(manifest_file, line, "MANIFEST_COVER", ref)
 
     # --------------------------------------------------------------- orphans
@@ -407,7 +430,8 @@ class Checker(object):
             name = os.path.basename(path)
             spellings = sorted({re.escape(name), re.escape(quote(name))})
             pattern = re.compile(r"(?<![\w.-])(?:%s)(?![\w-]|\.\w)" % "|".join(spellings))
-            if not any(pattern.search(text) for other, text in texts if other != path):
+            parent = os.path.basename(os.path.dirname(path))
+            if not any(_mentions(pattern, text, parent) for other, text in texts if other != path):
                 rel = self._rel(path)
                 self.findings.append(Finding(rel, 0, "IMG_ORPHAN", rel))
 

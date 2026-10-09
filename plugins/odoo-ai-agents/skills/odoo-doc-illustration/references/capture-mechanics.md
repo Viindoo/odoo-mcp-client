@@ -277,15 +277,16 @@ with the reading viewport width you measured slots at (section 7).
 ## 13. Place finals where the target doc resolves them
 
 A final is every image the module ships: each image a doc embeds and each manifest `images` entry.
-Every final goes flat into the module's `static/description/`, named per
-`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images (the cover per § Manifest
-images). A screen that already has an image there under a convention name keeps that name: your
-capture replaces it, and every doc showing that screen references the one file. An existing
-off-convention name (e.g. `shot_form.png`, `ws1-step03.png`) is renamed to the convention name,
-the same way as an off-convention reference below.
+The cover goes to the root of the module's `static/description/` (§ Manifest images of
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md`); every other final goes directly into
+`static/description/assets/`, named per that snippet's § Images. A screen that already has an
+image there under a convention name keeps that name: your capture replaces it, and every doc
+showing that screen references the one file. An existing off-convention name or location (e.g.
+`shot_form.png`, `ws1-step03.png`, a screenshot at the root of `static/description/`) is moved
+into `assets/` under the convention name, the same way as an off-convention reference below.
 
-`mv` (never `cp`) each final from staging into `static/description/` under its final name,
-renaming it in the same `mv` (`mkdir -p` the directory first).
+`mv` (never `cp`) each final from staging into its directory under its final name, renaming it in
+the same `mv` (`mkdir -p` the directory first).
 
 In every doc file you write, bring each off-convention image reference into the convention, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images.
