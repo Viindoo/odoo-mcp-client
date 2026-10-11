@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.6.0] - 2026-10-11
+
 ### Changed
 
 - `odoo-ai-agents`, `git-toolkit` - **every agent launch picks its model from one capability map
