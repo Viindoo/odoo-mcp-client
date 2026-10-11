@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.6.1] - 2026-10-11
+
 ### Fixed
 
 - `odoo-ai-agents` - **doc images fit the page on the app stores.** Images in a module's RST
