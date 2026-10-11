@@ -36,7 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `odoo-ai-agents` - **execution plans state business results.** Every plan node carries a
   business objective (who is helped, which job gets done) and business-observable acceptance; a
   technical criterion from the design is restated as the outcome it serves, with a pointer back.
-  Long, complex plans are planned on opus, small narrow ones on sonnet.
+  Long, complex plans are planned on opus, small narrow ones on sonnet. The acceptance stage
+  writes its independent oracle from the acceptance node's business objective and outcomes.
 
 ### Removed
 
