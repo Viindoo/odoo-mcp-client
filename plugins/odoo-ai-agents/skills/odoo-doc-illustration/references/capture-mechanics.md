@@ -150,7 +150,10 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
      (section 11), and measure every slot of that module at it.
    - Render the doc in the browser at that width: `index.html` inside a local wrapper page that
      loads Bootstrap 5 CSS from a CDN (the store renders the fragment with it); RST as docutils
-     HTML output, where a directive with no `:width:` fills the full content column. Save the page
+     HTML output. An image in any RST published on the internet has the content column as its slot, the most it can fill: the
+     image's own `:width:` (the captured CSS width, step 7) sets how much of it the image takes,
+     and `img-fluid` caps it at the column - the form is
+     `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. Save the page
      under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` and open it as a `file://` URL.
    - Read the slot element's width with the script-eval tool (chrome-devtools `evaluate_script`,
      playwright `browser_evaluate`): `el.getBoundingClientRect().width`.
@@ -200,7 +203,8 @@ Decide where each image goes BEFORE you capture it - the slot decides the frame.
    EOF
    ```
 
-   Divide by the device pixel ratio (1 for a GIF) to get the captured CSS width. When it fails the step-3 cap,
+   Divide by the device pixel ratio (1 for a GIF) to get the captured CSS width; that value is the
+   `:width:` the doc writer records for the image in an RST. When it fails the step-3 cap,
    re-capture at most once; then keep the better shot and mark it `downgraded` (with the measured
    ratio) in the capture-coverage report.
 8. **No annotation.** Neither family's default path has a highlight/annotate overlay. Do NOT use

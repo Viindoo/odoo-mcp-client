@@ -135,7 +135,8 @@ OSM surface or disk.
 
 Write RST directly - no markers, no content-draft. Tone: plain task guidance for the business
 roles (Audience rule). Ground every field/menu reference in the OSM labels from Step 2. Use
-`.. image::` directives with `:alt:` captions written as human task descriptions.
+`.. image::` directives; the `:alt:` text is a human task description, and the directive's class
+and width follow the Image references paragraph below.
 
 **Guide skeleton (both DOC SCOPEs), in this order, headings in the doc's locale:**
 1. **Overview** - the business problem the module solves (manifest summary + the `FEATURE CATALOG`
@@ -161,7 +162,8 @@ business problem, then Setup, then one chapter "Using <module>" holding every ta
 `concerns: [no non-admin role - guide not organized by role]`.
 
 **Image references:** name each image as `.. image:: assets/<file>`, the file
-capture-mechanics.md section 13 places in `static/description/assets/`, per
+capture-mechanics.md section 13 places in `static/description/assets/`, and give every image its
+class and `:width:` - the CSS width you measured in capture-mechanics.md section 7 - per
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-doc-references.md` § Images. You own every image reference in
 each `doc/*.rst` you write, off-convention ones included (section 13).
 
