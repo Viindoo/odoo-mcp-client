@@ -9,9 +9,13 @@ unrewritten. So the root of static/description/ holds only the icon, the pages a
 (`main_screenshot`, the file the English page shows), and every other shipped image lives
 directly in static/description/assets/. An image that is not a module file (a vendor logo) is a
 public https:// URL the stores keep as is.
+An image in an RST also has to fit the page: both stores load Bootstrap 5 and size an RST image by
+its file's pixel width, so a screenshot captured at device pixel ratio 2 overflows the page unless
+the directive carries `img-fluid` and the `:width:` of its intended CSS width.
 Each test builds a small module in a temp dir, writes ONE reference, and runs the real CLI.
 """
 import os
+import struct
 import subprocess
 import sys
 import textwrap
@@ -23,6 +27,35 @@ ROOT = Path(__file__).resolve().parent.parent
 GATE = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "doc_refs_check.py"
 SERIES = "17.0"
 PNG = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+
+
+def _png(width, height=400):
+    return (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + struct.pack(">II", width, height)
+            + b"\x08\x06\x00\x00\x00")
+
+
+def _gif(width, height=400):
+    return b"GIF89a" + struct.pack("<HH", width, height) + b"\x00\x00\x00"
+
+
+def _jpeg(width, height=400):
+    """SOI, one APP0 segment the reader must skip, then the SOF0 that carries the size."""
+    app0 = b"\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00" + b"\x00" * 9
+    sof0 = b"\xff\xc0" + struct.pack(">HBHHB", 11, 8, height, width, 1) + b"\x01\x11\x00"
+    return b"\xff\xd8" + app0 + sof0 + b"\xff\xd9"
+
+
+# A file of 1280 px is a 640 px capture at device pixel ratio 2.
+FILE_PX = 1280
+FIT = "   :class: img-fluid d-block mx-auto\n   :width: 600px\n"
+
+
+def _img(ref, directive="image", options=FIT):
+    """One well-fitted RST image directive; `directive` is image, figure or sub (substitution)."""
+    head = {"image": ".. image:: ", "figure": ".. figure:: ", "sub": ".. |logo| image:: "}[directive]
+    if directive == "sub":
+        options = options.replace(" d-block mx-auto", "")
+    return head + ref + "\n" + options
 # Every off-convention location below holds a real file, so a finding is about the form alone.
 STRAY = ("static/description/form.png", "static/description/assets/sub/form.png",
          "static/description/img/form.png", "static/src/img/icon.png", "doc/shots/raw.png",
@@ -36,7 +69,7 @@ def module(tmp_path):
                 "static/description/assets/form.png") + STRAY:
         p = mod / rel
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(PNG)
+        p.write_bytes(_png(FILE_PX))
     (tmp_path / "addons" / "sale" / "static").mkdir(parents=True)
     (tmp_path / "addons" / "sale" / "static" / "x.png").write_bytes(PNG)
     _manifest(mod, "static/description/main_screenshot.png")
@@ -66,7 +99,7 @@ def _html(module, body):
 
 
 def _readme(module, ref):
-    (module / "README.rst").write_text(".. image:: %s\n" % ref)
+    (module / "README.rst").write_text(_img(ref))
     return _run(module, "README.rst")
 
 
@@ -132,7 +165,7 @@ def test_an_image_on_a_reserved_host_or_an_instance_route_is_not_public(module, 
     "https://raw.githubusercontent.com/odoo/odoo/0123abc/addons/web/static/img/logo.png",
 ])
 def test_a_public_name_merely_resembling_a_reserved_one_passes(module, ref):
-    _clean(_rst(module, f".. image:: {ref}\n"))
+    _clean(_rst(module, _img(ref)))
 
 
 @pytest.mark.parametrize("ref", [
@@ -143,7 +176,7 @@ def test_a_public_https_image_passes_pinned_or_not(module, ref):
     """A vendor logo at a public URL is displayed as is by the stores: no existence, location,
     name or orphan check applies, and the gate does not check pinning (the second URL is not
     pinned to a revision)."""
-    _clean(_rst(module, f".. image:: {ref}\n"))
+    _clean(_rst(module, _img(ref)))
     _clean(_html(module, f'<img src="{ref}"/><img src="./main_screenshot.png"/>\n'))
     _clean(_readme(module, ref))
 
@@ -151,7 +184,7 @@ def test_a_public_https_image_passes_pinned_or_not(module, ref):
 @pytest.mark.parametrize("name", ["caf\u00e9.png", "shot(1).png", "a+b.png", "form,v2.png"])
 def test_a_module_image_name_outside_the_safe_set_is_flagged(module, name):
     (module / "static" / "description" / "assets" / name).write_bytes(PNG)
-    _only(_rst(module, f".. image:: assets/{name}\n"), "IMG_NAME")
+    _only(_rst(module, _img(f"assets/{name}")), "IMG_NAME")
     _only(_html(module, f'<img src="./main_screenshot.png"/><img src="./assets/{name}"/>\n'),
           "IMG_NAME")
     _manifest(module, "static/description/main_screenshot.png",
@@ -167,29 +200,21 @@ def test_an_html_image_whose_decoded_name_has_a_space_is_flagged(module):
 
 def test_a_module_image_name_in_the_safe_set_passes(module):
     (module / "static" / "description" / "assets" / "Sales_Order-form.v2.png").write_bytes(PNG)
-    _clean(_rst(module, ".. image:: assets/Sales_Order-form.v2.png\n"))
+    _clean(_rst(module, _img("assets/Sales_Order-form.v2.png")))
 
 
 def test_a_guide_image_in_assets_or_the_root_cover_passes_in_every_directive(module):
     (module / "static" / "description" / "main_screenshot.vi_VN.png").write_bytes(PNG)
-    _clean(_rst(module, """\
-        .. image:: assets/form.png
-           :width: 600
-
-        .. figure:: main_screenshot.png
-
-        .. |logo| image:: assets/form.png
-
-        .. image:: main_screenshot.vi_VN.png
-        """))
+    _clean(_rst(module, "\n".join([
+        _img("assets/form.png"), _img("main_screenshot.png", "figure"),
+        _img("assets/form.png", "sub"), _img("main_screenshot.vi_VN.png")])))
 
 
-@pytest.mark.parametrize("directive", [
-    ".. image:: {ref}", ".. figure:: {ref}", ".. |logo| image:: {ref}",
-])
+@pytest.mark.parametrize("directive", ["image", "figure", "sub"])
 def test_every_rst_image_directive_is_checked(module, directive):
     """A figure or a substitution image is as much a published image as a plain one."""
-    proc = _rst(module, directive.format(ref="../static/description/assets/form.png") + "\n")
+    proc = _rst(module, _img("../static/description/assets/form.png",
+                             {"image": "image", "figure": "figure", "sub": "sub"}[directive]))
     assert _rules(proc) == ["IMG_NOT_IN_ASSETS"], proc.stdout
 
 
@@ -202,12 +227,12 @@ def test_every_rst_image_directive_is_checked(module, directive):
     "..\\static\\description\\assets\\form.png", "assets\\form.png",
 ])
 def test_a_guide_image_not_in_assets_is_flagged(module, ref):
-    _only(_rst(module, f".. image:: {ref}\n"), "IMG_NOT_IN_ASSETS")
+    _only(_rst(module, _img(ref)), "IMG_NOT_IN_ASSETS")
 
 
 @pytest.mark.parametrize("ref", ["assets/raw.png", "main_screenshot.vi_VN.png"])
 def test_a_guide_image_in_its_form_but_absent_from_static_description_is_missing(module, ref):
-    proc = _rst(module, f".. image:: {ref}\n")
+    proc = _rst(module, _img(ref))
     assert proc.stdout == f"doc/index.rst:1: IMG_MISSING: {ref}\n"
     assert proc.returncode == 1
 
@@ -265,6 +290,131 @@ def test_html_images_in_assets_or_the_cover_pass(module):
 ])
 def test_html_image_defects_are_flagged(module, markup, rule):
     _flags(_html(module, markup), rule)
+
+
+# --------------------------------------------------------------------------- #
+# image fit on the stores (RST only)
+# --------------------------------------------------------------------------- #
+DIRECTIVES = ["image", "figure", "sub"]
+
+
+def _options(*lines):
+    return "".join("   " + line + "\n" for line in lines)
+
+
+@pytest.mark.parametrize("directive", DIRECTIVES)
+def test_a_well_fitted_image_passes_in_every_directive(module, directive):
+    _clean(_rst(module, _img("assets/form.png", directive)))
+    _clean(_readme(module, "static/description/assets/form.png"))
+
+
+@pytest.mark.parametrize("classes", [
+    None, "img-fluid", "img-fluid d-block", "img-fluid mx-auto", "d-block mx-auto",
+    "img-fluidx d-block mx-auto",
+])
+@pytest.mark.parametrize("directive", ["image", "figure"])
+def test_a_block_image_without_the_full_fluid_class_is_flagged(module, directive, classes):
+    """A block image must be capped at the column (img-fluid) and centred as a block (d-block
+    mx-auto); the stores style no `align-center`."""
+    lines = [":width: 600px"] + ([":class: " + classes] if classes else [])
+    proc = _rst(module, _img("assets/form.png", directive, _options(*lines)))
+    assert proc.stdout == "doc/index.rst:1: IMG_NOT_FLUID: assets/form.png\n"
+    assert proc.returncode == 1
+
+
+@pytest.mark.parametrize("classes", [None, "d-block", "img-fluid d-block", "img-fluid mx-auto"])
+def test_an_inline_substitution_image_must_be_fluid_and_must_not_be_a_block(module, classes):
+    """`d-block` / `mx-auto` on an inline image would break the line around it."""
+    lines = [":width: 600px"] + ([":class: " + classes] if classes else [])
+    proc = _rst(module, ".. |logo| image:: assets/form.png\n" + _options(*lines))
+    assert proc.stdout == "doc/index.rst:1: IMG_NOT_FLUID: assets/form.png\n"
+
+
+def test_an_external_image_needs_the_fluid_class_but_no_width(module):
+    ref = "https://cdn.example.com/brand/logo.png"
+    _clean(_rst(module, _img(ref, options=_options(":class: img-fluid d-block mx-auto"))))
+    _clean(_rst(module, _img(ref, "sub", _options(":class: img-fluid"))))
+    proc = _rst(module, _img(ref, options=""))
+    assert proc.stdout == f"doc/index.rst:1: IMG_NOT_FLUID: {ref}\n"
+
+
+def test_the_fluid_rule_reads_the_option_block_of_the_right_image(module):
+    """The second image is the unfitted one; the finding names its line, not the first's."""
+    proc = _rst(module, _img("assets/form.png") + "\n" + ".. image:: assets/form.png\n"
+                + _options(":width: 600px"))
+    assert proc.stdout == "doc/index.rst:5: IMG_NOT_FLUID: assets/form.png\n"
+
+
+@pytest.mark.parametrize("option", [
+    ":width: 100%", ":width: 50 %", ":scale: 50", ":height: 300px", ":align: center",
+    ":align: left",
+])
+@pytest.mark.parametrize("directive", DIRECTIVES)
+def test_an_option_that_stretches_or_does_nothing_on_the_stores_is_flagged(module, directive,
+                                                                         option):
+    options = FIT.replace(":width: 600px", ":width: 600px\n   " + option) \
+        if not option.startswith(":width:") else FIT.replace(":width: 600px", option)
+    proc = _rst(module, _img("assets/form.png", directive, options))
+    assert proc.stdout == "doc/index.rst:1: IMG_STRETCHED: assets/form.png\n", proc.stdout
+
+
+def test_the_w_100_class_is_flagged_as_stretched(module):
+    options = _options(":class: img-fluid d-block mx-auto w-100", ":width: 600px")
+    proc = _rst(module, _img("assets/form.png", options=options))
+    assert proc.stdout == "doc/index.rst:1: IMG_STRETCHED: assets/form.png\n"
+
+
+def test_an_external_image_may_not_stretch_either(module):
+    options = _options(":class: img-fluid d-block mx-auto", ":align: center")
+    proc = _rst(module, _img("https://cdn.example.com/logo.png", options=options))
+    assert _rules(proc) == ["IMG_STRETCHED"], proc.stdout
+
+
+@pytest.mark.parametrize("width", [None, "600", "40em", "auto"])
+@pytest.mark.parametrize("directive", DIRECTIVES)
+def test_a_module_image_without_a_px_width_is_flagged(module, directive, width):
+    lines = [":class: img-fluid" if directive == "sub" else ":class: img-fluid d-block mx-auto"]
+    if width:
+        lines.append(":width: " + width)
+    proc = _rst(module, _img("assets/form.png", directive, _options(*lines)))
+    assert proc.stdout == "doc/index.rst:1: IMG_NO_WIDTH: assets/form.png\n", proc.stdout
+
+
+def test_the_cover_image_in_a_guide_needs_a_width_too(module):
+    proc = _rst(module, _img("main_screenshot.png", options=_options(
+        ":class: img-fluid d-block mx-auto")))
+    assert proc.stdout == "doc/index.rst:1: IMG_NO_WIDTH: main_screenshot.png\n"
+
+
+@pytest.mark.parametrize("maker,name", [(_png, "p.png"), (_gif, "g.gif"), (_jpeg, "j.jpg")])
+def test_a_width_above_the_files_pixel_width_is_upscaled_for_png_gif_and_jpeg(module, maker,
+                                                                             name):
+    """The page would enlarge the image past its pixels - blurry; the limit is the file's own
+    pixel width, so exactly equal is fine."""
+    (module / "static" / "description" / "assets" / name).write_bytes(maker(500))
+    for width, clean in (("500px", True), ("501px", False), ("250px", True)):
+        options = FIT.replace("600px", width)
+        proc = _rst(module, _img("assets/" + name, options=options))
+        if clean:
+            _clean(proc)
+        else:
+            assert proc.stdout == f"doc/index.rst:1: IMG_UPSCALED: assets/{name}\n", proc.stdout
+
+
+@pytest.mark.parametrize("directive", DIRECTIVES)
+def test_upscaling_is_flagged_in_every_directive_and_in_a_readme(module, directive):
+    wide = FIT.replace("600px", "%dpx" % (FILE_PX + 1))
+    proc = _rst(module, _img("assets/form.png", directive, wide))
+    assert proc.stdout == "doc/index.rst:1: IMG_UPSCALED: assets/form.png\n"
+    (module / "README.rst").write_text(_img("static/description/assets/form.png", options=wide))
+    proc = _run(module, "README.rst")
+    assert proc.stdout == "README.rst:1: IMG_UPSCALED: static/description/assets/form.png\n"
+
+
+def test_an_unreadable_image_header_does_not_make_the_width_upscaled(module):
+    """A file whose size cannot be read is judged by the other rules only."""
+    (module / "static" / "description" / "assets" / "broken.png").write_bytes(b"not an image")
+    _clean(_rst(module, _img("assets/broken.png")))
 
 
 # --------------------------------------------------------------------------- #
@@ -507,7 +657,7 @@ def shipped(module):
     """A module whose every image is referenced: the whole-module run is clean."""
     for rel in STRAY:
         (module / rel).unlink()
-    (module / "doc" / "index.rst").write_text(".. image:: assets/form.png\n")
+    (module / "doc" / "index.rst").write_text(_img("assets/form.png"))
     (module / "static" / "description" / "index.html").write_text(
         '<img src="./main_screenshot.png"/>\n')
     _clean(_run(module))
@@ -549,7 +699,7 @@ def test_a_root_copy_of_an_assets_image_referenced_only_through_assets_is_an_orp
     assert proc.stdout == ("static/description/form.png:0: IMG_ORPHAN: "
                            "static/description/form.png\n")
     (shipped / "doc" / "index_vi_VN.rst").write_text(
-        ".. image:: assets/form.png\n\n.. image:: ../static/description/form.png\n")
+        _img("assets/form.png") + "\n" + _img("../static/description/form.png"))
     assert "IMG_ORPHAN" not in _rules(_run(shipped))
 
 

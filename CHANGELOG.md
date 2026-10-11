@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-ai-agents` - **doc images fit the page on the app stores.** Images in a module's RST
+  docs rendered at their full file width (a screenshot captured at device pixel ratio 2 is
+  2560 px wide), so the Documentation tab on apps.odoo.com scrolled sideways. Every image in any
+  RST published on the internet now carries Bootstrap's `img-fluid` (plus `d-block mx-auto` for a
+  block image) and a `:width:` in px equal to its intended display width, which both stores
+  honour: large screenshots shrink to the column, small crops and icons keep their captured size.
+  The reference gate rejects an image without the class or the width, a width above the file's
+  pixel width, and options that stretch or do nothing on the stores (`%` widths, `w-100`,
+  `:scale:`, `:height:`, `:align:`). Existing docs need one pass to add the class and width.
+
 ## [7.6.0] - 2026-10-11
 
 ### Changed

@@ -66,6 +66,16 @@ Rules
                        static/description/assets/<file> or static/description/<cover>
   MANIFEST_COVER       manifest images[0] that is not static/description/main_screenshot.<ext>
                        (a locale variant is never the cover)
+  IMG_NOT_FLUID        RST image (image, figure or substitution; module file or https URL) whose
+                       `:class:` lacks `img-fluid` (so the image can overflow the page), or - a block
+                       image - lacks `d-block` or `mx-auto`, or - an inline substitution image -
+                       carries `d-block` or `mx-auto` (it would break the line)
+  IMG_STRETCHED        RST image carrying a `:width:` in %, class `w-100`, `:scale:`, `:height:` or
+                       `:align:` (they enlarge a small image, distort it, or do nothing on the
+                       stores)
+  IMG_NO_WIDTH         RST module image with no `:width: <N>px` (an https image needs none)
+  IMG_UPSCALED         RST module image whose `:width:` exceeds the pixel width of its file (read
+                       from the PNG / GIF / JPEG header; an unreadable or missing file is skipped)
 Allowed: mailto:, tel:, #anchors, https links to non-store pages, the root-relative module and
 vendor-listing store paths above, public https:// images.
 
@@ -86,6 +96,7 @@ import glob  # noqa: E402
 import ipaddress  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
+import struct  # noqa: E402
 from html.parser import HTMLParser  # noqa: E402
 from urllib.parse import parse_qs, quote, unquote, urlsplit  # noqa: E402
 
@@ -104,7 +115,12 @@ _STORE_EXACT = r"^/apps/modules/%s/[a-z0-9_]+$"
 _VENDOR_LISTING = "/apps/modules/browse"
 
 # RST
-_RST_IMAGE = re.compile(r"^\s*\.\.\s+(?:\|[^|]+\|\s+)?(?:image|figure)::\s*(\S+)")
+# group 1 is set for a substitution image (inline), group 2 is the reference.
+_RST_IMAGE = re.compile(r"^\s*\.\.\s+(\|[^|]+\|\s+)?(?:image|figure)::\s*(\S+)")
+_RST_OPTION = re.compile(r"^\s*:([A-Za-z][A-Za-z0-9_-]*):(.*)$")
+_PX_WIDTH = re.compile(r"^([0-9]+)px$")
+_BLOCK_CLASSES = {"img-fluid", "d-block", "mx-auto"}
+_INLINE_CLASSES = {"img-fluid"}
 _RST_TARGET_OPT = re.compile(r"^\s*:target:\s*(\S+)")
 # Hyperlink targets: named `.. _name: url`, anonymous `.. __: url` and the short `__ url`.
 _RST_LINK_TARGET = re.compile(r"^\s*(?:\.\.\s+_[^:]*:|__)\s+(\S+)\s*$")
@@ -223,6 +239,46 @@ def _mentions(pattern, text, parent):
     return False
 
 
+def _pixel_width(path):
+    """Pixel width of a PNG, GIF or JPEG read from the file header; None when unreadable."""
+    try:
+        with open(path, "rb") as fh:
+            data = fh.read()
+    except OSError:
+        return None
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 20:
+        return struct.unpack(">I", data[16:20])[0]
+    if data[:3] == b"GIF" and len(data) >= 8:
+        return struct.unpack("<H", data[6:8])[0]
+    if data[:2] == b"\xff\xd8":
+        i = 2
+        while i + 4 <= len(data):
+            if data[i] != 0xFF:
+                return None
+            marker = data[i + 1]
+            if marker == 0xFF:
+                i += 1
+            elif marker == 0x01 or 0xD0 <= marker <= 0xD8:
+                i += 2
+            elif 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+                return struct.unpack(">H", data[i + 7:i + 9])[0] if i + 9 <= len(data) else None
+            else:
+                i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
+    return None
+
+
+def _rst_options(lines, index, directive_indent):
+    """name -> value of the option lines indented under the directive at lines[index]."""
+    options = {}
+    for raw in lines[index + 1:]:
+        if not raw.strip() or len(raw) - len(raw.lstrip()) <= directive_indent:
+            break
+        m = _RST_OPTION.match(raw)
+        if m:
+            options[m.group(1).lower()] = m.group(2).strip()
+    return options
+
+
 def _manifest_images(manifest_file):
     """(lineno, value) of each string in the descriptor's `images` list."""
     with open(manifest_file, encoding="utf-8", errors="replace") as fh:
@@ -295,6 +351,39 @@ class Checker(object):
         elif not os.path.isfile(os.path.join(self.description, path)):
             self._add(doc_file, line, "IMG_MISSING", ref)
 
+    def image_style(self, doc_file, line, ref, kind, inline, options):
+        """The fit of one RST image on the stores: its `:class:` and `:width:` options."""
+        ref = ref.strip()
+        image_kind = _image_kind(ref)
+        if image_kind is None:
+            return
+        classes = set(options.get("class", "").split())
+        if inline:
+            fluid = _INLINE_CLASSES <= classes and not classes & {"d-block", "mx-auto"}
+        else:
+            fluid = _BLOCK_CLASSES <= classes
+        if not fluid:
+            self._add(doc_file, line, "IMG_NOT_FLUID", ref)
+        width = options.get("width", "")
+        percent = width.endswith("%")
+        if (percent or "w-100" in classes
+                or any(name in options for name in ("scale", "height", "align"))):
+            self._add(doc_file, line, "IMG_STRETCHED", ref)
+        if image_kind != "local":
+            return
+        m = _PX_WIDTH.match(width)
+        if not m:
+            if not percent:
+                self._add(doc_file, line, "IMG_NO_WIDTH", ref)
+            return
+        path = unquote(urlsplit(ref).path)
+        if kind == "path":
+            path = _strip_dot_slash(path)
+            path = path[len(_DESCRIPTION_PREFIX):] if path.startswith(_DESCRIPTION_PREFIX) else ""
+        pixels = _pixel_width(os.path.join(self.description, path)) if path else None
+        if pixels is not None and int(m.group(1)) > pixels:
+            self._add(doc_file, line, "IMG_UPSCALED", ref)
+
     # ----------------------------------------------------------------- links
     def link(self, doc_file, line, ref):
         ref = ref.strip()
@@ -340,7 +429,9 @@ class Checker(object):
                 literal_indent = None
             m = _RST_IMAGE.match(raw)
             if m:
-                self.image(doc_file, no, m.group(1), kind)
+                self.image(doc_file, no, m.group(2), kind)
+                self.image_style(doc_file, no, m.group(2), kind, bool(m.group(1)),
+                                 _rst_options(lines, no - 1, indent))
             else:
                 m = _RST_TARGET_OPT.match(raw) or _RST_LINK_TARGET.match(raw)
                 if m:
