@@ -11,21 +11,17 @@ Hard rules enforced (always fatal - exit 1 on any violation):
   5. Each phase has exactly one of: skill, inline (true), agent.
   6. For phases with `skill`: the skill directory exists under plugins/.../skills/.
   7. `model_tier` in {haiku, sonnet, opus, inherit}; `inherit` is permitted ONLY on an
-     `inline: true` phase - a `skill`/`agent` authoring phase produces net-new content and must
-     declare a concrete tier (sonnet floor).
+     `inline: true` phase - a `skill`/`agent` authoring phase must declare a concrete tier.
   8. `name` matches the file stem.
   9. `description` does not end with '.', '!', or '?'.
  10. Phases with `skill` or `agent` (not inline) must have a non-empty `nl_trigger`.
 
-WARN-FIRST rules (V-32 / V-51 class - print a finding, but do not fail the build unless
+WARN-FIRST rule (V-32 class - print a finding, but do not fail the build unless
 --strict / WORKFLOWS_STRICT=1 is set; see "Main" below):
  11. A phase whose own text (`nl_trigger` / `gate`) claims the runner auto-skips it (e.g.
      "skip this phase entirely", "skipped automatically") must carry a `when:` predicate -
      `when:` is the schema's only auto-skip mechanism (_schema.md §5), so an unbacked claim is
      false.
- 12. A phase at `model_tier: haiku` must not read as a feature-existence verdict (dispatches
-     `odoo-feature-check`, or its `nl_trigger` reads like one) - `_schema.md` §6: "NEVER haiku
-     for ... feature-existence verdicts; those need sonnet".
 """
 import os
 import re
@@ -89,7 +85,7 @@ ALLOWED_GATE_TIERS = {"L0", "L1", "L2"}
 REQUIRED_TOP_LEVEL = ["name", "domain", "team_pattern", "description", "output_dir", "phases"]
 
 # ---------------------------------------------------------------------------
-# WARN-FIRST rule detectors (rules 11-12; see module docstring)
+# WARN-FIRST rule detector (rule 11; see module docstring)
 # ---------------------------------------------------------------------------
 
 # Rule 11 (V-32 class): a phase's own text promising the RUNNER will skip it automatically.
@@ -101,18 +97,6 @@ AUTO_SKIP_CLAIM_RE = re.compile(
     r"|skipped\s+automatically"
     r"|automatically\s+skip(?:s|ped)?",
     re.I,
-)
-
-# Rule 12 (V-51 class): _schema.md §6 - haiku is NEVER for "multi-tool OSM synthesis (e.g.
-# capability tables, feature-existence verdicts)". `odoo-feature-check` IS the feature-existence
-# skill (its own description: "a one-line verdict" on "does standard Odoo already do this?"), so
-# dispatching it at haiku is the direct violation. The text regex is a second, independent signal
-# for an inline/other phase that reads like the same verdict without naming that skill.
-FEATURE_EXISTENCE_SKILL = "odoo-feature-check"
-FEATURE_VERDICT_TEXT_RE = re.compile(
-    r"\bverdict\b.{0,120}\b(exist|existence|cover|covers|support|supports|available)\b"
-    r"|\b(exist|existence|cover|covers|support|supports|available)\b.{0,120}\bverdict\b",
-    re.I | re.S,
 )
 
 # ---------------------------------------------------------------------------
@@ -203,31 +187,6 @@ def _validate_auto_skip_when(data: dict, workflow_name: str, fname: str) -> list
     return findings
 
 
-def _validate_haiku_verdict_tier(data: dict, workflow_name: str, fname: str) -> list[str]:
-    """Rule 12 (WARN-FIRST, V-51 class). `_schema.md` §6: haiku is NEVER for a feature-existence
-    verdict - those need sonnet. Flag any phase at `model_tier: haiku` that dispatches the
-    feature-existence skill (`odoo-feature-check`) or whose own `nl_trigger` reads as one."""
-    findings: list[str] = []
-    phases = data.get("phases")
-    if not isinstance(phases, list):
-        return findings
-    for phase in phases:
-        if not isinstance(phase, dict):
-            continue
-        if phase.get("model_tier") != "haiku":
-            continue
-        phase_id = phase.get("id", "<unknown>")
-        skill = phase.get("skill")
-        nl_trigger = str(phase.get("nl_trigger", ""))
-        if skill == FEATURE_EXISTENCE_SKILL or FEATURE_VERDICT_TEXT_RE.search(nl_trigger):
-            findings.append(
-                f"File '{fname}': workflow '{workflow_name}' phase '{phase_id}' runs at "
-                f"model_tier=haiku but reads as a feature-existence verdict (schema §6: "
-                f"'NEVER haiku for ... feature-existence verdicts; those need sonnet')"
-            )
-    return findings
-
-
 def _validate_phase(phase: dict, phase_idx: int, workflow_name: str) -> list[str]:
     errors = []
     prefix = f"Workflow '{workflow_name}' phase[{phase_idx}]"
@@ -276,14 +235,13 @@ def _validate_phase(phase: dict, phase_idx: int, workflow_name: str) -> list[str
         )
 
     # model_tier: inherit is legal ONLY on an `inline: true` assembler phase (_schema.md §6):
-    # a `skill:`/`agent:` phase AUTHORS net-new content and must declare a concrete tier
-    # (sonnet floor). An inline phase merely stitches already-authored prior-phase outputs, so
-    # it may defer to the caller's model.
+    # a `skill:`/`agent:` phase must declare a concrete tier. An inline phase merely stitches
+    # already-authored prior-phase outputs, so it may defer to the caller's model.
     if tier == "inherit" and not has_inline:
         errors.append(
             f"{prefix_id}: model_tier 'inherit' is only permitted on an 'inline: true' "
             f"assembler phase; a 'skill'/'agent' authoring phase must declare a concrete "
-            f"tier (sonnet floor)"
+            f"tier"
         )
 
     return errors
@@ -379,9 +337,8 @@ def _validate_workflow(path: pathlib.Path) -> tuple[list[str], list[str]]:
     # optional cross-workflow transition block
     errors.extend(_validate_on_complete(data, name or stem, path.name))
 
-    # WARN-FIRST rules (11-12) - never fatal here; main() decides fatality via strict mode.
+    # WARN-FIRST rule (11) - never fatal here; main() decides fatality via strict mode.
     warn_findings.extend(_validate_auto_skip_when(data, name or stem, path.name))
-    warn_findings.extend(_validate_haiku_verdict_tier(data, name or stem, path.name))
 
     return errors, warn_findings
 
@@ -442,7 +399,7 @@ def _driver_required_warnings() -> list[str]:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    # WARN-FIRST toggle for rules 11-12 - same pattern as check_orchestration.py's
+    # WARN-FIRST toggle for rule 11 - same pattern as check_orchestration.py's
     # --strict / ORCH_STRICT (see the Makefile `orchestration-check` target): default prints a
     # finding and still exits 0; --strict / WORKFLOWS_STRICT=1 promotes those findings to fatal
     # errors. The hard rules (1-10) are ALWAYS fatal, independent of this flag.

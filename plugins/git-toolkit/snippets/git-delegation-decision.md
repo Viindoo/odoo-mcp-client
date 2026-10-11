@@ -39,7 +39,9 @@ writes a findings file, and returns a 5-line summary + path. Use for one medium 
 
 ### 3. PHASED-PIPELINE - complex / large
 
-Cold-spawn `git-pipeline-lead` (opus); it runs P1-P5 below the caller. Use when the change is LARGE
+Cold-spawn `git-pipeline-lead`, passing the tier the caller resolved from
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` row 1 as the launch `model` and as the
+`DISPATCH MODEL:` first line of the brief; it runs P1-P5 below the caller. Use when the change is LARGE
 per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2 (>500 files OR >10k LOC OR a
 multi-commit rewrite OR a thousand-file backport). The lead maps -> evaluates -> strategizes ->
 human-confirms (if destructive) -> executes -> verifies, and returns only the final compact result.

@@ -40,7 +40,7 @@ phases:
   # ------------------------------------------------------------------
   - id: classify
     inline: true
-    model_tier: sonnet
+    model_tier: haiku
     gate: "approve / refine: [feedback] / cancel"
     # Runner applies classification logic (config / bug / feature-request / training)
     # with confidence (high/medium/low) and one-line rationale.

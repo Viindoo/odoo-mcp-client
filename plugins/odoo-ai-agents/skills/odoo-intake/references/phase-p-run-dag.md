@@ -76,6 +76,10 @@ open a RUN-DAG.
      du kien) and **no binding `model`, and NO `gate_tier`** - the dispatched specialist skill owns
      the actual model + agent count at runtime, and the tier is a total function `run-harness`
      resolves at dispatch; the run-node never pins any of the three.
+   - **Business objective + acceptance (every node).** Copy the plan node's business `objective`
+     (Block 1) into `inputs.objective` and its business-observable acceptance criteria (Block 3) into
+     `inputs.acceptance`, verbatim with their design/oracle pointers - never reworded into technical
+     checks, never re-derived (schema SSOT: `plan-mode-schema.md` § Block 1 / § Block 3).
    - **Recon pointer (additive, optional).** When Phase R persisted a findings file, add
      `inputs.recon_findings: <captured ABSOLUTE literal>` to every node that consumes recon. It MUST
      be the captured absolute path - never a `<ISOLATE_DIR>` placeholder and never a relative path: a

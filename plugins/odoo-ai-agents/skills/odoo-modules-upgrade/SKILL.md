@@ -95,15 +95,15 @@ executes `odoo-modules-upgrade` next, unconditionally, every run.
 **P0 - Intake / resolve [STOP if open_questions non-empty].**
 Goal: turn the free-text ask into structured inputs - infer series, map to the OSM profile,
 auto-detect candidate modules, propose a cluster, CLARIFY scope. Dispatch 1x intake subagent
-(sonnet). Brief: (1) read the CURRENT BRANCH NAME and infer the Odoo series (`17.0-*` -> `17.0`);
+(haiku). Brief: (1) read the CURRENT BRANCH NAME and infer the Odoo series (`<series>-*` -> `<series>`);
 cross-check against the MAX manifest `version` series on disk and raise a disagreement as an
 `open_question` rather than trusting the branch name alone. EXCEPTION (the manifests carry a SHORT
 version with NO series prefix - keyed on the VALUE's form, never on the distribution): skip the
 cross-check and resolve the source series from branch + profile -
 do NOT raise a false disagree; (2) map to the OSM profile via `set_active_version` +
 `list_available_profiles` + `profile_inspect`; report repos + module set; (3) auto-detect
-CANDIDATE MODULES by scanning each module descriptor (`__manifest__.py`, or `__openerp__.py` on
-v8-v9 - glob BOTH names or a v8/v9 source cluster is invisible) for a `version` major series LESS
+CANDIDATE MODULES by scanning each module descriptor (`__manifest__.py`, or the legacy
+`__openerp__.py` on the oldest series - glob BOTH names or such a source cluster is invisible) for a `version` major series LESS
 THAN target AND for modules depending on such a stale module;
 `installable: False` is a weak hint only. Short-form manifests (no series prefix) yield nothing from
 that version scan on ANY profile - then detect by profile membership + branch series instead; (4) determine
@@ -119,12 +119,12 @@ user to confirm/narrow scope, then resume P1.
 **P1 - Recon [graph + deprecation + diff + transitive-symbol, parallel].**
 Goal: build the dependency DAG; get per-module deprecated-symbol fix list + platform API
 delta + a transitive symbol-survival survey grounded at target. Four parallel dispatches:
-(a) 1x `Explore` (sonnet) reads each descriptor's `depends` (BOTH names, § P0) -> emits {module, depends[]}
+(a) 1x `Explore` (haiku) reads each descriptor's `depends` (BOTH names, § P0) -> emits {module, depends[]}
 for every module in the confirmed cluster -> orchestrator topo-sorts to leaves-first order
-(cheap, deterministic); (b) `odoo-deprecation-audit` (via Skill tool, sonnet) for source +
+(cheap, deterministic); (b) `odoo-deprecation-audit` (via Skill tool, haiku) for source +
 TARGET version + module list (it runs the TARGET-version survival pass); (c) `odoo-version-diff`
 (via Skill tool, sonnet) for source->target delta; (d) **P1d Transitive Symbol Survey**
-(`Explore`, sonnet, read-only) - scans cluster source for every symbol referencing an external/core
+(`Explore`, haiku, read-only) - scans cluster source for every symbol referencing an external/core
 dep and grounds each at target, emitting `blockers[]` that gate P3/P4 (full brief: phase-detail § P1d).
 Output: `graph.md` (DAG + topo order), `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`.
 Assert DAG is acyclic: if a cycle is found, surface the cycle edges as a `concerns:`
@@ -141,7 +141,7 @@ Goal: for each module in dep order, decide DELETE-absorbed / KEEP / REWRITE(api)
 REWRITE(model) / MERGE / SPLIT by comparing custom behavior vs target-version core.
 
 Per module in dep order (topo order from graph.md): dispatch 1x `odoo-diff-comparator`
-(sonnet, opus for cluster-wide) + invoke `odoo-gap-analysis` (via Skill tool, sonnet) in
+(sonnet) + invoke `odoo-gap-analysis` (via Skill tool, sonnet) in
 parallel. Modules at the SAME DAG depth (same dependency level) may be dispatched in parallel; a module
 is NOT dispatched until its in-cluster dependencies have finished P2. Dispatch concurrency
 follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode B.

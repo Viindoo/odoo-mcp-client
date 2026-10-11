@@ -151,11 +151,14 @@ lifecycle plan presented at a single gate.
 Launch `odoo-planner` as a subagent (default: ONE planner). For a very large scope (many
 independent module clusters) you MAY fan out one planner per cluster following **Mode B**
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) and reconcile their plans;
-the single planner is the default. Set the subagent `model` to **opus** (the planner's
-frontmatter default).
+the single planner is the default. Choose the subagent `model` per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection and pass it
+explicitly: its opus row ("a long, complex plan" - many interdependent nodes, modules or business
+domains) or its sonnet row ("a small plan with a narrow blast radius"). The planner's frontmatter
+default is opus.
 
 ```
-DISPATCH MODEL: opus
+DISPATCH MODEL: <opus | sonnet - the tier chosen above>
 You are the odoo-planner agent. Produce the 3-block EXECUTION PLAN (NOT code, NOT a design) for:
 
 REQUEST: [the change to ship, target Odoo version, any constraints]
@@ -184,10 +187,11 @@ the plan-approval gate.
 
 After P1a returns, launch `odoo-doc-planner` as a SEPARATE subagent with `plan_source: design-dag`
 (its Round 0 reuses the design DAG from DESIGN_INDEX itself - never re-derived here).
-Model: **sonnet** (the doc planner's frontmatter default).
+Model: **haiku** (the doc planner's frontmatter default - scheduling a design DAG that is already
+computed is well-specified work, per the haiku row of the § Model-tier selection SSOT named in P1a).
 
 ```
-DISPATCH MODEL: sonnet
+DISPATCH MODEL: haiku
 You are the odoo-doc-planner agent. Produce the DOC-PACKAGE PLAN for:
 
 REQUEST: [same change as P1a]
@@ -297,6 +301,11 @@ Approve plan? (approve / refine: [feedback] / cancel)
   annotation, or grouping construct may batch nodes together." This gate is the one human check that
   no automated guard can reach - if any header, tier, or annotation batches nodes together, reject
   and `refine: [feedback]` rather than approving.
+- **Also before approving, confirm every node states a business `objective` and business-observable
+  acceptance** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1
+  and § Block 3 own the rule). A node whose objective or acceptance names a technical end-state - a
+  field, model, file or method to exist - hands the coder a method instead of a result: reject and
+  `refine: [feedback]` rather than approving.
 - **Also before approving, confirm every repo the plan touches carries at least one `odoo-instance`
   node on `integrate`'s `depends_on` path whose `modules` cover every module DECLARED in the
   `modules` field of a coding node in that repo.** This is a set comparison between two declared
@@ -319,8 +328,11 @@ Approve plan? (approve / refine: [feedback] / cancel)
 
 ## Decision X - the plan estimates, it never binds model or count
 
-The plan binds **WHICH skill** owns each node. It MUST NOT carry a binding per-agent `model` or a
-fan-out `count` - the dispatched specialist skill (e.g. `odoo-coding`) owns those at runtime via
+The plan binds **WHICH skill** owns each node and **WHAT business result** it delivers (its
+`objective` and business-observable acceptance - schema SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 / § Block 3);
+HOW the result is built stays with the design doc and the coder. It MUST NOT carry a binding
+per-agent `model` or a fan-out `count` - the dispatched specialist skill (e.g. `odoo-coding`) owns those at runtime via
 its own tier table + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode-B budget.
 Every quantity the plan states carries an `est_` prefix and the explicit note
 "ADVISORY / du kien - the runtime skill decides the actual count/model", so no runtime agent ever

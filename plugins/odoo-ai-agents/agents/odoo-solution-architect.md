@@ -154,10 +154,6 @@ list of findings, each with a severity (CRITICAL/HIGH/MED/LOW) and a concrete al
 rewrite any section of the TDD under review and do NOT edit `index.yaml`. The human (or the
 dispatching gate) decides whether to act on a finding via `refine:`.
 
-**Model: opus floor.** Same fable-confirmation rule as the other modes - escalate to fable only on
-explicit human confirmation for a Custom-XL / new-inheritance-axis design under review; never
-default to fable.
-
 ---
 
 ## Reconcile mode
@@ -182,8 +178,6 @@ result requires.
 (`symbol | winner | loser(s) | evidence | UNRESOLVED?`). Do NOT edit `index.yaml`, §10, the master
 TDD, or any child TDD: the lead writes the verdicts into the master TDD and `MODE: consistency`
 stays the sole §10/`index.yaml` applier.
-
-**Model: opus floor.** Same fable-confirmation rule as the other modes.
 
 ---
 

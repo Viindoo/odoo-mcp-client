@@ -95,8 +95,8 @@
       "expected_decision": "trigger-review",
       "expected_entry": "scoper-first",
       "expected_target": "local",
-      "expected_topology": "domain-partition",
-      "expected_output": "12 modules > ~8 -> domain-partition synthesis; still scoper-first.",
+      "expected_topology": "multi",
+      "expected_output": "12 modules -> per-module fan-out + one synthesis pass; still scoper-first.",
       "category": "trigger-multi-large",
       "assertions": [
         {
@@ -312,5 +312,5 @@
       "files": []
     }
   ],
-  "notes": "16 review-decision cases. Eval method: a subagent applies SKILL.md + references to each prompt and returns {fires, decision, entry, target, topology}, graded vs expected. Covers trigger-vs-defer (defers to coding/debug/deprecation-audit/perf-audit/security-audit/override-finding/ui-review), entry path (pasted-block or single non-git file -> direct-reviewer skip-scoper; git target -> scoper-first), TARGET derivation (local/pr/worktree), and topology (single / multi / domain-partition at >~8 modules). id 14 guards the odoo-ui-review near-miss (a shared 'does this look correct?' trigger phrase); ids 15-16 guard the POST-to-PR and autonomous-fix-loop behaviors. Baseline (pre-optimize snapshot) scored 16/16; the eval guards against decision regressions, it does NOT execute reviewers or grade finding quality."
+  "notes": "16 review-decision cases. Eval method: a subagent applies SKILL.md + references to each prompt and returns {fires, decision, entry, target, topology}, graded vs expected. Covers trigger-vs-defer (defers to coding/debug/deprecation-audit/perf-audit/security-audit/override-finding/ui-review), entry path (pasted-block or single non-git file -> direct-reviewer skip-scoper; git target -> scoper-first), TARGET derivation (local/pr/worktree), and topology (single / multi). id 14 guards the odoo-ui-review near-miss (a shared 'does this look correct?' trigger phrase); ids 15-16 guard the POST-to-PR and autonomous-fix-loop behaviors. Baseline (pre-optimize snapshot) scored 16/16; the eval guards against decision regressions, it does NOT execute reviewers or grade finding quality."
 }

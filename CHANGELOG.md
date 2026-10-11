@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-ai-agents`, `git-toolkit` - **every agent launch picks its model from one capability map
+  by the kind of work, not by size.** haiku now takes finding and gathering work (code, OSM, git,
+  GitHub, web lookups), instance build/serve/test and log watching, mechanical edits, and code
+  whose scope and business rules are already stated; sonnet takes judgement - inferred-rule code,
+  debugging, review, synthesis, coordination, git history rewrites and conflict resolution,
+  translation (which must read context), customer-facing content; opus is kept for solution
+  design, long complex plans, legal/accounting/regulatory and other deep specialist domains, and
+  for the step after an evidenced sonnet failure. Context size is never a reason to raise a tier
+  or split work, so the caps that did (the 120-requirement BRL cluster, the ~8-module review
+  partition, the 40-intent-file rebase cap, size-based opus/fable escalations) are gone. Retiered
+  defaults: instance operations, review/doc scoping, the installable prober, the feature
+  cataloger, the doc planner, the git surveyor and GitHub operator run on haiku; the git pipeline
+  lead runs on sonnet (opus for a port across major versions); the deep-survey skill runs on
+  sonnet. The coding coordinator now runs at the tier its caller judges for the node instead of a
+  sonnet floor.
+- `odoo-ai-agents` - **the session's main agent learns the map at start-up.** The SessionStart
+  orchestration digest tells it to pass `model` on every agent launch, plugin or built-in (an
+  omitted model inherits the caller's), and points at the map by an absolute path.
+- `odoo-ai-agents`, `git-toolkit` - **model rules live where the caller reads them.** An agent
+  reads its own instructions only after it was launched, so agent bodies no longer carry rules
+  about their own model; those rules sit in the shared map or in the skill that launches the
+  agent. The documented resolution order now matches Claude Code (launch `model`, then the agent
+  default, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the caller's model).
+- `odoo-ai-agents` - **execution plans state business results.** Every plan node carries a
+  business objective (who is helped, which job gets done) and business-observable acceptance; a
+  technical criterion from the design is restated as the outcome it serves, with a pointer back.
+  Long, complex plans are planned on opus, small narrow ones on sonnet.
+
+### Removed
+
+- `odoo-ai-agents` - the human-confirmation gate for opus intent extraction in forward-port (the
+  extraction tier is now haiku or sonnet), and the workflow lint rule that forbade haiku for
+  evidence-backed feature verdicts.
+
 ## [7.5.0] - 2026-10-09
 
 ### Added

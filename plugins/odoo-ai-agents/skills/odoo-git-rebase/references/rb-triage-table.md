@@ -12,7 +12,7 @@ runtime improvisation.
 
 The two tiers are decided INDEPENDENTLY. Run the EXTRACT table at P1 against each commit's
 complexity as read-only recon; run the ADAPT table at P8 against each commit's adapt
-complexity in the worktree. A docstring-only commit may be haiku to EXTRACT but opus to ADAPT
+complexity in the worktree. A docstring-only commit may be haiku to EXTRACT but sonnet to ADAPT
 if the new-base idiom for that construct changed significantly. Never reuse one tier as the other.
 
 ---
@@ -30,15 +30,16 @@ available for this phase - intent extraction is never worth fable cost.
 
 | # | Condition (first match wins) | Tier |
 |---|---|---|
-| 1 | Commit touches a migration script OR spans >=3 modules OR changes an inheritance axis / a cross-module API contract | **opus** |
-| 2 | Commit carries non-trivial logic - a method override, computed/onchange/constraint, ORM hook, a multi-file behavioral change, or a non-obvious bug fix whose "why" requires reasoning across diff + tests | **sonnet** (default) |
-| 3 | Commit is docstring / comment / translation-string / label-only, a one-line config flip, or a pure rename with no behavior change | **haiku** |
+| 1 | Commit carries logic that needs reasoning - a migration script, a method override, computed/onchange/constraint, ORM hook, a cross-module change (>=2 modules, an inheritance axis, a cross-module API contract), a multi-file behavioral change, or a non-obvious bug fix whose "why" requires reasoning across diff + tests | **sonnet** |
+| 2 | Commit states its intent by its message / PR / tests and stays inside ONE module (a straightforward fix or small feature), OR is docstring / comment / translation-string / label-only, a one-line config flip, or a pure rename with no behavior change | **haiku** |
 
 Constraints:
 - **sonnet is the ambiguous-case default.** If two rows seem to apply, the higher row
   (smaller #) wins; if no row clearly applies, use sonnet.
 - A large diff that is mechanically simple (mass rename, generated-file churn) can still be
   haiku - judge by the COMPLEXITY OF THE INTENT, not the line count.
+- Intent extraction is never raised on size, file count or module count alone; this table has no
+  opus band.
 - The EXTRACT tier sets the `model` override passed to each `odoo-intent-extractor` launch
   in P2 (the agent's own default is sonnet; the override wins).
 
@@ -52,24 +53,19 @@ Constraints:
 >
 > If the commit's outcome is (d) -> no adapt code; test-forward only at haiku.
 
-Code adapt WRITES and resolves conflicts on the same-version target. It reuses the `odoo-coding`
-deterministic tier table (SSOT - do not fork it). Conditions summarized:
+Code adapt WRITES and resolves conflicts on the same-version target. Its tier comes from the
+`odoo-coding` step 5 table (SSOT - read it there; it is not restated or forked here). Only the
+rebase-specific rules follow:
 
-| # | Condition (first match wins) | Tier |
-|---|---|---|
-| 1 | Work-item spans >=3 modules AND is full-stack AND estimated >800 LOC; OR changes an inheritance axis across modules | **fable** |
-| 2 | Overrides core `create` / `write` / `unlink`; OR override chain has >=3 entries (`find_override_point`); OR cross-model computed chain / multi-company logic; OR a migration with >1 viable strategy; OR full-stack module with >5 intended files | **opus** |
-| 3 | Single-stack AND <=2 intended files AND ~<=50 LOC AND no method override - one field/attr, boilerplate XML view shell, label/string change, security CSV row, or a bucket (a)/(d) test-only forward | **haiku** |
-| 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module - and ANY case not confidently classified | **sonnet** (default) |
-
-Constraints:
-- **fable is NEVER a default and ALWAYS needs explicit human confirmation** (about 2x the price of
-  the tier below). When a row resolves to fable, the P6 plan gate must call out the TRADEOFF on its
-  own line in plain words, never by tier name - which commit, why it needs the deepest reasoning,
-  the cost; the plan-gate approval covers it. On a decline, downgrade that commit to **opus** and record `<sha>: opus (fable declined)`
-  in `plan.md`.
-- A bucket (a)/(d) commit needs no adapt code - only test-forward - so it lands at haiku
+- A bucket (a)/(d) commit needs no adapt code - only test-forward - so it lands at **haiku**
   even if the source commit was opus-grade.
+- Every other commit takes the `odoo-coding` step 5 tier for its work-item. Size, file count, LOC
+  and module count alone never raise it.
+- **fable is NEVER a default and ALWAYS needs explicit human confirmation** (about 2x the price of
+  the tier below). When the `odoo-coding` table resolves a commit to fable, the P6 plan gate must
+  call out the TRADEOFF on its own line in plain words, never by tier name - which commit, why it
+  needs the deepest reasoning, the cost; the plan-gate approval covers it. On a decline, downgrade
+  that commit to **opus** and record `<sha>: opus (fable declined)` in `plan.md`.
 - A full-stack work-item gets ONE tier applied to both legs by default; a lower frontend
   tier is allowed when the design splits effort, never a higher one.
 
@@ -82,12 +78,12 @@ Each commit in `plan.md` carries two tier columns:
 | sha | subject | outcome | EXTRACT tier | ADAPT tier | notes |
 |-----|---------|---------|-------------|-----------|-------|
 | abc1234 | add double-post guard | (b) | sonnet | sonnet | symbol renamed |
-| def5678 | rename field across 4 modules | (b) | opus | fable (CONFIRM) | cross-module rename |
+| def5678 | rename field across 4 modules | (b) | sonnet | sonnet | cross-module rename |
 | ghi9012 | fix typo in docstring | (a) | haiku | skip | already on base |
-| jkl3456 | OWL ListRenderer -> ListController | (c) | sonnet | opus | override-refactored |
+| jkl3456 | OWL ListRenderer -> ListController | (c) | sonnet | sonnet | override-refactored |
 
 The EXTRACT tier drives the P2 dispatch; the ADAPT tier drives the P8 dispatch. The ADAPT
-tier MAY be refined once the P3 outcome is known - a commit triaged opus-to-adapt that
+tier MAY be refined once the P3 outcome is known - a commit triaged sonnet-to-adapt that
 classifies as outcome-(a) drops to "skip". Re-record any refinement in `plan.md`.
 
 ---

@@ -30,7 +30,13 @@ separately. Each node entry carries:
 
 - `id` - short, stable, kebab-case, unique in the plan. It is the human's handle at the approval
   gate and the driver's tie-break key, so name it for the WORK, not for a module.
-- a one-line description of the behaviour the node delivers.
+- `objective` - the BUSINESS result the node delivers, in one line: WHO is helped and WHICH business
+  job gets done for them (e.g. "fleet managers invoice each vehicle's monthly usage without a
+  spreadsheet"). Never a technical end-state - "add field X", "create model Y", "write file Z" names
+  HOW, which belongs to the design doc and the coder, so a plan that states it delegates a method
+  instead of a result. A terminal lifecycle or verification node, whose job its stage already
+  fixes, states the business outcome it protects for this change (e.g. "existing fleet and
+  accounting users keep every flow they had").
 - `modules` - the module technical names this node touches, in dependency order (omit for a node
   that touches no Odoo module, e.g. a chat-only synthesis node). Ordering rule: OSM
   `module_inspect(name=<m>, method='dependencies', odoo_version=<concrete>)` per module, restricted
@@ -194,6 +200,10 @@ node shape is incompatible with `run/1.0` and the driver refuses anything older)
           {"id": "run-summary", "repo": null, "approach_kind": "inline"}]
 ```
 
+The node's `objective` (Block 1) and acceptance criteria (Block 3) ride in its `inputs` map as
+`inputs.objective` (one string) and `inputs.acceptance` (a list of strings), copied verbatim - they are
+`inputs` keys, never new node fields.
+
 `approach_kind` is one of `skill | agent | workflow | inline | integrate` - five values, exhaustive.
 A node's serialized field set is exactly: `id`, `repo`, `approach`, `approach_kind`, `modules`,
 `files_in_scope`, `inputs`, `depends_on`, `status`, `produced`, `contract`. **That list is EXHAUSTIVE
@@ -237,7 +247,8 @@ tells the reader which node creates it. Every terminal lifecycle stage appears a
 to its execute-SKILL, INCLUDING `review` and `acceptance` - both are authored STATICALLY like any
 other node, never omitted pending a later runtime decision. `acceptance`'s criteria come from the QA
 oracle (`odoo-qa-planner`'s `scenarios.md`) when already authored, else from the design's §9
-Acceptance Criteria; an absent oracle changes WHERE the criteria come from, never WHETHER the node
+Acceptance Criteria - either way stated as business outcomes with a pointer back (§ Block 3); an
+absent oracle changes WHERE the criteria come from, never WHETHER the node
 exists. Neither WHICH stages exist nor their ORDER is a per-plan choice: read both from the Terminal
 stage order constant
 (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` section Pre-PR tail),
@@ -266,7 +277,14 @@ single coding node's own module set happens to cover it.
 
 **Block 3 - Assignment.** One line per node:
 `node -> skill | command | agent  (effort + est_agents ESTIMATE; model + count owned by the dispatched skill at runtime - ADVISORY / du kien, non-binding) -> which skill that agent uses`.
-Add per-node **acceptance criteria** + a **verify command** (Repo Capability Card). `effort` follows
+Add per-node **acceptance criteria** + a **verify command** (Repo Capability Card). Acceptance
+criteria are BUSINESS-OBSERVABLE outcomes that make the node's `objective` true: what a user can now
+do, see or no longer has to do, and which figures come out right (e.g. "a vehicle's invoice total
+equals its logged usage times the contract rate; an accountant sees it posted to the fleet revenue
+account"). Never a technical check such as "field X exists" or "model Y has method Z". When the
+source criterion is technical - a design §9 line or an oracle scenario phrased as a field, model or
+file - restate it as the business outcome it serves and point to its origin for the technical detail
+(e.g. `(design §9 AC-3)`); the detail stays in the design, never copied here. `effort` follows
 the gap-analysis legend (S/M/L/XL); `est_agents` is a rough advisory count. The plan binds WHICH
 skill, never a per-agent `model`, fan-out `count`, or `gate_tier`. For ANY acceptance criterion that
 spans more than one module - whether those modules sit in ONE node or are split across SIBLING
@@ -306,6 +324,6 @@ in YAML, effort = total) -> verify: artifact in output_dir`.
 ## Rejection flow
 
 If the user refines or rejects in the Plan Mode UI (step 5), loop back to the **soft-plan-gate**, not
-to execution: re-run the relevant part - pick a different skill, adjust node parameters (scope /
-files / assignment / effort), or `cancel`. Re-enter Plan Mode only once the revised plan is
+to execution: re-run the relevant part - pick a different skill, adjust node parameters (objective /
+acceptance / scope / files / assignment / effort), or `cancel`. Re-enter Plan Mode only once the revised plan is
 re-approved at the text gate. Never dispatch a writes-files specialist off a rejected plan.

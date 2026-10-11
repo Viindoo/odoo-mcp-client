@@ -43,32 +43,18 @@ SAME table applied to a wider unit; the row conditions below are unchanged.
 
 | # | Condition (first match wins, evaluated against every commit in the module's bundle) | Tier |
 |---|---|---|
-| 1 | Any commit in the bundle touches a migration script, OR spans >=3 modules, OR changes an inheritance axis / a cross-module API contract | **opus** |
-| 2 | Any commit in the bundle carries non-trivial logic - a method override, computed/onchange/constraint, ORM hook, a multi-file behavioral change, or a non-obvious bug fix whose "why" needs reasoning across the diff + tests (and no commit in the bundle matches row 1) | **sonnet** (default) |
-| 3 | Every commit in the bundle is docstring / comment / translation-string / label-only, a one-line config flip, or a pure rename with no behavior change | **haiku** |
+| 1 | Any commit in the bundle carries logic that needs reasoning - a migration script, a method override, computed/onchange/constraint, ORM hook, a cross-module change (>=2 modules, an inheritance axis, a cross-module API contract), a multi-file behavioral change, or a non-obvious bug fix whose "why" needs reasoning across the diff + tests | **sonnet** |
+| 2 | Every commit in the bundle states its intent by its message / PR / tests and stays inside this ONE module (a straightforward fix or small feature), OR is docstring / comment / translation-string / label-only, a one-line config flip, or a pure rename with no behavior change | **haiku** |
 
 Constraints:
-- **sonnet is the ambiguous-case default (R2c preference: sonnet or haiku when purely
-  mechanical).** If two rows seem to apply, the higher row (smaller #) wins; if no row clearly
-  applies, use sonnet.
+- **sonnet is the ambiguous-case default.** If two rows seem to apply, the higher row (smaller #)
+  wins; if no row clearly applies, use sonnet.
 - A large diff that is mechanically simple (mass rename, generated-file churn) can still be
   haiku - judge by the COMPLEXITY OF THE INTENT, not the line count.
+- Intent extraction is never raised on size, file count or module count alone; this table has no
+  opus band.
 - The EXTRACT tier sets the `model` override passed to the ONE `odoo-intent-extractor` subagent
   launch per module in P1 (the agent's own default is sonnet; the override wins).
-
-**Opus human-confirm gate (R2d - Table 1 has no fable band, so opus is the ONLY tier this table can
-reach above sonnet/haiku; it is NOT a silent auto-assign.)** When a module's bundle resolves to
-row 1 (**opus**), the P4 Plan Mode gate MUST call it out on its own line as a TRADEOFF in plain
-words, never by tier name - module name, why it needs a deeper read, the cost (the SAME format
-Table 2's fable gate below already uses) - and the human's Plan
-Mode approval covers it. On a decline, downgrade that module's EXTRACT tier to **sonnet**
-(fable is not in the EXTRACT band, so there is no intermediate step down from opus) and record
-`<module>: sonnet (opus declined)` in `plan.md`. **Suppressed-gate auto-downgrade** (same pattern
-`odoo-coding` already uses for its own fable gate - reused here, not re-derived): when Plan Mode
-itself is suppressed (an active `run-<id>` node or a
-`WORKTREE_PATH` dispatched-node context with no interactive human available), AUTO-DOWNGRADE to
-sonnet and record `<module>: sonnet (opus auto-downgraded - gate suppressed)` in `plan.md` -
-never silently proceed at opus, and never deadlock waiting on a human who is not there.
 
 ---
 
@@ -82,37 +68,32 @@ never silently proceed at opus, and never deadlock waiting on a human who is not
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
 > See [[fp-installable-false]] for the full lint-only lane specification.
 
-Code adapt WRITES production code on the target platform. It reuses the `odoo-coding`
-deterministic tier table verbatim (SSOT - do not fork it). The condition set, summarized:
+Code adapt WRITES production code on the target platform. Its tier comes from the `odoo-coding`
+step 5 table (SSOT - read it there; it is not restated or forked here). Only the
+forward-port-specific rules follow:
 
-| # | Condition (first match wins) | Tier |
-|---|---|---|
-| 1 | Custom-XL: work-item spans >=3 modules AND is full-stack AND estimated >800 LOC; OR it changes an inheritance axis across modules | **fable** |
-| 2 | Extension-L: overrides core `create`/`write`/`unlink`; OR override chain has >=3 entries (`find_override_point`); OR cross-model computed chain / multi-company logic; OR a migration with >1 viable strategy; OR full-stack module with >5 intended files | **opus** |
-| 3 | Standard / Config: single-stack AND <=2 intended files AND ~<=50 LOC AND no method override - one field/attr, boilerplate XML view shell, label/string change, security CSV row, a bucket (a)/(d) test-only forward | **haiku** |
-| 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module - and ANY case not confidently classified | **sonnet** (default) |
+- A bucket (a)/(d) commit needs no adapt code - only the test forward - so it lands at **haiku**
+  even if the source commit was opus-grade.
+- Every other commit takes the `odoo-coding` step 5 tier for its work-item. Size, file count, LOC
+  and module count alone never raise it.
 
 Constraints:
 - **fable is never a default and ALWAYS needs explicit human confirmation** (about 2x the price of
-  the tier below). When a row resolves to fable, the P4 plan gate must call out the TRADEOFF on its
-  own line in plain words, never by tier name - which module, why it needs the deepest reasoning,
-  the cost - with the reply set `approve / skip / cancel`. On `skip`, downgrade that
-  work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`. Fable-grade work
-  with no approved design doc -> recommend `odoo-solution-design` first.
+  the tier below). When the `odoo-coding` table resolves a work-item to fable, the P4 plan gate must
+  call out the TRADEOFF on its own line in plain words, never by tier name - which module, why it
+  needs the deepest reasoning, the cost - with the reply set `approve / skip / cancel`. On `skip`,
+  downgrade that work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`.
+  Fable-grade work with no approved design doc -> recommend `odoo-solution-design` first.
 - **Suppressed-gate auto-downgrade** (same pattern `odoo-coding` already uses for its own fable
-  gate, and Table 1's R2d opus gate above already reuses - reused here too, not re-derived):
-  when the P4 Plan Mode gate itself is suppressed (an
+  gate, reused here, not re-derived): when the P4 Plan Mode gate itself is suppressed (an
   active `run-<id>` node or a `WORKTREE_PATH` dispatched-node context with no interactive human
   available), no inline human confirmation is possible - if a work-item resolves to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
-  in `plan.md`, in the SAME format as the human-declined downgrade above. This closes the identical
-  suppression condition Table 1 already covers for its own opus gate: the tier is decided HERE, at
-  this skill's own P4 plan gate, never left for a later phase's runtime gate to improvise
+  in `plan.md`, in the SAME format as the human-declined downgrade above. The tier is decided HERE,
+  at this skill's own P4 plan gate, never left for a later phase's runtime gate to improvise
   (`SKILL.md` § Model triage: "a tier is part of the approved plan, not a runtime improvisation").
 - A fullstack work-item gets ONE tier applied to both legs by default; a lower frontend tier is
   allowed when the design splits effort, never a higher one.
-- A bucket (a)/(d) commit needs no adapt code - only the test forward - so it lands at haiku
-  even if the source commit was opus-grade.
 
 ---
 
@@ -123,7 +104,7 @@ Each commit in `plan.md` carries two tier columns:
 | Commit SHA | What it does | Outcome at target | Model that reads the intent | Model that writes the port |
 |---|---|---|---|---|
 | `abc1234` | double-post guard on `account.move` | (b) still needed - APIs compatible | sonnet | sonnet |
-| `def5678` | rename field across 4 modules | (b) still needed - APIs compatible | opus | fable (confirm) |
+| `def5678` | rename field across 4 modules | (b) still needed - APIs compatible | sonnet | sonnet |
 | `ghi9012` | fix typo in docstring | (a) already in the target | haiku | haiku (test-only) |
 
 Outcome values (full definitions: `[[fp-intent-4outcome]]`): **(a)** already in the target ·
@@ -132,7 +113,7 @@ Outcome values (full definitions: `[[fp-intent-4outcome]]`): **(a)** already in 
 
 The EXTRACT tier drives the P1 dispatch; the ADAPT tier drives the P8 dispatch.
 Buckets are assigned in P2 (after extraction), so the ADAPT tier may be refined once the
-bucket is known - a commit triaged opus-to-adapt that classifies as bucket (a) drops to haiku
+bucket is known - a commit triaged sonnet-to-adapt that classifies as bucket (a) drops to haiku
 (test-only). Re-record any refinement in `plan.md`.
 
 ---

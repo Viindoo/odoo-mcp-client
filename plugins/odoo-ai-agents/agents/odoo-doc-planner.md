@@ -9,7 +9,7 @@ description: |
   assistant: "Dispatching odoo-doc-planner to cluster the modules by dependency, allocate one instance per branch, and emit doc-plan.yaml for a single approval gate."
   <commentary>Multi-module doc scheduling + branch-aware instance allocation = odoo-doc-planner, not odoo-doc-scoper (which only resolves scope) and not odoo-planner (which plans the CODE build).</commentary>
   </example>
-model: sonnet
+model: haiku
 color: cyan
 ---
 

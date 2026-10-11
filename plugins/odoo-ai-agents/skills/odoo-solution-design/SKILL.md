@@ -128,7 +128,7 @@ before this clears. The approved master §10 is the hard constraint for all chil
   front-loads every cross-module contract (step a), so no child blocks on a sibling for interface
   discovery. Base-first reduces `MODE: consistency` rework by catching §10 gaps against a concrete
   lower-layer design early.
-- **Model floor: opus.** Scale toward fable for modules with a new inheritance axis (same
+- **Model: opus default.** Scale toward fable for modules with a new inheritance axis (same
   fable-confirmation rule as single mode).
 - Layer-0 child brief includes `MODE: child`, `CHILD_MODULE: <name>`, `MASTER_DESIGN_DOC: <abs
   path>`, `ODOO_VERSION: <version>`. Every layer `k>=1` child brief additionally carries
@@ -307,9 +307,9 @@ Use the template below **verbatim**, filling the bracketed placeholders.
 
 **Model per dispatch** - set as the subagent `model` parameter (the `DISPATCH MODEL` line
 records the tier chosen; both must match):
-- **opus** - default for every design.
+- **opus** - default for every design, in every mode (single, child, consistency, review).
 - **fable** - ONLY for Custom-XL tier or a design spanning >=3 modules full-stack with a new
-  inheritance axis. Requires explicit human confirmation (state tier, cost, and why). If
+  inheritance axis (also for a consistency or review pass over such a design); never a default. Requires explicit human confirmation (state tier, cost, and why). If
   declined or unavailable, fall back to **opus** and note in the TDD header
   (`dispatch: opus (fable declined/unavailable)`).
 

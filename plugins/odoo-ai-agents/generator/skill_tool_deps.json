@@ -1291,7 +1291,7 @@
       "spawn_class": "spawner-agent",
       "handoff": "fork",
       "spawns": [
-        "(anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under <SHARE_DIR>/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
+        "(anonymous read-only fan-out subagents, explicit model per phase per the capability map: haiku gathers, sonnet dives and synthesizes, opus only on an evidenced trigger or a specialist domain; read-only on Odoo source, write only findings under <SHARE_DIR>/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "none",
       "instance_touching": false,
@@ -1346,7 +1346,7 @@
         "odoo-test-writer (hard leaf - ONE per node, launched by the odoo-coder coordinator AFTER the coders, writes or adjusts the tests and break-checks them; authors by invoking the odoo-test-writing skill inline)",
         "odoo-backend-coder (hard leaf - launched by the odoo-coder coordinator for a backend work-item)",
         "odoo-frontend-coder (hard leaf - launched by the odoo-coder coordinator for a frontend work-item)",
-        "(dispatch: ONE odoo-coder per node; model-weighted subagent batches, explicit model per node per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
+        "(dispatch: ONE odoo-coder per node; model-weighted subagent batches, explicit model per node at the tier odoo-coding chose, coordinator included, per the capability map - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -1496,7 +1496,7 @@
     "odoo-git-rebase": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "intake subagent (sonnet: NL -> structured refs/base, PR-resolve, worktree-not-switch)",
+        "intake subagent (haiku: NL -> structured refs/base, PR-resolve, worktree-not-switch)",
         "Explore (read-only range enumerate + diff read)",
         "odoo-intent-extractor (rebase MODE, per-commit, base-head grounding)",
         "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
@@ -1671,7 +1671,7 @@
         "odoo-coding (INVOKED per NODE via the Skill tool when the driver dispatches a coding node; odoo-coding owns coder count + model; the odoo-coder coordinator COMMITS the node and returns its commit range `<node base>..<head>` (normally one commit) - the work-item is odoo-coder's INTERNAL unit)",
         "git-ops (worktree add per node lineage: one run-integration branch per repo at run start, one child worktree per source-writing node forked from it; cherry-picks each node's returned commit range onto the run-integration branch as a saga/checkpoint - only the range's commits not already on run-integration (compared by patch id), verified after each node's range, no per-node PR, no force-push; ONCE, when the repo's terminal integrate node runs, squashes run-integration + a fresh non-force FIRST push, then opens ONE PR run-integration->principal; no L2-squash-gate - the only L2 is the downstream outward merge, owned by odoo-pr-monitoring; no auto-merge - via git-ops skill - git-toolkit)",
         "(anonymous Sonnet conflict-resolver subagent - dispatched ONLY when a cherry-pick reports a semantic conflict: handed the conflict diff + both node briefs via worker-brief.md, it edits the conflicting files (markers removed), then git-ops runs cherry-pick --continue; NOT a registered agent - see skills/run-harness/references/run-integration.md § Conflict Resolver)",
-        "(cross-cutting review escalation is NOT a run-harness spawn: the review is an ordinary PLAN node the planner places, dispatched here like any other node to odoo-code-review, which owns the scale-based opus-inline-vs-anonymous-fable-subagent escalation decision itself - see skills/run-harness/references/run-integration.md § Review Escalation for the ownership move)"
+        "(cross-cutting review escalation is NOT a run-harness spawn: the review is an ordinary PLAN node the planner places, dispatched here like any other node to odoo-code-review, which owns the review escalation decision itself (sonnet inline by default; opus only per the opus row of the capability map in skills/_shared/concurrency-guard.md; never a size-based fable) - see skills/run-harness/references/run-integration.md § Review Escalation for the ownership move)"
       ],
       "stack": "none",
       "instance_touching": false,
@@ -1761,8 +1761,8 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-intent-extractor (read-only, one instance PER MODULE covering that module's full ordered commit list - never per commit; model per module-bundle complexity, opus gated on human confirm)",
-        "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; model per complexity / sonnet)",
+        "odoo-intent-extractor (read-only, one instance PER MODULE covering that module's full ordered commit list - never per commit; model per the capability map in skills/_shared/concurrency-guard.md)",
+        "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; haiku)",
         "odoo-coding (P8 adapt via the Skill tool; one invocation per module, MODE: adapt, COMMIT: caller; owns the coder fan-out (odoo-coder coordinator -> odoo-backend-coder / odoo-frontend-coder, then the node's odoo-test-writer test leg that adapts the forwarded tests and break-checks them) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first, WORKER_AGENT_ID Tier-A resume field (an id the caller captured from its own earlier launch, never a string anyone invented); modules adapted serially in the one integration worktree; the coordinator is launched ONCE per module and its returned id recorded, then resumed by that id on every later invocation for that module - odoo-coding honors WORKER_AGENT_ID, so R2b (at most one agent per module) is closed at this leg)",
         "git-ops (P5 absorb-all - ONE no-ff no-commit merge of the batch's range TIP, the pipeline's only git shape - plus branch/worktree ops, the single P10 merge commit, and all other local git mutations, plus read-only diff/range map and PR create/review - via git-ops skill - git-toolkit; never a per-commit merge, and never a cherry-pick at any granularity)",
         "odoo-acceptance (P11 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, runs BEFORE the P12 PR opens or its review runs, verdict carried into the human-merge decision)",
@@ -1808,7 +1808,7 @@
     "odoo-modules-upgrade": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "intake subagent (sonnet: branch->series->profile, installable:False candidate detection, scope clarify)",
+        "intake subagent (haiku: branch->series->profile, installable:False candidate detection, scope clarify)",
         "Explore (dependency-graph build + diff read)",
         "odoo-deprecation-audit + odoo-version-diff (P1 recon, NL/Skill dispatch)",
         "odoo-diff-comparator (per-module core-absorption comparison)",

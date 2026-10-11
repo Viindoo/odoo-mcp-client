@@ -1,5 +1,5 @@
 <!-- SSOT for the deep-survey per-phase analytical lenses + drill procedures.
-     The orchestrator (opus, main context) reads the lens block relevant to a phase
+     The orchestrator (main context) reads the lens block relevant to a phase
      and INLINES it into each dispatched worker brief - workers are leaf subagents
      that cannot resolve ${CLAUDE_PLUGIN_ROOT} themselves (same paste mechanism as
      worker-brief.md / bidirectional-impact.md). Edit lenses here, not in SKILL.md. -->
@@ -20,7 +20,7 @@ without re-deriving. Grounding vocabulary, carried on every finding: `osm` = OSM
 
 ---
 
-## Phase 1 lenses (haiku - wide / shallow, single-tool lookup only)
+## Phase 1 lenses (haiku - wide / shallow gathering, several OSM tools allowed)
 
 ### L1. Module purpose
 
@@ -45,7 +45,7 @@ bullet list, each with `file:line` + the model / route it dispatches to.
 
 ---
 
-## Phase 2 lenses (sonnet - narrow / deep, multi-tool OSM synthesis allowed)
+## Phase 2 lenses (sonnet - narrow / deep analysis)
 
 For each hot-spot, apply these lenses and record each as a labelled subsection in the phase2 file.
 

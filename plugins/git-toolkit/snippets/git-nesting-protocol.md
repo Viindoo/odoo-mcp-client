@@ -79,15 +79,16 @@ makes a runaway spawn-storm impossible by construction.
 
 ## N3 - Per-phase model map (PHASED-PIPELINE)
 
-The lead is opus. It assigns each phase its own model by cognitive load:
+The lead's tier is fixed by the CALLER at launch (git-model-tiers.md row 1). It assigns each phase its
+model; this table is the only copy:
 
 | Phase | Worker | Model | Why |
 |---|---|---|---|
-| P1 MAP | `git-surveyor` x N (parallel) | haiku | cheap mechanical `--name-only`/`--numstat` clustering |
-| P2 EVALUATE | `git-surveyor` per cluster | sonnet | read a scoped diff, assess conflict/risk/intent |
-| P3 STRATEGY | `git-pipeline-lead` (self) | opus | synthesize the safe execution plan + sequencing |
-| P4 EXECUTE | `git-operator` per cluster | sonnet, opus for complex rewrite | apply with backup + per-batch verify |
-| P5 VERIFY | `git-surveyor` | sonnet | tree-identity + range-diff + no-loss proof |
+| P1 MAP | `git-surveyor` x N (parallel) | haiku | mechanical `--name-only`/`--numstat` clustering |
+| P2 EVALUATE | `git-surveyor` per cluster | haiku (sonnet for a cluster flagged high-risk) | read a scoped diff, assess conflict/risk/intent |
+| P3 STRATEGY | `git-pipeline-lead` (self) | the lead | synthesize the safe execution plan + sequencing |
+| P4 EXECUTE | `git-operator` per cluster | sonnet (haiku for a conflict-free cherry-pick/merge cluster) | apply with backup + per-batch verify |
+| P5 VERIFY | `git-surveyor` | sonnet | safety gate: tree-identity + range-diff + no-loss proof |
 
 Tier vocabulary and the single-delegate op-class table: `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`.
 

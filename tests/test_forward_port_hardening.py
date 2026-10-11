@@ -1823,8 +1823,8 @@ class TestTable1GateIsP0Executable:
 # ---------------------------------------------------------------------------
 # Invariant (R2) - forward-port groups by MODULE first, then by commit within
 # that module (R2a); at most ONE odoo-intent-extractor instance per module
-# across the whole run (R2b); EXTRACT tier prefers sonnet/haiku and gates opus
-# on explicit human confirmation (R2c/R2d).
+# across the whole run (R2b); the EXTRACT tier is haiku or sonnet per module
+# bundle (R2c).
 #
 # Scope note (GT1): scanned across the WHOLE `skills/` + `agents/` tree (rglob,
 # no allowlist) PLUS `README.md`, because the same agent is also dispatched by
@@ -1970,10 +1970,9 @@ class TestPlanRecordIsModuleFirst:
         )
 
 
-class TestExtractTierOpusHumanConfirmGate:
-    """R2d: opus is the only tier Table 1 (EXTRACT) can reach above sonnet/haiku, and it
-    must never be a silent auto-assign - the P4 Plan Mode gate must call it out and get
-    explicit human confirmation, the same mechanism Table 2 already uses for fable."""
+class TestExtractTierIsPerModuleBundle:
+    """R2c: Table 1 (EXTRACT) resolves ONE tier per MODULE BUNDLE - every commit touching that
+    module - never per individual commit, because one intent-extractor runs per module."""
 
     def _table1_section(self):
         text = TRIAGE_TABLE.read_text(encoding="utf-8")
@@ -1981,34 +1980,11 @@ class TestExtractTierOpusHumanConfirmGate:
         end = text.index("## Table 2", start)
         return text[start:end]
 
-    def test_table1_section_has_a_human_confirm_gate(self):
-        section = self._table1_section()
-        assert re.search(r"human confirm|human-confirm|explicit human", section, re.I), (
-            "fp-triage-table.md Table 1 section must contain a human-confirm gate for "
-            "opus - Table 1 has no fable band, so opus is the only tier this table can "
-            "resolve above sonnet/haiku, and R2d requires explicit human approval for it"
-        )
-
     def test_table1_gate_names_the_module_bundle_unit(self):
         section = self._table1_section()
         assert "module bundle" in section.lower() or "MODULE BUNDLE" in section, (
             "fp-triage-table.md Table 1 must resolve the tier per MODULE BUNDLE "
             "(every commit touching that module), not per individual commit"
-        )
-
-    def test_table1_gate_has_a_decidable_downgrade_and_suppressed_path(self):
-        """The gate must not deadlock when no human is available (an active run-<id> /
-        WORKTREE_PATH context) - it must auto-downgrade and record the reason, mirroring
-        odoo-coding's own suppressed-gate pattern (reused by pointer, not re-derived)."""
-        section = self._table1_section()
-        assert "opus declined" in section, (
-            "Table 1's gate must record a decline downgrade ('<module>: sonnet (opus "
-            "declined)') when the human declines opus"
-        )
-        assert "gate suppressed" in section, (
-            "Table 1's gate must record a suppressed-gate auto-downgrade ('opus "
-            "auto-downgraded - gate suppressed') for the no-human-available case - "
-            "it must never silently proceed at opus nor deadlock waiting on a human"
         )
 
 

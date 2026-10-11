@@ -1,6 +1,6 @@
 # odoo-code-review - Agent Dispatch Prompt Templates
 
-## Scope agent (odoo-review-scoper, sonnet)
+## Scope agent (odoo-review-scoper, haiku)
 
 ```
 TARGET: <local | worktree:<abs-path> | pr:<number-or-url>>
@@ -57,7 +57,7 @@ the PR-post path posts one inline comment per row.
 Return a 5-line summary (counts by severity + top finding + verdict + score) and the artifact path.
 ```
 
-## Synthesis reviewer (opus)
+## Synthesis reviewer (sonnet)
 
 ```
 MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. review_root: <abs-path from scoper>.
@@ -112,51 +112,4 @@ Phase B synthesis can read it.
 Return a short summary (per-lens PASS/WARN/FAIL + top finding) and the artifact path.
 ```
 
-## Domain synthesis (odoo-code-reviewer, opus) - large sets only (Phase B domain-partition)
-
-### Per-domain pass (one per business-domain bucket)
-
-```
-MODE=synthesis. DOMAIN: <domain name>. Modules in this domain: [<m1>, <m2>, …]. review_root: <abs-path>.
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
-(state-root-resolution.md §Cross-worktree dispatch).
-Read ONLY this domain's per-module reports (<module>.md + ui-review-<module>.md) in
-<ISOLATE_DIR>/reviews/<slug>-<date>/. Compute the dependency closure WITHIN this domain
-(forward module_inspect(name='<m>', method='dependencies', odoo_version='<version>'), reverse impact_analysis) and review cross-module
-integration risk inside the domain only. Write domain-<d>.md there.
-Output contract (yours) - include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE for this domain.
-Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
-`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
-the PR-post path posts one inline comment per row.
-Return a summary + path.
-```
-
-### Final cross-domain pass (one, after all per-domain passes)
-
-```
-MODE=synthesis. Domains: [<d1>, <d2>, …]. review_root: <abs-path>.
-SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
-ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
-Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
-(state-root-resolution.md §Cross-worktree dispatch).
-Read every domain-<d>.md in <ISOLATE_DIR>/reviews/<slug>-<date>/. Compute CROSS-DOMAIN closure
-(inter-domain field/API contracts, manifest depends + data load-order across domains, ripple between
-domains). Write _synthesis.md with the overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE aggregated
-across ALL domains. The final verdict + score MUST aggregate the per-module severity counts carried
-in each domain-<d>.md (not only domain-level integration findings), so a large-set PR still reflects
-every per-module CRITICAL/HIGH.
-Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
-`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
-the PR-post path posts one inline comment per row.
-Return a summary + path.
-DESIGN_DOC: <null in master-child | flat TDD path in single>
-(master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
-When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Omit when null/absent.
-MASTER_DESIGN_DOC: <master TDD path | none> - When != none: MANDATORY - verify the cross-domain
-closure against §10 cross-module contracts (ownership, dep-direction, integration-module rule);
-a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
-```
-
-Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (per-module, synthesis, and domain-synthesis passes above are all this same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool. Every template above carries `SHARE_DIR:`/`ISOLATE_DIR:` - the SAME literals the code-review skill captured once in its Phase 0 against `review_root`; every dispatched agent consumes them verbatim and never re-resolves (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
+Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (the per-module and synthesis passes above are the same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool. Every template above carries `SHARE_DIR:`/`ISOLATE_DIR:` - the SAME literals the code-review skill captured once in its Phase 0 against `review_root`; every dispatched agent consumes them verbatim and never re-resolves (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).

@@ -130,8 +130,8 @@ Full per-phase dispatch briefs, verbatim git commands, and artifact formats:
 
 **Small-scale fast-path:** when recon shows <=5 commits, the patch-id pre-filter finds zero
 absorbed commits, AND one cheap OSM batch over the three-dot diff finds zero renamed/moved
-symbols, collapse P2+P3 into ONE sonnet `odoo-diff-comparator` pass and skip the opus cluster
-comparator. P8b (symbol-survival + collection gate) still runs in all cases - it is what
+symbols, collapse P2+P3 into ONE sonnet `odoo-diff-comparator` pass and skip the separate
+P2 extractor fan-out and P3 cluster comparator. P8b (symbol-survival + collection gate) still runs in all cases - it is what
 guarantees correctness at small scale and is not optional even on a 1-commit branch.
 **Fast-path P8 fallback (commit dump provisioning):** the fast-path skips P2 so no
 `intents/<sha>.md` exist. If P8 stops on a conflict, provision the dump first: invoke
@@ -162,8 +162,8 @@ run forever:
 bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
 Enforcer: whoever executes `odoo-git-rebase` next, unconditionally, every run.
 
-**P0 - Intake / resolve [sonnet subagent - clarify gate if open_questions non-empty].**
-Turn the free-text ask into structured inputs without guessing. Dispatch a sonnet intake
+**P0 - Intake / resolve [haiku subagent - clarify gate if open_questions non-empty].**
+Turn the free-text ask into structured inputs without guessing. Dispatch a haiku intake
 subagent with the full NL prompt. The subagent: parses the NL request to identify the feature
 ref (local branch name or PR number/URL) and new-base; verifies both refs share the same Odoo
 major series; emits `open_questions[]` for ambiguities and `branches_to_materialize[]` for any
@@ -195,8 +195,9 @@ dispatch ever owns a given commit below the batching threshold, so no write coll
 possible) in every extractor brief. Model per EXTRACT tier (`references/rb-triage-table.md`
 Table 1). Each writes `intents/<sha>.md`: {intent_one_liner, symbols, outcome_hint, grounding}.
 **Above ~30 non-(a) commits, batch intent extraction by MODULE (one extractor per module
-covering its commits) rather than per-commit, to bound dispatch batches and the P3 context
-load - when batching, a commit touching two modules is dispatched inside BOTH modules'
+covering its commits) rather than per-commit - the parallel unit becomes the module, so the
+fan-out stays within the Mode B budget with fewer launches; it is a parallelism choice, not a
+context limit - when batching, a commit touching two modules is dispatched inside BOTH modules'
 bundles, so set that dispatch's `SLUG` to `<slug>/<module>` (never the bare run `<slug>`) so
 the two concurrent instances write to different paths instead of racing on the same
 `intents/<sha>.md`; a consolidation fan-in step (before P3, module-batched mode only) then
@@ -207,7 +208,7 @@ resume above) and idempotent - a crash between extraction and consolidation resu
 re-copying, never by silently treating "the extractor returned" as "the canonical record
 exists".** Brief template: `references/rb-phase-detail.md` P2.
 
-**P3 - Cluster behavior comparison [odoo-diff-comparator opus - completeness gate MUST pass
+**P3 - Cluster behavior comparison [odoo-diff-comparator sonnet - completeness gate MUST pass
 before dispatch; no human-confirm gate].**
 Before dispatch: confirm every non-(a) commit has a canonical, non-empty `intents/<sha>.md`
 record (delegated read-only check, never inline). A missing or empty record returns `BLOCKED`
@@ -221,9 +222,7 @@ pre-computed by a git-ops pre-step per `references/rb-phase-detail.md` P3) + all
 `intents/*.md`. Compare nghiệp vụ / ý đồ / expected outcomes / acceptance criteria of the
 feature range against `<new-base>` HEAD. Per commit: decide absorption failure mode
 (already-present / renamed / moved / override-refactored / depends-drift / test-symbol-removed)
-per `[[rb-intent-4outcome]]` (`${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md`). **When
-intent files exceed ~40, chunk the comparator by module cluster and merge per-cluster verdicts;
-never load >40 intent files into one opus context.** Emit `comparison.md`:
+per `[[rb-intent-4outcome]]` (`${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md`). Emit `comparison.md`:
 {per-commit: outcome a/b/c/d, failure_mode, evidence, proposed adapt} + duplicate-behavior risk
 list.
 
@@ -371,9 +370,12 @@ Full both-table detail with per-row conditions:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-triage-table.md`.
 
 The two tiers are decided INDEPENDENTLY:
-- **EXTRACT tier** (P1 intent extraction): haiku/sonnet/opus per commit complexity.
-- **ADAPT tier** (P8 conflict resolution): haiku/sonnet/opus/fable per adapt complexity
-  (fable ALWAYS needs explicit human confirmation at P6 plan gate).
+- **EXTRACT tier** (P1 intent extraction): haiku when the commit states its intent by message/PR/tests
+  and stays in one module (or is doc/label/rename-only), sonnet when it needs reasoning (logic,
+  migration, cross-module).
+- **ADAPT tier** (P8 conflict resolution): the `odoo-coding` step 5 table (SSOT, not restated);
+  a bucket (a)/(d) test-only forward is haiku. Fable ALWAYS needs explicit human confirmation at
+  the P6 plan gate.
 
 Never reuse one tier as the other.
 

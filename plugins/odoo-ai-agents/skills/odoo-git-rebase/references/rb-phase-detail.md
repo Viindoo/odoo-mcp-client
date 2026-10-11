@@ -47,10 +47,10 @@ If a rebase is in progress: skip P1-P7 entirely; resume the P8 loop from the sto
 commit (skip `status=resolved` commits in checkpoint.json; resume a `status=designed`
 commit at P6 design_doc ingestion). Do NOT blindly recreate the integration worktree.
 
-Dispatch a sonnet subagent. Brief (run-specific inputs only):
+Dispatch a haiku subagent. Brief (run-specific inputs only):
 
 ```
-DISPATCH MODEL: sonnet
+DISPATCH MODEL: haiku
 TASK: Resolve the following natural-language rebase request into structured inputs.
 NL REQUEST: <verbatim user prompt>
 STEPS:
@@ -156,7 +156,7 @@ FORMAT (one row per commit):
   subject: <one-line message>
   modules: [<list of touched Odoo module dirs>]
   already_on_base: true|false  # patch-id candidate only; P3 is authoritative
-  extract_tier: haiku|sonnet|opus
+  extract_tier: haiku|sonnet
   merge_commits_in_range: true|false
   merge_base_ambiguous: true|false
 ```
@@ -357,10 +357,10 @@ git-ops writes the diff to the output file and returns the path.
 
 ### P3 dispatch: odoo-diff-comparator
 
-Dispatch `odoo-diff-comparator` (opus for cluster-wide runs, sonnet for <=3 small modules):
+Dispatch `odoo-diff-comparator` (sonnet):
 
 ```
-DISPATCH MODEL: opus
+DISPATCH MODEL: sonnet
 mode: rebase
 TASK: Compare the feature branch versus the new base as a WHOLE - what intents the new base
       already satisfies, what symbols it renamed/moved, what override points it refactored.
@@ -459,7 +459,7 @@ Two-arg onto form: target <new-base>, upstream <old-base>. Avoids 'already used 
 |-----|---------|---------|-------------|-----------|------------|-------|
 | <sha> | <subj> | (a) | haiku | haiku (skip) | - | already on base |
 | <sha> | <subj> | (b) | sonnet | sonnet | - | symbol renamed |
-| <sha> | <subj> | (c) | opus | fable (CONFIRM) | <path> | framework rewrite |
+| <sha> | <subj> | (c) | sonnet | fable (CONFIRM) | <path> | framework rewrite |
 
 ## Conflict-resolution policy
 Resolve each stopped commit to INTENT on the new-base idiom via the `odoo-coding` skill

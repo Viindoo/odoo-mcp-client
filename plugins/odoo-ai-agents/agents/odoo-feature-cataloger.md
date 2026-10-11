@@ -11,7 +11,7 @@ description: |
   before authoring a user guide or landing page. Standalone-first (OSM + disk); no browser, no
   live instance. Writes only under the project's shared documentation cache; does NOT spawn
   subagents; does NOT invoke the Skill tool
-model: sonnet
+model: haiku
 ---
 
 # odoo-feature-cataloger agent

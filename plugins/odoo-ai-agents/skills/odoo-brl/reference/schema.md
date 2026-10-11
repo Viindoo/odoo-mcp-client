@@ -349,11 +349,7 @@ Dependency adjacency written by Phase D after all chunks finish. The reasoning a
   "critical_path_days": 18,
   "meta": {
     "clusters": ["account-Finance", "sale-Sales", "stock-Inventory"],
-    "cluster_caps": [
-      {"cluster": "account-Finance", "size": 132, "split_into": ["account-Finance#1", "account-Finance#2"], "cap": 120}
-    ],
-    "technical_edges": "from-module-deps",
-    "cluster_size_cap": 120
+    "technical_edges": "from-module-deps"
   }
 }
 ```
@@ -369,8 +365,6 @@ Dependency adjacency written by Phase D after all chunks finish. The reasoning a
 | `critical_path` | array | Longest EST/EFT path (req_ids) |
 | `critical_path_days` | number | Sum of `effort_days` along the critical path (= max EFT) |
 | `meta.clusters` | array | Cluster ids used in D2 |
-| `meta.cluster_caps` | array | Records any cluster that exceeded the 120-item cap and was split |
-| `meta.cluster_size_cap` | int | Heuristic bound (120) - documented identically in `dag-prompt.md` and SKILL.md Phase D |
 | `meta.technical_edges` | string | `from-module-deps` normally; `skipped-osm-unreachable` in standalone fallback |
 | `meta.custom_affinity_edges` | int | Count of inter-cluster edges added via D4-B business-domain affinity heuristic for Custom clusters (0 if no Custom items produced cross-cluster edges) |
 
