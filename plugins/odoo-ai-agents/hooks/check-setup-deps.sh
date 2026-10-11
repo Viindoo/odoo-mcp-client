@@ -83,12 +83,15 @@ fi
 
 # SessionStart context injection: always surface the orchestration digest so the
 # planning/main agent knows up front which skills spawn subagents (never forbids a
-# legitimate spawn) and which require the orchestrating context. Tiny payload (~80 tokens), plugin-local,
+# legitimate spawn) and how to pick the `model` of every agent it launches. Small payload, plugin-local,
 # no machine-specific data. SSOT: docs/reference/orchestration-digest.txt (generated).
 _plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
 _digest_file="${_plugin_root}/docs/reference/orchestration-digest.txt"
 if [ -f "${_digest_file}" ]; then
   _ctx="$(cat "${_digest_file}")"
+  # The digest names files as ${CLAUDE_PLUGIN_ROOT}/...; the hook knows the real root, so resolve
+  # it here and the main agent receives paths it can open directly.
+  _ctx="${_ctx//\$\{CLAUDE_PLUGIN_ROOT\}/${_plugin_root}}"
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg ctx "${_ctx}" \
       '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'

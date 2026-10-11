@@ -277,8 +277,7 @@ TRIAGE each MODULE's commit bundle to an EXTRACT model tier INLINE (`git show --
 the bundle + one `find_override_point` probe when override depth matters - the orchestrator triages
 the tier itself; never dispatch an agent to decide a dispatch). This is recon only:
 no approval gate, no worktree, no branch yet - the plan gate is P4, after intent + classify +
-design. Triage tier table (now module-bundle-scoped, with the R2d opus human-confirm gate):
-`references/fp-triage-table.md`.
+design. Triage tier table (module-bundle-scoped): `references/fp-triage-table.md`.
 
 **P1 - Intent extract [PARALLEL, READ-ONLY, MODULE-SCOPED].** Runs BEFORE the plan gate so the plan is built
 on extracted intent, not a guess. This is the only true parallel speed-up - and it is honored
@@ -364,7 +363,7 @@ post-merge. Invoke the
 installable (Odoo convention), an absent FILE - `<tgt-descriptor>` being the name that side actually
 uses - means the module is not on the clean tip. **Produce
 `manifest_path` for EVERY touched module, unconditionally** - it is the prober's required input, and
-the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only sonnet leaf
+the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only haiku leaf
 `odoo-installable-prober` only when the SOURCE HISTORY must ALSO be read to disambiguate category 3 -
 the module's manifest was NOT touched by the forwarded commit range yet its target state is unclear. Do NOT
 blanket-dispatch: for categories 1-2 the orchestrator's own clean-tip read is sufficient and a probe
@@ -418,7 +417,7 @@ opened Plan Mode), present the plan, `ExitPlanMode` on approve so the user appro
 UI. The plan CONTENT is forward-port-specific and stays authored here - it is NOT routed through
 `odoo-planning`, and it is MODULE-FIRST (R2a - the whole picture the flat commit list cannot give):
 module topology (each module's own ordered commit list, from the P0 map); per-module EXTRACT tier
-[the real triaged tier, gated per § Model triage when it resolves to opus]; per-commit bucket [the
+[the real triaged tier]; per-commit bucket [the
 real classification] and ADAPT tier within that module; installable routing per module; design-doc
 link for any commit P3 designed; and the ABSORPTION topology - how many batches, each batch's
 `<src-first-SHA>..<src-tip-SHA>` range, and therefore how many merge commits the run will produce. State
@@ -462,7 +461,7 @@ SSOT: `[[fp-symbol-survival-check]]`.
 **P6 TEST-survival sub-check [MUST - after the production symbol check].**
 Also ground test coverage to detect test code referencing a field/model symbol removed at target
 (git auto-merge leaves no conflict marker, so the break is autosilent at test time). **Dispatched to
-`Explore` (read-only)** - the same delegate P6 uses for OSM grounding, assigned by
+`Explore` (read-only, `model: haiku` passed on the launch)** - the same delegate P6 uses for OSM grounding, assigned by
 `[[fp-symbol-survival-check]]` § Who runs this check. Every call named below is CONTENT OF THAT
 DELEGATE'S BRIEF, never a call you issue in this context; the paragraph reads as tool syntax only
 because it is the brief text. Brief it to: for each model/field touched, call
@@ -483,7 +482,7 @@ grep / import / AST breaks via two lanes: classes (d)(e)(g) run over ALL merged-
 (production AND `tests/`) - (d)(e) catch runtime NameError and (g) catches an autosilent
 ORM Invalid-field key before P9; the remaining classes (a)(b)(c)(f) and the collection
 ACCEPTANCE GATE apply over `tests/` only.
-DISPATCH the two lanes as read-only delegates and record only their verdict - the enumeration,
+DISPATCH the two lanes as read-only delegates (`Explore`, `model: haiku` passed on the launch) and record only their verdict - the enumeration,
 the `pyflakes`/`py_compile` runs and the collection gate never run in this context
 (`[[fp-symbol-survival-check]]` § Who runs this check). The delegate enumerates every symbol, file
 path, import, and test-base-class the merged code touches (Lane 1 production AND tests; Lane 2 tests
@@ -799,20 +798,19 @@ lint-only lane) or (b) do now (estimate effort, adapt at the ADAPT-table tier). 
 absorb unbounded re-implement work; default on no answer is defer. SSOT:
 `references/fp-triage-table.md` § Bucket-(c) upgrade-scale gate.
 
-Triage is INLINE and deterministic, run twice with different tables, and is now resolved PER
-MODULE BUNDLE for EXTRACT (R2a/R2c/R2d - see `references/fp-triage-table.md` Table 1):
+Triage is INLINE and deterministic, run twice with different tables, and EXTRACT is resolved PER
+MODULE BUNDLE (R2a/R2c - see `references/fp-triage-table.md` Table 1):
 
 - **EXTRACT tier (P0 -> P1 intent extraction, per MODULE bundle):** haiku for a bundle whose every
-  commit is docstring/comment/string-only, sonnet for a bundle with a logic commit (the default -
-  R2c preference), opus for a bundle with a migration/cross-module/inheritance-axis commit -
-  resolved as the HIGHEST-priority row ANY commit in the module's bundle matches, never an
-  average. **fable is NOT in the EXTRACT band.** **Opus at this step needs explicit human
-  confirmation (R2d)** - not a silent auto-assign; full gate wording in
-  `references/fp-triage-table.md` Table 1.
-- **ADAPT tier (P8 code adapt, per commit within a module):** follow the `odoo-coding` deterministic
-  tier table (haiku/sonnet/opus/fable, sonnet default, fable always needs explicit human
-  confirmation - unchanged, still per-commit since a module's own commits can differ in ADAPT
-  complexity).
+  commit states its intent by message/PR/tests and stays in this one module, or is
+  docstring/comment/string/rename-only; sonnet for a bundle with a commit that needs reasoning -
+  logic, a migration, a cross-module change (the default - R2c preference). Resolved as the
+  HIGHEST-priority row ANY commit in the module's bundle matches, never an average. Neither fable
+  nor opus is in the EXTRACT band, and size alone never raises it.
+- **ADAPT tier (P8 code adapt, per commit within a module):** the `odoo-coding` step 5 tier table
+  (SSOT, not restated here) - except a bucket (a)/(d) test-only forward, which is haiku. Fable
+  always needs explicit human confirmation (table 2 in `references/fp-triage-table.md`); per
+  commit, since a module's own commits can differ in ADAPT complexity.
 
 Resolve a tier by walking each table top-down, first match wins. Full both-table detail with
 per-row conditions: `references/fp-triage-table.md`. Record every chosen tier in `plan.md` - a
@@ -821,7 +819,7 @@ tier is part of the approved plan, not a runtime improvisation.
 The two tiers are decided INDEPENDENTLY - never reuse one tier as the other. Run the EXTRACT
 table at P0->P1 against the MODULE's whole commit bundle and the ADAPT table at P8 against each
 commit's own conditions; a module whose bundle is haiku-grade to EXTRACT may still have one commit
-that is opus-grade to ADAPT if that commit's target re-implementation is cross-module.
+that is sonnet-grade to ADAPT if that commit's target re-implementation needs reasoning.
 
 ## Absorb-all - the ONE git shape, and the only one
 

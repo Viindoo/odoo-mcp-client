@@ -3,7 +3,7 @@ name: odoo-deep-survey
 argument-hint: "[scope/codebase path]"
 description: >-
   Deep codebase survey; only odoo-intake runs it, on user opt-in
-model: opus
+model: sonnet
 ---
 
 # Odoo Deep Survey - broad→narrow→deep, then synthesize
@@ -52,7 +52,7 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
    drop it or mark it `UNRESOLVED`. The worklog `EVIDENCE` field is mandatory
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 4. **Escalate by evidence, not by vibe.** Phase 3 (opus) runs only when a measurable trigger fires
-   (see § Phase 3). Default is to stop after Phase 2 and synthesize - opus is the expensive tier.
+   (see § Phase 3). Default is to stop after Phase 2 and synthesize.
 5. **Zero-trust: descriptions are CLAIMS, source is TRUTH.** Docstrings, comments,
    README/manifest long-description, commit messages, prior survey/audit reports, AND OSM's
    DESCRIPTIVE fields (`describe_module` prose, `summary`, indexed docstrings, NL pattern notes)
@@ -73,8 +73,8 @@ full lens block text, OSM grounding instructions) and shares the parent's prompt
 eliminates per-worker re-passing of the lens block and OSM bootstrap, which is the dominant
 per-worker cost across all three phases. Model varies by phase (haiku / sonnet / opus) - set
 explicitly on each fork's launch per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
-§ Model-tier selection (Recon/scouting phase default: this is enumeration/grounding work, haiku
-or sonnet by default; Phase 3's opus is the evidence-gated escalation below, never a default) -
+§ Model-tier selection (Phase 1 gathers at haiku, Phase 2 analyses at sonnet; Phase 3's opus is the
+evidence-gated escalation below, never a default) -
 no custom agentType beyond the fork. Each fork still writes its OWN findings file; forks never
 share mutable state.
 Fallback (Tier C): if `subagent_type: "fork"` is unavailable in the current runtime, dispatch a
@@ -133,7 +133,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`, which globs BOTH descriptor
   filenames). For a non-code intent, the unit is one persona-domain area implied by the intent.
 - **Fan-out:** one haiku worker per unit, filling the Mode B budget (rolling-window beyond it).
-- **Each worker** (haiku = read-only lookup/classify only, never multi-tool OSM synthesis):
+- **Each worker** (haiku = read-only gathering and classifying; several OSM tools in a row are fine):
   reads the module's manifest + skims its models/views, and confirms existence with read-only OSM
   - `check_module_exists`, `module_inspect` (`method='summary'`), and
   `module_inspect` (`method='tests'`) to enumerate the test classes defined in the module. The test
@@ -155,7 +155,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 - **Scope** = the Phase-1 hot-spots ranked most-relevant to the intent (narrow the field; ignore
   areas Phase 1 marked irrelevant).
 - **Fan-out:** one sonnet worker per hot-spot, within the Mode B budget.
-- **Each worker** (sonnet = multi-tool OSM synthesis allowed): traces the hot-spot with
+- **Each worker** (sonnet = analysis and judgement over the gathered map): traces the hot-spot with
   `model_inspect` (fields/methods), `find_override_point`, `resolve_orm_chain`, and maps
   **bidirectional impact** per `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md` (upstream
   `depends` closure + downstream `impact_analysis`, direct AND transitive). It answers the
@@ -206,13 +206,13 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 ## Phase 3 - opus escalation (conditional)
 
 Run a Phase 3 opus pass **only if** at least one measurable trigger holds (else SKIP straight to
-synthesis - opus is the costly tier, 2 in-flight max under Mode B):
+synthesis; 2 in-flight max under Mode B):
 
 1. **Conflict** - two or more Phase-2 reports disagree on one load-bearing fact (e.g. which module
    owns the hook).
 2. **Cross-cutting unresolved** - a hot-spot's `impact_analysis` shows >=3 modules depending on it
    transitively that no worker fully traced, OR the Phase-2 dependency-closure drill left a branch
-   >=3 layers deep ungrounded to `base` (the closure exceeded the worker budget).
+   >=3 layers deep ungrounded to `base`.
 3. **Coverage gap** - an intent sub-question is still marked `UNRESOLVED` in the worklog after
    Phase 2.
 
@@ -258,7 +258,7 @@ family delta; never inline that file verbatim into a hard-leaf brief.
 
 After the last phase, read every `phase*/*.md` + the worklog (oldest-first), aggregate the lens
 subsections (do NOT re-survey), and write `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md` to the full
-contract in `references/synthesis-schema.md`. Each section is few-token, agent-readable, and
+contract in `references/synthesis-schema.md`. Synthesis runs at sonnet in this skill's own context; when the surveyed domain is legal, accounting, regulatory or another deep specialist domain, dispatch it to an opus subagent instead (tier SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection). Each section is few-token, agent-readable, and
 carries `grounded: osm | hybrid | local-source`. Sections:
 
 - **scope_covered**, **key_findings** (`file:line` + OSM), **hot_spots_ranked** - as before.

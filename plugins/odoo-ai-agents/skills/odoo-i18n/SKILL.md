@@ -124,7 +124,7 @@ dead weight:
 rule + bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
 Clause 3. Enforcer: whoever executes `odoo-i18n` next, unconditionally, every run.
 
-**P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
+**P0 - Scope gate [haiku, STOP].** Resolve the target language list by precedence (highest first),
 then echo which source was used:
 
 1. Explicit languages in the request/args.
@@ -210,7 +210,7 @@ each assembled TM to `<ISOLATE_DIR>/i18n/<slug>-<date>/glossary-tm-<lang>.json` 
 language). Do NOT share or merge TM across languages. Sonnet when the scope spans domain/regulatory
 terminology; haiku for a plain module.
 
-**P2 - Build the export instance, then export `.pot` + every `.po` from it [sonnet].** Per L1 of
+**P2 - Build the export instance, then export `.pot` + every `.po` from it [haiku].** Per L1 of
 the recipe: ONE build per module serves the whole run, and both artifact kinds come out of it.
 
 Dispatch `odoo-instance` with a build shape that is not negotiable and not defaulted:
@@ -318,9 +318,10 @@ declares `demo` files, returns BLOCKED rather than reconciling - the catalog wou
 the reconcile would report phantom removals. Pass the model both as a
 `DISPATCH MODEL:` line in the brief and as the Agent `model` parameter:
 
-- **sonnet** (default) for a plain module translation.
+- **sonnet** (default) - translation must read context (is "Sun" the star or the day?), so it is never a haiku job.
 - **opus** when the scope carries domain / legal / regulatory terminology (e.g. accounting
-  circulars, statutory report labels) where a wrong term has compliance cost.
+  circulars, statutory report labels) where a wrong term has compliance cost. State this WHY in
+  the brief: the glossary's project layer and the independent-regime guard become load-bearing.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
 decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). Its reconcile /

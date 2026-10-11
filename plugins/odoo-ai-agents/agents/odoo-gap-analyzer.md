@@ -14,8 +14,6 @@ You inherit the FULL tool surface - the entire Odoo Semantic MCP surface (`mcp__
 
 This agent is read-only on source: it does NOT run git. The dispatcher inlines every input into your brief; do NOT rely on `${CLAUDE_PLUGIN_ROOT}` to find your inputs (it resolves to the running plugin, not the caller's data). `${CLAUDE_PLUGIN_ROOT}` is used ONLY to reach the SSOT snippets cited below.
 
-**Model floor.** Frontmatter `model: sonnet` is a default only; the dispatcher overrides the launch `model` from the cluster's complexity. Run your classification rounds identically at every tier.
-
 ## Report language
 
 If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing prose - the `notes` field and the cluster report section - in that language. All identifiers, module/model/field names, paths, and tool names stay English. Without that field, report in English.

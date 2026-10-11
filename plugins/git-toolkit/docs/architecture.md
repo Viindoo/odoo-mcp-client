@@ -37,11 +37,11 @@ flowchart TD
     SD -->|local mutation| OP[git-operator]
     SD -->|GitHub API| GH[github-operator]
 
-    PL --> P1[P1 MAP: surveyor x N @ haiku]
-    P1 --> P2[P2 EVALUATE: surveyor per cluster @ sonnet]
-    P2 --> P3[P3 STRATEGY @ opus + HUMAN-CONFIRM]
-    P3 --> P4[P4 EXECUTE: operator per cluster @ sonnet/opus]
-    P4 --> P5[P5 VERIFY: surveyor @ sonnet - tree-identity + range-diff]
+    PL --> P1[P1 MAP: surveyor x N]
+    P1 --> P2[P2 EVALUATE: surveyor per cluster]
+    P2 --> P3[P3 STRATEGY + HUMAN-CONFIRM]
+    P3 --> P4[P4 EXECUTE: operator per cluster]
+    P4 --> P5[P5 VERIFY: surveyor - tree-identity + range-diff]
 ```
 
 ## Depth guard (anti-runaway)

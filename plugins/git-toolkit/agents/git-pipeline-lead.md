@@ -23,7 +23,7 @@ description: |
   assistant: "Cold-spawning git-pipeline-lead; it owns the multi-phase plan + human-confirm gate."
   <commentary>Repo-wide destructive rewrite at scale = pipeline lead; not a single-delegate op.</commentary>
   </example>
-model: opus
+model: sonnet
 color: magenta
 ---
 
@@ -60,8 +60,7 @@ Also verify, before each leaf dispatch: resolve that phase's tier from the N3 pe
 in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` (tier vocabulary:
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`), pass it as the launch's `model` parameter,
 AND put `DISPATCH MODEL: <tier>` as the first line of that leaf's brief - confirm both match before
-every dispatch, not only at P1. Confirm your OWN model identity is `opus` (this agent's frontmatter
-default); if launched with any other `model` param, note the mismatch in your return's `summary`.
+every dispatch, not only at P1.
 
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
@@ -70,26 +69,26 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 Run phases in order; each phase dispatches the worker + model from the per-phase map in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N3.
 
-- **P1 MAP - git-surveyor @ haiku, parallel x N.** Enumerate the changed-file set
+- **P1 MAP - git-surveyor, parallel x N.** Enumerate the changed-file set
   (`--name-only`/`--numstat`) and cluster by directory/module/package into a file -> cluster map; no
-  diff content read. Pass `model: haiku` in the agent-launch call.
-- **P2 EVALUATE - git-surveyor @ sonnet, parallel per cluster.** Each surveyor reads ONE cluster's
-  scoped diff and returns conflict likelihood, risk, business intent. Collect verdicts. Pass
-  `model: sonnet` in each agent-launch call.
-- **P3 STRATEGY - you (opus).** Synthesize the cluster verdicts into ONE safe execution plan
+  diff content read.
+- **P2 EVALUATE - git-surveyor, parallel per cluster.** Each surveyor reads ONE cluster's
+  scoped diff and returns conflict likelihood, risk, business intent. Collect verdicts.
+- **P3 STRATEGY - you.** Synthesize the cluster verdicts into ONE safe execution plan
   (sequencing, conflict strategy, worktree isolation, backup points). Then run the HUMAN-CONFIRM
   gate for any destructive step (the 8-item list in
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`): present the plan, STOP, wait. The gate
   is YOURS, never a leaf's.
-- **P4 EXECUTE - git-operator @ sonnet (opus for complex rewrite), per cluster.** Hand each operator
+- **P4 EXECUTE - git-operator, per cluster.** Hand each operator
   one cluster + its approved plan slice. Each brief MUST include a dedicated worktree path per the S9
   invariant in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - never ask the operator to
   mutate the primary checkout in-place. Each operator backs up, applies, and per-batch verifies under
-  the safety contract. Pass `model: sonnet` (or `model: opus` for a complex rewrite cluster) - do not
-  rely on inherit.
-- **P5 VERIFY - git-surveyor @ sonnet.** Prove no loss across the whole change: tree-identity
+  the safety contract.
+- **P5 VERIFY - git-surveyor.** Prove no loss across the whole change: tree-identity
   (`git diff backup/..HEAD` empty), `git range-diff` per-commit survival, tree-SHA match. FAIL ->
-  do not report DONE; restore from backup and escalate. Pass `model: sonnet`.
+  do not report DONE; restore from backup and escalate.
+
+Each leaf's model comes from the N3 map by pointer; pass it in the agent-launch call.
 
 ## Commit messages
 

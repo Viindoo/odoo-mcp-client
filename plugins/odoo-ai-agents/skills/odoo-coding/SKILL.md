@@ -303,11 +303,11 @@ modules.
 |---|---|---|
 | 1 | Design doc grades it Custom-XL AND the change alters an inheritance axis across multiple modules - the apex of domain + structural complexity | **fable** |
 | 2 | The node reasons across MULTIPLE hard business domains AND is coupled to many interacting modules (both together - not size alone). Qualifying signals: design doc Extension-L / Custom-XL with high cross-module coupling; a core `create`/`write`/`unlink` override whose correctness spans many dependents (`find_override_point` >=3-entry chain, OR `impact_analysis` shows a wide downstream ripple); a cross-model computed chain plus multi-company logic spanning modules; a migration with >1 viable strategy touching many modules | **opus** |
-| 3 | Design doc grades it Standard or Config; OR (single-stack AND <=2 intended files AND ~<=50 LOC AND no method override AND no new method - a constraint, onchange or compute is a method, never `quick`): one field/attr, boilerplate XML view shell, label/string change, security CSV row | **haiku** |
-| 4 | Everything else - and the RIGHT default for large-but-tractable work: a big single-domain node, high LOC or many files, a normal computed/onchange/constraint, a single-method override, a standard OWL widget, a full-stack node, even a large / high-blast-radius node that stays within one business domain - plus ANY genuinely ambiguous case you cannot classify confidently. Size, file count, and blast radius alone never escalate past sonnet; only Row-2 multi-domain + heavy-dependency complexity does | **sonnet** (default) |
+| 3 | The node's scope and every business rule are stated - the design doc grades it Standard or Config, OR the plan/brief spells out the fields, conditions and expected values - AND it is one business domain and one stack. A compute, onchange, constraint or override whose rule is stated is haiku, as are a field/attr, an XML view shell, a label change, a security CSV row | **haiku** |
+| 4 | Everything else - the rules must be inferred or judged rather than read from the spec, a full-stack integration, a standard OWL widget, a node that stays within one business domain but leaves its behaviour to the coder - plus ANY genuinely ambiguous case you cannot classify confidently. Size, file count, and blast radius alone never escalate past sonnet; only Row-2 multi-domain + heavy-dependency complexity does | **sonnet** (default) |
 
 Constraints on the table:
-- **sonnet is the ambiguous-case default and the home of LARGE work.** If two rows
+- **sonnet is the ambiguous-case default.** If two rows
   seem to apply, the higher row (smaller #) wins; if NO row clearly applies, use
   sonnet. Do NOT escalate to opus for size, file count, or blast radius alone -
   Row 2 requires multi-domain difficulty AND cross-module entanglement together.
@@ -326,10 +326,10 @@ Constraints on the table:
   above), no inline human confirmation is possible: if step 5 resolves a node to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<n>: opus (fable auto-downgraded - gate suppressed)`
   in plan.md, in the same format as the human-declined downgrade above.
-- **The tier is the depth of the node's coders, never of its coordinator.** The `odoo-coder`
-  coordinator judges the test leg and the fix loop, so it never runs below sonnet: launch it with
-  `model` = the node tier, raised to sonnet when the tier is haiku, and carry the node tier itself
-  in `DISPATCH MODEL` - the coordinator caps its coders by it.
+- **The coordinator runs at the node tier.** The `odoo-coder` coordinator acts like a full-stack
+  developer on a short session, so you judge the node's scope and difficulty with this table and
+  launch it with `model` = the node tier (deep reasoning still resolves to opus). Carry the same
+  tier in `DISPATCH MODEL` - it caps the coordinator's coders.
 - A fullstack node gets ONE tier applied to both legs by default; you MAY set a
   lower `frontendModel` when the design doc splits effort (e.g. opus backend +
   sonnet frontend). Never set the frontend leg HIGHER than the node tier.
@@ -445,9 +445,8 @@ Do NOT build a Claude Code Workflow (JS) script for this - all fan-out is real a
 narrating a dispatch in prose instead of launching the agent is not allowed.
 
 Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B):
-model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 weight-units in flight
-at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely). The batching loop
-below keeps its shape and this weight budget; only the packed unit changes from module to node.
+model-weighted budget (weights and in-flight cap: Mode B there). The batching loop below keeps its
+shape and that budget; only the packed unit changes from module to node.
 
 Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a
 coordinator that needs a database (a `--test-enable` run or an `-i`/`-u` build) and was handed NO
@@ -540,9 +539,8 @@ what carries that id across the invocation boundary.
    a graceful business BLOCKED the coordinator itself chose. Fail CLOSED on any doubt whether a
    return is a real report; never mark a node `failed` on a mere suspicion when a valid
    Continuation Contract WAS returned.
-5. Each `odoo-coder` launch sets the `model` parameter to the node tier raised to sonnet when it
-   is haiku (step 5's coordinator floor), and the first prompt line
-   `DISPATCH MODEL: <haiku|sonnet|opus|fable>` to the node tier itself.
+5. Each `odoo-coder` launch sets the `model` parameter to the node tier (step 5) and the first
+   prompt line `DISPATCH MODEL: <haiku|sonnet|opus|fable>` to the same tier.
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
    subagent error), retry that node ONCE at `model: opus` and record the downgrade in plan.md
    (`opus (fable unavailable)`).

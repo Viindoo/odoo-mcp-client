@@ -79,10 +79,10 @@ Do NOT diff git history to decide - the clean-tip state is the unambiguous signa
 
 When it is unclear whether a module falls under category 3 (recently flipped
 `installable: False -> True` at source), the orchestrator dispatches the
-dedicated read-only leaf agent **`odoo-installable-prober`** (sonnet) to read
+dedicated read-only leaf agent **`odoo-installable-prober`** (haiku) to read
 the SOURCE repo git history and confirm whether a recent `installable: False ->
 True` transition exists for the module. The agent returns a one-line verdict
-for the merge-log (e.g. `<module>: first enabled at 17.0 commit abc1234 -
+for the merge-log (e.g. `<module>: first enabled at <series> commit abc1234 -
 category-3 confirmed`). This git-history read is heavy and MUST be delegated
 to keep it out of the main/specialist context - do not inline it.
 

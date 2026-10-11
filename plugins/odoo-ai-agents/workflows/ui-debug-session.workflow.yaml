@@ -41,7 +41,7 @@ phases:
   # ------------------------------------------------------------------
   - id: reproduce
     inline: true
-    model_tier: sonnet
+    model_tier: haiku
     gate: "approve / refine: [feedback] / cancel"   # refine: [notes] also carries "I cannot reproduce it" - the notes say so
     # Runner analyzes the symptom card and produces:
     #   1. Minimal reproduction path (menu / action sequence)

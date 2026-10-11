@@ -22,7 +22,7 @@ description: |
   assistant: "Dispatching git-surveyor for range-diff + tree-identity verification."
   <commentary>P5 verify = read-only proof pass; git-surveyor, not git-operator.</commentary>
   </example>
-model: sonnet
+model: haiku
 color: cyan
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---

@@ -1,7 +1,7 @@
 {
   "skill_name": "odoo-brl",
   "schema_version": "1",
-  "notes": "Evals cover: (1) dispatch boundary - odoo-brl vs feature-check vs gap-analysis; (2) 4-way classification golden cases (CE/EE/Viindoo/Custom/OEEL-1); (3) behavioral contracts (GATE 0 gate, resume, resume-idempotency/no-duplicate-rows, OSM-down degrade, no-cost-fabrication); (4) Phase D DAG behavior (acyclic topo output, explicit cycle report, cluster size cap <=120). Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
+  "notes": "Evals cover: (1) dispatch boundary - odoo-brl vs feature-check vs gap-analysis; (2) 4-way classification golden cases (CE/EE/Viindoo/Custom/OEEL-1); (3) behavioral contracts (GATE 0 gate, resume, resume-idempotency/no-duplicate-rows, OSM-down degrade, no-cost-fabrication); (4) Phase D DAG behavior (acyclic topo output, explicit cycle report, clusters never split by size). Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
   "evals": [
     {
       "id": 1,
@@ -189,12 +189,12 @@
     {
       "id": 18,
       "category": "behavior",
-      "test_name": "dag-cluster-size-cap-120",
-      "description": "Cluster reasoning must respect the documented 120-item cap (heuristic bound, acceptance I6).",
-      "setup": "A single (module_family, business_domain) cluster would contain 132 requirements (e.g. account-Finance).",
-      "expected_behavior": "Before intra-cluster Opus reasoning, the oversized cluster is split deterministically by a secondary key into sub-clusters of <=120 items each (account-Finance#1, account-Finance#2). The split is recorded in dag.json.meta.cluster_caps and meta.cluster_size_cap=120. No single Opus reasoning call receives more than 120 requirements.",
-      "must_not": "Pass a cluster of >120 requirements to a single Opus reasoning call. Reason pairwise across the entire BRL. Drop the over-cap requirements instead of splitting.",
-      "tags": ["behavior", "dag", "cluster-cap", "heuristic-bound"]
+      "test_name": "dag-cluster-not-split-by-size",
+      "description": "A large cluster is reasoned about as one cluster; there is no size cap and no size-based split.",
+      "setup": "A single (module_family, business_domain) cluster contains 132 requirements (e.g. account-Finance).",
+      "expected_behavior": "The cluster stays whole (no account-Finance#1 / #2 split, no cluster_caps or cluster_size_cap in dag.json.meta). Intra-cluster Opus reasoning covers all 132 requirements and emits edges only inside the cluster. Per-cluster subagents, if used, exist for parallelism only.",
+      "must_not": "Split or truncate a cluster because of its size. Reason pairwise across the entire BRL. Drop requirements.",
+      "tags": ["behavior", "dag", "cluster", "no-size-cap"]
     },
     {
       "id": 20,

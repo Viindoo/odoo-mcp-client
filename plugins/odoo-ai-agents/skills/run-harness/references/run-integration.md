@@ -279,7 +279,7 @@ to `odoo-planning`. The intra-node work-item split is odoo-coder's private conce
 
 | Phase | Reviewer | Findings | Fixed |
 |---|---|---|---|
-| Integration-branch cross-cutting review | <opus inline | escalated subagent> | <summary> | <yes/no + detail> |
+| Integration-branch cross-cutting review | <inline | opus subagent> | <summary> | <yes/no + detail> |
 | odoo-code-review | odoo-code-review skill | <findings> | <yes/no + detail> |
 
 ## PR (ONE per REPO - each opened once at that repo's land tail; one row per repos[] entry)
@@ -591,7 +591,10 @@ SHARE_DIR        : <captured absolute path - resolved ONCE by run-harness agains
 ISOLATE_DIR      : <captured absolute path - resolved ONCE by run-harness against the run root>
 design_index     : <absolute path under SHARE_DIR, e.g. <SHARE_DIR-literal>/designs/<slug>/index.yaml | none>
 ODOO VERSION     : <the plan's run-header odoo_version - one resolved version for the run>
-REQUEST          : <precise description of the behaviour this node delivers>
+REQUEST          : <the node's inputs.objective verbatim - the business result it delivers (who is
+                   helped, which business job gets done) - then "Done when:" and the node's
+                   inputs.acceptance verbatim (business-observable outcomes, each keeping its
+                   design section 9 / oracle pointer); never reworded into a technical method>
 Repo Capability Card: id=<this node's repo> base=<principal> verify=<command> commit=<resolved by git-ops> confidential=<level>
                    (the repos[] entry whose id equals this node's `repo` - never another repo's card)
 WORKLOG          : <runSlug> - read it, then append significant decisions
@@ -639,9 +642,9 @@ TEST_TAGS        : <series 12.0+: `/<m>` per module in MODULES, comma-joined, so
 
 ---
 
-## Conflict Resolver (Sonnet subagent)
+## Conflict Resolver (sonnet subagent)
 
-When a cherry-pick onto `run-integration` reports a semantic conflict, dispatch a brief Sonnet
+When a cherry-pick onto `run-integration` reports a semantic conflict, dispatch a brief sonnet
 resolver subagent - never resolve the conflict inline in run-harness's own context, and never push
 the resolution down to the node's `odoo-coder`/coder workers.
 
@@ -669,19 +672,11 @@ cold-spawns, so git-ops resumes exactly where it stopped.
 The brief for a REVIEW NODE the plan places over a repo's integration branch. The plan wires that
 node to `odoo-code-review`, which applies this section whenever it is invoked on an
 integration-branch aggregate diff. It is distinct from the per-node code -> review+test loop
-`odoo-coding` runs inside a coding node (narrower scope); both run (double-review). This review is
-NEVER a flat inline review regardless of the diff's size - measure the diff and escalate when it is
-large:
-
-Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and the module count N over the
-integration branch.
-
-- **Large diff** (>~1500 changed lines OR N >= 8 modules): escalate to a **fable** review subagent
-  dispatched from the review node's own context. ALWAYS confirm with the human first, and ask as a
-  TRADEOFF, never by tier name - how big the diff is, that the review runs on the deepest-reasoning
-  setting, and that it costs about 2x - with the reply set `approve / skip / cancel`. On `skip` or
-  when the setting is unavailable, fall back to **opus inline review** and note the downgrade.
-- **Otherwise** (the common case): **opus inline review**, in the review node's own context.
+`odoo-coding` runs inside a coding node (narrower scope); both run (double-review). The review runs
+**inline in the review node's own context at sonnet**. It runs at opus only per the opus row of
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (the integrated change
+sits in a legal, accounting, regulatory or other deep specialist domain, or a sonnet pass failed with
+evidence); the size of the diff or the module count never moves the tier.
 
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to produce the full diff
 (`scope=<principal>...HEAD`) and review for:
@@ -1017,7 +1012,7 @@ files. (No branch was pushed yet, so there is nothing to force-push or revert on
 
 **Example 6 - Conflict resolver path:**
 Two nodes unexpectedly both touch a shared file (missed by the plan; caught at cherry-pick): the
-second node's cherry-pick fails with a conflict. Dispatch a Sonnet resolver subagent
+second node's cherry-pick fails with a conflict. Dispatch a sonnet resolver subagent
 (worker-brief.md) with the conflict diff + both node briefs. Resolver edits the conflicting files
 (markers removed). run-harness re-invokes git-ops (cherry-pick --continue). Re-run verify,
 checkpoint, continue.

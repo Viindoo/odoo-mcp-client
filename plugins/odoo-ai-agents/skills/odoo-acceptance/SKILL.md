@@ -102,7 +102,7 @@ This is the scope every later phase obeys - depth on High tier, smoke on Low.
 
 ## Phase 1 - PLAN (independent oracle)
 
-Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - sonnet default; escalate ONLY when the requirement spans multiple hard business domains with heavy cross-module coupling, never for cluster width or scenario count alone) with
+Dispatch `odoo-qa-planner` (tier per the model-tier SSOT) with
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
 path, and
 `SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`. It returns the immutable, risk-tagged oracle

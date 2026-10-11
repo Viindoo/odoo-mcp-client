@@ -2,7 +2,7 @@
 name: odoo-review-scoper
 description: |
   Use this agent when the odoo-code-review skill needs to resolve the review target, map changed files to modules, and produce a compact scope block before dispatching reviewers. Typical triggers include the skill receiving a `TARGET=local` instruction to scope the current branch diff, a `TARGET=worktree:<abs-path>` instruction to scope a specific worktree, and a `TARGET=pr:<number-or-url>` instruction to scope a pre-resolved PR worktree (the code-review skill creates the worktree via git-toolkit before dispatch) and compute its module scope. This agent scopes only - it does NOT review code, does NOT fix anything, and does NOT spawn subagents
-model: sonnet
+model: haiku
 color: cyan
 ---
 

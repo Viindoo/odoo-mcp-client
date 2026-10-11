@@ -315,15 +315,21 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
 
 
 def gen_orchestration_digest(orch: dict[str, dict]) -> str:
-    """Tiny digest injected at SessionStart so the planning agent knows, up front,
-    which skills launch subagents. Kept terse on purpose."""
+    """Tiny digest injected at SessionStart so the main agent knows, up front, which
+    skills launch subagents and that every agent launch passes `model` from the tier map.
+    Kept terse on purpose; check-setup-deps.sh resolves ${CLAUDE_PLUGIN_ROOT} to the real root."""
     spawners = sorted(n for n, e in orch.items() if _may_spawn(e))
     lines = [
         "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
         "- Skills that LAUNCH subagents - directly, or transitively by chaining a spawner skill via "
         "the Skill tool, e.g. run-harness (let them; a worker doing delegated work should not re-launch them): "
         + (", ".join(spawners) or "none"),
-        "- Full map: docs/reference/ORCHESTRATION-MAP.md",
+        "- Every agent launch (plugin or built-in, e.g. Explore, general-purpose) passes `model` "
+        "explicitly - an omitted model inherits yours. haiku = find/gather, instance ops, "
+        "well-specified code; sonnet = judgement, synthesis, translation, git rewrites; opus = design, "
+        "long complex plans, legal/accounting/specialist domains. Map: "
+        "${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md",
+        "- Full map: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ORCHESTRATION-MAP.md",
     ]
     return "\n".join(lines) + "\n"
 

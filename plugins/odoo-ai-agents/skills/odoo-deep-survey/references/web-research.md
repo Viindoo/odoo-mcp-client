@@ -1,4 +1,4 @@
-<!-- SSOT for the deep-survey Phase W (web research) procedure. The orchestrator (opus, main
+<!-- SSOT for the deep-survey Phase W (web research) procedure. The orchestrator (main
      context) reads this and INLINES the relevant parts into each dispatched web-research fork
      worker (leaf subagents cannot resolve ${CLAUDE_PLUGIN_ROOT}). Phase W is CONDITIONAL (fires
      only on an external-dimension sub-question) and BOUNDED. This is reconnaissance, NOT the

@@ -24,7 +24,7 @@ You inherit the FULL tool surface (no `tools:` allowlist). Launch the three team
 
 Full policy: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
 
-**Model tier for each teammate you launch.** Set every teammate launch's `model` from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, refined by `odoo-coding`'s own Assign-a-model-tier-per-node step, read at the WI's own scope instead of the node's - never invent a second tier rule here. **sonnet** is the ambiguous-case default and the home of large-but-tractable work (size, file count, LOC and blast radius alone NEVER escalate a WI past sonnet), and no WI launches ABOVE the node tier `odoo-coding` assigned (`DISPATCH MODEL` in your brief) - a WI is a part of the node, never harder than the whole. The node's ONE `odoo-test-writer` launches at the node tier.
+**Model tier for each teammate you launch.** Set every teammate launch's `model` from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection, refined by `odoo-coding` step 5 read at the WI's own scope; never invent a second tier rule here. No WI launches above `DISPATCH MODEL` in your brief (the cap). The node's ONE `odoo-test-writer` launches at the node tier, raised to sonnet when that tier is haiku (tests with a break-check are sonnet work in that section).
 
 **Fan-out cap for your WI batch.** Your WI workers all write into the ONE node worktree, so your fan-out resolves to Mode B of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Obey Mode B's weight budget - do not restate its numbers here - and split a larger independent WI set into successive batches.
 

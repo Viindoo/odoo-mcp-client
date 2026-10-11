@@ -72,7 +72,7 @@ Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and
 | `inline` | bool | ONE OF | `true` = runner handles this phase itself; no separate skill dispatched |
 | `agent` | string | ONE OF | Agent bundle name to launch for read-only passes (e.g. `odoo-code-reviewer`) |
 | `nl_trigger` | string | YES (if skill/agent) | NL prompt written to fire the target skill via description-match dispatch |
-| `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; `sonnet` is the floor for a WRITE/AUTHORING phase (any `skill:`/`agent:` phase producing net-new content). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
+| `model_tier` | enum | YES | `haiku` / `sonnet` / `opus` / `inherit`; a `skill:`/`agent:` phase declares a concrete tier; `sonnet` is the floor when it authors net-new content for an external or customer reader (§6). `inherit` is legal ONLY on an `inline: true` assembler phase (§6) |
 | `gate` | string | NO | Gate options shown to user before this phase. Exactly ONE of the two declared reply sets, verbatim, no third set: `"approve / refine: [feedback] / cancel"` (the phase output can be iterated on) or `"approve / skip / cancel"` (do-it-or-skip-it). SSOT: `snippets/planning-gate-contract.md` |
 | `when` | string | NO | Conditional predicate; phase fires only when it evaluates true (otherwise the runner skips the phase). Used by Expert-Pool for per-item specialist selection, and by Pipeline to carry mutually-exclusive conditional branches (e.g. `classification == 'bug'`) |
 | `fanout` | bool | NO | Fan-out pattern: split input by `chunk_by` and run parallel workers |
@@ -88,10 +88,12 @@ Exactly one of `skill`, `inline: true`, or `agent` must be present per phase ite
 haiku | sonnet | opus | inherit
 ```
 
-- `haiku` - read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (e.g. capability tables, feature-existence verdicts); those need `sonnet`.
-- `sonnet` - write tasks, edits, single-file refactor, review. **Minimum for a write/authoring phase** - any `skill:`/`agent:` phase that AUTHORS net-new content.
-- `opus` - cross-file reasoning, orchestration, DAG cluster reasoning. Max 3 concurrent.
-- `inherit` - defer to the calling context's model. Legal ONLY on an `inline: true` ASSEMBLER phase that merely stitches already-authored prior-phase outputs; a `skill:`/`agent:` authoring phase must declare a concrete tier (sonnet floor above), never `inherit`.
+- `haiku` - read-only lookup, gathering, classification, and verdicts backed by OSM evidence (for example "does standard Odoo already do X" with the OSM lookup cited). Also mechanical edits and running instances.
+- `sonnet` - judgement, edits, review, and root-cause debugging. **Floor for a phase that AUTHORS net-new content for an external or customer reader** - any `skill:`/`agent:` phase that writes new prose or code for that reader.
+- `opus` - long or complex planning, synthesis in complex specialist, legal, or accounting domains, and cross-file DAG reasoning.
+- `inherit` - defer to the calling context's model. Legal ONLY on an `inline: true` ASSEMBLER phase that merely stitches already-authored prior-phase outputs; a `skill:`/`agent:` authoring phase must declare a concrete tier, never `inherit`.
+
+Concurrency limits for fan-out workers are not defined here; see `skills/_shared/concurrency-guard.md` Mode A.
 
 ---
 
@@ -186,7 +188,7 @@ fallback: standalone
 7. `model_tier` is one of `haiku`, `sonnet`, `opus`, `inherit`.
 8. `name` matches the file stem (filename without `.workflow.yaml`).
 9. `description` does not end with a period, exclamation mark, or question mark.
-10. `model_tier: inherit` is permitted ONLY on an `inline: true` phase; a `skill`/`agent` authoring phase must declare a concrete tier (sonnet floor).
+10. `model_tier: inherit` is permitted ONLY on an `inline: true` phase; a `skill`/`agent` authoring phase must declare a concrete tier (see §6 for the tier choice).
 
 ---
 

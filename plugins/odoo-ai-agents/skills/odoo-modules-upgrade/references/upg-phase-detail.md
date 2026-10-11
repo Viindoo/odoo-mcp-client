@@ -34,7 +34,7 @@ Progress ledger: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint
 
 ## P0 - Intake subagent dispatch brief
 
-Model: sonnet. Read-only. Output file: `intake.md`.
+Model: haiku. Read-only. Output file: `intake.md`.
 
 ```
 TASK: Resolve the upgrade request into structured inputs.
@@ -128,7 +128,7 @@ open_questions:
 Four dispatches fire simultaneously (Mode B concurrency, independent): P1a DAG, P1b deprecation
 audit, P1c version delta, P1d transitive symbol survey.
 
-### P1a - DAG build (Explore, sonnet)
+### P1a - DAG build (Explore, haiku)
 
 ```
 TASK: Emit the dependency graph for the confirmed cluster, including the FULL transitive
@@ -157,9 +157,9 @@ transcribes it into `graph.md` VERBATIM - no reformatting, no summarizing - per
 capture). After receiving graph.md, the orchestrator topo-sorts to produce `topo_order: []`
 (leaves first). Append topo_order to graph.md.
 
-### P1b - Deprecation audit (Skill tool: odoo-deprecation-audit)
+### P1b - Deprecation audit (Skill tool: odoo-deprecation-audit, haiku)
 
-Dispatch via Skill tool. Brief:
+Dispatch via Skill tool at haiku. Brief:
 ```
 Source version: <source_version>
 Target version: <target_version>
@@ -189,7 +189,7 @@ Output to: <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/version-delta.md
 `odoo-version-diff` owns its own protocol. The upgrade orchestrator consumes its
 Removed APIs + Changed signatures tables in P4 via the breaking-change catalog.
 
-### P1d - Transitive Symbol Survey (Explore, sonnet, read-only)
+### P1d - Transitive Symbol Survey (Explore, haiku, read-only)
 
 P1a confirms a dep MODULE exists at target; it does NOT ground the SYMBOLS the cluster pulls
 from that dep down to base/ORM/tools. P1d closes that gap: it grounds every external/core
@@ -257,7 +257,7 @@ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
 
 ### P2 - odoo-diff-comparator brief (per module)
 
-Model: sonnet (opus for a cluster-wide comparison or when the module has >500 LOC).
+Model: sonnet.
 
 ```
 mode: upgrade

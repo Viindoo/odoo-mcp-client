@@ -1,4 +1,4 @@
-<!-- SSOT for the deep-survey synthesis.md output contract. The orchestrator (opus, main
+<!-- SSOT for the deep-survey synthesis.md output contract. The orchestrator (main
      context) reads every phase*/*.md + the worklog and writes synthesis.md to this schema.
      Consumer = the next execute agent (architect / coder / reviewer), never a human - every
      field is actionable without re-derivation. Edit the schema here, not in SKILL.md. -->

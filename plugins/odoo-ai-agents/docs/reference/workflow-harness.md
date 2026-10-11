@@ -319,7 +319,7 @@ figures are hard-coded in the skill body.
 
 Edge `type` values: `technical | business-logic | data-flow`.  
 Technical edges come from `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` (deterministic).  
-Business-logic and data-flow edges come from Opus cluster reasoning.
+Business-logic and data-flow edges come from cluster reasoning at the tier the capability map assigns (`skills/_shared/concurrency-guard.md` "Model-tier selection").
 
 ---
 
@@ -547,8 +547,8 @@ MUST contain three blocks, none optional:
 - **Block 1 - Node list** - one entry per NODE (the OUTER unit is the node, never a work-item; a
   node is NOT a module - `modules` is a PROPERTY of a node, and one node MAY span several modules
   or one module MAY be covered by several nodes; SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`
-  § Two-tier decomposition axis): `id` (named for the WORK, not for a module), a one-line
-  description, `modules` (the module technical names this node touches, in dependency order; omit
+  § Two-tier decomposition axis): `id` (named for the WORK, not for a module), a business
+  `objective` (who is helped and which business job gets done - never a technical end-state), `modules` (the module technical names this node touches, in dependency order; omit
   for a node that touches none), and `files-in-scope` (the file globs this node may write - file
   scopes across nodes MUST be DISJOINT; `run-harness` re-verifies this and STOPS BLOCKED on
   overlap). Multi-repo deliveries also note worktree + branch + verify command per node. A
@@ -561,7 +561,8 @@ MUST contain three blocks, none optional:
   REQUIRED ASCII dependency-graph block is rendered per plan-mode-schema.md Block 2 (NOT mermaid - it
   does not render in the plan file / terminal).
 - **Block 3 - Assignment** - one line per node: `node -> skill | command | agent`, plus per-node
-  acceptance criteria + a verify command. Estimates ONLY: `effort` (S/M/L/XL) and, for a
+  BUSINESS-OBSERVABLE acceptance criteria (a technical design §9 line is restated as the outcome it
+  serves, with a pointer back) + a verify command. Estimates ONLY: `effort` (S/M/L/XL) and, for a
   spawner node, `est_agents`. Both are ADVISORY / du kien - the dispatched specialist skill owns the
   actual per-agent model + fan-out count at runtime (Decision X). The plan binds WHICH skill; it
   never binds a model or a count. The work-item never appears at this layer - it is `odoo-coder`'s
@@ -664,7 +665,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | `phases[].inline` | bool | Runner handles this phase itself (no separate skill) |
 | `phases[].agent` | string | Agent bundle to launch (e.g. `odoo-code-reviewer`) for read-only passes |
 | `phases[].nl_trigger` | string | NL prompt passed to NL-dispatch to fire the skill |
-| `phases[].model_tier` | enum | `haiku / sonnet / opus` - Sonnet is the floor for write phases. (Agent launches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
+| `phases[].model_tier` | enum | `haiku / sonnet / opus` (plus `inherit` on an inline assembler phase) - what each tier means for a phase is `workflows/_schema.md` §6. (Agent launches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
 | `phases[].gate` | string | Gate options shown to user between phases |
 | `resume` | bool | Write `<slug>-state.json` after each phase for resume support |
 | `fallback` | string | Degradation policy when the odoo-semantic-mcp server is unreachable |
@@ -776,8 +777,9 @@ waits for a teammate keeps its lease, while a final report is still gated).
 one commit, plus any work-in-progress commit an earlier stop made, never squashed or amended. A
 resumed coordinator keeps the node base of its first round, so the range covers every round.
 `run-harness` cherry-picks only the commits of that range not already on the run-integration branch
-(compared by patch id) as a saga with per-node verify and checkpoint. The coordinator itself never
-runs below `sonnet`, and its source writes are refused by `hooks/block-coordinator-code-write.sh`
+(compared by patch id) as a saga with per-node verify and checkpoint. The coordinator itself runs at the node
+tier `odoo-coding` chose (no sonnet floor; see `skills/_shared/concurrency-guard.md` "Model-tier
+selection"), and its source writes are refused by `hooks/block-coordinator-code-write.sh`
 (no temporary-directory exemption).
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
@@ -839,11 +841,10 @@ sends one up, so no brief carries a reply address
 
 ### Model-tier assignment
 
-| Tier | When to use |
-|------|-------------|
-| `haiku` | Read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (capability tables, feature verdicts) - use `sonnet` |
-| `sonnet` | Write tasks, edits, single-file refactor, review - **floor for write phases** |
-| `opus` | Cross-file reasoning, orchestration parent, DAG cluster reasoning - max 3 concurrent |
+The tier of a workflow phase is defined in `workflows/_schema.md` §6, which follows the capability
+map in `skills/_shared/concurrency-guard.md` "Model-tier selection" (the SSOT; this document does
+not restate it). The concurrency cap for parallel phases is the Mode A / Mode B envelope in that
+same file.
 
 The BRL skill declares `model: opus` for the orchestrating skill body. Inner MCP
 calls and leaf worker turns use the tier assigned in the chunk/phase declaration.
@@ -1193,8 +1194,9 @@ calling agent.
 | **Skill** | Expertise | knowledge + recipe/SOP (WHAT + method + how-it-must-run) | design-time |
 | **Agent** | Executor | own context window + specific expertise + tools + model | run-time (per recipe) |
 
-**Multi-phase, multi-model expertise** (e.g. research: broad haiku survey → deep sonnet dives
-→ opus synthesis) is an *orchestrating skill + a workflow YAML*. The infra already supports it
+**Multi-phase, multi-model expertise** (e.g. research: haiku gathers information, sonnet
+dives deeper where judgement is needed, synthesis runs on sonnet, or on opus in a complex
+specialist, legal or accounting domain - the static `research-multiphase` YAML pins opus) is an *orchestrating skill + a workflow YAML*. The infra already supports it
 (§5.4, `workflows/_schema.md`): `fanout: true` + `chunk_by` + per-phase `model_tier` +
 `context: fork` (≤3 concurrent). The phase count is flexible - fewer or more than three.
 

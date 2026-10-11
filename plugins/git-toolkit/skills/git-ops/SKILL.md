@@ -47,7 +47,9 @@ OUTPUT SIZE and RISK (never step count):
    `DISPATCH MODEL: <tier>` as the first line of the brief.
 3. **PHASED-PIPELINE** - large/complex (>500 files OR >10k LOC OR multi-commit rewrite OR
    thousand-file backport, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2):
-   cold-spawn `git-pipeline-lead` (opus). It runs P1 map -> P2 evaluate -> P3 strategy +
+   cold-spawn `git-pipeline-lead`. The CALLER decides the lead's tier before launch from
+   `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` row 1: pass it as the launch `model` AND as the first line
+   `DISPATCH MODEL: <tier>` of the brief. It runs P1 map -> P2 evaluate -> P3 strategy +
    HUMAN-CONFIRM -> P4 execute -> P5 verify below the caller, and returns only the final result.
    P3 strategy and the human-confirm gate are the LEAD's job, not the surveyor's.
 

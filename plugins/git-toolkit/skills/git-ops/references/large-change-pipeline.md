@@ -2,13 +2,13 @@
 
 The PHASED-PIPELINE recipe for a LARGE change (>500 files OR >10k LOC OR a multi-commit rewrite OR a
 thousand-file backport, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2). Cold-spawn
-`git-pipeline-lead` (opus); it runs these phases BELOW the caller. The per-phase model map lives in
+`git-pipeline-lead`; it runs these phases BELOW the caller. The per-phase model map (every phase tier) lives only in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N3.
 
 Findings live under `.git-toolkit/<run-slug>/` (gitignore it). Every dispatch is a cold spawn with
 a self-contained brief; every return is a 5-line summary + a findings-file path.
 
-## P1 - MAP (git-surveyor @ haiku, parallel x N)
+## P1 - MAP (git-surveyor, parallel x N)
 
 Goal: a file -> cluster map with per-cluster size, no diff content read.
 
@@ -21,7 +21,7 @@ Cluster by top-level directory / module / package. Split the file list across N 
 is itself huge. Each surveyor writes `survey/map-<n>.md`; the lead merges into `clusters.md`
 ({cluster -> [files], loc}).
 
-## P2 - EVALUATE (git-surveyor @ sonnet, parallel per cluster)
+## P2 - EVALUATE (git-surveyor, parallel per cluster)
 
 One surveyor per cluster, given ONLY that cluster's path:
 
@@ -32,7 +32,7 @@ git diff -- <cluster-path>       # scoped content - safe, bounded to the cluster
 Each returns: conflict likelihood, risk, business intent of the cluster's change. Writes
 `survey/eval-<cluster>.md`. The lead collects verdicts; never re-reads the per-cluster diffs.
 
-## P3 - STRATEGY + HUMAN-CONFIRM (lead, opus)
+## P3 - STRATEGY + HUMAN-CONFIRM (lead)
 
 The lead synthesizes one safe execution plan: sequencing across clusters, conflict strategy,
 worktree isolation, backup points, and the commit convention to use (detect once, pass to every
@@ -42,7 +42,7 @@ Then the HUMAN-CONFIRM gate for any destructive step (the 8-item list in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`): present the plan + what is irreversible,
 STOP, wait for explicit confirmation. This gate is the LEAD's, never a leaf's.
 
-## P4 - EXECUTE (git-operator @ sonnet, opus for complex rewrite, per cluster)
+## P4 - EXECUTE (git-operator, per cluster)
 
 Hand each operator one cluster + its plan slice. Worktree-isolate parallel operators:
 
@@ -54,7 +54,7 @@ Each operator: S1 backup + pre-op SHA, apply the cluster's change, resolve confl
 per-batch S6 tree-identity verify, commit per the convention. Returns its result; the lead records
 backup-branch names in `plan.md`.
 
-## P5 - VERIFY (git-surveyor @ sonnet)
+## P5 - VERIFY (git-surveyor)
 
 Prove no loss across the whole change:
 

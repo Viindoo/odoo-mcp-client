@@ -278,8 +278,8 @@ def test_agent_prompts_templates_populate_file_and_line_range():
     occurrences = text.count(
         "Populate the Issues table `File` + `Line/Range` for EVERY finding"
     )
-    assert occurrences >= 3, (
-        "skills/odoo-code-review/references/agent-prompts.md must instruct the per-module, "
-        "synthesis, AND domain templates to populate File + Line/Range for every finding "
-        f"(found {occurrences} occurrence(s), need >= 3)"
+    assert occurrences >= 2, (
+        "skills/odoo-code-review/references/agent-prompts.md must instruct BOTH the per-module "
+        "and the synthesis templates to populate File + Line/Range for every finding "
+        f"(found {occurrences} occurrence(s), need >= 2)"
     )

@@ -117,12 +117,10 @@ captured evidence from that literal, never improvising its own).
 
 > **Expected-log triage (deny-path / guard / constraint WARNING - check before escalating).** A WARNING in a test run that matches a deny-path, guard, or SQL-constraint signature is EXPECTED noise - verify it is wrapped with `assertLogs` / `mute_logger`; do NOT open a code investigation. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
 
-Dispatch ONE **anonymous** Explore/recon-class subagent (model **haiku**, or **sonnet** if the
-traceback is long/cross-file) - NOT a layer specialist (`odoo-backend-debugger`/`odoo-ui-debugger`),
+Dispatch ONE **anonymous** Explore/recon-class subagent (model **haiku**, always) - NOT a layer specialist (`odoo-backend-debugger`/`odoo-ui-debugger`),
 NOT a registered agent - to: pin the version, read the symptom/traceback/console, produce the
 **smallest stable reproduction recipe**, classify the layer using `odoo-failure-modes.md`, and emit
-a **complexity score** (contained-1-layer vs cross-file/multi-hypothesis). You use that score to
-pick the Phase 2 model.
+a **complexity score** (contained-1-layer vs cross-file/multi-hypothesis), which informs the Phase 2 brief.
 
 **Persist the scout's return (mandatory).** The `Explore`/recon-class agent type is
 Write-constrained (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) - it cannot save its own file,
@@ -131,7 +129,7 @@ so it returns its findings in chat. YOU (the orchestrator) transcribe that retur
 `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2 (path/schema) and
 clause 3 (verbatim per-agent capture - a paraphrased digest is not compliant): the reproduction
 recipe, layer classification, and complexity score, one finding per line, never reworded. Resolve
-`<ISOLATE_DIR>` once (haiku/sonnet-tier per the Phase 1 launch above), then, before this Phase
+`<ISOLATE_DIR>` once, then, before this Phase
 runs, glob `<ISOLATE_DIR>/debug/*/findings.md` for this session's slug; a match -> READ it back and
 SKIP this Phase entirely (resume rule: clause 1). Phase 2 and Phase 4 read `findings.md` back
 rather than relying on Phase 1's chat text still being in context on a compacted or resumed
@@ -167,7 +165,7 @@ family delta; never inline that file verbatim into a hard-leaf brief.
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
 
 ```
-DISPATCH MODEL: <haiku|sonnet|opus>  <- set this as the subagent `model` parameter on THIS dispatch; do not rely on the agent's frontmatter default
+DISPATCH MODEL: <sonnet|opus>  <- set this as the subagent `model` parameter on THIS dispatch; do not rely on the agent's frontmatter default
 You are the <odoo-backend-debugger | odoo-ui-debugger> agent. Diagnose this Odoo issue to a PROVEN
 root cause following the scientific method - do NOT propose a fix before the cause is proven.
 
@@ -190,7 +188,7 @@ Tier-1-MISS/hybrid-grounding procedure, and HARD LEAF never-spawn rule are not r
 Fill EVERY field of the Output Contract in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md.
 ```
 
-The agent frontmatter pins `model: sonnet` only as a floor - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
+The agent frontmatter `model:` is only the default - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (per the table below); if you omit it, the dispatch silently runs at the frontmatter default and an escalated Phase-2 pass will be under-powered.
 
 Dispatch mechanism: the agent rows (backend/ui) are dispatched as subagents with an explicit model. The audit rows (perf/security/deprecation/code-review) are invoked via the Skill tool by YOU, the orchestrator, in the main context - this is NOT delegated to a Phase-1 triage agent, and each audit runs at its own `model: inherit` (this context), outside the per-phase model table.
 
@@ -200,7 +198,7 @@ When invoking an audit skill via the Skill tool, pass the symptom + reproduction
 
 For each layer Phase 2 localized, dispatch ONE independent agent - a **fresh instance of that
 layer's Phase-2 specialist** (`odoo-backend-debugger` / `odoo-ui-debugger`), never the same
-instance that produced the hypothesis (model **sonnet**, or **opus** if the cause is subtle) - to
+instance that produced the hypothesis (model **sonnet**) - to
 TRY TO REFUTE the proposed root cause: does the confirm-by-toggle actually hold? Is it the root or
 a symptom? Default to "not yet proven" if the evidence is thin. This independent pass is why root
 causes survive - a self-graded diagnosis is weak. A UI-leg refutation (`odoo-ui-debugger`)
@@ -239,12 +237,12 @@ let the driver advance.
 
 | Phase | Model | Why |
 |---|---|---|
-| 1 Triage | **haiku** (→ sonnet if traceback long/cross-file) | structured classification, cheap |
-| 2 Localize - contained 1 layer | **sonnet** | root-cause within one module |
-| 2 Localize - cross-file / multi-hypothesis | **opus** | deep reasoning, large context |
+| 1 Triage | **haiku** (always) | structured classification, cheap |
+| 2 Localize - contained 1 layer or cross-file | **sonnet** | root-cause judgement |
+| 2 Localize - sonnet pass returns no falsifiable root cause | **opus** (escalation) | multi-hypothesis reasoning after evidenced sonnet failure |
 | 2 Localize - opus pass returns no falsifiable root cause | **fable** (escalation, human-confirm) | deepest multi-hypothesis, rarest case - fire ONLY after one full opus pass |
-| 3 Verify | **sonnet** (→ opus if cause subtle) | objective refutation |
-| 4 Synthesize (this orchestrator) | **opus** | compile + decide hand-off |
+| 3 Verify | **sonnet** | objective refutation |
+| 4 Synthesize (this orchestrator) | **sonnet** | compile + decide hand-off |
 
 **Fable escalation (Phase 2 only).** Fire fable ONLY after one full opus pass returns no
 falsifiable root cause. Always get explicit human confirmation first, asked as the TRADEOFF and
@@ -252,8 +250,8 @@ never by tier name (e.g. `The deep pass found no provable root cause. Try the de
 setting? Costs about 2x. (approve / skip / cancel)`). On `skip` or unavailable, fall back to **opus** and note the
 downgrade in the Phase 4 Output Contract (`dispatch: opus (fable declined/unavailable)`).
 
-Pass the chosen model explicitly on each subagent launch. The complexity score from Phase 1 picks
-the Phase 2 tier; do not silently fall back to the inherited default.
+Pass the chosen model explicitly on each subagent launch. Phase 2 starts at sonnet and moves up only on
+the evidence the table names; do not silently fall back to the inherited default.
 
 ## Standalone-first fallback
 

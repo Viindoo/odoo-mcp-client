@@ -124,7 +124,8 @@ incomplete or unreachable. Never invert this. OSM is STATIC (no live records). K
 
 **Fan-out / model tier.** If a skill dispatches subagents, it must reference
 `skills/_shared/concurrency-guard.md` for the concurrency envelope (Mode A / Mode B) and the
-"Model-tier selection" SSOT rather than restating the numbers. A skill whose orchestration
+"Model-tier selection" SSOT (capability map, resolution order, one-tier escalation) rather than
+restating the numbers or the tiers. A skill whose orchestration
 `handoff` is `fork` or `send-message` must document a Tier-C (fresh-spawn) fallback - reference
 `snippets/context-handoff-protocol.md` (`tests/test_chp_hardening.py`).
 
@@ -228,11 +229,13 @@ body-prose declaration ("You are a HARD LEAF...") stays required regardless; the
 replace it, it guarantees it is present and non-contradictory. This does NOT change the
 `tools:`-free convention above - still no allowlist, still no hard-deny hook.
 
-**Model is a default, overridden per dispatch.** Frontmatter `model:` (an alias) is only the
-default tier. The dispatcher sets the launch `model` from the dispatched work's complexity - see
-`skills/_shared/concurrency-guard.md` "Model-tier selection" (haiku = mechanical, sonnet =
-default/medium, opus = heavy/wide blast radius, fable = ultra-complex + human-confirm). Do not
-hardcode a tier in prose; reference that SSOT.
+**Where a model choice lives (placement rule).** An agent reads its own body only AFTER it was
+launched with a model, so an agent body never instructs which model IT runs at (no "model
+floor", no own-tier self-check). The choice belongs in the agent's frontmatter `model:` (the
+default), in `skills/_shared/concurrency-guard.md` "Model-tier selection" (the capability map and
+the resolution order), or in the skill/agent that CALLS the agent. A spawner agent picks the model
+of the children it launches, by pointer to that SSOT - never a copied table. Do not hardcode a
+tier rationale in prose; reference the SSOT.
 
 **Handoff = fork requires a Tier-C note.** If an agent or its skill uses `handoff: fork` /
 `send-message`, the consuming skill must document the Tier-C fresh-spawn fallback (see section 3

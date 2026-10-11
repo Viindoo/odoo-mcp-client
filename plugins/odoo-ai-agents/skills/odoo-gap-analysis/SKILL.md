@@ -74,9 +74,9 @@ in-flight cap here. Beyond the budget, use the rolling window.
 
 **Model per cluster:** set each worker's launch `model` from THAT cluster's complexity per the
 SSOT `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § "Model-tier selection" - e.g.
-a small, well-indexed cluster -> haiku; a normal cluster -> sonnet; a large or poorly-indexed
-cluster needing deep local-source fallback plus cross-module reasoning -> opus. Do not restate
-the tier principle - read it from the SSOT.
+a small, well-indexed cluster -> haiku; a normal cluster -> sonnet; a cluster in a legal,
+accounting, regulatory or other deep specialist domain -> opus. The cluster's size never raises
+the tier. Do not restate the tier principle - read it from the SSOT.
 
 **Synthesize from disk, do not re-classify.** After the workers finish:
 1. Read every worker's `clusters/<NN>-<area>/gap-matrix.jsonl` shard and concatenate the rows into
@@ -246,9 +246,9 @@ custom loyalty -> custom/XL. `has_nontrivial: true` -> `next: [{skill: odoo-solu
 
 **Example 2 - larger scope, clustered fan-out:**
 Prompt: "Classify these 40 requirements across manufacturing, inventory, accounting and HR for a
-v17 quote"
+quote"
 Action: Cluster into 4 functional areas; dispatch one worker per cluster in a rolling window (the
-cross-module MRP cluster -> opus; the well-indexed HR cluster -> haiku). Synthesize: merge shards,
+statutory-accounting cluster -> opus; the well-indexed HR cluster -> haiku). Synthesize: merge shards,
 dedup shared builds (e.g. two HR reqs that both extend `hr.employee` are one build), then write
 `gap-report.md` + `gap-matrix.jsonl` + `gap-continuation-contract.json`.
 

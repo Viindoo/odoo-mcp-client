@@ -4,8 +4,8 @@ team_pattern: Fan-out
 description: |
   Multi-phase, multi-model research over an Odoo question - the reference dogfood proving the
   harness can run "grounded survey → deep analysis → single high-tier synthesis" with model_tier
-  scaled to phase complexity (survey and deep-dive both need sonnet per `_schema.md` §6's
-  feature-existence-verdict rule; synthesis alone steps up to opus). Phase count is flexible
+  scaled to phase complexity (the survey is a haiku lookup, the deep-dive is sonnet, and only
+  synthesis steps up to opus; tiers per `_schema.md` §6). Phase count is flexible
   (this 3-phase shape is just the canonical example; fewer or more phases are fine for a given
   job). Reference/dogfood workflow, not a front door - invoked by explicit id via
   `workflow-chaining`, not NL-triggered from `odoo-intake`
@@ -15,9 +15,7 @@ inputs:
   - candidate_angles
 
 phases:
-  # Phase 1 - broad survey: sonnet workers, one per candidate angle, locate the scope. Bumped
-  # from haiku per _schema.md §6 - this verdict is feature-existence-adjacent (Promising/Partial/
-  # Not-relevant), which the model_tier rule reserves for sonnet, never haiku.
+  # Phase 1 - broad survey: haiku workers, one per candidate angle, locate the scope.
   - id: survey
     skill: odoo-feature-check
     fanout: true
@@ -27,7 +25,7 @@ phases:
       edition, and is it promising enough to analyse deeply? Return a one-line verdict
       (Promising / Partial / Not-relevant) with a pointer to the module/model, so the next phase
       knows which angles are worth a deep dive.
-    model_tier: sonnet
+    model_tier: haiku
     gate: "approve / refine: [feedback] / cancel"
 
   # Phase 2 - deep dive: fewer sonnet workers on the angles the survey marked promising.

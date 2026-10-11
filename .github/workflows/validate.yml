@@ -88,8 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     # Validates workflows/*.workflow.yaml against the schema (plugins/odoo-ai-agents/workflows/_schema.md).
     # Hard structural rules (1-10) are always fatal; --strict additionally promotes the
-    # content rules (11: auto-skip claims need a `when:` predicate, 12: no haiku-tier
-    # feature-existence verdicts) to fatal. All prior hardening PRs cleared this lint
+    # content rule (11: auto-skip claims need a `when:` predicate) to fatal. All prior hardening PRs cleared this lint
     # before it was flipped from warn-first - a finding here means a real defect, not noise.
     steps:
       - uses: actions/checkout@v6

@@ -7,7 +7,8 @@
 
 Git churn must happen in a delegated context so the caller stays clean; the fastest way to defeat
 that is piping a 50k-line diff into a context window. Read SUMMARIES first, cluster, then delegate
-per cluster - never the raw whole.
+per cluster - never the raw whole. The protocol exists for caller-context hygiene, parallelism and
+the human gate; it is not a model capacity limit.
 
 ## M1 - Never read a huge diff into context
 
@@ -44,7 +45,8 @@ threshold is on OUTPUT SIZE and RISK, not step count.
 3. For each cluster: dispatch ONE worker with a SCOPED diff (`git diff -- <cluster-path>`); it
    reads only its slice, writes a findings file, returns a compact summary + the file path.
 4. Synthesize cluster findings centrally - never re-read the per-cluster diffs in the synthesizer.
-5. NEVER load the full large diff in one context window at any tier.
+5. NEVER load the full large diff into the caller's context at any tier: the diff is read by the
+   delegated worker, one scoped cluster at a time, so the caller stays clean.
 
 ## M4 - Huge-repo fetch strategy
 

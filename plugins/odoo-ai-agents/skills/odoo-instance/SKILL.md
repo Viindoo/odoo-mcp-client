@@ -36,7 +36,7 @@ that skipped them. Tearing your OWN lease down at your terminal status - `lease_
 `lease_park` - is not provisioning and is run directly, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.
 
-The `odoo-instance-ops` agent runs at a flat `sonnet` tier when launched - there is no
+The `odoo-instance-ops` agent runs at a flat `haiku` tier when launched - there is no
 per-operation model-tier table.
 
 ## Dispatch

@@ -292,22 +292,16 @@ Assign each requirement `cluster_key = (module_family, business_domain)`. Target
 `module_family` = root module from classification (Custom items -> `"custom"`).
 `business_domain` = LLM tag from `req_category`/`req_text`.
 
-> **HEURISTIC BOUND (acceptance I6) - cluster size cap = 120 requirements/cluster.**
-> Opus reasons over at most 120 items per cluster so the cluster req-list fits comfortably in
-> one context window. If any cluster exceeds 120 items, SPLIT it deterministically before D3:
-> sub-partition by secondary key (priority bucket Must/Should/Nice, then req_id range) into
-> sub-clusters of <=120 items each, suffixing the cluster id (`account-Finance#1`, `account-Finance#2`, ...).
-> Record the split in `dag.json.meta.cluster_caps`.
-> This cap is the load-bearing reason Phase D stays tractable at thousands of items; it is
-> documented identically in `reference/dag-prompt.md` and `reference/schema.md`.
+Clusters are never capped or split by size: the pairwise reasoning in D3 stays within one cluster,
+so Phase D scales with the number of clusters, not with the size of the list.
 
-**D3 - Intra-cluster reasoning (Opus, per cluster, <=120 items each):**
+**D3 - Intra-cluster reasoning (Opus, per cluster):**
 Reason about business-logic + data-flow edges INSIDE each cluster only.
 Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason}]}` JSON).
 
 - Default: reason **inline** in main context, one cluster at a time.
-- Optimization: when there are **>10 large clusters** (large = >=60 requirements, >=50% of the 120 cap),
-  launch **one Opus subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
+- Optimization (parallelism only): when there are enough clusters that running them concurrently saves
+  wall-clock time, launch **one Opus subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
   `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork inherits the
   parent's full context (loaded requirements, cluster JSON, job-id, version pin) and skips the
   Opus cold-start cost. The cluster JSON snapshot passed by prompt remains the authoritative
@@ -512,7 +506,7 @@ Banner warning in report. Offer resume when server returns.
 
 **Example 4 - Dependency sequencing + cycle:**
 Prompt: "We have the classified BRL - now give us the implementation order and flag circular dependencies."
-Action: Run Phase D. Module bootstrap, cluster-cut (~12 clusters, each <=120 items), intra-cluster Opus
+Action: Run Phase D. Module bootstrap, cluster-cut (~12 clusters), intra-cluster Opus
 reasoning, rule-based inter-cluster edges, Kahn topo-sort. If a cycle is found (e.g. REQ-0042 <-> REQ-0061),
 report it explicitly in GATE E with three resolution options (split / manual / shared-prereq) and still
 emit a partial order + dag.mermaid for the acyclic remainder.

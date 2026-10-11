@@ -2,7 +2,7 @@
 name: odoo-installable-prober
 description: |
   Use this agent when the forward-port pipeline needs to resolve a category-3 ambiguity - the target clean-tip module descriptor shows `installable: True` for a module, but that manifest was not touched by any commit in the forwarded commit range, so the SOURCE-side manifest history must also be read to confirm whether the module was recently gated open. Typical triggers include the orchestrator dispatching a single-module ambiguity check before merge, and a module that appears newly enabled at source with an unclear target state
-model: sonnet
+model: haiku
 color: cyan
 ---
 

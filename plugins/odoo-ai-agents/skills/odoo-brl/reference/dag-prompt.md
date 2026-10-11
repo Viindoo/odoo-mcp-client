@@ -48,19 +48,13 @@ D2. Cluster-cut:
                          Project, CRM, Cross-cutting)
     Group reqs by cluster_key. Target 8-20 clusters.
 
-    *** HEURISTIC BOUND (acceptance I6): cluster size cap = 120 requirements/cluster. ***
-    Opus reasons over at most 120 items per cluster (fits one context window).
-    If a cluster > 120 items: SPLIT deterministically before D3 by a secondary key
-    (priority bucket Must/Should/Nice, then req_id range) into <=120-item sub-clusters,
-    suffixing the id (account-Finance#1, account-Finance#2, ...).
-    Record every split in dag.json.meta.cluster_caps. This cap is the load-bearing reason
-    Phase D stays tractable at thousands of items.
+    Clusters are never capped or split by size; pairwise reasoning stays inside one cluster.
 
-D3. Intra-cluster reasoning (Opus, per cluster, <=120 items):
+D3. Intra-cluster reasoning (Opus, per cluster):
     For each cluster, run the Opus cluster prompt below (input = that cluster's req-list,
     output = {edges:[{from,to,type,reason}]} JSON, edges only WITHIN the cluster).
     - Default: inline, sequential, one cluster at a time.
-    - When >10 large clusters: launch one Opus subagent per cluster;
+    - For parallelism only (many clusters): launch one Opus subagent per cluster;
       subagent prompt MUST carry the hard-rules line. Each returns ONLY its edges JSON (<=2k).
 
 D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
@@ -130,7 +124,7 @@ Label each edge with exactly one type:
   - data-flow      : `to` needs master data created/configured by `from`
 (Do NOT emit `technical` edges here - module install order is handled separately by the engine.)
 
-Reason only within this cluster's <=120 requirements. Do NOT invent requirements not listed.
+Reason only within this cluster's requirements. Do NOT invent requirements not listed.
 If two requirements are independent, emit no edge. Keep the graph sparse - only true blockers.
 
 OUTPUT FORMAT (JSON only, no prose, no markdown fence):

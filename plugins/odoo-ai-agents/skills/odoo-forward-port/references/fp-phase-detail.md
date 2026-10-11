@@ -148,7 +148,7 @@ v8.0-v9.0); they can differ across a v9.0 -> v10.0 port. An absent `installable`
 (Odoo convention); an absent FILE means the module is not on the clean tip - a conclusion only the
 side's OWN descriptor filename can support.
 
-DISPATCH the read-only sonnet leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
+DISPATCH the read-only haiku leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
 needed to disambiguate category 3 - the module's manifest was NOT touched by the forwarded commit range and
 its target state is unclear. Whether resolved directly (categories 1-2) or via the
 prober (category 3), record `installable_false=yes|no` in `merge-log.md` for the module - the ONE
@@ -272,8 +272,8 @@ Plan-Mode enter/exit is the SHARED SSOT
 `ExitPlanMode` on approve, user approves in the Plan Mode UI. The plan CONTENT authored here (NOT
 routed through `odoo-planning`) is MODULE-FIRST (R2a - this is the whole-picture gate a flat commit
 list cannot give): module topology (each module's own ordered commit list from the P0 map);
-per-module EXTRACT tier (the real triaged tier, called out on its own line when it is opus - R2d
-gate, `references/fp-triage-table.md` Table 1); per-commit bucket (the real classification) and
+per-module EXTRACT tier (the real triaged tier, `references/fp-triage-table.md` Table 1);
+per-commit bucket (the real classification) and
 ADAPT tier within that module; installable routing per module; design-doc link for any commit P3
 designed; merge batches.
 
@@ -311,17 +311,16 @@ Outcome at target: (a) already in the target · (b) still needed, APIs compatibl
 |-----|--------------|-------------------|----------------------------|------------------|------------|
 | abc1234 | double-post guard | (b) APIs compatible | sonnet | yes | - |
 
-## Module: report_engine_custom  (intent read at EXTRACT tier: opus - CONFIRMED at Plan Mode:
-cross-module report engine rewrite)
+## Module: report_engine_custom  (intent read at EXTRACT tier: sonnet)
 
 | SHA | what it does | outcome at target | model that writes the port | ships on target? | design doc |
 |-----|--------------|-------------------|----------------------------|------------------|------------|
 | def5678 | new report engine | (c) old API gone - re-implement, do now | opus | yes | <SHARE_DIR>/designs/...md |
 
-Deepest-reasoning rows (if any, ADAPT tier only - Table 1 has no fable band): <module>: <sha> -
+Deepest-reasoning rows (if any, ADAPT tier only - the EXTRACT table has no fable band): <module>: <sha> -
 <why> (about 2x the cost of the tier below). (confirmed in Plan Mode)
-Opus-declined / gate-suppressed downgrades (if any, EXTRACT tier): <module>: sonnet (opus declined
-| opus auto-downgraded - gate suppressed)
+Fable-declined / gate-suppressed downgrades (if any, ADAPT tier): <m>: opus (fable declined
+| fable auto-downgraded - gate suppressed)
 ```
 
 ---
@@ -369,7 +368,7 @@ in the orchestrating context.
    merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
    `repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
    source-remote add+fetch).
-2. Dispatch `Explore` (read-only) over that returned file list to ground every Odoo symbol it
+2. Dispatch `Explore` (read-only, `model: haiku` on the launch) over that returned file list to ground every Odoo symbol it
    references (field / method / model / view ref / external-id / manifest depend / ORM chain)
    against the TARGET version, per `[[fp-symbol-survival-check]]` sections 1-2.5. The OSM calls
    belong to that delegate; the orchestrator never issues them here.
@@ -417,7 +416,7 @@ cross-repo ports. From the returned list the delegate derives:
 
 Dispatch the gates as read-only delegates and record only their verdict. The delegate per class is
 assigned once in `[[fp-symbol-survival-check]]` § Who runs this check - do not pick one here: the
-git-ops dispatch above enumerates the files, and `Explore` runs every static lane below. Lane 1
+git-ops dispatch above enumerates the files, and `Explore` (`model: haiku` on the launch) runs every static lane below. Lane 1
 gets classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
 dict-key scan) over ALL .py - production AND tests; Lane 2 additionally gets (a) (b) (c) (f). Treat
 F821 on a production file as a runtime NameError that would crash module load, not a nit; treat a
@@ -431,7 +430,7 @@ append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the P8
 
 At P7 no instance DB has been acquired yet (the lease is taken at P9), so the gate is a
 `pytest --collect-only` run over the merged test files - it needs no DB and catches ImportError /
-missing-fixture breaks for ordinary test modules. Dispatch it to `Explore` (read-only), the delegate
+missing-fixture breaks for ordinary test modules. Dispatch it to `Explore` (read-only, `model: haiku` on the launch), the delegate
 `[[fp-symbol-survival-check]]` § Who runs this check assigns to this class. Brief it with: the
 integration worktree path, the merged test file list Lane 2 produced, the exact command
 `python -m pytest --collect-only <those files>`, and the instruction to return ONLY `PASS`, or
@@ -510,7 +509,7 @@ find_test_examples(query='double-post guard on account.move', odoo_version='18.0
 **Bucket-(a) hunk map.** P5's merge keeps every cleanly-merged hunk of a bucket-(a) commit in the working
 tree (`[[fp-merge-absorption]]` § Skip-code-but-still-absorb rule), so running its source test on that tree
 would measure the forwarded code, not the target core - the test leg takes those hunks out of play first.
-For each bucket-(a) commit touching this module, dispatch `Explore` (read-only) with its commit dump
+For each bucket-(a) commit touching this module, dispatch `Explore` (read-only, `model: haiku` on the launch) with its commit dump
 (`<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`) and `<path>/fp-integration`; it returns each hunk
 as `<file>:<start>-<end>` in the merged tree, `conflicted` when the hunk sits inside conflict markers, or
 `absent` when the merge left no trace of it (the target already carried the identical change). Carry the

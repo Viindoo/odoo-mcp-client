@@ -19,7 +19,7 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Invoke the `odoo-code-reviewer` agent when Odoo code needs review. Review scales with change size: one module -> one reviewer; many modules -> per-module fan-out + Opus integration pass.
+Invoke the `odoo-code-reviewer` agent when Odoo code needs review. Review scales with change size: one module -> one reviewer; many modules -> per-module fan-out + one integration pass.
 
 **Two entry paths - choose before dispatching the scoper:**
 
@@ -56,7 +56,7 @@ whole module.
 
 **Resolve the review's state dirs ONCE, against `review_root` (cross-worktree dispatch rule - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).** THIS skill is the dispatcher for the whole pipeline (scoper + every per-module reviewer + ui-reviewer + synthesis), so it resolves once here and threads the captured literals through every leg below - no leg re-resolves from its own inherited cwd, which would diverge from `review_root` for `worktree`/`pr` targets:
 call `mcp__plugin_odoo-ai-agents_odoo-local__project_dir` twice, axis `share` then axis `isolate`, each with `cwd` = `review_root`.
-Capture both returned absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer, domain synthesis) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
+Capture both returned absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
 
 **Orphan sweep (do this every run, BEFORE dispatching the scoper below).** `reviews/<slug>-<date>/`
 is never deleted by anything today, so it leaks one directory per run forever:
@@ -69,7 +69,7 @@ executes `odoo-code-review` next, unconditionally, every run.
 
 Pass `review_root`, `pr_meta`, `pr_changed_files`, `SHARE_DIR`, `ISOLATE_DIR` into the scoper brief.
 
-Dispatch agent `odoo-review-scoper` (sonnet). Pass:
+Dispatch agent `odoo-review-scoper` (haiku). Pass:
 - `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also `review_root`, `pr_meta`, `pr_changed_files`)
 - `BASE:` - default `master`
 - `odoo_version:` - target series
@@ -103,7 +103,7 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet), passing the SAME `SHARE_DIR:`/
 
 ## Multi-module - fan-out, then integration synthesis
 
-### Phase A - Per-module fan-out (parallel sonnet)
+### Phase A - Per-module fan-out (parallel, sonnet)
 
 Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch, each carrying the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Concurrency is bounded by the harness automatically - do NOT set a manual concurrency cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `<ISOLATE_DIR>/reviews/<slug>-<date>/` using the passed literal, and returns a short summary + path.
 
@@ -144,47 +144,34 @@ next:
 
 Opt-in: it surfaces the verdict + recommended acceptance pass for an L2 (human) gate - never auto-blocks the review, never auto-runs acceptance. `scope_hint` is advisory (odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set).
 
-### Phase B - Integration synthesis (OPUS)
+### Phase B - Integration synthesis (sonnet)
 
-Pick the synthesis topology by scale - default threshold **~8 modules** (adjustable: lower it when per-module reports are unusually large and the combined set would overflow one opus context).
-
-**Small set (`len(modules)` ≤ ~8 and reports fit one context) - single pass:**
-Dispatch ONE `odoo-code-reviewer` at **opus**, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Scope = full **dependency closure** from OSM:
+Dispatch ONE `odoo-code-reviewer` (`MODE=synthesis`) at **sonnet**, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0, however many modules the set holds: it reads the per-module reports from disk, so the module count never changes the topology. Raise it to **opus** only per the opus row of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (the changed domain is legal, accounting, regulatory or another deep specialist domain, or a sonnet pass failed with evidence). Scope = full **dependency closure** from OSM:
 - **Forward closure:** walk `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively.
 - **Reverse closure:** `impact_analysis(...)` on changed modules, walked transitively.
 
 It reviews only what per-module legs cannot: override-chain conflicts, inheritance/MRO across closure, inter-module field/API contract breaks, manifest `depends` and data load-order, ripple into dependents. It `Read`s every `<module>.md` AND every `ui-review-<module>.md` on disk; writes `_synthesis.md`.
 
-**Large set (`len(modules)` > ~8 or reports overflow one context) - domain-partition:**
-1. **Group by business domain** - classify each module with OSM `describe_module` (fall back to the manifest `category` on disk) into business-domain buckets (e.g. Accounting/Finance, Sales/CRM, Purchase, Inventory/Logistics, MRP, HR/Payroll, Project/Helpdesk, eCommerce/Website, Core/Base).
-2. **Per-domain synthesis** - for each bucket, dispatch one `odoo-code-reviewer` at **opus** (`MODE=synthesis`, scoped to that bucket, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0): it reads only that bucket's `<module>.md` + `ui-review-<module>.md`, computes the closure WITHIN the bucket, and writes `domain-<d>.md`.
-3. **Final cross-domain synthesis** - dispatch ONE final `odoo-code-reviewer` at **opus** (same captured `SHARE_DIR:`/`ISOLATE_DIR:`) that `Read`s every `domain-<d>.md`, computes cross-domain closure (inter-domain field/API contracts, load-order, ripple), and writes `_synthesis.md` with the overall verdict + score.
-
-(The per-domain and final cross-domain passes use the two domain-synthesis brief templates in `references/agent-prompts.md`.)
-
 **`DESIGN_DOC` for synthesis:** In master-child mode, pass `DESIGN_DOC: null` to ALL synthesis passes (per-module §9 ACs verified in Phase A; synthesis checks §10 only via `MASTER_DESIGN_DOC`). In single mode, pass the flat TDD path as `DESIGN_DOC`.
 
-## Integration-branch review (scale-based escalation - OWNED here)
+## Integration-branch review (tier decision - OWNED here)
 
 When `odoo-planning` places a review NODE over a repo's run-integration branch's aggregate diff and
-wires it to this skill, THIS skill owns the scale-based escalation decision for that dispatch: apply
+wires it to this skill, THIS skill owns the review-tier decision for that dispatch: apply
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Review Escalation in
-full - its size thresholds (changed lines + module count), its opus-inline-vs-escalated-subagent
-choice, and its human trade-off wording (confirm the escalation as a TRADEOFF, never by tier name,
-before spending it). Read the thresholds and wording from that section at dispatch time - do not
-restate its numbers here. This pass is SEPARATE from, and runs IN ADDITION TO, the per-module
+full (sonnet inline by default; opus only per the SSOT opus row). Read it at dispatch time - do not
+restate it here. This pass is SEPARATE from, and runs IN ADDITION TO, the per-module
 fan-out above (Phase A/B): the fan-out reviews each node/module's own diff at coding time; the
 integration-branch review is a later pass over the repo's aggregate landed diff (double-review, by
 design - neither replaces the other).
 
 ## Artifacts
 
-All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
+All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
 - `_scope.md` - scoper output (written by scoper agent)
 - `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per `odoo-code-reviewer`'s own output contract
 - `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE` with a `concerns:` entry for UI)
-- `_synthesis.md` - Opus integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
-- `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
+- `_synthesis.md` - integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
 
 Report is presented as an artifact in chat by default. Post to PR ONLY on explicit request (keyword
@@ -228,8 +215,8 @@ When composing the dispatch prompt for `odoo-code-reviewer`, fill the universal 
 Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`
 
 Key constraints for each dispatched agent:
-- Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
-- Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
+- Per-module: write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
+- Synthesis: cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
 - Every dispatched agent (scoper, per-module/synthesis reviewer, ui-reviewer) receives the `SHARE_DIR:`/`ISOLATE_DIR:` literals captured once in Phase 0 and MUST use them directly for every Tier-2 path - it does NOT re-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` from its own cwd (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
 - Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation; every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
 - Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).

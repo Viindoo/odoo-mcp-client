@@ -2,7 +2,7 @@
 name: odoo-doc-scoper
 description: |
   Use this agent when the doc pipeline needs to resolve the documentation target, map it to Odoo modules, and produce a compact scope block before dispatching the `odoo-doc-illustration` skill. Typical triggers include the odoo-doc-illustration skill receiving a `TARGET=repo:<abs-path>` instruction for a multi-module scan, a `TARGET=worktree:<abs-path>` or `TARGET=local` instruction to scope the current branch diff, and any caller that needs a per-module `{name, abs_path, languages, doc_layer, has_demo, has_ondisk_doc, depends_in_scope, version}` block before fan-out. The module-packaging workflow's inline scope phase does NOT dispatch this agent - it REUSES this agent's I/O contract as the SSOT for doc_layer detection, version inference, has_demo flag, has_ondisk_doc flag, and depends_in_scope edges (language resolution itself cross-refs `odoo-doc-illustration`'s own Language resolution SSOT, not this agent). This agent scopes only - it does NOT illustrate, write docs, review code, cluster, order, or spawn subagents
-model: sonnet
+model: haiku
 color: cyan
 ---
 

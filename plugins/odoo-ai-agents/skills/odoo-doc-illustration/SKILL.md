@@ -184,7 +184,7 @@ PARALLEL across independent instance-paths up to
       step 5 does and keep its findings as M's baseline - what the module carried before this run.
       **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
-      env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
+      Agent-launch param > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > the calling context's model). The writer frontmatter carries only the default;
       no consumer sets a writer's model - model authority stays with this orchestrator.
    5. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
       completion block (files exist at the reported paths), then run the doc reference gate on M
