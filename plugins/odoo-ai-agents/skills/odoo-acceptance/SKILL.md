@@ -64,8 +64,8 @@ happens inside the agents. Fan-out and model-tier policy:
 
 ## Inputs
 
-A change reference (changed modules / diff / design doc), the `odoo_version`, and a way to reach a
-live instance (`INSTANCE_HANDLE` if a run already provisioned one AND its `demo` is `true` - a
+A change reference (changed modules / diff / design doc), the BUSINESS requirement the change must
+meet, the `odoo_version`, and a way to reach a live instance (`INSTANCE_HANDLE` if a run already provisioned one AND its `demo` is `true` - a
 test or verify handle is never an acceptance cluster, so provision per Phase 2 instead; else resolve per
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`, which also yields the `BROWSER_MODE` -
 headed/headless - for the live channel). This run's `slug` is minted at Phase 0 below (after its
@@ -101,6 +101,13 @@ reverse `impact_analysis` closure on the changed set -> rank each dependent modu
 This is the scope every later phase obeys - depth on High tier, smoke on Low.
 
 ## Phase 1 - PLAN (independent oracle)
+
+`REQUIREMENT` is the business requirement, never the implementation. Dispatched as a run's
+acceptance node, it is that node's `REQUEST` from the plan: the business objective followed by its
+"Done when:" business-observable outcomes, each keeping its design §9 / oracle pointer
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 3). Invoked
+standalone, it is the user's ask; when that ask names only modules or a diff, take the business
+outcomes from DESIGN_DOC §1/§9 when present, else ask the user what the change must let its users do.
 
 Dispatch `odoo-qa-planner` (tier per the model-tier SSOT) with
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
