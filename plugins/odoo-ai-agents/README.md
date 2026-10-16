@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **47 skills + 20 agents + 8 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **50 skills + 20 agents + 8 commands**, grouped into **9 persona
 > buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -49,7 +49,7 @@ test forwarding, and verify-by-behavior per batch - at most one agent instance p
 the whole run. It runs alongside coding, code review, and upgrade planning as a core engineering
 capability.
 
-> **Counts at a glance:** this plugin ships **47 skills + 20 agents + 8 commands**, grouped into
+> **Counts at a glance:** this plugin ships **50 skills + 20 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -910,7 +910,7 @@ flowchart TD
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
 ```
 
-### Skills (47)
+### Skills (50)
 
 Quick-start guides for a curated subset of the personas above live in
 [`docs/personas/`](docs/personas/) - see [`docs/setup.md`](docs/setup.md) for exactly which ones
