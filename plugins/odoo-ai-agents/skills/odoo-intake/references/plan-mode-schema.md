@@ -153,42 +153,67 @@ runs before the PR; merge is the only human gate of the tail.
 
 ```yaml
 - id: review-r1
-  agent: odoo-code-reviewer   mode: R1   model: haiku
+  approach: odoo-code-reviewer
+  approach_kind: agent
+  agent: odoo-code-reviewer
+  mode: R1
+  model: haiku
   depends_on: [<last verify>]
 - id: review-r2
-  agent: odoo-code-reviewer   mode: R2   model: sonnet
+  approach: odoo-code-reviewer
+  approach_kind: agent
+  agent: odoo-code-reviewer
+  mode: R2
+  model: sonnet
   depends_on: [review-r1]
   # R3 (mode R3, model opus) is launched in the same message as R2 and R2 waits for its report
   # when the unit's business_function is on the specialist list of business-taxonomy.md or
   # recon.md meets the thresholds of concurrency-guard.md section 5.2
 - id: acceptance
-  agent: odoo-qa-tester   mode: A1A2   model: haiku
+  approach: odoo-qa-tester
+  approach_kind: agent
+  agent: odoo-qa-tester
+  mode: A1A2
+  model: haiku
   depends_on: [<last verify>]
   when: the diff touches a view, menu, report, controller, JS file, or a state change of a model with a workflow
   # A4 (mode A4, model sonnet) follows when audience is not n/a and the diff adds or changes a screen
 - id: fix-round
-  inline: merge the findings of review-r2 and acceptance, deduplicated by symbol and line,
-          classified per acceptance-oracle-contract.md; SendMessage the node's coder once;
-          then SendMessage review-r2 (FIX_DIFF) and acceptance (the failed and the touched
-          scenarios); at most 3 rounds, two consecutive rounds with a new HIGH in the same
-          area stop the run and return to the design
+  approach_kind: inline
+  approach: >-
+    merge the findings of review-r2 and acceptance, deduplicated by symbol and line and
+    classified per acceptance-oracle-contract.md; SendMessage the node's coder once; then
+    SendMessage review-r2 (FIX_DIFF) and acceptance (the failed and the touched scenarios);
+    at most 3 rounds; two consecutive rounds with a new HIGH in the same area stop the run
+    and return to the design
   depends_on: [review-r2, acceptance]
 - id: i18n
-  agent: odoo-translator   model: sonnet   # one launch per language of the deployment catalog
+  approach: odoo-translator
+  approach_kind: agent
+  agent: odoo-translator   # one launch per language of the deployment catalog
+  model: sonnet
   depends_on: [fix-round]
   when: instance_i18n_export on the stable tip yields a msgid the committed .pot lacks or changed
 - id: docs
-  agent: odoo-doc-writer   mode: full   model: sonnet   # one launch per module; landing by SendMessage
+  approach: odoo-doc-writer
+  approach_kind: agent
+  agent: odoo-doc-writer   # one launch per module; landing by SendMessage
+  mode: full
+  model: sonnet
   depends_on: [i18n]
   when: the SRS names a user-visible feature, or a changed module ships doc/ or static/description/
 - id: integrate
-  approach_kind: integrate   # git-ops: pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
+  approach: git-toolkit:git-ops   # pre-PR lint over the aggregate diff, squash, push, ONE PR per repo
+  approach_kind: integrate
   depends_on: [docs]
 - id: monitor
-  skill: odoo-pr-monitoring   model: haiku
+  approach: odoo-pr-monitoring
+  approach_kind: skill
+  model: haiku
   depends_on: [integrate]
 - id: merge
-  skill: odoo-pr-monitoring   # the human gate, always
+  approach: odoo-pr-monitoring   # the human gate, always
+  approach_kind: skill
   depends_on: [monitor]
 ```
 
