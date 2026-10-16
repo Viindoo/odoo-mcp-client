@@ -82,13 +82,13 @@ else
   [[ -n "$owned" ]] || _pass
   active_run="${owned%%$'\n'*}"
 fi
-# A run record without run_id is still named: by its file, run-<id>.json (the run-harness naming),
+# A run record without run_id is still named: by its file, run-<id>.json (the run-file naming),
 # never as '?' - a reminder that cannot say WHICH run is unfinished is noise.
 _file_id="${active_run##*/run-}"; _file_id="${_file_id%.json}"
 run_id="$(jq -r --arg f "$_file_id" '.run_id // $f' "$active_run" 2>/dev/null || printf '%s' "$_file_id")"
 cursor="$(jq -r '.cursor // "?"' "$active_run" 2>/dev/null || echo '?')"
 
-MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor) and your turn just ended. Unless you stopped on purpose - an L2 gate is waiting for the user's decision, the run is BLOCKED or NEEDS_CONTEXT, or the user asked you to stop or pause - read $active_run and keep advancing the run via run-harness now, without asking the user to say continue. If you did stop on purpose, stay stopped and end with one line that restates what you are waiting for (the pending question or decision, or the blocker), because a caller that reads only your last message must still get it."
+MSG="Run '$run_id' is still NEEDS_NEXT (next node: $cursor) and your turn just ended. Unless you stopped on purpose - an L2 gate is waiting for the user's decision, the run is BLOCKED or NEEDS_CONTEXT, or the user asked you to stop or pause - read $active_run and keep advancing the run per plan-mode-schema.md § Running the plan now, without asking the user to say continue. If you did stop on purpose, stay stopped and end with one line that restates what you are waiting for (the pending question or decision, or the blocker), because a caller that reads only your last message must still get it."
 
 # Already in the context (the same run on the same node) -> stay quiet: the loop guard. Without a
 # readable transcript or the helper there is no dedup (advice-once.sh fails open to "not seen"), so

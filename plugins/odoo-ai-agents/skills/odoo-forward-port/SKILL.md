@@ -38,7 +38,7 @@ never cherry-pick, and never merge the range one commit at a time.
   the P3 conditional route-out (which delegates to odoo-solution-design and returns) - that is
   IN scope of this skill, not a hand-off boundary
 - Parallelizing N disjoint WIs with cherry-pick + squash semantics -> use `odoo-planning` (the
-  USER-facing choice; it plans the node execution for `run-harness`, which lands each node by
+  USER-facing choice; it plans the node execution the main agent runs, landing each node by
   cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
 
 > **Route in (Odoo forward-port lands HERE, not bare git-ops):** an Odoo forward-port routes to
@@ -149,9 +149,7 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 
 9. **Acceptance is mandatory (narrow escape only)** - P11 dispatches `odoo-acceptance` ONCE for
    the whole forward-ported batch BEFORE P12 pushes the branch, opens the PR, or runs its
-   lint-class review gate - the position the **Terminal stage order** constant assigns it
-   (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail is that
-   constant's ONE owner: read the order there, never restate it here),
+   lint-class review gate - the position the default tail assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail),
    mirroring the rigor a new module build gets. This is NOT opt-in: skip it only when the touched
    module set is a true dependency leaf with zero in-repo dependents and no behavioral surface,
    and record that proof - never skip silently. The forward-port is not DONE without an ACCEPTED
@@ -393,7 +391,7 @@ restate the rule here - SSOT: `[[fp-installable-false]]`.
 module (the SAME non-trivial criterion `odoo-solution-design` applies for its own dispatch -
 do NOT invent a second definition here), route OUT to `odoo-solution-design` instead of
 adapting blind. A deferred or `installable:False` module needs no design - skip it. Mechanism:
-emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the run-harness
+emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the plan runner
 advances it. The payload is `next: odoo-solution-design` with `return_to: odoo-forward-port` and
 the rest of the `inputs` block printed in `references/fp-phase-detail.md` P3, which is that block's
 SSOT - read it there and match it exactly, field for field, including `design_proposals`. The field
@@ -526,16 +524,16 @@ per module for the WHOLE run, never one per commit. That registry is what R2b (a
 module across the run) rests on; the resumed agent holds no address for you
 (`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` Tier A).
 
-**R2b is CLOSED at the 8b leg: one coordinator per module, resumed.** P8's only launch per module is the
-`odoo-coder` coordinator that `odoo-coding` starts (the node's test leg runs inside it). On the module's
-FIRST P8 invocation this run, invoke `odoo-coding` without `WORKER_AGENT_ID` and record the coordinator id
+**R2b is CLOSED at the 8b leg: one coder per module, resumed.** P8's only launch per module is the
+`odoo-coder` that `odoo-coding` starts (the node's test leg runs inside it). On the module's
+FIRST P8 invocation this run, invoke `odoo-coding` without `WORKER_AGENT_ID` and record the coder's agent id
 that launch returns; on every LATER one (a P9 re-adapt, a later batch) carry it as `WORKER_AGENT_ID: <id>`
 in the FP-ENRICHED brief and `odoo-coding` resumes it. Resuming is a context-economy choice with no effect
 on git topology (Hard rule 2): every adapt lands inside the ONE open window and closes as ONE merge
 commit. Send the P9 failure output (or the next batch's brief) and collect the result per CHP § Async
 park-and-be-resumed semantics - R0 of `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md`
 decides whether you end your turn or wait inside it; never carry on with the next module before the result
-is in hand. On resume the coordinator MUST `cd` to the integration worktree before any Bash command (CHP
+is in hand. On resume the coder MUST `cd` to the integration worktree before any Bash command (CHP
 snippet "Tier-A workers in a git worktree - cd on resume").
 Fallback (Tier C): when no id is recorded for the module, the recorded id no longer resolves, or no
 messaging tool is present, re-invoke `odoo-coding` cold with the full FP-ENRICHED brief - the same
@@ -553,7 +551,7 @@ is written regardless of tier.
   delegate (`references/fp-phase-detail.md` P8, Bucket-(a) hunk map) - carried on that commit's
   `BUCKET` line so the absorption check can take that code out of play.
 - **8b adapt the module: ONE `odoo-coding` invocation per module** (via the Skill tool) - `odoo-coding`
-  owns the backend/frontend split, coder fan-out (its `odoo-coder` coordinator), model, synthesis and the
+  owns the node's coder (`odoo-coder`), its model, synthesis and the
   node's test leg (never dispatch raw `odoo-coder`, `odoo-backend-coder` or `odoo-frontend-coder`).
   Inside the node the code is adapted FIRST, then the test leg forwards and adapts the module's source
   tests and proves each FP-delta test by breaking its rule
@@ -617,12 +615,12 @@ or export per database. The executor returns a structured result block (per-test
 pass/fail + the instance log path), NOT the raw firehose. From that block THIS skill stays the adjudicator of FP intent: the whole-module suite is green AND each forwarded
 intent test was proven by its node's test leg - the returned per-test report says what it broke and how the test failed
 (`merge-log.md`); a bucket-(a) commit's source test is instead confirmed absorbed (green on the target with the
-commit's own code out of play). A test with neither is unverified: resume the module's coordinator through `odoo-coding`
+commit's own code out of play). A test with neither is unverified: resume the module's coder through `odoo-coding`
 (8b, `WORKER_AGENT_ID`) to produce it - never run a break of your own here. 8b passes no `INSTANCE_HANDLE`, so the test
-leg breaks code on the coordinator's own instance and this database stays clean; never hand the P9 handle to a P8
+leg breaks code on the coder's own instance and this database stays clean; never hand the P9 handle to a P8
 invocation, and use judgment on DB freshness if a verdict ever comes from a database a break touched (rebuild fresh when the
 break touched data files or schema). Triage each red
-test as FP-delta vs pre-existing (re-run it on clean target tip via the same executor); an FP-delta red goes back to the module's coordinator with the P9 failure output.
+test as FP-delta vs pre-existing (re-run it on clean target tip via the same executor); an FP-delta red goes back to the module's coder with the P9 failure output.
 Never relax an assertion to hide a pre-existing failure. Full per-batch protocol +
 § Ephemeral isolation: `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE-BUILD-CONTRACT.md` and `docs/reference/ODOO-TESTING.md`.
@@ -684,11 +682,10 @@ database. Never release it between batches - every batch reuses it.
 **P11 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
 only, BEFORE the P12 PR opens or reviews].** Runs immediately after the P10 loop closes (every
 commit/batch this run covers has reached `status=done`) and BEFORE P12 pushes the branch, opens
-the PR, or runs its lint-class review gate - the position the **Terminal stage order** constant
-assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail
-is that constant's ONE owner: read the order there, never restate it here). Acceptance and the i18n
+the PR, or runs its lint-class review gate - the position the default tail assigns it
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). Acceptance and the i18n
 reconcile (P9.5, already mandatory per batch, ahead of every P10 gate) both land ahead of the PR and
-its review for the reason the constant states: a stage that can force a CODE CHANGE runs before the
+its review for the reason the tail states: a stage that can force a CODE CHANGE runs before the
 PR opens, so the PR does not churn and regression testing is not chasing a moving target. Goal: prove the forward-ported batch works end-to-end on a real running
 instance/UI across its blast-radius - the SAME acceptance rigor new-module development applies. P9's per-batch
 verify-by-behavior proves the ported intent tests green and proven; it does
@@ -731,8 +728,7 @@ from `merge-log.md`.
 inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
 JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
 so the skill reviews the fp integration tree, not the principal tree - this lint-class review gate
-runs BEFORE the PR is opened, at the position the **Terminal stage order** constant assigns it
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail). It can
+runs BEFORE the PR is opened, at the position the default tail assigns it (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail). It can
 force code changes, so it must precede the PR, not follow it. It is OPTIONAL for a trivial port
 (docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
@@ -968,5 +964,5 @@ URL; `next` is the human-confirm gate (P10 per-batch merge, P11 acceptance L2 ga
 PR/merge gate). When P3 routes a commit out to design,
 `next: odoo-solution-design` with the `inputs` block whose SSOT is
 `references/fp-phase-detail.md` P3 (read the field list there - it is not copied here), and the
-run YIELDS - the run-harness advances the hop and re-enters forward-port with the returned
-`design_doc`. Additive output for the run-harness - it does not change anything produced above.
+run YIELDS - the plan runner advances the hop and re-enters forward-port with the returned
+`design_doc`. Additive output for the plan runner - it does not change anything produced above.

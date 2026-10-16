@@ -29,7 +29,7 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    resolves to a real location), load it and skip done phases.
 6. **SSOT for schema** → `workflows/_schema.md`. This body describes behavior, not schema.
 7. **on_complete EMITs, never dispatches.** Matched transitions go to Continuation Contract
-   `next[]` for the run-harness - this skill never fires a spawner itself.
+   `next[]` for the plan runner (the main agent) - this skill never fires a spawner itself.
 
 ## Phase 0 - Load and validate
 
@@ -176,12 +176,12 @@ phase outputs; the key MUST have surfaced in that phase's output). For every mat
 Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 
 **HARD RULE - EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill MUST NOT
-invoke a spawner - the run-harness dispatches it.
+invoke a spawner - the plan runner dispatches it.
 If no `on_complete` is declared, or none matches, finish normally.
 
-**No driver above - degrade honestly.** If running WITHOUT an active run-harness (e.g. invoked
+**No run above - degrade honestly.** If running WITHOUT an active run file (e.g. invoked
 directly, not through intake Phase P), emit the contract AND state plainly: "on_complete
-suggests `<next>` - auto-chaining needs the run-harness; run `/odoo-intake` to drive it, or
+suggests `<next>` - auto-chaining needs a run; run `/odoo-intake` to open one, or
 trigger `<next>` manually." Never silently drop. (To AUTO-chain, enter via intake Phase P.)
 
 ## Gate handling
@@ -224,4 +224,4 @@ Tier 3, and training memory IS Tier 3 - a last resort, never a co-equal option.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+output for the plan runner - it does not change anything produced above.

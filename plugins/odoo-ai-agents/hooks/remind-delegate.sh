@@ -99,7 +99,7 @@ if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
         ;;
     esac
     if [[ "$RISKY" == true ]]; then
-      CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the coordinator/orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
+      CTX="You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch."
       _seen "$(_lease_agent_transcript "$INPUT")" "$CTX" && _pass
       jq -cn --arg ctx "$CTX" \
         '{hookSpecificOutput:{hookEventName:"PreToolUse", additionalContext:$ctx}}'

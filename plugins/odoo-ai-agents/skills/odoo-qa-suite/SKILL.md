@@ -222,10 +222,10 @@ next:
     inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
     confidence: 0.9
 ```
-so the run-harness provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
+so the caller provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+output for the plan runner - it does not change anything produced above.

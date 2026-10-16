@@ -177,7 +177,7 @@ T2 - Browser: close what you drove.
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to compare>"]}
       confidence: 0.9
   ```
-  so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
+  so the caller provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 
 ## Output format
 
@@ -232,4 +232,4 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+output for the plan runner - it does not change anything produced above.

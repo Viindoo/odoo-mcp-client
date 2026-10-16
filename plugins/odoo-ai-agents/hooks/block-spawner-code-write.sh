@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# block-coordinator-code-write.sh - PreToolUse HARD DENY. The mechanism behind the "a spawner does
+# block-spawner-code-write.sh - PreToolUse HARD DENY. The mechanism behind the "a spawner does
 # not author what it dispatches" half of
 # ${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md R0.
 #
-# WHAT IT REFUSES: an agent whose DECLARED ROLE is `coordinator` or `spawner` writing production
+# WHAT IT REFUSES: an agent whose DECLARED ROLE is `spawner` writing production
 # source. Those roles exist to route work to a specialist; the artifact belongs to the teammate the
-# role dispatches. The observed breach this exists to stop: a coordinator's teammate dispatch was
+# role dispatches. The observed breach this exists to stop: a spawner's teammate dispatch was
 # refused, the refusal steered it to "do the work inline", and it edited a module's `__manifest__.py`
 # itself - silently degrading a specialist pipeline into one generalist writing code. Prose had
 # already failed (the prohibition lived only in frontmatter, which never reaches the agent), so this
@@ -16,7 +16,7 @@
 #       Same identity signal, same V-52 rule, as hooks/remind-delegate.sh. The ROOT is never
 #       denied.
 #   (b) `agents.<bare agent_type>.role` in the agent-role SSOT (generator/skill_tool_deps.json)
-#       resolves to `coordinator` or `spawner`. Data-driven: adding a spawner to the SSOT arms
+#       resolves to `spawner`. Data-driven: adding a spawner to the SSOT arms
 #       this gate for it with no edit here; a `role: leaf` writer (odoo-frontend-coder,
 #       odoo-test-writer, odoo-translator...) and the `role: node-owner` odoo-coder, which writes
 #       its own node, are NEVER touched. Both agent_type
@@ -31,7 +31,7 @@
 #       either resolver in this hot path). The system temp dir is deliberately NOT exempt, in any
 #       part: it is wiped on reboot, so nothing durable - and no scratch this plugin writes - belongs
 #       there, while a worktree created there holds real module source. A blanket temp exemption let
-#       a coordinator edit a model file in exactly such a worktree unrefused.
+#       a spawner edit a model file in exactly such a worktree unrefused.
 #       `.claude/` is deliberately NOT exempt: `.claude/worktrees/<branch>/` is where this
 #       repo's own flow authors real module source, so exempting it would hole the gate. A worklog,
 #       findings file, plan, design doc or any other .md/.json/.yaml artifact is NOT source and
@@ -58,7 +58,7 @@
 #                    AND a WRITE token: `.write(`, `write_text`, `writeFileSync`, `writeFile`, or
 #                    an `open()` carrying an explicit write MODE. A read - `open(p)`, `open(p,'rb')`,
 #                    `ast.parse(open(p).read())`, `py_compile`, `json.tool` - is not a write, and
-#                    denying one blocks the very verification a coordinator exists to perform
+#                    denying one blocks the very verification a spawner exists to perform
 #
 # WHAT THE DETECTORS ARE RUN OVER - hooks/command-segments.sh, the segmentation SSOT this gate
 # shares with block-unowned-lease-mutation.sh (read its header for the three defects it fixes).
@@ -89,7 +89,7 @@
 #     is opened through a call the `open(...)` mode test cannot span (`open(os.path.join(a,b),'w')`
 #     with no following `.write(`): the write token is literal, like every other detector here.
 #   The residual is therefore real. It is bounded by the fact that the gate's whole subject set is
-#   agents this plugin DECLARES as coordinator/spawner, whose own bodies now also carry the
+#   agents this plugin DECLARES as spawner, whose own bodies now also carry the
 #   prohibition in prose (the belt this buckle backs up), and by the SubagentStop grounding and
 #   teardown gates that judge the turn afterwards. Widen the detectors when a real bypass is
 #   OBSERVED; do not widen them on speculation, because every widening is an outage risk on a
@@ -97,7 +97,7 @@
 #
 # FAILS OPEN ON EVERY UNCERTAINTY (the _pass convention this plugin's hooks share): no jq, empty or
 # unparseable stdin, a tool outside the matcher, an unresolvable agent_type, a missing or unreadable
-# SSOT, a role that is not coordinator/spawner, or a path this hook cannot classify -> silent pass,
+# SSOT, a role that is not spawner, or a path this hook cannot classify -> silent pass,
 # exit 0. Unlike the spawn hook, an unresolved role here PASSES rather than denying: this gate
 # refuses on a POSITIVE role claim only, so an agent this plugin knows nothing about is never
 # blocked from doing its own work.
@@ -106,7 +106,7 @@
 # permissionDecisionReason. Exit code is ALWAYS 0; a PreToolUse hook that hard-fails is an outage.
 #
 # The reason names no leaf agent by name on purpose: which teammate owns which file class is
-# declared by the coordinator's OWN definition, not here, and a hardcoded name list in a hook is
+# declared by the spawner's OWN definition, not here, and a hardcoded name list in a hook is
 # exactly the drift this repo keeps paying for. The reason points the caller back at its definition
 # and at NEEDS_NEXT.
 
@@ -142,20 +142,20 @@ AGENT_TYPE="$(printf '%s' "$INPUT" | jq -r '.agent_type // .agentType // empty' 
 [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]] || _pass
 [[ -n "$AGENT_TYPE" ]] || _pass          # no name -> no role -> nothing to assert
 
-# (b) role must POSITIVELY resolve to coordinator/spawner in the SSOT.
+# (b) role must POSITIVELY resolve to spawner in the SSOT.
 DEPS_FILE="${CLAUDE_PLUGIN_ROOT:-}/generator/skill_tool_deps.json"
 AGENT_NAME="${AGENT_TYPE##*:}"
 [[ -n "$AGENT_NAME" && -f "$DEPS_FILE" ]] || _pass
 ROLE="$(jq -r --arg n "$AGENT_NAME" '.agents[$n].role // empty' "$DEPS_FILE" 2>/dev/null || true)"
 case "$ROLE" in
-  coordinator|spawner) ;;
+  spawner) ;;
   *) _pass ;;
 esac
 
 # (c) does this call write production source?
 # Extension set: the file classes an Odoo module ships as executable/declarative source. Prose and
 # machine-readable artifacts (.md/.json/.yaml/.txt/.log/.po) are deliberately absent - a
-# coordinator legitimately writes a worklog, a plan and a findings file.
+# spawner legitimately writes a worklog, a plan and a findings file.
 SOURCE_EXT='(py|pyi|ipynb|xml|js|mjs|cjs|ts|tsx|jsx|css|scss|sass|less|csv|sql|xsl|xslt|qweb)'
 # Scratch/state trees where even a source-extension file is not module source. The system temp
 # dir is NOT one of them (see the header): a git worktree there is real source.
@@ -223,7 +223,7 @@ else
     # `[^0-9&>]` guard that tells `> file.py` from `2>&1`.
     # A WRITE token, not merely a file handle. `open(` alone was once accepted, which refused
     # every read an interpreter performs: `python -c "ast.parse(open('.../sale.py').read())"` and
-    # `open(p,'rb').read()` were both denied, so a coordinator could not verify its workers'
+    # `open(p,'rb').read()` were both denied, so a spawner could not verify its workers'
     # output and was pushed toward accepting their self-reports as evidence. A read-mode or
     # default-mode `open()` is now not a write; an explicit write mode, `.write(`, or one of the
     # always-writing helpers is.

@@ -19,7 +19,7 @@ source. Correct order:
 gap/brl  ->  odoo-solution-design (TDD + index.yaml)  ->  HUMAN approves design
    ->  odoo-planning -> odoo-planner (the plan: build nodes + the lifecycle tail)
    ->  ONE lifecycle plan gate  ->  ExitPlanMode
-   ->  intake Phase P serializes run-<id>.json  ->  run-harness drives the node plan
+   ->  intake Phase P serializes run-<id>.json  ->  the main agent runs the plan
    ->  the doc node (odoo-doc-writer) runs after code/review/QA when its `when:` holds
 ```
 
@@ -31,12 +31,14 @@ and owns the approve / ExitPlanMode handoff. `odoo-solution-design` decides HOW 
 
 Odoo delivery planner. Turns an approved technical design into ONE lifecycle plan covering the
 full product journey - the build nodes and the lifecycle tail, documentation included. Launches
-ONE leaf planner, `odoo-planner`: a dependency-ordered node graph, each node wired to a skill,
-driven end to end by `run-harness`'s single node loop. The documentation of the change is a node
+ONE leaf planner, `odoo-planner`: a dependency-ordered node graph, each node naming the agent,
+mode and model it launches, run end to end by the main agent per
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan. The
+documentation of the change is a node
 of that tail (`odoo-doc-writer`, one per module, after acceptance - screenshots need the built
 module on a live instance); when it covers several modules, the main agent computes their
 instance plan inline at that node per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`.
-Pairs with `odoo-solution-design` (consumes its design DAG) and `run-harness` (drives the plan).
+Pairs with `odoo-solution-design` (consumes its design DAG) and intake Phase P (serializes it).
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
 
@@ -96,9 +98,8 @@ not here:
   authored or materialized at runtime
   (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to
   this plan).
-- **driver** - such a node gets no tier and is never dispatched, static or materialized, at any
-  confidence (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier
-  node classes).
+- **runner** - the main agent's invariant check returns such a node to this skill as a plan
+  error and never launches it (`plan-mode-schema.md` § Running the plan).
 - **actor** - the plan author, `odoo-planner`, wires no node it writes to that skill or agent.
 
 ## No scope-preview gate - go straight to the planner
@@ -232,16 +233,15 @@ and prose; keep file paths, module names, model identifiers, and skill names ver
 Plan ready:
   Plan:       <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
 Build order: <node-1> -> <node-2> -> ...   (topological order; landing: <one line>)
-Lifecycle:   <the Terminal stage order constant run-harness owns, rendered in full>
+Lifecycle:   <the tail nodes in order with their when: conditions, as the plan writes them>
              (the doc node runs AFTER code/review/QA when its `when:` holds)
-Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY / du kien - the runtime skill
-             decides the actual count + model; the plan binds only WHICH skill)
+Estimates:   effort <S/M/L/XL total> · est_agents <n> (ADVISORY - the agent count is an estimate;
+             each node's agent, mode and model are what the plan states)
 Approve plan? (approve / refine: [feedback] / cancel)
 ```
 
-- `Lifecycle:` renders the Terminal stage order constant IN FULL - resolve it from
-  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail >
-  Terminal stage order, that section being the order's ONE owner. Never restate the order here.
+- `Lifecycle:` renders the plan's own tail nodes - the default tail of `plan-mode-schema.md`
+  § Default tail as the planner adapted it, with the reason for any change.
 - **Before approving, confirm the rendered Block 2 ASCII graph honors the schema's no-grouping
   rule**: "`nodes` and `edges` are the ONLY ordering statement a plan makes: no field, header,
   annotation, or grouping construct may batch nodes together." This gate is the one human check that
@@ -258,37 +258,34 @@ Approve plan? (approve / refine: [feedback] / cancel)
   `modules` fields of the plan in front of you - never a dependency read of module source, and never
   an inference about what a node will "really" touch. A coding node whose declared `modules` field
   looks wrong is a `refine: [feedback]` back to the planner, never a field to correct at this gate.
-  Catching this HERE - not at `run-harness` dispatch, after every coding node in the
+  Catching this HERE - not at the runner's invariant check, after every coding node in the
   repo has already run - is the whole point of checking it at this gate: reject and
   `refine: [feedback]` rather than approving a plan missing its verification node.
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then
-    hand the approved 3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`
-    and dispatches `run-harness` to walk it (each node via its own single node loop, then the
-    terminal tail in the Terminal stage order constant). This skill never serializes the run file
-    itself.
+    hand the approved 3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`;
+    the main agent then runs it per `plan-mode-schema.md` § Running the plan. This skill never
+    serializes the run file itself.
   - **`return_to` SET (caller-return flow):** do NOT enter Plan Mode for code and do NOT dispatch
     any executor. Emit the Continuation Contract with `next: <return_to>` and hand control back.
 - `cancel` -> stop; the plan file remains on disk.
 
-## Decision X - the plan estimates, it never binds model or count
+## What the plan binds
 
-The plan binds **WHICH skill** owns each node and **WHAT business result** it delivers (its
+The plan binds, per node, **WHO** runs it (the agent with its `MODE` and `model`, or the skill or
+workflow), **WHEN** (`depends_on` and `when:`) and **WHAT business result** it delivers (its
 `objective` and business-observable acceptance - schema SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 1 / § Block 3);
-HOW the result is built stays with the design doc and the coder. It MUST NOT carry a binding
-per-agent `model` or a fan-out `count` - the dispatched specialist skill (e.g. `odoo-coding`) owns those at runtime via
-its own tier table + `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode-B budget.
-Every quantity the plan states carries an `est_` prefix and the explicit note
-"ADVISORY / du kien - the runtime skill decides the actual count/model", so no runtime agent ever
-reads a number as a directive. Planning is binding at the dependency layer (the node graph's
-`depends_on` ordering); intra-skill coordination (per-node dispatch, backend-first leg, count/model)
-stays the specialist skill's.
+HOW the result is built stays with the design doc and the coder. A build node's `model` is the
+design's `build_tier_hint` with its checklist; a tail node's is the default tail's. `effort` and
+`est_agents` carry the `est_` prefix and the note "ADVISORY", so no runtime agent reads them as a
+directive; the in-flight budget stays `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+Mode B at run time.
 
 The landing sequence the plan reserves (per-node cherry-pick onto the ONE run-integration branch per
 repo, the saga rollback/resume, then the SINGLE PR opened once every non-land-tail node in that repo
-is terminal - NO per-node PR - which `run-harness`'s single node loop will run) follows the SSOT
+is terminal - NO per-node PR - which the main agent runs) follows the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; planning references it so the plan
 reserves that behavior - it does NOT run the loop itself. **The plan carries the verification
 nodes**: each `odoo-instance` node's `modules` field IS its regression scope, following the SSOT
@@ -299,10 +296,10 @@ the suite.
 
 - **Designing the technical solution** (approach / data model / override strategy / module
   structure) -> `odoo-solution-design` (the design = HOW to build; planning = HOW TO SHIP)
-- **Writing production code** -> `odoo-coding` (backend + frontend); git-orchestrated multi-node landing is `run-harness`'s single node loop (driven from the approved plan, not a separate skill)
+- **Writing production code** -> `odoo-coding` (backend + frontend); multi-node landing is the main agent's run of the approved plan, not a separate skill
 - **Classifying / costing a requirement list** -> `odoo-gap-analysis` (short) / `odoo-brl` (large)
-- **Serializing or walking the run-DAG** -> intake Phase P serializes `run-<id>.json`;
-  `run-harness` walks it. The plan binds WHICH skill; never the model or count.
+- **Serializing or running the plan** -> intake Phase P serializes `run-<id>.json`; the main
+  agent runs it (`plan-mode-schema.md` § Running the plan).
 - **A heavyweight self-driving orchestrator** (`odoo-forward-port` / `odoo-modules-upgrade` /
   `odoo-git-rebase`) -> these are dispatched-once PEER front doors that own their own gate via the
   shared `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` Plan-Mode mechanics (their
@@ -328,22 +325,16 @@ skill always authors a plan - there is no design branch and no no-plan branch to
 - **`return_to` SET:** emit `next: <return_to>` with `inputs: {plan: <path>}`; hand control back.
 - **`return_to` UNSET (default):** emit `next: odoo-intake` with `inputs: {plan: <path>}` -
   intake's **Phase P** ingests the approved 3-block plan by pointer, serializes it into
-  `run-<id>.json`, and THEN dispatches `run-harness` to drive it to done.
-  **This is the SSOT rationale for "why `next: odoo-intake`, not `next: run-harness`"** (other sites
-  - `odoo-planner`, `skills/odoo-intake/references/phase-p-run-dag.md` - point here, do
-  not restate it): Do NOT emit `next: run-harness` here: `run-harness` walks an EXISTING
-  `run-<id>.json` and cannot ingest a plan `.md`, so handing the plan straight to it would strand
-  every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase
-  P's job; walking is run-harness's. Do NOT self-dispatch the executor.
+  `run-<id>.json`, and the main agent then runs it. Serialization is Phase P's job, in one place;
+  this skill never runs a node itself.
 
 A design hand-off has no branch here: a plan always exists by the time this contract is emitted, so
 naming the design skill as `next` would schedule a design AFTER the plan derived from it - the
 inverted order (§ Design precedes planning above). A design gap is a design INPUT that was never
 authored, not a follow-up step.
 
-Note: the on-the-fly execution task list is owned by `run-harness`, NOT by this skill - run-harness
-creates and keeps it current per
-`${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md` whenever a task-list tool is
-available, gated on nothing else.
+Note: the on-the-fly execution task list is the runner's, NOT this skill's - the main agent
+creates and keeps it current per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`
+whenever a task-list tool is available.
 
-Additive output for the Phase P -> run-harness handoff - it does not change anything produced above.
+Additive output for the Phase P handoff - it does not change anything produced above.

@@ -2,7 +2,6 @@
 
 > **SSOT for the `*.workflow.yaml` composition contract.**
 > The `workflow-chaining` skill reads files conforming to this schema at runtime.
-> `docs/reference/workflow-harness.md` §5 references this file for the full field listing.
 > Validators: `generator/check_workflows.py` (CI). Tests: `tests/test_workflow_format.py`.
 
 ---
@@ -204,7 +203,7 @@ auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtim
 ## 11. `on_complete[]` - cross-workflow transition (optional)
 
 After the final phase, the runner evaluates `on_complete` entries and **emits** matches into
-its Continuation Contract `next[]` for the `run-harness` to dispatch (the runner never
+its Continuation Contract `next[]` for the plan runner (the main agent) to dispatch (the workflow runner never
 self-dispatches a spawner). Each entry:
 
 | Field | Type | Required | Purpose |

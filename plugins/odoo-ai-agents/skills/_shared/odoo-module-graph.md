@@ -1,11 +1,11 @@
 # Odoo module dependency graph (SSOT)
 
 An Odoo change is grounded by **module**, not arbitrary file sets. A module is the directory
-holding its DESCRIPTOR - `__manifest__.py`, or `__openerp__.py` on v8-v9 (SSOT:
+holding its DESCRIPTOR - `__manifest__.py`, or `__openerp__.py` on the series that has it (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 6). Every glob, existence check, and
 descriptor read below covers BOTH names: matching one alone makes a whole era invisible. Modules
 form a DAG via each descriptor's `depends`, dictating what can run in parallel vs in order.
-`odoo-coding` (ordering nodes when running standalone) and `run-harness` (ordering cherry-picks -
+`odoo-coding` (ordering nodes when running standalone) and the plan runner (ordering cherry-picks -
 see below) use the SAME algorithm - OSM `module_inspect` dependency lookup plus a topological
 sort - over the SAME kind of node set: the MODULES in scope. The shared algorithm lives here
 once, referenced by every consumer instead of restated.

@@ -243,8 +243,8 @@ ONCE, for every build operation below, in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-v
 ## Lint modules - installed ONLY for the designated pre-PR lint gate (HARD RULE)
 
 Lint-class gating (module set: `${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`) is a RUN-LEVEL concern that fires EXACTLY ONCE, at
-`run-harness`'s dedicated pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
-§ Pre-PR tail stage 5) - never inside a node verification run. This HARD RULE is
+the plan's pre-PR lint-class gate (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`
+§ Running the plan, `integrate`) - never inside a node verification run. This HARD RULE is
 therefore CONDITIONAL, gated on one explicit brief field, never on the operation name alone -
 `run-tests` for the pre-PR lint gate and `run-tests` for a node integrated verification are
 the SAME operation with DIFFERENT intent, and intent is what decides this union.
@@ -256,7 +256,7 @@ inferred from module count, worktree path, or any other proxy:**
 - `GATE_ROLE: pre-pr-lint-gate` - this dispatch IS the one designated pre-PR lint-class gate. Proceed
   to the probe-and-union steps below.
 - `GATE_ROLE: node-verify` - this dispatch is a node verification run
-  (e.g. the `odoo-coder` coordinator's own integrated-node test, run for every node). Do
+  (e.g. the `odoo-coder`'s own whole-node test, run for every node). Do
   NOT probe for, install, or tag any lint-class module here - run this dispatch's own resolved
   scope (the tags the caller supplied, or the ones derived from `--modules` per "Test scope" in the
   `run-tests` operation below), with no lint-module union. A lint-class violation in freshly
@@ -549,7 +549,7 @@ For every lint-class module this build unioned into the install+tag set (the SAM
 - It states that fewer checkers/checks loaded or ran than that module registered or requested (a checker/plugin import failure, a "not loaded"/"skipped loading" statement tied to a checker name, or an explicit smaller-than-expected count) -> a CONFIRMED coverage shortfall.
 - It carries NO statement at all of how many checks/checkers the module ran, for a module installed and tagged this run -> coverage is UNCONFIRMED. Silence is never proof of a clean run.
 
-Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of the four counters, even a genuine `0/0/0/0`. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so a human - or `run-harness`'s pre-PR containment loop (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR lint-class gate) - can act on evidence rather than a bare status flip.
+Either outcome escalates `status` to `tests-inconclusive` - REGARDLESS of the four counters, even a genuine `0/0/0/0`. Record in `notes` which module's coverage could not be confirmed and why (shortfall vs unconfirmed), so a human - or the plan's pre-PR lint gate - can act on evidence rather than a bare status flip.
 
 Release the lease you acquired for this run when done (for `reuse` that drops nothing), unless the
 brief asks you to hand a `fresh` instance on - then forward its `INSTANCE_HANDLE` to the named

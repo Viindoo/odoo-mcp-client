@@ -54,7 +54,7 @@ invoking the `odoo-instance` skill (never the raw `odoo-instance-ops` agent).
 
 **`WORKTREE_PATH` is required whenever this skill runs.** `.po` / `.pot` files are git-tracked, so per
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 the write happens in a dedicated worktree -
-never the principal checkout. A caller (forward-port, modules-upgrade, a run-harness node) passes
+never the principal checkout. A caller (forward-port, modules-upgrade, a plan node) passes
 `WORKTREE_PATH:`; you forward it verbatim to every `odoo-translator` leaf. Invoked with no
 `WORKTREE_PATH` and no worktree of your own -> provision one via `git-toolkit:git-ops` before P2, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. The verification instance must load THAT tree, not
@@ -350,5 +350,5 @@ Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (st
 next). `produced` lists the artifacts above; a missing instance is `status: NEEDS_CONTEXT` with the
 instance requirement as `blocked_reason`, and a standalone invocation where tiers 1-4 leave the
 target language unresolved is likewise `status: NEEDS_CONTEXT` with `target language` as
-`blocked_reason` (P0 above) - never a silently-picked default. Additive output for the run-harness -
+`blocked_reason` (P0 above) - never a silently-picked default. Additive output for the plan runner -
 it does not change anything produced above.

@@ -7,7 +7,7 @@ description: >-
 
 ## Role
 
-Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
+Odoo instance lifecycle front door for ALL instance lifecycle operations (create,
 drop, park, resume, init, update, run-tests, ensure-up, status, load-language) for every Odoo
 series the index carries - resolve that set with `list_available_versions()`, never from a
 remembered floor.
@@ -23,7 +23,7 @@ build purpose, the GATE_ROLE-conditioned lint-module install, per-version `cli_h
 enforced in one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
 agent-role SSOT, `generator/skill_tool_deps.json`), this skill MUST provision INLINE (see "Inline
 leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline leaf-mode is
-mandatory for a leaf caller, not a judgment call. For a spawner/coordinator/skill caller, provision
+mandatory for a leaf caller, not a judgment call. For a spawner, node-owner or skill caller, provision
 the way that fits the caller's context - run the ops steps INLINE in the caller's own context (see
 "Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per "Brief shape" below; this
 skill is the component that owns launching that agent. However the
@@ -55,7 +55,7 @@ When invoked, gather the following from the caller's request:
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests`. A caller driving a plan node passes that node's `modules` list here. For the stand-alone proof and for acceptance the install set is the node's modules ONLY - Odoo pulls their upstream closure; a dependent or a sibling is added only in the second, explicitly requested build (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md`) |
 | `demo` | `on` / `off` - whether an `init` / `create` build must carry demo data; it reaches `instance_build` as its `demo` argument, which spells the series' own flag. Set it from the build's PURPOSE per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Demo data by build PURPOSE. **There is no flat default** - omitting it makes the agent derive the value from the purpose, and BLOCK where the purpose does not resolve and the output depends on demo; a remembered default of `off` would silently ship a demo-less translation or documentation build. `run-tests` takes NO `demo`: a test build runs the series default, which `instance_build` reads from the lease's checkout (and refuses demo on where that default loads none) - so never set it for a test dispatch |
 | `test_tags` | `run-tests` scope selector - the OTHER half of `modules` (`-i`/`-u` builds the registry, `test_tags` decides whose tests run). Pass the caller's resolved blast radius, normally `/<m>` per module in `modules` (e.g. `/sale,/account`), narrowable to a class or method (`/module:ClassName.method_name` - the CLASS separator is a COLON; a dot there is parsed as a METHOD name and silently selects nothing) for a focused re-run. `full` = run untagged ON PURPOSE (release sweep, CI/Runbot parity, no-code-change smoke) - an explicit declaration, not a blank. OMITTED / `none` = not supplied, and the agent DERIVES `/<m>` per module rather than running untagged; a `-i sale --test-enable` with no tags runs every installed module's suite from `base` up, which is the defect this field exists to prevent. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-contract.md`; which modules belong in the set: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/regression-scope.md` |
-| `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions the lint-class modules into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (`run-harness`'s pre-PR tail states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own break-check run, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
+| `GATE_ROLE` | `pre-pr-lint-gate` / `node-verify` - REQUIRED for `run-tests`, and any `init`/`update` dispatch whose purpose is running automated tests via `--test-enable`; decides whether the dispatched agent unions the lint-class modules into the install list + `--test-tags` at all (see "Agent-side unions this skill does not compute itself" below). `pre-pr-lint-gate` is reserved for the ONE run-level pre-PR lint-class gate (the plan's `integrate` node states it explicitly); every OTHER test-run caller (a node verification run, a leaf's own break-check run, an ad-hoc human "run the tests" request) is `node-verify`. This skill resolves it before dispatch - see the resolution rule below - so the agent never receives an unresolved value |
 | `mode` | `fresh` / `reuse` (`run-tests` only) - decided on the DATABASE: `reuse` whenever the target database already has the modules installed, `fresh` only for the FIRST install onto a brand-new database; `fresh` -> `-i` (init+test), `reuse` -> `-u` (re-runs the tests of installed modules on every series, where `-i` runs none of them on recent series: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` § Test run on an existing database) |
 | `log_mode` | `info` / `debug` / `sql` (optional; `run-tests` only) - overrides the odoo log verbosity for this run; omitted keeps the default below. `warn` is REFUSED - it hides the pass summary |
 | `fresh_venv` | `true` / `false` (default `false` - build on the venv the catalog declares for the series). `true` makes the executor rebuild the series' venv before it acquires a lease; a catalog row with no venv at all gets one built the same way without asking. Never combine `true` with a forwarded `INSTANCE_HANDLE`: that lease fixes the interpreter |
@@ -77,8 +77,8 @@ its own coordinates, so it never rebuilds and never installs modules.
 
 **`GATE_ROLE` resolution (mandatory, resolved by THIS skill before dispatch - never left for the
 agent to guess).** For any `run-tests` (or test-enable `init`/`update`) request: an explicit value
-already present in the caller's context (e.g. an orchestrating caller like `run-harness`'s pre-PR
-tail, or `odoo-coder`'s node coordinator, stating its own role) always wins - forward it
+already present in the caller's context (e.g. the plan's pre-PR lint gate, or `odoo-coder`'s own
+node test, stating its own role) always wins - forward it
 verbatim. For a direct/human-initiated invocation with no stated role ("run the tests for the
 account module", eval #2), default to `GATE_ROLE: node-verify` and state the assumption - an
 ad-hoc human test run is NEVER the run's ONE designated pre-PR lint gate, so this default never
@@ -155,8 +155,9 @@ DATA-DRIVEN union:
   clears too (SSOT: `odoo-instance-ops`'s own "Checker-load coverage confirmation").
 
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching` - an L2 human
-gate applies before any mutation (create, drop, init, update, run-tests). If a run-harness is in the
-brief, do NOT bypass it; let the driver surface it. For a direct invocation, confirm the mutation
+gate applies before any mutation (create, drop, init, update, run-tests). Inside a run, the
+runner's gate list decides (`plan-mode-schema.md` § Running the plan, step 7: an ephemeral,
+self-released lease is no gate). For a direct invocation, confirm the mutation
 with the human before launching the agent. `park` and `resume` are deliberately OUTSIDE that set:
 parking destroys nothing and is a teardown exit a dispatched worker must be able to take at its own
 terminal status, and resuming re-launches an instance the run already holds a lease on.
@@ -298,7 +299,7 @@ scoping-vs-suppression rule itself: `${CLAUDE_PLUGIN_ROOT}/snippets/test-scope-c
 Run the ops steps INLINE in the caller's own context - without launching the `odoo-instance-ops`
 agent. **MANDATORY, not a judgment call, when the caller is a declared HARD LEAF** (`agents.<name>.role
 == leaf`) - a hard-leaf caller MUST get inline leaf-mode and this skill MUST NOT launch
-`odoo-instance-ops` for it. For a spawner/coordinator/skill caller, use inline leaf-mode whenever
+`odoo-instance-ops` for it. For a spawner, node-owner or skill caller, use inline leaf-mode whenever
 that fits the caller's situation better than launching the agent (see "Single owner of instance
 provisioning" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). This
 lets a caller lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB directly, and -
@@ -386,8 +387,8 @@ each step below does exactly one thing and returns the `instance-ops` block.
 
 An independent branch is a separate path: its own A on a fresh lease, its own E.
 
-The L2 human gate still applies to any mutation via this path (see "Human gate"): if a run-harness
-is present let the driver surface it, else confirm the mutation with the human first.
+The L2 human gate still applies to any mutation via this path (see "Human gate"): inside a run
+the runner's gate list decides, else confirm the mutation with the human first.
 
 ### Multi-instance parallel provisioning
 

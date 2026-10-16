@@ -1,6 +1,6 @@
 <!-- SSOT snippet. Owned by odoo-planning. The single source of truth for the mandatory-planning
      gate - stated once in § Mandatory-planning rule below, never restated here. Referenced (not
-     copy-pasted) by odoo-intake, odoo-coding, run-harness, odoo-solution-design, and the workflow
+     copy-pasted) by odoo-intake, odoo-coding, the plan runner, odoo-solution-design, and the workflow
      YAML. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md. -->
 
@@ -14,8 +14,8 @@
   `approve / skip / cancel`
 
 Never invent a third set. `yes` is not a gate keyword. This is the ONE declaring file for both
-sets; every gate prompt elsewhere in the plugin (the mandatory-planning gate below, `run-harness`'s
-L1/L2 node gates, `odoo-planning`'s plan gate, workflow-chaining's soft-plan-gate, etc.) uses one of
+sets; every gate prompt elsewhere in the plugin (the mandatory-planning gate below, the plan
+runner's human gates, `odoo-planning`'s plan gate, workflow-chaining's soft-plan-gate, etc.) uses one of
 these two sets verbatim and points here rather than restating them - see
 `${CLAUDE_PLUGIN_ROOT}/snippets/vocabulary.md` for the cross-cutting index.
 
@@ -47,7 +47,7 @@ runtime contradiction of a per-stage self-gate.
   for "no plan".
 
 This is the SAME three-signal set `odoo-coding` (its plan-provided fast-path) keys on - intake,
-`odoo-coding`, and `run-harness` all cite THIS one definition; they do not restate it.
+`odoo-coding`, and the plan runner all cite THIS one definition; they do not restate it.
 
 For cross-run/worktree NEW-module coordination, the same three defer to the single ledger SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (written only by `odoo-coding`).
@@ -59,9 +59,9 @@ merely CONSUMES the signal it is handed. The three signals - naming each ONCE - 
 an approved plan artifact is in scope:
 
 1. **Active `run-<id>` blackboard** - dispatched under a named `run-<id>` (the `odoo-intake` Phase P
-   -> `run-harness` chain). The `odoo-planning` ExitPlanMode approval already stands.
-2. **`WORKTREE_PATH`** - a pre-approved worktree path handed down by `run-harness` when it provisions
-   a node's worktree. The driver L2 gate already stands.
+   serialization). The `odoo-planning` ExitPlanMode approval already stands.
+2. **`WORKTREE_PATH`** - a pre-approved worktree path handed down by the plan runner when it
+   provisions a node's worktree. The plan gate already stands.
 3. **Plan-provided inter-module `inputs`** - the Continuation-Contract `inputs` carry the plan's
    already-computed inter-module results: the target module set + the node DAG +
    the design pointers (`design_index`/`design_doc`/`design_docs`).
@@ -139,12 +139,12 @@ NOT a peer or alternative to design. That ORDER is the whole rule: a design is o
 a plan, never a NODE of one, and no plan is ever withheld for a design nobody authored
 (§ Mandatory-planning rule above). DECLARED, enforcing nothing, at
 `odoo-planning` § Design precedes planning. ENFORCED (not merely declared) at
-`skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to this plan and
-`skills/run-harness/references/run-integration.md` § Gate-tier node classes.
+`skills/odoo-intake/references/plan-mode-schema.md` § Design is an INPUT to this plan and its
+§ Running the plan invariants.
 
 ## Execution adherence
 
-An executor (`odoo-coding`, or `run-harness`) that was handed an approved plan follows its
+An executor (`odoo-coding`, or the plan runner) that was handed an approved plan follows its
 **`depends_on` order**, **module set**, and **per-node skill** EXACTLY. On ANY drift FROM THAT
 APPROVED PLAN - a dependency discovered that the plan's module-DAG did not declare, a module
 missing from the plan, or a node

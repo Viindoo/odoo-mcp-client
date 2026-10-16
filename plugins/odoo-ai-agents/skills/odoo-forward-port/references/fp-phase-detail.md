@@ -213,7 +213,7 @@ A bucket-(c) "do now" commit that touches a NON-TRIVIAL module routes OUT to
 `odoo-solution-design` applies for its own dispatch - do NOT invent a second definition. A
 deferred or `installable:False` module needs no design - skip it.
 
-Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-harness
+Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the plan runner
 advances it):
 
 **This block is the SSOT for the P3 payload** - `SKILL.md` P3 and its Continuation Contract
@@ -517,11 +517,11 @@ result and the dump path on that commit's `BUCKET` line: the coders' edits can m
 dump lets the test leg find each hunk by its text.
 
 **8b - adapt the module** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
-FP-ENRICHED brief - it owns the backend/frontend split, coder fan-out (its `odoo-coder` coordinator),
+FP-ENRICHED brief - it owns the node's coder (`odoo-coder`),
 model, synthesis and the node's test leg (never dispatch raw `odoo-coder`, `odoo-backend-coder` or
-`odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coordinator per module across the WHOLE
+`odoo-frontend-coder`). **R2b at this leg is CLOSED - at most one coder per module across the WHOLE
 run: launch it once, record the id, resume it - an id your own launch returned.** On the module's FIRST
-invocation omit the field and record the coordinator id `odoo-coding` reports in `plan.md`; on every LATER
+invocation omit the field and record the coder's agent id `odoo-coding` reports in `plan.md`; on every LATER
 one carry it as `WORKER_AGENT_ID: <id>` - never a string anyone invented; `odoo-coding` resumes that id
 instead of cold-spawning (reasoning: `SKILL.md` § P8). Resuming has no effect on git topology (Hard rule 2):
 the batch's range is already absorbed by P5's single merge, so every adapt lands inside that ONE open
@@ -761,10 +761,10 @@ above for a clean retry.
   the report recorded on the module's `merge-log.md` row says what it broke and how the test failed
   (`${CLAUDE_PLUGIN_ROOT}/snippets/test-sensitivity-contract.md`); a bucket-(a) commit's source test is
   instead confirmed absorbed (green on the target with the commit's own code out of play). A test with
-  neither is unverified - resume the module's coordinator through `odoo-coding` (8b, `WORKER_AGENT_ID`) to
+  neither is unverified - resume the module's coder through `odoo-coding` (8b, `WORKER_AGENT_ID`) to
   produce it; never run a break of your own here.
 - **Database freshness - judgment.** 8b passes no `INSTANCE_HANDLE`, so the node test legs break code on the
-  coordinator's own instance and this batch's database stays clean (`mode: reuse` above is valid). Never
+  coder's own instance and this batch's database stays clean (`mode: reuse` above is valid). Never
   hand this handle to a P8 invocation; if a break ever ran on it, rebuild fresh when the break touched data
   files or schema.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
@@ -835,8 +835,7 @@ the next range unabsorbed and unchecked.
 
 Runs AFTER P11 (end-to-end acceptance, `SKILL.md` § P11) has already cleared for this batch -
 acceptance, then this review gate, THEN the PR opens; never the reverse (`SKILL.md` Hard rule 9;
-SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md`
-§ Pre-PR tail).
+SSOT for the ordering rationale: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail).
 
 Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):
 

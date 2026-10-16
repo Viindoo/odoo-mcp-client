@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # command-segments.sh - SSOT for turning ONE `tool_input.command` string into the list of LOGICAL
 # simple commands a PreToolUse detector may reason about. Sourced (never executed) by the two
-# PreToolUse hard denies - hooks/block-coordinator-code-write.sh and
+# PreToolUse hard denies - hooks/block-spawner-code-write.sh and
 # hooks/block-unowned-lease-mutation.sh - which previously each carried their own copy of a
 # one-line `sed` splitter plus a comment claiming the other one matched. It did, and so did the
 # three defects below.
@@ -17,7 +17,7 @@
 #        - false PASS: `... release <tok> --run-id <id> \` + `--force` put the override flag in a
 #          segment carrying no allocator token at all, so the override arm never looked at it. A
 #          subagent was one newline away from `--force-forget` on a live lease.
-#      The same split silently disarmed the coordinator source-write detectors whose regex is
+#      The same split silently disarmed the spawner source-write detectors whose regex is
 #      end-anchored (`cp`/`mv`/`install`/`rsync`) or needs the verb and the path together
 #      (redirect, `tee`): a two-line `cp src.py dst.py` matched nothing.
 #
@@ -36,7 +36,7 @@
 #        - false PASS, a real guard BYPASS: `python3 -c "import pathlib;
 #          pathlib.Path('addons/m/models/sale.py').write_text('x')"` split at the quoted `;`, so
 #          the half carrying `write_text` no longer carried a `python` token and the interpreter
-#          detector never looked at it. A coordinator could write production source through it.
+#          detector never looked at it. A spawner could write production source through it.
 #        - false DENY: `--reason "a && b"` split mid-argument, and a `release` whose `--run-id`
 #          followed the quoted operator lost its owner flag.
 #      Reported by a peer session that hit the false-deny face of the same detector during a

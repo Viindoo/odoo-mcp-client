@@ -46,10 +46,10 @@ WORKFLOWS_DIR = ROOT / "workflows"
 SKILLS_DIR = ROOT / "skills"
 COMMANDS_DIR = ROOT / "commands"
 
-# A command for a driver-required (on_complete) workflow MUST carry this machine-readable sentinel to
-# declare it engages the run-harness (via intake Phase P / a 1-node run) instead of a bare
-# workflow-chaining dispatch. Its presence clears the driver-required warning for that command.
-RUN_HARNESS_SENTINEL = "engages-run-harness"
+# A command for a run-required (on_complete) workflow MUST carry this machine-readable sentinel to
+# declare it engages a run (via intake Phase P / a 1-node run file) instead of a bare
+# workflow-chaining dispatch. Its presence clears the run-required warning for that command.
+RUN_SENTINEL = "engages-run"
 
 # ---------------------------------------------------------------------------
 # Allowed enum values
@@ -78,7 +78,7 @@ ALLOWED_PATTERNS = {
 
 ALLOWED_MODEL_TIERS = {"haiku", "sonnet", "opus", "inherit"}
 
-# Gate tiers for cross-workflow on_complete transitions (mirror the run-harness / registry
+# Gate tiers for cross-workflow on_complete transitions (mirror the runner / registry
 # default_gate_tier vocabulary). L2 = irreversible/outward → always human.
 ALLOWED_GATE_TIERS = {"L0", "L1", "L2"}
 
@@ -129,7 +129,7 @@ def _validate_on_complete(data: dict, self_name: str, fname: str) -> list[str]:
 
     Each entry must: have a string `when` + `reason`; a `next` that resolves to an existing
     skill OR workflow (and never self-loops back to this same workflow); and a `gate_tier` in
-    the allowed set. on_complete only EMITs a next[] for run-harness - it never self-dispatches."""
+    the allowed set. on_complete only EMITs a next[] for the plan runner - it never self-dispatches."""
     errors: list[str] = []
     oc = data.get("on_complete")
     if oc is None:
@@ -344,14 +344,14 @@ def _validate_workflow(path: pathlib.Path) -> tuple[list[str], list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Driver-required warning (Flag 2): a workflow declaring on_complete is "driver-required" -
-# its emitted next[] is only auto-dispatched when run under a run-harness (intake Phase P).
+# Run-required warning (Flag 2): a workflow declaring on_complete is "run-required" -
+# its emitted next[] is only auto-dispatched when run under a run file (intake Phase P).
 # A slash command that dispatches such a workflow DIRECTLY (bypassing intake) makes on_complete
 # degrade to a human suggestion. Surface that as a WARNING (non-fatal) so a future command does
 # not silently break the cross-workflow chain.
 #
-# Clearing mechanism: if a command carries the RUN_HARNESS_SENTINEL comment, it explicitly
-# declares that it engages the run-harness (via /odoo-intake Phase P or a 1-node run). The
+# Clearing mechanism: if a command carries the RUN_SENTINEL comment, it explicitly
+# declares that it engages a run (via /odoo-intake Phase P or a 1-node run). The
 # sentinel suppresses the warning for that command. Commands that reference the workflow name
 # but lack the sentinel still trigger the warning - so adding the sentinel is meaningful
 # (it documents intent AND gates the check) while omitting it still gets caught.
@@ -379,13 +379,13 @@ def _driver_required_warnings() -> list[str]:
         return warnings
     for cmd in COMMANDS_DIR.glob("*.md"):
         text = cmd.read_text(encoding="utf-8")
-        if RUN_HARNESS_SENTINEL in text:
-            continue  # command explicitly declares it engages the run-harness
+        if RUN_SENTINEL in text:
+            continue  # command explicitly declares it engages a run
         for stem, names in driver_required.items():
             if any(n in text for n in names):
                 warnings.append(
                     f"command '{cmd.name}' references driver-required workflow '{stem}' "
-                    f"(it declares on_complete). Ensure the command engages the run-harness "
+                    f"(it declares on_complete). Ensure the command engages a run "
                     f"(intake Phase P / a 1-node run), not a direct workflow-chaining dispatch - "
                     f"otherwise on_complete degrades to a human suggestion."
                 )

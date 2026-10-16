@@ -175,7 +175,7 @@ fi
 
 # --- Invariant 2 (NON-BLOCKING note): backend code written, OSM reachable, validators skipped
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -gt 0 && "$VALIDATOR_CALLS" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    _note "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-backend-coder.md Round 5, run the ORM validation gate before presenting, or label your work \`grounded: local-source - <why>\` (the /test_lint lint-class gate is NOT yours - it runs once at run-harness's pre-PR tail). Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}"
+    _note "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md, run the ORM validation gate before presenting, or label your work \`grounded: local-source - <why>\` (the /test_lint lint-class gate is NOT yours - it runs once at the plan's pre-PR lint gate). Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}"
 fi
 
 # --- Invariant 3 (NON-BLOCKING note): the silent-skipper -------------------------------------

@@ -1,7 +1,6 @@
 # Phase D - Dependency DAG Reasoning Reference
 
 > Live reference for `odoo-brl` Phase D. Read this file when running Phase D.
-> Architecture: see `docs/reference/workflow-harness.md`.
 > Output schema: `reference/schema.md` §dag.json.
 
 ---
@@ -261,4 +260,3 @@ and phase-to-phase arrows) to keep the diagram renderable.
 ## References
 
 - `reference/schema.md` §dag.json - output schema
-- `docs/reference/workflow-harness.md` - harness architecture and DAG layer design

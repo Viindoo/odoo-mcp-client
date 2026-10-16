@@ -71,7 +71,7 @@ Migration is needed when a module version bump introduces any of: field rename, 
 **`WORKTREE_PATH` is required whenever this skill writes a script.** The migration file is
 git-tracked, so per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton field 5 the write happens in
 a dedicated worktree - never the principal checkout. A caller (forward-port, modules-upgrade, a
-run-harness node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never under your own cwd.
+plan node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never under your own cwd.
 Invoked with no `WORKTREE_PATH` and no worktree already in scope -> provision one via
 `git-toolkit:git-ops` before Round 3, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
@@ -159,7 +159,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/examples.md` fo
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-harness output, changes nothing above.
+(status / produced / next) - additive plan-runner output, changes nothing above.
 
 **Design-first entry (STANDALONE invocations only - an in-block entry).** When
 Round 1's Design-gate fired (a non-trivial migration with no approved design doc), carry that
@@ -175,6 +175,6 @@ blocks your own `status`. `next:` is a LIST, so this rides alongside any other e
 which includes arriving through the § Migration carve-out (there a design already exists, so the
 gate cannot fire). Under a plan, a missing design is PLAN DRIFT and never a next step: STOP and
 route back to `odoo-planning` to amend the plan (that snippet's § Execution adherence). Design must
-never follow the plan it was supposed to precede, and `run-harness` refuses to materialize a design
-node at ANY confidence
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Gate-tier node classes).
+never follow the plan it was supposed to precede, and the runner never launches a design node
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Running the plan,
+invariants).

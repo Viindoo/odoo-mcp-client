@@ -124,34 +124,33 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 - "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
 - "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
 
-## Collision 9 - Parallel multi-WI delivery (odoo-planning) vs BRL (requirement classification) vs Coding (single change)
+## Collision 9 - Parallel multi-change delivery (odoo-planning) vs BRL (requirement classification) vs Coding (single change)
 
 **Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
 
-- `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-WI PR with review +
+- `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-change PR with review +
   squash" intent -> it produces the node EXECUTION PLAN. The git orchestration itself
   (ONE run-integration branch per repo, cherry-pick, the verification nodes the plan places, then
   ONE PR per repo opened once every non-land-tail node in that repo is terminal, STOP at "PR opened")
-  is `run-harness`'s INTERNAL single node loop, which it drives from the approved plan (there
+  is the main agent's run of the approved plan (`plan-mode-schema.md` § Running the plan; there
   is no separate git-executor skill); it never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the merge approval gate. The node loop is internal to
-  `run-harness` - never route a user prompt to an executor.
+  `odoo-pr-monitoring` at the merge approval gate. Never route a user prompt to an executor.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
 - `odoo-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
   change (backend and/or frontend) in the current working directory; no git orchestration, no worktrees.
 
 **Discriminator**:
-- "parallelize" + "N changes" + "PR" + "squash" signal parallel multi-WI delivery ->
-  **Pick `odoo-planning`** (it plans it; `run-harness` then drives it node by node via its internal single node loop).
+- "parallelize" + "N changes" + "PR" + "squash" signal parallel multi-change delivery ->
+  **Pick `odoo-planning`** (it plans it; the main agent then runs it node by node).
 - "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
 - Single change, single feature, no git coordination needed -> **Pick `odoo-coding`.**
 
 If the user said "write a computed field for sale.order" -> `odoo-coding` (single, no orchestration).
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
 If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
--> `odoo-planning` (multiple disjoint changes; it plans the node plan for `run-harness` to drive
-node by node onto ONE run-integration branch, then ONE PR).
+-> `odoo-planning` (multiple disjoint changes; it plans the node plan the main agent runs node
+by node onto ONE run-integration branch, then ONE PR).
 
 ## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
 
@@ -171,7 +170,7 @@ When the user says "demo" with no further qualifier, ask: "static screenshot doc
 **Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
 deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
 
-## Collision 11 - Rebase vs Forward-Port vs Parallel multi-WI delivery
+## Collision 11 - Rebase vs Forward-Port vs Parallel multi-change delivery
 
 **Prompt**: "I need to rebase my feature branch onto the updated 17.0 base - there are about 12
 commits to replay and a few conflicts to resolve."
@@ -188,24 +187,24 @@ commits to replay and a few conflicts to resolve."
   word into a git shape.
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
   the node plan; the cherry-pick + squash of N independent changes that do NOT share a
-  continuous range is performed by `run-harness`'s INTERNAL single node loop (driven
-  from the approved plan), not by the user. It lands the whole run as ONE PR per repo (opened once
+  continuous range is performed by the main agent's run of the approved plan, not by the
+  user. It lands the whole run as ONE PR per repo (opened once
   every non-land-tail node in that repo is terminal) and STOPS at "PR opened"; it never merges - the
   merge is owned by the subsequent `odoo-pr-monitoring` at the merge approval gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major commits to port (one, or a whole range) ->
 `odoo-forward-port`. Many
-disjoint changes to land together -> **Pick `odoo-planning`** (it plans the node plan; `run-harness`
-drives it node by node onto ONE run-integration branch, then ONE PR, STOPPING at
+disjoint changes to land together -> **Pick `odoo-planning`** (it plans the node plan; the main
+agent runs it node by node onto ONE run-integration branch, then ONE PR, STOPPING at
 "PR opened"; the merge is owned by `odoo-pr-monitoring`).
 
-If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
+If the user said "rebase my custom branch onto the updated base of the same series" -> `odoo-git-rebase` (same series,
 whole range).
-If the user said "port this 16.0 fix to 17.0" -> `odoo-forward-port` (cross-major, single commit).
+If the user said "port this fix to the next series" -> `odoo-forward-port` (cross-major, single commit).
 If the user said "land the bugfix, the new field, and the docs update as one reviewed PR" ->
-`odoo-planning` (disjoint WIs, no range replay; planned for `run-harness` to drive node by node onto
-ONE run-integration branch, then ONE PR).
+`odoo-planning` (disjoint changes, no range replay; planned for the main agent to run node by
+node onto ONE run-integration branch, then ONE PR).
 
 ## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
 

@@ -119,7 +119,7 @@ translation-export and catalog tools agents call as `mcp__plugin_odoo-ai-agents_
   keep it out). The Postgres password comes only from `ODOO_PG_PASSWORD` or `~/.pgpass`; the plugin
   never writes one.
 - **Hooks gate what a subagent does with a lease.** `hooks/hooks.json` registers exactly FOUR
-  PreToolUse hard denies - coordinator source writes, an unowned lease mutation, a
+  PreToolUse hard denies - spawner source writes, an unowned lease mutation, a
   `SubagentHandback` while a lease the subagent obtained is still live and not forwarded
   (`block-handback-with-live-lease.sh`: a handback delivers the report before SubagentStop, so the
   SubagentStop teardown gate alone came too late; both share `hooks/teardown-check.sh`), and a
@@ -147,7 +147,7 @@ Names encode role so a router can tell the layers apart even when a name appears
   **must equal the filename**. Listed in `plugin.json` `commands`.
 
 A skill and the agent it dispatches must have **different** names (capability vs actor). All
-Odoo-specific names carry the `odoo-` prefix; `run-harness` and `workflow-chaining` are the only
+Odoo-specific names carry the `odoo-` prefix; `workflow-chaining` is the only
 unprefixed (domain-agnostic) names. Enforced by `tests/test_naming_consistency.py`.
 
 **Before creating or modifying any skill or agent, read `docs/authoring-skills-and-agents.md`** -

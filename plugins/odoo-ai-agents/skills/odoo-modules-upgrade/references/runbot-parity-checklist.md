@@ -36,7 +36,7 @@ Reproduce the backend code-quality CI by running the lint-class modules
 (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`). This gate IS the run's one pre-PR
 lint-class gate, so it runs exactly once and never as a raw `odoo-bin` run:
 
-- When the run has a `run-harness` pre-PR tail, that tail's lint-class gate is Gate 2 - record its
+- When the run is a plan with an `integrate` node, that node's pre-PR lint-class gate is Gate 2 - record its
   verdict here and dispatch nothing.
 - Otherwise (a standalone upgrade), invoke the `odoo-instance` skill (via the Skill tool) with
   `OPERATION: run-tests`, `GATE_ROLE: pre-pr-lint-gate`, `MODULES` and `TEST_TAGS` (`/<m>` per

@@ -144,14 +144,14 @@ git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not a
 These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT
 provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
 `odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (Each source-writing node's worktree
-is provisioned by `run-harness` (Hard rule 6), forked from that repo's `run-integration` branch -
-not by a dispatched specialist - see `run-harness` § Run start.)
+is provisioned by the plan runner, forked from that repo's `run-integration` branch - not by a
+dispatched specialist - see `plan-mode-schema.md` § Running the plan, step 2.)
 
 `odoo-doc-illustration` self-provisions only when its target is a principal checkout: it moves the
 run into a new docs worktree and branch at that checkout's HEAD commit, after a bounded
 `git status --porcelain -- <module paths>` read whose uncommitted changes it puts to the user once
 (commit them first, or document HEAD without them). So a dispatcher outside a run (`odoo-intake`
-without Phase P, a direct invocation) provisions nothing for it. On a run, `run-harness` hands it
+without Phase P, a direct invocation) provisions nothing for it. On a run, the runner hands it
 the run's worktree like any source-writing node; a linked worktree it receives is used as is.
 
 ## Invocation contract

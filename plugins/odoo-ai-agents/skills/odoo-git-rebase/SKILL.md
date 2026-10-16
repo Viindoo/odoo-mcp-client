@@ -29,7 +29,7 @@ judges business behavior inline.
 | A version-to-version API delta only | `odoo-version-diff` | pure diff, no git op |
 | Review an existing PR/diff without rebasing | `odoo-code-review` | static review, no replay |
 | STANDALONE design, no commits to rebase | `odoo-solution-design` | a bucket-(c) re-implement INSIDE a rebase run uses the P5 route-out (in scope) |
-| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the node execution (`run-harness` cherry-picks each node's commit onto the run-integration branch, then squashes it for the PR); rebase replays one branch range, never squashes |
+| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the node execution (the main agent cherry-picks each node's commit onto the run-integration branch, then squashes it for the PR); rebase replays one branch range, never squashes |
 
 > **Route in (Odoo rebase lands HERE, not bare git-ops):** an Odoo same-series rebase routes to
 > this skill - it wraps git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding
@@ -281,8 +281,7 @@ mirroring §P9b) at the ADAPT tier with `COMMIT: caller` (the rebase's own conti
 replayed commit), `TEST LEG: deferred - P9` (the node's test leg runs once, at P9) and the run's `RUN_ID`
 to resolve hunks to INTENT on the new-base idiom. Record every module each resolution touched - P9 covers
 them all. `odoo-coding`
-owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-node
-coordinator) - including `odoo-frontend-coder`
+owns the node's coder and synthesis (its `odoo-coder`) - including `odoo-frontend-coder`
 for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
 `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a
@@ -352,9 +351,8 @@ When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags
 Present `rebase-log.md` + `verify.md`. STOP. Wait for human approval before any push or PR.
 
 **P12 - Final review + PR [delegated review capability - human merge].**
-Order inside this phase is fixed by the **Terminal stage order** constant
-(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/run-integration.md` § Pre-PR tail, its ONE
-owner). FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
+Order inside this phase follows the default tail (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Default tail): everything that can force a code
+change runs before the PR opens. FIRST delegate the final code review against `worktree:<WT_ROOT>/rb-integration` and clear
 its CRITICAL/HIGH findings on that worktree: this review can force CODE CHANGES, so it runs BEFORE
 the branch is pushed and the PR opened - a review that lands after would make the PR churn and leave
 regression testing chasing a moving target. THEN resolve fork remote name and upstream org/repo from
@@ -420,7 +418,7 @@ When the run finishes or pauses at a gate, append a Continuation Contract block 
 `produced` lists `intake.md`, `recon.md`, `intents/<sha>.md`, `comparison.md`,
 `rebase-log.md`, `plan.md`, `verify.md`, and the PR URL. `next` is the human-confirm gate
 (P11) or human merge (P12). When P5 routes a commit out to design, `next: odoo-solution-design`
-with canonical payload and the run YIELDS; the run-harness advances the hop and re-enters
+with canonical payload and the run YIELDS; the plan runner advances the hop and re-enters
 odoo-git-rebase with the returned `design_doc`. In-pipeline review findings (P9b) are folded
 into `rebase-log.md`; a resume after a crash mid-loop re-reads them from there. This workflow
 has TWO review points: P9b (in-pipeline, fix-until-clean, before verify) and P12 (final review of

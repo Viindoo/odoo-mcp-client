@@ -58,7 +58,7 @@ the catalog's `addons_path`, which points at the principal checkout, so it does 
 own worktree. Exactly one rule releases the paragraph above, DISPATCHER-declared, never
 receiver-inferred:
 
-- **Dispatcher, node coding fan-out.** When dispatching a node's coordinator against its own
+- **Dispatcher, node coding fan-out.** When dispatching a node's coder against its own
   worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
   `SELF_PROVISION: worktree-addons`. A node gets ONE instance for its whole module set - never one
   instance per module. Never send both: a brief carrying a handle AND the token is malformed, and

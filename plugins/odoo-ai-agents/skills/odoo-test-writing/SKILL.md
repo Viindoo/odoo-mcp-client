@@ -156,8 +156,8 @@ code.
   `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A everywhere).
 
 Static check before running: imports resolve, `@api.depends` paths used in `Form` interactions pass
-`validate_depends`, field names match `model_inspect`. The lint gate runs once at `run-harness`'s
-pre-PR tail, not here (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`).
+`validate_depends`, field names match `model_inspect`. The lint gate runs once at the plan's
+pre-PR lint gate, not here (`${CLAUDE_PLUGIN_ROOT}/snippets/lint-gate-modules.md`).
 
 ### 5. Prove each behavior test, then restore
 

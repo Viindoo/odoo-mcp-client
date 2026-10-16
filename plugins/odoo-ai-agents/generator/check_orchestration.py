@@ -93,8 +93,8 @@ is complete and that skills thread the shared contracts they are required to:
                     distinct skills+agents (a "hot" shared contract), and its budget is the default
                     cap (4,096 B). Door (b) is a heuristic for hotness that door (a) states
                     outright - which is how a hot contract door (b) cannot see gets capped: a
-                    top-level `skills/<name>/SKILL.md` runtime contract (e.g. `run-harness`, the
-                    drive-to-done loop re-entered on every node and every resume) shares the
+                    top-level `skills/<name>/SKILL.md` runtime contract (e.g. `odoo-intake`, the
+                    front door re-entered on every request) shares the
                     basename `SKILL.md` with every skill, so no basename-keyed citer count can
                     single it out. A wave-13 file earns its own permanent budget entry the moment
                     it is trimmed and committed - that entry is its post-trim actual size, so the
@@ -320,8 +320,6 @@ CODING_GUIDELINES_ROOT = "skills/_shared/coding_guidelines"
 CODING_GUIDELINES_VERSIONS = ("14.0", "15.0", "16.0", "17.0", "18.0", "19.0")
 
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
-# (run-harness is deliberately NOT here: it is the domain-agnostic driver - "No OSM dependency" -
-# and grounding is each dispatched specialist's concern, so it carries no osm-first contract.)
 OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
@@ -331,8 +329,8 @@ OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # agents.<name>.role enum (V-01 SSOT - now populated for every agent; see the agent-role pass below).
-VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator", "node-owner"}
-# output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
+VALID_AGENT_ROLE = {"leaf", "spawner", "node-owner"}
+# output_mode drives the Plan-Mode decision; default_gate_tier drives the runner's gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
 # per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,
 # so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.
@@ -350,10 +348,9 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
     """Derive the registry default_gate_tier for a SKILL. L2 = irreversible/outward → ALWAYS
     human gate (the dial can never lower it). L1 = writes internal files. L0 = read-only/chat.
 
-    This derives a SKILL's registry default only. The per-NODE tier is a total function in
-    `run-harness` that also reads whether the node is dynamic and whether the driver itself
-    composed a fresh-database brief; it is not computed here. `outward` is checked first so an
-    outward skill always derives L2."""
+    This derives a SKILL's registry default only. The per-node human gates are the closed list
+    in plan-mode-schema.md § Running the plan; they are not computed here. `outward` is checked
+    first so an outward skill always derives L2."""
     if outward:
         return "L2"
     if instance_touching:
@@ -571,14 +568,14 @@ def check_role_scope(findings: list[str]) -> None:
     Half (b)'s subject set (agents with role in {spawner, coordinator}) is asserted NON-EMPTY
     before the check runs, so the half can never pass vacuously (an empty subject set would
     silently produce zero findings and look identical to "every spawner complies"). If a tree
-    genuinely has no spawner/coordinator agent, set the top-level registry flag
+    genuinely has no spawner agent, set the top-level registry flag
     `_role_scope_no_spawners_expected: true` to make that an explicit, reviewable choice instead
     of a silent gap.
 
     Known false negative, stated rather than hidden: (c) is a lexical claim check. A body that
     states the prohibition in a phrasing this regex cannot see - or states it and then contradicts
     it elsewhere - still passes. It proves the claim is PRESENT for the agent to read, never that
-    the agent obeys it; `hooks/block-coordinator-code-write.sh` is the enforcing half."""
+    the agent obeys it; `hooks/block-spawner-code-write.sh` is the enforcing half."""
     data = json.loads(DEPS_FILE.read_text(encoding="utf-8"))
     agents = data.get("agents", {})
     no_spawners_expected = bool(data.get("_role_scope_no_spawners_expected"))
@@ -598,13 +595,13 @@ def check_role_scope(findings: list[str]) -> None:
                     f"(spawner-tier contract) - a leaf launches nothing, so this does not bind it"
                 )
 
-    # (b) the spawner/coordinator subject set must be non-empty, or the check is vacuous.
+    # (b) the spawner subject set must be non-empty, or the check is vacuous.
     if not spawners:
         if not no_spawners_expected:
             findings.append(
                 "[role-scope] subject set for the spawner-completion-contract.md citation check "
                 "(agents with role in {spawner, coordinator}) is EMPTY - this would let half (b) "
-                "of the rule pass vacyously. If no spawner/coordinator agent is genuinely expected, "
+                "of the rule pass vacyously. If no spawner agent is genuinely expected, "
                 "set the top-level registry flag `_role_scope_no_spawners_expected: true` to make "
                 "that explicit; otherwise this is a real coverage gap."
             )
@@ -621,7 +618,7 @@ def check_role_scope(findings: list[str]) -> None:
         if "spawner-completion-contract.md" not in body:
             findings.append(
                 f"[role-scope] '{name}' has role={agents[name].get('role')!r} but its body never "
-                f"cites spawner-completion-contract.md - a spawner/coordinator launches agents, so "
+                f"cites spawner-completion-contract.md - a spawner launches agents, so "
                 f"R3's completion-report addressing rule binds it directly"
             )
         # (c) the prohibition must be in the BODY, where the agent can read it.
@@ -832,7 +829,7 @@ def _skill_dispatch_surface(skill_name: str) -> list[tuple[str, str]]:
 # Naming an agent or skill is always fine - `dispatch odoo-coder`, `invoke odoo-instance`. What this
 # bans is the PATH to its definition file.
 
-# The prefix is OPTIONAL on both halves. Writing `odoo-coder.md` or `run-harness/SKILL.md` without
+# The prefix is OPTIONAL on both halves. Writing `odoo-coder.md` or `odoo-intake/SKILL.md` without
 # `agents/` or `skills/` is the same instruction as the full path, and an earlier revision of this
 # rule matched only the full form - so three separate sweeps had to find the bare variants by
 # reading, and one was reverted because a test pinned it. A guard narrower than the defect is how

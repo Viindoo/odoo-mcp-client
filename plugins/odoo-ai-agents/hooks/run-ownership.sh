@@ -5,13 +5,13 @@
 # left in the same state dir never makes this session "mid-run".
 #
 # WHAT MAKES A RUN THIS SESSION'S: the LAST write to its record came from this session. A record is
-# written by a tool call that names it - intake's Phase P creates it, run-harness writes it after
+# written by a tool call that names it - intake's Phase P creates it, the plan runner writes it after
 # every node and before every dispatch, from a script or the Write/Edit tools - so the record's
 # modification time falls inside the run time of one of this session's calls naming it (from the
 # call record's time to its result record's time). Reading a record (intake's active-run check,
 # a status look) writes nothing and so makes nothing this session's. A later write by another
-# session - run-harness resuming the run there - moves the record's time outside every window of
-# this session: the run is that session's now. A RESUMED run becomes this session's at run-harness's
+# session - the plan runner resuming the run there - moves the record's time outside every window of
+# this session: the run is that session's now. A RESUMED run becomes this session's at the runner's
 # first write here (it persists RUNNING before it dispatches anything). Run records are only read.
 #
 # Accepted residuals: a write whose call names the record by neither its file name nor its run id

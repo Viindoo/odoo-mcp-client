@@ -15,7 +15,7 @@ See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) y
 against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton - this file covers only your
 worker-side behavior once dispatched, not how the caller composed your brief.
 
-**Who this brief does NOT bind: any agent the registry declares `role: spawner|coordinator`**
+**Who this brief does NOT bind: any agent the registry declares `role: spawner`**
 (`generator/skill_tool_deps.json` -> `agents.<name>.role` is the SSOT - read the role, do not
 infer it from a name list here) **or `role: node-owner`** (`odoo-coder`). Today that is
 `odoo-coder` and `odoo-solution-architect`; a third promoted tomorrow is covered by the same

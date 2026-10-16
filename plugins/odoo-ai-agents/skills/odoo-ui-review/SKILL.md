@@ -108,7 +108,7 @@ warn the human rather than dispatching a doomed run.
       inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to install>"]}
       confidence: 0.9
   ```
-  so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for review)` only if provisioning is itself impossible. Do NOT ask the caller to paste a URL or attach screenshots. Prefix (if pre-captured evidence used) with `⚠ Instance unreachable - review limited to pre-captured screenshots`.
+  so the caller provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for review)` only if provisioning is itself impossible. Do NOT ask the caller to paste a URL or attach screenshots. Prefix (if pre-captured evidence used) with `⚠ Instance unreachable - review limited to pre-captured screenshots`.
 
 ## Agent-managed tools
 
@@ -119,4 +119,4 @@ restricted tool list (OSM + chrome-devtools) and step-by-step execution detail.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+output for the plan runner - it does not change anything produced above.

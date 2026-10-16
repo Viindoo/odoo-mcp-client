@@ -281,7 +281,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
         "`orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. Two "
         "spawn_classes legitimately appear here: (1) a `spawner-agent` (launches a named subagent "
         "directly); (2) an `orchestrator-nl` whose `spawns` are SKILL invocations it drives "
-        "transitively via the Skill tool (e.g. `run-harness` chaining `odoo-coding` / `git-ops`) - "
+        "transitively via the Skill tool (e.g. `odoo-forward-port` chaining `odoo-coding` / `git-ops`) - "
         "it launches no agent itself, but the skills it dispatches may, so surfacing it here is "
         "correct, not a defect. Only a `leaf` listed here is a genuine drift to fix at the SSOT (a "
         "leaf must never carry a `spawns` entry - either its class or the `spawns` entry is wrong)."
@@ -322,7 +322,7 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     lines = [
         "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
         "- Skills that LAUNCH subagents - directly, or transitively by chaining a spawner skill via "
-        "the Skill tool, e.g. run-harness (let them; a worker doing delegated work should not re-launch them): "
+        "the Skill tool (let them; a worker doing delegated work should not re-launch them): "
         + (", ".join(spawners) or "none"),
         "- Every agent launch (plugin or built-in, e.g. Explore, general-purpose) passes `model` "
         "explicitly - an omitted model inherits yours. haiku = find/gather, instance ops, "

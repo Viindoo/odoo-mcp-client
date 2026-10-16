@@ -10,8 +10,8 @@
 # it. `drop_on_release: true` fired and a freshly built database was destroyed. Its stated reasoning
 # was that the lease "looked orphaned"; the question it never asked was DID I ACQUIRE THIS. The
 # agent's own definition called it read-only and a HARD LEAF - but that prohibition was PROSE, with
-# no gate under it, exactly like the coordinator-authoring breach that
-# hooks/block-coordinator-code-write.sh was written for.
+# no gate under it, exactly like the spawner-authoring breach that
+# hooks/block-spawner-code-write.sh was written for.
 #
 # WHAT IT REFUSES - four arms, all scoped to a SUBAGENT caller:
 #   A1  `allocator.py release ...`, `allocator.py park ...` or `allocator.py adopt ...` in a command
@@ -63,7 +63,7 @@
 #
 # WHY IDENTITY-FREE (no per-agent allow-list): the agent-role SSOT
 # (generator/skill_tool_deps.json `.agents.<name>.role`) has exactly two live values here, `leaf`
-# and `coordinator`, and the agents that legitimately drive the allocator (`odoo-instance-ops`,
+# and the agents that legitimately drive the allocator (`odoo-instance-ops`,
 # `odoo-qa-tester`, `odoo-coder`) sit on BOTH sides of that line - so `role` cannot separate "may
 # mutate a lease" from "may not", and a new per-agent classification would be 26 hand-made
 # judgements, each one an outage on the pipeline it mis-marks. This gate instead asserts the ONE
@@ -71,7 +71,7 @@
 # It therefore also covers agents that do not exist yet.
 #
 # WHY A SUBAGENT ONLY: the ROOT is never denied (the same rule remind-delegate.sh and
-# block-coordinator-code-write.sh follow). A human is present in the main context to read the
+# block-spawner-code-write.sh follow). A human is present in the main context to read the
 # allocator's own refusal and decide; a dispatched agent is not, and the incident happened in a
 # dispatch. The allocator refuses a foreign or un-named release for EVERY caller regardless - this
 # hook is the earlier, explanatory layer, and the layer that still holds if the allocator predicate
@@ -97,7 +97,7 @@
 # command line.
 #
 # WHAT THE ARMS ARE RUN OVER: hooks/command-segments.sh, the segmentation SSOT this gate shares
-# with block-coordinator-code-write.sh. Continuations are joined BEFORE splitting, which closes a
+# with block-spawner-code-write.sh. Continuations are joined BEFORE splitting, which closes a
 # hole that ran in both directions at once: `release <tok> \` + `--run-id <id>` used to refuse a
 # lease the caller genuinely owned, while `--run-id <id> \` + `--force` used to slip an override
 # past arm A2 entirely, because the override sat in a segment carrying no allocator token.
@@ -173,7 +173,7 @@ elif [[ "$TOOL" != "Bash" ]]; then
 fi
 
 # Caller must be a subagent - ANY populated agent_id/agent_type. Same identity signal, same V-52
-# rule, as hooks/remind-delegate.sh and hooks/block-coordinator-code-write.sh. The ROOT is never
+# rule, as hooks/remind-delegate.sh and hooks/block-spawner-code-write.sh. The ROOT is never
 # denied.
 AGENT_ID="$(printf '%s' "$INPUT" | jq -r '.agent_id // .agentId // empty' 2>/dev/null || true)"
 AGENT_TYPE="$(printf '%s' "$INPUT" | jq -r '.agent_type // .agentType // empty' 2>/dev/null || true)"

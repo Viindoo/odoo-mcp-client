@@ -7,7 +7,7 @@
 #     (snippets/spawner-completion-contract.md R0 move 3 - the subagent is woken once per teammate),
 #     so a lease the subagent still holds for the work it resumes is not ordered released there.
 # If the two drifted, a stop could be refused as unwakeable and also let through as a wait, or a
-# coordinator waiting for its teammate could be ordered to destroy the instance it is waiting to use.
+# spawner waiting for its teammate could be ordered to destroy the instance it is waiting to use.
 #
 # Every function prints to stdout and prints nothing on any failure (no jq, unreadable transcript,
 # parse error); both callers treat "nothing" as "no teammate" and fall back to their own default.
