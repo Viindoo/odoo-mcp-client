@@ -130,9 +130,11 @@ thousand-file port).
 ## Worktree isolation - mandatory for every mutation
 
 When requesting ANY mutation (rebase, cherry-pick, commit, merge, reset, push, etc.) from
-git-ops, you MUST require worktree isolation: either supply a `worktree` path in the request
-or instruct git-ops to create a dedicated one. NEVER request a mutation against the main/shared
-checkout. The primary/shared checkout must stay on its principal branch at all times.
+git-ops, you MUST require worktree isolation: supply the `worktree` path in the request. For a
+NEW worktree that path comes from `project_dir` (axis `worktree`, `name` = the branch slug; SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never from git-ops's own choice.
+NEVER request a mutation against the main/shared checkout. The primary/shared checkout must stay
+on its principal branch at all times.
 
 This is the S9 invariant (Worktree-always / principal-checkout-lock) defined as SSOT in
 git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not an option.
@@ -158,7 +160,8 @@ Invoke `git-toolkit:git-ops` via the Skill tool. In the request, describe AT MIN
 - `op`: one-line description of the operation (create a worktree; cherry-pick a range onto
   integration + squash; open a PR; read a diff range; ...)
 - `scope`: refs / range / paths
-- `worktree`: absolute path of the dedicated worktree (or ask git-ops to create one)
+- `worktree`: absolute path of the dedicated worktree - an existing one, or the `project_dir`
+  axis `worktree` path git-ops creates it at
 - For destructive (L2) ops: `confirmed: <yes + quoted human approval | no>`
 - `USER LANGUAGE: <language>`
 

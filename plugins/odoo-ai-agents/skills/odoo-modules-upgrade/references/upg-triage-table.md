@@ -1,19 +1,19 @@
 # upg-triage-table - ADAPT model-tier table
 
 Used in P4 of `odoo-modules-upgrade` to assign a model tier to each module's adapt
-work-item. The orchestrator resolves the tier BEFORE dispatching `odoo-coding` and
+adapt unit. The orchestrator resolves the tier BEFORE dispatching `odoo-coding` and
 records it in `plan.md` (the tier is part of the approved plan, not a runtime improvisation).
 
-This table reuses the shape of `odoo-coding`'s deterministic tier table (Phase 0, step 5) - that
-skill owns the tier definitions and constraints; invoke it, do not restate them here.
+This table refines `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 checklist, 5.2 opus conditions) - the guard owns the tier
+definitions and constraints; read it, do not restate them here.
 The rows below are UPGRADE action-specific refinements only; the SSOT table settles everything else.
 
 ---
 
 ## ADAPT tier table (upgrade context, first match wins)
 
-Action-specific rows only. Any case these rows do not settle takes the `odoo-coding` step 5
-tier for the module's work-item. Size, file count, LOC and module count alone never raise a tier.
+Action-specific rows only. Any case these rows do not settle takes the tier the guard
+resolves for the module's adapt unit. Size, file count, LOC and module count alone never raise a tier.
 
 | # | Condition | Tier |
 |---|-----------|------|
@@ -42,6 +42,6 @@ tier for the module's work-item. Size, file count, LOC and module count alone ne
 
 ## Cross-reference
 
-- ADAPT tier definitions and tier constraints (authoritative): `odoo-coding` (Phase 0 step 5) - invoke it; do not restate here.
+- ADAPT tier definitions and tier constraints (authoritative): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection - read it; do not restate here.
 - P4 dispatch briefs and child-worktree commands: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`
 - Breaking-change catalog (what P4 coders apply): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`

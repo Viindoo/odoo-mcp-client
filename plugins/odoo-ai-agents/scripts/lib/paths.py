@@ -18,6 +18,11 @@ same convention as allocator.py's _home()):
     ISOLATE - $ODOO_AI_HOME/projects/<repo-key>/worktrees/<wt-key>/
               <wt-key> = sha256(realpath(git rev-parse --show-toplevel))[:12]
               DISTINCT per worktree (including the principal checkout).
+              A worktree whose checkout lives at the WORKTREE path below keys
+              on its <name> instead, so its state dir is the parent of its src.
+    WORKTREE - $ODOO_AI_HOME/projects/<repo-key>/worktrees/<name>/src
+              where an agent-created git worktree is checked out. <name> is
+              caller-chosen (branch slug): [A-Za-z0-9][A-Za-z0-9._-]{0,79}.
 
 Explicit overrides ($ODOO_AI_PROJECT_DIR for SHARE, $ODOO_AI_WORKTREE_DIR for
 ISOLATE) are honored verbatim (still created, never re-hashed).
@@ -45,6 +50,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import subprocess
 import sys
 
@@ -148,7 +154,24 @@ def _repo_key(cwd: str | None = None) -> str | None:
     return _hash12(os.path.realpath(common))
 
 
-def _wt_key(cwd: str | None = None) -> str | None:
+_WORKTREE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
+
+
+def _named_worktree_key(top: str, share: str | None) -> str | None:
+    """`<name>` when `top` is `<share>/worktrees/<name>/src`, else None."""
+    if not share:
+        return None
+    base = os.path.join(os.path.realpath(share), "worktrees")
+    if os.path.basename(top) != "src":
+        return None
+    parent = os.path.dirname(top)
+    if os.path.dirname(parent) != base:
+        return None
+    name = os.path.basename(parent)
+    return name if _WORKTREE_NAME_RE.match(name) and ".." not in name else None
+
+
+def _wt_key(cwd: str | None = None, share: str | None = None) -> str | None:
     top = _git(["rev-parse", "--show-toplevel"], cwd=cwd)
     if top is None:
         return _nongit_key(cwd)
@@ -156,7 +179,9 @@ def _wt_key(cwd: str | None = None) -> str | None:
     # same reason as _repo_key above - keeps both helpers symmetric.
     if not os.path.isabs(top):
         top = os.path.join(cwd or os.getcwd(), top)
-    return _hash12(os.path.realpath(top))
+    top = os.path.realpath(top)
+    named = _named_worktree_key(top, share)
+    return named if named is not None else _hash12(top)
 
 
 def _no_marker_message(var: str, root: str | None = None) -> str:
@@ -232,13 +257,28 @@ def isolate_dir(root: str | None = None, create: bool = True) -> str:
             os.makedirs(d, exist_ok=True)
         return d
     share = share_dir(root, create)
-    key = _wt_key(root)
+    key = _wt_key(root, share)
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR", root))
     d = os.path.join(share, "worktrees", key)
     if create:
         os.makedirs(d, exist_ok=True)
     return d
+
+
+def worktree_src_dir(root: str | None, name: str, create: bool = True) -> str:
+    """Return the absolute path where a git worktree named `name` is checked
+    out: <SHARE>/worktrees/<name>/src. Creates the parent (the worktree's own
+    ISOLATE dir) when `create`; never creates `src` itself - `git worktree add`
+    does, and refuses a non-empty target."""
+    if not _WORKTREE_NAME_RE.match(name or "") or ".." in name:
+        raise ProjectDirError(
+            "worktree name must match [A-Za-z0-9][A-Za-z0-9._-]{0,79}: %r" % (name,))
+    share = share_dir(root, create)
+    parent = os.path.join(share, "worktrees", name)
+    if create:
+        os.makedirs(parent, exist_ok=True)
+    return os.path.join(parent, "src")
 
 
 # --------------------------------------------------------------------------- #
@@ -254,8 +294,20 @@ def _main(argv: list) -> int:
     if argv == ["root"] and root is None:
         print(state_root())
         return 0
+    usage = ("Usage: paths.py [--root <abs-path>] share|isolate | "
+             "paths.py [--root <abs-path>] worktree <name> | paths.py root")
+    if argv[:1] == ["worktree"]:
+        if len(argv) != 2:
+            print(usage, file=sys.stderr)
+            return 2
+        try:
+            print(worktree_src_dir(root, argv[1]))
+        except ProjectDirError as exc:
+            print(f"paths.py: {exc}", file=sys.stderr)
+            return 1
+        return 0
     if len(argv) != 1 or argv[0] not in ("share", "isolate"):
-        print("Usage: paths.py [--root <abs-path>] share|isolate | paths.py root", file=sys.stderr)
+        print(usage, file=sys.stderr)
         return 2
     try:
         print(share_dir(root) if argv[0] == "share" else isolate_dir(root))

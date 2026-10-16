@@ -9,7 +9,7 @@ description: |
   assistant: "Dispatching odoo-planner to turn the approved design DAG into a dependency-ordered node plan and wire each node to a skill."
   <commentary>Approved design + execution sequencing = odoo-planner, not odoo-solution-architect (which designs HOW) or odoo-coding (which writes code).</commentary>
   </example>
-model: opus
+model: sonnet
 color: blue
 ---
 

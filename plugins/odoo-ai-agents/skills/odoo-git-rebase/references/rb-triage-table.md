@@ -53,20 +53,20 @@ Constraints:
 >
 > If the commit's outcome is (d) -> no adapt code; test-forward only at haiku.
 
-Code adapt WRITES and resolves conflicts on the same-version target. Its tier comes from the
-`odoo-coding` step 5 table (SSOT - read it there; it is not restated or forked here). Only the
+Code adapt WRITES and resolves conflicts on the same-version target. Its tier comes from
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 checklist, 5.2 opus conditions) - read it there; it is not restated here. Only the
 rebase-specific rules follow:
 
 - A bucket (a)/(d) commit needs no adapt code - only test-forward - so it lands at **haiku**
   even if the source commit was opus-grade.
-- Every other commit takes the `odoo-coding` step 5 tier for its work-item. Size, file count, LOC
+- Every other commit takes the tier the guard resolves for its adapt unit. Size, file count, LOC
   and module count alone never raise it.
 - **fable is NEVER a default and ALWAYS needs explicit human confirmation** (about 2x the price of
-  the tier below). When the `odoo-coding` table resolves a commit to fable, the P6 plan gate must
+  the tier below). When the guard resolves a commit to fable, the P6 plan gate must
   call out the TRADEOFF on its own line in plain words, never by tier name - which commit, why it
   needs the deepest reasoning, the cost; the plan-gate approval covers it. On a decline, downgrade
   that commit to **opus** and record `<sha>: opus (fable declined)` in `plan.md`.
-- A full-stack work-item gets ONE tier applied to both legs by default; a lower frontend
+- A full-stack adapt unit gets ONE tier applied to both legs by default; a lower frontend
   tier is allowed when the design splits effort, never a higher one.
 
 ---

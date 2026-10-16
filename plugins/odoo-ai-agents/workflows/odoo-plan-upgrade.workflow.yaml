@@ -60,7 +60,7 @@ phases:
   # ------------------------------------------------------------------
   - id: synthesis
     inline: true
-    model_tier: opus
+    model_tier: sonnet
     gate: "approve / skip / cancel"   # approve = produce the plan; skip = skip this phase, no plan produced; cancel = abort
     # 1. ACTION ORDERING - fixed order regardless of which items are present:
     #    (1) Pre-flight CRITICAL fixes (BREAKING tier from deprecation audit + any

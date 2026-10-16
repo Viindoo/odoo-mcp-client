@@ -18,8 +18,8 @@ It produces three kinds of dependency edge:
 | Edge type | Meaning | Source |
 |---|---|---|
 | `technical` | Module A must be installed before module B (Odoo manifest `depends`) | `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` (deterministic) |
-| `business-logic` | Requirement B's business process needs A done first | Opus reasoning (no MCP tool) |
-| `data-flow` | Requirement B needs master data produced by A | Opus reasoning + (optional) `model_inspect` |
+| `business-logic` | Requirement B's business process needs A done first | LLM reasoning (no MCP tool) |
+| `data-flow` | Requirement B needs master data produced by A | LLM reasoning + (optional) `model_inspect` |
 
 `impact_analysis` is NOT used - it is reverse direction (blast radius), wrong for forward
 planning.
@@ -50,11 +50,11 @@ D2. Cluster-cut:
 
     Clusters are never capped or split by size; pairwise reasoning stays inside one cluster.
 
-D3. Intra-cluster reasoning (Opus, per cluster):
-    For each cluster, run the Opus cluster prompt below (input = that cluster's req-list,
+D3. Intra-cluster reasoning (per cluster):
+    For each cluster, run the cluster prompt below (input = that cluster's req-list,
     output = {edges:[{from,to,type,reason}]} JSON, edges only WITHIN the cluster).
     - Default: inline, sequential, one cluster at a time.
-    - For parallelism only (many clusters): launch one Opus subagent per cluster;
+    - For parallelism only (many clusters): launch one subagent per cluster (tier per SKILL.md D3);
       subagent prompt MUST carry the hard-rules line. Each returns ONLY its edges JSON (<=2k).
 
 D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
@@ -105,7 +105,7 @@ representative. For 1000 items / 15 clusters: ~37k intra + 225 inter ≈ 7% of f
 
 ---
 
-## Opus cluster-reasoning prompt (cluster-scoped)
+## Cluster-reasoning prompt (cluster-scoped)
 
 Use this verbatim per cluster in D3. `{module_family}`, `{business_domain}`, and the
 requirement list are interpolated by the engine. Output is consumed as JSON.

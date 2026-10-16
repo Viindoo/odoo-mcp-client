@@ -3,7 +3,7 @@ name: odoo-modules-upgrade
 argument-hint: "[module-cluster] [target-series]"
 description: >-
   Upgrade or migrate custom modules to a higher Odoo major so they install and work. Data-only scripts -> odoo-data-migration
-model: opus
+model: sonnet
 ---
 
 ## Role

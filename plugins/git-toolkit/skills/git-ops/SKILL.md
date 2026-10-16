@@ -63,6 +63,10 @@ Fallback: if THIS context cannot cold-spawn (no agent-launch capability), degrad
 INLINE-with-contract per `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N4 - never fail
 silently.
 
+A mutation brief names its worktree: `worktree` (exact absolute path) or `worktree_root` (the
+worker creates `<worktree_root>/<branch-slug>`). Neither given -> ask the caller before
+dispatching; the worker never chooses a location (S9 in the safety contract).
+
 ## Step 3 - apply the safety contract to anything destructive
 
 Every destructive op carries the full safety contract in

@@ -3,7 +3,7 @@ name: odoo-git-rebase
 argument-hint: "[branch] [onto base]"
 description: >-
   Rebase a branch onto an updated base of the SAME Odoo series
-model: opus
+model: sonnet
 ---
 
 ## Role
