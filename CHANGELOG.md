@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [7.7.0] - 2026-10-16
+
 ### Changed
 
 - `odoo-ai-agents` - **haiku-first lifecycle: the plan is the authority and the main agent runs
@@ -22,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `odoo-ai-agents` - the `run-harness` driver skill, `odoo-backend-coder`, `odoo-review-scoper`
   and the six documentation agents are deleted; the orchestration lint keeps only rules that read
   a closed value; the test suite keeps runtime and structural tests only.
+- `git-toolkit` - **the caller names the worktree location.** A mutation brief gives `worktree`
+  (an exact absolute path) or `worktree_root` (a directory; `git-operator` creates
+  `<worktree_root>/<branch-slug>` under it); the operator never picks a sibling of the repo or a
+  temp dir, and a brief with neither field returns BLOCKED. The S9 example in the safety contract
+  follows. (`git-toolkit` 0.6.9 -> 0.7.0.)
 
 ## [7.6.1] - 2026-10-11
 
