@@ -53,3 +53,38 @@ manifest flag and the menu tree (`module_inspect` / source) before signing off:
   app. Operational data does not live under Configuration; admin setup does.
 
 A non-application module (a pure extension/bridge) is exempt from #3 but still bound by #1 and #2.
+
+## 4. Extension, access and data hygiene (every module)
+
+- **Extend, never replace.** A change to an existing view is an inherited view (`inherit_id` +
+  xpath). A whole-view replacement happens only when the design names it and says why.
+- **Every new model ships its access row** in `ir.model.access.csv`. A model with `company_id`
+  ships a company record rule: a user sees only records of the companies they are allowed to see
+  (the core convention; a module never loosens it for its own records).
+- **`@api.depends` lists every field the compute body reads** - checked against the body, not
+  the intent. A stored compute whose inputs change meaning over time (a rate, a price, a tax
+  position) is designed as a snapshot taken at the business event, not a live recompute that
+  silently rewrites history.
+- **`sudo()` carries its reason** in a comment on the same statement, and the narrowest scope
+  that works. `sudo()` without a reason is a review finding.
+- **No hardcoded locale, currency, company, timezone, date format or language** in a shared
+  module: read them from the record, the company, the user or the context.
+- **A defect in Odoo core is reported, not patched in a downstream module.** The module works
+  around nothing; the fix goes where the defect lives.
+
+## 5. Change hygiene: versions, migrations, retirement
+
+- **One `__manifest__.py` version bump per module per PR**, only when the PR needs a data
+  update or a migration. The migration directory of that version holds at most ONE file per
+  stage (`pre-migrate.py`, `post-migrate.py`, `end-migrate.py`); files named after business
+  topics are not accepted even when they run. A cross-series upgrade converts the series prefix
+  instead of bumping (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).
+- **Retire, do not delete.** A module, model or field that customer databases hold data in stays
+  in place with a TODO naming the next major that removes it. Only a pre-migration script removes
+  data that carries an XML ID.
+- **Data files declare only part of a module's XML IDs.** Odoo mints more for `_inherits`
+  records and for the records a cron or a user creates; a migration never lists XML IDs from the
+  data files - it reads them from the database.
+- **Removing a `noupdate` data file deletes its records** at `_process_end` and cascades into
+  customer records through `ondelete='cascade'`. A record customers reference is pinned by
+  dropping its XML ID, never by removing the file.

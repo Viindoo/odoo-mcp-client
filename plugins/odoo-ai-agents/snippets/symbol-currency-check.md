@@ -12,6 +12,13 @@ Param-safe per `generator/server-surface.json`: `lookup_core_api` requires `name
 `code,odoo_version` and takes an optional `language`; `impact_analysis` requires
 `entity_type,entity_name,odoo_version`; `find_deprecated_usage` requires `odoo_version`.
 
+## Modules in the worktree set `W`
+
+Every check in this file targets a CORE symbol - a module outside the worktree set `W`. A symbol
+owned by a module in `W` (edited, new, renamed, or with a changed `depends`) is read from disk,
+never from the index: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` § The tree under
+edit, which also says which OSM tools still apply to the part of a chain that lies outside `W`.
+
 ## Cheap floor
 
 **Mechanical, 1 call.** Any Python hunk you author or review that reuses a core idiom or

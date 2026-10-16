@@ -29,6 +29,12 @@ Both sides are derived from ONE resolved module set `M`:
 here. A too-narrow `M` is a coverage defect no tagging fixes - this contract only guarantees that
 whatever `M` was resolved is what actually gets tested.
 
+**Two runs, not one.** Before the blast-radius run above, each changed module runs once on a
+fresh database that installs ONLY that module (its upstream closure comes with `-i`): that run
+proves the module stands alone. Its tests create or read records only from the module and its
+closure (`${CLAUDE_PLUGIN_ROOT}/snippets/modularity-contract.md` § Tests); a fixture from a
+module outside the closure is a CRITICAL finding, not a scoping choice.
+
 ## Deriving `T` when the caller supplied none
 
 A caller that resolved a blast radius SHOULD pass its tags. Given none, the executor DERIVES `T =

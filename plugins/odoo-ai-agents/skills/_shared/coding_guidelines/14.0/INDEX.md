@@ -24,23 +24,23 @@ Read the files relevant to your task before writing code. The two warnings below
 | `model-ordering.md` | Attribute order inside a model class, with example |
 | `javascript.md` | Static files organization and JavaScript coding guidelines |
 | `scss.md` | CSS coding guidelines |
+| `tests.md` | Test classes, Form, HttpCase and tours, the JS test runner, and demo data in tests, for this series only |
 
-## By task
+## By file type
 
-> Read ONLY the files mapped to your current task. Snippet path prefix: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
+Before the first line of a file type, read every file its row names. The row is the gate: a
+`VERSION RULES APPLIED` block cites the file and the section heading it took each rule from, and
+a cited heading that does not exist in the file is a review finding. Snippet path prefix:
+`${CLAUDE_PLUGIN_ROOT}/snippets/`.
 
-| Task | Files to read |
+| File you will write | Read first |
 |---|---|
-| New module scaffold | `module-structure.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
-| Writing a view | `xml.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
-| Inheriting an existing view | `xml.md` (section: Inheriting XML), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
-| Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
-| Adding a field or model | `naming.md`, `model-ordering.md`, `python.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
-| ORM method / compute / constraint | `python.md`, `naming.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo-profile-gated) |
-| Writing / reviewing Python | `python.md`, `naming.md`, `security.md` |
-| Translations / i18n | `python.md` (section: Use translation method correctly), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
-| Wizard / TransientModel | `naming.md`, `module-structure.md` |
-| Report (SQL view or QWeb) | `module-structure.md`, `naming.md` |
-| JavaScript / CSS assets | `javascript.md`, `scss.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
-| Naming fields, methods, classes, variables | `naming.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
-| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |
+| `.py` model, field, ORM method, compute, constraint, wizard | python.md, naming.md, model-ordering.md; security.md when the code uses `sudo`, raw SQL or access checks; `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo profile) |
+| `.xml` view, inherited view, data, report, action, menu | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
+| `.xml` security record (`ir.rule`, groups) and `ir.model.access.csv` | security.md, xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
+| `__manifest__.py`, a new module tree | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
+| A `_()` call or a `.po` entry | python.md (translation section), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
+| `.js`, an OWL template, an asset bundle entry | javascript.md, module-structure.md, `../javascript-coding-guidelines.md` |
+| `.scss` | scss.md |
+| A test (`tests/*.py`, `static/tests/*`, a tour) | tests.md, plus the row of the language the test is written in |
+| Any comment or docstring, in every row above | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |
