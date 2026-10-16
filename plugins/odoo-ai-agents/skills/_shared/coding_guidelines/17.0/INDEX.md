@@ -17,7 +17,7 @@ then apply the changes related to the feature.
 ## How to use
 
 Each file in this directory is self-contained and covers one topic area of the official Odoo 17.0
-coding guidelines. Read the file for the topic you are working in. Cross-references between files
+coding guidelines. Read every file the "By file type" table names for the file type you are about to write. Cross-references between files
 are noted where relevant. All rules come directly from the 17.0 RST source - nothing is invented
 or borrowed from other versions.
 
@@ -38,21 +38,23 @@ or borrowed from other versions.
 - **scss.md** - Full SCSS/CSS section: syntax and formatting, properties order, naming conventions,
   SCSS variable convention (`$o-[root]-[element]-[property]-[modifier]`), scoped variables
   (`$-name`), mixins/functions, CSS custom properties with BEM convention, `:root` usage rules.
+- **tests.md** - Test classes, Form, HttpCase and tours, the JS test runner, and demo data in tests, for this series only.
 
-## By task
+## By file type
 
-> Read ONLY the files mapped to your current task. Snippet path prefix: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
+Before the first line of a file type, read every file its row names. The row is the gate: a
+`VERSION RULES APPLIED` block cites the file and the section heading it took each rule from, and
+a cited heading that does not exist in the file is a review finding. Snippet path prefix:
+`${CLAUDE_PLUGIN_ROOT}/snippets/`.
 
-| Task | File(s) to read |
+| File you will write | Read first |
 |---|---|
-| Creating a new module | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
-| Adding Python model code | python.md, naming.md, model-ordering.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
-| Writing XML views or data | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
-| ORM method / compute / constraint | python.md, naming.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo-profile-gated) |
-| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
-| Adding translations / `_()` calls | python.md (translation section), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
-| Adding JS components | javascript.md, module-structure.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
-| Writing SCSS / CSS styles | scss.md |
-| Naming fields, methods, classes, variables | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
-| Ordering model attributes | model-ordering.md |
-| Writing ANY comment or docstring - applies to EVERY code-writing row above, not only when selected on its own | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |
+| `.py` model, field, ORM method, compute, constraint, wizard | python.md, naming.md, model-ordering.md; security.md when the code uses `sudo`, raw SQL or access checks; `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo profile) |
+| `.xml` view, inherited view, data, report, action, menu | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
+| `.xml` security record (`ir.rule`, groups) and `ir.model.access.csv` | security.md, xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
+| `__manifest__.py`, a new module tree | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
+| A `_()` call or a `.po` entry | python.md (translation section), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
+| `.js`, an OWL template, an asset bundle entry | javascript.md, module-structure.md, `../javascript-coding-guidelines.md` |
+| `.scss` | scss.md |
+| A test (`tests/*.py`, `static/tests/*`, a tour) | tests.md, plus the row of the language the test is written in |
+| Any comment or docstring, in every row above | `${CLAUDE_PLUGIN_ROOT}/snippets/code-comment-contract.md` (governs over the "document your code" line in python.md) |

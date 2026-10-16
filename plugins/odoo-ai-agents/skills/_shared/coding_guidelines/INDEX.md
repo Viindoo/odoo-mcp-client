@@ -10,8 +10,8 @@ Per-version, self-contained extraction of the official Odoo coding guidelines
    `${CLAUDE_PLUGIN_ROOT}/snippets/project-facts-resolution.md`. This is a
    precondition, not optional - if the series cannot be resolved, stop and resolve it first.
 2. **Open the matching version index:** `<version>/INDEX.md` (e.g. `17.0/INDEX.md`).
-3. **Read the topic files relevant to the task BEFORE writing any code.** The version index has a
-   "By task" map that points to the right files. Write code that conforms to those rules on the
+3. **Read the files for every FILE TYPE you will write BEFORE writing any code.** The version
+   index has a "By file type" table that names them; the table is the gate, not a suggestion. Write code that conforms to those rules on the
    first pass - do not write first and fix against a checklist afterwards.
 
 There is no cross-version inheritance here: each `<version>/` directory contains the COMPLETE rule
@@ -35,7 +35,7 @@ the backend coder agent (`_columns`/`cr, uid` for v8-v9, `@api.multi` for v10-v1
 
 ## Each version directory contains
 
-- `INDEX.md` - the version's table of contents + "By task" lookup
+- `INDEX.md` - the version's table of contents + "By file type" lookup
 - `module-structure.md` - directory layout, file naming, manifest
 - `python.md` - imports, idioms, ORM programming, translations
 - `security.md` - secure-coding pitfalls (sudo, SQL injection, XSS/t-raw, safe_eval, domain injection)
@@ -44,6 +44,7 @@ the backend coder agent (`_columns`/`cr, uid` for v8-v9, `@api.multi` for v10-v1
 - `xml.md` - record/field format, XML-ID naming, view inheritance
 - `javascript.md` - version-specific JS/OWL stub (static file layout, class-case rule); points to the canonical detail file below
 - `scss.md` - SCSS/CSS conventions
+- `tests.md` - test classes, Form, HttpCase and tours, JS test runner, demo data in tests
 
 One file lives at the root of `coding_guidelines/` and is shared across all versions:
 
@@ -71,7 +72,7 @@ files up front.
 ## Snippets catalog
 
 The per-version topic files are verbatim RST extractions - not edited for rules beyond upstream.
-Extra rules live in shared snippets. Read `<version>/INDEX.md` FIRST, then follow its "By task"
+Extra rules live in shared snippets. Read `<version>/INDEX.md` FIRST, then follow its "By file type"
 map to load only the snippets that apply to your task.
 
 | Snippet | Read when | Scope |

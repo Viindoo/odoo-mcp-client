@@ -258,7 +258,7 @@ case "${_domain}" in
     # anchor - a domain-bucket match alone (e.g. a non-Odoo "visual design" or "version" prompt)
     # is not proof this is an Odoo task.
     if [ "${_odoo_anchor}" = "true" ] && [ "${_osm_wired}" = "true" ]; then
-      _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
+      _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup for every module OUTSIDE the worktree you edit; a module inside that worktree (edited, new, renamed, or with a changed depends) is read from disk, not from the index. Do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
       _osm_r2="[Tip] For an engineering task, planning enters Plan Mode for you before any file is changed."
       _blocks+=("${_osm_r1}" "${_osm_r2}")
     fi

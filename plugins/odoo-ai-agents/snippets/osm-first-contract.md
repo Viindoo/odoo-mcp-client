@@ -37,17 +37,28 @@ OSM call OR a direct source read - never asserted from memory:
   cover (`grounded: hybrid`). An index miss is not proof of
   absence when a local repo is available to check - and, per the next rule, an index
   HIT is not proof that what you read is what the tree under review contains.
-- **Presence in the index is not currency with the TREE UNDER REVIEW.** OSM indexes repos at a
-  BRANCH and reports no SHA, so its copy cannot hold an unpushed commit, an uncommitted edit, or
-  the change you are reviewing - and you cannot ask which revision answered. A third axis, distinct
-  from absence (above) and deprecation (§ Existence is not currency): the entity resolves, the
-  answer is well-formed, and it describes a different revision. When the target names a WORKTREE,
-  branch or diff, that tree is authoritative for a file's CONTENT; read it before asserting what
-  the code says, and read a disagreement as the index lagging, never as a finding. Structure
-  (inheritance, override points, dep closure, ORM-path validity) stays PRIMARY - only currency
-  moves. Twice in one review this went unnoticed until someone happened to look: a method body that
-  differed would have been raised as a false CRITICAL, and a coverage audit returned a field name
-  the diff had already renamed.
+- **The tree under edit is the truth for every module in it.** OSM indexes repos at a BRANCH and
+  reports no SHA, so its copy cannot hold an unpushed commit, an uncommitted edit, or the change
+  you are writing or reviewing. Define `W` = the modules whose directory is in the run's worktree
+  and that the diff touches, plus every module the run creates or renames. Answer each question by
+  its subject, with the table below; write the source of every recorded fact as `worktree` or
+  `index`. When OSM and the disk disagree about a module in `W`, the disk is right and it is not
+  a finding; when they disagree about a module outside `W`, the index lags the branch: record
+  `UNKNOWN` and read the checkout when one is available. A behavior observed on an instance
+  built from the worktree outranks both.
+
+  | Question | Subject in `W` | Subject outside `W` |
+  |---|---|---|
+  | Module exists, technical name, `installable` | read the manifest on disk; `check_module_exists` carries no weight | `check_module_exists`, then disk on a MISS |
+  | `depends` and the upstream closure | read the manifest on disk, recursively: modules in `W` from disk, modules outside `W` with `module_inspect` (`dependencies`); never `validate_depends` for an edge that starts in `W` | `module_inspect` (`dependencies`), `validate_depends` |
+  | Fields, methods, views, ACL, record rules, data of the module | read the files on disk; OSM only for the indexed baseline, labelled `baseline` | `model_inspect`, `entity_lookup`, `module_inspect` |
+  | Override chain and `super()` position of a method the change touches | `find_override_point` for the part outside `W` plus the overrides on disk in `W`; you assemble the chain and record both sources | `find_override_point` |
+  | Dependents (downstream) | `impact_analysis` is a lower bound labelled `index`, plus a grep of every manifest in the repo for `depends` naming the module; dependents inside `W` from disk | `impact_analysis`, plus the manifest grep when the repo is available |
+  | Module that owns a symbol (the modularity check) | symbol defined in a module in `W`: disk; otherwise `entity_lookup` | `entity_lookup` |
+  | Validity of a domain, relation or ORM path through a new or changed field | not `validate_domain`, `validate_relation`, `resolve_orm_chain`; check against the definitions on disk and by a test on an instance | `validate_domain`, `validate_relation`, `resolve_orm_chain` |
+  | Tests that guard a symbol | `tests_covering` is a lower bound labelled `index`, plus a grep of `tests/` on disk in the module and its dependents | `tests_covering`, `test_coverage_audit` |
+  | Field labels, translatable strings, msgids | `.po`, `.pot` and the source on disk | OSM |
+  | Deprecated API, canonical patterns, examples, series conventions | `find_deprecated_usage`, `suggest_pattern`, `find_examples`, `lookup_core_api` (independent of `W`) | the same |
 
 An unverifiable claim is flagged as an assumption, not stated as fact.
 

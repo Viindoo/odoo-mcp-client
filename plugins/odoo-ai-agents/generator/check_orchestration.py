@@ -2012,6 +2012,10 @@ def check_version_claim(findings: list[str], advisory_findings: list[str]) -> No
             rel_to_plugin = path.relative_to(PLUGIN_ROOT)
         except ValueError:
             rel_to_plugin = None
+        # exemption 5: the per-series coding guidelines ARE the boundary SSOT for every
+        # series-dependent rule, so a version value inside them is a definition, not a claim.
+        if rel_to_plugin is not None and str(rel_to_plugin).startswith(CODING_GUIDELINES_ROOT + "/"):
+            continue
         if rel_to_plugin is not None and rel_to_plugin.parts[0] == "workflows":   # exemption 3
             continue
         for unit, unit_lines in _file_units(path):
