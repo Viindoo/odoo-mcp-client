@@ -49,7 +49,9 @@
 #                 resolve_project_dir_isolate  # prints the absolute ISOLATE dir
 #                 resolve_project_dir_share   "<abs-root>"  # resolve AS IF cwd were <abs-root>
 #                 resolve_project_dir_isolate "<abs-root>"  # same, ISOLATE
+#                 resolve_project_dir_worktree "<name>" ["<abs-root>"]  # <SHARE>/worktrees/<name>/src
 #   Runnable:     bash resolve_project_dir.sh [--root <abs-path>] share|isolate
+#                 bash resolve_project_dir.sh [--root <abs-path>] worktree <name>
 #                 (prints ONE absolute path on stdout; exit 0, or non-zero +
 #                 stderr diagnostic on failure)
 #
@@ -198,14 +200,36 @@ _project_dir_repo_key() {
     _project_dir_hash12 "$real"
 }
 
-# wt-key: sha256(realpath(git rev-parse --show-toplevel))[:12]. Falls back to
+# A worktree NAME an agent may pick for a new checkout (mirrors paths.py
+# _WORKTREE_NAME_RE exactly): one alnum, then up to 79 of [A-Za-z0-9._-],
+# and never "..".
+_project_dir_valid_worktree_name() {
+    local name="$1"
+    case "$name" in
+        *..*) return 1 ;;
+    esac
+    printf '%s' "$name" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$'
+}
+
+# wt-key: sha256(realpath(git rev-parse --show-toplevel))[:12]. A checkout
+# that lives at <share>/worktrees/<name>/src (the WORKTREE axis) keys on
+# <name> instead, so its ISOLATE dir is the parent of its src. Falls back to
 # the SAME non-git marker key as the repo-key (no git means no distinct
-# worktree concept - one project IS one worktree).
+# worktree concept - one project IS one worktree). $1 = the SHARE dir.
 _project_dir_wt_key() {
-    local top real
+    local share="${1:-}" top real base parent name
     top="$(git rev-parse --show-toplevel 2>/dev/null)" || { _project_dir_nongit_key; return; }
     real="$(_project_dir_realpath_dir "$top")" || return 1
     [ -n "$real" ] || return 1
+    if [ -n "$share" ] && [ "$(basename "$real")" = "src" ]; then
+        base="$(_project_dir_realpath_dir "$share")/worktrees"
+        parent="$(dirname "$real")"
+        name="$(basename "$parent")"
+        if [ "$(dirname "$parent")" = "$base" ] && _project_dir_valid_worktree_name "$name"; then
+            printf '%s\n' "$name"
+            return 0
+        fi
+    fi
     _project_dir_hash12 "$real"
 }
 
@@ -265,13 +289,29 @@ resolve_project_dir_isolate() {
     fi
     local share key dir
     share="$(resolve_project_dir_share)" || return 1
-    key="$(_project_dir_wt_key)" || {
+    key="$(_project_dir_wt_key "$share")" || {
         printf 'resolve_project_dir: not inside a git repo and no project marker (__manifest__.py, __openerp__.py, or .odoo-ai-root) found walking up from %s. Set $ODOO_AI_WORKTREE_DIR to an explicit absolute path.\n' "$PWD" >&2
         return 1
     }
     dir="${share%/}/worktrees/${key}"
     mkdir -p "$dir" || return 1
     printf '%s\n' "$dir"
+}
+
+# Echo where a NEW git worktree named $1 is checked out:
+# <SHARE>/worktrees/<name>/src. Creates the parent (that worktree's own
+# ISOLATE dir), never `src` itself - `git worktree add` owns that. $2 = an
+# optional root to resolve as if the cwd were there.
+resolve_project_dir_worktree() {
+    local name="${1:-}" root="${2:-}" share parent
+    if ! _project_dir_valid_worktree_name "$name"; then
+        printf 'resolve_project_dir: worktree name must match [A-Za-z0-9][A-Za-z0-9._-]{0,79}: %s\n' "$name" >&2
+        return 1
+    fi
+    share="$(resolve_project_dir_share "$root")" || return 1
+    parent="${share%/}/worktrees/${name}"
+    mkdir -p "$parent" || return 1
+    printf '%s/src\n' "$parent"
 }
 
 # ---------------------------------------------------------------------------
@@ -289,10 +329,17 @@ if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
         shift 2
     fi
     case "${1:-}" in
-        share)   resolve_project_dir_share "$_rpd_root" ;;
-        isolate) resolve_project_dir_isolate "$_rpd_root" ;;
+        share)    resolve_project_dir_share "$_rpd_root" ;;
+        isolate)  resolve_project_dir_isolate "$_rpd_root" ;;
+        worktree)
+            if [ $# -ne 2 ]; then
+                printf 'Usage: resolve_project_dir.sh [--root <abs-path>] worktree <name>\n' >&2
+                exit 2
+            fi
+            resolve_project_dir_worktree "$2" "$_rpd_root"
+            ;;
         *)
-            printf 'Usage: resolve_project_dir.sh [--root <abs-path>] share|isolate\n' >&2
+            printf 'Usage: resolve_project_dir.sh [--root <abs-path>] share|isolate | worktree <name>\n' >&2
             exit 2
             ;;
     esac

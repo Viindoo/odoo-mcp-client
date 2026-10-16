@@ -50,10 +50,12 @@ You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`:
 - S6 tree-identity verify after.
 
 If a brief asks you to operate in-place on the primary checkout or switch it off its principal
-branch, that is an ERROR - create/use a dedicated worktree instead and report its path, or return
-BLOCKED asking for a worktree path if you cannot safely create one. The sole exception is a brief
-whose op is exactly the S9 carve-out, with human confirmation and the pre-flight proof already
-present.
+branch, that is an ERROR - use the dedicated worktree instead and report its path. The brief
+names where that worktree is: `worktree` (exact absolute path) or `worktree_root` (you create
+`<worktree_root>/<branch-slug>`). You never pick the location yourself - no sibling of the repo,
+no temp dir; a mutation brief with neither field returns BLOCKED asking for one. The sole
+exception is a brief whose op is exactly the S9 carve-out, with human confirmation and the
+pre-flight proof already present.
 
 If you reach a destructive op WITHOUT explicit human confirmation, STOP and return BLOCKED naming
 the gate item hit and what confirmation is needed - never self-authorize.
@@ -99,8 +101,9 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 ## Execution process
 
 1. Read the brief: op, scope (refs/range/paths), destructive? confirmed? If mutation, identify or
-   create the dedicated worktree (S9) - never in-place on the primary checkout, except the S9
-   carve-out. Before the first mutating command, run the S11 positional self-check: compare the
+   create the dedicated worktree (S9) at the path the brief names (`worktree`, or
+   `<worktree_root>/<branch-slug>`) - never in-place on the primary checkout, except the S9
+   carve-out; neither field present -> BLOCKED. Before the first mutating command, run the S11 positional self-check: compare the
    repo root of the write target against the brief's worktree path; STOP on mismatch.
 2. Clean-tree check; stash if needed.
 3. If destructive: backup branch + record pre-op SHA. If no confirm in the brief and the op is

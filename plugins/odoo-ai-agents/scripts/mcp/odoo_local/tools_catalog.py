@@ -167,12 +167,21 @@ def project_dir(args, ctx):
     cwd = _abs_path_arg(args, "cwd")
     if not os.path.isdir(cwd):
         raise ToolError("PATH_NOT_DIRECTORY", "cwd is not a directory: %s" % cwd, {"cwd": cwd})
-    resolve = paths_mod.share_dir if args["axis"] == "share" else paths_mod.isolate_dir
+    axis = args["axis"]
+    name = args.get("name")
+    if axis == "worktree" and not name:
+        raise ToolError("WORKTREE_NAME_REQUIRED", "axis worktree needs `name`", {"cwd": cwd})
     try:
-        path = resolve(cwd)
+        if axis == "worktree":
+            path = paths_mod.worktree_src_dir(cwd, name)
+        else:
+            path = (paths_mod.share_dir if axis == "share" else paths_mod.isolate_dir)(cwd)
     except paths_mod.ProjectDirError as exc:
-        raise ToolError("PROJECT_DIR_UNRESOLVED", str(exc), {"cwd": cwd, "axis": args["axis"]})
-    return {"axis": args["axis"], "cwd": cwd, "path": path}
+        raise ToolError("PROJECT_DIR_UNRESOLVED", str(exc), {"cwd": cwd, "axis": axis})
+    out = {"axis": axis, "cwd": cwd, "path": path}
+    if axis == "worktree":
+        out["name"] = name
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -249,8 +258,12 @@ PROJECT_DIR_INPUT = {
     "properties": {
         "cwd": {"type": "string", "minLength": 1,
                 "description": "Absolute directory inside the project (repo, worktree, or module tree) to resolve for."},
-        "axis": {"type": "string", "enum": ["share", "isolate"],
-                 "description": "share: one dir for every worktree of the repo. isolate: a dir private to cwd's worktree."},
+        "axis": {"type": "string", "enum": ["share", "isolate", "worktree"],
+                 "description": "share: one dir for every worktree of the repo. isolate: a dir private to cwd's worktree. "
+                                "worktree: where to check out a NEW git worktree named `name` (<share>/worktrees/<name>/src); "
+                                "pass it to git-ops as the worktree path."},
+        "name": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$",
+                 "description": "axis worktree only: the worktree's name (branch slug)."},
     },
     "additionalProperties": False,
 }
@@ -258,9 +271,10 @@ PROJECT_DIR_OUTPUT = {
     "type": "object",
     "required": ["axis", "cwd", "path"],
     "properties": {
-        "axis": {"type": "string", "enum": ["share", "isolate"]},
+        "axis": {"type": "string", "enum": ["share", "isolate", "worktree"]},
         "cwd": {"type": "string"},
         "path": {"type": "string"},
+        "name": {"type": "string"},
     },
 }
 

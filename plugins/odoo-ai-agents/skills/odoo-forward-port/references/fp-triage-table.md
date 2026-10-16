@@ -68,31 +68,30 @@ Constraints:
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
 > See [[fp-installable-false]] for the full lint-only lane specification.
 
-Code adapt WRITES production code on the target platform. Its tier comes from the `odoo-coding`
-step 5 table (SSOT - read it there; it is not restated or forked here). Only the
+Code adapt WRITES production code on the target platform. Its tier comes from
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection (5.1 checklist, 5.2 opus conditions) - read it there; it is not restated here. Only the
 forward-port-specific rules follow:
 
 - A bucket (a)/(d) commit needs no adapt code - only the test forward - so it lands at **haiku**
   even if the source commit was opus-grade.
-- Every other commit takes the `odoo-coding` step 5 tier for its work-item. Size, file count, LOC
+- Every other commit takes the tier the guard resolves for its adapt unit. Size, file count, LOC
   and module count alone never raise it.
 
 Constraints:
 - **fable is never a default and ALWAYS needs explicit human confirmation** (about 2x the price of
-  the tier below). When the `odoo-coding` table resolves a work-item to fable, the P4 plan gate must
+  the tier below). When the guard resolves an adapt unit to fable, the P4 plan gate must
   call out the TRADEOFF on its own line in plain words, never by tier name - which module, why it
   needs the deepest reasoning, the cost - with the reply set `approve / skip / cancel`. On `skip`,
-  downgrade that work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`.
+  downgrade that adapt unit to **opus** and record `<m>: opus (fable declined)` in `plan.md`.
   Fable-grade work with no approved design doc -> recommend `odoo-solution-design` first.
-- **Suppressed-gate auto-downgrade** (same pattern `odoo-coding` already uses for its own fable
-  gate, reused here, not re-derived): when the P4 Plan Mode gate itself is suppressed (an
+- **Suppressed-gate auto-downgrade**: when the P4 Plan Mode gate itself is suppressed (an
   active `run-<id>` node or a `WORKTREE_PATH` dispatched-node context with no interactive human
-  available), no inline human confirmation is possible - if a work-item resolves to **fable**,
+  available), no inline human confirmation is possible - if a adapt unit resolves to **fable**,
   AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
   in `plan.md`, in the SAME format as the human-declined downgrade above. The tier is decided HERE,
   at this skill's own P4 plan gate, never left for a later phase's runtime gate to improvise
   (`SKILL.md` § Model triage: "a tier is part of the approved plan, not a runtime improvisation").
-- A fullstack work-item gets ONE tier applied to both legs by default; a lower frontend tier is
+- A full-stack adapt unit gets ONE tier applied to both legs by default; a lower frontend tier is
   allowed when the design splits effort, never a higher one.
 
 ---

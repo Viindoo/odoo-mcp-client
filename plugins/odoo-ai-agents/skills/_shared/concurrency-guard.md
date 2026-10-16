@@ -35,47 +35,75 @@ case (2 opus) sits within budget.
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.
 
-## Model-tier selection - the kind of work drives the tier (SSOT)
+## Model-tier selection - the kind of reasoning drives the tier (SSOT)
 
-Mode B caps how many run at once; THIS decides each launch's tier. Every launch - plugin agent or
-built-in (Explore, general-purpose), from the main agent or any skill/agent - sets `model`
-explicitly from the KIND of work and the judgement it needs. Context size is never a reason to
-raise a tier or to split work (split only for parallelism, isolation or a clean caller context);
-size, file/line/module count and blast radius alone never move a coding or analysis tier - the
-DOMAIN's difficulty does (a plan is the exception: its length and breadth count - opus row).
-Start at the lowest tier that fits; on BLOCKED, low confidence or a failed own gate, re-dispatch
-ONCE one tier up.
+Every launch passes `model` explicitly. Pick the LOWEST tier whose row matches the kind of
+reasoning the work needs. Size is never an input: module count, file count, line count and blast
+radius do not move a tier.
 
 | tier | pick when the work is |
 |------|-----------------------|
-| **haiku** | finding and gathering: lookup/search/listing over code, OSM (multi-tool is fine), git, GitHub, web; instance build/serve/test/log watching; mechanical edits, moves, lint fixes; code whose scope and business rules a design, plan or brief already states; scoping, classifying, validating; a verdict resting on OSM evidence |
-| **sonnet** (default when unsure) | judgement: code whose rule must be inferred; root-cause debugging; review; analysis; synthesis (reports, research); coordination; git history rewrite, squash, conflict resolution; a small plan with a narrow blast radius; tests with a break-check; translation (it must read context - "Sun" the star or the day?); customer-facing content; the last safety gate before an irreversible step |
-| **opus** | solution design; a long, complex plan; judgement or synthesis in a complex specialist, legal, accounting or regulatory domain (compliance-risk translation terms included); cross-cutting judgement across MULTIPLE hard domains AND many interacting modules together, e.g. a core create/write/unlink override many dependents rely on (`odoo-coding` § Phase 0 refines this row); the step after an evidenced sonnet failure |
-| **fable** | ultra-complex, design-first, rare (Custom-XL subsystem, an inheritance axis changed across modules); ALWAYS explicit human confirmation, never a default |
+| **haiku** | mechanical, or a rule already stated: find and gather over code, OSM, git, GitHub, web; instance build, serve, test, log; CI polling; renames and list-driven deletions; recon; a build node whose design block passes the 5.1 checklist; review mode `R1`; acceptance modes `A1`, `A2`; comparing observed values with stated expected values |
+| **sonnet** (default when unsure) | a rule must be inferred or judged: a build node that fails one 5.1 item; review `R2`; debugging to a root cause; plan execution and coordination; translation; writing for a human reader; planning |
+| **opus** | design (SRS and design session); any unit whose `business_function` is on the specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md`; a node that meets 5.2; review `R3`; the one retry a tier up after an evidenced sonnet failure |
+| **fable** | a design that changes an inheritance axis across two or more modules; never a default; always explicit human confirmation |
 
-A skill MAY add a domain table refining these rows (e.g. `odoo-coding` § Phase 0) but never
-restates this section. **Where a model choice lives:** an agent reads its own body only AFTER it
-was launched, so an agent body never says which model it runs at - the choice lives in its
-frontmatter `model:` (default), here, or in the skill/agent that CALLS it (a spawner picks its
-children's tier by pointing here). **Resolution order:** the launch `model` parameter, then the
-agent's frontmatter `model:`, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the caller's own model.
+### 5.1 Haiku checklist for a build node
 
-**Recon/scouting phase default (mechanism, not just a rule).** Launching a subagent with no
-explicit `model` parameter does not fall back to a neutral default - it INHERITS THE CALLING
-CONTEXT'S OWN MODEL, so in an opus session every unstated dispatch silently runs at opus: never
-leave `model` unstated "to be safe" - silence is not neutral, it is a hidden opus default. A
-recon/scouting phase (enumeration, grounding, collecting known facts: a codebase survey, a
-commit-range triage, a scope/DAG map) is haiku by default, sonnet when it must judge, and MUST
-state its tier at the dispatch site (`DISPATCH MODEL: haiku`, or a named agent whose frontmatter
-resolves it) - never opus or fable by default. Escalating it to opus or fable needs
-a stated justification tied to an opus/fable row above (e.g. "judgement in a regulatory domain" -
-not "this recon covers many files").
+The architect fills it when writing `build_tier_hint`; the launcher checks presence, not quality.
+All six present in the node's design block -> `haiku`. One missing -> `sonnet`. Node meets 5.2 ->
+`opus`.
 
-**The same default binds a directly-invoked leaf skill.** A recon task MAY invoke a read-only leaf
-skill via the Skill tool instead of dispatching a subagent. The Skill tool has no per-call `model`
-parameter - it runs in the INVOKING context's model. If you are haiku/sonnet-tier, invoke it
-directly; if you are opus/fable-tier, wrap the call in a dedicated haiku/sonnet subagent dispatch
-(that subagent invokes the Skill tool) so the recon work runs at the cheap tier.
+1. Every model touched is named and confirmed by OSM, or is a new model with `_name`, `_inherit`,
+   `_description`.
+2. Every new field has a name, a type, its relation target, `required`, and for a compute its
+   `depends` and its rule written as condition -> value.
+3. Every override names the method, the `super()` position, and its rule as condition -> outcome.
+4. Every view change names the parent view xml_id and the xpath or anchor field.
+5. The security groups for ACL rows and record rules are named.
+6. Every acceptance criterion of the node has a comparable expected value.
+
+### 5.2 Opus conditions for a node
+
+Read from the taxonomy and `recon.md`, never judged. Either holds:
+(a) the node's `business_function` is on the specialist list; or
+(b) the node has two or more `business_function` values AND recon records, for a method the node
+changes, an override chain of at least `OVERRIDE_CHAIN_MIN` entries or at least `DEPENDENTS_MIN`
+dependent modules.
+
+`OVERRIDE_CHAIN_MIN = 3`, `DEPENDENTS_MIN = 5` - edit the two numbers here only.
+
+### Escalation
+
+On `BLOCKED`, a `NEEDS_JUDGEMENT` line, or a failed own gate: relaunch ONCE, one tier up, passing
+the previous attempt's artifacts. Never two tiers at once.
+
+### Launch economics - every launcher (main, architect, coder) pays for a launch with its reason
+
+Launch only when at least one holds, and write the letter into the worklog line for the launch:
+(a) independence - a reviewer or tester must not share the author's context;
+(b) real parallelism on disjoint file sets, each part verifiable by its own tests;
+(c) the deliverable exceeds one agent's output budget;
+(d) the work is tool-heavy and mechanical while this context runs at a higher tier;
+(e) this context must stay clean for a later decision.
+None holds -> do the work inline. Follow-up on something an existing agent did (fix a finding,
+verify a fix, a second round, continue after a gate) goes to that agent with `SendMessage`, never
+to a new launch; Explore and Plan agents cannot be resumed.
+
+### Haiku-safe body rules
+
+Every body that can run at haiku: each step has a true-or-false condition; a missing fact is
+written as `UNKNOWN`, never guessed; every claim carries its evidence (an OSM result or
+`file:line`); a step that needs judgement writes `NEEDS_JUDGEMENT` and stops; full output goes to
+a file and the report returns the path plus a short summary; every OSM call passes a concrete
+`odoo_version` and `profile_name`.
+
+### Where a tier is chosen
+
+The launch `model` parameter first, else the agent's frontmatter `model:`, else
+`CLAUDE_CODE_SUBAGENT_MODEL`, else the caller's own model. An agent body never states its own
+tier. A Skill runs in the invoking context's model: a mechanical skill invoked from an opus or
+fable context is wrapped in a haiku or sonnet launch (reason d).
 
 ## OSM session-pin race (`set_active_version` and `set_active_profile`)
 

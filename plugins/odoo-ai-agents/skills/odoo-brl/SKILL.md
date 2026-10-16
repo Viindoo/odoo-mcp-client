@@ -3,7 +3,7 @@ name: odoo-brl
 argument-hint: "[requirements list / RFP]"
 description: >-
   Turn a requirement list of any size into a costed, dependency-ordered plan with RTM export
-model: opus
+model: sonnet
 ---
 
 ## Role
@@ -273,7 +273,7 @@ Then update `checkpoint.json` (LAST write of the chunk so a crash leaves the chu
 **Resume protocol:** On restart, read `checkpoint.json`. Jump to outer loop at `last_completed_chunk + 1`.
 Items already "done" in `per_req` skip all phases. Re-running a chunk is idempotent.
 
-### Phase D - DAG (post-all-chunks; main + optional per-cluster Opus subagent)
+### Phase D - DAG (post-all-chunks; main, optional per-cluster subagent)
 
 Runs ONCE after every chunk completes A+B+C. Reads finished `results.jsonl`, writes `dag.json` +
 `dag.mermaid`, back-fills `dependencies` and `impl_phase`. Never re-runs classification or cost.
@@ -295,19 +295,22 @@ Assign each requirement `cluster_key = (module_family, business_domain)`. Target
 Clusters are never capped or split by size: the pairwise reasoning in D3 stays within one cluster,
 so Phase D scales with the number of clusters, not with the size of the list.
 
-**D3 - Intra-cluster reasoning (Opus, per cluster):**
+**D3 - Intra-cluster reasoning (per cluster):**
 Reason about business-logic + data-flow edges INSIDE each cluster only.
 Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason}]}` JSON).
 
 - Default: reason **inline** in main context, one cluster at a time.
 - Optimization (parallelism only): when there are enough clusters that running them concurrently saves
-  wall-clock time, launch **one Opus subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
+  wall-clock time, launch **one subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
   `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork inherits the
   parent's full context (loaded requirements, cluster JSON, job-id, version pin) and skips the
-  Opus cold-start cost. The cluster JSON snapshot passed by prompt remains the authoritative
+  cold-start cost. The cluster JSON snapshot passed by prompt remains the authoritative
   input for that worker. Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch
-  a fresh Opus `general-purpose` spawn with an explicit brief containing the cluster JSON. Tier C
+  a fresh `general-purpose` spawn with an explicit brief containing the cluster JSON. Tier C
   is always correct; the worklog is always written regardless of tier.
+  Tier per cluster: `sonnet`; `opus` only for a cluster whose `business_domain` is on the
+  specialist list in `${CLAUDE_PLUGIN_ROOT}/snippets/business-taxonomy.md` (SSOT:
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Model-tier selection).
   Fill the cluster subagent's prompt from the caller-side skeleton in
   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` § Universal skeleton (read it by path) plus the target agent's
   family delta; never inline that file verbatim into a hard-leaf brief.
@@ -506,7 +509,7 @@ Banner warning in report. Offer resume when server returns.
 
 **Example 4 - Dependency sequencing + cycle:**
 Prompt: "We have the classified BRL - now give us the implementation order and flag circular dependencies."
-Action: Run Phase D. Module bootstrap, cluster-cut (~12 clusters), intra-cluster Opus
+Action: Run Phase D. Module bootstrap, cluster-cut (~12 clusters), intra-cluster
 reasoning, rule-based inter-cluster edges, Kahn topo-sort. If a cycle is found (e.g. REQ-0042 <-> REQ-0061),
 report it explicitly in GATE E with three resolution options (split / manual / shared-prereq) and still
 emit a partial order + dag.mermaid for the acyclic remainder.
