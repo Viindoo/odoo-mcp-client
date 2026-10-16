@@ -60,7 +60,7 @@ literal `<slug>` token in a path, and never improvise a fresh one per screenshot
 - access-rule effects visible as UI state (a field hidden for a role, a button disabled,
   a view variant shown per group)
 
-Draw these from `## 1. Intent & Business Value` (Expected outcomes / User impact subsections)
+Draw these from the SRS the design header names (`SRS:` path): the roles and their jobs, the outcome, and the acceptance criteria
 and `## 9. Acceptance Criteria` (solution-level and per-module). Ignore server-side, ORM, and
 test-only criteria - those are not observable in the browser.
 
@@ -177,7 +177,7 @@ When the dispatch brief carries `ARTIFACT_DIR` and `ARTIFACT_FILE` (e.g. from od
 Design: `<SHARE_DIR>/designs/<slug>-<date>.md` - Intent: <one line from §1>
 | UI-observable criterion | Source | Visible? | Evidence / gap |
 |-------------------------|--------|----------|----------------|
-| <control / label / path described in §1 or §9> | §1 / §9 solution / §9 module X | yes / partial / no | <screenshot ref or gap> |
+| <control / label / path the SRS describes> | SRS role / SRS criterion, module X | yes / partial / no | <screenshot ref or gap> |
 Verdict: <conforms | N criteria not visible -> FAIL>.
 ```
 

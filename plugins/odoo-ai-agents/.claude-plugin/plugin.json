@@ -17,6 +17,7 @@
     "./agents/odoo-backend-coder.md",
     "./agents/odoo-diff-comparator.md",
     "./agents/odoo-solution-architect.md",
+    "./agents/odoo-impact-recon.md",
     "./agents/odoo-planner.md",
     "./agents/odoo-code-reviewer.md",
     "./agents/odoo-review-scoper.md",

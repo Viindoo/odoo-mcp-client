@@ -122,8 +122,8 @@ grounding workers only, too).
   PASS/WARN/FAIL verdict.
 - The coverage baseline, so a dimension a sibling pass already owns is not re-run.
 - `CHANGED_SET`/`SCOPE_FILES` for diff-scoping (the diff-scoped code reviewer).
-- `ACCEPTANCE` resolves to `DESIGN_DOC` §9 when a design doc exists for this change; otherwise
-  `N/A`.
+- `ACCEPTANCE` resolves to the SRS acceptance criteria (the `SRS` path, or the design header
+  when no SRS was written) when a design exists for this change; otherwise `N/A`.
 
 ### Diff comparator (rebase / upgrade absorption)
 

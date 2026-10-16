@@ -74,8 +74,8 @@ DESIGN_DOC: <SHARE_DIR>/designs/<filename>
 ```
 
 The reviewer uses this to verify UI-observable acceptance criteria (controls visible, workflow
-paths reachable, labels correct, access-rule state reflected in the UI) from §1 (Expected outcomes /
-User impact) and §9 (Acceptance Criteria) of the design document. When no `designs/` directory
+paths reachable, labels correct, access-rule state reflected in the UI) from the SRS the design
+header names (roles and their jobs, outcome, acceptance criteria). When no `designs/` directory
 exists or it is empty, omit the line entirely.
 
 **Master-child mode (index-aware):** If `<SHARE_DIR>/designs/<master-slug>/index.yaml` exists,
