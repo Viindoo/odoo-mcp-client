@@ -145,7 +145,7 @@ before dispatching the `odoo-coding` skill at P8.
 Plan Mode gate is the shared `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` Plan-Mode
 gate (rebase reuses its enter/exit mechanics; see P6); solution-design is UPSTREAM and, when a
 design trigger fires (design-trigger table), its design doc MUST be approved BEFORE the gate for
-that commit/module. NO `odoo-coding` / `odoo-coder` / `odoo-backend-coder` / `odoo-frontend-coder`
+that commit/module. NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder`
 dispatch may happen before the gate. A tiny/mechanical change (design-trigger skip rows) bypasses
 design but STILL passes through the gate. Design is conditional; Plan Mode is not. Because the
 conflict-resolution coder runs DURING the rebase (P8, after P7 starts it), P5 design + P6 Plan
@@ -284,7 +284,7 @@ them all. `odoo-coding`
 owns the node's coder and synthesis (its `odoo-coder`) - including `odoo-frontend-coder`
 for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
-`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a
+`odoo-coder` or `odoo-frontend-coder` agents for conflict resolution. Never leave an auto-merged line referencing a
 renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-invoke git-ops per the
 stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
 semantic bounce -> on-disk --continue). On 3 consecutive BLOCKED returns from git-ops:

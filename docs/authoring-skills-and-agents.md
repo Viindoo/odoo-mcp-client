@@ -125,9 +125,9 @@ incomplete or unreachable. Never invert this. OSM is STATIC (no live records). K
 **Fan-out / model tier.** If a skill dispatches subagents, it must reference
 `skills/_shared/concurrency-guard.md` for the concurrency envelope (Mode A / Mode B) and the
 "Model-tier selection" SSOT (capability map, resolution order, one-tier escalation) rather than
-restating the numbers or the tiers. A skill whose orchestration
-`handoff` is `fork` or `send-message` must document a Tier-C (fresh-spawn) fallback - reference
-`snippets/context-handoff-protocol.md` (`tests/test_chp_hardening.py`).
+restating the numbers or the tiers. A skill that resumes an agent it launched earlier (a fix
+round, a second review) names the agent and sends it the delta with `SendMessage`; it never
+launches a fresh agent for continuation work (launch economics, the same SSOT).
 
 ### Writing the brief a skill hands an agent it dispatches
 
@@ -178,7 +178,7 @@ nobody, which reads exactly like a rule that is covered.
    usually pins BOTH statements and cross-checks them - look for one before calling a restatement
    drift.
 
-Guards: `tests/test_dispatch_brief.py`, and `check_orchestration.py` rule 19 `[brief-knowhow]`.
+Guard: `check_orchestration.py` rule 12 `[brief-fields]` (warn-only) - a dispatch fence must carry every key the agent's registry `brief.required` lists.
 
 ## 4. Agent authoring
 
@@ -194,11 +194,17 @@ contract):
   **second person** ("You are ..."). It contains only what the agent needs to *do the work* -
   role, operating procedure, runtime constraints, output contract.
 
-**Do NOT put a `## When to invoke` heading (or any "when to use me" routing section) in the
-body** - routing belongs in `description`; a routing heading in the body pollutes the system
-prompt with text the running agent cannot act on. Banned by `tests/test_agent_body_convention.py`.
-Genuine runtime constraints (read-only, one SHA per instance, never spawn subagents) belong in the
-role intro or a constraints section of the body, not under a routing heading.
+**Body template.** Every agent body has five parts, in this order, and about 200 lines of
+procedure at most: who you are (one paragraph), `## You receive` (a table of brief fields - the
+registry `agents.<name>.brief` lists the same keys), the steps (each with its input, its action,
+its evidence and its stop condition; a step a haiku reader could take two ways is rewritten), a
+`## Never` list, and the report (the status word first - `DONE`, `NEEDS_NEXT`, `BLOCKED` or
+`NEEDS_CONTEXT` - then the artifact paths, then the Continuation Contract). An agent that works in
+several modes takes `MODE` as its first brief field and keeps one section per mode. No vague
+quantities ("large", "enough", "complex", "when needed") without a closed criterion, and no
+narration of what the file used to say. Routing belongs in `description`, never in a body
+heading; genuine runtime constraints (read-only, never launches an agent) belong in the role intro
+or the `## Never` list.
 
 **No `tools:` allowlist (scoped to `plugins/odoo-ai-agents/agents/`).** Repo convention there:
 agents omit the frontmatter `tools:` key so they inherit the full (drift-proof) tool surface; the
@@ -221,13 +227,13 @@ under any plugin's `agents/` directory. Do not add `permissionMode` to an agent 
 platform lever for this level of control is `.claude/agents/`, outside any plugin. Enforced by
 `tests/test_plugin_agent_ignored_fields.py`.
 
-**Leaf/spawner status is SSOT'd, not just prose.** Every agent's `role` (`leaf` | `spawner` |
-`node-owner`) is declared in `generator/skill_tool_deps.json` `agents.<name>.role` and
-lint-enforced (`check_orchestration.py`'s agent-role pass) - a `role: leaf` agent's body is
-checked for the never-git/never-spawn clause and for any contradicting spawn/git language. The
-body-prose declaration ("You are a HARD LEAF...") stays required regardless; the SSOT does not
-replace it, it guarantees it is present and non-contradictory. This does NOT change the
-`tools:`-free convention above - still no allowlist, still no hard-deny hook.
+**Role is SSOT'd.** Every agent's `role` (`leaf` | `spawner` | `node-owner`) is declared in
+`generator/skill_tool_deps.json` `agents.<name>.role` and lint-checked for presence and enum
+(`check_orchestration.py` rule 8). The hooks enforce what a role may do at runtime: a `spawner`
+never writes production source (`hooks/block-spawner-code-write.sh`); a `leaf` is reminded that
+git mutations route through `git-toolkit:git-ops` (`hooks/remind-delegate.sh`); a `node-owner`
+(`odoo-coder`) writes the source of its own node and may launch at most the sibling agents its
+body names. This does NOT change the `tools:`-free convention above - still no allowlist.
 
 **Where a model choice lives (placement rule).** An agent reads its own body only AFTER it was
 launched with a model, so an agent body never instructs which model IT runs at (no "model
@@ -236,10 +242,6 @@ default), in `skills/_shared/concurrency-guard.md` "Model-tier selection" (the c
 the resolution order), or in the skill/agent that CALLS the agent. A spawner agent picks the model
 of the children it launches, by pointer to that SSOT - never a copied table. Do not hardcode a
 tier rationale in prose; reference the SSOT.
-
-**Handoff = fork requires a Tier-C note.** If an agent or its skill uses `handoff: fork` /
-`send-message`, the consuming skill must document the Tier-C fresh-spawn fallback (see section 3
-and `tests/test_chp_hardening.py`).
 
 **Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
 `snippets/dispatch-brief.md` is the SSOT for how a spawner (main agent, a dispatching skill, or a
@@ -250,9 +252,9 @@ Every spawner skill/agent **reads it BY PATH** while composing a dispatch prompt
 inlined verbatim into a hard-leaf brief** - a leaf has no one to re-brief, so it self-checks
 against only its own family-delta field list instead of the full caller schema. This is the
 opposite direction from `worker-brief.md`, which IS inlined into every leaf because it is
-worker-side behavior the leaf must execute. Every non-git agent body carries a `## Brief
-self-check` section (the LEAF or SPAWNER variant from `dispatch-brief.md`, family-delta based);
-`git-toolkit` agents carry the equivalent contract via that plugin's own
+worker-side behavior the leaf must execute. An agent body names the brief fields it requires in its `## You receive` table and returns
+`NEEDS_CONTEXT(<field>)` when one is missing; `git-toolkit` agents carry the equivalent contract
+via that plugin's own
 `git-nesting-protocol.md` (a cross-plugin boundary - `git-toolkit` cannot depend on
 `odoo-ai-agents`, so its git-specific delta lives there, not in `dispatch-brief.md`).
 
@@ -319,8 +321,8 @@ left above the real size quietly hands the reclaimed bytes back.
 
 ## 7. Confidentiality and style (public repo)
 
-- ASCII hyphen `-` (U+002D) only - no en/em/figure dashes (enforced for several snippets, e.g.
-  `tests/test_chp_hardening.py`).
+- ASCII hyphen `-` (U+002D) only - no en/em/figure dashes (enforced tree-wide by
+  `tests/test_ethos_content.py`).
 - No vault paths, personal emails, absolute `~/.` paths, instance hosts/dbs/keys, or hardcoded
   Odoo version ranges/counts in agent-facing prose. Install the guard once:
   `git config --local core.hooksPath .githooks/`.
@@ -354,8 +356,9 @@ fields.
    **No `## When to invoke`** and no routing section.
 4. Name it as an actor noun (`-er`/`-or`/`-ist`, `odoo-` prefix), different from the dispatching
    skill.
-5. Register it in the plugin's `plugin.json` `agents` array; if it dispatches via `fork`, wire the
-   Tier-C fallback in the consuming skill.
+5. Register it in the plugin's `plugin.json` `agents` array and in `generator/skill_tool_deps.json`
+   (`agents.<name>` with `role`, `brief` and `notes`); name its `MODE` values in the caller's
+   `references/` brief file.
 6. `make gen` (if you touched any SSOT) then run the section-8 gates.
 7. Commit the CHANGELOG `[Unreleased]` entry + your changes via `git-toolkit:git-ops` (DCO sign-off
    applied for you).

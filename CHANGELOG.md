@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-ai-agents` - **haiku-first lifecycle: the plan is the authority and the main agent runs
+  it.** A design session (`odoo-solution-architect`) writes the SRS, launches one read-only
+  `odoo-impact-recon` at haiku and sets a build-tier hint per node; `odoo-planner` (sonnet) names
+  the agent, mode and model of every node and copies a default tail - review R1 (haiku) then R2
+  (sonnet) with R3 (opus) for specialist domains, acceptance in parallel, one merged fix round
+  capped at three, i18n and docs behind `when:` conditions, integrate, monitor, merge. One
+  `odoo-coder` owns each build node end to end (tests first, instance runs through the
+  `odoo-local` tools, `impact-map.md`, commit) and is resumed by SendMessage for fixes. One
+  `odoo-doc-writer` documents a module in three modes; one debugger handles an incident per tier.
+  Coding guidelines are read by file type (`tests.md` per series); a module under edit is read
+  from disk, the index answers for the rest; worktrees live under `$ODOO_AI_HOME/projects`.
+- `odoo-ai-agents` - the `run-harness` driver skill, `odoo-backend-coder`, `odoo-review-scoper`
+  and the six documentation agents are deleted; the orchestration lint keeps only rules that read
+  a closed value; the test suite keeps runtime and structural tests only.
+
 ## [7.6.1] - 2026-10-11
 
 ### Fixed
